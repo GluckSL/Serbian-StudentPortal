@@ -145,7 +145,7 @@
         <div class="ltsd-breakdown" *ngIf="dayCompletion.breakdown">
           <ng-container *ngFor="let entry of (dayCompletion.breakdown | keyvalue)">
             <div
-              *ngIf="entry.key !== 'Modules'"
+              *ngIf="entry.key !== 'modules'"
               class="ltsd-breakdown__chip"
               [class.ltsd-breakdown__chip--done]="entry.value.done >= entry.value.total && entry.value.total > 0">
               <span class="ltsd-breakdown__label">{{ entry.key }}</span>
@@ -157,13 +157,15 @@
         <div *ngIf="dayCompletion.incompleteTasks.length > 0" class="ltsd-tasks">
           <h3 class="ltsd-tasks__title">Incomplete — will be listed in the email</h3>
           <div *ngFor="let task of dayCompletion.incompleteTasks" class="ltsd-task">
-            <div class="ltsd-task__icon ltsd-task__icon--{{ task.kind }}">
-              <mat-icon>{{ taskIcon(task) }}</mat-icon>
-            </div>
-            <div class="ltsd-task__body">
-              <span class="ltsd-task__title">{{ task.title }}</span>
-              <span class="ltsd-task__kind">{{ taskKindLabel(task.kind) }}</span>
-            </div>
+            <ng-container *ngIf="task.kind !== 'module'">
+              <div class="ltsd-task__icon ltsd-task__icon--{{ task.kind }}">
+                <mat-icon>{{ taskIcon(task) }}</mat-icon>
+              </div>
+              <div class="ltsd-task__body">
+                <span class="ltsd-task__title">{{ task.title }}</span>
+                <span class="ltsd-task__kind">{{ taskKindLabel(task.kind) }}</span>
+              </div>
+            </ng-container>
           </div>
         </div>
 

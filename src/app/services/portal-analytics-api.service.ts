@@ -9,6 +9,8 @@ export interface PortalAnalyticsRange {
   cohort?: 'overall' | 'platinum' | 'go';
   batch?: string;
   level?: string;
+  /** When true, students marked as test accounts are included in metrics. */
+  includeTestAccounts?: boolean;
 }
 
 export interface PortalAnalyticsFilterOptions {
@@ -32,6 +34,9 @@ export class PortalAnalyticsApiService {
     }
     if (range.level) {
       p = p.set('level', range.level);
+    }
+    if (range.includeTestAccounts === true) {
+      p = p.set('includeTestAccounts', 'true');
     }
     if (extra) {
       for (const [k, v] of Object.entries(extra)) {

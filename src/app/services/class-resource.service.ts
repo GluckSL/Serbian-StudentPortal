@@ -30,6 +30,65 @@ export class ClassResourceService {
   }
 
   /**
+   * View a class resource. Uses API presigned URL with correct Content-Type.
+   * ZIP/Office files trigger download instead of opening raw XML in the browser.
+   */
+  viewClassResource(r: { _id?: string; fileUrl?: string; originalName?: string; mimeType?: string }): void {
+    const id = r._id != null ? String(r._id) : '';
+    const fallbackUrl = r.fileUrl || '';
+    if (id) {
+      this.http
+        .get<{ success?: boolean; url?: string; mode?: 'inline' | 'download' }>(
+          `${this.base}/view/${id}`,
+          { withCredentials: true }
+        )
+        .subscribe({
+          next: (res) => {
+            if (!res?.url) {
+              this.viewFallback(fallbackUrl, r.originalName, r.mimeType);
+              return;
+            }
+            if (res.mode === 'download') {
+              this.triggerAttachmentDownload(res.url);
+              return;
+            }
+            this.openInBrowser(res.url);
+          },
+          error: () => this.viewFallback(fallbackUrl, r.originalName, r.mimeType)
+        });
+      return;
+    }
+    this.viewFallback(fallbackUrl, r.originalName, r.mimeType);
+  }
+
+  private viewFallback(fileUrl: string, originalName?: string, mimeType?: string): void {
+    if (!fileUrl) return;
+    if (this.shouldDownloadInsteadOfView(originalName, mimeType)) {
+      this.downloadViaFetchOrOpen(fileUrl, originalName || 'download');
+      return;
+    }
+    this.openInBrowser(fileUrl);
+  }
+
+  private shouldDownloadInsteadOfView(originalName?: string, mimeType?: string): boolean {
+    const name = (originalName || '').toLowerCase();
+    const type = (mimeType || '').toLowerCase();
+    if (/\.(zip|docx?|pptx?|xlsx?|rar|7z)$/i.test(name)) return true;
+    if (
+      type.includes('zip') ||
+      type.includes('wordprocessingml') ||
+      type.includes('spreadsheetml') ||
+      type.includes('presentationml') ||
+      type === 'application/msword' ||
+      type === 'application/xml' ||
+      type === 'text/xml'
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Download a class resource. Uses API + S3 presigned URL with Content-Disposition: attachment
    * so the browser saves the file (avoids cross-origin fetch to S3, which usually fails without CORS).
    */

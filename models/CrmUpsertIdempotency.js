@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 const crmUpsertIdempotencySchema = new mongoose.Schema(
   {
     /** Unique client-supplied key (idempotencyKey or requestId). Max length enforced at application layer. */
-    key: { type: String, required: true, unique: true, index: true },
+    key: { type: String, required: true, unique: true },
 
     /** processing | completed | failed */
     status: {

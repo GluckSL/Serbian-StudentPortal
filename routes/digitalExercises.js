@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const DigitalExercise = require('../models/DigitalExercise');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
+const { sanitizeReportedTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const OpenAI = require('openai');
@@ -2562,11 +2563,18 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
     attempt.earnedPoints = earnedPoints;
     attempt.totalPoints = totalPoints;
     attempt.scorePercentage = scorePercentage;
-    attempt.timeSpentSeconds = timeSpentSeconds ?? attempt.timeSpentSeconds ?? 0;
+    attempt.timeSpentSeconds = sanitizeReportedTimeSpentSeconds(
+      attempt,
+      timeSpentSeconds ?? attempt.timeSpentSeconds ?? 0,
+    );
 
     if (allSubmitted) {
       attempt.completedAt = new Date();
       attempt.status = 'completed';
+      attempt.timeSpentSeconds = sanitizeReportedTimeSpentSeconds(
+        attempt,
+        attempt.timeSpentSeconds,
+      );
 
       const completedCount = await ExerciseAttempt.countDocuments({ exerciseId: req.params.id, status: 'completed' });
       const avgResult = await ExerciseAttempt.aggregate([
@@ -2876,9 +2884,12 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     attempt.earnedPoints = earnedPoints;
     attempt.totalPoints = totalPoints;
     attempt.scorePercentage = scorePercentage;
-    attempt.timeSpentSeconds = timeSpentSeconds || 0;
     attempt.completedAt = new Date();
     attempt.status = 'completed';
+    attempt.timeSpentSeconds = sanitizeReportedTimeSpentSeconds(
+      attempt,
+      timeSpentSeconds || 0,
+    );
     await attempt.save();
 
     // Update exercise stats

@@ -5,7 +5,6 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const BatchConfig = require('../models/BatchConfig');
-const LearningModule = require('../models/LearningModule');
 const DigitalExercise = require('../models/DigitalExercise');
 const MeetingLink = require('../models/MeetingLink');
 const ClassRecording = require('../models/ClassRecording');
@@ -14,7 +13,6 @@ const Reminder = require('../models/Reminder');
 const Announcement = require('../models/Announcement');
 const TeacherResource = require('../models/TeacherResource');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
-const StudentProgress = require('../models/StudentProgress');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const GameSet = require('../models/GameSet');
@@ -203,7 +201,6 @@ async function renameBatchAcrossSystem(oldName, newName) {
   }
 
   const arrayBatchModels = [
-    { Model: LearningModule, field: 'targetBatchKeys' },
     { Model: DGModule, field: 'targetBatchKeys' },
     { Model: GameSet, field: 'targetBatchKeys' },
     { Model: SprechenExamModule, field: 'targetBatchKeys' }
@@ -545,9 +542,7 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     // IMPORTANT: classes must be filtered by the requested batch, otherwise teachers can see other batches.
     const batchRegex = new RegExp(`^${escapeRegExp(batchName)}$`, 'i');
-    const [modules, exercises, classes, recordings] = await Promise.all([
-      LearningModule.find({ isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: length } })
-        .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
+    const [exercises, classes, recordings] = await Promise.all([
       DigitalExercise.find({ isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: length } })
         .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
       MeetingLink.find({ batch: batchRegex, courseDay: { $gte: 1, $lte: length }, status: { $ne: 'cancelled' } })
@@ -563,11 +558,8 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     const timeline = {};
     for (let d = 1; d <= length; d++) {
-      timeline[d] = { day: d, modules: [], exercises: [], classes: [], recordings: [] };
+      timeline[d] = { day: d, exercises: [], classes: [], recordings: [] };
     }
-    modules.forEach(m => {
-      if (timeline[m.courseDay]) timeline[m.courseDay].modules.push({ _id: m._id, title: m.title, category: m.category, level: m.level });
-    });
     exercises.forEach(e => {
       if (timeline[e.courseDay]) timeline[e.courseDay].exercises.push({ _id: e._id, title: e.title, category: e.category, level: e.level });
     });
@@ -588,7 +580,7 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     });
 
     const days = Object.values(timeline).filter(
-      d => d.day <= length && (d.modules.length || d.exercises.length || d.classes.length || d.recordings.length || d.day === activeBatchDay)
+      d => d.day <= length && (d.exercises.length || d.classes.length || d.recordings.length || d.day === activeBatchDay)
     );
 
     res.json({
@@ -1134,18 +1126,7 @@ router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TE
         .lean()
     ).map((e) => e._id);
 
-    const modIds = (
-      await LearningModule.find({
-        courseDay: dayNum,
-        isDeleted: { $ne: true },
-        visibleToStudents: true
-      })
-        .select('_id')
-        .lean()
-    ).map((m) => m._id);
-
     let exerciseCompletionPercent = 0;
-    let moduleCompletionPercent = 0;
     const nStud = students.length;
 
     if (exIds.length && nStud) {
@@ -1166,22 +1147,11 @@ router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TE
       exerciseCompletionPercent = Math.round((100 * filled) / (nStud * exIds.length));
     }
 
-    if (modIds.length && nStud) {
-      const done = await StudentProgress.countDocuments({
-        studentId: { $in: studentIds },
-        moduleId: { $in: modIds },
-        status: 'completed'
-      });
-      moduleCompletionPercent = Math.round((100 * done) / (nStud * modIds.length));
-    }
-
     res.json({
       day: dayNum,
       liveClasses,
       exerciseCount: exIds.length,
-      moduleCount: modIds.length,
-      exerciseCompletionPercent,
-      moduleCompletionPercent
+      exerciseCompletionPercent
     });
   } catch (err) {
     console.error('batch-journey GET /:batchName/progress/day/:day', err);
@@ -1426,25 +1396,12 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       isActive: true
     }).select('_id courseDay').lean();
 
-    const modForDays = await LearningModule.find({
-      courseDay: { $gte: 1, $lte: maxDay },
-      isDeleted: { $ne: true },
-      visibleToStudents: true
-    }).select('_id courseDay').lean();
-
     const exercisesByDay = {};
     exForDays.forEach((ex) => {
       const day = ex.courseDay;
       if (!day || !dailyMap[day]) return;
       if (!exercisesByDay[day]) exercisesByDay[day] = [];
       exercisesByDay[day].push(ex._id);
-    });
-    const modulesByDay = {};
-    modForDays.forEach((mo) => {
-      const day = mo.courseDay;
-      if (!day || !dailyMap[day]) return;
-      if (!modulesByDay[day]) modulesByDay[day] = [];
-      modulesByDay[day].push(mo._id);
     });
 
     const allExIds = exForDays.map((e) => e._id);
@@ -1457,23 +1414,11 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       : [];
     const exPairSet = new Set(exAttemptPairs.map((a) => `${String(a.studentId)}|${String(a.exerciseId)}`));
 
-    const allModIds = modForDays.map((m) => m._id);
-    const modProgressDocs = allModIds.length
-      ? await StudentProgress.find({
-        studentId: { $in: studentIds },
-        moduleId: { $in: allModIds },
-        status: 'completed'
-      }).select('studentId moduleId').lean()
-      : [];
-    const modPairSet = new Set(modProgressDocs.map((p) => `${String(p.studentId)}|${String(p.moduleId)}`));
-
     const nStud = students.length;
 
     const daily = Object.values(dailyMap).map((d) => {
       const exIds = exercisesByDay[d.day] || [];
-      const mIds = modulesByDay[d.day] || [];
       let exerciseCompletionPercent = 0;
-      let moduleCompletionPercent = 0;
       let exerciseSlotsFilled = 0;
       const exerciseSlotsTotal = exIds.length * nStud;
       if (exIds.length && nStud) {
@@ -1486,18 +1431,6 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         exerciseSlotsFilled = filled;
         exerciseCompletionPercent = Math.round((100 * filled) / (nStud * exIds.length));
       }
-      let moduleSlotsFilled = 0;
-      const moduleSlotsTotal = mIds.length * nStud;
-      if (mIds.length && nStud) {
-        let mf = 0;
-        for (const sid of studentIds) {
-          for (const mid of mIds) {
-            if (modPairSet.has(`${String(sid)}|${String(mid)}`)) mf += 1;
-          }
-        }
-        moduleSlotsFilled = mf;
-        moduleCompletionPercent = Math.round((100 * mf) / (nStud * mIds.length));
-      }
       const liveUniqueJoined = liveUniqueByDay[d.day] ? liveUniqueByDay[d.day].size : 0;
       return {
         day: d.day,
@@ -1507,13 +1440,9 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         classesAttended: d.classesAttended,
         liveUniqueJoined,
         exerciseCount: exIds.length,
-        moduleCount: mIds.length,
         exerciseCompletionPercent,
-        moduleCompletionPercent,
         exerciseSlotsFilled,
-        exerciseSlotsTotal,
-        moduleSlotsFilled,
-        moduleSlotsTotal
+        exerciseSlotsTotal
       };
     });
 
@@ -1587,17 +1516,12 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
     }
 
     const studentIds = students.map((s) => s._id);
-    const [weekExercises, weekModules, weekMeetings, weekDgModules] = await Promise.all([
+    const [weekExercises, weekMeetings, weekDgModules] = await Promise.all([
       DigitalExercise.find({
         courseDay: { $gte: dayStart, $lte: dayEnd },
         isDeleted: { $ne: true },
         visibleToStudents: true,
         isActive: true
-      }).select('_id title courseDay').lean(),
-      LearningModule.find({
-        courseDay: { $gte: dayStart, $lte: dayEnd },
-        isDeleted: { $ne: true },
-        visibleToStudents: true
       }).select('_id title courseDay').lean(),
       MeetingLink.find({
         batch: batchRegex,
@@ -1612,7 +1536,6 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
     ]);
 
     const exerciseIds = weekExercises.map((e) => e._id);
-    const moduleIds = weekModules.map((m) => m._id);
     const dgModuleIds = weekDgModules.map((m) => m._id);
     const classTotalForWeek = weekMeetings.length;
     const exerciseTotalForWeek = weekExercises.length;
@@ -1624,20 +1547,13 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
     const dgTitleById = {};
     weekDgModules.forEach((m) => { dgTitleById[String(m._id)] = m.title || 'DG Module'; });
 
-    const [exerciseAttempts, moduleProgressDocs, dgSessions] = await Promise.all([
+    const [exerciseAttempts, dgSessions] = await Promise.all([
       exerciseIds.length
         ? ExerciseAttempt.find({
           studentId: { $in: studentIds },
           exerciseId: { $in: exerciseIds },
           status: 'completed'
         }).select('studentId exerciseId scorePercentage').lean()
-        : [],
-      moduleIds.length
-        ? StudentProgress.find({
-          studentId: { $in: studentIds },
-          moduleId: { $in: moduleIds },
-          status: 'completed'
-        }).select('studentId moduleId').lean()
         : [],
       dgModuleIds.length
         ? DGSession.find({
@@ -1663,7 +1579,6 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
         exerciseScoreTotal: 0,
         exerciseScoreCount: 0,
         exerciseTitles: new Set(),
-        modulesCompleted: 0,
         dgBotCompleted: 0,
         dgBotScoreTotal: 0,
         dgBotScoreCount: 0,
@@ -1689,12 +1604,6 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
         byStudent[sid].exerciseScoreTotal += a.scorePercentage;
         byStudent[sid].exerciseScoreCount += 1;
       }
-    });
-
-    moduleProgressDocs.forEach((m) => {
-      const sid = String(m.studentId || '');
-      if (!sid || !byStudent[sid]) return;
-      byStudent[sid].modulesCompleted += 1;
     });
 
     dgSessions.forEach((s) => {
@@ -1730,7 +1639,6 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
         exerciseAvgScore: row.exerciseScoreCount ? Math.round(row.exerciseScoreTotal / row.exerciseScoreCount) : 0,
         attemptedExerciseTitles,
         notAttemptedExerciseTitles,
-        modulesCompleted: row.modulesCompleted,
         dgBotCompleted: row.dgBotCompleted,
         dgBotTotal: dgBotTotalForWeek,
         dgBotAvgScore: row.dgBotScoreCount ? Math.round(row.dgBotScoreTotal / row.dgBotScoreCount) : 0,
@@ -1746,7 +1654,7 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
 });
 
 // ─── GET /api/batch-journey/student/:studentId/full-progress ─────────────────
-// Full detailed progress for one student: exercises + Q&A, modules, live classes, day breakdown
+// Full detailed progress for one student: exercises + Q&A, live classes, day breakdown
 router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -1789,25 +1697,6 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
         isCorrect: r.isCorrect,
         pointsEarned: r.pointsEarned
       }))
-    }));
-
-    // --- Module progress ---
-    const moduleProgress = await StudentProgress.find({ studentId })
-      .populate('moduleId', 'title level category courseDay')
-      .sort({ lastAccessedAt: -1 })
-      .lean();
-
-    const modules = moduleProgress.map(p => ({
-      moduleId: p.moduleId?._id,
-      title: p.moduleId?.title || 'Untitled',
-      level: p.moduleId?.level || null,
-      category: p.moduleId?.category || null,
-      courseDay: p.moduleId?.courseDay || null,
-      status: p.status,
-      progressPercent: p.progressPercentage || 0,
-      exercisesCompleted: p.exercisesCompleted || 0,
-      timeSpent: p.timeSpent || 0,
-      lastAccessedAt: p.lastAccessedAt
     }));
 
     // --- Live classes ---
@@ -1878,7 +1767,6 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
         currentDay: student.currentCourseDay || 1
       },
       exercises,
-      modules,
       liveClasses,
       dayBreakdown
     });

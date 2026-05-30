@@ -865,11 +865,11 @@ export class AiModuleCreatorComponent implements OnInit {
     if (!this.generatedModule) return;
     
     this.learningModulesService.createModule(this.generatedModule).subscribe({
-      next: (response) => {
+      next: (_response: unknown) => {
         this.notify.success('Module saved successfully!');
         this.router.navigate(['/learning-modules']);
       },
-      error: (error) => {
+      error: (error: unknown) => {
         console.error('Error saving module:', error);
         this.notify.error('Failed to save module. Please try again.');
       }

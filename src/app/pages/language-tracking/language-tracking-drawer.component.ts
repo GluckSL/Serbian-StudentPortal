@@ -125,15 +125,17 @@ function fmtDate(iso: string | null | undefined): string {
         <!-- Incomplete tasks -->
         <div *ngIf="detail.dayCompletion.incompleteTasks.length > 0" class="ltd-tasks">
           <h4 class="ltd-tasks__title">Still to complete</h4>
-          <div *ngFor="let task of detail.dayCompletion.incompleteTasks" class="ltd-task">
-            <div class="ltd-task__icon ltd-task__icon--{{ task.kind }}">
-              <mat-icon>{{ taskIcon(task) }}</mat-icon>
+          <ng-container *ngFor="let task of detail.dayCompletion.incompleteTasks">
+            <div *ngIf="task.kind !== 'module'" class="ltd-task">
+              <div class="ltd-task__icon ltd-task__icon--{{ task.kind }}">
+                <mat-icon>{{ taskIcon(task) }}</mat-icon>
+              </div>
+              <div class="ltd-task__body">
+                <span class="ltd-task__title">{{ task.title }}</span>
+                <span class="ltd-task__kind">{{ taskKindLabel(task.kind) }}</span>
+              </div>
             </div>
-            <div class="ltd-task__body">
-              <span class="ltd-task__title">{{ task.title }}</span>
-              <span class="ltd-task__kind">{{ taskKindLabel(task.kind) }}</span>
-            </div>
-          </div>
+          </ng-container>
         </div>
 
         <div *ngIf="detail.dayCompletion.incompleteTasks.length === 0 && detail.dayCompletion.complete"
@@ -279,7 +281,6 @@ export class LanguageTrackingDrawerComponent implements OnInit, OnChanges {
   taskIcon(task: LtIncompleteTask): string {
     const map: Record<string, string> = {
       exercise: 'fitness_center',
-      module: 'school',
       'dg-bot': 'smart_toy',
       class: 'videocam',
       recording: 'play_circle',
@@ -290,7 +291,6 @@ export class LanguageTrackingDrawerComponent implements OnInit, OnChanges {
   taskKindLabel(kind: string): string {
     const map: Record<string, string> = {
       exercise: 'Digital Exercise',
-      module: 'Learning Module',
       'dg-bot': 'DG Bot',
       class: 'Live Class',
       recording: 'Recording',

@@ -8,7 +8,8 @@ const s3Client = require('../config/s3');
 const ClassResource = require('../models/ClassResource');
 const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { presignStoredS3Url, presignS3DownloadUrl } = require('../config/presign');
+const { presignStoredS3Url, presignS3DownloadUrl, presignS3InlineUrl } = require('../config/presign');
+const { resolveContentType, isBrowserPreviewable } = require('../utils/fileMime');
 
 // Allow most resource types (docs, images, audio, video, archives, etc.).
 // Block obvious executable / installer extensions and PE-related MIME types.
@@ -20,7 +21,9 @@ const upload = multer({
   storage: multerS3({
     s3: s3Client,
     bucket: process.env.S3_BUCKET,
-    contentType: multerS3.AUTO_CONTENT_TYPE,
+    contentType: (_req, file, cb) => {
+      cb(null, resolveContentType(file.originalname, file.mimetype));
+    },
     key: (_req, file, cb) => {
       const prefix = process.env.S3_PREFIX || 'uploads';
       cb(null, `${prefix}/class-resources/${Date.now()}_${file.originalname}`);
@@ -91,7 +94,12 @@ router.get('/download/:resourceId', verifyToken, async (req, res) => {
     const resource = await ClassResource.findById(resourceId).lean();
     if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
 
-    const url = await presignS3DownloadUrl(resource.fileName, resource.fileUrl, resource.originalName);
+    const url = await presignS3DownloadUrl(
+      resource.fileName,
+      resource.fileUrl,
+      resource.originalName,
+      resource.mimeType
+    );
     if (!url) {
       return res.status(500).json({ success: false, message: 'Could not build download URL' });
     }
@@ -102,7 +110,41 @@ router.get('/download/:resourceId', verifyToken, async (req, res) => {
   }
 });
 
-// GET /:meetingId  — list resources for a meeting
+// GET /view/:resourceId — inline preview for PDF/images, download for ZIP/Office archives
+router.get('/view/:resourceId', verifyToken, async (req, res) => {
+  try {
+    const { resourceId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(resourceId)) {
+      return res.status(400).json({ success: false, message: 'Invalid resource id' });
+    }
+    const resource = await ClassResource.findById(resourceId).lean();
+    if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    const previewable = isBrowserPreviewable(resource.originalName, resource.mimeType);
+    const url = previewable
+      ? await presignS3InlineUrl(
+          resource.fileName,
+          resource.fileUrl,
+          resource.originalName,
+          resource.mimeType
+        )
+      : await presignS3DownloadUrl(
+          resource.fileName,
+          resource.fileUrl,
+          resource.originalName,
+          resource.mimeType
+        );
+
+    if (!url) {
+      return res.status(500).json({ success: false, message: 'Could not build view URL' });
+    }
+    res.json({ success: true, url, mode: previewable ? 'inline' : 'download' });
+  } catch (err) {
+    console.error('classResources GET /view/:resourceId', err);
+    res.status(500).json({ success: false, message: 'View link failed', error: err.message });
+  }
+});
+
 router.get('/:meetingId', verifyToken, async (req, res) => {
   try {
     const resources = await ClassResource.find({ meetingId: req.params.meetingId })

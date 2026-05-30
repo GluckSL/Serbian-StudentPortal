@@ -74,7 +74,6 @@ const feedbackRoutes = require('./routes/feedback');
 const profilePicUploadRoutes = require('./routes/profile');
 const timeTableRoutes = require('./routes/timeTable');
 const courseMaterialRoutes = require('./routes/courseMaterial');
-const learningModulesRoutes = require('./routes/learningModules');
 const aiTutorRoutes = require('./routes/aiTutor');
 const studentProgressRoutes = require('./routes/studentProgress');
 const aiModuleGeneratorRoutes = require('./routes/aiModuleGenerator');
@@ -277,7 +276,6 @@ app.use('/api/feedback', feedbackRoutes);
 
 app.use('/api/timeTable', timeTableRoutes);
 app.use('/api/courseMaterial', courseMaterialRoutes);
-app.use('/api/learning-modules', learningModulesRoutes);
 app.use('/api/ai-tutor', aiTutorRoutes);
 app.use('/api/student-progress', studentProgressRoutes);
 const adminPerformanceRoutes = require('./routes/adminPerformance');

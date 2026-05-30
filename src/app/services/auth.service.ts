@@ -407,6 +407,21 @@ export class AuthService {
     );
   }
 
+  /** Bulk sign-out: invalidate tokens and require password change on next login. */
+  bulkForcePasswordReset(studentIds: string[]): Observable<{
+    success?: boolean;
+    msg?: string;
+    successCount?: number;
+    failedCount?: number;
+  }> {
+    return this.http.post<{
+      success?: boolean;
+      msg?: string;
+      successCount?: number;
+      failedCount?: number;
+    }>(`${this.apiUrl}/auth/admin/bulk-force-password-reset`, { studentIds });
+  }
+
   // Method to perform authenticated request
   fetchProtectedData(endpoint: string): Observable<any> {
     const token = this.getToken();
