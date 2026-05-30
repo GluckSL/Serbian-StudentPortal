@@ -137,6 +137,25 @@
   max-width: 140px;
 }
 
+.preview-actions-cell {
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.preview-row-editing {
+  background: #f0f7ff;
+}
+
+.preview-edit-input {
+  min-width: 110px;
+  font-size: 11px;
+}
+
+.preview-edit-journey {
+  min-width: 64px;
+  max-width: 72px;
+}
+
 .journey-today-banner {
   border-radius: 10px;
 }
