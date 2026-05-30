@@ -2786,6 +2786,48 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
 
 // ─── POST /admin/force-password-reset/:studentId — logout, OTP email, must set new password ───
 
+async function initiateStudentForcePasswordReset(user) {
+  user.authTokenVersion = (user.authTokenVersion || 0) + 1;
+  user.mustChangePassword = true;
+  await user.save();
+
+  await EmailChangeOtp.deleteMany({ userId: user._id });
+
+  const otp = String(crypto.randomInt(100000, 999999));
+  const otpHash = await bcrypt.hash(otp, await bcrypt.genSalt(10));
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  await EmailChangeOtp.create({
+    userId: user._id,
+    pendingNewEmail: user.email,
+    otpHash,
+    expiresAt,
+  });
+
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const loginUrl = `${frontendUrl}/login`;
+  const { subject, html } = buildForcePasswordResetEmail({
+    name: user.name,
+    regNo: user.regNo,
+    otp,
+    loginUrl,
+    expiresMinutes: 15,
+  });
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: user.email,
+    subject,
+    html,
+  });
+
+  console.log('[admin/force-password-reset] Sent to', user.email, 'regNo', user.regNo);
+
+  const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
+  const displayPassword = await resolveStudentDisplayPassword(user, { listView: true });
+
+  return { displayPassword: displayPassword || null };
+}
+
 router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
   try {
     const user = await User.findById(req.params.studentId);
@@ -2796,52 +2838,68 @@ router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['A
       return res.status(400).json({ msg: 'Password reset can only be triggered for students.' });
     }
 
-    user.authTokenVersion = (user.authTokenVersion || 0) + 1;
-    user.mustChangePassword = true;
-    await user.save();
-
-    await EmailChangeOtp.deleteMany({ userId: user._id });
-
-    const otp = String(crypto.randomInt(100000, 999999));
-    const otpHash = await bcrypt.hash(otp, await bcrypt.genSalt(10));
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    await EmailChangeOtp.create({
-      userId: user._id,
-      pendingNewEmail: user.email,
-      otpHash,
-      expiresAt,
-    });
-
-    const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
-    const loginUrl = `${frontendUrl}/login`;
-    const { subject, html } = buildForcePasswordResetEmail({
-      name: user.name,
-      regNo: user.regNo,
-      otp,
-      loginUrl,
-      expiresMinutes: 15,
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject,
-      html,
-    });
-
-    console.log('[admin/force-password-reset] Sent to', user.email, 'regNo', user.regNo);
-
-    const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
-    const displayPassword = await resolveStudentDisplayPassword(user, { listView: true });
+    const { displayPassword } = await initiateStudentForcePasswordReset(user);
 
     return res.json({
       success: true,
       msg: `Password reset initiated for ${user.name}. They were signed out and emailed a verification code.`,
-      displayPassword: displayPassword || null,
+      displayPassword,
     });
   } catch (err) {
     console.error('[POST /auth/admin/force-password-reset]', err);
     return res.status(500).json({ msg: 'Failed to initiate password reset. Please try again.' });
+  }
+});
+
+router.post('/admin/bulk-force-password-reset', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    const { studentIds } = req.body || {};
+    if (!Array.isArray(studentIds) || !studentIds.length) {
+      return res.status(400).json({ msg: 'Select at least one student.' });
+    }
+
+    const uniqueIds = [...new Set(studentIds.map(String).filter(Boolean))];
+    let successCount = 0;
+    let failedCount = 0;
+    const failures = [];
+
+    for (const id of uniqueIds) {
+      try {
+        const user = await User.findById(id);
+        if (!user) {
+          failedCount++;
+          failures.push({ id, reason: 'Student not found' });
+          continue;
+        }
+        if (user.role !== 'STUDENT') {
+          failedCount++;
+          failures.push({ id, reason: 'Not a student account' });
+          continue;
+        }
+        await initiateStudentForcePasswordReset(user);
+        successCount++;
+      } catch (err) {
+        failedCount++;
+        failures.push({ id, reason: err?.message || 'Failed' });
+      }
+    }
+
+    const msg =
+      successCount === 0
+        ? 'No students were signed out. Please try again.'
+        : `Signed out ${successCount} student(s). They must log in again and change their password.${failedCount ? ` (${failedCount} failed)` : ''}`;
+
+    return res.json({
+      success: successCount > 0,
+      msg,
+      processed: uniqueIds.length,
+      successCount,
+      failedCount,
+      failures: failures.length ? failures : undefined,
+    });
+  } catch (err) {
+    console.error('[POST /auth/admin/bulk-force-password-reset]', err);
+    return res.status(500).json({ msg: 'Failed to expire student sessions. Please try again.' });
   }
 });
 

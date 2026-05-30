@@ -473,6 +473,17 @@
               <button
                 mat-icon-button
                 type="button"
+                class="table-columns-btn table-expire-sessions-btn"
+                [disabled]="getSelectedCount() === 0 || bulkForcingPasswordReset"
+                (click)="bulkForcePasswordReset()"
+                matTooltip="Sign out selected students (expires login) — they must log in again and change password"
+                aria-label="Sign out selected students"
+              >
+                <mat-icon [class.table-expire-spin]="bulkForcingPasswordReset">{{ bulkForcingPasswordReset ? 'sync' : 'logout' }}</mat-icon>
+              </button>
+              <button
+                mat-icon-button
+                type="button"
                 class="table-columns-btn"
                 [matMenuTriggerFor]="studentColMenu"
                 matTooltip="Show or hide columns"

@@ -989,6 +989,7 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   forcingPasswordReset: Record<string, boolean> = {};
+  bulkForcingPasswordReset = false;
 
   forcePasswordReset(student: Student): void {
     this.notify.confirm(
@@ -1009,6 +1010,40 @@ export class AdminDashboardComponent implements OnInit {
         error: (err: any) => {
           this.notify.error(err?.error?.msg || 'Could not initiate password reset');
           this.forcingPasswordReset[student._id] = false;
+        }
+      });
+    });
+  }
+
+  bulkForcePasswordReset(): void {
+    const count = this.getSelectedCount();
+    if (count === 0) {
+      this.notify.warning('Select at least one student from the table.');
+      return;
+    }
+
+    this.notify.confirm(
+      'Sign out selected students',
+      `Expire login for ${count} selected student(s)? They will be signed out immediately and must log in again to change their password. A verification code will be emailed to each student.`,
+      'Yes, sign them out',
+      'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+
+      const studentIds = Array.from(this.selectedStudentIds);
+      this.bulkForcingPasswordReset = true;
+      this.authService.bulkForcePasswordReset(studentIds).subscribe({
+        next: (res) => {
+          if (res?.successCount) {
+            this.notify.success(res.msg || `Signed out ${res.successCount} student(s).`);
+          } else {
+            this.notify.error(res?.msg || 'Could not sign out selected students.');
+          }
+          this.bulkForcingPasswordReset = false;
+        },
+        error: (err: any) => {
+          this.notify.error(err?.error?.msg || 'Could not sign out selected students.');
+          this.bulkForcingPasswordReset = false;
         }
       });
     });

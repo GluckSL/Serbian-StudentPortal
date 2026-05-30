@@ -883,6 +883,32 @@
   background: #e0f2fe !important;
 }
 
+.table-expire-sessions-btn {
+  color: #b45309 !important;
+  background: #fffbeb !important;
+}
+
+.table-expire-sessions-btn:hover:not([disabled]) {
+  background: #fef3c7 !important;
+}
+
+.table-expire-sessions-btn[disabled] {
+  opacity: 0.45;
+}
+
+.table-expire-sessions-btn mat-icon {
+  font-size: 20px;
+}
+
+.table-expire-spin {
+  animation: table-expire-spin 1s linear infinite;
+}
+
+@keyframes table-expire-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .crm-cell {
   font-size: 11px;
   max-width: 200px;
