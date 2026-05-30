@@ -803,6 +803,16 @@ export class MyCourseComponent implements OnInit {
     this.router.navigate(['/digital-exercises', ex._id, 'play']);
   }
 
+  openModule(mod: { _id?: string }): void {
+    if (!mod?._id) return;
+    this.router.navigate(['/ai-tutor', mod._id]);
+  }
+
+  getModuleHoverDetails(mod: { title?: string; level?: string; category?: string; studentProgress?: { status?: string } }): string {
+    const status = mod.studentProgress?.status === 'completed' ? 'Completed' : 'Not completed';
+    return `${mod.title || 'Module'} · ${mod.level || 'Level N/A'} · ${mod.category || 'General'} · ${status}`;
+  }
+
   openGameSet(set: GameSet): void {
     if (!set?._id) return;
     this.router.navigate(['/glueck-arena', set._id]);
