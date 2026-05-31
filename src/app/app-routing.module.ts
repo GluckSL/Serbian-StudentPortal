@@ -227,6 +227,7 @@ export const routes: Routes = [
   { path: 'student-payments', redirectTo: 'my-payments', pathMatch: 'full' },
 
   { path: 'performance-history', loadComponent: () => import('./components/student-dashboard/performance-history.component').then(m => m.PerformanceHistoryComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  { path: 'new-performance-history', loadComponent: () => import('./components/student-dashboard/new-performance-history/new-performance-history.component').then(m => m.NewPerformanceHistoryComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
   // Student Documents route
   { path: 'student-documents', loadComponent: () => import('./components/student-dashboard/student-documents/student-documents.component').then(m => m.StudentDocumentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },

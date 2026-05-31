@@ -12,10 +12,12 @@ const { computeAdminProgressMetrics } = require('../utils/studentProgressMetrics
 const DocumentRequirement = require('../models/DocumentRequirement');
 const StudentDocument = require('../models/StudentDocument');
 const DigitalExercise = require('../models/DigitalExercise');
+const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const MeetingLink = require('../models/MeetingLink');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { BATCH_TYPE_NEW, normalizeBatchType } = require('../utils/batchType');
 const {
   normalizeBlockedJourneyLevels,
@@ -565,6 +567,259 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
   } catch (error) {
     console.error('Error fetching student journey:', error);
     res.status(500).json({ message: 'Error fetching journey data' });
+  }
+});
+
+// ─── GET /api/student-progress/performance-summary ─────────────────────
+// Student-facing aggregated data for the new performance-history page
+router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (req, res) => {
+  try {
+    const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const studentId = req.user.id;
+
+    const student = await User.findById(studentId)
+      .select('name email regNo level batch currentCourseDay')
+      .lean();
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    const currentDay = student.currentCourseDay || 1;
+
+    const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
+    const minDay = range === 'weekly' ? Math.max(1, currentDay - 6) : 1;
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const attempts = await ExerciseAttempt.find({ studentId, status: 'completed' })
+      .populate('exerciseId', 'title courseDay category level')
+      .sort({ completedAt: 1 })
+      .lean();
+    const exercisesWithData = attempts.filter(a => {
+      if (!a.exerciseId) return false;
+      if (!a.exerciseId?.courseDay) return range === 'overall';
+      return a.exerciseId.courseDay >= minDay;
+    });
+
+    const journeyKeys = allStudentBatchStringsForContent(student);
+    const meetings = journeyKeys.length
+      ? await MeetingLink.find({
+          $or: journeyKeys.map(k => ({ batch: new RegExp(`^${escapeRegExp(k)}$`, 'i') })),
+          status: { $ne: 'cancelled' }
+        }).select('topic startTime duration courseDay attendance status').lean()
+      : [];
+    const filteredMeetings = meetings.filter(m => {
+      if (!m.courseDay) return range === 'overall';
+      return m.courseDay >= minDay;
+    });
+
+    const sessions = await SessionRecord.find({ studentId })
+      .populate('moduleId', 'title level category courseDay')
+      .sort({ createdAt: -1 })
+      .lean();
+    const filteredSessions = range === 'overall'
+      ? sessions
+      : sessions.filter(s => new Date(s.createdAt).getTime() >= weekAgo.getTime());
+
+    const studentOid = new mongoose.Types.ObjectId(studentId);
+    const completedDgModuleIds = await DGSession.distinct('moduleId', {
+      studentId: studentOid, completed: true
+    });
+    const dgBotCompleted = completedDgModuleIds.length;
+    const dgBotTotal = await DGModule.countDocuments({
+      isActive: true, visibleToStudents: true,
+      courseDay: { $lte: currentDay, $gte: 1 }
+    });
+    const dgModulesList = await DGModule.find({
+      isActive: true, visibleToStudents: true,
+      courseDay: { $lte: currentDay, $gte: 1 }
+    }).select('title level courseDay').lean();
+    const completedSet = new Set(completedDgModuleIds.map(id => String(id)));
+    const dgBotModules = dgModulesList.map(m => ({
+      moduleId: m._id, title: m.title, level: m.level,
+      courseDay: m.courseDay,
+      completed: completedSet.has(String(m._id))
+    }));
+
+    const exerciseTotal = await DigitalExercise.countDocuments({
+      level: student.level, isActive: true, visibleToStudents: true,
+      isDeleted: { $ne: true },
+      courseDay: { $lte: currentDay, $gte: 1 }
+    });
+
+    const exerciseCompleted = exercisesWithData.length;
+    const exercisePct = exerciseTotal
+      ? Math.round((exerciseCompleted / exerciseTotal) * 100)
+      : (exerciseCompleted ? 100 : 0);
+
+    const now = new Date();
+    const endedMeetings = filteredMeetings.filter(m => {
+      if (m.status === 'ended') return true;
+      if (m.status === 'cancelled') return false;
+      const meetingEnd = new Date(m.startTime).getTime() + (m.duration || 0) * 60000;
+      return meetingEnd < now.getTime();
+    });
+    const classTotal = endedMeetings.length;
+    const classAttended = endedMeetings.filter(m =>
+      (m.attendance || []).some(a => String(a.studentId || a.userId) === String(studentId) && a.attended)
+    ).length;
+    const classPct = classTotal ? Math.round((classAttended / classTotal) * 100) : 0;
+
+    const dgBotPct = dgBotTotal ? Math.round((dgBotCompleted / dgBotTotal) * 100) : 0;
+
+    const sessionCount = filteredSessions.length;
+    const allScores = [
+      ...exercisesWithData.map(a => a.scorePercentage || 0).filter(n => n > 0),
+      ...filteredSessions.map(s => Number(s.summary?.totalScore || 0)).filter(n => n > 0)
+    ];
+    const avgScore = allScores.length
+      ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+      : 0;
+
+    const sessionMinutes = filteredSessions.reduce((s, r) => s + (r.durationMinutes || 0), 0);
+    const exerciseMinutes = exercisesWithData.reduce((s, a) => s + Math.round((a.timeSpentSeconds || 0) / 60), 0);
+    const classMinutes = endedMeetings.reduce((s, m) => s + Number(m.duration || 0), 0);
+    const totalStudyMinutes = sessionMinutes + exerciseMinutes + classMinutes;
+
+    const allVocab = new Set();
+    filteredSessions.forEach(s => { if (s.summary?.vocabularyUsed) s.summary.vocabularyUsed.forEach(w => allVocab.add(w)); });
+
+    const overallDone = classAttended + dgBotCompleted + exerciseCompleted;
+    const overallTotal = classTotal + dgBotTotal + exerciseTotal;
+    const overallCompletionPct = classPct + dgBotPct + exercisePct
+      ? Math.round((classPct + dgBotPct + exercisePct) / 3)
+      : 0;
+
+    const kpis = {
+      overallCompletionPct, overallDone, overallTotal,
+      exerciseCompleted, exerciseTotal, exercisePct,
+      classAttended, classTotal, classPct,
+      dgBotCompleted, dgBotTotal, dgBotPct,
+      sessionCount, avgScore, totalStudyMinutes,
+      totalVocabulary: allVocab.size
+    };
+
+    const dayMap = {};
+    for (let d = minDay; d <= currentDay; d++) {
+      dayMap[d] = { day: d, exercisesDone: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0, sessions: 0, studyMinutes: 0 };
+    }
+    exercisesWithData.forEach(a => {
+      const d = a.exerciseId?.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].exercisesDone += 1;
+        dayMap[d].totalScore += a.scorePercentage || 0;
+        dayMap[d].scoreCount += 1;
+        dayMap[d].studyMinutes += Math.round((a.timeSpentSeconds || 0) / 60);
+      }
+    });
+    filteredMeetings.forEach(m => {
+      const d = m.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].classesTotal += 1;
+        if ((m.attendance || []).some(a => String(a.studentId || a.userId) === String(studentId) && a.attended)) {
+          dayMap[d].classesAttended += 1;
+        }
+        if (m.status === 'ended') dayMap[d].studyMinutes += Number(m.duration || 0);
+      }
+    });
+    filteredSessions.forEach(s => {
+      const d = s.moduleId?.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].sessions += 1;
+        dayMap[d].studyMinutes += s.durationMinutes || 0;
+      }
+    });
+    const dayBreakdown = Object.values(dayMap).map(d => ({
+      day: d.day, exercisesDone: d.exercisesDone, classesAttended: d.classesAttended,
+      classesTotal: d.classesTotal, avgScore: d.scoreCount ? Math.round(d.totalScore / d.scoreCount) : 0,
+      sessions: d.sessions, studyMinutes: d.studyMinutes
+    }));
+
+    const CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
+    const catMap = {};
+    CATEGORIES.forEach(c => { catMap[c] = { totalScore: 0, count: 0 }; });
+    exercisesWithData.forEach(a => {
+      const cat = a.exerciseId?.category;
+      if (cat && catMap[cat]) {
+        catMap[cat].totalScore += a.scorePercentage || 0;
+        catMap[cat].count += 1;
+      }
+    });
+    const categoryPerformance = CATEGORIES.map(cat => ({
+      category: cat, attempts: catMap[cat].count,
+      avgScore: catMap[cat].count ? Math.round(catMap[cat].totalScore / catMap[cat].count) : 0
+    }));
+
+    const day6Tests = [];
+    exercisesWithData.forEach(a => {
+      const d = a.exerciseId?.courseDay;
+      if (d && d % 6 === 0) {
+        day6Tests.push({
+          day: d, type: 'exercise', id: a._id,
+          title: a.exerciseId?.title || 'Untitled',
+          category: a.exerciseId?.category || null,
+          score: a.scorePercentage || 0,
+          timeSpentMinutes: Math.round((a.timeSpentSeconds || 0) / 60),
+          status: 'completed'
+        });
+      }
+    });
+    filteredSessions.filter(s => s.sessionType === 'test').forEach(s => {
+      const d = s.moduleId?.courseDay;
+      if (d && d % 6 === 0) {
+        day6Tests.push({
+          day: d, type: 'session', id: s._id,
+          title: `${s.moduleTitle || 'AI'} Test`,
+          category: s.moduleId?.category || null,
+          score: s.summary?.totalScore || 0,
+          timeSpentMinutes: s.durationMinutes || 0,
+          status: s.sessionState
+        });
+      }
+    });
+    day6Tests.sort((a, b) => a.day - b.day);
+
+    const liveClasses = filteredMeetings.map(m => {
+      const attended = (m.attendance || []).some(
+        a => String(a.studentId || a.userId) === String(studentId) && a.attended
+      );
+      const meetingEnd = new Date(m.startTime).getTime() + (m.duration || 0) * 60000;
+      const hasEnded = m.status === 'ended' || (m.status !== 'cancelled' && meetingEnd < now.getTime());
+      return {
+        meetingId: m._id, topic: m.topic, startTime: m.startTime,
+        duration: m.duration, courseDay: m.courseDay, attended,
+        status: m.status, hasEnded
+      };
+    });
+
+    const exerciseRows = exercisesWithData.map(a => ({
+      attemptId: a._id, exerciseId: a.exerciseId?._id,
+      title: a.exerciseId?.title || 'Untitled',
+      courseDay: a.exerciseId?.courseDay, category: a.exerciseId?.category,
+      scorePercent: a.scorePercentage || 0, timeSpentSeconds: a.timeSpentSeconds || 0,
+      completedAt: a.completedAt
+    }));
+
+    const sessionRows = filteredSessions.map(s => ({
+      id: s._id, sessionId: s.sessionId, sessionType: s.sessionType,
+      sessionState: s.sessionState, module: s.moduleId ? {
+        id: s.moduleId._id, title: s.moduleTitle, level: s.moduleLevel,
+        category: s.moduleId.category, courseDay: s.moduleId.courseDay
+      } : null,
+      summary: s.summary, durationMinutes: s.durationMinutes,
+      startTime: s.startTime, createdAt: s.createdAt
+    }));
+
+    res.json({
+      student: {
+        _id: student._id, name: student.name, email: student.email,
+        regNo: student.regNo, level: student.level, batch: student.batch,
+        currentCourseDay: currentDay
+      },
+      kpis, dayBreakdown, categoryPerformance, day6Tests,
+      exercises: exerciseRows, liveClasses, sessions: sessionRows, dgBotModules
+    });
+  } catch (err) {
+    console.error('performance-summary error:', err);
+    res.status(500).json({ message: 'Failed to fetch performance summary', error: err.message });
   }
 });
 
