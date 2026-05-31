@@ -1,0 +1,370 @@
+<div class="lm-root">
+
+  <!-- Header -->
+  <div class="lm-header">
+    <div class="lm-header-left">
+      <mat-icon class="lm-header-icon">upload_file</mat-icon>
+      <div>
+        <h2 class="lm-title">Map Legacy Payment</h2>
+        <p class="lm-subtitle">Manually record historical payments from Excel into the portal</p>
+      </div>
+    </div>
+    <button mat-icon-button type="button" class="lm-close-btn" (click)="close()" matTooltip="Close">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <!-- STEP 1: Student Lookup -->
+  <section class="lm-section">
+    <div class="lm-section-title">
+      <span class="lm-step-badge">1</span>
+      Student Lookup
+    </div>
+
+    <mat-form-field appearance="outline" class="lm-full-width">
+      <mat-label>Search by name or email</mat-label>
+      <input
+        matInput
+        [formControl]="studentSearchCtrl"
+        [matAutocomplete]="studentAuto"
+        placeholder="Type at least 2 characters..."
+      />
+      <mat-icon matSuffix>search</mat-icon>
+      <mat-autocomplete #studentAuto [displayWith]="displayFn" (optionSelected)="onStudentSelected($event.option.value)">
+        <mat-option *ngIf="searchingStudents" disabled>
+          <mat-spinner diameter="18" style="margin: 0 auto;"></mat-spinner>
+        </mat-option>
+        <mat-option *ngFor="let s of studentOptions" [value]="s">
+          <span class="lm-student-opt-name">{{ s.studentId.name }}</span>
+          <span class="lm-student-opt-email">{{ s.studentId.email }}</span>
+          <span class="lm-student-opt-meta" *ngIf="s.studentId.batch || s.studentId.level">
+            {{ s.studentId.batch }} · {{ s.studentId.level }}
+          </span>
+        </mat-option>
+        <mat-option *ngIf="!searchingStudents && studentOptions.length === 0 && studentSearchTextLength >= 2" disabled>
+          No students found
+        </mat-option>
+      </mat-autocomplete>
+    </mat-form-field>
+
+    <!-- Student summary card -->
+    <mat-card class="lm-student-card" *ngIf="selectedStudent">
+      <div class="lm-student-card-row">
+        <div class="lm-student-avatar">{{ (selectedStudent.studentId.name || '?')[0].toUpperCase() }}</div>
+        <div class="lm-student-info">
+          <div class="lm-student-name">{{ selectedStudent.studentId.name }}</div>
+          <div class="lm-student-email">{{ selectedStudent.studentId.email }}</div>
+          <div class="lm-student-meta">
+            <span class="lm-badge lm-badge-blue" *ngIf="selectedStudent.studentId.level">Level {{ selectedStudent.studentId.level }}</span>
+            <span class="lm-badge lm-badge-grey" *ngIf="selectedStudent.studentId.batch">{{ selectedStudent.studentId.batch }}</span>
+          </div>
+        </div>
+        <button mat-icon-button type="button" class="lm-clear-student" (click)="clearStudent()" matTooltip="Change student">
+          <mat-icon>edit</mat-icon>
+        </button>
+      </div>
+    </mat-card>
+  </section>
+
+  <ng-container *ngIf="selectedStudent">
+
+    <!-- STEP 2 + 3: Language Course Payment -->
+    <mat-divider></mat-divider>
+    <section class="lm-section">
+      <div class="lm-section-title">
+        <span class="lm-step-badge">2</span>
+        Language Course Payment
+        <span class="lm-type-badge lm-badge-blue">Language</span>
+      </div>
+
+      <form [formGroup]="languageForm" class="lm-form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Total Course Fee</mat-label>
+          <input matInput type="number" formControlName="totalCourseFee" min="1" />
+          <span matPrefix class="lm-currency-prefix">{{ languageForm.get('currency')?.value }}&nbsp;</span>
+          <mat-hint *ngIf="loadingCatalog">Loading catalog…</mat-hint>
+          <mat-error *ngIf="languageForm.get('totalCourseFee')?.hasError('required')">Required</mat-error>
+          <mat-error *ngIf="languageForm.get('totalCourseFee')?.hasError('min')">Must be > 0</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Amount Paid</mat-label>
+          <input matInput type="number" formControlName="amountPaid" min="1" />
+          <span matPrefix class="lm-currency-prefix">{{ languageForm.get('currency')?.value }}&nbsp;</span>
+          <mat-error *ngIf="languageForm.get('amountPaid')?.hasError('required')">Required</mat-error>
+          <mat-error *ngIf="languageForm.get('amountPaid')?.hasError('min')">Must be > 0</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Balance (auto)</mat-label>
+          <input matInput formControlName="balance" readonly />
+          <span matPrefix class="lm-currency-prefix">{{ languageForm.get('currency')?.value }}&nbsp;</span>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Currency</mat-label>
+          <mat-select formControlName="currency">
+            <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Payment Date</mat-label>
+          <input matInput [matDatepicker]="langPicker" formControlName="paymentDate" />
+          <mat-datepicker-toggle matSuffix [for]="langPicker"></mat-datepicker-toggle>
+          <mat-datepicker #langPicker></mat-datepicker>
+          <mat-error>Required</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="lm-span-two">
+          <mat-label>Remarks</mat-label>
+          <input matInput formControlName="remarks" placeholder="Optional note…" />
+        </mat-form-field>
+
+        <div class="lm-checkbox-row lm-span-two">
+          <mat-checkbox formControlName="markFullyPaid">
+            Mark as fully paid (sets balance to 0)
+          </mat-checkbox>
+        </div>
+      </form>
+    </section>
+
+    <!-- STEP 4: Docs Payments -->
+    <mat-divider></mat-divider>
+    <section class="lm-section">
+      <div class="lm-section-title">
+        <span class="lm-step-badge">3</span>
+        Docs Payment
+        <span class="lm-type-badge lm-badge-orange">Docs</span>
+        <span class="lm-count-badge" *ngIf="docsArray.length > 0">{{ docsArray.length }}</span>
+      </div>
+
+      <div class="lm-items-list" *ngFor="let ctrl of docsControls; let i = index" [formGroup]="$any(ctrl)">
+        <div class="lm-item-header">
+          <span class="lm-item-num">Docs Entry {{ i + 1 }}</span>
+          <button mat-icon-button type="button" color="warn" (click)="removeDocs(i)" matTooltip="Remove">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+        <div class="lm-form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Amount</mat-label>
+            <input matInput type="number" formControlName="amount" min="1" />
+            <span matPrefix class="lm-currency-prefix">{{ groupCurrency(ctrl) }}&nbsp;</span>
+            <mat-error>Required, must be > 0</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Currency</mat-label>
+            <mat-select formControlName="currency">
+              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Payment Date</mat-label>
+            <input matInput [matDatepicker]="docsPicker" formControlName="paymentDate" />
+            <mat-datepicker-toggle matSuffix [for]="docsPicker"></mat-datepicker-toggle>
+            <mat-datepicker #docsPicker></mat-datepicker>
+            <mat-error>Required</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Remarks</mat-label>
+            <input matInput formControlName="remarks" placeholder="e.g. Embassy docs, APS…" />
+          </mat-form-field>
+        </div>
+      </div>
+
+      <button mat-stroked-button type="button" class="lm-add-btn lm-add-docs" (click)="addDocs()">
+        <mat-icon>add</mat-icon> Add Docs Payment
+      </button>
+    </section>
+
+    <!-- STEP 5: Visa Payments -->
+    <mat-divider></mat-divider>
+    <section class="lm-section">
+      <div class="lm-section-title">
+        <span class="lm-step-badge">4</span>
+        Visa Payment
+        <span class="lm-type-badge lm-badge-green">Visa</span>
+        <span class="lm-count-badge" *ngIf="visaArray.length > 0">{{ visaArray.length }}</span>
+      </div>
+
+      <div class="lm-items-list" *ngFor="let ctrl of visaControls; let i = index" [formGroup]="$any(ctrl)">
+        <div class="lm-item-header">
+          <span class="lm-item-num">Visa Entry {{ i + 1 }}</span>
+          <button mat-icon-button type="button" color="warn" (click)="removeVisa(i)" matTooltip="Remove">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+        <div class="lm-form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Amount</mat-label>
+            <input matInput type="number" formControlName="amount" min="1" />
+            <span matPrefix class="lm-currency-prefix">{{ groupCurrency(ctrl) }}&nbsp;</span>
+            <mat-error>Required, must be > 0</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Currency</mat-label>
+            <mat-select formControlName="currency">
+              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Payment Date</mat-label>
+            <input matInput [matDatepicker]="visaPicker" formControlName="paymentDate" />
+            <mat-datepicker-toggle matSuffix [for]="visaPicker"></mat-datepicker-toggle>
+            <mat-datepicker #visaPicker></mat-datepicker>
+            <mat-error>Required</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Remarks</mat-label>
+            <input matInput formControlName="remarks" placeholder="e.g. Visa application fee…" />
+          </mat-form-field>
+        </div>
+      </div>
+
+      <button mat-stroked-button type="button" class="lm-add-btn lm-add-visa" (click)="addVisa()">
+        <mat-icon>add</mat-icon> Add Visa Payment
+      </button>
+    </section>
+
+    <!-- STEP 6: Custom Payments -->
+    <mat-divider></mat-divider>
+    <section class="lm-section">
+      <div class="lm-section-title">
+        <span class="lm-step-badge">5</span>
+        Custom Payments
+        <span class="lm-type-badge lm-badge-purple">Custom</span>
+        <span class="lm-count-badge" *ngIf="customArray.length > 0">{{ customArray.length }}</span>
+      </div>
+
+      <div class="lm-items-list" *ngFor="let ctrl of customControls; let i = index" [formGroup]="$any(ctrl)">
+        <div class="lm-item-header">
+          <span class="lm-item-num">Custom Entry {{ i + 1 }}</span>
+          <button mat-icon-button type="button" color="warn" (click)="removeCustom(i)" matTooltip="Remove">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+        <div class="lm-form-grid">
+          <mat-form-field appearance="outline" class="lm-span-two">
+            <mat-label>Payment Type</mat-label>
+            <input matInput formControlName="paymentType" placeholder="e.g. Hostel fee, Exam fee…" />
+            <mat-error>Required</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Amount</mat-label>
+            <input matInput type="number" formControlName="amount" min="1" />
+            <span matPrefix class="lm-currency-prefix">{{ groupCurrency(ctrl) }}&nbsp;</span>
+            <mat-error>Required, must be > 0</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Currency</mat-label>
+            <mat-select formControlName="currency">
+              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Payment Date</mat-label>
+            <input matInput [matDatepicker]="custPicker" formControlName="paymentDate" />
+            <mat-datepicker-toggle matSuffix [for]="custPicker"></mat-datepicker-toggle>
+            <mat-datepicker #custPicker></mat-datepicker>
+            <mat-error>Required</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Remarks</mat-label>
+            <input matInput formControlName="remarks" placeholder="Optional…" />
+          </mat-form-field>
+        </div>
+      </div>
+
+      <button mat-stroked-button type="button" class="lm-add-btn lm-add-custom" (click)="addCustom()">
+        <mat-icon>add</mat-icon> Add Custom Payment
+      </button>
+    </section>
+
+    <!-- STEP 7: Summary Preview -->
+    <ng-container *ngIf="showSummary">
+      <mat-divider></mat-divider>
+      <section class="lm-section lm-summary-section">
+        <div class="lm-section-title">
+          <span class="lm-step-badge lm-step-badge-final">6</span>
+          Payment Summary
+        </div>
+
+        <mat-card class="lm-summary-card">
+          <div class="lm-summary-row">
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-blue"></span> Language Paid</span>
+            <span class="lm-summary-value">{{ languageForm.get('currency')?.value }} {{ fmt(languagePaid) }}</span>
+          </div>
+          <div class="lm-summary-row" *ngIf="docsPaid > 0">
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-orange"></span> Docs Paid</span>
+            <span class="lm-summary-value">{{ fmt(docsPaid) }}</span>
+          </div>
+          <div class="lm-summary-row" *ngIf="visaPaid > 0">
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-green"></span> Visa Paid</span>
+            <span class="lm-summary-value">{{ fmt(visaPaid) }}</span>
+          </div>
+          <div class="lm-summary-row" *ngIf="customPaid > 0">
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-purple"></span> Custom Paid</span>
+            <span class="lm-summary-value">{{ fmt(customPaid) }}</span>
+          </div>
+          <mat-divider class="lm-summary-divider"></mat-divider>
+          <div class="lm-summary-row lm-summary-total">
+            <span class="lm-summary-label">Total Paid</span>
+            <span class="lm-summary-value">{{ fmt(totalPaid) }}</span>
+          </div>
+          <div class="lm-summary-row lm-summary-balance">
+            <span class="lm-summary-label">Language Balance Remaining</span>
+            <span class="lm-summary-value">{{ languageForm.get('currency')?.value }} {{ fmt(languageBalance) }}</span>
+          </div>
+        </mat-card>
+
+        <p class="lm-summary-note">
+          <mat-icon class="lm-info-icon">info</mat-icon>
+          All records will be created as <strong>approved</strong> historical payments. No email or receipt will be sent to the student.
+        </p>
+      </section>
+    </ng-container>
+
+    <!-- Action bar -->
+    <mat-divider></mat-divider>
+    <div class="lm-footer">
+      <button mat-button type="button" (click)="showSummary ? cancelSummary() : close()">
+        {{ showSummary ? 'Back' : 'Cancel' }}
+      </button>
+
+      <button
+        mat-stroked-button
+        color="primary"
+        type="button"
+        *ngIf="!showSummary"
+        (click)="openSummary()"
+      >
+        <mat-icon>preview</mat-icon>
+        Preview Summary
+      </button>
+
+      <button
+        mat-flat-button
+        color="primary"
+        type="button"
+        *ngIf="showSummary"
+        (click)="save()"
+        [disabled]="saving"
+      >
+        <mat-spinner *ngIf="saving" diameter="18" class="lm-save-spinner"></mat-spinner>
+        <mat-icon *ngIf="!saving">save</mat-icon>
+        {{ saving ? 'Saving…' : 'Save Legacy Payments' }}
+      </button>
+    </div>
+
+  </ng-container>
+
+  <!-- Placeholder when no student yet -->
+  <div class="lm-no-student" *ngIf="!selectedStudent">
+    <mat-icon class="lm-no-student-icon">person_search</mat-icon>
+    <p>Search and select a student above to start mapping payments.</p>
+  </div>
+
+</div>

@@ -3,12 +3,13 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 // Get current teacher profile (GET /api/teacher/profile)
 router.get('/profile', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id).select('-password').lean();
     
     res.json({
       _id: user._id,
@@ -71,7 +72,8 @@ router.get('/students', verifyToken, async (req, res) => {
       .populate({
         path: 'assignedTeacher',  
         select: 'name regNo email medium' // useful teacher info
-      });
+      })
+      .lean();
 
     res.json({ success: true, data: students });
   } catch (err) {
@@ -83,6 +85,24 @@ router.get('/students', verifyToken, async (req, res) => {
   }
 });
 
+// Distinct batch names from meetings this teacher created or was assigned (for My Classes filters)
+router.get('/class-batches', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+    const batches = await MeetingLink.distinct('batch', {
+      $or: [{ createdBy: teacherId }, { assignedTeacher: teacherId }],
+      batch: { $exists: true, $nin: [null, ''] }
+    });
+    const sorted = batches
+      .filter(Boolean)
+      .map(String)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    res.json({ success: true, data: sorted });
+  } catch (err) {
+    console.error('class-batches error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch batch list', error: err.message });
+  }
+});
 
 // GET /api/teacher/:teacherId  →  Fetch teacher details by ID
 router.get('/:teacherId', verifyToken, async (req, res) => {
@@ -90,7 +110,7 @@ router.get('/:teacherId', verifyToken, async (req, res) => {
     const teacherId = req.params.teacherId;
 
     // Find teacher by ID
-    const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password');
+    const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password').lean();
 
     if (!teacher) {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
@@ -118,7 +138,7 @@ router.get('/:teacherId', verifyToken, async (req, res) => {
 //get all teachers
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const teachers = await User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password');
+    const teachers = await User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } }).select('-password').lean();
     res.json({ success: true, data: teachers });
   } catch (err) {
     console.error('Error fetching teachers:', err);

@@ -1,0 +1,374 @@
+.teacher-resources-page {
+  padding: 18px;
+}
+
+.page-head {
+  margin-bottom: 14px;
+}
+
+.page-head h2 {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+
+.page-head p {
+  margin-top: 6px;
+  color: #64748b;
+}
+
+.resource-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid #dbe5f0;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.filter-item label {
+  display: block;
+  font-size: 0.82rem;
+  color: #475569;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 10px;
+  font: inherit;
+  background: #fff;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.filter-item--action {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.btn-reset {
+  min-height: 38px;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.btn-reset:hover {
+  transform: translateY(-1px);
+  background: #1e293b;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.22);
+}
+
+/* ── Resource cards ─────────────────────────────── */
+.resource-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resource-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.15s;
+}
+
+.resource-card:hover {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 2px;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.tag--day   { background: #eff6ff; color: #1d4ed8; }
+.tag--batch { background: #f0fdf4; color: #15803d; }
+.tag--level { background: #fdf4ff; color: #9333ea; }
+.tag--plan  { background: #fff7ed; color: #c2410c; }
+.tag--type  { background: #f1f5f9; color: #475569; }
+
+.card-sub {
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.card-desc {
+  margin-top: 2px;
+}
+
+/* ── File chips (open buttons) ───────────────────── */
+.card-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.file-btn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  max-width: 260px;
+}
+
+.file-btn-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.14);
+}
+
+.chip--audio {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.chip--video {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.chip--doc {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.chip-ext {
+  background: rgba(0,0,0,0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.empty-state {
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 16px;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+
+.preview-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fullscreen-btn {
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fullscreen-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(29, 78, 216, 0.3);
+}
+
+.close-btn {
+  align-self: flex-end;
+  margin-bottom: 8px;
+  background: #fff;
+  color: #111827;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.close-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.2);
+}
+
+.preview-overlay iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+}
+
+.preview-file-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px 8px;
+}
+
+.preview-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-tab:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+.preview-tab--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.preview-tab .chip-ext {
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.68rem;
+  flex-shrink: 0;
+}
+
+.preview-audio-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 20px;
+}
+
+.preview-audio-wrap audio {
+  width: 100%;
+  max-width: 640px;
+  border-radius: 8px;
+}
+
+.preview-overlay video {
+  flex: 1;
+  width: 100%;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #000;
+}
+
+@media (max-width: 1100px) {
+  .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .teacher-resources-page {
+    padding: 12px;
+  }
+
+  .resource-panel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-item--action {
+    justify-content: stretch;
+  }
+
+  .btn-reset {
+    width: 100%;
+  }
+
+  .card-files {
+    gap: 6px;
+  }
+
+  .file-btn-chip {
+    max-width: 100%;
+  }
+}

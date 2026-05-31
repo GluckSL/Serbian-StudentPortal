@@ -4,15 +4,19 @@ import { Component, OnInit, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
+import { MaterialModule } from '../../shared/material.module';
 
 type TabType = 'completed' | 'pending' | 'new';
 
 @Component({
   selector: 'app-digital-exercises',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MaterialModule],
   templateUrl: './digital-exercises.component.html',
   styleUrls: ['./digital-exercises.component.css']
 })
@@ -34,8 +38,11 @@ export class DigitalExercisesComponent implements OnInit {
   selectedCategory = '';
   selectedDifficulty = '';
 
-  /** Students: show only exercises tagged for the current journey day. */
+  /** @deprecated Server now returns the current journey week by default; kept for API compatibility. */
   todayOnly = false;
+
+  /** Set from GET /digital-exercises for students. */
+  studentCourseDay = 1;
 
   // Pagination
   currentPage = 1;
@@ -51,13 +58,29 @@ export class DigitalExercisesComponent implements OnInit {
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties = ['Beginner', 'Intermediate', 'Advanced'];
 
+  /** Shorter on ≤640px so placeholder fits; full copy on larger viewports. */
+  searchInputPlaceholder = 'Search exercises by title or topic...';
+
   private searchTimer: any;
 
   constructor(
     private exerciseService: DigitalExerciseService,
     private authService: AuthService,
-    private router: Router
-  ) {}
+    private router: Router,
+    breakpointObserver: BreakpointObserver
+  ) {
+    breakpointObserver
+      .observe('(max-width: 640px)')
+      .pipe(
+        map((r) => r.matches),
+        takeUntilDestroyed()
+      )
+      .subscribe((compact) => {
+        this.searchInputPlaceholder = compact
+          ? 'Search by title or topic'
+          : 'Search exercises by title or topic...';
+      });
+  }
 
   ngOnInit(): void {
     this.authService.currentUser$.subscribe(user => {
@@ -85,6 +108,10 @@ export class DigitalExercisesComponent implements OnInit {
     this.exerciseService.getExercises(filters).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
+        const d = Number(res?.studentCourseDay);
+        if (role === 'STUDENT' && Number.isFinite(d) && d >= 1) {
+          this.studentCourseDay = Math.min(200, Math.floor(d));
+        }
         this.applyTabFilter();
         this.loading = false;
       },
@@ -98,28 +125,94 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   private applyTabFilter(): void {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    const isStudent = role === 'STUDENT';
+
+    let list: DigitalExercise[];
+    if (isStudent) {
+      list = this.exercises.filter((ex) => this.matchesStudentTab(ex, this.activeTab));
+      // Sort: within the same courseDay, order by sequenceLetter (null last)
+      list = [...list].sort((a, b) => {
+        const dayA = a.courseDay ?? 9999;
+        const dayB = b.courseDay ?? 9999;
+        if (dayA !== dayB) return dayA - dayB;
+        const la = a.sequenceLetter || '';
+        const lb = b.sequenceLetter || '';
+        if (!la && !lb) return 0;
+        if (!la) return 1;
+        if (!lb) return -1;
+        return la.localeCompare(lb);
+      });
+    } else {
+      list = this.applyTabFilterLegacy(this.exercises, this.activeTab);
+    }
+
+    this.filteredExercises = list;
+    this.totalExercises = list.length;
+    this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
+  }
+
+  /** Normalized journey day 1–200, or null if unassigned. */
+  exerciseCourseDayNum(ex: DigitalExercise): number | null {
+    const cd = ex.courseDay;
+    if (cd == null || cd === undefined) return null;
+    const n = Number(cd);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(200, Math.max(1, Math.floor(n)));
+  }
+
+  /**
+   * Students:
+   * - New: exercise day === current journey day, not yet passed.
+   * - Pending: any other incomplete (past days, future/locked preview, or unassigned day).
+   * - Completed: passed (≥ pass score), any day.
+   */
+  private matchesStudentTab(ex: DigitalExercise, tab: TabType): boolean {
+    const passed = this.isAttemptPassing(ex.studentAttempt);
+    const dayNum = this.exerciseCourseDayNum(ex);
+    const cur = this.studentCourseDay;
+
+    if (tab === 'completed') {
+      return passed;
+    }
+
+    if (passed) {
+      return false;
+    }
+
+    if (tab === 'new') {
+      return dayNum != null && dayNum === cur;
+    }
+
+    /* pending: incomplete and not "new" */
+    if (dayNum != null && dayNum === cur) {
+      return false;
+    }
+    return true;
+  }
+
+  /** Teachers/admins: original 14-day new vs pending split; completed = any attempt. */
+  private applyTabFilterLegacy(exercises: DigitalExercise[], tab: TabType): DigitalExercise[] {
     const now = Date.now();
     const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
 
-    let list = this.exercises;
-    if (this.activeTab === 'completed') {
-      list = list.filter(ex => ex.studentAttempt != null);
-    } else if (this.activeTab === 'pending') {
-      list = list.filter(ex => !ex.studentAttempt);
-      list = list.filter(ex => {
+    let list = exercises;
+    if (tab === 'completed') {
+      list = list.filter((ex) => ex.studentAttempt != null);
+    } else if (tab === 'pending') {
+      list = list.filter((ex) => !ex.studentAttempt);
+      list = list.filter((ex) => {
         const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
         return now - created > fourteenDaysMs;
       });
     } else {
-      list = list.filter(ex => !ex.studentAttempt);
-      list = list.filter(ex => {
+      list = list.filter((ex) => !ex.studentAttempt);
+      list = list.filter((ex) => {
         const created = ex.createdAt ? new Date(ex.createdAt).getTime() : 0;
         return now - created <= fourteenDaysMs;
       });
     }
-    this.filteredExercises = list;
-    this.totalExercises = list.length;
-    this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
+    return list;
   }
 
   get paginatedExercises(): DigitalExercise[] {
@@ -160,6 +253,9 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   startExercise(exercise: DigitalExercise): void {
+    if (this.isExerciseJourneyLocked(exercise)) {
+      return;
+    }
     this.router.navigate(['/digital-exercises', exercise._id, 'play']);
   }
 
@@ -211,6 +307,76 @@ export class DigitalExercisesComponent implements OnInit {
     return !!(this.searchQuery || this.selectedLevel || this.selectedCategory || this.selectedDifficulty || this.todayOnly);
   }
 
+  isExerciseDayLocked(ex: DigitalExercise): boolean {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    if (role !== 'STUDENT') return false;
+    const cd = ex.courseDay;
+    if (cd == null || cd === undefined) return false;
+    const n = Number(cd);
+    return Number.isFinite(n) && n > this.studentCourseDay;
+  }
+
+  isExerciseSequenceLocked(ex: DigitalExercise): boolean {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    if (role !== 'STUDENT') return false;
+    return !!ex.sequenceLocked;
+  }
+
+  isExerciseJourneyLocked(ex: DigitalExercise): boolean {
+    return this.isExerciseDayLocked(ex) || this.isExerciseSequenceLocked(ex);
+  }
+
+  private getPrerequisiteExercise(ex: DigitalExercise): DigitalExercise | null {
+    if (!this.isExerciseSequenceLocked(ex) || !ex.previousSequenceLetter) return null;
+    const prev = String(ex.previousSequenceLetter || '').trim().toLowerCase();
+    if (!prev) return null;
+    const day = this.exerciseCourseDayNum(ex);
+
+    const match = this.exercises.find((item) => {
+      const sameDay = this.exerciseCourseDayNum(item) === day;
+      const sameSequence = String(item.sequenceLetter || '').trim().toLowerCase() === prev;
+      return sameDay && sameSequence;
+    });
+
+    return match || null;
+  }
+
+  canOpenPrerequisiteExercise(ex: DigitalExercise): boolean {
+    return !!this.getPrerequisiteExercise(ex)?._id;
+  }
+
+  openPrerequisiteExercise(ex: DigitalExercise): void {
+    const prerequisite = this.getPrerequisiteExercise(ex);
+    if (!prerequisite?._id) return;
+    this.startExercise(prerequisite);
+  }
+
+  journeyDaySequenceLabel(ex: DigitalExercise): string {
+    const day = this.exerciseCourseDayNum(ex);
+    const seq = String(ex.sequenceLetter || '').trim().toUpperCase();
+    if (day == null) {
+      return seq ? `Any-${seq}` : 'Any';
+    }
+    return seq ? `${day}-${seq}` : String(day);
+  }
+
+  journeyUnlockButtonLabel(ex: DigitalExercise): string {
+    if (this.isExerciseSequenceLocked(ex) && ex.previousSequenceLetter) {
+      const previous = String(ex.previousSequenceLetter || '').trim().toUpperCase();
+      const day = this.exerciseCourseDayNum(ex);
+      const previousLabel = day != null ? `${day}-${previous}` : previous;
+      return `First complete ${previousLabel}`;
+    }
+    const cd = ex.courseDay;
+    return cd != null ? `Unlock on day ${cd}` : 'Locked';
+  }
+
+  get journeyWeekHint(): string {
+    const a = this.studentCourseDay;
+    const b = Math.min(200, a + 6);
+    return `Showing journey days ${a}–${b} (unlock each item on its day)`;
+  }
+
   hasType(exercise: DigitalExercise, type: string): boolean {
     return (exercise.questions || []).some(q => q.type === type);
   }
@@ -230,7 +396,7 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   exerciseMetaLine(ex: DigitalExercise): string {
-    const n = ex.questions?.length || 0;
+    const n = ex.questions.length || 0;
     const m = ex.estimatedDuration || 15;
     const d = ex.difficulty || '—';
     return `${n} qs · ~${m} min · ${d}`;
@@ -261,6 +427,21 @@ export class DigitalExercisesComponent implements OnInit {
     if (completed.length === 0) return 0;
     const sum = completed.reduce((s, ex) => s + (ex.studentAttempt?.scorePercentage || 0), 0);
     return Math.round(sum / completed.length);
+  }
+
+  /** Full analytics page (overall + per-exercise table + links to question detail) */
+  openStudentAnalyticsPage(): void {
+    const extras =
+      this.embedded
+        ? { queryParams: { from: 'my-course' } }
+        : {};
+    this.router.navigate(['/digital-exercises', 'analytics'], extras);
+  }
+
+  openExerciseReview(exercise: DigitalExercise, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!exercise._id || !exercise.studentAttempt) return;
+    this.router.navigate(['/digital-exercises', exercise._id, 'review']);
   }
 
   getCategoryIcon(category: string): string {

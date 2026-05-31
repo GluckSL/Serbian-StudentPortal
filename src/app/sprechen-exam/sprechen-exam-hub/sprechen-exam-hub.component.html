@@ -1,0 +1,87 @@
+<div class="sp-hub" [class.sp-hub--embedded]="embedded">
+  <header class="sp-hub__header" *ngIf="!embedded">
+    <h1 class="sp-hub__title">Goethe A1 Sprechprüfung</h1>
+    <p class="sp-hub__lead">
+      Üben Sie die mündliche Prüfung mit {{ tutorName }} als Prüfer.
+    </p>
+  </header>
+
+  <header class="sp-hub__header sp-hub__header--embedded" *ngIf="embedded && !hideEmbeddedHeader">
+    <div class="sp-hub__header-main">
+      <h2 class="sp-hub__title sp-hub__title--embedded">
+        <mat-icon>record_voice_over</mat-icon>
+        Exam — {{ tutorName }}
+      </h2>
+      <p class="sp-hub__lead">
+        Goethe A1 Sprechen simulation. Three exam parts, scored out of 15.
+      </p>
+    </div>
+  </header>
+
+  <div class="sp-hub__loading-cards" *ngIf="loading">
+    <div class="sp-hub__skeleton-card" *ngFor="let _ of [1,2,3]"></div>
+  </div>
+
+  <p class="sp-hub__error" *ngIf="error && !loading">{{ error }}</p>
+
+  <ng-container *ngIf="!loading && !error">
+    <section class="sp-hub__list" *ngIf="modules.length > 0">
+      <div class="sp-hub__card" *ngFor="let mod of modules; trackBy: trackModule">
+        <div class="sp-hub__card-main">
+          <div class="sp-hub__module-title">{{ mod.title }}</div>
+          <div class="sp-hub__module-desc">{{ mod.description || 'Goethe A1 Sprechen exam' }}</div>
+          <div class="sp-hub__meta">
+            <div class="sp-hub__meta-items">
+              <span class="sp-hub__day-pill" *ngIf="journeyFixedDay == null">{{ journeyDayLabel(mod) }}</span>
+              <span class="sp-hub__level-badge">{{ mod.level || 'A1' }}</span>
+              <span
+                class="sp-hub__status-badge"
+                [class.sp-hub__status-badge--done]="mod.studentProgress?.lastCompleted"
+              >
+                {{ mod.studentProgress?.lastCompleted ? 'Completed' : 'Available' }}
+              </span>
+              <span class="sp-hub__attempts" *ngIf="mod.studentProgress?.attempts">
+                {{ mod.studentProgress!.attempts }} attempt{{ mod.studentProgress!.attempts === 1 ? '' : 's' }}
+              </span>
+            </div>
+            <a
+              mat-stroked-button
+              class="sp-hub__action-btn"
+              [routerLink]="['/sprechen-exam', mod._id, 'play']"
+            >
+              <mat-icon>play_arrow</mat-icon>
+              {{ (mod.studentProgress?.attempts || 0) > 0 ? 'Retry' : 'Start exam' }}
+            </a>
+          </div>
+          <p class="sp-hub__best" *ngIf="(mod.studentProgress?.bestTotal || 0) > 0">
+            Best score: {{ mod.studentProgress!.bestTotal | number:'1.0-1' }} / 15
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section
+      *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null"
+      class="sp-hub__empty sp-hub__empty--soft"
+    >
+      <h3>No exam for this day</h3>
+      <p>No speaking exam is assigned to <strong>Day {{ journeyFixedDay }}</strong> yet.</p>
+    </section>
+
+    <section *ngIf="modules.length === 0 && rawModuleCount === 0" class="sp-hub__empty">
+      <h3>No exam available yet</h3>
+      <p>
+        Ask your teacher to publish a Goethe A1 Sprechen exam for Day {{ studentCourseDay }}.
+        Your tutor is <strong>{{ tutorName }}</strong>.
+      </p>
+    </section>
+
+    <section
+      *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay == null"
+      class="sp-hub__empty sp-hub__empty--soft"
+    >
+      <h3>No exam for your current day</h3>
+      <p>Exams matching journey day {{ studentCourseDay }} will appear here when published.</p>
+    </section>
+  </ng-container>
+</div>

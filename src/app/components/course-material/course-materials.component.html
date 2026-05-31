@@ -14,7 +14,7 @@
         <div class="col-md-4 text-end">
           <div class="admin-stats-quick">
             <div class="stat-item">
-              <span class="stat-number">{{ materials?.length || 0 }}</span>
+              <span class="stat-number">{{ materials.length || 0 }}</span>
               <span class="stat-label">Material Sets</span>
             </div>
           </div>
@@ -74,7 +74,7 @@
       <div *ngIf="!loading && !error" class="results-summary">
         <div class="d-flex justify-content-between align-items-center">
           <div class="results-info">
-            <span class="results-count">{{ materials?.length || 0 }}</span>
+            <span class="results-count">{{ materials.length || 0 }}</span>
             <span class="results-text">material sets available</span>
           </div>
         </div>
@@ -88,7 +88,7 @@
               <div class="material-header">
                 <h5 class="material-title">{{ material.courseTitle }}</h5>
                 <div class="material-count">
-                  <span class="badge bg-primary">{{ material.materials?.length || 0 }} files</span>
+                  <span class="badge bg-primary">{{ material.materials.length || 0 }} files</span>
                 </div>
               </div>
               <div class="material-body">
@@ -134,7 +134,7 @@
                     <td>
                       <div class="course-info">
                         <div class="course-name">{{ material.courseTitle }}</div>
-                        <small class="text-muted">{{ material.materials?.length || 0 }} files</small>
+                        <small class="text-muted">{{ material.materials.length || 0 }} files</small>
                       </div>
                     </td>
                     <td>

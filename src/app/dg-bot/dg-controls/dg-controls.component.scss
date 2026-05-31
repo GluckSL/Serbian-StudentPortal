@@ -1,0 +1,45 @@
+.dg-ctrl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 0.25rem 0;
+}
+
+.dg-ctrl__replay {
+  border-radius: 14px !important;
+  font-weight: 600 !important;
+  padding: 0.35rem 1rem !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  color: #4338ca !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
+
+.dg-ctrl__next {
+  border-radius: 14px !important;
+  font-weight: 700 !important;
+  padding: 0.45rem 1.35rem !important;
+  letter-spacing: 0.02em;
+  box-shadow:
+    0 8px 24px rgba(79, 70, 229, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 50%, #2563eb 100%) !important;
+}
+
+.dg-ctrl__skip {
+  font-weight: 600 !important;
+  color: #64748b !important;
+  border-radius: 12px !important;
+}
+
+.dg-ctrl button mat-icon {
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.dg-ctrl__next mat-icon {
+  margin-right: 0;
+  margin-left: 0.25rem;
+}

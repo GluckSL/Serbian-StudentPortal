@@ -1,0 +1,216 @@
+<div class="asd-page">
+  <header class="asd-hero">
+    <div class="asd-hero__left">
+      <a routerLink="/admin-dashboard" class="asd-back">
+        <span class="asd-back__icon" aria-hidden="true">←</span>
+        Directory
+      </a>
+      <div class="asd-hero__profile">
+        <div class="asd-avatar" aria-hidden="true">{{ avatarInitial }}</div>
+        <div>
+          <h1 class="asd-hero__name">{{ studentName || 'Student' }}</h1>
+          <p class="asd-hero__meta" *ngIf="preview?.regNo || preview?.email">
+            <span *ngIf="preview?.regNo" class="asd-mono">{{ preview?.regNo }}</span>
+            <span *ngIf="preview?.regNo && preview?.email"> · </span>
+            <span *ngIf="preview?.email">{{ preview?.email }}</span>
+          </p>
+          <div class="asd-badges" *ngIf="preview">
+            <span class="asd-badge asd-badge--plan" *ngIf="preview.subscription">{{ preview.subscription }}</span>
+            <span class="asd-badge" *ngIf="preview.level">Level {{ preview.level }}</span>
+            <span class="asd-badge" *ngIf="preview.batch">Batch {{ preview.batch }}</span>
+            <span class="asd-badge" *ngIf="preview.medium">{{ preview.medium }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      *ngIf="studentId"
+      class="asd-edit-link"
+      [routerLink]="['/signup', studentId]"
+      target="_blank"
+      rel="noopener"
+    >
+      Edit profile ↗
+    </a>
+  </header>
+
+  <nav class="asd-tabs" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      class="asd-tab"
+      [class.asd-tab--on]="activeTab === 'overview'"
+      [attr.aria-selected]="activeTab === 'overview'"
+      (click)="setTab('overview')"
+    >
+      Overview
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="asd-tab"
+      [class.asd-tab--on]="activeTab === 'learning'"
+      [attr.aria-selected]="activeTab === 'learning'"
+      (click)="setTab('learning')"
+    >
+      Learning &amp; journey
+    </button>
+  </nav>
+
+  <section class="asd-panel" *ngIf="activeTab === 'overview'">
+    <app-student-journey-detail-modal
+      [embedded]="true"
+      [visible]="!!studentId"
+      [studentId]="studentId"
+      [studentName]="studentName"
+      [preview]="preview"
+    ></app-student-journey-detail-modal>
+  </section>
+
+  <section class="asd-panel" *ngIf="activeTab === 'learning'">
+    <div *ngIf="learningLoading" class="asd-state">
+      <div class="asd-spinner"></div>
+      <p>Loading journey days…</p>
+    </div>
+
+    <div *ngIf="learningError && !learningLoading" class="asd-state asd-state--error">
+      <p>{{ learningError }}</p>
+      <button type="button" class="asd-btn asd-btn--primary" (click)="loadLearning()">Retry</button>
+    </div>
+
+    <ng-container *ngIf="!learningLoading && !learningError && learningProfile">
+      <div class="asd-stats">
+        <div class="asd-stat">
+          <span class="asd-stat__val">Day {{ learningProfile.currentCourseDay }}</span>
+          <span class="asd-stat__lbl">Current journey day</span>
+        </div>
+        <div class="asd-stat">
+          <span class="asd-stat__val">{{ learningDays.length }}</span>
+          <span class="asd-stat__lbl">Days unlocked</span>
+        </div>
+        <div class="asd-stat asd-stat--warn" *ngIf="blockedDayCount">
+          <span class="asd-stat__val">{{ blockedDayCount }}</span>
+          <span class="asd-stat__lbl">Days blocked</span>
+        </div>
+        <div class="asd-stat">
+          <span class="asd-stat__val">{{ totalContentCount }}</span>
+          <span class="asd-stat__lbl">Content items (visible range)</span>
+        </div>
+      </div>
+
+      <div class="asd-card asd-card--accent">
+        <div class="asd-card__head">
+          <h2 class="asd-card__title">Content access control</h2>
+          <span class="asd-saving" *ngIf="savingBlocks">Saving…</span>
+        </div>
+        <p class="asd-card__text">
+          Block a CEFR level to hide its journey content for this student only (modules, exercises, recordings, DG bot).
+          For students who start at <strong>A2</strong>, block <strong>A1</strong> so days 1–42 stay locked; they access from day 43 onward.
+        </p>
+        <div class="asd-quick-action">
+          <button
+            type="button"
+            class="asd-btn"
+            [class.asd-btn--danger]="!isLevelBlocked('A1')"
+            [class.asd-btn--outline]="isLevelBlocked('A1')"
+            [disabled]="savingBlocks"
+            (click)="blockA1ForA2Starter()"
+          >
+            {{ isLevelBlocked('A1') ? '✓ A1 blocked (days 1–42) — click to unblock' : 'Block A1 content (days 1–42)' }}
+          </button>
+        </div>
+        <div class="asd-level-segments">
+          <div
+            class="asd-segment"
+            *ngFor="let seg of levelSegments"
+            [class.asd-segment--blocked]="seg.blocked"
+          >
+            <div class="asd-segment__top">
+              <span class="asd-segment__level">{{ seg.level }}</span>
+              <span class="asd-segment__range">Days {{ seg.dayStart }}–{{ seg.dayEnd }}</span>
+            </div>
+            <span class="asd-segment__status" [class.asd-segment__status--blocked]="seg.blocked">
+              {{ seg.blocked ? 'Blocked' : 'Accessible' }}
+            </span>
+            <button
+              type="button"
+              class="asd-btn asd-btn--sm"
+              [class.asd-btn--danger]="!seg.blocked"
+              [class.asd-btn--outline]="seg.blocked"
+              [disabled]="savingBlocks"
+              (click)="toggleLevelBlock(seg.level)"
+            >
+              {{ seg.blocked ? 'Unblock' : 'Block' }} {{ seg.level }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="asd-card">
+        <div class="asd-card__head asd-card__head--split">
+          <div>
+            <h2 class="asd-card__title">Journey days</h2>
+            <p class="asd-card__sub">
+              Days 1–{{ learningProfile.currentCourseDay }} · highlight = today’s day
+            </p>
+          </div>
+          <div class="asd-filter-chips">
+            <button
+              type="button"
+              class="asd-chip"
+              [class.asd-chip--on]="levelFilter === 'ALL'"
+              (click)="setLevelFilter('ALL')"
+            >All</button>
+            <button
+              type="button"
+              class="asd-chip"
+              *ngFor="let seg of levelSegments"
+              [class.asd-chip--on]="levelFilter === seg.level"
+              (click)="setLevelFilter(seg.level)"
+            >{{ seg.level }}</button>
+          </div>
+        </div>
+
+        <div class="asd-legend">
+          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--ok"></span> Accessible</span>
+          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--blocked"></span> Blocked</span>
+          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--current"></span> Current day</span>
+        </div>
+
+        <div class="asd-days-grid">
+          <button
+            type="button"
+            class="asd-day"
+            *ngFor="let d of filteredDays"
+            [class.asd-day--blocked]="d.blocked"
+            [class.asd-day--current]="isCurrentDay(d.day)"
+            [class.asd-day--selected]="selectedDay?.day === d.day"
+            (click)="selectDay(d)"
+          >
+            <span class="asd-day__num">{{ d.day }}</span>
+            <span class="asd-day__lvl">{{ d.level }}</span>
+            <span class="asd-day__icons" *ngIf="d.modules + d.exercises + d.dgModules + d.recordings > 0">
+              <span *ngIf="d.modules" title="Modules">📘{{ d.modules }}</span>
+              <span *ngIf="d.exercises" title="Exercises">✏️{{ d.exercises }}</span>
+            </span>
+          </button>
+        </div>
+
+        <div class="asd-day-detail" *ngIf="selectedDay">
+          <div class="asd-day-detail__head">
+            <h3>Day {{ selectedDay.day }} · {{ selectedDay.level }}</h3>
+            <span class="asd-pill" [class.asd-pill--blocked]="selectedDay.blocked">
+              {{ selectedDay.blocked ? 'Blocked for student' : 'Accessible' }}
+            </span>
+          </div>
+          <div class="asd-day-detail__grid">
+            <div class="asd-mini-stat"><strong>{{ selectedDay.modules }}</strong><span>Modules</span></div>
+            <div class="asd-mini-stat"><strong>{{ selectedDay.exercises }}</strong><span>Exercises</span></div>
+            <div class="asd-mini-stat"><strong>{{ selectedDay.dgModules }}</strong><span>DG bot</span></div>
+            <div class="asd-mini-stat"><strong>{{ selectedDay.recordings }}</strong><span>Recordings</span></div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </section>
+</div>

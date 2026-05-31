@@ -1,22 +1,32 @@
 <div class="mc" *ngIf="!loading; else mcLoading">
-  <header class="mc-hero" aria-label="Welcome">
+  <header class="mc-hero" *ngIf="activeTab === 'classes'" aria-label="Course overview">
     <div class="mc-hero__content">
-      <p class="mc-hero__kicker">Your course</p>
-      <h1 class="mc-hero__title">
-        Welcome back, {{ studentFirstName }}
-        <span class="mc-hero__wave" aria-hidden="true">👋</span>
-      </h1>
+      <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }}!</h1>
       <p class="mc-hero__sub">
-        Join live classes, practice with exercises, and work through modules—all in one place.
+        <ng-container *ngIf="allowsLearningContent; else classesOnlyHero">
+          Join live classes, practice with exercises, and open Gluck Buddy for speaking practice—all in one place.
+        </ng-container>
+        <ng-template #classesOnlyHero>
+          Join live classes and watch your class recordings in one place.
+        </ng-template>
       </p>
       <div class="mc-hero__badges">
         <span class="mc-hero__pill">
-          <span class="mc-hero__pill-icon" aria-hidden="true">🎓</span>
+          <span class="material-icons mc-hero__pill-icon" aria-hidden="true">school</span>
           Current level <strong>{{ levelShortLabel }}</strong>
         </span>
         <span class="mc-hero__pill" *ngIf="levelProgression.length">
-          <span class="mc-hero__pill-icon" aria-hidden="true">📈</span>
+          <span class="material-icons mc-hero__pill-icon" aria-hidden="true">trending_up</span>
           {{ learningPct }}% of levels completed
+        </span>
+        <span
+          class="mc-hero__pill"
+          [class.mc-hero__pill--gold]="userProfile.subscription === 'PLATINUM'"
+          [class.mc-hero__pill--silver]="userProfile.subscription === 'SILVER'"
+          *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription"
+        >
+          <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
+          Subscription <strong>{{ userProfile.subscription }}</strong>
         </span>
       </div>
     </div>
@@ -41,18 +51,61 @@
     </div>
   </header>
 
+  <!-- Same vertical position as My class hero: full-width strip above tabs -->
+  <section
+    class="mc-tab-profile-strip"
+    *ngIf="activeTab !== 'classes'"
+    aria-label="Your profile">
+    <div class="mc-tab-profile">
+      <div class="mc-tab-profile__main">
+        <p class="mc-tab-profile__name">{{ studentDisplayName }}</p>
+        <p class="mc-tab-profile__quote">{{ tabHeaderQuote }}</p>
+        <div class="mc-tab-profile__row">
+          <p class="mc-tab-profile__level">
+            Level <strong>{{ levelShortLabel }}</strong>
+          </p>
+          <p class="mc-tab-profile__level" *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">
+            Subscription: <span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'">{{ userProfile.subscription }}</span>
+          </p>
+        </div>
+      </div>
+      <div class="mc-tab-profile__photo">
+        <img
+          *ngIf="profilePhotoUrl as url"
+          class="mc-tab-profile__avatar"
+          [src]="url"
+          [alt]="'Profile photo — ' + studentDisplayName"
+          width="64"
+          height="64"
+          loading="lazy"
+        />
+        <div
+          *ngIf="!profilePhotoUrl"
+          class="mc-tab-profile__avatar mc-tab-profile__avatar--fallback"
+          role="img"
+          [attr.aria-label]="'No photo — ' + studentInitial"
+        >
+          {{ studentInitial }}
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Tabs -->
   <div class="mc-tabs-wrap">
     <div class="mc-tabs" role="tablist">
       <button
+        *ngIf="allowsLearningContent"
         type="button"
         role="tab"
         class="mc-tab"
         [class.mc-tab--on]="activeTab === 'classes'"
         (click)="setTab('classes')">
-        My class
+        <span class="mc-tab-text mc-tab-text--desktop">My class</span>
+        <span class="mc-tab-text mc-tab-text--mobile">My class</span>
       </button>
       <button
+        *ngIf="allowsLearningContent"
         type="button"
         role="tab"
         class="mc-tab"
@@ -61,26 +114,39 @@
         Exercises
       </button>
       <button
+        *ngIf="allowsTalkBuddyTab"
         type="button"
         role="tab"
         class="mc-tab"
-        [class.mc-tab--on]="activeTab === 'modules'"
-        (click)="setTab('modules')">
-        Modules
+        [class.mc-tab--on]="activeTab === 'talk-buddy'"
+        (click)="setTab('talk-buddy')">
+        Gluck Buddy
       </button>
-    </div>
-    <div class="mc-tabs-meta">
-      <a routerLink="/time-table-view-student" class="mc-schedule-link">View schedule →</a>
-      <a routerLink="/student-payments" class="mc-schedule-link mc-schedule-link--muted">Payments</a>
+      <button
+        type="button"
+        role="tab"
+        class="mc-tab"
+        [class.mc-tab--on]="activeTab === 'journey'"
+        (click)="setTab('journey')">
+        Journey to Germany
+      </button>
     </div>
   </div>
 
   <div class="mc-classes-layout" *ngIf="activeTab === 'classes'" role="tabpanel">
-    <div class="mc-classes-layout__main mc-panel">
-      <p class="mc-panel__intro">Live and upcoming classes appear first; past sessions and recordings are below.</p>
-      <app-student-meetings [embedded]="true"></app-student-meetings>
-      <h3 class="mc-subsection-title">Recorded classes</h3>
-      <app-student-recordings [embedded]="true"></app-student-recordings>
+    <div class="mc-classes-layout__main">
+      <section class="mc-classes-card mc-classes-card--live" *ngIf="userProfile.subscription === 'PLATINUM'" aria-label="Live and scheduled classes">
+        <app-student-meetings [embedded]="true"></app-student-meetings>
+      </section>
+      <section class="mc-classes-card mc-classes-card--recordings" aria-label="Recorded classes">
+        <h3 class="mc-classes-card__title">Recorded classes</h3>
+        <app-student-recordings
+          [embedded]="true"
+          [isPlatinumStudent]="isPlatinumStudent"
+          [refreshToken]="recordingsRefreshToken"
+          (reqRecordingClick)="openRecordingReqPanel()"
+        ></app-student-recordings>
+      </section>
     </div>
     <aside class="mc-classes-layout__aside" aria-label="Journey and updates">
       <div class="mc-side-card mc-side-card--journey">
@@ -98,10 +164,62 @@
             <span class="mc-side-card__foot-hint">(set by your teacher)</span></span
           >
         </div>
+
+        <!-- Day completion badge -->
+        <div class="mc-day-badge-wrap" *ngIf="dayHasTrackableContent">
+          <ng-container *ngIf="isDayComplete">
+            <span class="mc-day-badge mc-day-badge--complete">
+              <span class="material-icons">check_circle</span>
+              Day {{ journeyCourseDay }} Completed
+            </span>
+            <p class="mc-day-promote-hint" *ngIf="showSilverDayCompletePromotion">
+              <span class="material-icons mc-day-promote-hint__icon">rocket_launch</span>
+              Completing now — you'll be instantly promoted to <strong>Day {{ nextJourneyPreviewDay }}</strong>!
+            </p>
+          </ng-container>
+          <button
+            type="button"
+            class="mc-day-badge mc-day-badge--incomplete"
+            *ngIf="!isDayComplete"
+            (click)="openDayCompletionModal()"
+          >
+            <span class="material-icons">pending</span>
+            Day {{ journeyCourseDay }} Incomplete
+          </button>
+        </div>
       </div>
 
       <div class="mc-side-card mc-side-card--updates">
         <p class="mc-side-card__eyebrow">Updates</p>
+        <!-- Announcements are shown under Help & Support (messenger) → Announcements -->
+
+        <!-- Silver student: full day completion → instant promotion -->
+        <div class="mc-update mc-update--silver-complete" *ngIf="showSilverDayCompletePromotion">
+          <span class="mc-update__icon mc-update__icon--celebrate" aria-hidden="true">
+            <span class="material-icons">celebration</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">Day {{ journeyCourseDay }} Complete!</p>
+            <p class="mc-update__text">
+              You've finished all exercises, Gluck Buddy, and recordings for
+              <strong>Day {{ journeyCourseDay }}</strong>. You'll be instantly promoted to
+              <strong>Day {{ nextJourneyPreviewDay }}</strong> as soon as the last item is saved. Keep going! 🚀
+            </p>
+          </div>
+        </div>
+
+        <div class="mc-update mc-update--journey-ready" *ngIf="showJourneyPendingCelebration && !showSilverDayCompletePromotion">
+          <span class="mc-update__icon mc-update__icon--celebrate" aria-hidden="true">
+            <span class="material-icons">celebration</span>
+          </span>
+          <div class="mc-update__body">
+            <p class="mc-update__title">Ready for the next journey day</p>
+            <p class="mc-update__text">
+              You completed attendance for <strong>Day {{ journeyCourseDay }}</strong>. At midnight, your journey advances to
+              <strong>Day {{ nextJourneyPreviewDay }}</strong>. Keep going!
+            </p>
+          </div>
+        </div>
 
         <div class="mc-update" *ngIf="nextMeetingPreview as mtg">
           <span class="mc-update__icon mc-update__icon--live" aria-hidden="true">
@@ -116,23 +234,23 @@
           </div>
         </div>
 
-        <div class="mc-update" *ngIf="nextLockedDigitalExercise as locked">
+        <div class="mc-update" *ngIf="allowsLearningContent && nextLockedDigitalExercise">
           <span class="mc-update__icon mc-update__icon--lock" aria-hidden="true">
             <span class="material-icons">lock_clock</span>
           </span>
           <div class="mc-update__body">
             <p class="mc-update__title">Digital exercise ahead</p>
             <p class="mc-update__text">
-              <strong>{{ locked.title }}</strong>
-              is tied to <strong>day {{ locked.courseDay }}</strong>.
-              {{ lockedExerciseUnlockText(locked) }}
+              <strong>{{ nextLockedDigitalExercise.title }}</strong>
+              is tied to <strong>day {{ nextLockedDigitalExercise.courseDay }}</strong>.
+              {{ nextLockedDigitalExercise ? lockedExerciseUnlockText(nextLockedDigitalExercise) : '' }}
             </p>
           </div>
         </div>
 
         <div
           class="mc-update"
-          *ngIf="nextNewDigitalExercise as ex"
+          *ngIf="allowsLearningContent && nextNewDigitalExercise"
           role="button"
           tabindex="0"
           (click)="setTab('exercises')"
@@ -144,38 +262,18 @@
           <div class="mc-update__body">
             <p class="mc-update__title">New exercise available</p>
             <p class="mc-update__text">
-              <strong>{{ ex.title }}</strong>
+              <strong>{{ nextNewDigitalExercise.title }}</strong>
               <span class="mc-update__when">is ready now</span>
             </p>
           </div>
         </div>
 
         <div
-          class="mc-update"
-          *ngIf="nextNewAccessibleModule as mod"
-          role="button"
-          tabindex="0"
-          (click)="setTab('modules')"
-          (keydown.enter)="setTab('modules')"
-        >
-          <span class="mc-update__icon mc-update__icon--module" aria-hidden="true">
-            <span class="material-icons">school</span>
-          </span>
-          <div class="mc-update__body">
-            <p class="mc-update__title">New module available</p>
-            <p class="mc-update__text">
-              <strong>{{ mod.title }}</strong>
-              <span class="mc-update__when">{{ mod.level }} · {{ mod.category }}</span>
-            </p>
-          </div>
-        </div>
-
-        <div
           class="mc-update mc-update--empty"
-          *ngIf="!nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise && !nextNewAccessibleModule"
+          *ngIf="allowsLearningContent && !nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise"
         >
           <span class="material-icons" aria-hidden="true">notifications_none</span>
-          <p>No new class, module, or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Modules</strong> anytime.</p>
+          <p>No new class or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Gluck Buddy</strong> anytime.</p>
         </div>
 
         <button
@@ -183,8 +281,7 @@
           class="mc-side-card__link"
           (click)="setTab(updatesPrimaryTab)"
         >
-          {{ updatesLinkText }}
-          <span class="material-icons">arrow_forward</span>
+          {{ updatesLinkText }}<span class="material-icons">arrow_forward</span>
         </button>
       </div>
     </aside>
@@ -194,14 +291,813 @@
     <app-digital-exercises [embedded]="true"></app-digital-exercises>
   </div>
 
-  <div class="mc-panel" *ngIf="activeTab === 'modules'" role="tabpanel">
-    <app-learning-modules [embedded]="true"></app-learning-modules>
+  <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->
+
+  <div class="mc-panel" *ngIf="activeTab === 'talk-buddy'" role="tabpanel">
+    <p class="mc-dg-week-hint" *ngIf="allowsDgBot && !allowsLearningContent">
+      Complete all Glück Buddy modules in your current week to unlock the next week of practice.
+    </p>
+    <app-gluck-buddy-hub></app-gluck-buddy-hub>
+  </div>
+
+  <div class="mc-panel mc-journey" *ngIf="activeTab === 'journey'" role="tabpanel">
+    <div class="mc-journey-head">
+      <div>
+        <h3>Journey to Germany</h3>
+        <p>See day-wise progress and continue unfinished work.</p>
+      </div>
+      <div class="mc-journey-head__actions">
+        <button
+          type="button"
+          class="mc-progress-btn"
+          [class.mc-progress-btn--muted]="showProgressReport"
+          (click)="toggleProgressReport()"
+        >
+          <span class="material-icons">{{ showProgressReport ? 'expand_less' : 'insights' }}</span>{{ showProgressReport ? 'Hide report' : 'Progress report' }}
+        </button>
+        <button
+          type="button"
+          class="mc-progress-btn mc-progress-btn--muted"
+          (click)="openPerformanceHistory()"
+        >
+          <span class="material-icons">monitoring</span>Full performance history
+        </button>
+        <div class="mc-journey-meta">Day <strong>{{ journeyCourseDay }}</strong> / 200</div>
+      </div>
+    </div>
+
+    <div class="mc-progress-page" *ngIf="showProgressReport">
+      <div class="mc-progress-page__head">
+        <div>
+          <h4>Progress</h4>
+          <p>
+            <ng-container *ngIf="allowsLearningContent; else classesOnlyProgressText">
+              Weekly or overall completion across classes and exercises.
+            </ng-container>
+            <ng-template #classesOnlyProgressText>
+              Weekly or overall completion across your classes.
+            </ng-template>
+          </p>
+        </div>
+        <div class="mc-progress-range">
+          <button
+            type="button"
+            class="mc-progress-range__btn"
+            [class.mc-progress-range__btn--on]="progressRange === 'weekly'"
+            (click)="setProgressRange('weekly')"
+          >
+            Weekly
+          </button>
+          <button
+            type="button"
+            class="mc-progress-range__btn"
+            [class.mc-progress-range__btn--on]="progressRange === 'overall'"
+            (click)="setProgressRange('overall')"
+          >
+            Overall
+          </button>
+        </div>
+      </div>
+
+      <div class="mc-progress-cards">
+        <div class="mc-progress-card mc-progress-card--classes" tabindex="0">
+          <div class="mc-progress-card__front">
+            <div class="mc-progress-donut" [style.--mc-p]="progressClassesPct + '%'" aria-hidden="true">
+              <span>{{ progressClassesPct }}%</span>
+            </div>
+            <div class="mc-progress-card__body">
+              <span class="mc-progress-card__label">Live classes</span>
+              <strong class="mc-progress-card__count">{{ progressClassesDone }} / {{ progressClassesTotal }}</strong>
+              <p class="mc-progress-card__hint">Hover for details</p>
+              <div class="mc-progress-card__track"><i [style.width.%]="progressClassesPct"></i></div>
+            </div>
+          </div>
+          <div class="mc-progress-card__popover" role="tooltip" aria-label="Live class details">
+            <div class="mc-progress-card__popover-title">In this period</div>
+            <ul class="mc-progress-card__list">
+              <li *ngFor="let m of progressReportMeetings" class="mc-progress-card__item">
+                <div class="mc-progress-card__item-title">{{ m.topic || 'Live class' }}</div>
+                <div class="mc-progress-card__item-meta">
+                  {{ meetingJourneyDayLabel(m) }} · {{ m.teacher.name || '—' }} · {{ formatMeetingDate(m.startTime) }} · {{ formatMeetingTime(m.startTime) }} · {{ formatMeetingDuration(m.duration) }}
+                </div>
+                <div class="mc-progress-card__item-status">{{ meetingProgressStatusLabel(m) }}</div>
+              </li>
+            </ul>
+            <p class="mc-progress-card__empty" *ngIf="!progressReportMeetings.length">No classes in this range.</p>
+          </div>
+        </div>
+
+        <div class="mc-progress-card mc-progress-card--exercises" tabindex="0" *ngIf="allowsLearningContent">
+          <div class="mc-progress-card__front">
+            <div class="mc-progress-donut mc-progress-donut--green" [style.--mc-p]="progressExercisesPct + '%'" aria-hidden="true">
+              <span>{{ progressExercisesPct }}%</span>
+            </div>
+            <div class="mc-progress-card__body">
+              <span class="mc-progress-card__label">Exercises</span>
+              <strong class="mc-progress-card__count">{{ progressExercisesDone }} / {{ progressExercisesTotal }}</strong>
+              <p class="mc-progress-card__hint">Hover for details</p>
+              <div class="mc-progress-card__track mc-progress-card__track--green"><i [style.width.%]="progressExercisesPct"></i></div>
+            </div>
+          </div>
+          <div class="mc-progress-card__popover" role="tooltip" aria-label="Exercise details">
+            <div class="mc-progress-card__popover-title">In this period</div>
+            <ul class="mc-progress-card__list">
+              <li *ngFor="let ex of progressReportExercises" class="mc-progress-card__item">
+                <div class="mc-progress-card__item-title">{{ ex.title }}</div>
+                <div class="mc-progress-card__item-meta">
+                  <ng-container *ngIf="ex.courseDay != null">Day {{ ex.courseDay }} · </ng-container>{{ ex.level }} · {{ ex.category }}
+                </div>
+                <div class="mc-progress-card__item-status" [class.done]="!!ex.studentAttempt">
+                  {{ ex.studentAttempt ? 'Completed' : 'Pending' }}
+                </div>
+              </li>
+            </ul>
+            <p class="mc-progress-card__empty" *ngIf="!progressReportExercises.length">No exercises in this range.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mc-progress-total">
+        <span class="mc-progress-total__label">Combined</span>
+        <strong>{{ progressOverallDone }} / {{ progressOverallTotal }}</strong>
+        <span class="mc-progress-total__pct">{{ progressOverallPct }}%</span>
+      </div>
+    </div>
+
+    <div class="mc-journey-controls">
+      <input
+        type="text"
+        class="mc-journey-search"
+        placeholder="Search day number..."
+        [(ngModel)]="journeySearch"
+      />
+      <select class="mc-journey-filter" [(ngModel)]="journeyFilter">
+        <option value="all">All</option>
+        <option value="completed">Completed only</option>
+        <option value="pending">Pending only</option>
+      </select>
+    </div>
+
+    <div class="mc-day-pills">
+      <button
+        type="button"
+        class="mc-day-pill"
+        *ngFor="let d of filteredJourneyDays"
+        [class.mc-day-pill--on]="selectedJourneyDay === d"
+        (click)="selectJourneyDay(d)"
+      >
+        Day {{ d }}
+      </button>
+    </div>
+
+    <div class="mc-day-summary">
+      <span>Day {{ selectedJourneyDay }}</span>
+      <span>{{ selectedDayCompletedCount }} / {{ selectedDayTotalCount }} completed</span>
+    </div>
+
+    <div class="mc-day-empty" *ngIf="!selectedDayHasItems">
+      <ng-container *ngIf="allowsLearningContent; else classesOnlyDayEmpty">
+        No exercises assigned for this day.
+      </ng-container>
+      <ng-template #classesOnlyDayEmpty>
+        No exercises for this batch type. Check your live classes below.
+      </ng-template>
+    </div>
+
+    <div class="mc-day-sections" *ngIf="allowsLearningContent">
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises" *ngIf="selectedDayExercises.length">
+        <div class="mc-day-section__head">
+          <h4>Exercises</h4>
+          <span class="mc-day-section__count">{{ selectedDayExercises.length }}</span>
+        </div>
+        <div class="mc-day-item" *ngFor="let ex of selectedDayExercises">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getExerciseHoverDetails(ex)"
+            (click)="openExercise(ex)"
+            (keydown.enter)="openExercise(ex)"
+          >
+            <div class="mc-day-item__title">{{ ex.title }}</div>
+            <div class="mc-day-item__sub">{{ ex.level }} · {{ ex.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getExerciseHoverDetails(ex) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+            {{ ex.studentAttempt ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="!ex.studentAttempt"
+            [class.mc-day-item__btn--retry]="!!ex.studentAttempt"
+            (click)="openExercise(ex)"
+          >
+            <span class="material-icons">{{ ex.studentAttempt ? 'replay' : 'play_arrow' }}</span>{{ ex.studentAttempt ? 'Re-attempt' : 'Start' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--modules" *ngIf="selectedDayModules.length">
+        <div class="mc-day-section__head">
+          <h4>Modules</h4>
+          <span class="mc-day-section__count">{{ selectedDayModules.length }}</span>
+        </div>
+        <div class="mc-day-item" *ngFor="let mod of selectedDayModules">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getModuleHoverDetails(mod)"
+            (click)="openModule(mod)"
+            (keydown.enter)="openModule(mod)"
+          >
+            <div class="mc-day-item__title">{{ mod.title }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="mod.studentProgress?.status === 'completed'" [class.pending]="mod.studentProgress?.status !== 'completed'">
+            {{ mod.studentProgress?.status === 'completed' ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="mod.studentProgress?.status !== 'completed'"
+            [class.mc-day-item__btn--open]="mod.studentProgress?.status === 'completed'"
+            (click)="openModule(mod)"
+          >
+            <span class="material-icons">{{ mod.studentProgress?.status === 'completed' ? 'launch' : 'play_arrow' }}</span>
+            {{ mod.studentProgress?.status === 'completed' ? 'Open' : 'Start' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--arena" *ngIf="selectedDayGameSets.length">
+        <div class="mc-day-section__head">
+          <h4>GlückArena</h4>
+          <span class="mc-day-section__count">{{ selectedDayGameSets.length }}</span>
+        </div>
+        <p class="mc-day-section__intro">German game modules for this journey day — play to earn XP.</p>
+        <div class="mc-day-item" *ngFor="let game of selectedDayGameSets">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getGameSetHoverDetails(game)"
+            (click)="openGameSet(game)"
+            (keydown.enter)="openGameSet(game)"
+          >
+            <div class="mc-day-item__title">{{ game.title }}</div>
+            <div class="mc-day-item__sub">{{ game.level || game.difficulty }} · {{ game.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getGameSetHoverDetails(game) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gameSetDone(game)" [class.pending]="!gameSetDone(game)">
+            {{ gameSetDone(game) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="!gameSetDone(game)"
+            [class.mc-day-item__btn--retry]="gameSetDone(game)"
+            (click)="openGameSet(game)"
+          >
+            <span class="material-icons">{{ gameSetDone(game) ? 'replay' : 'play_arrow' }}</span>{{ gameSetDone(game) ? 'Play again' : 'Play' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy">
+        <div class="mc-day-section__head">
+          <h4>Gluck Buddy</h4>
+          <span class="mc-day-section__count mc-day-section__count--muted">Day {{ selectedJourneyDay }}</span>
+        </div>
+        <p class="mc-day-section__intro">Speaking role-play for this journey day (Completed / Pending / New).</p>
+        <app-gluck-buddy-hub
+          [journeyFixedDay]="selectedJourneyDay"
+          [hideEmbeddedHeader]="true"
+        ></app-gluck-buddy-hub>
+      </div>
+    </div>
+
+    <div class="mc-journey-classes mc-day-section-card mc-day-section-card--classes">
+      <div class="mc-journey-classes__head">
+        <h4>Live Classes</h4>
+        <p>
+          Day {{ selectedJourneyDay }} classes:
+          {{ selectedDayUpcomingClasses.length }} upcoming,
+          {{ selectedDayLiveClasses.length }} live,
+          {{ selectedDayAttemptedClasses.length }} attempted
+        </p>
+      </div>
+      <div class="mc-jc-empty" *ngIf="!selectedDayAllClasses.length">
+        No classes for Day {{ selectedJourneyDay }}.
+      </div>
+
+      <div class="mc-jc-table-wrap" *ngIf="selectedDayAllClasses.length">
+        <table class="mc-jc-table">
+          <thead>
+            <tr>
+              <th>Class Title</th>
+              <th>Teacher</th>
+              <th>Date</th>
+              <th>Timing</th>
+              <th>Duration</th>
+              <th>Status</th>
+              <th>Action</th>
+              <th>Progress</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let meeting of selectedDayAllClasses">
+              <td>{{ meeting.topic }}</td>
+              <td>{{ meeting.teacher.name || '—' }}</td>
+              <td>{{ formatMeetingDate(meeting.startTime) }}</td>
+              <td>{{ formatMeetingTime(meeting.startTime) }}</td>
+              <td>{{ formatMeetingDuration(meeting.duration) }}</td>
+              <td>
+                <span
+                  class="mc-jc-status"
+                  [class.live]="meeting.isOngoing"
+                  [class.upcoming]="!meeting.isOngoing && !meeting.hasEnded"
+                  [class.done]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Attended'"
+                  [class.warn]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Not Attended'"
+                  [class.missed]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Missed'"
+                >
+                  {{ meeting.hasEnded ? getMeetingAttendanceStatus(meeting) : getMeetingStateLabel(meeting) }}
+                </span>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="mc-jc-action"
+                  [class.mc-jc-action--live]="meeting.isOngoing"
+                  [disabled]="meeting.hasEnded || (!meeting.canJoin && !meeting.isOngoing)"
+                  (click)="joinSelectedDayMeeting(meeting)"
+                >
+                  {{
+                    meeting.hasEnded
+                      ? 'Completed'
+                      : (meeting.canJoin ? (meeting.isOngoing ? 'Join Now' : 'Join') : getMeetingTimeUntilStart(meeting))
+                  }}
+                </button>
+              </td>
+              <td>
+                <div class="mc-jc-progress">
+                  <div class="mc-jc-progress__track">
+                    <div class="mc-jc-progress__fill" [style.width.%]="getMeetingAttendancePercent(meeting)"></div>
+                  </div>
+                  <span>{{ getMeetingAttendancePercent(meeting) }}%</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="mc-journey-recordings mc-day-section-card" *ngIf="isGoBatchStudent">
+      <div class="mc-journey-recordings__head">
+        <h4>Class recordings</h4>
+        <p>
+          Lesson recordings for <strong>Day {{ selectedJourneyDay }}</strong> (same list as My class, filtered by journey day).
+        </p>
+      </div>
+      <app-student-recordings
+        [embedded]="true"
+        [courseDayFilter]="selectedJourneyDay"
+      />
+    </div>
   </div>
 </div>
 
 <ng-template #mcLoading>
-  <div class="mc mc--loading">
-    <div class="mc-spinner"></div>
-    <p>Loading your course…</p>
+  <div class="mc mc--skeleton" aria-busy="true" aria-label="Loading course">
+    <!-- Hero skeleton (matches mc-hero layout) -->
+    <div class="mc-sk-hero">
+      <div class="mc-sk-hero__text">
+        <div class="mc-sk-line mc-sk-line--lg"></div>
+        <div class="mc-sk-line mc-sk-line--md"></div>
+        <div class="mc-sk-line mc-sk-line--sm"></div>
+        <div class="mc-sk-pills">
+          <div class="mc-sk-pill"></div>
+          <div class="mc-sk-pill"></div>
+        </div>
+      </div>
+      <div class="mc-sk-hero__avatar" aria-hidden="true"></div>
+    </div>
+
+    <!-- Tabs skeleton -->
+    <div class="mc-sk-tabs">
+      <div class="mc-sk-tab"></div>
+      <div class="mc-sk-tab"></div>
+      <div class="mc-sk-tab"></div>
+      <div class="mc-sk-tab mc-sk-tab--short"></div>
+    </div>
+
+    <!-- Main grid skeleton (matches classes tab: main + sidebar) -->
+    <div class="mc-sk-grid">
+      <div class="mc-sk-card">
+        <div class="mc-sk-line mc-sk-line--title"></div>
+        <div class="mc-sk-table">
+          <div class="mc-sk-row" *ngFor="let _ of skeletonMeetingRows">
+            <div class="mc-sk-cell mc-sk-cell--wide"></div>
+            <div class="mc-sk-cell"></div>
+            <div class="mc-sk-cell"></div>
+            <div class="mc-sk-cell mc-sk-cell--btn"></div>
+          </div>
+        </div>
+      </div>
+      <div class="mc-sk-card mc-sk-card--side">
+        <div class="mc-sk-line mc-sk-line--title"></div>
+        <div class="mc-sk-line" *ngFor="let _ of skeletonSideLines"></div>
+        <div class="mc-sk-block"></div>
+      </div>
+    </div>
+
+    <p class="mc-sk-hint">Loading your course…</p>
   </div>
 </ng-template>
+
+<!-- ── Day Completion Modal ─────────────────────────────────────────────── -->
+<div
+  class="mc-completion-overlay"
+  *ngIf="showDayCompletionModal"
+  (click)="closeDayCompletionModal()"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="'Day ' + journeyCourseDay + ' incomplete tasks'"
+>
+  <div class="mc-completion-modal" (click)="$event.stopPropagation()">
+    <div class="mc-completion-modal__head">
+      <div class="mc-completion-modal__title-wrap">
+        <span class="material-icons mc-completion-modal__title-icon">assignment_late</span>
+        <h3 class="mc-completion-modal__title">Day {{ journeyCourseDay }} — Still to do</h3>
+      </div>
+      <button
+        type="button"
+        class="mc-completion-modal__close"
+        (click)="closeDayCompletionModal()"
+        aria-label="Close"
+      >&#10005;</button>
+    </div>
+
+    <div class="mc-completion-modal__body">
+
+      <!-- Exercises -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteExercises.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">quiz</span> Exercises
+        </p>
+        <div class="mc-completion-item" *ngFor="let ex of currentDayIncompleteExercises">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ ex.title }}</span>
+            <span class="mc-completion-item__sub" *ngIf="ex.level || ex.category">
+              {{ ex.level }}{{ ex.level && ex.category ? ' · ' : '' }}{{ ex.category }}
+            </span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="openExercise(ex); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Start
+          </button>
+        </div>
+      </div>
+
+      <!-- Gluck Buddy (DG) -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteDg.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">record_voice_over</span> Gluck Buddy
+        </p>
+        <div class="mc-completion-item" *ngFor="let m of currentDayIncompleteDg">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ m.title }}</span>
+            <span class="mc-completion-item__sub" *ngIf="m.level">{{ m.level }}</span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="setTab('talk-buddy'); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Start
+          </button>
+        </div>
+      </div>
+
+      <!-- GlückArena -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteGameSets.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">sports_esports</span> GlückArena
+        </p>
+        <div class="mc-completion-item" *ngFor="let game of currentDayIncompleteGameSets">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ game.title }}</span>
+            <span class="mc-completion-item__sub" *ngIf="game.level || game.category">
+              {{ game.level || game.difficulty }}{{ (game.level || game.category) && game.category ? ' · ' : '' }}{{ game.category }}
+            </span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="openGameSet(game); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Play
+          </button>
+        </div>
+      </div>
+
+      <!-- Recorded Classes -->
+      <div class="mc-completion-section" *ngIf="currentDayIncompleteRecs.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">videocam</span> Recorded Classes
+        </p>
+        <div class="mc-completion-item" *ngFor="let r of currentDayIncompleteRecs">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ r.title }}</span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_circle</span> Play
+          </button>
+        </div>
+      </div>
+
+      <!-- Nothing left (edge-case: modal opened but actually done) -->
+      <p
+        class="mc-completion-modal__empty"
+        *ngIf="!currentDayIncompleteExercises.length && !currentDayIncompleteDg.length && !currentDayIncompleteGameSets.length && !currentDayIncompleteRecs.length"
+      >
+        All tasks for Day {{ journeyCourseDay }} are completed!
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recording access request — class list modal (center screen) ── -->
+<div
+  class="mc-req-modal-overlay mc-req-modal-overlay--list"
+  *ngIf="showRecordingReqPanel && isPlatinumStudent && !recordingReqConfirmTarget"
+  (click)="closeRecordingReqPanel()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Request recording access for batch classes"
+>
+    <div class="mc-req-modal mc-req-modal--list" (click)="$event.stopPropagation()">
+      <div class="mc-req-modal__header">
+        <div>
+          <h4 class="mc-req-modal__title">Request Recording Access</h4>
+          <p class="mc-req-modal__subtitle" *ngIf="recordingReqQuota">
+            Level <strong>{{ recordingReqQuota.level || levelShortLabel }}</strong> &mdash;
+            <strong>{{ recordingReqQuota.remaining }}</strong> of {{ recordingReqQuota.limit }} requests remaining
+            <span *ngIf="!recordingReqLoading && recordingReqTotal">
+              &mdash; {{ recordingReqTotal }} class{{ recordingReqTotal !== 1 ? 'es' : '' }}
+            </span>
+          </p>
+        </div>
+        <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqPanel()" aria-label="Close">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="mc-req-modal__body mc-req-modal__body--list">
+        <div class="mc-req-banner mc-req-banner--success" *ngIf="recordingReqSuccessMsg">
+          <span class="material-icons">check_circle</span>
+          {{ recordingReqSuccessMsg }}
+        </div>
+
+        <div class="mc-req-banner mc-req-banner--warn" *ngIf="recordingReqQuota && recordingReqQuota.remaining === 0 && !recordingReqLoading">
+          <span class="material-icons">info</span>
+          You have used all {{ recordingReqQuota.limit }} approved recording requests for level {{ recordingReqQuota.level }}.
+        </div>
+
+        <div class="mc-req-banner mc-req-banner--error" *ngIf="recordingReqError && !recordingReqLoading">
+          <span class="material-icons">error_outline</span>
+          {{ recordingReqError }}
+        </div>
+
+        <div class="mc-req-list-modal" *ngIf="recordingReqLoading" aria-busy="true" aria-label="Loading classes">
+          <table class="mc-req-table mc-req-table--skeleton">
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Date</th>
+                <th>Teacher</th>
+                <th>Attendance</th>
+                <th class="mc-req-table__action-col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let _ of recordingReqSkeletonRows" class="mc-req-sk-row">
+                <td><div class="mc-req-sk-line mc-req-sk-line--topic"></div></td>
+                <td><div class="mc-req-sk-line mc-req-sk-line--short"></div></td>
+                <td><div class="mc-req-sk-line mc-req-sk-line--med"></div></td>
+                <td><div class="mc-req-sk-line mc-req-sk-line--pill"></div></td>
+                <td class="mc-req-table__action-col">
+                  <div class="mc-req-table__actions">
+                    <div class="mc-req-sk-icon"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mc-req-list-modal" *ngIf="!recordingReqLoading && !recordingReqError">
+          <div class="mc-req-empty" *ngIf="!recordingReqClasses.length">
+            <span class="material-icons">event_busy</span>
+            No past classes found for your batch.
+          </div>
+
+          <table class="mc-req-table" *ngIf="recordingReqClasses.length">
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Date</th>
+                <th>Teacher</th>
+                <th>Attendance</th>
+                <th class="mc-req-table__action-col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let cls of recordingReqClasses">
+                <td class="mc-req-table__topic">{{ cls.topic }}</td>
+                <td>{{ formatReqDate(cls.startTime) }}</td>
+                <td>{{ cls.teacherName }}</td>
+                <td>
+                  <span class="mc-req-row__att" [ngClass]="cls.attendanceStatus === 'Attended' ? 'att--attended' : 'att--missed'">
+                    {{ cls.attendanceStatus }}
+                  </span>
+                </td>
+                <td class="mc-req-table__action-col">
+                  <div class="mc-req-table__actions">
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
+                      *ngIf="cls.isAlreadyPublished"
+                      title="Access granted"
+                      aria-label="Access granted"
+                    >
+                      <span class="material-icons">check_circle</span>
+                    </span>
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
+                      *ngIf="!cls.isAlreadyPublished && cls.requestStatus === 'APPROVED'"
+                      title="Approved"
+                      aria-label="Approved"
+                    >
+                      <span class="material-icons">verified</span>
+                    </span>
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--pending"
+                      *ngIf="cls.requestStatus === 'PENDING'"
+                      title="Pending review"
+                      aria-label="Pending review"
+                    >
+                      <span class="material-icons">schedule</span>
+                    </span>
+                    <button
+                      type="button"
+                      class="mc-req-icon-btn mc-req-icon-btn--request"
+                      *ngIf="cls.canRequest"
+                      (click)="openRecordingReqConfirm(cls)"
+                      title="Request access"
+                      aria-label="Request access"
+                    >
+                      <span class="material-icons">playlist_add</span>
+                    </button>
+                    <span
+                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--muted"
+                      *ngIf="!cls.isAlreadyPublished && cls.requestStatus !== 'APPROVED' && cls.requestStatus !== 'PENDING' && !cls.canRequest"
+                      title="Quota full"
+                      aria-label="Quota full"
+                    >
+                      <span class="material-icons">block</span>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div
+            class="mc-req-pagination"
+            *ngIf="recordingReqTotalPages > 1 && !recordingReqLoading && !recordingReqError"
+          >
+            <button
+              type="button"
+              class="mc-req-pagination__btn"
+              (click)="goToRecordingReqPage(recordingReqPage - 1)"
+              [disabled]="recordingReqPage <= 1 || recordingReqLoading"
+            >
+              <span class="material-icons">chevron_left</span> Previous
+            </button>
+            <span class="mc-req-pagination__info">
+              Showing {{ recordingReqRangeStart() }}&ndash;{{ recordingReqRangeEnd() }} of {{ recordingReqTotal }}
+            </span>
+            <button
+              type="button"
+              class="mc-req-pagination__btn"
+              (click)="goToRecordingReqPage(recordingReqPage + 1)"
+              [disabled]="recordingReqPage >= recordingReqTotalPages || recordingReqLoading"
+            >
+              Next <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ── Recording access request — confirmation modal ── -->
+<div
+  class="mc-req-modal-overlay mc-req-modal-overlay--confirm"
+  *ngIf="recordingReqConfirmTarget"
+  (click)="closeRecordingReqConfirm()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Confirm recording request"
+>
+  <div class="mc-req-modal mc-req-modal--confirm" (click)="$event.stopPropagation()">
+    <div class="mc-req-modal__header mc-req-modal__header--confirm">
+      <div class="mc-req-modal__header-text">
+        <span class="mc-req-modal__header-icon material-icons">videocam</span>
+        <div>
+          <h4 class="mc-req-modal__title">Confirm request</h4>
+          <p class="mc-req-modal__subtitle">Review the class below before submitting</p>
+        </div>
+      </div>
+      <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqConfirm()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <div class="mc-req-modal__body mc-req-modal__body--confirm">
+      <div class="mc-req-confirm-card">
+        <p class="mc-req-confirm-card__topic">{{ recordingReqConfirmTarget.topic }}</p>
+        <ul class="mc-req-confirm-card__meta">
+          <li>
+            <span class="material-icons">event</span>
+            {{ formatReqDate(recordingReqConfirmTarget.startTime) }}
+          </li>
+          <li>
+            <span class="material-icons">person</span>
+            {{ recordingReqConfirmTarget.teacherName }}
+          </li>
+          <li>
+            <span class="material-icons">how_to_reg</span>
+            <span
+              [ngClass]="recordingReqConfirmTarget.attendanceStatus === 'Attended' ? 'mc-req-confirm-card__att--ok' : 'mc-req-confirm-card__att--no'"
+            >
+              {{ recordingReqConfirmTarget.attendanceStatus }}
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="mc-req-confirm-quota" *ngIf="recordingReqQuota">
+        <div class="mc-req-confirm-quota__stat">
+          <span class="mc-req-confirm-quota__label">Request #</span>
+          <span class="mc-req-confirm-quota__value">{{ recordingReqOrdinal(recordingReqQuota.approvedCount + 1) }}</span>
+        </div>
+        <div class="mc-req-confirm-quota__divider"></div>
+        <div class="mc-req-confirm-quota__stat">
+          <span class="mc-req-confirm-quota__label">Level</span>
+          <span class="mc-req-confirm-quota__value">{{ recordingReqQuota.level }}</span>
+        </div>
+        <div class="mc-req-confirm-quota__divider"></div>
+        <div class="mc-req-confirm-quota__stat">
+          <span class="mc-req-confirm-quota__label">After approval</span>
+          <span class="mc-req-confirm-quota__value">
+            {{ recordingReqQuota.remaining - 1 }} left
+          </span>
+        </div>
+      </div>
+
+      <p class="mc-req-confirm-note" *ngIf="recordingReqQuota">
+        You can submit up to {{ recordingReqQuota.limit }} approved recording requests per level.
+        We will notify you by email once your request is reviewed.
+      </p>
+
+      <div class="mc-req-modal__fail" *ngIf="recordingReqFailMsg">
+        <span class="material-icons">error_outline</span>
+        {{ recordingReqFailMsg }}
+      </div>
+    </div>
+
+    <div class="mc-req-modal__footer mc-req-modal__footer--confirm">
+      <button type="button" class="mc-req-modal__btn mc-req-modal__btn--cancel" (click)="closeRecordingReqConfirm()">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="mc-req-modal__btn mc-req-modal__btn--confirm"
+        [disabled]="recordingReqSubmitting"
+        (click)="confirmRecordingRequest()"
+      >
+        <span class="material-icons mc-req-spin" *ngIf="recordingReqSubmitting">autorenew</span>
+        <span class="material-icons" *ngIf="!recordingReqSubmitting">send</span>
+        {{ recordingReqSubmitting ? 'Submitting…' : 'Submit request' }}
+      </button>
+    </div>
+  </div>
+</div>

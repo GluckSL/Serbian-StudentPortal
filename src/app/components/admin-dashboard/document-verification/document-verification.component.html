@@ -6,27 +6,35 @@
   </div>
 
   <!-- Tabs -->
-  <mat-tab-group>
+  <mat-tab-group class="doc-tabs">
     <!-- Tab 1: Student Document Verification -->
     <mat-tab label="Student Document Verification">
       <div class="tab-content">
         <!-- Action Buttons -->
         <div class="action-buttons-row">
-          <button mat-raised-button color="primary" (click)="openBulkUploadDialog()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--primary" (click)="openBulkUploadDialog()">
             <mat-icon>cloud_upload</mat-icon>
-            Bulk Upload for Students
+            Bulk Upload
           </button>
-          <button mat-raised-button style="background-color: #4caf50; color: white;" (click)="openMarkVerifiedDialog()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--success" (click)="openMarkVerifiedDialog()">
             <mat-icon>verified</mat-icon>
-            Mark as Verified (No Upload)
+            Mark Verified
           </button>
-          <button mat-raised-button color="accent" (click)="bulkVerifySelected()" [disabled]="selectedDocuments.length === 0">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--accent" (click)="bulkVerifySelected()" [disabled]="selectedDocuments.length === 0">
             <mat-icon>check_circle</mat-icon>
-            Verify Selected ({{ selectedDocuments.length }})
+            Verify ({{ selectedDocuments.length }})
           </button>
-          <button mat-raised-button style="background-color: #1565c0; color: white;" (click)="exportToCSV()">
+          <button mat-flat-button class="toolbar-btn toolbar-btn--export" (click)="exportToCSV()">
             <mat-icon>download</mat-icon>
             Export CSV
+          </button>
+          <button mat-flat-button class="toolbar-btn toolbar-btn--agreement" (click)="openAgreementDialog()">
+            <mat-icon>post_add</mat-icon>
+            Generate Agreement
+          </button>
+          <button mat-flat-button class="toolbar-btn toolbar-btn--templates" (click)="openAgreementTemplates()">
+            <mat-icon>description</mat-icon>
+            Templates
           </button>
         </div>
 
@@ -94,9 +102,46 @@
   </div>
 
   <!-- Filters -->
-  <mat-card class="filters-card">
-    <mat-card-content>
-      <div class="filters-row">
+  <div class="filters-bar">
+      <div class="filters-toolbar">
+        <div class="search-wrap">
+          <mat-icon class="search-icon">search</mat-icon>
+          <input
+            class="search-input"
+            type="text"
+            [(ngModel)]="searchQuery"
+            (input)="applyFilters()"
+            placeholder="Search student email or document…" />
+        </div>
+
+        <div class="filters-actions">
+          <button
+            mat-stroked-button
+            class="pill-btn filter-toggle-btn"
+            [class.pill-btn--active]="showAdvancedFilters"
+            (click)="toggleAdvancedFilters()"
+            [matTooltip]="showAdvancedFilters ? 'Hide filters' : 'Show filters'">
+            <mat-icon>filter_alt</mat-icon>
+            Filters
+          </button>
+
+          <button mat-stroked-button class="pill-btn clear-filters-btn" (click)="clearFilters()">
+            <mat-icon>close</mat-icon>
+            Clear
+          </button>
+
+          <div class="view-toggle">
+            <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="List view">
+              <mat-icon>view_list</mat-icon>
+            </button>
+            <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Table view">
+              <mat-icon>table_rows</mat-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="filters-row" *ngIf="showAdvancedFilters">
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Status</mat-label>
           <mat-select [(ngModel)]="selectedStatus" (selectionChange)="applyFilters()">
@@ -117,39 +162,83 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Service Opted</mat-label>
+        <mat-form-field appearance="outline" class="filter-field filter-field-crm">
+          <mat-label>CRM status</mat-label>
+          <mat-select [(ngModel)]="selectedCrmStudentStatus" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All statuses</mat-option>
+            <mat-option *ngFor="let st of crmStudentStatusOptions" [value]="st">
+              {{ st }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field filter-field-crm">
+          <mat-label>Package</mat-label>
+          <mat-select [(ngModel)]="selectedPackage" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All packages</mat-option>
+            <mat-option *ngFor="let pkg of packageOptions" [value]="pkg">
+              {{ pkg }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field filter-field-crm">
+          <mat-label>Service opted</mat-label>
           <mat-select [(ngModel)]="selectedServiceOpted" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All Services</mat-option>
+            <mat-option value="ALL">All services</mat-option>
             <mat-option *ngFor="let service of serviceOptedOptions" [value]="service">
               {{ service }}
             </mat-option>
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="filter-field search-field">
-          <mat-label>Search</mat-label>
-          <input matInput [(ngModel)]="searchQuery" (input)="applyFilters()" 
-                 placeholder="Student name, email, or document name">
-          <mat-icon matSuffix>search</mat-icon>
+        <mat-form-field appearance="outline" class="filter-field filter-field-qual">
+          <mat-label>Qualification</mat-label>
+          <mat-select [(ngModel)]="selectedQualification" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All qualifications</mat-option>
+            <mat-option *ngFor="let q of qualificationOptions" [value]="q">
+              {{ q }}
+            </mat-option>
+          </mat-select>
         </mat-form-field>
 
-        <button mat-raised-button color="accent" (click)="clearFilters()">
-          <mat-icon>clear</mat-icon>
-          Clear Filters
-        </button>
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Batch</mat-label>
+          <mat-select [(ngModel)]="selectedBatch" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All batches</mat-option>
+            <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
+          </mat-select>
+        </mat-form-field>
 
-        <div class="view-toggle">
-          <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="Compact View">
-            <mat-icon>view_list</mat-icon>
-          </button>
-          <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Detailed View">
-            <mat-icon>table_rows</mat-icon>
-          </button>
-        </div>
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Level</mat-label>
+          <mat-select [(ngModel)]="selectedLevel" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All levels</mat-option>
+            <mat-option *ngFor="let lv of levelOptions" [value]="lv">{{ lv }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field-qual">
+          <mat-label>Language level opted</mat-label>
+          <mat-select [(ngModel)]="selectedLanguageLevelOpted" (selectionChange)="applyFilters()">
+            <mat-option value="ALL">All language levels</mat-option>
+            <mat-option *ngFor="let ll of languageLevelOptedOptions" [value]="ll">{{ ll }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Student name</mat-label>
+          <input matInput [(ngModel)]="studentNameQuery" (input)="applyFilters()" placeholder="Search student...">
+          <mat-icon matSuffix>person_search</mat-icon>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Teacher</mat-label>
+          <input matInput [(ngModel)]="teacherQuery" (input)="applyFilters()" placeholder="Search teacher...">
+          <mat-icon matSuffix>school</mat-icon>
+        </mat-form-field>
       </div>
-    </mat-card-content>
-  </mat-card>
+  </div>
 
   <!-- Compact Student View -->
   <div *ngIf="viewMode === 'compact' && !loading">
@@ -158,117 +247,79 @@
       <p>No documents found</p>
     </div>
 
-    <div class="student-group-list">
-      <mat-card *ngFor="let group of filteredStudentGroups" class="student-group-card" [class.expanded]="expandedStudentId === group.studentId">
-        <!-- Student Summary Row -->
-        <div class="student-group-header" (click)="toggleStudentExpand(group.studentId)">
-          <div class="student-group-info">
-            <mat-icon class="student-avatar-icon">account_circle</mat-icon>
-            <div>
-              <strong>{{ group.studentName }}</strong>
-              <small>{{ group.studentEmail }}</small>
-            </div>
-            <button mat-icon-button matTooltip="Send Email" 
-                    (click)="openEmailDialog(group.studentName, group.studentEmail); $event.stopPropagation()"
-                    style="color: #1976d2; margin-left: 8px;">
-              <mat-icon>email</mat-icon>
-            </button>
-          </div>
-          <div class="student-group-stats">
-            <span class="doc-count total" matTooltip="Total Documents">
-              <mat-icon>description</mat-icon> {{ group.totalDocs }}
-            </span>
-            <span class="doc-count pending" *ngIf="group.pendingDocs > 0" matTooltip="Pending Review">
-              <mat-icon>schedule</mat-icon> {{ group.pendingDocs }}
-            </span>
-            <span class="doc-count verified" *ngIf="group.verifiedDocs > 0" matTooltip="Verified">
-              <mat-icon>check_circle</mat-icon> {{ group.verifiedDocs }}
-            </span>
-            <span class="doc-count rejected" *ngIf="group.rejectedDocs > 0" matTooltip="Rejected">
-              <mat-icon>cancel</mat-icon> {{ group.rejectedDocs }}
-            </span>
-          </div>
-          <mat-icon class="expand-icon">{{ expandedStudentId === group.studentId ? 'expand_less' : 'expand_more' }}</mat-icon>
-        </div>
-
-        <!-- Expanded Document List -->
-        <div class="student-group-documents" *ngIf="expandedStudentId === group.studentId">
-          <table mat-table [dataSource]="group.documents" class="documents-table compact-table">
-            <ng-container matColumnDef="documentType">
-              <th mat-header-cell *matHeaderCellDef>Type</th>
-              <td mat-cell *matCellDef="let doc">{{ doc.documentTypeDisplay || doc.documentType }}</td>
+    <div class="student-group-list table-card">
+      <div class="table-container">
+        <table class="documents-table compact-table student-list-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>CRM Snapshot</th>
+              <th>Documents</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let group of paginatedStudentGroups">
+              <tr class="student-main-row">
+                <td>
+                  <div class="student-group-info">
+                    <mat-icon class="student-avatar-icon">account_circle</mat-icon>
+                    <div class="student-group-title-block">
+                      <strong>{{ group.studentName }}</strong>
+                      <small>{{ group.studentEmail }}</small>
+                    </div>
+                    <button mat-icon-button matTooltip="Send Email"
+                            (click)="openEmailDialog(group.studentName, group.studentEmail); $event.stopPropagation()"
+                            style="color: #1976d2; margin-left: 8px;">
+                      <mat-icon>email</mat-icon>
+                    </button>
+                  </div>
+                </td>
+                <td>
+                  <div class="student-crm-meta" *ngIf="group.studentStatus || group.subscription || group.servicesOpted || group.qualifications || group.languageLevelOpted">
+                    <span class="crm-pill" *ngIf="group.studentStatus" matTooltip="Current status (Monday CRM)">{{ group.studentStatus }}</span>
+                    <span class="crm-pill crm-pill-package" *ngIf="group.subscription" matTooltip="Package">{{ group.subscription }}</span>
+                    <span class="crm-pill crm-pill-service" *ngIf="group.servicesOpted" matTooltip="Service opted">{{ group.servicesOpted }}</span>
+                    <span class="crm-pill crm-pill-qual" *ngIf="group.qualifications" matTooltip="Qualification">{{ group.qualifications }}</span>
+                    <span class="crm-pill crm-pill-muted" *ngIf="group.languageLevelOpted" matTooltip="Language level opted">{{ group.languageLevelOpted }}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="student-group-stats">
+                    <span class="doc-count total" matTooltip="Total Documents">
+                      <mat-icon>description</mat-icon> {{ group.totalDocs }}
+                    </span>
+                    <span class="doc-count pending" *ngIf="group.pendingDocs > 0" matTooltip="Pending Review">
+                      <mat-icon>schedule</mat-icon> {{ group.pendingDocs }}
+                    </span>
+                    <span class="doc-count verified" *ngIf="group.verifiedDocs > 0" matTooltip="Verified">
+                      <mat-icon>check_circle</mat-icon> {{ group.verifiedDocs }}
+                    </span>
+                    <span class="doc-count rejected" *ngIf="group.rejectedDocs > 0" matTooltip="Rejected">
+                      <mat-icon>cancel</mat-icon> {{ group.rejectedDocs }}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <button mat-flat-button class="view-btn"
+                            (click)="openStudentDocumentsPage(group); $event.stopPropagation()">
+                      View
+                    </button>
+                  </div>
+                </td>
+              </tr>
             </ng-container>
-
-            <ng-container matColumnDef="documentName">
-              <th mat-header-cell *matHeaderCellDef>Name</th>
-              <td mat-cell *matCellDef="let doc">{{ doc.documentName }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="fileSize">
-              <th mat-header-cell *matHeaderCellDef>Size</th>
-              <td mat-cell *matCellDef="let doc">{{ doc.formattedFileSize }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="uploadedAt">
-              <th mat-header-cell *matHeaderCellDef>Uploaded</th>
-              <td mat-cell *matCellDef="let doc">{{ formatDate(doc.uploadedAt) }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Status</th>
-              <td mat-cell *matCellDef="let doc">
-                <mat-chip [color]="getStatusColor(doc.status)" selected>
-                  <mat-icon>{{ getStatusIcon(doc.status) }}</mat-icon>
-                  {{ doc.status }}
-                </mat-chip>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Actions</th>
-              <td mat-cell *matCellDef="let doc">
-                <div class="action-buttons">
-                  <button mat-icon-button color="primary" 
-                          (click)="openPreview(doc); $event.stopPropagation()"
-                          [disabled]="doc.fileName === 'NO_FILE_UPLOADED'"
-                          [matTooltip]="doc.fileName === 'NO_FILE_UPLOADED' ? 'No file available' : 'Preview'">
-                    <mat-icon>visibility</mat-icon>
-                  </button>
-                  <button mat-icon-button 
-                          (click)="downloadDocument(doc); $event.stopPropagation()"
-                          [disabled]="doc.fileName === 'NO_FILE_UPLOADED'"
-                          matTooltip="Download"
-                          style="color: #1976d2;">
-                    <mat-icon>download</mat-icon>
-                  </button>
-                  <button mat-icon-button color="accent" 
-                          (click)="openVerificationDialog(doc, 'VERIFIED'); $event.stopPropagation()"
-                          [disabled]="doc.status === 'VERIFIED'"
-                          matTooltip="Verify">
-                    <mat-icon>check_circle</mat-icon>
-                  </button>
-                  <button mat-icon-button color="warn" 
-                          (click)="openVerificationDialog(doc, 'REJECTED'); $event.stopPropagation()"
-                          [disabled]="doc.status === 'REJECTED'"
-                          matTooltip="Reject">
-                    <mat-icon>cancel</mat-icon>
-                  </button>
-                  <button mat-icon-button 
-                          *ngIf="doc.status === 'VERIFIED'"
-                          (click)="unlockDocument(doc); $event.stopPropagation()"
-                          matTooltip="Unlock for student to update"
-                          style="color: #ff9800;">
-                    <mat-icon>lock_open</mat-icon>
-                  </button>
-                </div>
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="['documentType', 'documentName', 'fileSize', 'uploadedAt', 'status', 'actions']"></tr>
-            <tr mat-row *matRowDef="let row; columns: ['documentType', 'documentName', 'fileSize', 'uploadedAt', 'status', 'actions'];"></tr>
-          </table>
-        </div>
-      </mat-card>
+          </tbody>
+        </table>
+        <mat-paginator
+          [length]="totalStudentGroups"
+          [pageSize]="compactPageSize"
+          [pageSizeOptions]="[5, 10, 25, 50]"
+          (page)="onCompactPageChange($event)"
+          showFirstLastButtons>
+        </mat-paginator>
+      </div>
     </div>
   </div>
 
@@ -314,6 +365,13 @@
               <div class="student-info">
                 <strong>{{ doc.studentName }}</strong>
                 <small>{{ doc.studentEmail }}</small>
+                <div class="student-crm-meta student-crm-meta--table" *ngIf="doc.studentStatus || doc.subscription || doc.servicesOpted || doc.qualifications || doc.languageLevelOpted">
+                  <span class="crm-pill" *ngIf="doc.studentStatus">{{ doc.studentStatus }}</span>
+                  <span class="crm-pill crm-pill-package" *ngIf="doc.subscription">{{ doc.subscription }}</span>
+                  <span class="crm-pill crm-pill-service" *ngIf="doc.servicesOpted">{{ doc.servicesOpted }}</span>
+                  <span class="crm-pill crm-pill-qual" *ngIf="doc.qualifications">{{ doc.qualifications }}</span>
+                  <span class="crm-pill crm-pill-muted" *ngIf="doc.languageLevelOpted">{{ doc.languageLevelOpted }}</span>
+                </div>
               </div>
               <button mat-icon-button matTooltip="Send Email" 
                       (click)="openEmailDialog(doc.studentName, doc.studentEmail); $event.stopPropagation()"
@@ -366,10 +424,10 @@
             <td mat-cell *matCellDef="let doc">
               <div class="action-buttons">
                 <button mat-icon-button color="primary" 
-                        (click)="openPreview(doc)"
+                        (click)="openDocumentInNewTab(doc)"
                         [disabled]="doc.fileName === 'NO_FILE_UPLOADED'"
-                        [matTooltip]="doc.fileName === 'NO_FILE_UPLOADED' ? 'No file available - verified without upload' : 'Preview'">
-                  <mat-icon>visibility</mat-icon>
+                        [matTooltip]="doc.fileName === 'NO_FILE_UPLOADED' ? 'No file available - verified without upload' : 'View in new tab'">
+                  <mat-icon>open_in_new</mat-icon>
                 </button>
                 
                 <button mat-icon-button 
@@ -388,10 +446,16 @@
                 </button>
                 
                 <button mat-icon-button color="warn" 
-                        (click)="openVerificationDialog(doc, 'REJECTED')"
+                        (click)="requestReupload(doc)"
                         [disabled]="doc.status === 'REJECTED'"
-                        matTooltip="Reject">
-                  <mat-icon>cancel</mat-icon>
+                        matTooltip="Request re-upload">
+                  <mat-icon>assignment_return</mat-icon>
+                </button>
+                <button mat-icon-button
+                        (click)="replaceDocument(doc)"
+                        matTooltip="Replace document with new version"
+                        style="color: #6f42c1;">
+                  <mat-icon>sync_alt</mat-icon>
                 </button>
                 
                 <button mat-icon-button 
@@ -447,6 +511,7 @@
                       <span class="badge badge-category">{{ req.category }}</span>
                       <span class="badge badge-required" *ngIf="req.required">Required</span>
                       <span class="badge badge-optional" *ngIf="!req.required">Optional</span>
+                      <span class="badge badge-category" *ngIf="req.allowMultiple">Multiple Allowed</span>
                       <span class="badge badge-inactive" *ngIf="!req.active">Inactive</span>
                     </div>
                   </div>
@@ -489,9 +554,9 @@
     <div class="dialog-header">
       <h3>
         <mat-icon [color]="verificationAction === 'VERIFIED' ? 'accent' : 'warn'">
-          {{ verificationAction === 'VERIFIED' ? 'check_circle' : 'cancel' }}
+          {{ verificationAction === 'VERIFIED' ? 'check_circle' : 'assignment_return' }}
         </mat-icon>
-        {{ verificationAction === 'VERIFIED' ? 'Verify' : 'Reject' }} Document
+        {{ verificationAction === 'VERIFIED' ? 'Verify' : 'Request Re-upload' }} Document
       </h3>
       <button mat-icon-button (click)="closeVerificationDialog()">
         <mat-icon>close</mat-icon>
@@ -507,11 +572,11 @@
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>
-          {{ verificationAction === 'VERIFIED' ? 'Verification Notes (Optional)' : 'Rejection Reason (Required)' }}
+          {{ verificationAction === 'VERIFIED' ? 'Verification Notes (Optional)' : 'Reason for Re-upload (Required)' }}
         </mat-label>
         <textarea matInput [(ngModel)]="verificationNotes" 
                   rows="4"
-                  [placeholder]="verificationAction === 'VERIFIED' ? 'Add any notes about this verification...' : 'Please provide a reason for rejection...'">
+                  [placeholder]="verificationAction === 'VERIFIED' ? 'Add any notes about this verification...' : 'Please provide a reason (e.g., blur image, missing page, unclear file)...'">
         </textarea>
       </mat-form-field>
     </div>
@@ -522,7 +587,7 @@
               [color]="verificationAction === 'VERIFIED' ? 'accent' : 'warn'"
               (click)="confirmVerification()"
               [disabled]="verificationAction === 'REJECTED' && !verificationNotes.trim()">
-        {{ verificationAction === 'VERIFIED' ? 'Verify' : 'Reject' }}
+        {{ verificationAction === 'VERIFIED' ? 'Verify' : 'Send Re-upload Request' }}
       </button>
     </div>
   </div>
@@ -578,6 +643,9 @@
         <mat-checkbox [(ngModel)]="requirementForm.required" style="margin-left: 20px;">
           Required Document
         </mat-checkbox>
+        <mat-checkbox [(ngModel)]="requirementForm.allowMultiple" style="margin-left: 20px;">
+          Allow Multiple Uploads
+        </mat-checkbox>
       </div>
     </div>
 
@@ -617,7 +685,7 @@
         <mat-autocomplete #autoStudent="matAutocomplete" (optionSelected)="selectStudent($event.option.value)">
           <mat-option *ngFor="let student of filteredStudents" [value]="student">
             <div class="student-option">
-              <strong>{{ student.name }}</strong>
+              <strong>{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
               <small>{{ student.email }}</small>
               <small *ngIf="student.regNo">Reg: {{ student.regNo }}</small>
             </div>
@@ -696,7 +764,7 @@
         <mat-autocomplete #autoMarkStudent="matAutocomplete" (optionSelected)="selectMarkVerifiedStudent($event.option.value)">
           <mat-option *ngFor="let student of markVerifiedFilteredStudents" [value]="student">
             <div class="student-option">
-              <strong>{{ student.name }}</strong>
+              <strong>{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
               <small>{{ student.email }}</small>
               <small *ngIf="student.regNo">Reg: {{ student.regNo }}</small>
             </div>
@@ -838,6 +906,90 @@
       <button mat-raised-button color="primary" (click)="sendEmail()" [disabled]="sendingEmail">
         <mat-icon>{{ sendingEmail ? 'hourglass_empty' : 'send' }}</mat-icon>
         {{ sendingEmail ? 'Sending...' : 'Send Email' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Agreement Dialog -->
+<div class="verification-dialog-overlay" *ngIf="showAgreementDialog" (click)="closeAgreementDialog()">
+  <div class="verification-dialog agreement-dialog" (click)="$event.stopPropagation()">
+    <div class="dialog-header">
+      <h3>
+        <mat-icon style="color: #5e35b1;">assignment</mat-icon>
+        Generate Agreement for Student
+      </h3>
+      <button mat-icon-button (click)="closeAgreementDialog()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="dialog-content">
+      <p class="info-text">
+        Select a student and agreement template, fill in the dynamic fields, then save the PDF or save and email it to the student.
+        <a class="template-link" (click)="openAgreementTemplates(); $event.preventDefault()">Manage templates</a>
+      </p>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Search Student</mat-label>
+        <input matInput
+               [formControl]="agreementStudentControl"
+               [matAutocomplete]="autoAgreementStudent"
+               placeholder="Type name, email, or reg no...">
+        <mat-icon matSuffix>search</mat-icon>
+        <mat-autocomplete #autoAgreementStudent="matAutocomplete" (optionSelected)="selectAgreementStudent($event.option.value)">
+          <mat-option *ngFor="let student of agreementFilteredStudents" [value]="student">
+            <div class="student-option">
+              <strong>{{ getStudentName(student) }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
+              <small>{{ getStudentEmail(student) }}</small>
+            </div>
+          </mat-option>
+        </mat-autocomplete>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Agreement Template</mat-label>
+        <mat-select [(ngModel)]="agreementForm.templateId" (ngModelChange)="onAgreementTemplateChange()" [disabled]="agreementTemplatesLoading">
+          <mat-option *ngFor="let t of agreementTemplates" [value]="t._id">{{ t.name }} ({{ t.dynamicFields.length }} fields)</mat-option>
+        </mat-select>
+        <mat-hint *ngIf="agreementTemplates.length === 0 && !agreementTemplatesLoading">No templates yet — create one via Agreement Templates</mat-hint>
+      </mat-form-field>
+
+      <ng-container *ngIf="agreementSelectedTemplate">
+        <mat-form-field appearance="outline" class="full-width" *ngFor="let f of agreementSelectedTemplate.dynamicFields">
+          <mat-label>{{ f.label }}</mat-label>
+          <input matInput [(ngModel)]="agreementForm.fieldValues[f.id]" (ngModelChange)="onAgreementFieldChange()"
+                 [placeholder]="f.sampleText || f.label" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Agreement Name</mat-label>
+          <input matInput [(ngModel)]="agreementForm.displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
+        </mat-form-field>
+
+        <div class="agreement-preview-wrap" *ngIf="agreementSelectedTemplate">
+          <p class="agreement-preview-note" *ngIf="!agreementPreviewUrl && !agreementPreviewing">
+            Preview updates as you type — your values replace the red placeholders.
+          </p>
+          <p class="agreement-preview-note" *ngIf="agreementPreviewing">Updating preview…</p>
+          <iframe *ngIf="agreementPreviewUrl" [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="dialog-actions">
+      <button mat-button (click)="closeAgreementDialog()">Cancel</button>
+      <button mat-stroked-button (click)="previewAgreementPdf()" [disabled]="agreementPreviewing || !agreementForm.templateId">
+        <mat-icon>visibility</mat-icon>
+        Preview
+      </button>
+      <button mat-raised-button style="background:#1565c0;color:#fff" (click)="saveAgreement(false)" [disabled]="agreementSaving">
+        <mat-icon>save</mat-icon>
+        {{ agreementSaving ? 'Saving…' : 'Save PDF' }}
+      </button>
+      <button mat-raised-button color="primary" (click)="saveAgreement(true)" [disabled]="agreementSaving">
+        <mat-icon>email</mat-icon>
+        {{ agreementSaving ? 'Sending…' : 'Save & Send Email' }}
       </button>
     </div>
   </div>

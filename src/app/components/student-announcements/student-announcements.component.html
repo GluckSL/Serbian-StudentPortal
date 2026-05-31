@@ -1,0 +1,70 @@
+<div class="sa-page">
+  <header class="sa-header">
+    <div class="sa-header__main">
+      <span class="sa-header__icon material-icons" aria-hidden="true">campaign</span>
+      <div>
+        <h1 class="sa-header__title">Announcements</h1>
+        <p class="sa-header__sub">Official notices from your school. New posts appear here when your batch is included.</p>
+      </div>
+    </div>
+  </header>
+
+  <div *ngIf="loading" class="sa-skeleton">
+    <div class="sa-skeleton__card" *ngFor="let i of [1,2,3]">
+      <div class="sa-skeleton__stripe"></div>
+      <div class="sa-skeleton__inner">
+        <div class="sa-skeleton__top">
+          <div class="sa-skeleton__badge"></div>
+          <div class="sa-skeleton__date"></div>
+        </div>
+        <div class="sa-skeleton__title"></div>
+        <div class="sa-skeleton__body"></div>
+        <div class="sa-skeleton__body sa-skeleton__body--short"></div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="!loading && announcements.length === 0" class="sa-empty sa-empty--card">
+    <span class="material-icons sa-empty__icon" aria-hidden="true">notifications_none</span>
+    <p class="sa-empty__title">No announcements yet</p>
+    <p class="sa-empty__text">When your batch receives an update, it will show up here.</p>
+  </div>
+
+  <div *ngIf="!loading && announcements.length > 0 && filteredAnnouncements.length === 0" class="sa-empty sa-empty--card">
+    <p class="sa-empty__title">Nothing in this view</p>
+    <p class="sa-empty__text">Try another filter above.</p>
+  </div>
+
+  <div class="sa-list" *ngIf="!loading && filteredAnnouncements.length > 0">
+    <article class="sa-card" *ngFor="let item of filteredAnnouncements" (click)="openAnnouncement(item)" tabindex="0">
+      <div class="sa-card__stripe" [class.sa-card__stripe--email]="item.deliveryType === 'website_email'" aria-hidden="true"></div>
+
+      <div class="sa-card__inner">
+        <div class="sa-card__top">
+          <span class="sa-card__badge" *ngIf="item.deliveryType">{{ deliveryLabel(item.deliveryType) }}</span>
+          <time class="sa-card__date" [attr.datetime]="item.createdAt">{{ item.createdAt | date:'medium' }}</time>
+        </div>
+
+        <h2 class="sa-card__title">{{ item.title }}</h2>
+        <div class="sa-card__preview">Tap to read more</div>
+
+        <div class="sa-card__files" *ngIf="item.attachments?.length">
+          <div class="sa-card__filesTitle">Attachments</div>
+          <div class="sa-card__fileRow">
+            <a
+              *ngFor="let file of item.attachments"
+              class="sa-chip"
+              [href]="file.fileUrl"
+              target="_blank"
+              rel="noreferrer"
+              (click)="$event.stopPropagation()"
+            >
+              <span class="material-icons sa-chip__icon" aria-hidden="true">attach_file</span>
+              {{ file.fileName }}
+            </a>
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+</div>

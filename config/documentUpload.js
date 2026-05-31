@@ -1,40 +1,12 @@
 // config/documentUpload.js
-// Multer configuration for student document uploads
+// Multer-S3 configuration for student document uploads
 
 const multer = require('multer');
+const multerS3 = require('multer-s3');
 const path = require('path');
-const fs = require('fs');
+const s3Client = require('./s3');
 
-// Ensure upload directory exists
-const uploadDir = 'uploads/student-documents';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Storage configuration
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    // Create student-specific folder
-    const studentId = req.user?.id || 'temp';
-    const studentFolder = path.join(uploadDir, studentId.toString());
-    
-    if (!fs.existsSync(studentFolder)) {
-      fs.mkdirSync(studentFolder, { recursive: true });
-    }
-    
-    cb(null, studentFolder);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename: documentType_timestamp_originalname
-    const documentType = req.body.documentType || 'document';
-    const timestamp = Date.now();
-    const sanitizedOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filename = `${documentType}_${timestamp}_${sanitizedOriginalName}`;
-    cb(null, filename);
-  }
-});
-
-// File filter - only allow specific file types
+// File filter — only allow specific file types
 const fileFilter = (req, file, cb) => {
   const allowedMimeTypes = [
     'application/pdf',
@@ -42,9 +14,9 @@ const fileFilter = (req, file, cb) => {
     'image/jpg',
     'image/png',
     'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ];
-  
+
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
@@ -52,13 +24,22 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Multer upload configuration
 const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB max file size
-  }
+  storage: multerS3({
+    s3: s3Client,
+    bucket: process.env.S3_BUCKET,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const prefix = process.env.S3_PREFIX || 'uploads';
+      const studentId = req.user?.id || 'temp';
+      const documentType = req.body?.documentType || 'document';
+      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const key = `${prefix}/student-documents/${studentId}/${documentType}_${Date.now()}_${sanitizedName}`;
+      cb(null, key);
+    },
+  }),
+  fileFilter,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
 });
 
 module.exports = upload;

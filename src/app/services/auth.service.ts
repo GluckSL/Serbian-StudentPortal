@@ -3,9 +3,31 @@
 import { Injectable } from '@angular/core';
 import { HttpHeaders } from '@angular/common/http';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, tap, finalize } from 'rxjs';
 import { jwtDecode } from 'jwt-decode';
 import { environment } from '../../environments/environment';
+
+/** JWT key in localStorage (Bearer sent by authTokenInterceptor). */
+export const AUTH_STORAGE_KEY = 'authToken';
+const LEGACY_AUTH_STORAGE_KEYS = ['token', 'jwtToken'];
+export function getAuthToken(): string | null {
+  try {
+    const primary = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (primary) return primary;
+
+    // Backward compatibility for sessions saved before authToken key standardization.
+    for (const key of LEGACY_AUTH_STORAGE_KEYS) {
+      const legacy = localStorage.getItem(key);
+      if (legacy) {
+        localStorage.setItem(AUTH_STORAGE_KEY, legacy);
+        return legacy;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 interface DecodeToken {
   name: string;
@@ -17,7 +39,12 @@ interface User {
   _id?: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT';
+  role: 'ADMIN' | 'TEACHER' | 'TEACHER_ADMIN' | 'SUB_ADMIN' | 'STUDENT';
+  sidebarPermissions?: string[];
+  teacherTabPermissions?: string[];
+  sidebarAccessLevels?: Record<string, 'view' | 'edit' | 'full'>;
+  sidebarDeletePermissions?: string[];
+  teacherTabAccessLevels?: Record<string, 'view' | 'edit' | 'full'>;
   batch?: string;
   medium?: string;
   subscription?: string;
@@ -51,6 +78,9 @@ interface User {
   [key: string]: any;            // Allow additional properties
 }
 
+/** After logout, next /login load skips "restore session" so the form stays visible. */
+export const SKIP_SESSION_RESTORE_KEY = 'gluck_skip_session_restore';
+
 @Injectable({
   providedIn: 'root'
 })
@@ -68,7 +98,7 @@ export class AuthService {
   // ✅ Get teachers for a specific level and medium
   getTeachers(level: string, medium: string | string[]): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/auth/teachers`, {
-      params: { level, medium }, withCredentials: true
+      params: { level, medium }
     });
   }
 
@@ -76,7 +106,7 @@ export class AuthService {
   // ✅ Get teachers for a specific level and medium
   getTeachersByMedium(medium: string | string[]): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/auth/teachersByMedium`, {
-      params: { medium }, withCredentials: true
+      params: { medium }
     });
   }
 
@@ -115,29 +145,118 @@ export class AuthService {
     };
     qualifications?: string;
   }): Observable<any> {
-    return this.http.post(`${this.apiUrl}/auth/signup`, user, { withCredentials: true });
+    return this.http.post(`${this.apiUrl}/auth/signup`, user);
   }
 
-  login(user: { regNo: string, password: string }): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/login`, user, { withCredentials: true })
-      .pipe(
-        tap((response: any) => {
-          // ✅ Update user state immediately with login response
-          if (response && response.user) {
-            this.currentUserSubject.next(response.user);
+  login(user: { identifier?: string; regNo?: string; password: string; keepSessionActive?: boolean }): Observable<any> {
+    // Send identifier (new field); backend also accepts legacy regNo
+    const payload = { identifier: user.identifier || user.regNo, password: user.password, keepSessionActive: user.keepSessionActive };
+    return this.http.post<any>(`${this.apiUrl}/auth/login`, payload).pipe(
+      tap((response: any) => {
+        if (response?.token) {
+          try {
+            localStorage.setItem(AUTH_STORAGE_KEY, response.token);
+          } catch {
+            /* ignore */
           }
-        })
-      );
+        }
+        if (response && response.user) {
+          this.currentUserSubject.next(response.user);
+        }
+      })
+    );
   }
 
-  // saveToken(token: string) {
-  //   localStorage.setItem('authToken', token);
-  // }
+  requestPasswordReset(email: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/forgot-password/request`, { email });
+  }
 
-  // getToken(): string | null {
-  //   return localStorage.getItem('authToken');
-  // }
+  resetPassword(data: { email: string; otp: string; newPassword: string; confirmPassword: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/forgot-password/reset`, data);
+  }
 
+  changePassword(data: { currentPassword: string; newPassword: string; confirmPassword: string }): Observable<any> {
+    return this.http.put(`${this.apiUrl}/auth/change-password`, data);
+  }
+
+  /** Flow A: request email change — admin approval required */
+  requestSetupEmailChange(data: {
+    setupToken: string;
+    newEmail: string;
+    newPassword: string;
+    confirmPassword: string;
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/setup/request-email-change`, data);
+  }
+
+  /** Flow B step 1: send OTP to current email */
+  sendSetupOtp(setupToken: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/setup/send-otp`, { setupToken });
+  }
+
+  /** Flow B step 2: verify OTP and set password, then log in */
+  completePasswordSetup(data: {
+    setupToken: string;
+    otp: string;
+    newPassword: string;
+    confirmPassword: string;
+    keepSessionActive?: boolean;
+  }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/setup/complete`, data).pipe(
+      tap((response: any) => {
+        if (response?.token) {
+          try {
+            localStorage.setItem(AUTH_STORAGE_KEY, response.token);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (response?.user) {
+          this.currentUserSubject.next(response.user);
+        }
+      })
+    );
+  }
+
+  /** Admin: get email change requests */
+  getEmailChangeRequests(status = 'pending'): Observable<any> {
+    return this.http.get(`${this.apiUrl}/admin/email-change-requests`, {
+      params: { status },
+      withCredentials: true,
+    });
+  }
+
+  /** Admin: approve an email change request */
+  approveEmailChangeRequest(id: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/email-change-requests/${id}/approve`, {}, { withCredentials: true });
+  }
+
+  /** Admin: reject an email change request */
+  rejectEmailChangeRequest(id: string, reason = ''): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/email-change-requests/${id}/reject`, { reason }, { withCredentials: true });
+  }
+
+  confirmWithdrawalStatus(data: {
+    studentId: string;
+    decision: 'YES' | 'NO';
+    loginAttemptTime: string;
+    keepSessionActive?: boolean;
+  }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/auth/withdrawal-confirmation`, data).pipe(
+      tap((response: any) => {
+        if (response?.token) {
+          try {
+            localStorage.setItem(AUTH_STORAGE_KEY, response.token);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (response?.user) {
+          this.currentUserSubject.next(response.user);
+        }
+      })
+    );
+  }
 
   // Fetch user profile (with photo URL included)
   getUserProfile(): Observable<any> {
@@ -158,6 +277,48 @@ export class AuthService {
     return loggedIn;
   }
 
+  /** Dashboard path after login or when a valid token session is already present. */
+  getPostLoginPath(user: { role?: string; subscription?: string } | null | undefined): string | null {
+    if (!user?.role) {
+      return null;
+    }
+    const role = user.role;
+    if (role === 'ADMIN' || role === 'SUB_ADMIN') {
+      return '/admin-dashboard';
+    }
+    if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
+      return '/teacher-dashboard';
+    }
+    if (role === 'STUDENT') {
+      const isVisaDocOnly = (user.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
+      return isVisaDocOnly ? '/student-progress' : '/student/my-course';
+    }
+    return null;
+  }
+
+  /** Clear local user state when the session is invalid (no HTTP call — avoids loops on 401). */
+  clearClientSession(): void {
+    this.currentUserSubject.next(null);
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Call when the user explicitly logs out. Ensures the next visit to /login
+   * shows the credential form instead of auto-restore.
+   */
+  markExpectFreshLoginPage(): void {
+    this.clearClientSession();
+    try {
+      sessionStorage.setItem(SKIP_SESSION_RESTORE_KEY, '1');
+    } catch {
+      /* private mode / no sessionStorage */
+    }
+  }
+
   /** Synchronous read of the last known user (e.g. before HTTP calls in the same tick). */
   getSnapshotUser(): any | null {
     return this.currentUserSubject.value;
@@ -165,12 +326,11 @@ export class AuthService {
 
   // Logout
   logout(): Observable<any> {
-    return this.http.post(`${this.apiUrl}/auth/logout`, {}, { withCredentials: true })
-      .pipe(
-        tap(() => {
-          this.currentUserSubject.next(null); // clear state
-        })
-      );
+    return this.http.post(`${this.apiUrl}/auth/logout`, {}).pipe(
+      finalize(() => {
+        this.markExpectFreshLoginPage();
+      })
+    );
   }
 
   // Additional methods for VAPI data - you can adjust these endpoints if needed
@@ -196,20 +356,20 @@ export class AuthService {
     const formData = new FormData();
     formData.append('profilePhoto', file);
 
-    return this.http.post(`${this.apiUrl}/profile/upload-photo`, formData, { withCredentials: true });
+    return this.http.post(`${this.apiUrl}/profile/upload-photo`, formData);
   }
 
 
   getUserById(id: string) {
-    return this.http.get<User>(`${this.apiUrl}/auth/${id}`, { withCredentials: true });
+    return this.http.get<User>(`${this.apiUrl}/auth/${id}`);
   }
 
   updateUser(id: string, user: User) {
-    return this.http.put(`${this.apiUrl}/auth/${id}`, user, { withCredentials: true });
+    return this.http.put(`${this.apiUrl}/auth/${id}`, user);
   }
 
   deleteUser(id: string) {
-    return this.http.delete(`${this.apiUrl}/auth/${id}`, { withCredentials: true });
+    return this.http.delete(`${this.apiUrl}/auth/${id}`);
   }
 
   updateAssignedTeacherByBatchNo(batchNo: string, teacherId: string) {
@@ -217,31 +377,64 @@ export class AuthService {
       {
         batch: batchNo,
         newTeacherId: teacherId
-      },
-      { withCredentials: true });
+      });
   }
 
   getTeachersByBatch(batchNo: string): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/auth/teachers-by-batch/${batchNo}`, { withCredentials: true});
+    return this.http.get<any[]>(`${this.apiUrl}/auth/teachers-by-batch/${batchNo}`);
   }
   // Resend credentials to a student
   resendCredentials(studentId: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/auth/resend-credentials/${studentId}`, {}, { withCredentials: true });
+    return this.http.post(`${this.apiUrl}/auth/resend-credentials/${studentId}`, {});
+  }
+
+  sendSignupLink(studentId: string, email: string, name?: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/admin/signup-link`, { email, name });
+  }
+
+  sendRegisterInvite(email: string, name?: string): Observable<{ success?: boolean; msg?: string }> {
+    return this.http.post<{ success?: boolean; msg?: string }>(
+      `${this.apiUrl}/auth/admin/register-invite`,
+      { email, name }
+    );
+  }
+
+  /** Sign student out, email OTP, require new password on next login (admin directory). */
+  forcePasswordReset(studentId: string): Observable<{ success?: boolean; msg?: string; displayPassword?: string | null }> {
+    return this.http.post<{ success?: boolean; msg?: string; displayPassword?: string | null }>(
+      `${this.apiUrl}/auth/admin/force-password-reset/${studentId}`,
+      {}
+    );
+  }
+
+  /** Bulk sign-out: invalidate tokens and require password change on next login. */
+  bulkForcePasswordReset(studentIds: string[]): Observable<{
+    success?: boolean;
+    msg?: string;
+    successCount?: number;
+    failedCount?: number;
+  }> {
+    return this.http.post<{
+      success?: boolean;
+      msg?: string;
+      successCount?: number;
+      failedCount?: number;
+    }>(`${this.apiUrl}/auth/admin/bulk-force-password-reset`, { studentIds });
   }
 
   // Method to perform authenticated request
   fetchProtectedData(endpoint: string): Observable<any> {
     const token = this.getToken();
+    if (!token) {
+      return new Observable((observer) => {
+        observer.error({ message: 'Not authenticated' });
+      });
+    }
     const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-    return this.http.get(endpoint, { headers }); // Make GET request with the token in the header
-  }
-  getToken() {
-    throw new Error('Method not implemented.');
+    return this.http.get(endpoint, { headers });
   }
 
-  // Log out the user: Clears the token and redirects to login page
-  logOut() {
-    localStorage.removeItem('authToken');
-    this.router.navigate(['/login']); // Redirect to login page after logout
+  getToken(): string | null {
+    return getAuthToken();
   }
 }

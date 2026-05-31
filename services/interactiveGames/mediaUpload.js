@@ -1,0 +1,260 @@
+// services/interactiveGames/mediaUpload.js
+// GlückArena media: images → Cloudflare R2 (memory only, never project uploads/);
+// audio/thumbnails fall back to S3 when R2 is not configured.
+
+const multer = require('multer');
+const path = require('path');
+const s3Client = require('../../config/s3');
+const multerS3 = require('multer-s3');
+const { canonicalizeMediaUrl } = require('../../config/presign');
+const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../exerciseMediaR2');
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const R2_THUMB_PREFIX = 'glueck-arena/game-thumbnails';
+const R2_IMAGE_PREFIX = 'glueck-arena/game-images';
+
+function imageFileFilter(_req, file, cb) {
+  if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) return cb(null, true);
+  cb(new Error('Only image files allowed (jpeg, png, webp, gif)'));
+}
+
+function buildMemoryImageUploader(fieldName) {
+  return multer({
+    storage: multer.memoryStorage(),
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 },
+  }).single(fieldName);
+}
+
+function buildS3ImageUploader(fieldName, keyFolder) {
+  const storage = multerS3({
+    s3: s3Client,
+    bucket: process.env.S3_BUCKET,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const prefix = process.env.S3_PREFIX || 'uploads';
+      cb(null, `${prefix}/${keyFolder}/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+    },
+  });
+
+  return multer({
+    storage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 },
+  }).single(fieldName);
+}
+
+function r2NotConfiguredResponse(res) {
+  res.status(503).json({
+    success: false,
+    message:
+      'Arena image uploads require Cloudflare R2. Set CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, and R2_PUBLIC_BASE_URL.',
+  });
+}
+
+/**
+ * Accept multipart image, upload to R2, return public URL.
+ * Never writes to the project uploads/ directory.
+ */
+function handleImageUpload(req, res, { fieldName, r2KeyPrefix, missingMessage, s3KeyFolder }) {
+  return new Promise((resolve) => {
+    if (isExerciseR2Configured()) {
+      const memoryUploader = buildMemoryImageUploader(fieldName);
+      return memoryUploader(req, res, async (err) => {
+        if (err) {
+          res.status(400).json({ success: false, message: err.message });
+          return resolve(null);
+        }
+        if (!req.file) {
+          res.status(400).json({ success: false, message: missingMessage });
+          return resolve(null);
+        }
+        if (!req.file.buffer?.length) {
+          res.status(400).json({ success: false, message: 'Empty image upload' });
+          return resolve(null);
+        }
+        try {
+          const ext = path.extname(req.file.originalname) || '.jpg';
+          const key = `${r2KeyPrefix}/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+          const publicUrl = await putExerciseMediaBuffer(
+            req.file.buffer,
+            key,
+            req.file.mimetype || 'image/jpeg'
+          );
+          resolve(publicUrl);
+        } catch (uploadErr) {
+          console.error('[glueck-arena] R2 image upload failed:', uploadErr.message);
+          res.status(500).json({ success: false, message: uploadErr.message || 'R2 upload failed' });
+          resolve(null);
+        }
+      });
+    }
+
+    if (!process.env.S3_BUCKET) {
+      r2NotConfiguredResponse(res);
+      return resolve(null);
+    }
+
+    const s3Uploader = buildS3ImageUploader(fieldName, s3KeyFolder);
+    s3Uploader(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return resolve(null);
+      }
+      if (!req.file) {
+        res.status(400).json({ success: false, message: missingMessage });
+        return resolve(null);
+      }
+      const rawUrl = req.file.location || '';
+      if (!rawUrl) {
+        res.status(500).json({ success: false, message: 'S3 upload did not return a URL' });
+        return resolve(null);
+      }
+      resolve(canonicalizeMediaUrl(rawUrl));
+    });
+  });
+}
+
+function buildThumbnailUploader() {
+  const storage = multerS3({
+    s3: s3Client,
+    bucket: process.env.S3_BUCKET,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const prefix = process.env.S3_PREFIX || 'uploads';
+      cb(null, `${prefix}/game-thumbnails/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+    },
+  });
+
+  return multer({
+    storage,
+    fileFilter: (_req, file, cb) => {
+      if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) return cb(null, true);
+      cb(new Error('Only image files allowed for thumbnails'));
+    },
+    limits: { fileSize: 5 * 1024 * 1024 },
+  }).single('thumbnail');
+}
+
+const thumbnailS3Uploader = buildThumbnailUploader();
+const thumbnailMemoryUploader = buildMemoryImageUploader('thumbnail');
+
+function uploadThumbnail(req, res) {
+  return new Promise((resolve) => {
+    if (isExerciseR2Configured()) {
+      return thumbnailMemoryUploader(req, res, async (err) => {
+        if (err) {
+          res.status(400).json({ success: false, message: err.message });
+          return resolve(null);
+        }
+        if (!req.file) {
+          res.status(400).json({ success: false, message: 'No thumbnail file provided' });
+          return resolve(null);
+        }
+        if (!req.file.buffer?.length) {
+          res.status(400).json({ success: false, message: 'Empty thumbnail upload' });
+          return resolve(null);
+        }
+        try {
+          const ext = path.extname(req.file.originalname) || '.jpg';
+          const key = `${R2_THUMB_PREFIX}/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+          const publicUrl = await putExerciseMediaBuffer(
+            req.file.buffer,
+            key,
+            req.file.mimetype || 'image/jpeg'
+          );
+          resolve(publicUrl);
+        } catch (uploadErr) {
+          console.error('[glueck-arena] R2 thumbnail upload failed:', uploadErr.message);
+          res.status(500).json({ success: false, message: uploadErr.message || 'R2 upload failed' });
+          resolve(null);
+        }
+      });
+    }
+
+    if (!process.env.S3_BUCKET) {
+      r2NotConfiguredResponse(res);
+      return resolve(null);
+    }
+
+    thumbnailS3Uploader(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return resolve(null);
+      }
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No thumbnail file provided' });
+        return resolve(null);
+      }
+      const rawUrl = req.file.location || '';
+      resolve(canonicalizeMediaUrl(rawUrl));
+    });
+  });
+}
+
+const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/x-m4a'];
+
+function buildAudioUploader(fieldName = 'audio') {
+  const storage = multerS3({
+    s3: s3Client,
+    bucket: process.env.S3_BUCKET,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.mp3';
+      const prefix = process.env.S3_PREFIX || 'uploads';
+      cb(null, `${prefix}/game-audio/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+    },
+  });
+
+  return multer({
+    storage,
+    fileFilter: (_req, file, cb) => {
+      if (ALLOWED_AUDIO_TYPES.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
+        return cb(null, true);
+      }
+      cb(new Error('Only audio files allowed'));
+    },
+    limits: { fileSize: 15 * 1024 * 1024 },
+  }).single(fieldName);
+}
+
+const audioUploader = buildAudioUploader('audio');
+
+function uploadQuestionAudio(req, res) {
+  return new Promise((resolve) => {
+    audioUploader(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return resolve(null);
+      }
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No audio file provided' });
+        return resolve(null);
+      }
+      const rawUrl = req.file.location || '';
+      resolve(canonicalizeMediaUrl(rawUrl));
+    });
+  });
+}
+
+function uploadQuestionImage(req, res) {
+  return handleImageUpload(req, res, {
+    fieldName: 'image',
+    r2KeyPrefix: R2_IMAGE_PREFIX,
+    s3KeyFolder: 'game-images',
+    missingMessage: 'No image file provided',
+  });
+}
+
+function uploadPairImage(req, res) {
+  return handleImageUpload(req, res, {
+    fieldName: 'image',
+    r2KeyPrefix: R2_IMAGE_PREFIX,
+    s3KeyFolder: 'game-images',
+    missingMessage: 'No image file provided',
+  });
+}
+
+module.exports = { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage };

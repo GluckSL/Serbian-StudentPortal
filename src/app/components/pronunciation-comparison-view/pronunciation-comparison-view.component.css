@@ -1,0 +1,46 @@
+.pcv-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.pcv-row {
+  display: grid;
+  gap: 4px;
+}
+
+.pcv-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.pcv-line {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #ffffff;
+  word-break: break-word;
+}
+
+.pcv-word--matched {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.pcv-word--missing {
+  color: #ffffff;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.95);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.pcv-word--extra {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 0 2px;
+  color: #ffffff;
+}
+
+.pcv-empty {
+  color: rgba(255, 255, 255, 0.7);
+}

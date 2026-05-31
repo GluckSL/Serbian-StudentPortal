@@ -1,8 +1,13 @@
 <!-- digital-exercise-builder.component.html -->
 <div class="builder-container">
   <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #videoFileInput accept="video/*" (change)="onVideoFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #videoFeedbackFileInput accept="audio/*" (change)="onVideoFeedbackFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #imagePinFileInput accept="image/*" (change)="onImagePinImageSelected($event)" class="file-input-hidden" />
+  <input type="file" #mcqOptionImageFileInput accept="image/*" (change)="onMcqOptionImageSelected($event)" class="file-input-hidden" />
 
-  <!-- AI Generator Banner (create mode only) -->
+  <!-- DISABLED: AI PDF generator banner (route admin/digital-exercises/generate-ai off)
   <div class="ai-banner" *ngIf="!isEditMode" (click)="navigateToAiGenerator()">
     <div class="ai-banner-left">
       <div class="ai-banner-icon">
@@ -17,6 +22,7 @@
       <span class="material-icons">upload_file</span> Upload PDF
     </button>
   </div>
+  -->
 
   <!-- Header -->
   <div class="builder-header">
@@ -40,6 +46,17 @@
           {{ visibleToStudents ? 'Published' : 'Draft' }}
         </span>
       </label>
+      <button
+        *ngIf="isEditMode"
+        type="button"
+        class="btn-recover-media"
+        (click)="recoverMediaFromCloud()"
+        [disabled]="mediaRecovering || saving"
+        matTooltip="Restore images/audio from R2 or S3 when links broke after a deploy"
+      >
+        <span class="material-icons">{{ mediaRecovering ? 'hourglass_empty' : 'cloud_download' }}</span>
+        {{ mediaRecovering ? 'Recovering…' : 'Recover media' }}
+      </button>
       <button class="btn-cancel" (click)="cancel()">Cancel</button>
       <button class="btn-save" (click)="save()" [disabled]="saving">
         <span class="material-icons">{{ saving ? 'hourglass_empty' : 'save' }}</span>
@@ -62,7 +79,11 @@
     </button>
     <button class="tab-btn" [class.active]="activeTab === 'questions'" (click)="activeTab = 'questions'">
       <span class="material-icons">quiz</span> Questions
-      <span class="questions-count" *ngIf="questions.length > 0">{{ questions.length }}</span>
+      <span class="questions-count" *ngIf="questions.length > 0">{{ getTotalQuestionCount() }}</span>
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'video'" (click)="activeTab = 'video'">
+      <span class="material-icons">videocam</span> Use Video
+      <span class="questions-count" *ngIf="videoQuestions.length > 0">{{ videoQuestions.length }}</span>
     </button>
     <button class="tab-btn" [class.active]="activeTab === 'preview'" (click)="activeTab = 'preview'">
       <span class="material-icons">preview</span> Preview
@@ -115,6 +136,23 @@
               />
               <span class="day-suffix" aria-hidden="true">/200</span>
             </div>
+          </div>
+          <div class="field-group field-group--day">
+            <label class="field-label" for="ex-seq-letter">
+              Sequence
+              <span class="label-optional">(a, b, c… order within day)</span>
+            </label>
+            <input
+              id="ex-seq-letter"
+              type="text"
+              class="field-input field-input--seq"
+              [(ngModel)]="sequenceLetter"
+              placeholder="e.g. a"
+              maxlength="1"
+              pattern="[a-zA-Z]"
+              autocomplete="off"
+              title="Single letter a–z. Students must complete earlier letters first."
+            />
           </div>
           <div class="field-group field-group--desc">
             <label class="field-label required" for="ex-desc">Description</label>
@@ -186,10 +224,12 @@
 
         <div class="info-alt-row">
           <span class="info-alt-row__label">From files</span>
+          <!-- DISABLED: AI (PDF) — same as worksheet extractor
           <button type="button" class="btn-alt btn-alt--ai" (click)="navigateToAiGenerator()">
             <span class="material-icons">auto_awesome</span>
             AI (PDF)
           </button>
+          -->
           <button type="button" class="btn-alt btn-alt--audio" (click)="navigateToListeningGenerator()">
             <span class="material-icons">headphones</span>
             Audio + PDF
@@ -235,34 +275,216 @@
     <!-- Questions List -->
     <div class="questions-list" *ngIf="questions.length > 0">
       <div class="questions-header">
-        <h3>Questions ({{ questions.length }})</h3>
-        <span class="total-points">Total: {{ getTotalPoints() }} points</span>
+        <div class="questions-header-left">
+          <label class="bulk-select-all" (click)="toggleSelectAll($event)" matTooltip="Select / deselect all questions">
+            <input type="checkbox" [checked]="selectAllChecked" (change)="toggleSelectAll($event)" (click)="$event.stopPropagation()" />
+            <span class="bulk-select-label">All</span>
+          </label>
+          <h3>Questions <span class="q-count">{{ getTotalQuestionCount() }}</span></h3>
+          <button
+            *ngIf="isEditMode && selectedIndices.size > 0"
+            type="button"
+            class="btn-split-new-exercise"
+            (click)="openSplitToNewExerciseModal()"
+            [disabled]="splitSaving || saving"
+            matTooltip="Create a new exercise with the selected questions; they are removed from this one"
+          >
+            <span class="material-icons">call_split</span>
+            New exercise from {{ selectedIndices.size }} selected
+          </button>
+        </div>
+        <div class="questions-header-stats">
+          <button class="btn-gen-answers" type="button" (click)="generateMissingAnswers()" [disabled]="generatingAnswers" matTooltip="AI fills missing answers for fill-blank and Q&A questions">
+            <span class="material-icons">{{ generatingAnswers ? 'hourglass_top' : 'auto_fix_high' }}</span>
+            {{ generatingAnswers ? 'Generating…' : 'Generate missing answers' }}
+          </button>
+          <span
+            class="valid-count"
+            [class.all-good]="validQuestionCount === questions.length"
+            [matTooltip]="getInvalidSummaryTooltip()"
+            [matTooltipDisabled]="validQuestionCount === questions.length"
+            matTooltipShowDelay="200"
+          >
+            <span class="material-icons">{{ validQuestionCount === questions.length ? 'check_circle' : 'warning' }}</span>
+            {{ validQuestionCount }}/{{ questions.length }} valid
+          </span>
+          <span class="total-points">{{ getTotalPoints() }} pts total</span>
+        </div>
+      </div>
+
+      <!-- Bulk action toolbar -->
+      <div class="bulk-toolbar" *ngIf="selectedIndices.size > 0">
+        <div class="bulk-toolbar-top">
+          <span class="bulk-count">
+            <span class="material-icons">check_box</span>
+            {{ selectedIndices.size }} selected
+          </span>
+          <button type="button" class="btn-bulk-clear" (click)="clearSelection()" matTooltip="Deselect all">
+            <span class="material-icons">close</span> Deselect all
+          </button>
+          <button
+            *ngIf="isEditMode"
+            type="button"
+            class="btn-split-new-exercise btn-split-new-exercise--toolbar"
+            (click)="openSplitToNewExerciseModal()"
+            [disabled]="splitSaving || saving"
+            matTooltip="Must leave at least one question in this exercise"
+          >
+            <span class="material-icons">call_split</span>
+            Make new exercise from selected
+          </button>
+        </div>
+
+        <div class="bulk-section">
+          <div class="bulk-section-title">
+            <span class="material-icons">edit</span> Bulk Edit Field
+          </div>
+          <div class="bulk-field-row">
+            <select [(ngModel)]="bulkEditField" class="bulk-field-select">
+              <option value="">— Choose field to edit —</option>
+              <option value="instruction">Instruction (blue banner)</option>
+              <option value="example">Example (worked sample)</option>
+              <option value="context">Context (background text)</option>
+              <option value="audio">Audio URL (listening)</option>
+              <option value="attachment">Attachment URL</option>
+            </select>
+          </div>
+
+          <ng-container *ngIf="bulkEditField && bulkEditField !== 'audio'">
+            <div class="bulk-input-row">
+              <textarea
+                *ngIf="bulkEditField === 'context'"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-textarea"
+                rows="3"
+                placeholder="Enter context text to apply to all selected questions…"
+              ></textarea>
+              <input
+                *ngIf="bulkEditField !== 'context'"
+                type="text"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-input"
+                [placeholder]="bulkEditField === 'instruction' ? 'e.g. Choose the correct option.' : bulkEditField === 'example' ? 'e.g. The sky is ___ → blue' : 'https://…'"
+              />
+            </div>
+            <button type="button" class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim()">
+              <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }} selected
+            </button>
+          </ng-container>
+
+          <ng-container *ngIf="bulkEditField === 'audio'">
+            <div class="bulk-audio-row">
+              <button type="button" class="btn-upload-audio" (click)="triggerBulkAudioFile()" [disabled]="bulkAudioUploading">
+                <span class="material-icons">upload_file</span>
+                {{ bulkAudioUploading ? 'Uploading…' : 'Upload audio file' }}
+              </button>
+              <span class="upload-or">or paste URL</span>
+              <input
+                type="text"
+                [(ngModel)]="bulkEditValue"
+                class="bulk-input"
+                placeholder="https://… audio URL"
+                style="flex:1"
+              />
+              <button type="button" class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim() || bulkAudioUploading">
+                <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }}
+              </button>
+            </div>
+          </ng-container>
+        </div>
+
+        <div class="bulk-section">
+          <div class="bulk-section-title">
+            <span class="material-icons">transform</span> Bulk Change Type (AI)
+            <button type="button" class="btn-toggle-type-panel" (click)="bulkTypeChangeOpen = !bulkTypeChangeOpen">
+              <span class="material-icons">{{ bulkTypeChangeOpen ? 'expand_less' : 'expand_more' }}</span>
+            </button>
+          </div>
+
+          <ng-container *ngIf="bulkTypeChangeOpen">
+            <p class="bulk-type-hint">AI will read each selected question and rewrite it in the chosen format. Original context, instruction, and example are preserved.</p>
+
+            <div class="bulk-convert-progress" *ngIf="bulkConverting">
+              <div class="bulk-progress-label">Converting {{ bulkConvertProgress }} / {{ bulkConvertTotal }}…</div>
+              <div class="bulk-progress-bar">
+                <div class="bulk-progress-fill" [style.width.%]="bulkConvertTotal > 0 ? (bulkConvertProgress / bulkConvertTotal) * 100 : 0"></div>
+              </div>
+            </div>
+
+            <ng-container *ngIf="!bulkConverting">
+              <div class="bulk-type-row">
+                <select [(ngModel)]="bulkTargetType" class="bulk-field-select">
+                  <option value="">— Select target type —</option>
+                  <option *ngFor="let t of questionTypes" [value]="t.value">{{ t.label }}</option>
+                </select>
+                <button
+                  type="button"
+                  class="btn-bulk-convert"
+                  (click)="convertSelectedTypes()"
+                  [disabled]="!bulkTargetType || bulkConverting"
+                >
+                  <span class="material-icons">auto_awesome</span>
+                  Convert {{ selectedIndices.size }} with AI
+                </button>
+              </div>
+            </ng-container>
+          </ng-container>
+        </div>
       </div>
 
       <div class="question-item" *ngFor="let q of questions; let i = index" [class.expanded]="expandedQuestion === i">
 
         <!-- Question Header -->
-        <div class="question-header" (click)="toggleExpanded(i)">
+        <div class="question-header" [class.q-selected]="isSelected(i)" (click)="toggleExpanded(i)">
           <div class="question-header-left">
+            <label class="q-checkbox" (click)="$event.stopPropagation()">
+              <input type="checkbox" [checked]="isSelected(i)" (change)="toggleSelectQuestion(i, $event)" />
+            </label>
             <span class="q-number">Q{{ i + 1 }}</span>
+            <input
+              type="number"
+              class="q-seq-input"
+              min="1"
+              [max]="questions.length"
+              [ngModel]="i + 1"
+              (click)="$event.stopPropagation()"
+              (keydown.enter)="applyQuestionSequence(i, $any($event.target).value); $event.preventDefault()"
+              (blur)="applyQuestionSequence(i, $any($event.target).value)"
+              aria-label="Question sequence"
+              title="Set sequence number and press Enter"
+            />
             <span class="q-type-badge" [class]="'badge-' + q.type">
-              <span class="material-icons">{{ getTypeIcon(q.type) }}</span>
-              {{ getTypeLabel(q.type) }}
+              <span class="material-icons">
+                {{ getTypeIcon(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}
+              </span>
+              {{ getTypeLabel(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}
+            </span>
+            <span class="sub-q-count" *ngIf="q.subQuestions && q.subQuestions.length > 0" matTooltip="This question has {{ q.subQuestions.length }} additional question(s) with shared context">
+              <span class="material-icons">content_copy</span>
+              {{ q.subQuestions.length }}
             </span>
             <span class="q-summary">
               <ng-container [ngSwitch]="q.type">
                 <span *ngSwitchCase="'mcq'">{{ q.question || 'No question text' }}</span>
                 <span *ngSwitchCase="'matching'">{{ q.pairs?.length || 0 }} pairs</span>
+                <span *ngSwitchCase="'singular_plural'">{{ q.pairs?.length || 0 }} row(s)</span>
                 <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
+                <span *ngSwitchCase="'word_bank_fill'">{{ q.items?.length || 0 }} prompt(s) · {{ q.wordBank?.length || 0 }} word(s)</span>
                 <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
                 <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
-                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listen and type' }} ({{ q.mediaUrl ? 'audio ready' : 'no audio' }})</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ hasListeningAudio(q) ? 'audio ready' : 'no audio' }})</span>
+                <span *ngSwitchCase="'video-pronunciation'">
+                  {{ q.caption || 'No caption' }}{{ q.secondaryCaption ? (' → ' + q.secondaryCaption) : '' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})
+                </span>
+                <span *ngSwitchCase="'image_pin_match'">
+                  {{ (q.labels?.length || 0) }} labels · {{ (q.pins?.length || 0) }} pins
+                </span>
               </ng-container>
             </span>
           </div>
           <div class="question-header-right">
-            <span class="q-valid" *ngIf="isQuestionValid(q)">✓</span>
-            <span class="q-invalid" *ngIf="!isQuestionValid(q)">!</span>
+            <span class="q-valid" *ngIf="isQuestionValid(q)" matTooltip="This question is complete">✓</span>
+            <span class="q-invalid" *ngIf="!isQuestionValid(q)" matTooltip="This question is incomplete — open it to see required fields">!</span>
             <button class="btn-move" (click)="$event.stopPropagation(); moveQuestion(i, -1)" [disabled]="i === 0" matTooltip="Move up">
               <span class="material-icons">keyboard_arrow_up</span>
             </button>
@@ -272,7 +494,11 @@
             <button class="btn-remove" (click)="$event.stopPropagation(); removeQuestion(i)" matTooltip="Remove">
               <span class="material-icons">delete_outline</span>
             </button>
-            <span class="material-icons expand-icon">{{ expandedQuestion === i ? 'expand_less' : 'expand_more' }}</span>
+            <span
+              class="material-icons expand-icon"
+              matTooltip="{{ expandedQuestion === i ? 'Collapse question' : 'Expand question' }}"
+              [attr.aria-label]="expandedQuestion === i ? 'Collapse question' : 'Expand question'"
+            >{{ expandedQuestion === i ? 'expand_less' : 'expand_more' }}</span>
           </div>
         </div>
 
@@ -285,30 +511,161 @@
             <input type="number" [(ngModel)]="q.points" min="1" max="10" class="points-input" />
           </div>
 
+          <div class="field-group full">
+            <label class="field-label">Context <span class="label-optional">(optional)</span></label>
+            <textarea
+              [(ngModel)]="q.context"
+              class="field-input"
+              rows="3"
+              placeholder="Add optional context shown to students above this question..."
+            ></textarea>
+          </div>
+
+          <!-- Per-question attachment -->
+          <div class="field-group full">
+            <label class="field-label">
+              <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">attach_file</span>
+              Attachment
+              <span *ngIf="q.type !== 'listening'" class="label-optional">(optional — image, audio, PDF, video)</span>
+              <span *ngIf="q.type === 'listening'" class="label-optional">(required — attach audio file here)</span>
+            </label>
+            <div *ngIf="!q.attachmentUrl && !q.attachmentUploading" class="attachment-upload-row">
+              <button type="button" class="btn-upload-audio" (click)="triggerAttachmentFile(q)">
+                <span class="material-icons">upload_file</span> Upload file
+              </button>
+            </div>
+            <div *ngIf="q.attachmentUploading" class="attachment-uploading">
+              <span class="material-icons spin">sync</span> Uploading…
+            </div>
+            <!-- Preview based on file type -->
+            <div *ngIf="q.attachmentUrl && !q.attachmentUploading" class="attachment-preview">
+              <ng-container [ngSwitch]="getAttachmentType(q.attachmentUrl)">
+                <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(q.attachmentUrl)" alt="Attachment" class="attachment-img-preview" />
+                <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-audio-preview"></audio>
+                <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-video-preview"></video>
+                <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" class="attachment-file-link">
+                  <span class="material-icons">picture_as_pdf</span> View PDF
+                </a>
+                <a *ngSwitchDefault [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" class="attachment-file-link">
+                  <span class="material-icons">insert_drive_file</span> View file
+                </a>
+              </ng-container>
+              <button type="button" class="btn-remove-attachment" (click)="removeAttachment(q)" matTooltip="Remove attachment">
+                <span class="material-icons">delete</span>
+              </button>
+            </div>
+            <div
+              *ngIf="q.attachmentUrl && getAttachmentType(q.attachmentUrl) === 'audio'"
+              class="field-group full attachment-audio-limit-row"
+            >
+              <label class="field-label">
+                Max audio plays per attempt
+                <span class="label-optional">(leave empty for unlimited)</span>
+              </label>
+              <input
+                type="number"
+                class="field-input attachment-audio-limit-input"
+                [(ngModel)]="q.attachmentAudioMaxPlaysPerAttempt"
+                min="1"
+                max="99"
+                step="1"
+                placeholder="Unlimited"
+              />
+              <p class="field-hint">
+                While attempting the exercise, students see how many plays they have left. After the limit they see “Play limit reached” until they re-attempt the whole exercise.
+              </p>
+            </div>
+          </div>
+
+          <!-- Answer Explanation -->
+          <div class="field-group full">
+            <label class="field-label">
+              <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">lightbulb</span>
+              Answer Explanation <span class="label-optional">(shown to students in review)</span>
+            </label>
+            <div class="explanation-field-wrap">
+              <app-rich-text-input
+                [(ngModel)]="q.answerExplanation"
+                [rows]="3"
+                placeholder="Explain why the correct answer is right…"
+              ></app-rich-text-input>
+              <button
+                type="button"
+                class="btn-use-ai"
+                (click)="useAiExplanation(q)"
+                [disabled]="q.generatingExplanation"
+                matTooltip="Generate explanation with AI"
+              >
+                <span class="material-icons">{{ q.generatingExplanation ? 'sync' : 'auto_awesome' }}</span>
+                {{ q.generatingExplanation ? 'Generating…' : 'Use AI' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Instruction & Example (common to all question types) -->
+          <div class="instruction-example-block">
+            <div class="field-group full">
+              <label class="field-label">
+                <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:4px;">info</span>
+                Instruction
+                <span class="label-optional">(shown in a blue banner above the question for students)</span>
+              </label>
+              <app-rich-text-input
+                [(ngModel)]="q.instruction"
+                [rows]="2"
+                placeholder="e.g. Choose the correct option. / Fill in the blank with the right word."
+              ></app-rich-text-input>
+            </div>
+            <div class="field-group full">
+              <label class="field-label">
+                <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:4px;">lightbulb_outline</span>
+                Example
+                <span class="label-optional">(optional worked sample shown below instruction)</span>
+              </label>
+              <app-rich-text-input
+                [(ngModel)]="q.workedExample"
+                [rows]="2"
+                placeholder="e.g. Question: 'The sky is ___.' → Answer: blue"
+              ></app-rich-text-input>
+            </div>
+          </div>
+
           <!-- MCQ Editor -->
           <ng-container *ngIf="q.type === 'mcq'">
             <div class="field-group full">
               <label class="field-label required">Question Text</label>
-              <textarea [(ngModel)]="q.question" class="field-input" rows="2" placeholder="Type your question here..."></textarea>
+              <app-rich-text-input [(ngModel)]="q.question" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
             </div>
             <div class="field-group full">
               <label class="field-label">Image URL (optional)</label>
               <input type="text" [(ngModel)]="q.imageUrl" class="field-input" placeholder="https://..." />
               <div class="image-preview" *ngIf="q.imageUrl">
-                <img [src]="q.imageUrl" alt="Question image" class="preview-img" (error)="q.imageUrl = ''" />
+                <img [src]="getMediaFullUrl(q.imageUrl)" alt="Question image" class="preview-img" />
               </div>
             </div>
             <div class="options-section">
               <label class="field-label required">Options <span class="hint">(select the correct answer)</span></label>
-              <div class="option-row" *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex">
-                <label class="radio-label">
-                  <input type="radio" [name]="'correct-' + i" [value]="oi" [(ngModel)]="q.correctAnswerIndex" />
-                </label>
-                <input type="text" [(ngModel)]="q.options![oi]" class="option-input" [placeholder]="'Option ' + (oi + 1)"
-                  (keydown)="$event.stopPropagation()" />
-                <button class="btn-remove-opt" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2" matTooltip="Remove option">
-                  <span class="material-icons">close</span>
-                </button>
+              <p class="option-image-hint">Add an illustration per option (upload or paste a URL — e.g. images extracted from a worksheet PDF).</p>
+              <div class="option-block" *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex">
+                <div class="option-row">
+                  <label class="radio-label">
+                    <input type="radio" [name]="'correct-' + i" [value]="oi" [(ngModel)]="q.correctAnswerIndex" />
+                  </label>
+                  <app-rich-text-input [(ngModel)]="q.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
+                  <div class="option-image-actions">
+                    <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(q, oi)" (click)="triggerMcqOptionImageFile(q, oi)" [disabled]="isMcqOptionImageUploading(q, oi)" matTooltip="Upload option image">
+                      <img *ngIf="getMcqOptionImageUrl(q, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="option-image-thumb" />
+                      <span class="material-icons" *ngIf="!getMcqOptionImageUrl(q, oi) && !isMcqOptionImageUploading(q, oi)">add_photo_alternate</span>
+                      <span class="material-icons spin" *ngIf="isMcqOptionImageUploading(q, oi)">hourglass_empty</span>
+                    </button>
+                    <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(q, oi)" matTooltip="Paste image URL"><span class="material-icons">link</span></button>
+                  </div>
+                  <button class="btn-remove-opt" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2" matTooltip="Remove option"><span class="material-icons">close</span></button>
+                </div>
+                <div class="option-image-url-row" *ngIf="isMcqOptionUrlExpanded(q, oi) || getMcqOptionImageUrl(q, oi)">
+                  <input type="text" class="field-input option-image-url-input" [ngModel]="getMcqOptionImageUrl(q, oi)" (ngModelChange)="setMcqOptionImageUrl(q, oi, $event)" placeholder="https://… or path to extracted PDF image" />
+                  <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(q, oi)" (click)="removeMcqOptionImage(q, oi)" matTooltip="Remove image"><span class="material-icons">delete_outline</span></button>
+                </div>
               </div>
               <button class="btn-add-opt" (click)="addOption(q)" *ngIf="q.options!.length < 6">
                 <span class="material-icons">add</span> Add Option
@@ -316,16 +673,59 @@
             </div>
             <div class="field-group full">
               <label class="field-label">Explanation (shown after answer)</label>
-              <input type="text" [(ngModel)]="q.explanation" class="field-input" placeholder="Explain why the correct answer is right..." />
+              <app-rich-text-input [(ngModel)]="q.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
+            </div>
+          </ng-container>
+
+          <!-- Word Bank Fill Editor -->
+          <ng-container *ngIf="q.type === 'word_bank_fill'">
+            <div class="field-group full">
+              <label class="field-label required">Word Bank</label>
+              <div class="answer-row" *ngFor="let word of q.wordBank; let wi = index; trackBy: trackByIndex">
+                <span class="blank-label">Word {{ wi + 1 }}</span>
+                <input type="text" [(ngModel)]="q.wordBank![wi]" class="answer-input" [placeholder]="'Word ' + (wi + 1)" />
+                <button class="btn-remove-opt" (click)="removeWordBankWord(q, wi)" *ngIf="(q.wordBank?.length || 0) > 2">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" (click)="addWordBankWord(q)">
+                <span class="material-icons">add</span> Add Word
+              </button>
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Prompts and Answers</label>
+              <div class="pair-row word-bank-item-row" *ngFor="let item of q.items; let ii = index">
+                <input type="text" [(ngModel)]="item.prompt" class="field-input" [placeholder]="'Prompt ' + (ii + 1)" />
+                <span class="pair-arrow">→</span>
+                <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Answer ' + (ii + 1)" />
+                <input
+                  type="text"
+                  class="field-input word-bank-accepted-input"
+                  [ngModel]="(item.acceptedAnswers || []).join(', ')"
+                  (ngModelChange)="setWordBankItemAccepted($event, item)"
+                  placeholder="Also accept (optional)"
+                  title="Comma-separated alternate correct answers for this blank"
+                />
+                <button class="btn-remove-opt" (click)="removeWordBankItem(q, ii)" *ngIf="(q.items?.length || 0) > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" (click)="addWordBankItem(q)">
+                <span class="material-icons">add</span> Add Prompt
+              </button>
+            </div>
+
+            <div class="field-group full">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.reusableWords" />
+                Reusable words (same word can be used in multiple blanks)
+              </label>
             </div>
           </ng-container>
 
           <!-- Matching Editor -->
           <ng-container *ngIf="q.type === 'matching'">
-            <div class="field-group full">
-              <label class="field-label">Instruction</label>
-              <input type="text" [(ngModel)]="q.instruction" class="field-input" />
-            </div>
             <div class="pairs-section">
               <div class="pairs-header">
                 <span class="col-label">Left Column</span>
@@ -333,9 +733,9 @@
                 <span></span>
               </div>
               <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index">
-                <input type="text" [(ngModel)]="pair.left" class="pair-input" [placeholder]="'Left ' + (pi+1)" />
+                <app-rich-text-input [(ngModel)]="pair.left" [placeholder]="'Left ' + (pi+1)" class="pair-rte"></app-rich-text-input>
                 <span class="pair-arrow">↔</span>
-                <input type="text" [(ngModel)]="pair.right" class="pair-input" [placeholder]="'Right ' + (pi+1)" />
+                <app-rich-text-input [(ngModel)]="pair.right" [placeholder]="'Right ' + (pi+1)" class="pair-rte"></app-rich-text-input>
                 <button class="btn-remove-opt" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 2" matTooltip="Remove pair">
                   <span class="material-icons">close</span>
                 </button>
@@ -347,19 +747,42 @@
             <p class="hint-text">💡 The right column will be shuffled for students. Each left item maps 1:1 to the right item in the same row.</p>
           </ng-container>
 
+          <!-- Singular / Plural -->
+          <ng-container *ngIf="q.type === 'singular_plural'">
+            <div class="pairs-section">
+              <div class="pairs-header">
+                <span class="col-label">Singular (shown to student)</span>
+                <span class="col-label">Plural (correct answer)</span>
+                <span></span>
+              </div>
+              <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index">
+                <input type="text" [(ngModel)]="pair.singular" [placeholder]="'Singular ' + (pi+1)" class="field-input" />
+                <span class="pair-arrow">→</span>
+                <input type="text" [(ngModel)]="pair.plural" [placeholder]="'Plural ' + (pi+1)" class="field-input" />
+                <button class="btn-remove-opt" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 1" matTooltip="Remove row" type="button">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" (click)="addPair(q)" type="button">
+                <span class="material-icons">add</span> Add row
+              </button>
+            </div>
+            <p class="hint-text">Students see the singular form and type the plural. Grading is case-insensitive.</p>
+          </ng-container>
+
           <!-- Fill-blank Editor -->
           <ng-container *ngIf="q.type === 'fill-blank'">
             <div class="field-group full">
               <div class="sentence-label-row">
                 <label class="field-label required">Sentence</label>
                 <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(q)"
-                  matTooltip="Insert ___ at cursor (focus sentence first) or at end">
+                  matTooltip="Insert _ at cursor (focus sentence first) or at end">
                   <span class="material-icons">add_box</span> Insert blank
                 </button>
               </div>
-              <p class="hint-text">Use <code>___</code> (three underscores) for each blank, or click the button above.</p>
-              <textarea [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)" class="field-input" rows="2"
-                placeholder="The cat ___ on the mat. She ___ happy."></textarea>
+              <p class="hint-text">Use <code>_</code> or <code>___</code> for each blank (each gap is a run of underscores), or click the button above.</p>
+              <app-rich-text-input [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)" [rows]="2"
+                placeholder="The cat _ on the mat. She _ happy."></app-rich-text-input>
               <div class="blank-count">{{ getBlankCount(q) }} blank(s) detected</div>
             </div>
             <div class="answers-section" *ngIf="getBlankCount(q) > 0">
@@ -384,66 +807,164 @@
             </div>
           </ng-container>
 
+          <!-- Jumble Word Editor -->
+          <ng-container *ngIf="q.type === 'jumble-word'">
+            <div class="field-group full">
+              <label class="field-label">Instruction <span class="label-optional">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.instruction" class="field-input" placeholder="e.g. Unscramble the letters to form a word." />
+            </div>
+            <div class="field-group half">
+              <label class="field-label required">Scrambled Text</label>
+              <input type="text" [(ngModel)]="q.scrambledText" class="field-input" placeholder="e.g. Z I M M E W O H N R" />
+            </div>
+            <div class="field-group half">
+              <label class="field-label required">Expected Word</label>
+              <input type="text" [(ngModel)]="q.expectedWord" class="field-input" placeholder="e.g. Wohnzimmer" />
+            </div>
+            <div class="field-group half">
+              <label class="field-label">Bold Letter (hint) <span class="label-optional">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.boldLetter" class="field-input" maxlength="1" placeholder="Single letter, e.g. W" />
+            </div>
+            <div class="field-group half">
+              <label class="field-label">Category Tip <span class="label-optional">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.categoryTip" class="field-input" placeholder="e.g. Rooms and furniture" />
+            </div>
+          </ng-container>
+
+          <!-- Rearrange Editor -->
+          <ng-container *ngIf="q.type === 'rearrange'">
+            <div class="info-banner">
+              <span class="material-icons">reorder</span>
+              Students will rearrange the tokens into the correct order (drag-drop) or type the final sentence.
+              Provide either a full expected sentence or a token list (recommended).
+            </div>
+            <div class="field-group full">
+              <label class="field-label required">Question</label>
+              <app-rich-text-input [(ngModel)]="q.rearrangePrompt" [rows]="2" placeholder="e.g. Rearrange the words to form a correct sentence."></app-rich-text-input>
+            </div>
+            <div class="field-group full">
+              <label class="field-label">Expected sentence <span class="label-optional">(optional if tokens are provided)</span></label>
+              <input type="text" [(ngModel)]="q.rearrangeAnswer" class="field-input" placeholder="e.g. Ich gehe heute nach Hause." />
+            </div>
+            <div class="field-group full">
+              <label class="field-label">Correct token order <span class="label-optional">(recommended)</span></label>
+              <textarea
+                [(ngModel)]="q.rearrangeTokens"
+                class="field-input"
+                rows="6"
+                placeholder="One token per line, in correct order&#10;Ich&#10;gehe&#10;heute&#10;nach&#10;Hause."
+              ></textarea>
+              <p class="hint-text">Tip: include punctuation in the token (e.g. <code>Hause.</code>) if you want it attached.</p>
+            </div>
+          </ng-container>
+
+          <!-- Image Pin Match Editor -->
+          <ng-container *ngIf="q.type === 'image_pin_match'">
+            <div class="info-banner">
+              <span class="material-icons">place</span>
+              Click on the image to create pins. Drag pins to reposition. Map each label to a pin.
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Image</label>
+              <div class="listening-upload-row">
+                <button type="button" class="btn-upload-audio" (click)="triggerImagePinImageFile(q)" [disabled]="q.imagePinImageUploading">
+                  <span class="material-icons">{{ q.imagePinImageUploading ? 'hourglass_empty' : (q.imageUrl ? 'image' : 'upload_file') }}</span>
+                  {{ q.imagePinImageUploading ? 'Uploading...' : (q.imageUrl ? 'Replace image' : 'Upload image') }}
+                </button>
+              </div>
+              <input type="text" [(ngModel)]="q.imageUrl" (ngModelChange)="onImagePinImageUrlChanged(q)" class="field-input" placeholder="Or paste image URL..." />
+              <p class="hint-text" *ngIf="q.imageUrl && getAttachmentType(q.imageUrl) !== 'image'" style="color:#b91c1c;">
+                This URL is not an image file. Please upload/select a valid image.
+              </p>
+              <p class="hint-text" *ngIf="q.imageUrl && q.imagePinImageLoadError" style="color:#b91c1c;">
+                Image failed to load. Please use a valid public image URL or re-upload.
+              </p>
+            </div>
+
+            <div class="ipm-editor" *ngIf="q.imageUrl && getAttachmentType(q.imageUrl) === 'image' && !q.imagePinImageLoadError">
+              <div
+                class="ipm-image-stage"
+                (click)="addImagePinByClick(q, $event)"
+                (mousemove)="onImagePinEditorMouseMove(q, i, $event)"
+              >
+                <img
+                  [src]="getMediaFullUrl(q.imagePinDisplayUrl || q.imageUrl)"
+                  alt="Pin editor image"
+                  class="ipm-stage-image"
+                  (load)="onImagePinImageLoad(q)"
+                  (error)="onImagePinImageError(q)"
+                />
+                <button
+                  type="button"
+                  class="ipm-pin"
+                  *ngFor="let pin of q.pins; let pi = index"
+                  [style.left.%]="pin.x"
+                  [style.top.%]="pin.y"
+                  [attr.aria-label]="'Pin ' + pin.id"
+                  (click)="$event.stopPropagation()"
+                  (mousedown)="startImagePinDrag(i, pin.id, $event)"
+                >
+                  {{ pi + 1 }}
+                </button>
+              </div>
+              <p class="hint-text">Tip: click image to add pins, drag pin badges to move.</p>
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Labels & Correct Pin</label>
+              <div class="pair-row" *ngFor="let label of q.labels; let li = index">
+                <input type="text" [(ngModel)]="label.text" class="field-input" [placeholder]="'Label ' + (li + 1)" />
+                <select [(ngModel)]="label.correctPinId" class="field-input">
+                  <option value="">Select pin</option>
+                  <option *ngFor="let pin of q.pins" [value]="pin.id">{{ pin.id }}</option>
+                </select>
+                <button class="btn-remove-opt" type="button" (click)="removeImagePinMatchLabel(q, li)" *ngIf="(q.labels?.length || 0) > 1">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+              <button class="btn-add-opt" type="button" (click)="addImagePinMatchLabel(q)">
+                <span class="material-icons">add</span> Add Label
+              </button>
+            </div>
+
+            <div class="field-group full">
+              <label class="field-label required">Pins</label>
+              <div class="pair-row" *ngFor="let pin of q.pins; let pi = index">
+                <input type="text" [ngModel]="pin.id" class="field-input" readonly />
+                <input type="number" [(ngModel)]="pin.x" min="0" max="100" step="0.1" class="field-input" placeholder="x %" />
+                <input type="number" [(ngModel)]="pin.y" min="0" max="100" step="0.1" class="field-input" placeholder="y %" />
+                <button class="btn-remove-opt" type="button" (click)="removeImagePin(q, pi)">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="field-group full">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.settings!.randomizeLabels" />
+                Randomize labels for students
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.settings!.allowRetry" />
+                Allow retries
+              </label>
+            </div>
+          </ng-container>
+
           <!-- Listening Editor -->
           <ng-container *ngIf="q.type === 'listening'">
             <div class="info-banner">
               <span class="material-icons">headphones</span>
-              Upload audio (or paste a link). AI will extract the text for you to verify before publishing. Students listen and type (or speak) what they hear.
+              Attach audio in <strong>Attachment</strong> above, add the question text and correct answer. Students listen and type what they hear.
             </div>
             <div class="field-group full">
-              <label class="field-label required">Instruction</label>
-              <input type="text" [(ngModel)]="q.prompt" class="field-input" placeholder="e.g. Listen and type what you hear." />
+              <label class="field-label required">Question</label>
+              <app-rich-text-input [(ngModel)]="q.prompt" placeholder="e.g. What is the name of the person?"></app-rich-text-input>
             </div>
             <div class="field-group full">
-              <label class="field-label required">Audio</label>
-              <div class="listening-upload-row">
-                <div class="upload-option">
-                  <button type="button" class="btn-upload-audio" (click)="triggerListeningFile(q)">
-                    <span class="material-icons">upload_file</span> Upload from computer
-                  </button>
-                </div>
-                <span class="upload-or">or</span>
-                <div class="upload-option upload-url">
-                  <input type="text" #listeningUrl placeholder="Paste audio URL..." class="field-input" (keydown.enter)="$event.preventDefault(); fetchListeningFromUrl(q, listeningUrl.value)" />
-                  <button type="button" class="btn-fetch" (click)="fetchListeningFromUrl(q, listeningUrl.value)">Fetch</button>
-                </div>
-              </div>
-              <div *ngIf="q.mediaUrl" class="audio-preview">
-                <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
-                <span class="media-url">{{ q.mediaUrl }}</span>
-              </div>
-            </div>
-            <div class="field-group full">
-              <div class="sentence-label-row">
-                <label class="field-label required">Expected transcript</label>
-                <button type="button" class="btn-insert-blank" (click)="generateTranscript(q)" [disabled]="q.transcribing || !q.mediaUrl">
-                  <span class="material-icons">auto_awesome</span>
-                  {{ q.transcribing ? 'Transcribing...' : 'Generate with AI' }}
-                </button>
-              </div>
-              <p class="hint-text">AI extracts text from the audio. Verify it's correct before publishing.</p>
-              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="4" placeholder="Transcript will appear here after AI extraction..."></textarea>
-            </div>
-            <div class="field-group full">
-              <label class="field-label">Student attempt mode</label>
-              <div class="scoring-mode-opts" style="margin-top:6px">
-                <label class="scoring-opt" [class.active]="(q.attemptMode || 'typing') === 'typing'" (click)="q.attemptMode = 'typing'">
-                  <input type="radio" [name]="'am-'+i" value="typing" [(ngModel)]="q.attemptMode" />
-                  <div class="scoring-opt-icon"><span class="material-icons">keyboard</span></div>
-                  <div class="scoring-opt-text">
-                    <span class="scoring-opt-name">Typing only</span>
-                    <span class="scoring-opt-desc">Student must type what they hear</span>
-                  </div>
-                </label>
-                <label class="scoring-opt" [class.active]="q.attemptMode === 'typing-or-speech'" (click)="q.attemptMode = 'typing-or-speech'">
-                  <input type="radio" [name]="'am-'+i" value="typing-or-speech" [(ngModel)]="q.attemptMode" />
-                  <div class="scoring-opt-icon"><span class="material-icons">mic</span></div>
-                  <div class="scoring-opt-text">
-                    <span class="scoring-opt-name">Typing or speaking</span>
-                    <span class="scoring-opt-desc">Student can type or speak (speech → text)</span>
-                  </div>
-                </label>
-              </div>
+              <label class="field-label required">Answer</label>
+              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="3" placeholder="Enter the correct answer students should type..."></textarea>
             </div>
           </ng-container>
 
@@ -455,9 +976,51 @@
             </div>
             <div class="field-group full">
               <label class="field-label required">Question</label>
-              <textarea [(ngModel)]="q.prompt" class="field-input" rows="2" placeholder="Type your question here..."></textarea>
+              <app-rich-text-input [(ngModel)]="q.prompt" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
             </div>
-            <div class="field-group full">
+            <!-- True/False Story Paragraph -->
+            <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
+              <label class="field-label">Story paragraph (optional)</label>
+              <textarea
+                [(ngModel)]="q.storyParagraph"
+                class="field-input"
+                rows="4"
+                placeholder="Paste the paragraph/story here (optional)..."
+              ></textarea>
+              <button
+                type="button"
+                class="btn-add-opt"
+                (click)="addMoreTrueFalseForSameParagraph(q)"
+              >
+                <span class="material-icons">add</span> Weiteres Richtig/Falsch für denselben Absatz hinzufügen
+              </button>
+            </div>
+            <!-- True / False Editor (worksheetKind="true-false") -->
+            <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
+              <label class="field-label required">Answer</label>
+              <div class="tf-answers-admin" role="group" aria-label="Richtig oder Falsch">
+                <label class="tf-check">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === true"
+                    (click)="setTrueFalseAnswer(q, true)"
+                  />
+                  Richtig
+                </label>
+                <label class="tf-check">
+                  <input
+                    type="checkbox"
+                    [checked]="parseTrueFalseAnswer(q.sampleAnswers?.[0]) === false"
+                    (click)="setTrueFalseAnswer(q, false)"
+                  />
+                  Falsch
+                </label>
+              </div>
+              <p class="hint-text" style="margin-top:8px">Wählen Sie die richtige Antwort.</p>
+            </div>
+
+            <!-- Sample Answers (all other question-answer worksheet kinds) -->
+            <div class="field-group full" *ngIf="q.worksheetKind !== 'true-false'">
               <label class="field-label">
                 Sample Answers
                 <span class="hint"> (optional — if none, AI grades automatically)</span>
@@ -478,70 +1041,84 @@
                 <span class="material-icons">add</span> Add Sample Answer
               </button>
             </div>
-            <!-- AI Grading Config -->
-            <div class="qa-grading-config">
-              <div class="qa-grading-title">
-                <span class="material-icons">auto_awesome</span>
-                AI Grading Settings
-              </div>
-              <div class="qa-grading-row">
 
-                <!-- Threshold -->
-                <div class="qa-grading-field">
-                  <label>Minimum % to pass</label>
-                  <div class="threshold-control">
-                    <div class="threshold-display">
-                      <div>
-                        <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
-                        <span class="threshold-val-unit">%</span>
-                      </div>
-                      <span class="threshold-label">match required to pass</span>
-                    </div>
-                    <input
-                      type="range" min="50" max="100" step="5"
-                      [ngModel]="q.similarityThreshold ?? 70"
-                      (ngModelChange)="setThreshold(q, $event)"
-                      class="threshold-slider"
-                      [style.--val]="((q.similarityThreshold ?? 70) - 50) / 50 * 100 + '%'"
-                    />
-                    <div class="threshold-presets">
-                      <button *ngFor="let p of [50,60,70,80,90,100]"
-                        type="button"
-                        class="preset-btn"
-                        [class.active]="(q.similarityThreshold ?? 70) === p"
-                        (click)="q.similarityThreshold = p">
-                        {{ p }}%
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Scoring mode -->
-                <div class="qa-grading-field">
-                  <label>Marks awarded</label>
-                  <div class="scoring-mode-opts">
-                    <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
-                      <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
-                      <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
-                      <div class="scoring-opt-text">
-                        <span class="scoring-opt-name">Full marks if passed</span>
-                        <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
-                      </div>
-                    </label>
-                    <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
-                      <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
-                      <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
-                      <div class="scoring-opt-text">
-                        <span class="scoring-opt-name">Proportional marks</span>
-                        <span class="scoring-opt-desc">Scaled by AI score (85% → 0.85 × pts)</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-              </div>
-            </div>
           </ng-container>
+
+          <!-- Grading Config (all question types) -->
+          <div class="qa-grading-config">
+            <div class="qa-grading-title">
+              <span class="material-icons">auto_awesome</span>
+              Grading Settings
+            </div>
+            <p class="hint-text" *ngIf="q.type === 'jumble-word' || q.type === 'rearrange'" style="margin-top:0;">
+              With advanced grading on, students can earn partial credit for almost-correct answers (spelling similarity for jumble; word-order closeness for rearrange). Turn it off to require an exact match only.
+            </p>
+            <div class="field-group full" style="margin-bottom:10px;">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="q.aiGradingEnabled" />
+                Use AI/advanced grading for this question
+              </label>
+            </div>
+            <p class="hint-text" *ngIf="q.aiGradingEnabled === false" style="margin-top:-4px;">
+              AI/advanced grading is off. This question will use strict normal grading.
+            </p>
+            <div class="qa-grading-row" *ngIf="q.aiGradingEnabled !== false">
+
+              <!-- Threshold -->
+              <div class="qa-grading-field">
+                <label>Minimum % to pass</label>
+                <div class="threshold-control">
+                  <div class="threshold-display">
+                    <div>
+                      <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
+                      <span class="threshold-val-unit">%</span>
+                    </div>
+                    <span class="threshold-label">match required to pass</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    [ngModel]="q.similarityThreshold ?? 70"
+                    (ngModelChange)="setThreshold(q, $event)"
+                    class="threshold-slider"
+                    [style.--val]="(q.similarityThreshold ?? 70) + '%'"
+                  />
+                  <div class="threshold-presets">
+                    <button *ngFor="let p of [20,40,60,70,80,90,100]"
+                      type="button"
+                      class="preset-btn"
+                      [class.active]="(q.similarityThreshold ?? 70) === p"
+                      (click)="q.similarityThreshold = p">
+                      {{ p }}%
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scoring mode -->
+              <div class="qa-grading-field">
+                <label>Marks awarded</label>
+                <div class="scoring-mode-opts">
+                  <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
+                    <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
+                    <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
+                    <div class="scoring-opt-text">
+                      <span class="scoring-opt-name">Full marks if passed</span>
+                      <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
+                    </div>
+                  </label>
+                  <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
+                    <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
+                    <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
+                    <div class="scoring-opt-text">
+                      <span class="scoring-opt-name">Proportional marks</span>
+                      <span class="scoring-opt-desc">Scaled by score (85% → 0.85 × pts)</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+          </div>
 
           <!-- Pronunciation Editor -->
           <ng-container *ngIf="q.type === 'pronunciation'">
@@ -582,6 +1159,472 @@
             </div>
           </ng-container>
 
+          <!-- Sub-questions: Multiple questions with same context/hints/images -->
+          <div class="sub-questions-section">
+            <div class="sub-questions-header">
+              <div class="sub-questions-title">
+                <span class="material-icons">content_copy</span>
+                Questions with Same Context
+                <span class="label-optional">(share context, hints, images)</span>
+              </div>
+              <button type="button" class="btn-add-sub-question" (click)="addSubQuestion(i)">
+                <span class="material-icons">add</span> Add Question
+              </button>
+            </div>
+            <div class="sub-questions-list" *ngIf="q.subQuestions && q.subQuestions.length > 0">
+              <div class="sub-question-item" *ngFor="let sq of q.subQuestions; let si = index">
+                <div class="sub-question-header">
+                  <span class="sub-q-number">Q{{ i + 1 }}.{{ si + 1 }}</span>
+                  <span class="sub-q-type">{{ getTypeLabel(sq.type === 'question-answer' && sq.worksheetKind ? sq.worksheetKind : sq.type) }}</span>
+                  <div class="sub-q-actions">
+                    <button type="button" class="btn-remove-sub" (click)="removeSubQuestion(i, si)" matTooltip="Remove">
+                      <span class="material-icons">delete_outline</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="sub-question-body">
+                  <ng-container [ngSwitch]="sq.type">
+                    <!-- MCQ Sub-question -->
+                    <div *ngSwitchCase="'mcq'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Question Text</label>
+                        <app-rich-text-input [(ngModel)]="sq.question" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label">Image URL (optional)</label>
+                        <input type="text" [(ngModel)]="sq.imageUrl" class="field-input" placeholder="https://..." />
+                      </div>
+                      <div class="options-section">
+                        <label class="field-label required">Options <span class="hint">(select the correct answer)</span></label>
+                        <p class="option-image-hint">Add an illustration per option (upload or paste URL).</p>
+                        <div class="option-block" *ngFor="let opt of sq.options; let oi = index; trackBy: trackByIndex">
+                          <div class="option-row">
+                            <label class="radio-label">
+                              <input type="radio" [name]="'sub-correct-' + i + '-' + si" [value]="oi" [(ngModel)]="sq.correctAnswerIndex" />
+                            </label>
+                            <app-rich-text-input [(ngModel)]="sq.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
+                            <div class="option-image-actions">
+                              <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(sq, oi)" (click)="triggerMcqOptionImageFile(sq, oi)" [disabled]="isMcqOptionImageUploading(sq, oi)" matTooltip="Upload option image">
+                                <img *ngIf="getMcqOptionImageUrl(sq, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="option-image-thumb" />
+                                <span class="material-icons" *ngIf="!getMcqOptionImageUrl(sq, oi) && !isMcqOptionImageUploading(sq, oi)">add_photo_alternate</span>
+                                <span class="material-icons spin" *ngIf="isMcqOptionImageUploading(sq, oi)">hourglass_empty</span>
+                              </button>
+                              <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(sq, oi)" matTooltip="Paste image URL"><span class="material-icons">link</span></button>
+                            </div>
+                            <button class="btn-remove-opt" (click)="removeOption(sq, oi)" *ngIf="sq.options!.length > 2" matTooltip="Remove option"><span class="material-icons">close</span></button>
+                          </div>
+                          <div class="option-image-url-row" *ngIf="isMcqOptionUrlExpanded(sq, oi) || getMcqOptionImageUrl(sq, oi)">
+                            <input type="text" class="field-input option-image-url-input" [ngModel]="getMcqOptionImageUrl(sq, oi)" (ngModelChange)="setMcqOptionImageUrl(sq, oi, $event)" placeholder="https://… or path to extracted PDF image" />
+                            <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(sq, oi)" (click)="removeMcqOptionImage(sq, oi)" matTooltip="Remove image"><span class="material-icons">delete_outline</span></button>
+                          </div>
+                        </div>
+                        <button class="btn-add-opt" (click)="addOption(sq)" *ngIf="sq.options!.length < 6">
+                          <span class="material-icons">add</span> Add Option
+                        </button>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label">Explanation (shown after answer)</label>
+                        <app-rich-text-input [(ngModel)]="sq.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
+                      </div>
+                    </div>
+
+                    <!-- Matching Sub-question -->
+                    <div *ngSwitchCase="'matching'" class="sub-q-editor">
+                      <div class="pairs-section">
+                        <div class="pairs-header">
+                          <span class="col-label">Left Column</span>
+                          <span class="col-label">Right Column</span>
+                          <span></span>
+                        </div>
+                        <div class="pair-row" *ngFor="let pair of sq.pairs; let pi = index">
+                          <app-rich-text-input [(ngModel)]="pair.left" [placeholder]="'Left ' + (pi+1)" class="pair-rte"></app-rich-text-input>
+                          <span class="pair-arrow">↔</span>
+                          <app-rich-text-input [(ngModel)]="pair.right" [placeholder]="'Right ' + (pi+1)" class="pair-rte"></app-rich-text-input>
+                          <button class="btn-remove-opt" (click)="removePair(sq, pi)" *ngIf="sq.pairs!.length > 2" matTooltip="Remove pair">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" (click)="addPair(sq)">
+                          <span class="material-icons">add</span> Add Pair
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Fill-blank Sub-question -->
+                    <div *ngSwitchCase="'fill-blank'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <div class="sentence-label-row">
+                          <label class="field-label required">Sentence</label>
+                          <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(sq)"
+                            matTooltip="Insert _ at cursor (focus sentence first) or at end">
+                            <span class="material-icons">add_box</span> Insert blank
+                          </button>
+                        </div>
+                        <p class="hint-text">Use <code>_</code> or <code>___</code> for each blank (each gap is a run of underscores), or click the button above.</p>
+                        <app-rich-text-input [(ngModel)]="sq.sentence" (ngModelChange)="onSentenceChange(sq)" [rows]="2"
+                          placeholder="The cat _ on the mat. She _ happy."></app-rich-text-input>
+                        <div class="blank-count">{{ getBlankCount(sq) }} blank(s) detected</div>
+                      </div>
+                      <div class="answers-section" *ngIf="getBlankCount(sq) > 0">
+                        <label class="field-label required">Correct Answers</label>
+                        <div class="answer-row" *ngFor="let ans of sq.answers; let ai = index; trackBy: trackByIndex">
+                          <span class="blank-label">Blank {{ ai + 1 }}</span>
+                          <input type="text" [(ngModel)]="sq.answers![ai]" class="answer-input" [placeholder]="'Answer for blank ' + (ai+1)"
+                            (keydown)="$event.stopPropagation()" />
+                        </div>
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group">
+                          <label class="field-label">Hint (optional)</label>
+                          <input type="text" [(ngModel)]="sq.hint" class="field-input" placeholder="e.g. Use past tense" />
+                        </div>
+                        <div class="field-group">
+                          <label class="checkbox-label">
+                            <input type="checkbox" [(ngModel)]="sq.caseSensitive" />
+                            Case-sensitive grading
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Word Bank Fill Sub-question -->
+                    <div *ngSwitchCase="'word_bank_fill'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Word Bank</label>
+                        <div class="answer-row" *ngFor="let word of sq.wordBank; let wi = index; trackBy: trackByIndex">
+                          <span class="blank-label">Word {{ wi + 1 }}</span>
+                          <input type="text" [(ngModel)]="sq.wordBank![wi]" class="answer-input" [placeholder]="'Word ' + (wi + 1)" />
+                          <button class="btn-remove-opt" (click)="removeWordBankWord(sq, wi)" *ngIf="(sq.wordBank?.length || 0) > 2">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" (click)="addWordBankWord(sq)">
+                          <span class="material-icons">add</span> Add Word
+                        </button>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Prompts and Answers</label>
+                        <div class="pair-row word-bank-item-row" *ngFor="let item of sq.items; let ii = index">
+                          <input type="text" [(ngModel)]="item.prompt" class="field-input" [placeholder]="'Prompt ' + (ii + 1)" />
+                          <span class="pair-arrow">→</span>
+                          <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Answer ' + (ii + 1)" />
+                          <input
+                            type="text"
+                            class="field-input word-bank-accepted-input"
+                            [ngModel]="(item.acceptedAnswers || []).join(', ')"
+                            (ngModelChange)="setWordBankItemAccepted($event, item)"
+                            placeholder="Also accept (optional)"
+                            title="Comma-separated alternate correct answers for this blank"
+                          />
+                          <button class="btn-remove-opt" (click)="removeWordBankItem(sq, ii)" *ngIf="(sq.items?.length || 0) > 1">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" (click)="addWordBankItem(sq)">
+                          <span class="material-icons">add</span> Add Prompt
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Question-Answer Sub-question -->
+                    <div *ngSwitchCase="'question-answer'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Question</label>
+                        <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
+                      </div>
+                      <div class="field-group full" *ngIf="sq.worksheetKind !== 'true-false'">
+                        <label class="field-label">
+                          Sample Answers
+                          <span class="hint"> (optional — if none, AI grades automatically)</span>
+                        </label>
+                        <div class="variant-row" *ngFor="let sa of sq.sampleAnswers; let ssi = index; trackBy: trackByIndex">
+                          <input
+                            type="text"
+                            [(ngModel)]="sq.sampleAnswers![ssi]"
+                            class="field-input"
+                            [placeholder]="'Accepted answer ' + (ssi + 1)"
+                            (keydown)="$event.stopPropagation()"
+                          />
+                          <button class="btn-remove-opt" (click)="removeSampleAnswer(sq, ssi)" *ngIf="sq.sampleAnswers!.length > 1">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" (click)="addSampleAnswer(sq)">
+                          <span class="material-icons">add</span> Add Sample Answer
+                        </button>
+                      </div>
+                      <div class="field-group full" *ngIf="sq.worksheetKind === 'true-false'">
+                        <label class="field-label required">Answer</label>
+                        <div class="tf-answers-admin" role="group" aria-label="Richtig oder Falsch">
+                          <label class="tf-check">
+                            <input
+                              type="checkbox"
+                              [checked]="parseTrueFalseAnswer(sq.sampleAnswers?.[0]) === true"
+                              (click)="setTrueFalseAnswer(sq, true)"
+                            />
+                            Richtig
+                          </label>
+                          <label class="tf-check">
+                            <input
+                              type="checkbox"
+                              [checked]="parseTrueFalseAnswer(sq.sampleAnswers?.[0]) === false"
+                              (click)="setTrueFalseAnswer(sq, false)"
+                            />
+                            Falsch
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Listening Sub-question -->
+                    <div *ngSwitchCase="'listening'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Question</label>
+                        <app-rich-text-input [(ngModel)]="sq.prompt" placeholder="e.g. What is the name of the person?"></app-rich-text-input>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Answer</label>
+                        <textarea [(ngModel)]="sq.expectedTranscript" class="field-input" rows="3" placeholder="Enter the correct answer students should type..."></textarea>
+                      </div>
+                    </div>
+
+                    <!-- Pronunciation Sub-question -->
+                    <div *ngSwitchCase="'pronunciation'" class="sub-q-editor">
+                      <div class="field-row">
+                        <div class="field-group">
+                          <label class="field-label required">Word / Phrase</label>
+                          <input type="text" [(ngModel)]="sq.word" class="field-input" placeholder="e.g. Guten Morgen" />
+                        </div>
+                        <div class="field-group">
+                          <label class="field-label">Phonetic Guide</label>
+                          <input type="text" [(ngModel)]="sq.phonetic" class="field-input" placeholder="e.g. /ˈɡuːtən ˈmɔːɡən/" />
+                        </div>
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group">
+                          <label class="field-label">Translation</label>
+                          <input type="text" [(ngModel)]="sq.translation" class="field-input" placeholder="e.g. Good morning" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Singular / Plural Sub-question -->
+                    <div *ngSwitchCase="'singular_plural'" class="sub-q-editor">
+                      <div class="pairs-section">
+                        <div class="pairs-header">
+                          <span class="col-label">Singular</span>
+                          <span class="col-label">Plural (answer)</span>
+                          <span></span>
+                        </div>
+                        <div class="pair-row" *ngFor="let pair of sq.pairs; let pi = index">
+                          <input type="text" [(ngModel)]="pair.singular" [placeholder]="'Singular ' + (pi+1)" class="field-input" />
+                          <span class="pair-arrow">→</span>
+                          <input type="text" [(ngModel)]="pair.plural" [placeholder]="'Plural ' + (pi+1)" class="field-input" />
+                          <button class="btn-remove-opt" (click)="removePair(sq, pi)" *ngIf="sq.pairs!.length > 1" matTooltip="Remove row" type="button">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" (click)="addPair(sq)" type="button">
+                          <span class="material-icons">add</span> Add row
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Jumble Word Sub-question -->
+                    <div *ngSwitchCase="'jumble-word'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label">Instruction <span class="label-optional">(optional)</span></label>
+                        <input type="text" [(ngModel)]="sq.instruction" class="field-input" placeholder="e.g. Unscramble the letters to form a word." />
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group half">
+                          <label class="field-label required">Scrambled Text</label>
+                          <input type="text" [(ngModel)]="sq.scrambledText" class="field-input" placeholder="e.g. Z I M M E R" />
+                        </div>
+                        <div class="field-group half">
+                          <label class="field-label required">Expected Word</label>
+                          <input type="text" [(ngModel)]="sq.expectedWord" class="field-input" placeholder="e.g. Zimmer" />
+                        </div>
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group half">
+                          <label class="field-label">Bold Letter <span class="label-optional">(optional)</span></label>
+                          <input type="text" [(ngModel)]="sq.boldLetter" class="field-input" maxlength="1" placeholder="e.g. Z" />
+                        </div>
+                        <div class="field-group half">
+                          <label class="field-label">Category Tip <span class="label-optional">(optional)</span></label>
+                          <input type="text" [(ngModel)]="sq.categoryTip" class="field-input" placeholder="Optional hint" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Rearrange Sub-question -->
+                    <div *ngSwitchCase="'rearrange'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Question</label>
+                        <app-rich-text-input [(ngModel)]="sq.rearrangePrompt" [rows]="2" placeholder="Instructions for the student"></app-rich-text-input>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label">Expected sentence <span class="label-optional">(optional)</span></label>
+                        <input type="text" [(ngModel)]="sq.rearrangeAnswer" class="field-input" placeholder="Full correct sentence" />
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label">Correct token order <span class="label-optional">(one per line)</span></label>
+                        <textarea [(ngModel)]="sq.rearrangeTokens" class="field-input" rows="4" placeholder="One token per line"></textarea>
+                      </div>
+                    </div>
+
+                    <!-- Image Pin Match Sub-question -->
+                    <div *ngSwitchCase="'image_pin_match'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Image URL</label>
+                        <input type="text" [(ngModel)]="sq.imageUrl" class="field-input" placeholder="https://..." />
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Labels &amp; correct pin id</label>
+                        <div class="pair-row" *ngFor="let label of sq.labels; let li = index">
+                          <input type="text" [(ngModel)]="label.text" class="field-input" [placeholder]="'Label ' + (li + 1)" />
+                          <input type="text" [(ngModel)]="label.correctPinId" class="field-input" placeholder="pin id" />
+                          <button class="btn-remove-opt" type="button" (click)="removeImagePinMatchLabel(sq, li)" *ngIf="(sq.labels?.length || 0) > 1">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" type="button" (click)="addImagePinMatchLabel(sq)">
+                          <span class="material-icons">add</span> Add Label
+                        </button>
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Pins (id, x%, y%)</label>
+                        <div class="pair-row" *ngFor="let pin of sq.pins; let pi = index">
+                          <input type="text" [(ngModel)]="pin.id" class="field-input" placeholder="id" />
+                          <input type="number" [(ngModel)]="pin.x" min="0" max="100" step="0.1" class="field-input" placeholder="x" />
+                          <input type="number" [(ngModel)]="pin.y" min="0" max="100" step="0.1" class="field-input" placeholder="y" />
+                          <button class="btn-remove-opt" type="button" (click)="removeImagePin(sq, pi)">
+                            <span class="material-icons">close</span>
+                          </button>
+                        </div>
+                        <button class="btn-add-opt" type="button" (click)="addImagePinRow(sq)">
+                          <span class="material-icons">add</span> Add Pin
+                        </button>
+                      </div>
+                      <div class="field-group full">
+                        <label class="checkbox-label">
+                          <input type="checkbox" [(ngModel)]="sq.settings!.randomizeLabels" />
+                          Randomize labels
+                        </label>
+                        <label class="checkbox-label">
+                          <input type="checkbox" [(ngModel)]="sq.settings!.allowRetry" />
+                          Allow retries
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- Video pronunciation Sub-question -->
+                    <div *ngSwitchCase="'video-pronunciation'" class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Video URL</label>
+                        <input type="text" [(ngModel)]="sq.videoUrl" class="field-input" placeholder="https://..." />
+                      </div>
+                      <div class="field-group full">
+                        <label class="field-label required">Caption</label>
+                        <input type="text" [(ngModel)]="sq.caption" class="field-input" placeholder="Phrase student speaks" />
+                      </div>
+                      <div class="field-row">
+                        <div class="field-group half">
+                          <label class="field-label">Second caption <span class="label-optional">(opt.)</span></label>
+                          <input type="text" [(ngModel)]="sq.secondaryCaption" class="field-input" />
+                        </div>
+                        <div class="field-group half">
+                          <label class="field-label">Delay (s)</label>
+                          <input type="number" [(ngModel)]="sq.secondaryCaptionAtSeconds" class="field-input" min="0" max="600" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Default: show basic fields -->
+                    <div *ngSwitchDefault class="sub-q-editor">
+                      <div class="field-group full">
+                        <label class="field-label required">Question</label>
+                        <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Enter question text..."></app-rich-text-input>
+                      </div>
+                    </div>
+                  </ng-container>
+
+                  <div class="qa-grading-config sub-q-grading">
+                    <div class="qa-grading-title">
+                      <span class="material-icons">auto_awesome</span>
+                      Grading (this part)
+                    </div>
+                    <div class="field-group full" style="margin-bottom:10px;">
+                      <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="sq.aiGradingEnabled" />
+                        Use AI/advanced grading for this part
+                      </label>
+                    </div>
+                    <p class="hint-text" *ngIf="sq.aiGradingEnabled === false" style="margin-top:-4px;">
+                      Strict grading only (no partial credit from similarity).
+                    </p>
+                    <div class="qa-grading-row" *ngIf="sq.aiGradingEnabled !== false">
+                      <div class="qa-grading-field">
+                        <label>Minimum % to pass</label>
+                        <div class="threshold-control">
+                          <div class="threshold-display">
+                            <div>
+                              <span class="threshold-val">{{ sq.similarityThreshold ?? 70 }}</span>
+                              <span class="threshold-val-unit">%</span>
+                            </div>
+                            <span class="threshold-label">match required to pass</span>
+                          </div>
+                          <input
+                            type="range" min="0" max="100" step="5"
+                            [ngModel]="sq.similarityThreshold ?? 70"
+                            (ngModelChange)="setThreshold(sq, $event)"
+                            class="threshold-slider"
+                            [style.--val]="(sq.similarityThreshold ?? 70) + '%'"
+                          />
+                          <div class="threshold-presets">
+                            <button *ngFor="let p of [20,40,60,70,80,90,100]"
+                              type="button"
+                              class="preset-btn"
+                              [class.active]="(sq.similarityThreshold ?? 70) === p"
+                              (click)="sq.similarityThreshold = p">
+                              {{ p }}%
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="qa-grading-field">
+                        <label>Marks awarded</label>
+                        <div class="scoring-mode-opts">
+                          <label class="scoring-opt" [class.active]="(sq.scoringMode || 'full') === 'full'" (click)="sq.scoringMode = 'full'">
+                            <input type="radio" [name]="'sub-sm-'+i+'-'+si" value="full" [(ngModel)]="sq.scoringMode" />
+                            <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
+                            <div class="scoring-opt-text">
+                              <span class="scoring-opt-name">Full marks if passed</span>
+                              <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
+                            </div>
+                          </label>
+                          <label class="scoring-opt" [class.active]="sq.scoringMode === 'proportional'" (click)="sq.scoringMode = 'proportional'">
+                            <input type="radio" [name]="'sub-sm-'+i+'-'+si" value="proportional" [(ngModel)]="sq.scoringMode" />
+                            <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
+                            <div class="scoring-opt-text">
+                              <span class="scoring-opt-name">Proportional marks</span>
+                              <span class="scoring-opt-desc">Scaled by score (85% → 0.85 × pts)</span>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="sub-questions-empty" *ngIf="!q.subQuestions || q.subQuestions.length === 0">
+              <span class="material-icons">add_circle_outline</span>
+              <span>No additional questions yet. Click "Add Question" to create more questions with the same context.</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -609,6 +1652,255 @@
     </div>
   </div>
 
+  <!-- Tab: Use Video -->
+  <div class="tab-content tab-content--video" *ngIf="activeTab === 'video' && !loading">
+
+    <!-- Compact exercise info reminder -->
+    <div class="video-info-panel">
+      <div class="video-info-row">
+        <div class="field-group field-group--sm">
+          <label class="field-label required">Title</label>
+          <input type="text" [(ngModel)]="title" class="field-input field-input--sm" placeholder="Exercise title" maxlength="120" autocomplete="off" />
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label">Journey Day</label>
+          <input type="number" class="field-input field-input--sm field-input--day" min="1" max="200" step="1"
+            [ngModel]="courseDayAsNumber" (ngModelChange)="onCourseDayNumberInput($event)" placeholder="Any" />
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label">Sequence</label>
+          <input type="text" class="field-input field-input--sm field-input--seq"
+            [(ngModel)]="sequenceLetter" placeholder="e.g. a" maxlength="1" autocomplete="off" />
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label required">CEFR</label>
+          <select [(ngModel)]="level" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label required">Category</label>
+          <select [(ngModel)]="category" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="field-group field-group--sm">
+          <label class="field-label required">Difficulty</label>
+          <select [(ngModel)]="difficulty" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+          </select>
+        </div>
+      </div>
+      <p class="video-info-hint">
+        <span class="material-icons">info</span>
+        Students watch each video clip, then speak the caption aloud. You can add an optional second caption that appears later in the same clip.
+      </p>
+    </div>
+
+    <!-- Optional praise / retry sounds (whole exercise) -->
+    <div class="video-feedback-panel">
+      <div class="video-feedback-head">
+        <span class="material-icons">campaign</span>
+        <div>
+          <h3>Feedback sounds <span class="label-optional">optional</span></h3>
+          <p>After each spoken answer: one <strong>praise</strong> clip plays at random if correct, or one <strong>retry</strong> clip if not. Add captions for on-screen text (e.g. “Great!” / “Try again”).</p>
+        </div>
+      </div>
+      <div class="video-feedback-grid">
+        <div class="video-feedback-col">
+          <h4><span class="material-icons">emoji_events</span> Correct (max {{ maxVideoFeedbackClips }})</h4>
+          <div class="video-feedback-row" *ngFor="let row of videoSuccessFeedbackRows; let si = index">
+            <div class="video-feedback-row-top">
+              <button type="button" class="btn-video-feedback-upload" (click)="triggerVideoFeedbackUpload('success', si)" [disabled]="row.uploading">
+                <span class="material-icons">{{ row.uploading ? 'hourglass_empty' : (row.audioUrl ? 'graphic_eq' : 'upload_file') }}</span>
+                {{ row.uploading ? '…' : (row.audioUrl ? 'Replace' : 'Upload') }}
+              </button>
+              <input type="text" [(ngModel)]="row.caption" class="field-input field-input--sm" placeholder="Caption" maxlength="80" />
+              <button type="button" class="btn-icon-sm" (click)="removeVideoSuccessFeedbackRow(si)" title="Remove"><span class="material-icons">close</span></button>
+            </div>
+            <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="video-feedback-audio"></audio>
+          </div>
+          <button type="button" class="btn-add-video-feedback" (click)="addVideoSuccessFeedbackRow()" [disabled]="videoSuccessFeedbackRows.length >= maxVideoFeedbackClips">
+            <span class="material-icons">add</span> Add praise clip
+          </button>
+        </div>
+        <div class="video-feedback-col">
+          <h4><span class="material-icons">replay</span> Not quite (max {{ maxVideoFeedbackClips }})</h4>
+          <div class="video-feedback-row" *ngFor="let row of videoRetryFeedbackRows; let ri = index">
+            <div class="video-feedback-row-top">
+              <button type="button" class="btn-video-feedback-upload" (click)="triggerVideoFeedbackUpload('retry', ri)" [disabled]="row.uploading">
+                <span class="material-icons">{{ row.uploading ? 'hourglass_empty' : (row.audioUrl ? 'graphic_eq' : 'upload_file') }}</span>
+                {{ row.uploading ? '…' : (row.audioUrl ? 'Replace' : 'Upload') }}
+              </button>
+              <input type="text" [(ngModel)]="row.caption" class="field-input field-input--sm" placeholder="Caption" maxlength="80" />
+              <button type="button" class="btn-icon-sm" (click)="removeVideoRetryFeedbackRow(ri)" title="Remove"><span class="material-icons">close</span></button>
+            </div>
+            <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="video-feedback-audio"></audio>
+          </div>
+          <button type="button" class="btn-add-video-feedback" (click)="addVideoRetryFeedbackRow()" [disabled]="videoRetryFeedbackRows.length >= maxVideoFeedbackClips">
+            <span class="material-icons">add</span> Add retry clip
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video Questions -->
+    <div class="video-questions-section">
+      <div class="video-questions-header">
+        <h3>Video Clips <span class="questions-count" *ngIf="videoQuestions.length > 0">{{ videoQuestions.length }}</span></h3>
+        <span class="total-points">{{ videoQuestions.length }} clip{{ videoQuestions.length !== 1 ? 's' : '' }} · {{ getTotalPoints() }} pts</span>
+      </div>
+
+      <!-- Empty state -->
+      <div class="video-empty-state" *ngIf="videoQuestions.length === 0">
+        <span class="material-icons">videocam_off</span>
+        <p>No video clips yet. Click "+ Add Video Clip" below to get started.</p>
+      </div>
+
+      <!-- Video question cards -->
+      <div class="video-question-card" *ngFor="let vq of videoQuestions; let vi = index">
+        <div class="vqc-header">
+          <span class="vqc-number">Clip {{ vi + 1 }}</span>
+          <div class="vqc-actions">
+            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, -1)" [disabled]="vi === 0" title="Move up">
+              <span class="material-icons">arrow_upward</span>
+            </button>
+            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, 1)" [disabled]="vi === videoQuestions.length - 1" title="Move down">
+              <span class="material-icons">arrow_downward</span>
+            </button>
+            <button type="button" class="vqc-btn vqc-btn--delete" (click)="removeVideoQuestion(vi)" title="Remove clip">
+              <span class="material-icons">delete_outline</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="vqc-body">
+          <!-- Video upload area -->
+          <div class="video-upload-area" [class.has-video]="vq.videoUrl">
+            <ng-container *ngIf="!vq.videoUrl && !vq.videoUploading">
+              <span class="material-icons upload-icon">cloud_upload</span>
+              <p class="upload-label">Upload a video file</p>
+              <p class="upload-hint">MP4, WebM, MOV · any size</p>
+              <button type="button" class="btn-upload-video" (click)="triggerVideoFile(vq)">
+                <span class="material-icons">video_file</span> Choose Video
+              </button>
+            </ng-container>
+            <ng-container *ngIf="vq.videoUploading">
+              <span class="material-icons upload-icon spin">hourglass_empty</span>
+              <p class="upload-label">Uploading…</p>
+            </ng-container>
+            <ng-container *ngIf="vq.videoUrl && !vq.videoUploading">
+              <video [src]="getMediaFullUrl(vq.videoUrl)" controls class="video-preview"></video>
+              <button type="button" class="btn-replace-video" (click)="triggerVideoFile(vq)">
+                <span class="material-icons">swap_horiz</span> Replace Video
+              </button>
+            </ng-container>
+          </div>
+
+          <!-- Caption & pronunciation settings -->
+          <div class="vqc-fields">
+            <div class="field-group">
+              <label class="field-label required">Caption (word/phrase student must speak)</label>
+              <input type="text" [(ngModel)]="vq.caption" class="field-input video-caption-field"
+                placeholder="e.g. Guten Morgen" autocomplete="off" />
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Second caption <span class="label-optional">opt.</span></label>
+              <input
+                type="text"
+                [(ngModel)]="vq.secondaryCaption"
+                class="field-input field-input--sm"
+                placeholder="e.g. Ich fahre mit der Bahn."
+                autocomplete="off"
+              />
+              <p class="hint-text">If filled, this replaces the first caption in student view after the delay below.</p>
+            </div>
+
+            <div class="field-group field-group--points">
+              <label class="field-label">Second caption delay (seconds)</label>
+              <input
+                type="number"
+                [(ngModel)]="vq.secondaryCaptionAtSeconds"
+                class="field-input field-input--number field-input--sm"
+                min="0"
+                max="600"
+                step="1"
+              />
+              <p class="hint-text">Default is 5 seconds.</p>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Context <span class="label-optional">opt.</span></label>
+              <textarea
+                [(ngModel)]="vq.context"
+                class="field-input field-input--sm"
+                rows="2"
+                placeholder="Optional context shown above this clip for students"
+              ></textarea>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Accepted Variants <span class="label-optional">opt.</span></label>
+              <div class="variants-list">
+                <div class="variant-row" *ngFor="let v of vq.acceptedVariants; let ai = index">
+                  <input type="text" [(ngModel)]="vq.acceptedVariants![ai]" class="field-input field-input--sm"
+                    placeholder="Alternate accepted pronunciation" />
+                  <button type="button" class="btn-icon-sm" (click)="removeVariant(vq, ai)">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+                <button type="button" class="btn-add-variant" (click)="addVariant(vq)">
+                  <span class="material-icons">add</span> Add variant
+                </button>
+              </div>
+            </div>
+
+            <div class="field-group field-group--points">
+              <label class="field-label">Match % to mark correct</label>
+              <input
+                type="number"
+                [(ngModel)]="vq.similarityThreshold"
+                class="field-input field-input--number field-input--sm"
+                min="0"
+                max="100"
+                step="1"
+              />
+              <p class="hint-text">Admin controls strictness (e.g. 60 means 60%+ is correct).</p>
+            </div>
+
+            <div class="field-group field-group--points">
+              <label class="field-label">Points</label>
+              <input type="number" [(ngModel)]="vq.points" class="field-input field-input--number field-input--sm" min="1" max="100" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add clip button -->
+      <button type="button" class="btn-add-video-clip" (click)="addVideoQuestion()">
+        <span class="material-icons">add_circle_outline</span>
+        Add Video Clip
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="tab-nav-footer">
+      <button class="btn-back-tab" (click)="activeTab = 'info'">
+        <span class="material-icons">arrow_back</span> Back to Info
+      </button>
+      <div class="footer-right">
+        <button class="btn-next" (click)="activeTab = 'preview'" [disabled]="!isInfoValid()">
+          Preview <span class="material-icons">arrow_forward</span>
+        </button>
+        <button class="btn-save" (click)="save()" [disabled]="saving || !isInfoValid() || !isVideoQuestionsValid()">
+          <span class="material-icons">save</span>
+          {{ saving ? 'Saving...' : (isEditMode ? 'Update Exercise' : 'Create Exercise') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Tab: Preview -->
   <div class="tab-content preview-tab" *ngIf="activeTab === 'preview' && !loading">
     <div class="preview-card">
@@ -620,23 +1912,26 @@
       </div>
       <h2 class="preview-title">{{ title || 'Untitled Exercise' }}</h2>
       <p class="preview-desc">{{ description || 'No description' }}</p>
-      <p class="preview-stats">{{ questions.length }} questions · ~{{ estimatedDuration }} min</p>
+      <p class="preview-stats">{{ getTotalQuestionCount() }} questions · ~{{ estimatedDuration }} min</p>
 
       <div class="preview-questions">
         <div *ngFor="let q of questions; let i = index" class="preview-question">
           <div class="pq-header">
             <span class="pq-number">{{ i + 1 }}</span>
-            <span class="pq-type">{{ getTypeLabel(q.type) }}</span>
+            <span class="pq-type">{{ getTypeLabel(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}</span>
             <span class="pq-points">{{ q.points }} pt{{ q.points !== 1 ? 's' : '' }}</span>
           </div>
 
           <!-- MCQ Preview -->
           <div *ngIf="q.type === 'mcq'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.question }}</p>
-            <img *ngIf="q.imageUrl" [src]="q.imageUrl" class="pq-image" />
-            <div class="pq-options">
-              <div *ngFor="let opt of q.options; let oi = index" class="pq-option" [class.correct]="oi === q.correctAnswerIndex">
-                <span class="opt-letter">{{ 'ABCD'[oi] }}</span> {{ opt }}
+            <img *ngIf="q.imageUrl" [src]="getMediaFullUrl(q.imageUrl)" class="pq-image" />
+            <div class="pq-options" [class.pq-options--visual]="hasMcqOptionImages(q)">
+              <div *ngFor="let opt of q.options; let oi = index" class="pq-option" [class.correct]="oi === q.correctAnswerIndex" [class.pq-option--visual]="hasMcqOptionImages(q)">
+                <img *ngIf="getMcqOptionImageUrl(q, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="pq-option-img" />
+                <span class="opt-letter">{{ hasMcqOptionImages(q) ? 'abcd'[oi] : 'ABCD'[oi] }}</span>
+                <span class="pq-option-text" [innerHTML]="opt"></span>
                 <span *ngIf="oi === q.correctAnswerIndex" class="correct-mark">✓</span>
               </div>
             </div>
@@ -645,6 +1940,7 @@
 
           <!-- Matching Preview -->
           <div *ngIf="q.type === 'matching'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.instruction }}</p>
             <div class="pq-pairs">
               <div *ngFor="let pair of q.pairs; let pi = index" class="pq-pair">
@@ -657,6 +1953,7 @@
 
           <!-- Fill-blank Preview -->
           <div *ngIf="q.type === 'fill-blank'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text pq-sentence">{{ q.sentence }}</p>
             <div *ngIf="q.hint" class="pq-hint">💡 Hint: {{ q.hint }}</div>
             <div class="pq-answers">
@@ -666,8 +1963,29 @@
             </div>
           </div>
 
+          <!-- Word Bank Fill Preview -->
+          <div *ngIf="q.type === 'word_bank_fill'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
+            <div class="pq-answers">
+              <span *ngFor="let word of q.wordBank" class="pq-answer"><strong>{{ word }}</strong></span>
+            </div>
+            <div class="pq-pairs" style="margin-top: 8px;">
+              <div *ngFor="let item of q.items; let ii = index" class="pq-pair">
+                <span class="pair-item left">{{ ii + 1 }}. {{ item.prompt }}</span>
+                <span class="pair-arrow">→</span>
+                <span class="pair-item right">
+                  {{ item.answer }}
+                  <ng-container *ngIf="item.acceptedAnswers?.length">
+                    (also: {{ item.acceptedAnswers!.join(', ') }})
+                  </ng-container>
+                </span>
+              </div>
+            </div>
+          </div>
+
           <!-- Pronunciation Preview -->
           <div *ngIf="q.type === 'pronunciation'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <div class="pq-word">{{ q.word }}</div>
             <div *ngIf="q.phonetic" class="pq-phonetic">{{ q.phonetic }}</div>
             <div *ngIf="q.translation" class="pq-translation">= {{ q.translation }}</div>
@@ -675,15 +1993,17 @@
 
           <!-- Listening Preview -->
           <div *ngIf="q.type === 'listening'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
-            <div *ngIf="q.mediaUrl" class="pq-audio">
-              <audio [src]="getMediaFullUrl(q.mediaUrl)" controls></audio>
+            <div *ngIf="getListeningPreviewAudioUrl(q)" class="pq-audio">
+              <audio [src]="getMediaFullUrl(getListeningPreviewAudioUrl(q)!)" controls></audio>
             </div>
             <div class="pq-qa-answer-box">Student types or speaks what they hear...</div>
           </div>
 
           <!-- Question / Answer Preview -->
           <div *ngIf="q.type === 'question-answer'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
             <div class="pq-qa-answer-box">Student types their answer here...</div>
             <div *ngIf="q.sampleAnswers && q.sampleAnswers[0]" class="pq-answers">
@@ -692,11 +2012,159 @@
               </span>
             </div>
           </div>
+
+          <!-- Video Pronunciation Preview -->
+          <div *ngIf="q.type === 'video-pronunciation'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
+            <div *ngIf="q.videoUrl" class="pq-video-wrap">
+              <video [src]="getMediaFullUrl(q.videoUrl)" controls class="pq-video"></video>
+            </div>
+            <div *ngIf="!q.videoUrl" class="pq-no-video">No video uploaded</div>
+            <div class="pq-caption"><span class="material-icons">record_voice_over</span> Student speaks: <strong>{{ q.caption || '—' }}</strong></div>
+            <div class="pq-caption" *ngIf="q.secondaryCaption">
+              <span class="material-icons">schedule</span>
+              After {{ q.secondaryCaptionAtSeconds ?? 5 }}s: <strong>{{ q.secondaryCaption }}</strong>
+            </div>
+            <div *ngIf="q.acceptedVariants && q.acceptedVariants.length > 0" class="pq-variants">
+              Also accepted: {{ q.acceptedVariants.join(', ') }}
+            </div>
+          </div>
+
+          <!-- Image Pin Match Preview -->
+          <div *ngIf="q.type === 'image_pin_match'" class="pq-body">
+            <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
+            <img *ngIf="q.imageUrl" [src]="getMediaFullUrl(q.imageUrl)" class="pq-image" />
+            <div class="pq-answers">
+              <span *ngFor="let l of q.labels" class="pq-answer">
+                {{ l.text }} → <strong>{{ l.correctPinId }}</strong>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="empty-preview" *ngIf="questions.length === 0">
         <p>Add questions to see preview</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Split selected questions → new exercise -->
+  <div
+    class="split-modal-backdrop"
+    *ngIf="splitModalOpen"
+    (click)="closeSplitModal()"
+    role="presentation"
+  >
+    <div
+      class="split-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="split-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="split-modal-header">
+        <h2 id="split-modal-title">New exercise from selected questions</h2>
+        <button type="button" class="split-modal-close" (click)="closeSplitModal()" [disabled]="splitSaving" aria-label="Close">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <p class="split-modal-intro">
+        {{ selectedIndices.size }} question(s) will move to a new exercise (all types and content preserved) and be removed from this one.
+      </p>
+
+      <div class="split-modal-body info-grid info-grid--top">
+        <div class="field-group field-group--title">
+          <label class="field-label required" for="split-title">Title</label>
+          <input id="split-title" type="text" [(ngModel)]="splitTitle" class="field-input field-input--sm" maxlength="120" />
+        </div>
+        <div class="field-group field-group--daybox">
+          <label class="field-label" for="split-course-day">Journey day (1–200)</label>
+          <input
+            id="split-course-day"
+            type="number"
+            class="field-input field-input--day"
+            min="1"
+            max="200"
+            [ngModel]="splitCourseDayAsNumber"
+            (ngModelChange)="onSplitCourseDayNumberInput($event)"
+            placeholder="Any"
+          />
+        </div>
+        <div class="field-group field-group--day">
+          <label class="field-label" for="split-seq">Sequence (a, b, c…)</label>
+          <input
+            id="split-seq"
+            type="text"
+            class="field-input field-input--seq"
+            [(ngModel)]="splitSequenceLetter"
+            placeholder="e.g. b"
+            maxlength="1"
+          />
+        </div>
+        <div class="field-group field-group--desc">
+          <label class="field-label required" for="split-desc">Description</label>
+          <textarea id="split-desc" [(ngModel)]="splitDescription" class="field-input field-input--desc field-input--sm" rows="2"></textarea>
+        </div>
+      </div>
+
+      <div class="split-modal-body info-grid info-grid--settings">
+        <div class="field-group">
+          <label class="field-label required" for="split-target">Target</label>
+          <select id="split-target" [(ngModel)]="splitTargetLanguage" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="split-native">Native</label>
+          <select id="split-native" [(ngModel)]="splitNativeLanguage" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label required" for="split-cefr">CEFR</label>
+          <select id="split-cefr" [(ngModel)]="splitLevel" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label required" for="split-cat">Category</label>
+          <select id="split-cat" [(ngModel)]="splitCategory" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="split-diff">Difficulty</label>
+          <select id="split-diff" [(ngModel)]="splitDifficulty" class="field-input field-input--select field-input--sm">
+            <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="split-dur">Min</label>
+          <input id="split-dur" type="number" [(ngModel)]="splitEstimatedDuration" class="field-input field-input--number field-input--sm" min="1" max="120" />
+        </div>
+        <div class="field-group field-group--tags">
+          <label class="field-label" for="split-tags">Tags</label>
+          <input id="split-tags" type="text" [(ngModel)]="splitTags" class="field-input field-input--sm" placeholder="optional" />
+        </div>
+      </div>
+
+      <label class="split-visibility">
+        <input type="checkbox" [(ngModel)]="splitVisibleToStudents" />
+        <span>Publish to students immediately</span>
+      </label>
+
+      <div class="split-modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeSplitModal()" [disabled]="splitSaving">Cancel</button>
+        <button
+          type="button"
+          class="btn-save"
+          (click)="confirmSplitToNewExercise()"
+          [disabled]="splitSaving || !isSplitFormValid()"
+        >
+          <span class="material-icons">{{ splitSaving ? 'hourglass_empty' : 'call_split' }}</span>
+          {{ splitSaving ? 'Creating…' : 'Create & remove from this exercise' }}
+        </button>
       </div>
     </div>
   </div>

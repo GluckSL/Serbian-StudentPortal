@@ -7,6 +7,12 @@ const User = require("../models/User");
 const transporter = require("../config/emailConfig");
 const MeetingLink = require('../models/MeetingLink');
 
+// Legacy crons below scanned every STUDENT every minute (N+1 DB + email) and blocked the
+// Node event loop. WhatsApp + Zoom reminder jobs in jobs/ are the supported path.
+// Set ENABLE_LEGACY_TIMETABLE_MINUTE_CRONS=1 only if you still need these emails.
+const ENABLE_LEGACY_TIMETABLE_MINUTE_CRONS =
+  /^(1|true|yes)$/i.test(String(process.env.ENABLE_LEGACY_TIMETABLE_MINUTE_CRONS || '0'));
+
 // ==========================
 // ✅ CREATE TIMETABLE
 // ==========================
@@ -177,6 +183,21 @@ router.put("/:id", async (req, res) => {
 });
 
 // ==========================
+// ✅ DELETE TIMETABLE BY ID
+// ==========================
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const deleted = await TimeTable.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Time table not found." });
+    }
+    return res.status(200).json({ message: "Time table deleted successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error." });
+  }
+});
+
+// ==========================
 // ✅ WEEKLY EMAIL CRON (SUNDAY 5PM)
 // ==========================
 cron.schedule("0 17 * * 0", async () => {
@@ -281,8 +302,9 @@ cron.schedule("0 17 * * 0", async () => {
 
 
 // ==========================
-// ✅ CLASS REMINDER CRON (EVERY MINUTE)
+// ✅ CLASS REMINDER CRON (EVERY MINUTE) — legacy; disabled by default
 // ==========================
+if (ENABLE_LEGACY_TIMETABLE_MINUTE_CRONS) {
 cron.schedule('*/1 * * * *', async () => {
 
   try {
@@ -644,8 +666,12 @@ cron.schedule('*/1 * * * *', async () => {
     console.error('❌ Error in cancellation reminder cron job:', err);
   }
 });
-
-
+} else {
+  console.log(
+    '[timeTable] Legacy every-minute email crons are OFF (event-loop safe). ' +
+      'WhatsApp/zoom jobs handle class reminders. Set ENABLE_LEGACY_TIMETABLE_MINUTE_CRONS=1 to re-enable.'
+  );
+}
 
 // ==========================
 // 🌅 DAILY 6 AM MORNING REMINDER

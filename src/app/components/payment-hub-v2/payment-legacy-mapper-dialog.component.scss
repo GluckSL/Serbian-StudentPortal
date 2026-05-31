@@ -1,0 +1,377 @@
+:host {
+  display: block;
+}
+
+.lm-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font-family: inherit;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.lm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  gap: 12px;
+}
+
+.lm-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.lm-header-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  color: #1976d2;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.lm-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 2px;
+  color: #1a1a1a;
+}
+
+.lm-subtitle {
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0;
+}
+
+.lm-close-btn {
+  flex-shrink: 0;
+  margin-top: -4px;
+}
+
+/* ── Sections ────────────────────────────────────────────────────────────── */
+.lm-section {
+  padding: 18px 24px 12px;
+}
+
+.lm-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.lm-step-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1976d2;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lm-step-badge-final {
+  background: #4caf50;
+}
+
+/* ── Type badges ─────────────────────────────────────────────────────────── */
+.lm-type-badge {
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.lm-count-badge {
+  background: #e0e0e0;
+  color: #555;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.72rem;
+}
+
+/* ── Colored badges ──────────────────────────────────────────────────────── */
+.lm-badge-blue   { background: #e3f2fd; color: #1565c0; }
+.lm-badge-orange { background: #fff3e0; color: #e65100; }
+.lm-badge-green  { background: #e8f5e9; color: #2e7d32; }
+.lm-badge-purple { background: #f3e5f5; color: #6a1b9a; }
+.lm-badge-grey   { background: #f0f0f0; color: #555; border-radius: 10px; padding: 2px 8px; font-size: 0.72rem; }
+
+/* ── Form grid ───────────────────────────────────────────────────────────── */
+.lm-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lm-full-width { width: 100%; }
+.lm-span-two   { grid-column: span 2; }
+
+@media (max-width: 640px) {
+  .lm-span-two { grid-column: span 1; }
+}
+
+.lm-currency-prefix {
+  font-size: 0.8rem;
+  color: #777;
+  padding-right: 2px;
+}
+
+.lm-checkbox-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+}
+
+/* ── Student lookup ──────────────────────────────────────────────────────── */
+.lm-student-card {
+  margin-top: 10px;
+  border-radius: 10px !important;
+  border: 1px solid #e3f2fd !important;
+  background: #f5faff !important;
+  box-shadow: none !important;
+  padding: 12px 14px !important;
+}
+
+.lm-student-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lm-student-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #1976d2;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lm-student-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lm-student-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+}
+
+.lm-student-email {
+  font-size: 0.8rem;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lm-student-meta {
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lm-badge {
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.lm-clear-student {
+  margin-top: -4px;
+  flex-shrink: 0;
+}
+
+/* ── Autocomplete option ─────────────────────────────────────────────────── */
+.lm-student-opt-name {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.lm-student-opt-email {
+  display: block;
+  font-size: 0.78rem;
+  color: #666;
+}
+
+.lm-student-opt-meta {
+  display: block;
+  font-size: 0.72rem;
+  color: #888;
+}
+
+/* ── Items list ──────────────────────────────────────────────────────────── */
+.lm-items-list {
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.lm-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.lm-item-num {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #444;
+}
+
+/* ── Add buttons ─────────────────────────────────────────────────────────── */
+.lm-add-btn {
+  margin-top: 4px;
+  border-style: dashed !important;
+  font-size: 0.82rem;
+}
+
+.lm-add-docs   { color: #e65100 !important; border-color: #e65100 !important; }
+.lm-add-visa   { color: #2e7d32 !important; border-color: #2e7d32 !important; }
+.lm-add-custom { color: #6a1b9a !important; border-color: #6a1b9a !important; }
+
+/* ── Summary ─────────────────────────────────────────────────────────────── */
+.lm-summary-section {
+  background: #f8fffe;
+}
+
+.lm-summary-card {
+  border-radius: 10px !important;
+  border: 1px solid #e0f2f1 !important;
+  box-shadow: none !important;
+  padding: 14px 18px !important;
+  background: #fff !important;
+}
+
+.lm-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 0.87rem;
+}
+
+.lm-summary-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #555;
+}
+
+.lm-summary-value {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.lm-summary-total .lm-summary-label,
+.lm-summary-total .lm-summary-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1976d2;
+}
+
+.lm-summary-balance .lm-summary-value {
+  color: #c62828;
+}
+
+.lm-summary-divider {
+  margin: 8px 0 !important;
+}
+
+/* ── Colored dots ─────────────────────────────────────────────────────────── */
+.lm-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.lm-dot-blue   { background: #1976d2; }
+.lm-dot-orange { background: #f57c00; }
+.lm-dot-green  { background: #388e3c; }
+.lm-dot-purple { background: #7b1fa2; }
+
+.lm-summary-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #555;
+  margin-top: 12px;
+  background: #fff8e1;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.lm-info-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #f9a825;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.lm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px 18px;
+  align-items: center;
+}
+
+.lm-save-spinner {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* ── No student placeholder ──────────────────────────────────────────────── */
+.lm-no-student {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px;
+  color: #aaa;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.lm-no-student-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 10px;
+  opacity: 0.35;
+}

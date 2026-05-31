@@ -1,0 +1,399 @@
+<div class="teacher-dashboard">
+  <div class="teacher-header">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h1 class="teacher-title">
+            <i class="fas fa-chalkboard-teacher"></i>
+            My Classes
+          </h1>
+          <p class="teacher-subtitle">All your classes load by default — narrow by date, batch, plan, or status when you need to</p>
+        </div>
+        <div class="col-md-4 text-end">
+          <div class="teacher-stats-quick">
+            <div class="stat-item">
+              <span class="stat-number">{{ headerClassCount }}</span>
+              <span class="stat-label">Classes</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="teacher-content">
+    <div class="container-fluid">
+      <div class="filters-card">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-filter"></i> Filter classes</h5>
+            <button type="button" class="btn btn-outline-secondary btn-sm" (click)="clearFilters()">
+              <i class="fas fa-times"></i> Clear filters
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label">Date</label>
+                <select class="form-select mb-1" [(ngModel)]="dateFilterType" (change)="onDateFilterTypeChange()">
+                  <option value="all">All dates</option>
+                  <option value="one">Specific date</option>
+                </select>
+                <input
+                  *ngIf="dateFilterType === 'one'"
+                  type="date"
+                  class="form-control"
+                  [(ngModel)]="filters.date"
+                  (change)="onFiltersChange()"
+                />
+                <small class="text-muted d-block mt-1" *ngIf="dateFilterType === 'all'">Showing every scheduled class you teach</small>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Batch</label>
+                <select class="form-select" [(ngModel)]="filters.batch" (change)="onFiltersChange()">
+                  <option value="">All batches</option>
+                  <option *ngFor="let b of batchOptions" [value]="b">{{ b }}</option>
+                </select>
+                <small class="text-muted" *ngIf="loadingBatches">Loading batches…</small>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Plan</label>
+                <select class="form-select" [(ngModel)]="filters.plan" (change)="onFiltersChange()">
+                  <option value="">All plans</option>
+                  <option value="PLATINUM">Platinum</option>
+                  <option value="SILVER">Silver</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" [(ngModel)]="filters.status" (change)="onFiltersChange()">
+                  <option value="">All statuses</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="started">Started</option>
+                  <option value="ended">Ended</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div class="col-md-2 text-md-end">
+                <button type="button" class="btn btn-primary btn-sm w-100" (click)="loadClasses()" [disabled]="loading">
+                  <i class="fas fa-sync-alt" [class.fa-spin]="loading"></i> Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-summary" *ngIf="!error">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="results-info">
+            <span class="results-count">{{ totalCount }}</span>
+            <span class="results-text">{{ tabTitle(statusTab) | lowercase }} class(es)</span>
+            <span class="text-muted small ms-2">· {{ resultsSummaryText() }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-warning" *ngIf="error">{{ error }}</div>
+      <div class="data-table-card" *ngIf="!error">
+        <div class="card">
+          <div class="tmc-tab-row" role="tablist" aria-label="Class schedule">
+            <button type="button" class="tmc-tab-btn" role="tab" [class.active]="statusTab === 'scheduled'" [attr.aria-selected]="statusTab === 'scheduled'" (click)="setStatusTab('scheduled')">
+              Upcoming <span class="tmc-tab-count">({{ tabCount('scheduled') }})</span>
+            </button>
+            <button type="button" class="tmc-tab-btn" role="tab" [class.active]="statusTab === 'ongoing'" [attr.aria-selected]="statusTab === 'ongoing'" (click)="setStatusTab('ongoing')">
+              Live <span class="tmc-tab-count">({{ tabCount('ongoing') }})</span>
+            </button>
+            <button type="button" class="tmc-tab-btn" role="tab" [class.active]="statusTab === 'ended'" [attr.aria-selected]="statusTab === 'ended'" (click)="setStatusTab('ended')">
+              Conducted <span class="tmc-tab-count">({{ tabCount('ended') }})</span>
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-dark">
+                <tr>
+                  <th>Topic</th>
+                  <th>Batch</th>
+                  <th>Plan</th>
+                  <th>Start (Asia/Colombo)</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Students</th>
+                  <th class="text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody *ngIf="loading">
+                <tr *ngFor="let _ of skeletonRows" class="tmc-skeleton-row">
+                  <td><div class="tmc-skeleton tmc-skeleton--lg"></div></td>
+                  <td><div class="tmc-skeleton"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--md"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--sm"></div></td>
+                  <td><div class="tmc-skeleton tmc-skeleton--actions"></div></td>
+                </tr>
+              </tbody>
+              <tbody *ngIf="!loading">
+                <tr *ngIf="meetings.length === 0">
+                  <td colspan="8" class="text-center text-muted py-4">
+                    {{ emptyTabMessage() }}
+                    <span *ngIf="dateFilterType === 'one' && !filters.date"> Choose a date, or switch Date to “All dates”.</span>
+                  </td>
+                </tr>
+                <tr *ngFor="let m of meetings; trackBy: trackById">
+                  <td>
+                    <div class="student-name">{{ m.topic || '—' }}</div>
+                    <small class="text-muted" *ngIf="m.courseDay">Day {{ m.courseDay }}</small>
+                  </td>
+                  <td>{{ m.batch || '—' }}</td>
+                  <td><span class="badge bg-primary">{{ m.plan || '—' }}</span></td>
+                  <td>{{ formatStart(m) }}</td>
+                  <td>{{ m.duration != null ? m.duration + ' min' : '—' }}</td>
+                  <td>
+                    <span class="badge" [ngClass]="{'bg-success': m.status==='ended','bg-primary': m.status==='scheduled','bg-info': m.status==='started','bg-secondary': m.status==='cancelled'}">
+                      {{ m.status || '—' }}
+                    </span>
+                  </td>
+                  <td>{{ m.attendees?.length ?? 0 }}</td>
+                  <td class="text-center">
+                    <div class="action-btns">
+                      <button
+                        *ngIf="showJoinButton(m)"
+                        type="button"
+                        class="tbl-action-btn tbl-action-btn--join"
+                        (click)="joinMeeting(m, $event)"
+                        [disabled]="!canJoinMeeting(m)"
+                        title="Join class"
+                      >
+                        <i class="fas fa-video"></i> {{ joinButtonLabel(m) }}
+                      </button>
+                      <button type="button" class="tbl-action-btn tbl-action-btn--resource" (click)="openResources(m)" title="Resources">
+                        <i class="fas fa-folder-open"></i> Resources
+                      </button>
+                      <button type="button" class="tbl-action-btn tbl-action-btn--doubt" (click)="openDoubts(m)" title="Doubts">
+                        <i class="fas fa-question-circle"></i> Doubts
+                      </button>
+                      <button type="button" class="tbl-action-btn tbl-action-btn--submission" (click)="openSubmissions(m)" title="Student Submissions">
+                        <i class="fas fa-inbox"></i> Submissions
+                      </button>
+                      <a class="tbl-action-btn tbl-action-btn--open" [routerLink]="['/teacher/meetings', m._id]">Open</a>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div
+            class="table-pagination-bar d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-3 border-top"
+            *ngIf="!loading && totalCount > 0"
+          >
+            <small class="text-muted">
+              Showing {{ pageStart }}–{{ pageEnd }} of {{ totalCount }}
+              <span *ngIf="totalPages > 1"> · Page {{ currentPage }} of {{ totalPages }}</span>
+            </small>
+            <div class="btn-group btn-group-sm" role="group" *ngIf="totalPages > 1">
+              <button type="button" class="btn btn-outline-secondary" (click)="changePage(currentPage - 1)" [disabled]="currentPage === 1">
+                Prev
+              </button>
+              <button
+                type="button"
+                class="btn"
+                *ngFor="let page of getPaginationPages()"
+                [ngClass]="page === currentPage ? 'btn-primary' : 'btn-outline-secondary'"
+                (click)="changePage(page)"
+              >
+                {{ page }}
+              </button>
+              <button type="button" class="btn btn-outline-secondary" (click)="changePage(currentPage + 1)" [disabled]="currentPage === totalPages">
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Resources Modal ── -->
+<div class="modal-overlay" *ngIf="showResourceModal" (click)="closeResourceModal()">
+  <div class="modal-card modal-card--md" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3><i class="fas fa-folder-open"></i> Resources</h3>
+      <span class="modal-sub" *ngIf="resourceMeeting">{{ resourceMeeting.topic }}</span>
+      <button type="button" class="modal-close" (click)="closeResourceModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="resource-upload-compact">
+        <p class="resource-upload-hint">Any teaching file (docs, images, audio, video, archives, etc.) — max 20 MB each. Executables blocked.</p>
+        <div class="resource-upload-row">
+          <label class="resource-upload-pick">
+            <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+            {{ uploadingFiles ? 'Uploading…' : 'Choose files' }}
+            <input type="file" multiple hidden (change)="onFilesSelected($event)" [disabled]="uploadingFiles" />
+          </label>
+        </div>
+      </div>
+      <div class="text-center text-muted py-3" *ngIf="loadingResources">Loading…</div>
+      <div class="resource-list" *ngIf="!loadingResources">
+        <div class="resource-empty" *ngIf="resources.length === 0">No resources uploaded yet.</div>
+        <div class="resource-row" *ngFor="let r of resources">
+          <div class="resource-info">
+            <i class="fas fa-file"></i>
+            <div class="resource-info__text">
+              <div class="resource-name">{{ r.originalName }}</div>
+              <div class="resource-meta">{{ formatFileSize(r.fileSize) }} · {{ formatDate(r.uploadedAt) }}</div>
+            </div>
+          </div>
+          <div class="resource-actions" role="group" aria-label="File actions">
+            <button type="button" class="tbl-action-btn tbl-action-btn--view" (click)="viewResource(r)">View</button>
+            <button type="button" class="tbl-action-btn tbl-action-btn--resource" (click)="downloadResource(r)">Download</button>
+            <button
+              type="button"
+              class="resource-delete-btn allow-teacher-delete"
+              (click)="deleteResource(r)"
+              title="Delete this file"
+              aria-label="Delete this file"
+            >
+              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Doubts Modal ── -->
+<div class="modal-overlay" *ngIf="showDoubtModal" (click)="closeDoubtModal()">
+  <div class="modal-card modal-card--lg" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3><i class="fas fa-question-circle"></i> Doubts</h3>
+      <span class="modal-sub" *ngIf="doubtMeeting">{{ doubtMeeting.topic }}</span>
+      <button type="button" class="modal-close" (click)="closeDoubtModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="text-center text-muted py-3" *ngIf="loadingDoubts">Loading…</div>
+      <div *ngIf="!loadingDoubts">
+        <div class="doubt-empty" *ngIf="doubts.length === 0">No doubts submitted yet.</div>
+        <div class="doubt-card" *ngFor="let d of doubts">
+          <div class="doubt-top doubt-top--row">
+            <div class="doubt-top-main">
+              <div>
+                <span class="doubt-title">{{ d.title }}</span>
+                <span class="doubt-vis" [class.doubt-vis--private]="d.visibility === 'private'">
+                  <i class="fas" [ngClass]="d.visibility === 'private' ? 'fa-lock' : 'fa-globe'"></i>
+                  {{ d.visibility }}
+                </span>
+              </div>
+              <span class="doubt-author">{{ d.askedBy?.name || 'Student' }} · {{ formatDateFull(d.createdAt) }}</span>
+            </div>
+            <button type="button" class="doubt-delete-btn" [disabled]="deletingId === doubtId(d)" (click)="deleteDoubt(d)" title="Delete doubt">
+              <i class="fas" [ngClass]="deletingId === doubtId(d) ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i>
+            </button>
+          </div>
+          <p class="doubt-explanation" *ngIf="d.explanation">{{ d.explanation }}</p>
+          <div class="doubt-replies" *ngIf="d.replies?.length">
+            <div class="reply-item" *ngFor="let rp of d.replies">
+              <span class="reply-author">{{ rp.repliedBy?.name || 'Teacher' }}</span>
+              <span class="reply-time">{{ formatDateFull(rp.repliedAt) }}</span>
+              <p class="reply-text">{{ rp.text }}</p>
+            </div>
+          </div>
+          <div class="reply-form">
+            <input type="text" class="form-control form-control-sm" placeholder="Write a reply…" [(ngModel)]="replyTexts[d._id]" (keydown.enter)="sendReply(d)" />
+            <button type="button" class="tbl-action-btn tbl-action-btn--resource" [disabled]="replyingId === d._id || !(replyTexts[d._id] || '').trim()" (click)="sendReply(d)">
+              {{ replyingId === d._id ? 'Sending…' : 'Reply' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Submissions Modal ── -->
+<div class="modal-overlay" *ngIf="showSubmissionModal" (click)="closeSubmissionModal()">
+  <div class="modal-card modal-card--lg" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3><i class="fas fa-inbox"></i> Student Submissions</h3>
+      <span class="modal-sub" *ngIf="submissionMeeting">{{ submissionMeeting.topic }}</span>
+      <button type="button" class="modal-close" (click)="closeSubmissionModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="text-center text-muted py-3" *ngIf="loadingSubmissions">Loading…</div>
+      <div *ngIf="!loadingSubmissions">
+        <div class="doubt-empty" *ngIf="submissions.length === 0">No submissions yet for this class.</div>
+        <div class="tsub-card" *ngFor="let sub of submissions">
+          <div class="tsub-card__head">
+            <div class="tsub-card__student">
+              <i class="fas fa-user-circle tsub-card__avatar"></i>
+              <div>
+                <div class="tsub-card__name">{{ sub.studentId?.name || 'Student' }}</div>
+                <div class="tsub-card__meta">{{ formatDateFull(sub.createdAt) }}</div>
+              </div>
+            </div>
+            <div class="tsub-card__badges">
+              <span class="sub-badge" [ngClass]="submissionBadgeClass(sub)">{{ submissionBadgeLabel(sub) }}</span>
+              <button
+                type="button"
+                class="doubt-delete-btn"
+                [disabled]="deletingSubmissionId === submissionId(sub)"
+                (click)="deleteSubmission(sub)"
+                title="Delete submission"
+              >
+                <i class="fas" [ngClass]="deletingSubmissionId === submissionId(sub) ? 'fa-spinner fa-spin' : 'fa-trash-alt'"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="tsub-card__file">
+            <i class="fas fa-file tsub-card__file-icon"></i>
+            <span class="tsub-card__file-name">{{ sub.originalName }}</span>
+            <span class="tsub-card__file-size">{{ formatFileSize(sub.fileSize) }}</span>
+            <button type="button" class="tbl-action-btn tbl-action-btn--view" (click)="viewSubmission(sub)">View</button>
+          </div>
+
+          <p class="tsub-card__caption" *ngIf="sub.caption"><i class="fas fa-quote-left"></i> {{ sub.caption }}</p>
+
+          <!-- Existing feedback -->
+          <div class="tsub-card__existing-feedback" *ngIf="sub.feedback?.status">
+            <span class="sub-badge" [ngClass]="submissionBadgeClass(sub)">{{ submissionBadgeLabel(sub) }}</span>
+            <span class="tsub-card__reviewer" *ngIf="sub.feedback?.reviewedBy?.name">by {{ sub.feedback.reviewedBy.name }}</span>
+            <p class="tsub-card__feedback-comment" *ngIf="sub.feedback?.comment">{{ sub.feedback.comment }}</p>
+          </div>
+
+          <!-- Review controls -->
+          <div class="tsub-card__review">
+            <input
+              type="text"
+              class="form-control form-control-sm tsub-card__comment-input"
+              placeholder="Add a comment (optional)…"
+              [(ngModel)]="reviewComments[submissionId(sub)]"
+              maxlength="1000"
+            />
+            <div class="tsub-card__review-btns">
+              <button
+                type="button"
+                class="tsub-review-btn tsub-review-btn--correct"
+                [disabled]="reviewingId === submissionId(sub)"
+                (click)="reviewSubmission(sub, 'correct')"
+              >
+                <i class="fas fa-check"></i> Correct
+              </button>
+              <button
+                type="button"
+                class="tsub-review-btn tsub-review-btn--wrong"
+                [disabled]="reviewingId === submissionId(sub)"
+                (click)="reviewSubmission(sub, 'wrong')"
+              >
+                <i class="fas fa-times"></i> Wrong
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

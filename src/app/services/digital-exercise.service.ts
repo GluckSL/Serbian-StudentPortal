@@ -2,23 +2,61 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, from, of, throwError } from 'rxjs';
+import { switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { StudentProgressService } from './student-progress.service';
 
-export type QuestionType = 'mcq' | 'matching' | 'fill-blank' | 'pronunciation' | 'question-answer' | 'listening';
+export type QuestionType =
+  | 'mcq'
+  | 'matching'
+  | 'fill-blank'
+  | 'word_bank_fill'
+  | 'pronunciation'
+  | 'question-answer'
+  | 'listening'
+  | 'video-pronunciation'
+  | 'singular_plural'
+  | 'jumble-word'
+  | 'rearrange'
+  | 'image_pin_match';
 
-export interface MCQQuestion {
+export interface QuestionCommonFields {
+  /** Optional context shown above a question in the player. */
+  context?: string;
+  /** Instruction banner (light-blue) shown above the question body for the student. */
+  instruction?: string;
+  /** Optional worked example shown below the instruction banner. */
+  example?: string;
+  /** Per-question attachment URL (image / audio / video / PDF). */
+  attachmentUrl?: string;
+  /**
+   * When the attachment is audio: maximum times the student may start playback
+   * during one exercise attempt. Omit, null, or 0 = unlimited (default).
+   */
+  attachmentAudioMaxPlaysPerAttempt?: number | null;
+  /** Teacher explanation shown in review. */
+  answerExplanation?: string;
+  /** Story paragraph for true-false reading passage. */
+  storyParagraph?: string;
+  /** Toggle advanced/AI grading behavior for this question. */
+  aiGradingEnabled?: boolean;
+}
+
+export interface MCQQuestion extends QuestionCommonFields {
   type: 'mcq';
   _id?: string;
   question: string;
   imageUrl?: string;
   options: string[];
+  /** Optional illustration per option (e.g. images extracted from a worksheet PDF). */
+  optionImageUrls?: string[];
   correctAnswerIndex?: number; // hidden from students during play
   explanation?: string;
   points: number;
 }
 
-export interface MatchingQuestion {
+export interface MatchingQuestion extends QuestionCommonFields {
   type: 'matching';
   _id?: string;
   instruction: string;
@@ -27,7 +65,7 @@ export interface MatchingQuestion {
   points: number;
 }
 
-export interface FillBlankQuestion {
+export interface FillBlankQuestion extends QuestionCommonFields {
   type: 'fill-blank';
   _id?: string;
   sentence: string;
@@ -37,7 +75,16 @@ export interface FillBlankQuestion {
   points: number;
 }
 
-export interface PronunciationQuestion {
+export interface WordBankFillQuestion extends QuestionCommonFields {
+  type: 'word_bank_fill';
+  _id?: string;
+  wordBank: string[];
+  items: Array<{ prompt: string; answer?: string; acceptedAnswers?: string[] }>;
+  reusableWords?: boolean;
+  points: number;
+}
+
+export interface PronunciationQuestion extends QuestionCommonFields {
   type: 'pronunciation';
   _id?: string;
   word: string;
@@ -48,7 +95,7 @@ export interface PronunciationQuestion {
   points: number;
 }
 
-export interface QuestionAnswerQuestion {
+export interface QuestionAnswerQuestion extends QuestionCommonFields {
   type: 'question-answer';
   _id?: string;
   prompt: string;
@@ -58,7 +105,17 @@ export interface QuestionAnswerQuestion {
   points: number;
 }
 
-export interface ListeningQuestion {
+export interface SingularPluralQuestion extends QuestionCommonFields {
+  type: 'singular_plural';
+  _id?: string;
+  instruction?: string;
+  pairs: Array<{ singular: string; plural: string }>;
+  similarityThreshold?: number;
+  scoringMode?: 'full' | 'proportional';
+  points: number;
+}
+
+export interface ListeningQuestion extends QuestionCommonFields {
   type: 'listening';
   _id?: string;
   prompt?: string;
@@ -68,7 +125,96 @@ export interface ListeningQuestion {
   points: number;
 }
 
-export type ExerciseQuestion = MCQQuestion | MatchingQuestion | FillBlankQuestion | PronunciationQuestion | QuestionAnswerQuestion | ListeningQuestion;
+export interface VideoPronunciationQuestion extends QuestionCommonFields {
+  type: 'video-pronunciation';
+  _id?: string;
+  videoUrl: string;
+  caption: string;
+  secondaryCaption?: string;
+  secondaryCaptionAtSeconds?: number;
+  similarityThreshold?: number;
+  acceptedVariants?: string[];
+  points: number;
+}
+
+/** Fields added by the worksheet AI pipeline; present on any question type. */
+export interface WorksheetQuestionMeta {
+  /** STUFE label + Übung number emitted when the exercise was generated from a worksheet,
+   *  e.g. "STUFE 1 – LEICHT | Übung L1.1". Used by the player to render section headers. */
+  sectionTitle?: string | null;
+  /** Coarse difficulty tier: 'easy' | 'medium' | 'hard'. */
+  tier?: 'easy' | 'medium' | 'hard' | null;
+  /** Worksheet category label for question-answer style tasks. */
+  worksheetKind?:
+    | 'true-false'
+    | 'sentence-transformation'
+    | 'singular-plural'
+    | 'table-profile-fill'
+    | 'free-writing-own-sentences'
+    | 'free-writing-profile'
+    | 'error-correction'
+    | null;
+  /** Sub-questions with same context/hints/images (for creating multiple questions from one context) */
+  subQuestions?: ExerciseQuestion[];
+}
+
+export interface JumbleWordQuestion extends QuestionCommonFields {
+  type: 'jumble-word';
+  scrambledText: string;
+  boldLetter?: string;
+  expectedWord: string;
+  categoryTip?: string;
+}
+
+export interface RearrangeQuestion extends QuestionCommonFields {
+  type: 'rearrange';
+  rearrangePrompt: string;
+  rearrangeAnswer?: string;
+  rearrangeTokens?: string[];
+  shuffledTokens?: string[]; // provided by server during play
+  points: number;
+}
+
+export interface ImagePinMatchQuestion extends QuestionCommonFields {
+  type: 'image_pin_match';
+  _id?: string;
+  imageUrl: string;
+  labels: Array<{ id: string; text: string; correctPinId: string }>;
+  pins: Array<{ id: string; x: number; y: number }>;
+  settings?: {
+    randomizeLabels?: boolean;
+    allowRetry?: boolean;
+  };
+  points: number;
+}
+
+export type ExerciseQuestion = (
+  | MCQQuestion
+  | MatchingQuestion
+  | FillBlankQuestion
+  | WordBankFillQuestion
+  | PronunciationQuestion
+  | QuestionAnswerQuestion
+  | SingularPluralQuestion
+  | ListeningQuestion
+  | VideoPronunciationQuestion
+  | JumbleWordQuestion
+  | RearrangeQuestion
+  | ImagePinMatchQuestion
+) & WorksheetQuestionMeta;
+
+/** Optional praise / retry sound for video pronunciation exercises (admin-uploaded). */
+export interface VideoExerciseFeedbackItem {
+  audioUrl: string;
+  caption?: string;
+}
+
+/** Tells the server an empty media field was removed on purpose (do not restore previous URL). */
+export interface ExerciseMediaClear {
+  qIndex: number;
+  subIndex?: number | null;
+  field: string;
+}
 
 export interface DigitalExercise {
   _id?: string;
@@ -82,6 +228,8 @@ export interface DigitalExercise {
   estimatedDuration?: number;
   questions: ExerciseQuestion[];
   sharedAudioUrl?: string;
+  videoSuccessFeedback?: VideoExerciseFeedbackItem[];
+  videoRetryFeedback?: VideoExerciseFeedbackItem[];
   tags?: string[];
   isActive?: boolean;
   visibleToStudents?: boolean;
@@ -94,7 +242,21 @@ export interface DigitalExercise {
   updatedAt?: Date;
   /** 1–200: assigned course day; omit/null = general exercise for any unlocked day */
   courseDay?: number | null;
+  /**
+   * Within-day sequence letter (a, b, c…).
+   * Students must pass all prior letters before this unlocks.
+   */
+  sequenceLetter?: string | null;
+  /** Sent on PUT when teacher explicitly removed uploaded media from a question. */
+  mediaClears?: ExerciseMediaClear[];
+  /** Set by server for student list response when sequence-locked */
+  sequenceLocked?: boolean;
+  previousSequenceLetter?: string | null;
   stats?: { completions: number; avgScore: number; uniqueStudents: number };
+  /** Admin list optimization: count sent without full questions payload. */
+  questionCount?: number;
+  /** Admin list optimization: { [type]: count } summary sent by backend. */
+  questionTypeSummary?: Record<string, number>;
   studentAttempt?: ExerciseAttempt | null;
 }
 
@@ -109,17 +271,99 @@ export interface ExerciseAttempt {
   status?: string;
   completedAt?: Date;
   timeSpentSeconds?: number;
+  /** Populated on student exercise list for analytics (best attempt) */
+  wrongCount?: number;
+  correctCount?: number;
+  totalQuestions?: number;
+}
+
+/** Per-question row from my-review / staff attempt detail APIs */
+export interface AttemptReviewRow {
+  questionIndex: number;
+  /** Present for "Questions with Same Context" sub-parts (e.g. 31.1). */
+  subQuestionIndex?: number | null;
+  displayIndex: number | string;
+  type: string;
+  promptSnippet: string;
+  isCorrect: boolean;
+  pointsEarned: number;
+  maxPoints: number;
+  studentAnswer: string;
+  expectedAnswer: string;
+  isSubQuestion?: boolean;
+  staffOverride?: boolean;
+}
+
+export interface ExerciseReviewSummary {
+  totalQuestions: number;
+  correctCount: number;
+  wrongCount: number;
+}
+
+export interface MyExerciseReviewResponse {
+  exercise: { _id: string; title: string; level: string; category: string };
+  attempt: {
+    _id: string;
+    attemptNumber?: number;
+    scorePercentage: number;
+    earnedPoints?: number;
+    totalPoints?: number;
+    completedAt?: string;
+    timeSpentSeconds?: number;
+  };
+  summary: ExerciseReviewSummary;
+  perQuestion: AttemptReviewRow[];
+}
+
+export interface StaffAttemptReviewResponse extends MyExerciseReviewResponse {
+  attempt: MyExerciseReviewResponse['attempt'] & {
+    studentId?: { name?: string; email?: string; batch?: string; level?: string };
+  };
+}
+
+export interface StaffAttemptOverrideResponse {
+  success: boolean;
+  attemptId: string;
+  questionIndex: number;
+  subQuestionIndex?: number | null;
+  isCorrect: boolean;
+  pointsEarned: number;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
+}
+
+export interface StaffAttemptRegradeResponse {
+  success: boolean;
+  attemptId: string;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
+  summary: ExerciseReviewSummary;
+  perQuestion: AttemptReviewRow[];
 }
 
 export interface QuestionResponse {
   questionIndex: number;
   selectedOptionIndex?: number;
-  matchingResponse?: Array<{ leftIndex: number; rightIndex: number }>;
+  matchingResponse?: Array<{ leftIndex: number; rightIndex: number; rightValue?: string | null }>;
   fillBlankResponses?: string[];
+  wordBankAnswers?: Array<{ index: number; value: string }>;
+  singularPluralResponses?: string[];
   spokenText?: string;
   pronunciationScore?: number;
   qaResponse?: string;
   listeningText?: string;
+  jumbleWordResponse?: string;
+  rearrangeTextResponse?: string;
+  rearrangeTokensResponse?: string[];
+  imagePinAnswers?: Array<{ labelId: string; pinId: string }>;
+  subQuestionResponses?: Array<{
+    questionIndex: number;
+    selectedOptionIndex?: number | null;
+    textAnswer?: string | null;
+    fillBlankResponses?: string[];
+  }>;
 }
 
 
@@ -149,6 +393,21 @@ export interface SubmitQuestionResult {
   passed: boolean;
 }
 
+/** Fields allowed in PATCH /digital-exercises/admin/bulk-update */
+export type DigitalExerciseBulkMetadata = Partial<
+  Pick<
+    DigitalExercise,
+    | 'level'
+    | 'category'
+    | 'courseDay'
+    | 'difficulty'
+    | 'visibleToStudents'
+    | 'targetLanguage'
+    | 'nativeLanguage'
+    | 'estimatedDuration'
+  >
+>;
+
 export interface ExerciseFilters {
   level?: string;
   category?: string;
@@ -168,7 +427,7 @@ export interface ExerciseFilters {
 export class DigitalExerciseService {
   private apiUrl = `${environment.apiUrl}/digital-exercises`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
   // ─── Student / Browse ─────────────────────────────────────────────────────
 
@@ -185,8 +444,10 @@ export class DigitalExerciseService {
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
   }
 
-  getExercise(id: string): Observable<DigitalExercise> {
-    return this.http.get<DigitalExercise>(`${this.apiUrl}/${id}`, { withCredentials: true });
+  getExercise(id: string, opts: { asStudent?: boolean } = {}): Observable<DigitalExercise> {
+    let params = new HttpParams();
+    if (opts.asStudent) params = params.set('asStudent', 'true');
+    return this.http.get<DigitalExercise>(`${this.apiUrl}/${id}`, { params, withCredentials: true });
   }
 
   // ─── Admin / Management ───────────────────────────────────────────────────
@@ -221,6 +482,22 @@ export class DigitalExerciseService {
     return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true });
   }
 
+  bulkDeleteExercises(ids: string[]): Observable<{ success: boolean; modifiedCount: number }> {
+    return this.http.post<{ success: boolean; modifiedCount: number }>(
+      `${this.apiUrl}/admin/bulk-delete`,
+      { ids },
+      { withCredentials: true }
+    );
+  }
+
+  bulkUpdateExercises(ids: string[], updates: DigitalExerciseBulkMetadata): Observable<{ success: boolean; modifiedCount: number }> {
+    return this.http.patch<{ success: boolean; modifiedCount: number }>(
+      `${this.apiUrl}/admin/bulk-update`,
+      { ids, updates },
+      { withCredentials: true }
+    );
+  }
+
   // ─── Student Attempt ──────────────────────────────────────────────────────
 
   startAttempt(exerciseId: string): Observable<{ attemptId: string; attemptNumber: number }> {
@@ -237,6 +514,15 @@ export class DigitalExerciseService {
       `${this.apiUrl}/${exerciseId}/submit`,
       { attemptId, responses, timeSpentSeconds },
       { withCredentials: true }
+    ).pipe(
+      tap((res: any) => {
+        if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
+          this.progressService.notifyJourneyAdvance({
+            previousDay: res.previousCourseDay,
+            newDay: res.newCourseDay
+          });
+        }
+      })
     );
   }
 
@@ -256,6 +542,68 @@ export class DigitalExerciseService {
 
   getMyAttempts(exerciseId: string): Observable<ExerciseAttempt[]> {
     return this.http.get<ExerciseAttempt[]>(`${this.apiUrl}/${exerciseId}/my-attempts`, { withCredentials: true });
+  }
+
+  /** Student: best completed attempt, per-question answers vs expected */
+  getMyExerciseReview(exerciseId: string): Observable<MyExerciseReviewResponse> {
+    return this.http.get<MyExerciseReviewResponse>(`${this.apiUrl}/${exerciseId}/my-review`, { withCredentials: true });
+  }
+
+  /** Admin/Teacher: one student's completed attempt with full breakdown */
+  getAttemptReviewForStaff(exerciseId: string, attemptId: string): Observable<StaffAttemptReviewResponse> {
+    return this.http.get<StaffAttemptReviewResponse>(
+      `${this.apiUrl}/${exerciseId}/attempts/${attemptId}`,
+      { withCredentials: true }
+    );
+  }
+
+  /** Admin/Teacher: override grading for one submitted question (or sub-question) in an attempt */
+  overrideAttemptQuestion(
+    exerciseId: string,
+    attemptId: string,
+    questionIndex: number,
+    isCorrect: boolean,
+    subQuestionIndex?: number | null
+  ): Observable<StaffAttemptOverrideResponse> {
+    const body: { isCorrect: boolean; subQuestionIndex?: number } = { isCorrect };
+    if (subQuestionIndex !== undefined && subQuestionIndex !== null) {
+      body.subQuestionIndex = subQuestionIndex;
+    }
+    return this.http.patch<StaffAttemptOverrideResponse>(
+      `${this.apiUrl}/${exerciseId}/attempts/${attemptId}/questions/${questionIndex}/override`,
+      body,
+      { withCredentials: true }
+    );
+  }
+
+  /** Admin/Teacher: re-run auto-grading on a completed attempt */
+  regradeAttemptForStaff(exerciseId: string, attemptId: string): Observable<StaffAttemptRegradeResponse> {
+    return this.http.post<StaffAttemptRegradeResponse>(
+      `${this.apiUrl}/${exerciseId}/attempts/${attemptId}/regrade`,
+      {},
+      { withCredentials: true }
+    );
+  }
+
+  /** Re-map legacy fill-blank answers and regrade all completed attempts for an exercise */
+  regradeAllAttemptsForStaff(exerciseId: string): Observable<{
+    success: boolean;
+    exerciseId: string;
+    totalAttempts: number;
+    updated: number;
+    skipped: number;
+    hasMultipartFillBlank: boolean;
+    errors?: Array<{ attemptId: string; error: string }>;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      exerciseId: string;
+      totalAttempts: number;
+      updated: number;
+      skipped: number;
+      hasMultipartFillBlank: boolean;
+      errors?: Array<{ attemptId: string; error: string }>;
+    }>(`${this.apiUrl}/${exerciseId}/attempts/regrade-all`, {}, { withCredentials: true });
   }
 
   // ─── Analytics (Teacher/Admin) ────────────────────────────────────────────
@@ -291,6 +639,14 @@ export class DigitalExerciseService {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/upload`, formData, { withCredentials: true });
   }
 
+  detectPdfStructureWithAi(uploadId: string): Observable<any> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/pdf-exercises/detect-structure-ai`,
+      { uploadId },
+      { withCredentials: true }
+    );
+  }
+
   generateFromPdf(options: {
     uploadId: string;
     types: string[];
@@ -300,13 +656,21 @@ export class DigitalExerciseService {
     level: string;
     difficulty: string;
     maxQuestions: number;
+    worksheetMode?: boolean;
+    selectedExerciseIds?: string[];
+    selectedExercises?: Array<{ exerciseId: string; questionCount?: number }>;
   }): Observable<any> {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
+  }
+
+  getExtractionStatus(jobId: string): Observable<any> {
+    return this.http.get<any>(`${environment.apiUrl}/pdf-exercises/extraction-status/${jobId}`, { withCredentials: true });
   }
 
   generateFromText(options: {
     text: string;
     types: string[];
+    typeCounts?: Record<string, number>;
     targetLanguage: string;
     nativeLanguage: string;
     level: string;
@@ -318,6 +682,68 @@ export class DigitalExerciseService {
 
   cleanupPdf(uploadId: string): Observable<any> {
     return this.http.delete<any>(`${environment.apiUrl}/pdf-exercises/cleanup/${uploadId}`, { withCredentials: true });
+  }
+
+  /** AI Stage Phase 1: PDF → blocks (multipart field name: `file`). */
+  runAiStagePhase1(file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<any>(`${environment.apiUrl}/ai-stage/phase-1`, formData, { withCredentials: true });
+  }
+
+  /** AI Stage Phase 2: blocks → parsed results. */
+  runAiStagePhase2(blocks: unknown[]): Observable<any> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/ai-stage/phase-2`,
+      { blocks },
+      { withCredentials: true }
+    );
+  }
+
+  /** AI Stage Phase 3: blocks + phase-2 results + optional answer key → final exercises. */
+  runAiStagePhase3(payload: { blocks: unknown[]; parsedResults: unknown[]; answerKeyText?: string }): Observable<any> {
+    return this.http.post<any>(`${environment.apiUrl}/ai-stage/phase-3`, payload, { withCredentials: true });
+  }
+
+  /**
+   * Re-extract a single exercise block precisely using the per-exercise prompt.
+   * Use this when you need to refine or re-process one Übung at a time.
+   */
+  extractSingleExercise(options: {
+    topic?: string;
+    exerciseId?: string;
+    level?: string;
+    instruction_de?: string;
+    instruction_en?: string;
+    content: string;
+    solution_key?: string;
+  }): Observable<{ success: boolean; exerciseId: string; type: string; questions: any[] }> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/pdf-exercises/extract-single-exercise`,
+      options,
+      { withCredentials: true }
+    );
+  }
+
+  /**
+   * Two-pass sequential extraction for uploaded worksheets:
+   * splits PDF into Übung blocks, calls per-exercise AI prompt for each.
+   * More accurate than the single whole-document call; costs one API call per exercise.
+   */
+  extractExercisesSequential(options: {
+    uploadId: string;
+    targetLanguage?: string;
+    nativeLanguage?: string;
+    level?: string;
+    selectedExerciseIds?: string[];
+  }): Observable<any> {
+    return this.http
+      .post<any>(
+        `${environment.apiUrl}/pdf-exercises/extract-exercises-sequential`,
+        options,
+        { withCredentials: true }
+      )
+      .pipe(timeout(55 * 60 * 1000));
   }
 
   // ─── Manual Listening Worksheet Extraction ──────────────────────────────
@@ -356,9 +782,15 @@ export class DigitalExerciseService {
       mcq: 'Multiple Choice',
       matching: 'Matching Exercise',
       'fill-blank': 'Fill in the Blanks',
+      word_bank_fill: 'Word Bank Fill',
       pronunciation: 'Pronunciation Check',
       'question-answer': 'Question / Answer',
-      listening: 'Listening'
+      singular_plural: 'Singular / Plural',
+      listening: 'Listening',
+      'video-pronunciation': 'Video Pronunciation',
+      'jumble-word': 'Jumble Word',
+      rearrange: 'Rearrange',
+      image_pin_match: 'Image Pin Match'
     };
     return labels[type] || type;
   }
@@ -368,21 +800,60 @@ export class DigitalExerciseService {
       mcq: 'quiz',
       matching: 'compare_arrows',
       'fill-blank': 'text_fields',
+      word_bank_fill: 'format_list_bulleted',
       pronunciation: 'record_voice_over',
       'question-answer': 'short_text',
-      listening: 'headphones'
+      singular_plural: 'swap_horiz',
+      listening: 'headphones',
+      'video-pronunciation': 'videocam',
+      'jumble-word': 'shuffle',
+      rearrange: 'reorder',
+      image_pin_match: 'place'
     };
     return icons[type] || 'help';
   }
 
+  uploadBlobToR2(
+    file: File,
+    prefix: 'listening-media' | 'exercise-attachments'
+  ): Observable<{ success: boolean; url: string }> {
+    return this.http
+      .post<{ uploadUrl: string; fileUrl: string }>(
+        `${environment.apiUrl}/r2/generate-upload-url`,
+        {
+          filename: file.name,
+          contentType: file.type || 'application/octet-stream',
+          prefix,
+        },
+        { withCredentials: true }
+      )
+      .pipe(
+        switchMap(({ uploadUrl, fileUrl }) =>
+          from(
+            fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': file.type || 'application/octet-stream' },
+              body: file,
+            })
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                return throwError(() => new Error(`R2 upload failed with status ${response.status}`));
+              }
+              return of({ success: true, url: fileUrl });
+            })
+          )
+        )
+      );
+  }
+
+  uploadVideoMedia(file: File): Observable<{ success: boolean; url: string }> {
+    return this.uploadBlobToR2(file, 'listening-media');
+  }
+
+  /** Listening / feedback clips — direct R2 upload only (same bucket as server-side audio). */
   uploadListeningMedia(file: File): Observable<{ success: boolean; url: string }> {
-    const formData = new FormData();
-    formData.append('media', file);
-    return this.http.post<{ success: boolean; url: string }>(
-      `${environment.apiUrl}/listening-media/upload`,
-      formData,
-      { withCredentials: true }
-    );
+    return this.uploadBlobToR2(file, 'listening-media');
   }
 
   fetchListeningFromUrl(url: string): Observable<{ success: boolean; url: string }> {
@@ -397,6 +868,117 @@ export class DigitalExerciseService {
     return this.http.post<{ success: boolean; transcript: string }>(
       `${environment.apiUrl}/listening-media/transcribe`,
       { mediaUrl },
+      { withCredentials: true }
+    );
+  }
+
+  /** Per-question attachment: audio goes to R2; images use multipart (server stores in R2 or S3). */
+  uploadQuestionAttachment(file: File): Observable<{ success: boolean; url: string; canonicalUrl?: string }> {
+    const mt = (file.type || '').toLowerCase();
+    if (mt.startsWith('audio/')) {
+      return this.uploadBlobToR2(file, 'exercise-attachments');
+    }
+    const formData = new FormData();
+    formData.append('attachment', file);
+    return this.http.post<{ success: boolean; url: string; canonicalUrl?: string }>(
+      `${environment.apiUrl}/digital-exercises/upload-attachment`,
+      formData,
+      { withCredentials: true }
+    );
+  }
+
+  /**
+   * When stored URLs point at missing local files, remap to canonical R2 public URLs if the object exists.
+   */
+  /** Presign private S3 URLs for admin builder preview (canonical URLs stay in the form model). */
+  recoverExerciseMedia(exerciseId: string): Observable<{
+    success: boolean;
+    updatedCount: number;
+    recovered: Array<{ original: string; url: string; found: boolean; field?: string }>;
+    missing: Array<{ original: string; url: string; found: boolean }>;
+    exercise: DigitalExercise;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      updatedCount: number;
+      recovered: Array<{ original: string; url: string; found: boolean; field?: string }>;
+      missing: Array<{ original: string; url: string; found: boolean }>;
+      exercise: DigitalExercise;
+    }>(
+      `${environment.apiUrl}/digital-exercises/${exerciseId}/recover-media`,
+      {},
+      { withCredentials: true }
+    );
+  }
+
+  presignMediaUrls(urls: string[]): Observable<{
+    resolutions: Array<{ original: string; url: string }>;
+  }> {
+    const uniq = [...new Set((urls || []).map((u) => String(u || '').trim()).filter(Boolean))];
+    if (uniq.length === 0) {
+      return of({ resolutions: [] });
+    }
+    return this.http.post<{ resolutions: Array<{ original: string; url: string }> }>(
+      `${environment.apiUrl}/digital-exercises/presign-media-urls`,
+      { urls: uniq },
+      { withCredentials: true }
+    );
+  }
+
+  resolveMediaFromR2(urls: string[]): Observable<{
+    resolutions: Array<{ original: string; url: string; found: boolean }>;
+  }> {
+    const uniq = [...new Set((urls || []).map((u) => String(u || '').trim()).filter(Boolean))];
+    if (uniq.length === 0) {
+      return of({ resolutions: [] });
+    }
+    return this.http.post<{
+      resolutions: Array<{ original: string; url: string; found: boolean }>;
+    }>(`${environment.apiUrl}/r2/resolve-media-urls`, { urls: uniq }, { withCredentials: true });
+  }
+
+  generateExplanation(data: {
+    questionType?: string;
+    questionText?: string;
+    storyParagraph?: string;
+    contextText?: string;
+    correctAnswer?: string;
+    sampleAnswers?: string[];
+    targetLanguage?: string;
+    audioTranscript?: string;
+  }): Observable<{ explanation: string }> {
+    return this.http.post<{ explanation: string }>(
+      `${environment.apiUrl}/digital-exercises/generate-explanation`,
+      data,
+      { withCredentials: true }
+    );
+  }
+
+  convertQuestionType(data: {
+    question: any;
+    targetType: string;
+    targetLanguage?: string;
+  }): Observable<{ question: any }> {
+    return this.http.post<{ question: any }>(
+      `${this.apiUrl}/convert-question-type`,
+      data,
+      { withCredentials: true }
+    );
+  }
+
+  generateMissingAnswers(questions: Array<{
+    index: number;
+    type: string;
+    sentence?: string;
+    instruction?: string;
+    hint?: string;
+    answers?: string[];
+    prompt?: string;
+    sampleAnswers?: string[];
+  }>): Observable<{ results: Array<{ index: number; answers?: string[]; sampleAnswers?: string[]; expectedWord?: string }> }> {
+    return this.http.post<any>(
+      `${environment.apiUrl}/digital-exercises/generate-missing-answers`,
+      { questions },
       { withCredentials: true }
     );
   }

@@ -1,10 +1,21 @@
 <!-- digital-exercise-player.component.html -->
 <div class="player-page">
-
-  <!-- ─── LOADING ─────────────────────────────────────────────────────────── -->
-  <div class="state-centered" *ngIf="state === 'loading'">
-    <div class="spinner"></div>
-    <p>Loading exercise...</p>
+  <!-- Skeleton loader for 3-col layout -->
+  <div class="player-skeleton" *ngIf="state === 'loading'">
+    <div class="sk-side-col">
+      <div class="sk-sidebar-left">
+        <div class="sk-box"></div>
+        <div class="sk-box"></div>
+      </div>
+      <div class="sk-sidebar-right">
+        <div class="sk-box"></div>
+        <div class="sk-box"></div>
+      </div>
+    </div>
+    <div class="sk-main">
+      <div class="sk-box"></div>
+      <div class="sk-box"></div>
+    </div>
   </div>
 
   <!-- ─── ERROR ───────────────────────────────────────────────────────────── -->
@@ -20,10 +31,51 @@
   <!-- ─── RESULT (full-page; replaces question view completely after submit) ── -->
   <div class="result-screen" *ngIf="state === 'submitted' && result">
     <div class="result-page">
-      <div class="result-card-new">
+      <div
+        class="result-card-new"
+        [class.result-card-new--video]="isVideoOnlyResult"
+      >
+        <div
+          class="result-sync-strip"
+          *ngIf="submitting"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="result-sync-strip__label">Saving your result…</span>
+          <span class="result-sync-strip__bar" aria-hidden="true"></span>
+        </div>
         <div class="result-card-inner">
+          <div
+            class="result-hero-badge"
+            *ngIf="isVideoOnlyResult"
+            aria-hidden="true"
+          >
+            <span class="material-icons">verified</span>
+          </div>
           <p class="result-exercise-label">{{ exercise?.title }}</p>
           <h1 class="result-heading">Your Result</h1>
+          <p
+            class="result-video-kicker"
+            *ngIf="
+              isVideoOnlyResult && answeredCount === playerQuestions.length
+            "
+          >
+            You completed all
+            <strong>{{ playerQuestions.length }}</strong> clip{{
+              playerQuestions.length === 1 ? "" : "s"
+            }}
+            — great work.
+          </p>
+          <p
+            class="result-video-kicker"
+            *ngIf="isVideoOnlyResult && answeredCount < playerQuestions.length"
+          >
+            You attempted <strong>{{ answeredCount }}</strong> of
+            <strong>{{ playerQuestions.length }}</strong> clip{{
+              playerQuestions.length === 1 ? "" : "s"
+            }}
+            (e.g. time ran out or the exercise was submitted early).
+          </p>
           <div class="result-score-block">
             <div class="result-points-big">
               <span class="points-earned">{{ result.earnedPoints }}</span>
@@ -31,7 +83,10 @@
               <span class="points-total">{{ result.totalPoints }}</span>
               <span class="points-label">points</span>
             </div>
-            <div class="result-percent" [class]="getScoreClass(result.scorePercentage)">
+            <div
+              class="result-percent"
+              [class]="getScoreClass(result.scorePercentage)"
+            >
               {{ result.scorePercentage }}%
             </div>
           </div>
@@ -40,9 +95,15 @@
               <span class="material-icons">schedule</span>
               {{ formatTime(elapsedSeconds) }}
             </span>
-            <span class="result-meta-item" [class.passed]="result.passed" [class.failed]="!result.passed">
-              <span class="material-icons">{{ result.passed ? 'check_circle' : 'cancel' }}</span>
-              {{ result.passed ? 'Passed' : 'Not passed' }}
+            <span
+              class="result-meta-item"
+              [class.passed]="result.passed"
+              [class.failed]="!result.passed"
+            >
+              <span class="material-icons">{{
+                result.passed ? "check_circle" : "cancel"
+              }}</span>
+              {{ result.passed ? "Passed" : "Not passed" }}
             </span>
           </div>
           <div class="result-mini-stats">
@@ -63,13 +124,25 @@
               <span class="mini-stat-value">{{ wrongCount }}</span>
             </div>
           </div>
-          <p class="result-message-sm">{{ getScoreMessage(result.scorePercentage) }}</p>
+          <p class="result-message-sm">
+            {{ getScoreMessage(result.scorePercentage) }}
+          </p>
           <div class="result-actions-new">
-            <button class="btn-review" (click)="showReviewAnswers()">
+            <button
+              class="btn-review"
+              type="button"
+              (click)="showReviewAnswers()"
+              [disabled]="submitting"
+            >
               <span class="material-icons">rate_review</span>
               Review answers
             </button>
-            <button class="btn-reattempt" (click)="tryAgain()">
+            <button
+              class="btn-reattempt"
+              type="button"
+              (click)="tryAgain()"
+              [disabled]="submitting"
+            >
               <span class="material-icons">replay</span>
               Re-attempt
             </button>
@@ -85,47 +158,403 @@
   <!-- ─── REVIEW (full-page; all answers on one screen) ──────────────────────── -->
   <div class="review-screen" *ngIf="state === 'review' && result">
     <div class="review-header">
-      <button class="btn-icon-back" (click)="backToResult()" title="Back to result">
+      <button
+        class="btn-icon-back"
+        (click)="backToResult()"
+        title="Back to result"
+      >
         <span class="material-icons">arrow_back</span>
       </button>
       <h1 class="review-title">Review answers</h1>
       <div class="review-score-bar">
-        Total: <strong>{{ result.earnedPoints }}</strong> / <strong>{{ result.totalPoints }}</strong> points
-        ({{ result.scorePercentage }}%)
+        Total: <strong>{{ result.earnedPoints }}</strong> /
+        <strong>{{ result.totalPoints }}</strong> points ({{
+          result.scorePercentage
+        }}%)
       </div>
     </div>
     <div class="review-list">
-      <div class="review-q-block" *ngFor="let pq of playerQuestions; let i = index"
-        [class.correct]="pq.isCorrect === true"
-        [class.wrong]="pq.isCorrect === false">
-        <div class="review-q-head">
-          <span class="review-q-num">Question {{ i + 1 }}</span>
-          <span class="review-q-type-pill" [class]="'pill-' + pq.data.type">
-            {{ getTypeLabel(pq.data.type) }}
-          </span>
-          <span class="review-q-pts">{{ pq.data.points || 1 }} pt</span>
-          <span class="review-q-badge" [class.correct]="pq.isCorrect" [class.wrong]="!pq.isCorrect">
-            <span class="material-icons">{{ pq.isCorrect ? 'check_circle' : 'cancel' }}</span>
-            {{ pq.isCorrect ? 'Correct' : 'Incorrect' }}
-          </span>
+      <ng-container *ngFor="let pq of playerQuestions; let i = index">
+        <div
+          class="q-section-header review-section-header"
+          *ngIf="getSectionTitle(i) as sec"
+        >
+          <span class="q-section-icon material-icons">layers</span>
+          <span class="q-section-text">{{ sec }}</span>
         </div>
-        <div class="review-q-body">
-          <div class="review-q-text" *ngIf="pq.data.type === 'mcq'">{{ pq.data.question }}</div>
-          <div class="review-q-text" *ngIf="pq.data.type === 'matching'">{{ pq.data.instruction }}</div>
-          <div class="review-q-text" *ngIf="pq.data.type === 'fill-blank'">{{ pq.data.sentence }}</div>
-          <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">Say: {{ pq.data.word }}</div>
-          <div class="review-q-text" *ngIf="pq.data.type === 'question-answer'">{{ pq.data.prompt }}</div>
-          <div class="review-q-text" *ngIf="pq.data.type === 'listening'">{{ pq.data.prompt }}</div>
-          <div class="review-answer-row">
-            <span class="review-label">Your answer:</span>
-            <span class="review-value" [class.wrong]="!pq.isCorrect">{{ getReviewAnswerText(pq) }}</span>
+        <div
+          class="review-q-block"
+          [class.correct]="pq.isCorrect === true"
+          [class.wrong]="pq.isCorrect === false"
+        >
+          <div class="review-q-head">
+            <span class="review-q-num">Question {{ i + 1 }}</span>
+            <span class="review-q-type-pill" [class]="'pill-' + pq.data.type">
+              {{ getQuestionTypeLabelForDisplay(pq.data) }}
+            </span>
+            <span class="review-q-pts">{{ pq.data.points || 1 }} pt</span>
+            <span
+              class="review-q-badge"
+              [class.correct]="pq.isCorrect"
+              [class.wrong]="!pq.isCorrect"
+            >
+              <span class="material-icons">{{
+                pq.isCorrect ? "check_circle" : "cancel"
+              }}</span>
+              {{ pq.isCorrect ? "Correct" : "Incorrect" }}
+            </span>
           </div>
-          <div class="review-answer-row" *ngIf="!pq.isCorrect">
-            <span class="review-label">Correct answer:</span>
-            <span class="review-value correct">{{ getReviewCorrectText(pq) }}</span>
+          <div class="review-q-body">
+            <div
+              class="q-guidance-stack review-q-guidance"
+              *ngIf="
+                worksheetInstructionDisplay(pq.data) ||
+                pq.data.example ||
+                pq.data.context ||
+                (pq.data.type === 'question-answer' &&
+                  isTrueFalseQuestion(pq.data) &&
+                  pq.data.storyParagraph)
+              "
+            >
+              <div
+                class="q-instruction-banner"
+                *ngIf="worksheetInstructionDisplay(pq.data)"
+              >
+                <span class="q-instruction-label">Instruction</span>
+                <span
+                  class="q-instruction-text"
+                  [innerHTML]="
+                    worksheetInstructionDisplay(pq.data) | safeHtml
+                  "
+                ></span>
+              </div>
+              <div class="q-example-banner" *ngIf="pq.data.example">
+                <span class="q-example-label">Example</span>
+                <span
+                  class="q-example-text"
+                  [innerHTML]="pq.data.example | safeHtml"
+                ></span>
+              </div>
+              <div class="q-context-box" *ngIf="pq.data.context">
+                <div
+                  class="q-context-text"
+                  [innerHTML]="pq.data.context | safeHtml"
+                ></div>
+              </div>
+              <div
+                class="tf-story-paragraph"
+                *ngIf="
+                  pq.data.type === 'question-answer' &&
+                  isTrueFalseQuestion(pq.data) &&
+                  pq.data.storyParagraph
+                "
+                [innerHTML]="pq.data.storyParagraph | safeHtml"
+              ></div>
+            </div>
+
+            <div
+              class="review-q-text"
+              *ngIf="pq.data.type === 'mcq'"
+              [innerHTML]="pq.data.question | safeHtml"
+            ></div>
+            <div
+              class="review-q-text"
+              *ngIf="pq.data.type === 'fill-blank'"
+              [innerHTML]="pq.data.sentence | safeHtml"
+            ></div>
+            <ng-container *ngIf="pq.data.type === 'word_bank_fill'">
+              <div
+                class="review-word-bank-line"
+                *ngIf="pq.data.wordBank?.length"
+              >
+                <strong>Word bank:</strong>
+                <span
+                  class="review-word-bank-chip"
+                  *ngFor="let w of pq.data.wordBank"
+                  >{{ w }}</span>
+              </div>
+              <div
+                class="review-q-text review-word-bank-prompt"
+                *ngFor="
+                  let wbItem of getWordBankItems(pq);
+                  let wbi = index;
+                  trackBy: trackByIndex
+                "
+                [innerHTML]="displayWordBankPrompt(wbItem, wbi) | safeHtml"
+              ></div>
+            </ng-container>
+            <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">
+              Say: {{ pq.data.word }}
+            </div>
+            <div
+              class="review-q-text"
+              *ngIf="pq.data.type === 'question-answer'"
+              [innerHTML]="pq.data.prompt | safeHtml"
+            ></div>
+            <div
+              class="review-q-text"
+              *ngIf="pq.data.type === 'listening'"
+              [innerHTML]="pq.data.prompt | safeHtml"
+            ></div>
+            <div class="review-q-text" *ngIf="pq.data.type === 'jumble-word'">
+              {{ pq.data.scrambledText || "—" }}
+            </div>
+            <div
+              class="review-q-text"
+              *ngIf="pq.data.type === 'rearrange'"
+              [innerHTML]="pq.data.rearrangePrompt | safeHtml"
+            ></div>
+            <!-- Image Pin Match: show the image for context in review -->
+            <div
+              *ngIf="pq.data.type === 'image_pin_match' && getImagePinImageUrl(pq.data)"
+              class="q-attachment-box"
+            >
+              <img
+                [src]="getMediaFullUrl(getImagePinImageUrl(pq.data))"
+                alt="Pin match image"
+                class="q-attachment-img"
+                loading="lazy"
+              />
+            </div>
+            <div
+              class="listening-audio-wrap review-listening-audio"
+              *ngIf="getListeningSupplementalAudioUrl(pq.data)"
+            >
+              <audio
+                [src]="
+                  getMediaFullUrl(getListeningSupplementalAudioUrl(pq.data))
+                "
+                controls
+              ></audio>
+            </div>
+            <div
+              class="review-q-text"
+              *ngIf="pq.data.type === 'video-pronunciation'"
+            >
+              <span
+                class="material-icons"
+                style="font-size: 1rem; vertical-align: middle"
+                >videocam</span
+              >
+              Say: <strong [innerHTML]="pq.data.caption | safeHtml"></strong>
+            </div>
+
+            <!-- Shared audio above prompts when Q&A has sub-parts -->
+            <div
+              class="q-attachment-box review-passage-audio-top"
+              *ngIf="shouldShowPassageAudioAtTop(pq.data)"
+            >
+              <audio
+                [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                controls
+                class="q-attachment-audio"
+              ></audio>
+            </div>
+
+            <!-- Attachment after stem; with sub-questions, non-audio stays after sub-parts -->
+            <div
+              class="q-attachment-box"
+              *ngIf="
+                pq.data.attachmentUrl &&
+                !shouldShowPassageAudioAtTop(pq.data) &&
+                !shouldShowPassageAttachmentAtBottom(pq.data)
+              "
+            >
+              <ng-container
+                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
+              >
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  alt="Attachment"
+                  class="q-attachment-img"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <audio
+                  *ngSwitchCase="'audio'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-audio"
+                ></audio>
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
+
+            <div
+              class="review-part-label"
+              *ngIf="hasSubQuestions(pq.data) && !hasFillBlankReviewItems(pq, i)"
+            >
+              Q {{ getQuestionPartLabel(i, getParentPartNumber()) }}
+            </div>
+
+            <div class="review-fill-blank-list" *ngIf="hasFillBlankReviewItems(pq, i)">
+              <div
+                class="review-blank-card"
+                *ngFor="let blank of getFillBlankReviewItems(pq, i)"
+                [class.correct]="blank.isCorrect"
+                [class.wrong]="blank.answered && !blank.isCorrect"
+                [class.unanswered]="!blank.answered"
+              >
+                <div class="review-blank-head">
+                  <span class="review-blank-num">Blank {{ blank.globalIndex }}</span>
+                  <span class="review-blank-part">{{ blank.partLabel }}</span>
+                </div>
+                <div class="review-answer-row">
+                  <span class="review-label">Your answer:</span>
+                  <span
+                    class="review-value"
+                    [class.correct]="blank.isCorrect"
+                    [class.wrong]="blank.answered && !blank.isCorrect"
+                  >{{ blank.answered ? blank.studentAnswer : 'Not answered' }}</span>
+                </div>
+                <div class="review-answer-row">
+                  <span class="review-label">Correct answer:</span>
+                  <span class="review-value correct">{{ blank.correctAnswer || '—' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <ng-container *ngIf="!hasFillBlankReviewItems(pq, i)">
+            <div class="review-answer-row">
+              <span class="review-label">Your answer:</span>
+              <span class="review-value" [class.wrong]="!pq.isCorrect">{{
+                getReviewAnswerText(pq)
+              }}</span>
+            </div>
+            <div class="review-answer-row" *ngIf="!pq.isCorrect">
+              <span class="review-label">Correct answer:</span>
+              <span class="review-value correct">{{
+                getReviewCorrectText(pq)
+              }}</span>
+            </div>
+            </ng-container>
+
+            <!-- Answer explanation (shown when present, highlighted for wrong answers) -->
+            <div
+              class="review-explanation-box"
+              *ngIf="pq.data.answerExplanation"
+            >
+              <span class="material-icons review-explanation-icon"
+                >lightbulb</span
+              >
+              <span
+                class="review-explanation-text"
+                [innerHTML]="pq.data.answerExplanation | safeHtml"
+              ></span>
+            </div>
+
+          <!-- Sub-questions in review -->
+          <div class="review-sub-questions" *ngIf="pq.data.subQuestions && pq.data.subQuestions.length > 0">
+            <div class="review-sub-q-header">
+              <span class="material-icons">subdirectory_arrow_right</span>
+              <span>Sub-questions ({{ pq.data.subQuestions.length }})</span>
+            </div>
+            <div class="review-sub-q-list">
+              <div class="review-sub-q-block" *ngFor="let sq of pq.data.subQuestions; let sqIndex = index">
+                <div class="review-sub-q-head">
+                  <span class="review-sub-q-num">Q {{ getQuestionPartLabel(i, getSubQuestionPartNumber(sqIndex, pq.data)) }}</span>
+                  <span class="review-sub-q-type">{{ getQuestionTypeLabelForDisplay(sq) }}</span>
+                  <span class="review-sub-q-pts">{{ sq.points || 1 }} pt</span>
+                </div>
+                <div class="review-sub-q-body">
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'mcq'" [innerHTML]="sq.question | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'fill-blank'" [innerHTML]="sq.sentence | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'question-answer'" [innerHTML]="sq.prompt | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'listening'" [innerHTML]="sq.prompt | safeHtml"></div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'pronunciation'">Say: {{ sq.word }}</div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'matching'">Match the items</div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Fill in the blanks</div>
+
+                  <!-- Sub-question answer -->
+                  <div class="review-sub-q-answer" *ngIf="sq.type !== 'fill-blank' || !hasFillBlankReviewItems(pq, i)">
+                    <span class="review-label">Your answer:</span>
+                    <span class="review-value">{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
+                  </div>
+                  <div class="review-sub-q-correct" *ngIf="sq.type === 'fill-blank' && !hasFillBlankReviewItems(pq, i)">
+                    <span class="review-label">Correct answer:</span>
+                    <span class="review-value correct">{{ getSubCorrectAnswerText(pq, sqIndex) }}</span>
+                  </div>
+                  <div class="review-sub-q-correct" *ngIf="sq.type === 'mcq'">
+                    <span class="review-label">Correct:</span>
+                    <span class="review-value correct">{{ sq.options?.[sq.correctAnswerIndex] || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+            <div
+              class="q-attachment-box review-passage-ref"
+              *ngIf="shouldShowPassageAttachmentAtBottom(pq.data)"
+            >
+              <ng-container
+                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
+              >
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  alt="Attachment"
+                  class="q-attachment-img"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <audio
+                  *ngSwitchCase="'audio'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-audio"
+                ></audio>
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
           </div>
         </div>
-      </div>
+      </ng-container>
     </div>
     <div class="review-actions">
       <button class="btn-secondary" (click)="backToResult()">
@@ -139,9 +568,23 @@
 
   <!-- ─── INTRO ───────────────────────────────────────────────────────────── -->
   <div class="intro-screen" *ngIf="state === 'intro' && exercise">
+    <div class="intro-back-row">
+      <button
+        class="btn-icon-back btn-back-nav"
+        (click)="goBack()"
+        title="Go back"
+      >
+        <span class="material-icons">arrow_back</span>
+        <span class="btn-back-label">Back</span>
+      </button>
+    </div>
     <div class="intro-card">
       <div class="intro-badges">
-        <span class="level-badge" [style.background]="exerciseService.getLevelColor(exercise.level)">{{ exercise.level }}</span>
+        <span
+          class="level-badge"
+          [style.background]="exerciseService.getLevelColor(exercise.level)"
+          >{{ exercise.level }}</span
+        >
         <span class="cat-badge">{{ exercise.category }}</span>
         <span class="diff-badge">{{ exercise.difficulty }}</span>
       </div>
@@ -151,7 +594,7 @@
         <div class="intro-stat">
           <span class="material-icons">quiz</span>
           <div>
-            <strong>{{ playerQuestions.length }}</strong>
+            <strong>{{ totalQuestionCount }}</strong>
             <span>Questions</span>
           </div>
         </div>
@@ -171,8 +614,13 @@
         </div>
       </div>
       <div class="intro-types">
-        <span *ngFor="let qt of getQuestionTypes()" class="type-pill" [class]="'pill-' + qt.type">
-          <span class="material-icons">{{ qt.icon }}</span> {{ qt.count }}× {{ qt.label }}
+        <span
+          *ngFor="let qt of getQuestionTypes()"
+          class="type-pill"
+          [class]="'pill-' + qt.type"
+        >
+          <span class="material-icons">{{ qt.icon }}</span> {{ qt.count }}×
+          {{ qt.label }}
         </span>
       </div>
       <div class="intro-actions">
@@ -187,28 +635,171 @@
   </div>
 
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
-  <div class="player-layout" *ngIf="state === 'playing'">
+  <div
+    class="player-layout"
+    *ngIf="state === 'playing'"
+    [class.player-layout--vp-only]="isVideoOnlyExercise"
+  >
+    <!-- Skeleton loader for 3-col layout -->
+    <div class="player-skeleton" *ngIf="!exercise">
+      <div class="sk-side-col">
+        <div class="sk-sidebar-left">
+          <div class="sk-box"></div>
+          <div class="sk-box"></div>
+        </div>
+        <div class="sk-sidebar-right">
+          <div class="sk-box"></div>
+          <div class="sk-box"></div>
+        </div>
+      </div>
+      <div class="sk-main">
+        <div class="sk-box"></div>
+        <div class="sk-box"></div>
+      </div>
+    </div>
 
-    <!-- Player Header (compact) -->
-    <div class="player-header">
-      <button class="btn-icon-back" (click)="backToExercises()" title="Exit exercise">
+    <!-- Browser guidance banner -->
+    <div class="browser-guidance" *ngIf="showBrowserGuidance" role="status">
+      <span class="material-icons">info</span>
+      <span class="browser-guidance__text"
+        >Best experience in <strong>Chrome</strong> on desktop.</span
+      >
+      <button
+        type="button"
+        class="browser-guidance__close"
+        (click)="dismissBrowserGuidance()"
+        aria-label="Dismiss"
+      >
         <span class="material-icons">close</span>
       </button>
-      <div class="header-center">
-        <div class="exercise-title-sm">{{ exercise?.title }}</div>
-        <div class="progress-bar-wrap">
-          <div class="progress-bar" [style.width]="getProgressPercentage() + '%'"></div>
-        </div>
-        <div class="progress-text">{{ answeredCount }} / {{ playerQuestions.length }} attempted</div>
-      </div>
-      <div class="assessment-header-right">
-        <div class="timer">
-          <span class="material-icons">schedule</span>
-          Remaining: {{ formatTime(elapsedSeconds) }}
-        </div>
-        <button class="btn-submit top-submit" *ngIf="!isSubmittedState" (click)="submitExercise()" [disabled]="submitting">
-          {{ submitting ? 'Submitting...' : 'Submit' }}
+    </div>
+
+    <!-- Pronunciation developer debug panel (toggle: ?debug=pron or localStorage pron:debugPanel=1) -->
+    <div class="pron-debug" *ngIf="pronDebugPanelEnabled">
+      <div class="pron-debug__head">
+        <strong>Pronunciation debug</strong>
+        <button
+          type="button"
+          class="pron-debug__close"
+          (click)="togglePronDebugPanel()"
+          aria-label="Hide debug panel"
+        >
+          <span class="material-icons">close</span>
         </button>
+      </div>
+      <div class="pron-debug__grid">
+        <div>
+          <span>audioLevel</span><code>{{ audioLevel | number: "1.3-4" }}</code>
+        </div>
+        <div>
+          <span>isSilent (live)</span><code>{{ isSilent }}</code>
+        </div>
+        <div>
+          <span>thresholds</span>
+          <code *ngIf="lastAdaptiveThresholds; else noThr">
+            avg={{ lastAdaptiveThresholds.minAverageLevel | number: "1.3-4" }} ·
+            peak={{ lastAdaptiveThresholds.minPeakLevel | number: "1.3-4" }} ·
+            dur={{ lastAdaptiveThresholds.minDurationMs }}ms ·
+            {{ lastAdaptiveThresholds.source }} ({{
+              lastAdaptiveThresholds.sampleCount
+            }}/5)
+            <ng-container *ngIf="lastAdaptiveThresholds.deviceTuned"
+              >· tuned</ng-container
+            >
+          </code>
+          <ng-template #noThr><code>—</code></ng-template>
+        </div>
+        <div>
+          <span>device</span
+          ><code>{{ deviceInfo?.deviceType }} · {{ deviceInfo?.browser }}</code>
+        </div>
+        <ng-container *ngIf="lastPronDebugSnapshot as snap">
+          <div>
+            <span>last peak/avg</span>
+            <code>
+              peak={{ snap.stats.peak | number: "1.3-4" }} · avg={{
+                snap.stats.average | number: "1.3-4"
+              }}
+              · dur={{ snap.stats.durationMs }}ms
+            </code>
+          </div>
+          <div>
+            <span>silence decision</span><code>{{ snap.silenceReason }}</code>
+          </div>
+          <div>
+            <span>transcript</span
+            ><code title="{{ snap.transcript }}"
+              >"{{ snap.transcript || "—" }}"</code
+            >
+          </div>
+          <div>
+            <span>score / confidence</span>
+            <code
+              >{{ snap.score }}% · {{ snap.confidence || "—"
+              }}<ng-container *ngIf="snap.assistedMode">
+                · assisted</ng-container
+              ></code
+            >
+          </div>
+          <div>
+            <span>retryCount</span><code>{{ snap.retryCount }}</code>
+          </div>
+        </ng-container>
+      </div>
+    </div>
+
+    <!-- Player Header (hidden for video-only — exit is on the video stage) -->
+    <div class="player-header" *ngIf="!isVideoOnlyExercise">
+      <div class="player-header-top">
+        <button
+          class="btn-icon-back btn-back-nav"
+          (click)="goBack()"
+          title="Go back"
+        >
+          <span class="material-icons">arrow_back</span>
+          <span class="btn-back-label">Back</span>
+        </button>
+        <div class="assessment-header-right">
+          <div class="timer">
+            <span class="material-icons">schedule</span>
+            Remaining: {{ formatTime(sessionRemainingSeconds) }}
+          </div>
+        </div>
+      </div>
+      <div class="header-center">
+        <div class="header-title-progress">
+          <div class="exercise-title-sm">{{ exercise?.title }}</div>
+          <div class="progress-text">
+            {{ answeredCount }} / {{ playerQuestions.length }} attempted
+          </div>
+        </div>
+        <div class="progress-ring-wrap">
+          <svg class="progress-ring-svg" viewBox="0 0 36 36">
+            <circle
+              class="progress-ring-track"
+              cx="18"
+              cy="18"
+              r="15.9155"
+              fill="none"
+              stroke-width="3"
+            />
+            <circle
+              class="progress-ring-bar"
+              cx="18"
+              cy="18"
+              r="15.9155"
+              fill="none"
+              stroke-width="3"
+              stroke-linecap="round"
+              transform="rotate(-90 18 18)"
+              [attr.stroke-dasharray]="progressRingCircumference"
+              [attr.stroke-dashoffset]="progressRingOffset"
+            />
+          </svg>
+          <span class="progress-ring-label"
+            >{{ getProgressPercentage() }}%</span
+          >
+        </div>
       </div>
     </div>
 
@@ -218,340 +809,3270 @@
         <span class="material-icons">headphones</span>
         Audio
       </div>
-      <audio class="shared-audio" [src]="getMediaFullUrl(exercise?.sharedAudioUrl)" controls></audio>
+      <audio
+        class="shared-audio"
+        [src]="getMediaFullUrl(exercise?.sharedAudioUrl)"
+        controls
+      ></audio>
     </div>
 
-    <!-- Three-column layout: Left info | Middle answer | Right nav -->
-    <div class="player-three-col" *ngIf="playerQuestions.length > 0">
-      <!-- LEFT: Exercise info -->
-      <aside class="info-sidebar">
-        <div class="info-badges">
-          <span class="level-badge" [style.background]="exerciseService.getLevelColor(exercise?.level || 'A1')">{{ exercise?.level }}</span>
-          <span class="cat-badge">{{ exercise?.category }}</span>
-          <span class="diff-badge">{{ exercise?.difficulty }}</span>
-        </div>
-        <h2 class="info-title">{{ exercise?.title }}</h2>
-        <p class="info-desc">{{ exercise?.description }}</p>
-        <div class="info-summary">
-          <div class="info-stat">
-            <span class="material-icons">quiz</span>
-            <div><strong>{{ playerQuestions.length }}</strong> Questions</div>
-          </div>
-          <div class="info-stat">
-            <span class="material-icons">schedule</span>
-            <div><strong>~{{ exercise?.estimatedDuration || 15 }} min</strong> Estimated</div>
-          </div>
-          <div class="info-stat">
-            <span class="material-icons">stars</span>
-            <div><strong>{{ totalPoints }}</strong> Total Points</div>
-          </div>
-        </div>
-        <div class="info-specs">
-          <div class="spec-label">Question types</div>
-          <div class="spec-pills">
-            <span *ngFor="let qt of getQuestionTypes()" class="spec-pill" [ngClass]="'pill-' + qt.type">
-              <span class="material-icons">{{ qt.icon }}</span>
-              {{ qt.indices.join(', ') }}: {{ qt.label }}
-            </span>
-          </div>
-        </div>
-      </aside>
-
-      <!-- MIDDLE: Question + Answer area -->
-      <div class="question-area">
-      <div class="question-card" [class]="'q-type-' + currentQuestion.data.type">
-
-        <!-- Question Header -->
-        <div class="q-header">
-          <span class="q-num">QUESTION {{ currentIndex + 1 }}</span>
-          <span class="q-type-label" [class]="'label-' + currentQuestion.data.type">
-            <span class="material-icons">{{ getTypeIcon(currentQuestion.data.type) }}</span>
-            {{ getTypeLabel(currentQuestion.data.type) }}
-          </span>
-          <span class="q-points">{{ currentQuestion.data.points || 1 }} marks</span>
-        </div>
-
-        <!-- ── MCQ ── -->
-        <div class="q-body" *ngIf="currentQuestion.data.type === 'mcq'">
-          <p class="q-text">{{ currentQuestion.data.question }}</p>
-          <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
-            <img [src]="currentQuestion.data.imageUrl" alt="Question image" class="q-image" />
-          </div>
-          <div class="mcq-options">
-            <button
-              *ngFor="let opt of currentQuestion.data.options; let oi = index"
-              class="mcq-option"
-              [class.selected]="currentQuestion.selectedOption === oi"
-              [class.correct]="hasCurrentSubmitted && oi === currentQuestion.data.correctAnswerIndex"
-              [class.wrong]="hasCurrentSubmitted && currentQuestion.selectedOption === oi && oi !== currentQuestion.data.correctAnswerIndex"
-              [class.disabled]="hasCurrentSubmitted"
-              (click)="selectOption(currentQuestion, oi)"
-            >
-              <span class="opt-letter">{{ 'ABCD'[oi] }}</span>
-              <span class="opt-text">{{ opt }}</span>
-              <span class="opt-icon" *ngIf="hasCurrentSubmitted">
-                <span class="material-icons" *ngIf="oi === currentQuestion.data.correctAnswerIndex">check_circle</span>
-                <span class="material-icons" *ngIf="currentQuestion.selectedOption === oi && oi !== currentQuestion.data.correctAnswerIndex">cancel</span>
-              </span>
-            </button>
-          </div>
-          <div class="q-feedback-incorrect" *ngIf="hasCurrentSubmitted && !currentQuestion.isCorrect">
-            Your submitted response was incorrect.
-          </div>
-          <div class="q-explanation" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
-            <span class="material-icons">lightbulb</span>
-            {{ currentQuestion.feedback }}
-          </div>
-        </div>
-
-        <!-- ── MATCHING ── -->
-        <div class="q-body" *ngIf="currentQuestion.data.type === 'matching'">
-          <p class="q-text">{{ currentQuestion.data.instruction }}</p>
-          <div class="matching-container">
-            <div class="matching-col left-col">
-              <div class="matching-col-label">Match these...</div>
+    <!-- Video-only: framed shell (85% × 88%) → three columns inside -->
+    <div
+      class="player-vp-chat-frame"
+      *ngIf="playerQuestions.length > 0 && isVideoOnlyExercise"
+    >
+      <div class="player-vp-chat-layout">
+        <aside class="vp-details-cards">
+          <div
+            class="vp-detail-card vp-detail-card--info vp-detail-card--rich"
+          >
+            <div class="vp-detail-header">
+              <span class="vp-detail-card-label">Exercise</span>
               <button
-                *ngFor="let item of currentQuestion.matchingLeft; let li = index"
-                class="match-item left-item"
-                [ngClass]="getLeftMatchClass(currentQuestion, li)"
-                [class.selected]="currentQuestion.selectedLeftIndex === li"
-                [class.matched]="item.matchedRightIndex !== null"
-                [class.correct]="hasCurrentSubmitted && isMatchCorrect(currentQuestion, li)"
-                [class.wrong]="hasCurrentSubmitted && !isMatchCorrect(currentQuestion, li)"
-                (click)="selectLeft(currentQuestion, li)"
+                class="btn-icon-back btn-back-nav"
+                (click)="goBack()"
+                title="Go back"
               >
-                {{ item.value }}
-                <span
-                  class="match-badge"
-                  *ngIf="item.matchedRightIndex !== null"
-                >
-                  {{ isMatchCorrect(currentQuestion, li) ? '✓' : '✕' }}
-                </span>
+                <span class="material-icons">arrow_back</span>
+                <span class="btn-back-label">Back</span>
               </button>
             </div>
-            <div class="matching-connector">
-              <div class="connector-lines">
-                <div *ngFor="let item of currentQuestion.matchingLeft; let li = index" class="connector-dot"></div>
+            <div>
+              <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
+              <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
+                {{ exercise?.description }}
+              </p>
+            </div>
+            <div class="vp-detail-specs-row">
+              <div class="vp-detail-spec-item">Journey to Germany</div>
+              <div class="vp-detail-spec-item" *ngIf="exercise?.category">
+                {{ exercise?.category }}
+              </div>
+              <div class="vp-detail-spec-item">
+                <span
+                  class="vp-detail-pill level vp-detail-pill--inline"
+                  [style.background]="
+                    exerciseService.getLevelColor(exercise?.level || 'A1')
+                  "
+                  >{{ exercise?.level }}</span
+                >
+              </div>
+              <div class="vp-detail-spec-item">
+                ~{{ exercise?.estimatedDuration || 15 }} min
               </div>
             </div>
-            <div class="matching-col right-col">
-              <div class="matching-col-label">...with these</div>
-              <button
-                *ngFor="let item of currentQuestion.matchingRight; let ri = index"
-                class="match-item right-item"
-                [ngClass]="getRightMatchClass(currentQuestion, ri)"
-                [class.available]="item.matchedLeftIndex === null && currentQuestion.selectedLeftIndex !== null"
-                [class.matched]="item.matchedLeftIndex !== null"
-                [class.disabled]="item.matchedLeftIndex !== null"
-                [class.correct]="
-                  item.matchedLeftIndex !== null &&
-                  isMatchCorrect(currentQuestion, item.matchedLeftIndex)
-                "
-                [class.wrong]="
-                  item.matchedLeftIndex !== null &&
-                  !isMatchCorrect(currentQuestion, item.matchedLeftIndex)
-                "
-                (click)="selectRight(currentQuestion, ri)"
+            <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
+              <span
+                class="vp-detail-tag"
+                *ngFor="let t of exercise?.tags || []"
+                >{{ t }}</span
               >
-                {{ item.value }}
-              </button>
             </div>
-          </div>
-          <div class="matching-hint" *ngIf="currentQuestion.selectedLeftIndex !== null">
-            <span class="material-icons">info</span>
-            Now click the matching item on the right →
-          </div>
-          <div class="matching-reset" *ngIf="!hasCurrentSubmitted">
-            <button class="btn-text-sm" (click)="resetMatching(currentQuestion)">
-              <span class="material-icons">refresh</span> Reset matches
-            </button>
-          </div>
-        </div>
-
-        <!-- ── FILL IN THE BLANKS ── -->
-        <div class="q-body fill-blank-body" *ngIf="currentQuestion.data.type === 'fill-blank'">
-          <div class="hint-label" *ngIf="currentQuestion.data.hint">
-            <span class="material-icons">lightbulb</span>
-            Hint: {{ currentQuestion.data.hint }}
-          </div>
-          <div class="sentence-container">
-            <ng-container *ngFor="let part of getSentenceParts(currentQuestion.data.sentence); let pi = index">
-              <span class="sentence-part">{{ part }}</span>
-              <span class="blank-wrap" *ngIf="pi < getSentenceParts(currentQuestion.data.sentence).length - 1">
-                <input
-                  type="text"
-                  class="blank-input"
-                  [(ngModel)]="currentQuestion.fillAnswers![pi]"
-                  (ngModelChange)="markAttempted(currentQuestion)"
-                  [placeholder]="'blank ' + (pi + 1)"
-                  [class.correct]="hasCurrentSubmitted && isFillCorrect(currentQuestion, pi)"
-                  [class.wrong]="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)"
-                  [disabled]="hasCurrentSubmitted"
+            <div class="vp-ring-wrap">
+              <svg class="vp-ring-svg" viewBox="0 0 36 36">
+                <circle
+                  class="vp-ring-track"
+                  cx="18"
+                  cy="18"
+                  [attr.r]="vpRingR"
+                  fill="none"
+                  stroke-width="3"
                 />
-                <span class="blank-correct-val" *ngIf="hasCurrentSubmitted && !isFillCorrect(currentQuestion, pi)">
-                  → {{ getCorrectFillAnswer(currentQuestion, pi) }}
-                </span>
-              </span>
-            </ng-container>
-          </div>
-          <div class="fill-feedback" *ngIf="hasCurrentSubmitted && currentQuestion.feedback">
-            <span class="material-icons">lightbulb</span> {{ currentQuestion.feedback }}
-          </div>
-        </div>
-
-        <!-- ── PRONUNCIATION ── -->
-        <div class="q-body pronunciation-body" *ngIf="currentQuestion.data.type === 'pronunciation'">
-          <div class="pronunciation-word-card">
-            <div class="big-word">{{ currentQuestion.data.word }}</div>
-            <div class="word-phonetic" *ngIf="currentQuestion.data.phonetic">{{ currentQuestion.data.phonetic }}</div>
-            <div class="word-translation" *ngIf="currentQuestion.data.translation">
-              = {{ currentQuestion.data.translation }}
+                <circle
+                  class="vp-ring-bar"
+                  cx="18"
+                  cy="18"
+                  [attr.r]="vpRingR"
+                  fill="none"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  transform="rotate(-90 18 18)"
+                  [attr.stroke-dasharray]="vpRingCircumference"
+                  [attr.stroke-dashoffset]="vpRingOffset"
+                />
+              </svg>
+              <span class="vp-ring-label">{{ vpRingPercent }}%</span>
             </div>
-            <button class="btn-audio" *ngIf="currentQuestion.data.audioUrl" (click)="playAudio(currentQuestion.data.audioUrl)">
-              <span class="material-icons">volume_up</span> Listen
-            </button>
           </div>
-
-          <div class="pronunciation-controls">
-            <button
-              class="btn-record"
-              [class.recording]="currentQuestion.isRecording"
-              [class.has-result]="currentQuestion.hasRecorded"
-              (click)="currentQuestion.isRecording ? stopRecording(currentQuestion) : startRecording(currentQuestion)"
-              [disabled]="hasCurrentSubmitted"
+          <div class="vp-detail-card vp-detail-card--clips">
+            <span class="vp-detail-card-label"
+              >Clips · {{ playerQuestions.length }} total</span
             >
-              <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
-              <span>{{ currentQuestion.isRecording ? 'Stop' : (currentQuestion.hasRecorded ? 'Re-record' : 'Speak') }}</span>
-            </button>
-          </div>
-
-          <div class="pronunciation-result" *ngIf="currentQuestion.hasRecorded || hasCurrentSubmitted">
-            <div class="spoken-text">
-              <span class="material-icons">record_voice_over</span>
-              You said: "<em>{{ currentQuestion.spokenText || '—' }}</em>"
-            </div>
-            <div class="score-circle" [class]="getPronunciationClass(currentQuestion.pronunciationScore || 0)">
-              <div class="score-value">{{ currentQuestion.pronunciationScore || 0 }}%</div>
-              <div class="score-label">Match</div>
-            </div>
-            <div class="pronunciation-feedback">{{ getPronunciationFeedback(currentQuestion.pronunciationScore || 0) }}</div>
-          </div>
-
-          <div class="speech-not-supported" *ngIf="!speechSupported">
-            <span class="material-icons">warning</span>
-            Speech recognition is not supported in this browser.
-            Please use Chrome or Edge for pronunciation exercises.
-          </div>
-        </div>
-
-        <!-- Listening body -->
-        <div class="q-body listening-body" *ngIf="currentQuestion.data.type === 'listening'">
-          <div class="qa-prompt">{{ currentQuestion.data.prompt || 'Listen and type what you hear.' }}</div>
-          <div class="listening-audio-wrap" *ngIf="currentQuestion.data.mediaUrl">
-            <audio [src]="getMediaFullUrl(currentQuestion.data.mediaUrl)" controls></audio>
-          </div>
-          <label class="qa-input-label">Your Answer</label>
-          <div class="listening-input-row">
-            <textarea
-              class="qa-textarea"
-              rows="4"
-              placeholder="Type what you hear..."
-              [(ngModel)]="currentQuestion.listeningText"
-              (ngModelChange)="markAttempted(currentQuestion)"
-              [disabled]="hasCurrentSubmitted"
-            ></textarea>
-            <div *ngIf="currentQuestion.data.attemptMode === 'typing-or-speech' && speechSupported" class="listening-mic-wrap">
+            <div class="vp-clip-cells">
               <button
-                type="button"
-                class="btn-record"
-                [class.recording]="currentQuestion.isRecording"
-                [disabled]="hasCurrentSubmitted"
-                (click)="currentQuestion.isRecording ? stopListeningSpeech(currentQuestion) : startListeningSpeech(currentQuestion)"
+                *ngFor="let _ of playerQuestions; let i = index"
+                class="{{ vpClipCellClass(i) }}"
+                [class.vp-clip-cell--jumpable]="
+                  !(
+                    finishingAll ||
+                    submitting ||
+                    currentQuestion.isRecording ||
+                    currentQuestion.pronUiState === 'processing'
+                  )
+                "
+                [attr.title]="'Clip ' + (i + 1)"
+                [disabled]="
+                  finishingAll ||
+                  submitting ||
+                  currentQuestion.isRecording ||
+                  currentQuestion.pronUiState === 'processing'
+                "
+                (click)="goToQuestion(i)"
               >
-                <span class="material-icons">{{ currentQuestion.isRecording ? 'stop' : 'mic' }}</span>
-                {{ currentQuestion.isRecording ? 'Stop' : 'Speak' }}
+                {{ i + 1 }}
               </button>
             </div>
           </div>
+        </aside>
+
+        <div class="vp-video-col" *ngIf="currentQuestion.data.videoUrl">
+            <div class="vp-stage-video-column">
+              <div class="vp-stage-video-frame">
+                <div class="vp-stage-clip-badge" aria-label="Current clip">
+                  <span class="material-icons">videocam</span>
+                  <span
+                    >Clip {{ currentIndex + 1 }} · {{ currentIndex + 1 }}/{{
+                      playerQuestions.length
+                    }}</span
+                  >
+                </div>
+                <video
+                  class="vp-stage-video"
+                  [src]="getMediaFullUrl(currentQuestion.data.videoUrl)"
+                  controls
+                  playsinline
+                  webkit-playsinline
+                  preload="auto"
+                  disablePictureInPicture
+                  (loadeddata)="onVpVideoReady($event, currentQuestion)"
+                  (loadstart)="onVpLoadStart(currentQuestion)"
+                  (timeupdate)="onVpVideoTimeUpdate($event, currentQuestion)"
+                  (ended)="onVpVideoEnded($event, currentQuestion)"
+                ></video>
+
+                <!-- Darken on top of the last frame (still visible underneath) -->
+                <div
+                  class="vp-stage-scrim"
+                  *ngIf="vpPostPlayScrimVisible"
+                  aria-hidden="true"
+                ></div>
+
+                <div class="vp-stage-frame-ui">
+                  <div class="vp-stage-ui-head">
+                    <div
+                      class="vp-stage-turn-row"
+                      *ngIf="vpPostPlayScrimVisible && !showVpFinalSubmit"
+                    >
+                      <span class="vp-stage-kicker">Your turn</span>
+                      <span class="material-icons vp-stage-kicker-mic"
+                        >mic</span
+                      >
+                    </div>
+                    <div
+                      class="vp-stage-overlay-text vp-stage-overlay-text--in-frame"
+                      [class.vp-stage-overlay-text--playing]="
+                        !vpPostPlayScrimVisible
+                      "
+                    >
+                      <p
+                        class="vp-stage-sub"
+                        *ngIf="currentQuestion.data.context"
+                      >
+                        {{ currentQuestion.data.context }}
+                      </p>
+                      <h2 class="vp-stage-phrase">
+                        {{ getVpPromptCaption(currentQuestion) }}
+                      </h2>
+                      <p
+                        class="vp-stage-sub"
+                        *ngIf="currentQuestion.data.acceptedVariants?.length"
+                      >
+                        Also accepted:
+                        {{ currentQuestion.data.acceptedVariants.join(", ") }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="vp-stage-ui-center">
+                    <div
+                      class="vp-stage-final-submit"
+                      *ngIf="showVpFinalSubmit"
+                    >
+                      <button
+                        type="button"
+                        class="vp-stage-submit-cta"
+                        (click)="openFinishSummary()"
+                        [disabled]="
+                          finishingAll ||
+                          submitting ||
+                          !canCompleteByAttemptRate
+                        "
+                      >
+                        <span class="material-icons">send</span>
+                        Submit
+                      </button>
+                    </div>
+
+                    <div
+                      class="vp-stage-mic-block"
+                      *ngIf="
+                        !showVpFinalSubmit &&
+                        currentQuestion.vpPlaybackEnded &&
+                        (currentQuestion.vpResult === 'idle' ||
+                          !currentQuestion.vpResult) &&
+                        !currentQuestion.isRecording &&
+                        currentQuestion.pronUiState !== 'processing' &&
+                        !hasCurrentSubmitted
+                      "
+                    >
+                      <button
+                        type="button"
+                        class="vp-stage-mic-btn vp-stage-mic-btn--glass"
+                        (click)="startVideoPronunciation(currentQuestion)"
+                        title="Speak"
+                      >
+                        <span class="material-icons">mic</span>
+                      </button>
+                      <span class="vp-stage-mic-hint">{{
+                        pronUiLabel(currentQuestion)
+                      }}</span>
+                      <button
+                        type="button"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--subtle"
+                        (click)="openMicTest()"
+                        title="Check your microphone is working"
+                      >
+                        <span class="material-icons">settings_voice</span>
+                        Test microphone
+                      </button>
+                    </div>
+
+                    <div
+                      class="vp-stage-listening"
+                      *ngIf="currentQuestion.isRecording"
+                    >
+                      <span class="material-icons vp-stage-listening-icon"
+                        >mic</span
+                      >
+                      <span
+                        >🎤 Listening<span
+                          class="vp-listening-dots vp-listening-dots--light"
+                          aria-hidden="true"
+                          ><span>.</span><span>.</span><span>.</span></span
+                        ></span
+                      >
+                      <app-audio-visualizer
+                        class="vp-stage-visualizer"
+                        [analyser]="getPronAnalyser()"
+                        [active]="!!currentQuestion.isRecording"
+                      ></app-audio-visualizer>
+                      <button
+                        type="button"
+                        class="vp-stage-retry-btn"
+                        (click)="stopVideoPronunciation(currentQuestion)"
+                      >
+                        <span class="material-icons">stop</span>
+                        Stop
+                      </button>
+                    </div>
+
+                    <div
+                      class="vp-stage-listening"
+                      *ngIf="
+                        currentQuestion.pronUiState === 'processing' &&
+                        !currentQuestion.isRecording
+                      "
+                    >
+                      <span class="material-icons vp-stage-listening-icon"
+                        >hourglass_top</span
+                      >
+                      <span
+                        >Processing<span
+                          class="vp-listening-dots vp-listening-dots--light"
+                          aria-hidden="true"
+                          ><span>.</span><span>.</span><span>.</span></span
+                        ></span
+                      >
+                      <span
+                        class="vp-stage-processing-hint"
+                        *ngIf="pronProcessingSlow"
+                      >
+                        Processing your speech… this may take a moment.
+                      </span>
+                    </div>
+
+                    <div
+                      class="vp-stage-feedback-wrap"
+                      *ngIf="
+                        currentQuestion.vpResult === 'correct' ||
+                        currentQuestion.vpResult === 'almostCorrect' ||
+                        currentQuestion.vpResult === 'incorrect'
+                      "
+                    >
+                      <!-- Result banner -->
+                      <div
+                        class="vp-stage-feedback"
+                        [class.ok]="currentQuestion.vpResult === 'correct'"
+                        [class.almost]="
+                          currentQuestion.vpResult === 'almostCorrect'
+                        "
+                        [class.bad]="currentQuestion.vpResult === 'incorrect'"
+                        [class.vp-wrong-feedback-hide-on-mobile]="
+                          currentQuestion.vpResult !== 'correct'
+                        "
+                      >
+                        <span class="material-icons">
+                          {{
+                            currentQuestion.vpResult === "correct"
+                              ? "check_circle"
+                              : currentQuestion.vpResult === "almostCorrect"
+                                ? "star_half"
+                                : "cancel"
+                          }}
+                        </span>
+                        <span>
+                          {{
+                            currentQuestion.vpResult === "correct"
+                              ? isVideoOnlyExercise
+                                ? "Got it!"
+                                : "Correct!"
+                              : currentQuestion.vpResult === "almostCorrect"
+                                ? "Almost there — try once more"
+                                : "Let's try again"
+                          }}
+                        </span>
+                      </div>
+
+                      <p
+                        class="vp-stage-feedback-caption"
+                        *ngIf="vpFeedbackCaption"
+                        [class.vp-wrong-minimal-hide-on-mobile]="
+                          currentQuestion.vpResult !== 'correct'
+                        "
+                      >
+                        {{ vpFeedbackCaption }}
+                      </p>
+
+                      <p
+                        class="vp-stage-confidence"
+                        *ngIf="
+                          lastConfidenceByIndex[currentQuestion.index] as conf
+                        "
+                        [class.vp-wrong-minimal-hide-on-mobile]="
+                          currentQuestion.vpResult !== 'correct'
+                        "
+                        [class.vp-stage-confidence--high]="conf === 'high'"
+                        [class.vp-stage-confidence--medium]="conf === 'medium'"
+                        [class.vp-stage-confidence--low]="conf === 'low'"
+                      >
+                        {{ confidenceHeadline(conf) }}
+                      </p>
+                      <p
+                        class="pron-confidence-nudge"
+                        *ngIf="
+                          confidenceNudge(
+                            lastConfidenceByIndex[currentQuestion.index]
+                          )
+                        "
+                        [class.vp-wrong-minimal-hide-on-mobile]="
+                          currentQuestion.vpResult !== 'correct'
+                        "
+                      >
+                        {{
+                          confidenceNudge(
+                            lastConfidenceByIndex[currentQuestion.index]
+                          )
+                        }}
+                      </p>
+                      <div
+                        class="pron-audio-quality-banner"
+                        *ngIf="currentQuestion.pronLowAudioQuality"
+                      >
+                        Your microphone input seems low. Try speaking louder or
+                        closer to the mic.
+                      </div>
+
+                      <!-- Comparison: spoken vs expected -->
+                      <app-pronunciation-comparison-view
+                        *ngIf="
+                          currentQuestion.vpSpokenText ||
+                          currentQuestion.vpExpectedText
+                        "
+                        [expectedText]="currentQuestion.vpExpectedText || ''"
+                        [transcriptText]="currentQuestion.vpSpokenText || ''"
+                        [missingWords]="currentQuestion.pronMissingWords || []"
+                        [extraWords]="currentQuestion.pronExtraWords || []"
+                        [matchedWords]="currentQuestion.pronMatchedWords || []"
+                      ></app-pronunciation-comparison-view>
+                      <p
+                        class="vp-stage-transcript"
+                        *ngIf="
+                          currentQuestion.vpResult === 'correct' &&
+                          currentQuestion.vpSpokenText
+                        "
+                      >
+                        <span class="vp-stage-transcript__label"
+                          >You said:</span
+                        >
+                        <span class="vp-stage-transcript__text"
+                          >"{{ currentQuestion.vpSpokenText }}"</span
+                        >
+                      </p>
+
+                      <!-- Word-level analysis chips -->
+                      <div
+                        class="vp-stage-word-analysis vp-wrong-minimal-hide-on-mobile"
+                        *ngIf="
+                          currentQuestion.vpResult !== 'correct' &&
+                          currentQuestion.vpWordAnalysis &&
+                          currentQuestion.vpWordAnalysis.length > 0
+                        "
+                      >
+                        <span class="vp-stage-word-analysis-label"
+                          >Word breakdown:</span
+                        >
+                        <div class="pron-word-chips">
+                          <span
+                            *ngFor="let w of currentQuestion.vpWordAnalysis"
+                            class="pron-chip"
+                            [class.pron-chip--correct]="w.status === 'correct'"
+                            [class.pron-chip--incorrect]="
+                              w.status === 'incorrect'
+                            "
+                            [class.pron-chip--missing]="w.status === 'missing'"
+                            [title]="
+                              w.status === 'missing'
+                                ? 'Missing'
+                                : 'You said: ' + (w.spoken || '—')
+                            "
+                          >
+                            {{ w.expected }}
+                            <span class="pron-chip-icon material-icons">
+                              {{
+                                w.status === "correct"
+                                  ? "check"
+                                  : w.status === "missing"
+                                    ? "remove"
+                                    : "close"
+                              }}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Hints -->
+                      <div
+                        class="vp-stage-hints vp-wrong-minimal-hide-on-mobile"
+                        *ngIf="
+                          currentQuestion.vpResult !== 'correct' &&
+                          currentQuestion.vpHints &&
+                          currentQuestion.vpHints.length > 0
+                        "
+                      >
+                        <p
+                          class="pron-hint"
+                          *ngFor="let h of currentQuestion.vpHints"
+                        >
+                          <span class="material-icons">lightbulb</span> {{ h }}
+                        </p>
+                      </div>
+
+                      <p
+                        class="vp-stage-retry-nudge vp-stage-retry-nudge--almost vp-wrong-minimal-hide-on-mobile"
+                        *ngIf="currentQuestion.vpResult === 'almostCorrect'"
+                      >
+                        🔶 So close! You can retry for full credit or continue.
+                      </p>
+                      <p
+                        class="vp-stage-retry-nudge vp-wrong-minimal-hide-on-mobile"
+                        *ngIf="currentQuestion.vpResult === 'incorrect'"
+                      >
+                        ❌ Not quite right — 👉 try again clearly.
+                      </p>
+                      <div
+                        class="pron-help-wrap"
+                        *ngIf="shouldShowNeedHelp(currentQuestion)"
+                        [class.vp-wrong-minimal-hide-on-mobile]="
+                          currentQuestion.vpResult !== 'correct'
+                        "
+                      >
+                        <button
+                          type="button"
+                          class="btn-record btn-record--subtle"
+                          (click)="togglePronHelp(currentQuestion)"
+                        >
+                          <span class="material-icons">help_outline</span>
+                          Need help?
+                        </button>
+                        <div
+                          class="pron-help-chunks"
+                          *ngIf="currentQuestion.pronHelpOpen"
+                        >
+                          <span
+                            class="pron-help-chip"
+                            *ngFor="
+                              let c of expectedChunks(
+                                currentQuestion.vpExpectedText || ''
+                              )
+                            "
+                            >{{ c }}</span
+                          >
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn-record btn-record--subtle pron-mark-correct-btn"
+                        *ngIf="shouldShowMarkAsCorrect(currentQuestion)"
+                        [class.vp-wrong-minimal-hide-on-mobile]="
+                          currentQuestion.vpResult !== 'correct'
+                        "
+                        (click)="markCurrentAsCorrect(currentQuestion)"
+                      >
+                        <span class="material-icons">check_circle</span>
+                        Mark as correct
+                      </button>
+
+                      <!-- Almost-correct actions -->
+                      <div
+                        class="vp-stage-feedback-actions"
+                        *ngIf="currentQuestion.vpResult === 'almostCorrect'"
+                      >
+                        <button
+                          type="button"
+                          class="vp-stage-retry-btn"
+                          (click)="
+                            speakAgainVideoPronunciation(currentQuestion)
+                          "
+                        >
+                          <span class="material-icons">mic</span> Try again
+                        </button>
+                        <button
+                          type="button"
+                          class="vp-stage-pill vp-stage-pill--ghost vp-wrong-action-hide-on-mobile"
+                          (click)="replayReferenceForRetry(currentQuestion)"
+                          title="Replay the reference sentence"
+                        >
+                          <span class="material-icons">replay</span>
+                          Replay sentence
+                        </button>
+                        <button
+                          *ngIf="!isLastQuestion"
+                          type="button"
+                          class="vp-stage-pill vp-stage-pill--continue"
+                          (click)="goToNextClipAfterIncorrect()"
+                          [disabled]="finishingAll || submitting"
+                        >
+                          <span class="material-icons">skip_next</span>
+                          Continue anyway
+                        </button>
+                        <button
+                          *ngIf="isLastQuestion"
+                          type="button"
+                          class="vp-stage-pill vp-stage-pill--finish"
+                          (click)="finishVideoExercise()"
+                          [disabled]="
+                            finishingAll ||
+                            submitting ||
+                            !canCompleteByAttemptRate
+                          "
+                        >
+                          <span class="material-icons">flag</span>
+                          {{ finishingAll ? "Submitting…" : "Submit Exercise" }}
+                        </button>
+                      </div>
+
+                      <!-- Incorrect actions -->
+                      <div
+                        class="vp-stage-feedback-actions"
+                        *ngIf="currentQuestion.vpResult === 'incorrect'"
+                      >
+                        <button
+                          type="button"
+                          class="vp-stage-retry-btn"
+                          (click)="
+                            speakAgainVideoPronunciation(currentQuestion)
+                          "
+                        >
+                          <span class="material-icons">mic</span> Speak again
+                        </button>
+                        <button
+                          type="button"
+                          class="vp-stage-pill vp-stage-pill--ghost vp-wrong-action-hide-on-mobile"
+                          (click)="replayReferenceForRetry(currentQuestion)"
+                          title="Replay the reference sentence"
+                        >
+                          <span class="material-icons">replay</span>
+                          Replay sentence
+                        </button>
+                        <button
+                          *ngIf="!isLastQuestion"
+                          type="button"
+                          class="vp-stage-pill vp-stage-pill--ghost"
+                          (click)="goToNextClipAfterIncorrect()"
+                          [disabled]="finishingAll || submitting"
+                        >
+                          <span class="material-icons">skip_next</span>
+                          Go to next clip
+                        </button>
+                        <button
+                          *ngIf="isLastQuestion"
+                          type="button"
+                          class="vp-stage-pill vp-stage-pill--finish"
+                          (click)="finishVideoExercise()"
+                          [disabled]="
+                            finishingAll ||
+                            submitting ||
+                            !canCompleteByAttemptRate
+                          "
+                        >
+                          <span class="material-icons">flag</span>
+                          {{ finishingAll ? "Submitting…" : "Submit Exercise" }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="vp-stage-ui-foot"
+                    *ngIf="
+                      !showVpFinalSubmit &&
+                      currentQuestion.vpPlaybackEnded &&
+                      (currentQuestion.vpResult === 'idle' ||
+                        !currentQuestion.vpResult) &&
+                      !currentQuestion.isRecording &&
+                      !hasCurrentSubmitted
+                    "
+                  >
+                    <button
+                      type="button"
+                      class="vp-stage-foot-pill"
+                      (click)="replayVpVideo()"
+                    >
+                      <span class="material-icons">replay</span>
+                      Replay
+                    </button>
+                  </div>
+                  <div
+                    class="vp-stage-admin-controls"
+                    *ngIf="isStaffTester && !currentQuestion.isRecording"
+                  >
+                    <button
+                      type="button"
+                      class="vp-stage-admin-pill"
+                      (click)="toggleVpVideoPlayback()"
+                    >
+                      <span class="material-icons">{{
+                        isVpVideoPaused ? "play_arrow" : "pause"
+                      }}</span>
+                      {{ isVpVideoPaused ? "Play" : "Pause" }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
         </div>
 
-        <!-- Question / Answer body -->
-        <div class="q-body qa-body" *ngIf="currentQuestion.data.type === 'question-answer'">
-          <div class="qa-prompt">{{ currentQuestion.data.prompt }}</div>
-          <label class="qa-input-label">Your Answer</label>
-          <textarea
-            class="qa-textarea"
-            rows="4"
-            placeholder="Write your answer here..."
-            [(ngModel)]="currentQuestion.qaResponse"
-            (ngModelChange)="markAttempted(currentQuestion)"
-            [disabled]="hasCurrentSubmitted"
-          ></textarea>
-          <div class="qa-hint" *ngIf="hasCurrentSubmitted && currentQuestion.data.sampleAnswers?.length">
-            <strong>Sample answers:</strong>
-            <span *ngFor="let sa of currentQuestion.data.sampleAnswers; let si = index">
-              {{ sa }}<span *ngIf="si < currentQuestion.data.sampleAnswers.length - 1">; </span>
-            </span>
-          </div>
-        </div>
+        <aside
+          class="vp-chat-panel--studio"
+          [attr.aria-busy]="currentQuestion.isRecording ? 'true' : null"
+        >
+          <header class="vp-chat-topbar">
+            <div class="vp-chat-brand">
+              <div
+                class="vp-chat-brand-avatar vp-chat-brand-avatar--fox"
+                aria-hidden="true"
+              >
+                <img
+                  src="assets/images/practice-partner-fox.svg"
+                  alt=""
+                  width="48"
+                  height="48"
+                />
+              </div>
+              <div class="vp-chat-brand-text">
+                <div class="vp-chat-brand-name">Practice partner</div>
+                <div class="vp-chat-brand-tagline">
+                  {{ exercise?.targetLanguage || "German" }} · your learning
+                  buddy
+                </div>
+              </div>
+            </div>
+            <div class="vp-chat-live-pill">
+              <span class="vp-chat-live-dot" aria-hidden="true"></span>
+              Live
+            </div>
+          </header>
 
-        <!-- Result Banner -->
-        <div class="result-banner" *ngIf="hasCurrentSubmitted && currentQuestion.isCorrect !== null">
-          <div class="result-correct" *ngIf="currentQuestion.isCorrect">
-            <span class="material-icons">check_circle</span> Correct! +{{ currentQuestion.data.points || 1 }} point{{ currentQuestion.data.points !== 1 ? 's' : '' }}
+          <div
+            class="vp-chat-lesson-pill vp-chat-lesson-pill--highlight"
+            *ngIf="exercise?.category || exercise?.title"
+          >
+            <span class="material-icons">menu_book</span>
+            <span class="vp-chat-lesson-text"
+              >{{ exercise?.title || "Lesson"
+              }}<ng-container *ngIf="exercise?.category">
+                · {{ exercise?.category }}</ng-container
+              ></span
+            >
           </div>
-          <div class="result-wrong" *ngIf="!currentQuestion.isCorrect">
-            <span class="material-icons">cancel</span> Incorrect
-          </div>
-        </div>
 
-        <!-- Navigation Buttons (inside card) -->
-        <div class="question-nav-btns">
-          <button class="btn-nav btn-prev" (click)="prevQuestion()" [disabled]="isFirstQuestion || finishingAll">
-            <span class="material-icons">arrow_back</span> Previous
-          </button>
-          <button class="btn-nav btn-next" *ngIf="!isLastQuestion" (click)="nextQuestion()" [disabled]="finishingAll">
-            Next <span class="material-icons">arrow_forward</span>
-          </button>
-          <button class="btn-submit btn-finish" *ngIf="isLastQuestion" (click)="openFinishSummary()" [disabled]="finishingAll">
-            <span class="material-icons">{{ finishingAll ? 'hourglass_empty' : 'flag' }}</span>
-            {{ finishingAll ? 'Finishing...' : 'Finish & Submit' }}
-          </button>
-        </div>
+          <div
+            class="vp-chat-scroll-wrap"
+            [class.vp-chat-scroll-wrap--listening]="currentQuestion.isRecording"
+          >
+            <div class="vp-chat-scroll" #vpChatScroll>
+              <ng-container *ngFor="let m of vpChatMessages">
+                <!-- Tutor / bot -->
+                <div
+                  *ngIf="m.role === 'tutor'"
+                  class="vp-chat-msg vp-chat-msg--bot"
+                >
+                  <div
+                    class="vp-chat-msg-avatar vp-chat-msg-avatar--fox"
+                    aria-hidden="true"
+                  >
+                    <img
+                      src="assets/images/practice-partner-fox.svg"
+                      alt=""
+                      width="34"
+                      height="34"
+                    />
+                  </div>
+                  <div class="vp-chat-msg-stack">
+                    <span class="vp-chat-bot-label">Tutor</span>
+                    <div
+                      class="vp-chat-bubble vp-chat-bubble--cream"
+                      [class.vp-chat-bubble--your-turn]="m.kind === 'your-turn'"
+                      [class.vp-chat-bubble--clip-watch]="
+                        m.kind === 'clip-watch'
+                      "
+                      [class.vp-chat-bubble--intro]="m.kind === 'intro'"
+                    >
+                      <p
+                        class="vp-chat-bubble-text"
+                        [class.vp-chat-bubble-text--your-turn]="
+                          m.kind === 'your-turn'
+                        "
+                        [class.vp-chat-bubble-text--clip-watch]="
+                          m.kind === 'clip-watch'
+                        "
+                        [class.vp-chat-bubble-text--intro]="m.kind === 'intro'"
+                      >
+                        <ng-container
+                          *ngIf="
+                            getTutorCaptionParts(m.text) as parts;
+                            else plainTutorText
+                          "
+                        >
+                          {{ parts.before
+                          }}<span class="vp-chat-caption-value">{{
+                            parts.value
+                          }}</span
+                          >{{ parts.after }}
+                        </ng-container>
+                        <ng-template #plainTutorText>{{ m.text }}</ng-template>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- User -->
+                <div
+                  *ngIf="m.role === 'user'"
+                  class="vp-chat-msg vp-chat-msg--user"
+                >
+                  <div class="vp-chat-msg-stack vp-chat-msg-stack--end">
+                    <div class="vp-chat-bubble vp-chat-bubble--user">
+                      <p class="vp-chat-user-quote">"{{ m.text }}"</p>
+                      <p class="vp-chat-match-line" *ngIf="m.score != null">
+                        Match: {{ m.score }}%
+                      </p>
+                    </div>
+                    <div
+                      class="vp-chat-success-strip"
+                      *ngIf="m.isCorrect === true || m.isCorrect === false"
+                      [class.vp-chat-success-strip--ok]="m.isCorrect === true"
+                      [class.vp-chat-success-strip--retry]="
+                        m.isCorrect === false
+                      "
+                    >
+                      <span class="material-icons">{{
+                        m.isCorrect ? "check_circle" : "tips_and_updates"
+                      }}</span>
+                      <span>{{
+                        m.isCorrect
+                          ? "Nice! Great pronunciation."
+                          : "Keep going — listen and try again."
+                      }}</span>
+                    </div>
+                  </div>
+                  <div class="vp-chat-user-cap" aria-hidden="true">
+                    <span class="material-icons">school</span>
+                  </div>
+                </div>
+              </ng-container>
+
+              <!-- In-thread “listening” row (same layout as tutor messages) -->
+              <div
+                *ngIf="currentQuestion.isRecording"
+                class="vp-chat-msg vp-chat-msg--bot vp-chat-msg--listening-thread"
+                role="status"
+                aria-live="polite"
+                aria-label="Listening for your speech"
+              >
+                <div
+                  class="vp-chat-msg-avatar vp-chat-msg-avatar--fox"
+                  aria-hidden="true"
+                >
+                  <img
+                    src="assets/images/practice-partner-fox.svg"
+                    alt=""
+                    width="34"
+                    height="34"
+                  />
+                </div>
+                <div class="vp-chat-msg-stack">
+                  <span class="vp-chat-bot-label">Tutor</span>
+                  <div
+                    class="vp-chat-bubble vp-chat-bubble--cream vp-chat-bubble--listening-chat"
+                  >
+                    <p
+                      class="vp-chat-bubble-text vp-chat-bubble-text--listening"
+                    >
+                      Listening<span
+                        class="vp-listening-dots"
+                        aria-hidden="true"
+                        ><span>.</span><span>.</span><span>.</span></span
+                      >
+                    </p>
+                    <p class="vp-chat-listening-inline-hint">
+                      Keep speaking — I’m capturing your voice.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
 
-      <!-- RIGHT: Question Navigator + Status -->
-      <aside class="question-sidebar">
-        <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
-        <div class="question-nav-grid">
-          <button
-            *ngFor="let pq of playerQuestions; let i = index"
-            class="q-dot"
-            [ngClass]="getQuestionTypeClass(pq)"
-            [class.current]="i === currentIndex"
-            [class.answered]="pq.isAnswered"
-            [class.correct]="pq.isCorrect === true"
-            [class.wrong]="pq.isCorrect === false"
-            (click)="goToQuestion(i)"
-            [title]="'Question ' + (i + 1) + ' - ' + getTypeLabel(pq.data.type)"
-          >{{ i + 1 }}</button>
+    <!-- Three-column layout: Left info | Middle answer | Right nav -->
+    <div
+      class="player-three-col"
+      *ngIf="playerQuestions.length > 0 && !isVideoOnlyExercise"
+    >
+      <div class="player-side-col">
+        <!-- LEFT: Exercise info -->
+        <aside class="info-sidebar">
+          <div class="info-badges">
+            <span
+              class="level-badge"
+              [style.background]="
+                exerciseService.getLevelColor(exercise?.level || 'A1')
+              "
+              >{{ exercise?.level }}</span
+            >
+            <span class="cat-badge">{{ exercise?.category }}</span>
+            <span class="diff-badge">{{ exercise?.difficulty }}</span>
+          </div>
+          <h2 class="info-title">{{ exercise?.title }}</h2>
+          <p class="info-desc">{{ exercise?.description }}</p>
+          <div class="info-summary">
+            <div class="info-stat">
+              <span class="material-icons info-stat-icon">quiz</span>
+              <div>
+                <strong>{{ playerQuestions.length }}</strong> Questions
+              </div>
+            </div>
+            <div class="info-stat">
+              <span class="material-icons info-stat-icon">schedule</span>
+              <div>
+                <strong>~{{ exercise?.estimatedDuration || 15 }} min</strong>
+                Estimated
+              </div>
+            </div>
+            <div class="info-stat">
+              <span class="material-icons info-stat-icon">stars</span>
+              <div>
+                <strong>{{ totalPoints }}</strong> Total Points
+              </div>
+            </div>
+          </div>
+          <div class="info-specs desktop-only">
+            <div class="spec-label">Question types</div>
+            <div class="spec-pills">
+              <span
+                *ngFor="let qt of getQuestionTypes()"
+                class="spec-pill"
+                [ngClass]="'pill-' + qt.type"
+              >
+                <span class="material-icons">{{ qt.icon }}</span>
+                {{ qt.label }}: {{ qt.indices.join(", ") }}
+              </span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- RIGHT (now below LEFT): Question Navigator + Status -->
+        <aside class="question-sidebar">
+          <div class="sidebar-header">
+            <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
+            <button
+              type="button"
+              class="sidebar-refetch-media"
+              (click)="refetchMediaFromR2()"
+              [disabled]="mediaRefetchInProgress"
+              title="Reload audio from cloud storage if files are missing"
+            >
+              <span class="material-icons">{{
+                mediaRefetchInProgress ? "hourglass_empty" : "cloud_download"
+              }}</span>
+              {{ mediaRefetchInProgress ? "Checking…" : "Refetch media" }}
+            </button>
+          </div>
+          <div class="question-nav-grid">
+            <button
+              *ngFor="let pq of playerQuestions; let i = index"
+              class="q-dot"
+              [ngClass]="getQuestionTypeClass(pq)"
+              [class.current]="i === currentIndex"
+              [class.answered]="pq.isAnswered"
+              [class.correct]="pq.isCorrect === true"
+              [class.wrong]="pq.isCorrect === false"
+              (click)="goToQuestion(i)"
+              [title]="
+                'Question ' +
+                (i + 1) +
+                ' - ' +
+                getQuestionTypeLabelForDisplay(pq.data)
+              "
+            >
+              {{ i + 1 }}
+            </button>
+          </div>
+
+          <!-- Mobile: Question types -->
+          <div class="info-specs mobile-only">
+            <div class="spec-label">Question types</div>
+            <div class="spec-pills">
+              <span
+                *ngFor="let qt of getQuestionTypes()"
+                class="spec-pill"
+                [ngClass]="'pill-' + qt.type"
+              >
+                <span class="material-icons">{{ qt.icon }}</span>
+                {{ qt.label }}: {{ qt.indices.join(", ") }}
+              </span>
+            </div>
+          </div>
+
+          <div class="status-legend">
+            <span class="status-item correct">
+              <span class="status-icon correct"></span>
+              {{ correctCount }} Correct
+            </span>
+            <span class="status-item wrong">
+              <span class="status-icon wrong"></span>
+              {{ wrongCount }} Wrong
+            </span>
+            <span class="status-item unanswered">
+              <span class="status-icon unanswered"></span>
+              {{ unattemptedCount }} Unanswered
+            </span>
+          </div>
+        </aside>
+      </div>
+
+      <!-- MIDDLE (now 70%): Question + Answer area -->
+      <div class="question-area">
+        <!-- Single Question View -->
+        <div
+          class="question-card"
+          [class]="'q-type-' + currentQuestion.data.type"
+          [class.q-card-passage-subs]="hasSubQuestions(currentQuestion.data)"
+        >
+          <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
+          <div
+            class="q-section-header"
+            *ngIf="getSectionTitle(currentIndex) as sec"
+          >
+            <span class="q-section-icon material-icons">layers</span>
+            <span class="q-section-text">{{ sec }}</span>
+          </div>
+
+          <!-- Question Header -->
+          <div class="q-header">
+            <span class="q-num">QUESTION {{ currentIndex + 1 }}</span>
+            <span
+              class="q-type-label"
+              [class]="'label-' + currentQuestion.data.type"
+            >
+              <span class="material-icons">{{
+                getTypeIcon(currentQuestion.data.type)
+              }}</span>
+              <span class="q-type-text">
+                {{ getQuestionTypeLabelForDisplay(currentQuestion.data) }}
+              </span>
+            </span>
+            <span class="q-points"
+              >{{ currentQuestion.data.points || 1 }} marks</span
+            >
+          </div>
+
+          <!-- Guidance: 1. Instruction → 2. Example → 3. Context (+ TF reading passage), then q-body: 4. Question(s) → 5. Shared image (after sub-questions when present) -->
+          <div
+            class="q-guidance-stack"
+            *ngIf="
+              worksheetInstructionDisplay(currentQuestion.data) ||
+              currentQuestion.data.example ||
+              currentQuestion.data.context ||
+              (currentQuestion.data.type === 'question-answer' &&
+                isTrueFalseQuestion(currentQuestion.data) &&
+                currentQuestion.data.storyParagraph)
+            "
+          >
+            <div
+              class="q-instruction-banner"
+              *ngIf="worksheetInstructionDisplay(currentQuestion.data)"
+            >
+              <span class="q-instruction-label">Instruction</span>
+              <span
+                class="q-instruction-text"
+                [innerHTML]="
+                  worksheetInstructionDisplay(currentQuestion.data) | safeHtml
+                "
+              ></span>
+            </div>
+
+            <div class="q-example-banner" *ngIf="currentQuestion.data.example">
+              <span class="q-example-label">Example</span>
+              <span
+                class="q-example-text"
+                [innerHTML]="currentQuestion.data.example | safeHtml"
+              ></span>
+            </div>
+
+            <div class="q-context-box" *ngIf="currentQuestion.data.context">
+              <div
+                class="q-context-text"
+                [innerHTML]="currentQuestion.data.context | safeHtml"
+              ></div>
+            </div>
+
+            <div
+              class="tf-story-paragraph"
+              *ngIf="
+                currentQuestion.data.type === 'question-answer' &&
+                isTrueFalseQuestion(currentQuestion.data) &&
+                currentQuestion.data.storyParagraph
+              "
+              [innerHTML]="currentQuestion.data.storyParagraph | safeHtml"
+            ></div>
+          </div>
+
+          <div
+            class="q-listening-panel"
+            *ngIf="shouldShowSharedPassageAudio(currentQuestion.data)"
+          >
+            <div class="q-listening-panel-head">
+              <span class="material-icons q-listening-panel-icon" aria-hidden="true">headphones</span>
+              <span class="q-listening-panel-title">Listen to the audio</span>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
+          </div>
+
+          <!-- Audio attachment: above question/prompt -->
+          <ng-template #playerQuestionAudioAttachment>
+            <div
+              class="q-attachment-box q-attachment-box--audio"
+              *ngIf="shouldShowQuestionAudio(currentQuestion.data)"
+            >
+              <ng-container
+                *ngIf="getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
+              >
+                    <div class="q-attachment-audio-capped">
+                      <p class="q-attachment-audio-capped-hint" role="status">
+                        <span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) > 0">
+                          You can start this audio
+                          <strong>{{ getAttachmentAudioPlaysRemaining(currentQuestion) }}</strong>
+                          more time<span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) !== 1">s</span>
+                          this attempt (each press of Play counts).
+                        </span>
+                        <span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) === 0">
+                          Play limit reached for this attempt.
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        class="btn-q-attachment-audio-play"
+                        (click)="playQuestionAttachmentAudio(currentQuestion)"
+                        [disabled]="isAttachmentAudioLimitReached(currentQuestion)"
+                      >
+                        <span class="material-icons" aria-hidden="true">play_arrow</span>
+                        Play audio
+                      </button>
+                    </div>
+                  </ng-container>
+              <ng-template #unlimitedPlayerAttachmentAudio>
+                <audio
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-audio"
+                ></audio>
+              </ng-template>
+            </div>
+          </ng-template>
+
+          <ng-template #playerQuestionMediaAttachment>
+            <div
+              class="q-attachment-box"
+              *ngIf="hasMediaAttachment(currentQuestion.data)"
+            >
+              <ng-container
+                [ngSwitch]="
+                  getAttachmentType(currentQuestion.data.attachmentUrl)
+                "
+              >
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  alt="Question attachment"
+                  class="q-attachment-img"
+                />
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
+          </ng-template>
+
+          <!-- ── MCQ ── -->
+          <div class="q-body" *ngIf="currentQuestion.data.type === 'mcq'">
+            <div
+              class="q-question-box"
+              *ngIf="shouldShowParentMcqPart(currentQuestion.data)"
+              [class.multipart-part-card]="hasSubQuestions(currentQuestion.data)"
+            >
+              <div class="sub-q-header" *ngIf="hasSubQuestions(currentQuestion.data)">
+                <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getParentPartNumber(currentQuestion.data)) }}</span>
+                <span class="sub-q-points">{{ currentQuestion.data.points || 1 }} pt</span>
+              </div>
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
+              <p
+                class="q-text"
+                [innerHTML]="currentQuestion.data.question | safeHtml"
+              ></p>
+              <div
+                class="mcq-options"
+                [class.sub-options]="hasSubQuestions(currentQuestion.data)"
+                [class.mcq-options--visual]="hasMcqOptionImages(currentQuestion.data)"
+              >
+              <div
+                *ngFor="let opt of currentQuestion.data.options; let oi = index"
+                class="mcq-option"
+                role="button"
+                [attr.tabindex]="hasCurrentSubmitted ? -1 : 0"
+                [class.mcq-option--visual]="hasMcqOptionImages(currentQuestion.data)"
+                [class.selected]="currentQuestion.selectedOption === oi"
+                [class.correct]="
+                  hasCurrentSubmitted &&
+                  oi === currentQuestion.data.correctAnswerIndex
+                "
+                [class.wrong]="
+                  hasCurrentSubmitted &&
+                  currentQuestion.selectedOption === oi &&
+                  oi !== currentQuestion.data.correctAnswerIndex
+                "
+                [class.disabled]="hasCurrentSubmitted"
+                (click)="selectOption(currentQuestion, oi)"
+                (keydown.enter)="onMcqOptionKeyActivate($event, currentQuestion, oi)"
+                (keydown.space)="onMcqOptionKeyActivate($event, currentQuestion, oi)"
+              >
+                <div class="opt-visual-img-wrap" *ngIf="getMcqOptionImageUrl(currentQuestion.data, oi) as optImg">
+                  <img [src]="getMediaFullUrl(optImg)" alt="" class="opt-visual-img" />
+                  <button
+                    type="button"
+                    class="opt-visual-img-expand"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="openMcqOptionImageLightbox(optImg, $event)"
+                    aria-label="View larger image"
+                    matTooltip="View larger"
+                  >
+                    <span class="material-icons">zoom_in</span>
+                  </button>
+                </div>
+                <div class="opt-visual-label">
+                  <span class="opt-letter" [class.opt-letter-box]="hasMcqOptionImages(currentQuestion.data)">{{
+                    hasMcqOptionImages(currentQuestion.data) ? "abcd"[oi] : "ABCD"[oi]
+                  }}</span>
+                  <span class="opt-text" [innerHTML]="opt | safeHtml"></span>
+                </div>
+                <span class="opt-icon" *ngIf="hasCurrentSubmitted">
+                  <span
+                    class="material-icons"
+                    *ngIf="oi === currentQuestion.data.correctAnswerIndex"
+                    >check_circle</span
+                  >
+                  <span
+                    class="material-icons"
+                    *ngIf="
+                      currentQuestion.selectedOption === oi &&
+                      oi !== currentQuestion.data.correctAnswerIndex
+                    "
+                    >cancel</span
+                  >
+                </span>
+              </div>
+              </div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
+              <img
+                [src]="currentQuestion.data.imageUrl"
+                alt="Question image"
+                class="q-image"
+              />
+            </div>
+            <div
+              class="q-feedback-incorrect"
+              *ngIf="hasCurrentSubmitted && !currentQuestion.isCorrect"
+            >
+              Your submitted response was incorrect.
+            </div>
+            <div
+              class="q-explanation"
+              *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
+            >
+              <span class="material-icons">lightbulb</span>
+              {{ currentQuestion.feedback }}
+            </div>
+          </div>
+
+          <!-- ── MATCHING ── (instruction lives in guidance banner) -->
+          <div class="q-body" *ngIf="currentQuestion.data.type === 'matching'">
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
+            <div class="matching-container">
+              <!-- Labels Row -->
+              <div class="matching-row labels-row">
+                <div class="matching-col-label">Match these...</div>
+                <div class="connector-spacer"></div>
+                <div class="matching-col-label">...with these</div>
+              </div>
+
+              <!-- Item Rows -->
+              <div
+                class="matching-row"
+                *ngFor="let i of getMatchingIndices(currentQuestion)"
+              >
+                <!-- Left Item -->
+                <button
+                  *ngIf="currentQuestion.matchingLeft![i] as item"
+                  class="match-item left-item"
+                  [ngClass]="getLeftMatchClass(currentQuestion, i)"
+                  [class.selected]="currentQuestion.selectedLeftIndex === i"
+                  [class.matched]="item.matchedRightIndex !== null"
+                  [class.correct]="
+                    hasCurrentSubmitted && isMatchCorrect(currentQuestion, i)
+                  "
+                  [class.wrong]="
+                    hasCurrentSubmitted && !isMatchCorrect(currentQuestion, i)
+                  "
+                  (click)="selectLeft(currentQuestion, i)"
+                >
+                  <span [innerHTML]="item.value | safeHtml"></span>
+                </button>
+                <div
+                  *ngIf="!currentQuestion.matchingLeft![i]"
+                  class="match-item-placeholder"
+                ></div>
+
+                <!-- Connector -->
+                <div class="matching-connector">
+                  <div class="connector-dot"></div>
+                </div>
+
+                <!-- Right Item -->
+                <button
+                  *ngIf="currentQuestion.matchingRight![i] as rItem"
+                  class="match-item right-item"
+                  [ngClass]="getRightMatchClass(currentQuestion, i)"
+                  [class.available]="
+                    rItem.matchedLeftIndex === null &&
+                    currentQuestion.selectedLeftIndex !== null
+                  "
+                  [class.matched]="rItem.matchedLeftIndex !== null"
+                  [class.disabled]="rItem.matchedLeftIndex !== null"
+                  [class.correct]="
+                    rItem.matchedLeftIndex !== null &&
+                    isMatchCorrect(currentQuestion, rItem.matchedLeftIndex)
+                  "
+                  [class.wrong]="
+                    rItem.matchedLeftIndex !== null &&
+                    !isMatchCorrect(currentQuestion, rItem.matchedLeftIndex)
+                  "
+                  (click)="selectRight(currentQuestion, i)"
+                >
+                  <span [innerHTML]="rItem.value | safeHtml"></span>
+                </button>
+                <div
+                  *ngIf="!currentQuestion.matchingRight![i]"
+                  class="match-item-placeholder"
+                ></div>
+              </div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <div
+              class="matching-hint"
+              *ngIf="currentQuestion.selectedLeftIndex !== null"
+            >
+              <span class="material-icons">info</span>
+              Now click the matching item on the right →
+            </div>
+            <div class="matching-reset" *ngIf="!hasCurrentSubmitted">
+              <button
+                class="btn-text-sm"
+                (click)="resetMatching(currentQuestion)"
+              >
+                <span class="material-icons">refresh</span> Reset matches
+              </button>
+            </div>
+          </div>
+
+          <!-- ── FILL IN THE BLANKS ── -->
+          <div
+            class="q-body fill-blank-body"
+            *ngIf="currentQuestion.data.type === 'fill-blank'"
+          >
+            <div class="q-question-box">
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
+              <div class="sentence-container">
+                <ng-container
+                  *ngFor="
+                    let part of getSentenceParts(currentQuestion.data.sentence);
+                    let pi = index;
+                    let last = last
+                  "
+                >
+                  <span
+                    class="sentence-part"
+                    [innerHTML]="part | safeHtml"
+                  ></span>
+                  <span
+                    class="blank-wrap"
+                    *ngIf="!last"
+                  >
+                    <input
+                      type="text"
+                      class="blank-input"
+                      [(ngModel)]="currentQuestion.fillAnswers![pi]"
+                      (ngModelChange)="markAttempted(currentQuestion)"
+                      (focus)="
+                        setActiveSpecialInputTarget({
+                          type: 'fill-blank',
+                          blankIndex: pi,
+                        })
+                      "
+                      [placeholder]="'blank ' + (pi + 1)"
+                      [class.correct]="
+                        hasCurrentSubmitted &&
+                        isFillCorrect(currentQuestion, pi)
+                      "
+                      [class.wrong]="
+                        hasCurrentSubmitted &&
+                        !isFillCorrect(currentQuestion, pi)
+                      "
+                      [disabled]="hasCurrentSubmitted"
+                    />
+                    <span
+                      class="blank-correct-val"
+                      *ngIf="
+                        hasCurrentSubmitted &&
+                        !isFillCorrect(currentQuestion, pi)
+                      "
+                    >
+                      → {{ getCorrectFillAnswer(currentQuestion, pi) }}
+                    </span>
+                  </span>
+                </ng-container>
+              </div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <div class="hint-label" *ngIf="currentQuestion.data.hint">
+              <span class="material-icons">lightbulb</span>
+              Hint: {{ currentQuestion.data.hint }}
+            </div>
+            <div
+              class="special-char-pad"
+              *ngIf="
+                showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
+              "
+            >
+              <div class="special-char-label">Special letters</div>
+              <div
+                class="special-char-list"
+                role="group"
+                aria-label="German special letters"
+              >
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
+            <div
+              class="fill-feedback"
+              *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
+            >
+              <span class="material-icons">lightbulb</span>
+              {{ currentQuestion.feedback }}
+            </div>
+            <div
+              class="qa-hint"
+              *ngIf="
+                hasCurrentSubmitted &&
+                currentQuestion.data.sampleAnswers?.length
+              "
+            >
+              <strong>Sample answers:</strong>
+              <span
+                *ngFor="
+                  let sa of currentQuestion.data.sampleAnswers;
+                  let si = index
+                "
+              >
+                {{ sa
+                }}<span
+                  *ngIf="si < currentQuestion.data.sampleAnswers.length - 1"
+                  >;
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <!-- ── WORD BANK FILL ── -->
+          <div
+            class="q-body word-bank-fill-body"
+            *ngIf="currentQuestion.data.type === 'word_bank_fill'"
+          >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
+            <div
+              class="word-bank-box"
+              *ngIf="currentQuestion.data.wordBank?.length"
+            >
+              <div class="word-bank-box-label">
+                Word bank — select a blank, then tap a word (or type your answer)
+              </div>
+              <div class="word-bank-pills">
+                <button
+                  type="button"
+                  class="word-bank-pill"
+                  *ngFor="
+                    let word of currentQuestion.data.wordBank;
+                    trackBy: trackByIndex
+                  "
+                  [class.used]="
+                    !isWordBankReusable(currentQuestion) &&
+                    isWordAlreadyUsed(currentQuestion, word, null)
+                  "
+                  [disabled]="
+                    hasCurrentSubmitted ||
+                    (!isWordBankReusable(currentQuestion) &&
+                      isWordAlreadyUsed(currentQuestion, word, null))
+                  "
+                  (click)="fillActiveWordBankBlank(currentQuestion, word)"
+                >
+                  {{ word }}
+                </button>
+              </div>
+            </div>
+
+            <div class="word-bank-items">
+              <div
+                class="word-bank-item-row"
+                *ngFor="
+                  let item of getWordBankItems(currentQuestion);
+                  let ii = index;
+                  trackBy: trackByIndex
+                "
+              >
+                <div
+                  class="word-bank-prompt q-text"
+                  [innerHTML]="displayWordBankPrompt(item, ii) | safeHtml"
+                ></div>
+                <div class="word-bank-answer-wrap word-bank-dropzone">
+                  <input
+                    type="text"
+                    class="blank-input word-bank-answer-input"
+                    [ngModel]="currentQuestion.wordBankAnswers![ii].value"
+                    (ngModelChange)="
+                      onWordBankAnswerChange(currentQuestion, ii, $event)
+                    "
+                    (focus)="onWordBankBlankFocus(currentQuestion, ii)"
+                    [class.active]="currentQuestion.activeBlankIndex === ii"
+                    [class.correct]="
+                      hasCurrentSubmitted &&
+                      isWordBankItemCorrect(currentQuestion, ii)
+                    "
+                    [class.wrong]="
+                      hasCurrentSubmitted &&
+                      !isWordBankItemCorrect(currentQuestion, ii)
+                    "
+                    [disabled]="hasCurrentSubmitted"
+                    [placeholder]="'Blank ' + (ii + 1)"
+                    autocomplete="off"
+                  />
+                  <button
+                    type="button"
+                    class="word-bank-clear-btn"
+                    *ngIf="
+                      !hasCurrentSubmitted &&
+                      (currentQuestion.wordBankAnswers![ii].value || '').trim()
+                    "
+                    (click)="clearWordBankAnswer(currentQuestion, ii)"
+                    aria-label="Clear answer"
+                  >
+                    <span class="material-icons">close</span>
+                  </button>
+                  <span
+                    class="blank-correct-val"
+                    *ngIf="
+                      hasCurrentSubmitted &&
+                      !isWordBankItemCorrect(currentQuestion, ii)
+                    "
+                  >
+                    → {{ getWordBankCorrectAnswer(currentQuestion, ii) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="special-char-pad"
+              *ngIf="
+                showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
+              "
+            >
+              <div class="special-char-label">Special letters</div>
+              <div
+                class="special-char-list"
+                role="group"
+                aria-label="German special letters"
+              >
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <div
+              class="fill-feedback"
+              *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
+            >
+              <span class="material-icons">lightbulb</span>
+              {{ currentQuestion.feedback }}
+            </div>
+          </div>
+
+          <!-- ── SINGULAR / PLURAL ── -->
+          <div
+            class="q-body singular-plural-body"
+            *ngIf="currentQuestion.data.type === 'singular_plural'"
+          >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
+            <div class="sp-table-wrap">
+              <table
+                class="sp-pairs-table"
+                *ngIf="singularPluralDisplayRows(currentQuestion).length"
+              >
+                <thead>
+                  <tr>
+                    <th>Singular</th>
+                    <th>Plural</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    *ngFor="
+                      let sp of singularPluralDisplayRows(currentQuestion);
+                      let ri = index
+                    "
+                  >
+                    <td class="sp-singular-cell">{{ sp.singular }}</td>
+                    <td class="sp-plural-cell">
+                      <input
+                        type="text"
+                        class="blank-input sp-plural-input"
+                        [(ngModel)]="currentQuestion.singularPluralInputs![ri]"
+                        (ngModelChange)="markAttempted(currentQuestion)"
+                        (focus)="
+                          setActiveSpecialInputTarget({
+                            type: 'singular-plural',
+                            rowIndex: ri,
+                          })
+                        "
+                        [placeholder]="'Plural ' + (ri + 1)"
+                        [class.correct]="
+                          hasCurrentSubmitted &&
+                          isSpRowCorrect(currentQuestion, ri)
+                        "
+                        [class.wrong]="
+                          hasCurrentSubmitted &&
+                          !isSpRowCorrect(currentQuestion, ri)
+                        "
+                        [disabled]="hasCurrentSubmitted"
+                      />
+                      <span
+                        class="blank-correct-val"
+                        *ngIf="
+                          hasCurrentSubmitted &&
+                          !isSpRowCorrect(currentQuestion, ri)
+                        "
+                      >
+                        → {{ getSpCorrectPlural(currentQuestion, ri) }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <div
+              class="special-char-pad"
+              *ngIf="
+                showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
+              "
+            >
+              <div class="special-char-label">Special letters</div>
+              <div
+                class="special-char-list"
+                role="group"
+                aria-label="German special letters"
+              >
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
+            <div
+              class="fill-feedback"
+              *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
+            >
+              <span class="material-icons">lightbulb</span>
+              {{ currentQuestion.feedback }}
+            </div>
+          </div>
+
+          <!-- ── PRONUNCIATION ── -->
+          <div
+            class="q-body pronunciation-body"
+            *ngIf="currentQuestion.data.type === 'pronunciation'"
+          >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
+            <div class="pronunciation-word-card">
+              <div>
+                <div class="big-word">{{ currentQuestion.data.word }}</div>
+                <div class="word-phonetic" *ngIf="currentQuestion.data.phonetic">
+                  {{ currentQuestion.data.phonetic }}
+                </div>
+                <div
+                  class="word-translation"
+                  *ngIf="currentQuestion.data.translation"
+                >
+                  = {{ currentQuestion.data.translation }}
+                </div>
+              </div>
+              <div class="pronunciation-word-card-right">
+                <button
+                  class="btn-audio"
+                  (click)="playWordAudio(currentQuestion)"
+                >
+                  <span class="material-icons">volume_up</span>
+                </button>
+              </div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+
+            <div class="pronunciation-controls">
+              <div class="pronunciation-controls-btns">
+                <button
+                  type="button"
+                  class="btn-record--subtle btn-record"
+                  (click)="openMicTest()"
+                  [disabled]="
+                    currentQuestion.isRecording ||
+                    currentQuestion.pronUiState === 'processing'
+                  "
+                  title="Check your microphone is working"
+                >
+                  <span class="material-icons">settings_voice</span>
+                  <span>Test microphone</span>
+                </button>
+                <button
+                  class="btn-record"
+                  [class.recording]="currentQuestion.isRecording"
+                  [class.processing]="
+                    currentQuestion.pronUiState === 'processing'
+                  "
+                  [class.has-result]="
+                    currentQuestion.hasRecorded &&
+                    !currentQuestion.isRecording &&
+                    currentQuestion.pronUiState !== 'processing'
+                  "
+                  (click)="
+                    currentQuestion.isRecording
+                      ? stopRecording(currentQuestion)
+                      : startRecording(currentQuestion)
+                  "
+                  [disabled]="
+                    hasCurrentSubmitted ||
+                    currentQuestion.pronUiState === 'processing'
+                  "
+                >
+                  <span class="material-icons">
+                    {{
+                      currentQuestion.isRecording
+                        ? "stop"
+                        : currentQuestion.pronUiState === "processing"
+                          ? "hourglass_top"
+                          : "mic"
+                    }}
+                  </span>
+                  <span>
+                    {{
+                      currentQuestion.isRecording
+                        ? "Stop"
+                        : currentQuestion.pronUiState === "processing"
+                          ? "Processing…"
+                          : currentQuestion.hasRecorded
+                            ? "Re-record"
+                            : "Speak"
+                    }}
+                  </span>
+                </button>
+              </div>
+
+              <div
+                class="pronunciation-listening"
+                *ngIf="currentQuestion.isRecording"
+              >
+                <span class="material-icons">mic</span>
+                🎤 Listening<span class="vp-listening-dots" aria-hidden="true"
+                  ><span>.</span><span>.</span><span>.</span></span
+                >
+                <app-audio-visualizer
+                  class="pronunciation-visualizer"
+                  [analyser]="getPronAnalyser()"
+                  [active]="!!currentQuestion.isRecording"
+                ></app-audio-visualizer>
+              </div>
+
+              <div
+                class="pronunciation-listening"
+                *ngIf="
+                  currentQuestion.pronUiState === 'processing' &&
+                  !currentQuestion.isRecording
+                "
+              >
+                <span class="material-icons">hourglass_top</span>
+                Processing<span class="vp-listening-dots" aria-hidden="true"
+                  ><span>.</span><span>.</span><span>.</span></span
+                >
+                <span
+                  class="pronunciation-processing-slow"
+                  *ngIf="pronProcessingSlow"
+                >
+                  — this may take a moment.
+                </span>
+              </div>
+
+              <div
+                class="pronunciation-listening pronunciation-listening--error"
+                *ngIf="
+                  currentQuestion.pronUiState === 'error' &&
+                  !currentQuestion.isRecording
+                "
+              >
+                <span class="material-icons">error_outline</span>
+                {{
+                  currentQuestion.pronMessage || "No speech detected, try again"
+                }}
+              </div>
+            </div>
+
+            <div
+              class="pronunciation-result"
+              *ngIf="currentQuestion.hasRecorded || hasCurrentSubmitted"
+            >
+              <!-- Score circle -->
+              <div
+                class="score-circle"
+                [class]="
+                  getPronunciationClass(currentQuestion.pronunciationScore || 0)
+                "
+              >
+                <div class="score-value">
+                  {{ currentQuestion.pronunciationScore || 0 }}%
+                </div>
+                <div class="score-label">Match</div>
+              </div>
+
+              <!-- State headline -->
+              <div
+                class="pronunciation-feedback"
+                [class.pron-feedback--correct]="
+                  !currentQuestion.pronAlmostCorrect &&
+                  (currentQuestion.pronunciationScore || 0) >= 60
+                "
+                [class.pron-feedback--almost]="
+                  currentQuestion.pronAlmostCorrect
+                "
+                [class.pron-feedback--incorrect]="
+                  !currentQuestion.pronAlmostCorrect &&
+                  (currentQuestion.pronunciationScore || 0) < 60
+                "
+              >
+                <ng-container *ngIf="!currentQuestion.pronAlmostCorrect">
+                  {{
+                    getPronunciationFeedback(
+                      currentQuestion.pronunciationScore || 0
+                    )
+                  }}
+                </ng-container>
+                <ng-container *ngIf="currentQuestion.pronAlmostCorrect">
+                  Almost there — try once more
+                </ng-container>
+              </div>
+
+              <!-- Confidence headline -->
+              <div
+                class="pronunciation-confidence"
+                *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
+                [attr.data-confidence]="conf"
+              >
+                {{ confidenceHeadline(conf) }}
+              </div>
+              <div
+                class="pron-confidence-nudge"
+                *ngIf="
+                  confidenceNudge(lastConfidenceByIndex[currentQuestion.index])
+                "
+              >
+                {{
+                  confidenceNudge(lastConfidenceByIndex[currentQuestion.index])
+                }}
+              </div>
+              <div
+                class="pron-audio-quality-banner"
+                *ngIf="currentQuestion.pronLowAudioQuality"
+              >
+                Your microphone input seems low. Try speaking louder or closer
+                to the mic.
+              </div>
+
+              <!-- Comparison: what they said vs what was expected -->
+              <app-pronunciation-comparison-view
+                *ngIf="
+                  currentQuestion.spokenText || currentQuestion.pronExpectedText
+                "
+                [expectedText]="currentQuestion.pronExpectedText || ''"
+                [transcriptText]="currentQuestion.spokenText || ''"
+                [missingWords]="currentQuestion.pronMissingWords || []"
+                [extraWords]="currentQuestion.pronExtraWords || []"
+                [matchedWords]="currentQuestion.pronMatchedWords || []"
+              ></app-pronunciation-comparison-view>
+
+              <!-- Word-level analysis -->
+              <div
+                class="pron-word-analysis"
+                *ngIf="
+                  currentQuestion.pronWordAnalysis &&
+                  currentQuestion.pronWordAnalysis.length > 0
+                "
+              >
+                <span class="pron-word-analysis-label">Word breakdown:</span>
+                <div class="pron-word-chips">
+                  <span
+                    *ngFor="let w of currentQuestion.pronWordAnalysis"
+                    class="pron-chip"
+                    [class.pron-chip--correct]="w.status === 'correct'"
+                    [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                    [class.pron-chip--missing]="w.status === 'missing'"
+                    [title]="
+                      w.status === 'missing'
+                        ? 'Missing'
+                        : 'You said: ' + (w.spoken || '—')
+                    "
+                  >
+                    {{ w.expected }}
+                    <span class="pron-chip-icon material-icons">
+                      {{
+                        w.status === "correct"
+                          ? "check"
+                          : w.status === "missing"
+                            ? "remove"
+                            : "close"
+                      }}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Hints -->
+              <div
+                class="pron-hints"
+                *ngIf="
+                  currentQuestion.pronHints &&
+                  currentQuestion.pronHints.length > 0
+                "
+              >
+                <div
+                  class="pron-hint"
+                  *ngFor="let h of currentQuestion.pronHints"
+                >
+                  <span class="material-icons">lightbulb</span>
+                  {{ h }}
+                </div>
+              </div>
+
+              <!-- Retry row (shown for both incorrect and almost-correct) -->
+              <div
+                class="pronunciation-retry-row"
+                *ngIf="
+                  currentQuestion.hasRecorded &&
+                  !hasCurrentSubmitted &&
+                  (currentQuestion.pronAlmostCorrect ||
+                    (currentQuestion.pronunciationScore || 0) < 60)
+                "
+              >
+                <span
+                  class="pronunciation-retry-nudge"
+                  *ngIf="!currentQuestion.pronAlmostCorrect"
+                >
+                  ❌ Not quite — 👉 try again clearly.
+                </span>
+                <span
+                  class="pronunciation-retry-nudge pronunciation-retry-nudge--almost"
+                  *ngIf="currentQuestion.pronAlmostCorrect"
+                >
+                  🔶 So close! Give it one more try.
+                </span>
+                <button
+                  type="button"
+                  class="btn-record btn-record--subtle"
+                  (click)="replayReferenceForRetry(currentQuestion)"
+                  title="Replay the reference word"
+                >
+                  <span class="material-icons">replay</span>
+                  <span>Replay word</span>
+                </button>
+              </div>
+              <div
+                class="pron-help-wrap"
+                *ngIf="shouldShowNeedHelp(currentQuestion)"
+              >
+                <button
+                  type="button"
+                  class="btn-record btn-record--subtle"
+                  (click)="togglePronHelp(currentQuestion)"
+                >
+                  <span class="material-icons">help_outline</span>
+                  Need help?
+                </button>
+                <div
+                  class="pron-help-chunks"
+                  *ngIf="currentQuestion.pronHelpOpen"
+                >
+                  <span
+                    class="pron-help-chip"
+                    *ngFor="
+                      let c of expectedChunks(
+                        currentQuestion.pronExpectedText || ''
+                      )
+                    "
+                    >{{ c }}</span
+                  >
+                </div>
+              </div>
+              <button
+                type="button"
+                class="btn-record btn-record--subtle pron-mark-correct-btn"
+                *ngIf="shouldShowMarkAsCorrect(currentQuestion)"
+                (click)="markCurrentAsCorrect(currentQuestion)"
+              >
+                <span class="material-icons">check_circle</span>
+                Mark as correct
+              </button>
+            </div>
+
+            <div
+              class="speech-not-supported"
+              *ngIf="!speechSupported && !audioRecorderSupported"
+            >
+              <span class="material-icons">warning</span>
+              Speech recognition is not supported in this browser. Please use
+              Chrome or Edge for pronunciation exercises.
+            </div>
+          </div>
+
+          <!-- Listening body -->
+          <div
+            class="q-body listening-body"
+            *ngIf="currentQuestion.data.type === 'listening'"
+          >
+            <div class="q-question-box">
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
+              <div
+                class="listening-audio-wrap"
+                *ngIf="getListeningSupplementalAudioUrl(currentQuestion.data)"
+              >
+                <audio
+                  [src]="
+                    getMediaFullUrl(
+                      getListeningSupplementalAudioUrl(currentQuestion.data)
+                    )
+                  "
+                  controls
+                ></audio>
+              </div>
+              <div
+                class="qa-prompt"
+                [innerHTML]="
+                  currentQuestion.data.prompt ||
+                    'Listen and answer the question.' | safeHtml
+                "
+              ></div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <label class="qa-input-label">Your Answer</label>
+            <div class="listening-input-row">
+              <textarea
+                class="qa-textarea"
+                rows="4"
+                placeholder="Type what you hear..."
+                [(ngModel)]="currentQuestion.listeningText"
+                (ngModelChange)="markAttempted(currentQuestion)"
+                (focus)="setActiveSpecialInputTarget({ type: 'listening' })"
+                [disabled]="hasCurrentSubmitted"
+              ></textarea>
+              <div
+                *ngIf="
+                  currentQuestion.data.attemptMode === 'typing-or-speech' &&
+                  speechSupported
+                "
+                class="listening-mic-wrap"
+              >
+                <button
+                  type="button"
+                  class="btn-record"
+                  [class.recording]="currentQuestion.isRecording"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="
+                    currentQuestion.isRecording
+                      ? stopListeningSpeech(currentQuestion)
+                      : startListeningSpeech(currentQuestion)
+                  "
+                >
+                  <span class="material-icons">{{
+                    currentQuestion.isRecording ? "stop" : "mic"
+                  }}</span>
+                  {{ currentQuestion.isRecording ? "Stop" : "Speak" }}
+                </button>
+              </div>
+            </div>
+            <div
+              class="special-char-pad"
+              *ngIf="
+                showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
+              "
+            >
+              <div class="special-char-label">Special letters</div>
+              <div
+                class="special-char-list"
+                role="group"
+                aria-label="German special letters"
+              >
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Jumble Word body -->
+          <div
+            class="q-body jumble-body"
+            *ngIf="currentQuestion.data.type === 'jumble-word'"
+          >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionAudioAttachment"
+            ></ng-container>
+            <div
+              class="jumble-category-tip"
+              *ngIf="currentQuestion.data.categoryTip"
+            >
+              {{ currentQuestion.data.categoryTip }}
+            </div>
+            <div class="jumble-scramble">
+              <ng-container
+                *ngFor="
+                  let token of getJumbleTokens(currentQuestion.data);
+                  let ti = index
+                "
+              >
+                <button
+                  *ngIf="token !== ' '"
+                  type="button"
+                  class="jumble-letter jumble-letter-btn"
+                  [class.jumble-letter--bold]="
+                    token === currentQuestion.data.boldLetter &&
+                    ti === getFirstBoldIndex(currentQuestion.data)
+                  "
+                  [class.jumble-letter--used]="isJumbleTokenUsed(currentQuestion, ti)"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertJumbleToken(token, ti)"
+                  [disabled]="hasCurrentSubmitted || isJumbleTokenUsed(currentQuestion, ti)"
+                  [attr.aria-label]="'Insert ' + token"
+                >
+                  {{ token }}
+                </button>
+                <span *ngIf="token === ' '" class="jumble-space"> </span>
+              </ng-container>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+            <label class="qa-input-label">Form the word:</label>
+            <input
+              type="text"
+              class="jumble-input"
+              placeholder="Type the word..."
+              #jumbleInput
+              [ngModel]="currentQuestion.jumbleWordResponse"
+              (ngModelChange)="onJumbleResponseChange(currentQuestion, $event)"
+              (focus)="setActiveSpecialInputTarget({ type: 'jumble-word' })"
+              [disabled]="hasCurrentSubmitted"
+              (keydown.enter)="$event.preventDefault()"
+            />
+
+            <div
+              class="special-char-pad"
+              *ngIf="
+                showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
+              "
+            >
+              <div class="special-char-label">Special letters</div>
+              <div
+                class="special-char-list"
+                role="group"
+                aria-label="German special letters"
+              >
+                <button
+                  type="button"
+                  class="special-char-btn"
+                  *ngFor="let char of specialCharacters"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="insertSpecialCharacter(char)"
+                >
+                  {{ char }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rearrange body -->
+          <div
+            class="q-body rearrange-body"
+            *ngIf="currentQuestion.data.type === 'rearrange'"
+          >
+            <div class="q-question-box">
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
+              <div
+                class="qa-prompt"
+                [innerHTML]="
+                  currentQuestion.data.rearrangePrompt || '' | safeHtml
+                "
+              ></div>
+            </div>
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+
+            <div
+              class="rearrange-tokens-wrap"
+              *ngIf="currentQuestion.rearrangeTokens?.length"
+            >
+              <div class="rearrange-label">Drag to rearrange:</div>
+              <div
+                cdkDropList
+                class="rearrange-drop"
+                cdkDropListOrientation="horizontal"
+                [cdkDropListSortingDisabled]="false"
+                [cdkDropListData]="currentQuestion.rearrangeTokens"
+                [class.disabled]="hasCurrentSubmitted"
+                (cdkDropListDropped)="onRearrangeDrop(currentQuestion, $event)"
+              >
+                <div
+                  class="rearrange-token"
+                  *ngFor="
+                    let t of currentQuestion.rearrangeTokens;
+                    let ti = index;
+                    trackBy: trackByIndex
+                  "
+                  cdkDrag
+                  [cdkDragDisabled]="hasCurrentSubmitted"
+                  (cdkDragStarted)="
+                    onRearrangeDragStarted(currentQuestion, $event)
+                  "
+                  (cdkDragEnded)="onRearrangeDragEnded(currentQuestion, $event)"
+                  (mousedown)="$event.preventDefault()"
+                >
+                  {{ t }}
+                </div>
+              </div>
+
+              <div
+                class="rearrange-answer-box"
+                *ngIf="currentQuestion.isAnswered"
+              >
+                <div class="rearrange-answer-label">Your answer is</div>
+                <div class="rearrange-answer-text">
+                  {{ getRearrangePreviewText(currentQuestion) || "—" }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Image Pin Match body -->
+          <div
+            class="q-body ipm-body"
+            *ngIf="currentQuestion.data.type === 'image_pin_match'"
+          >
+            <p class="ipm-instruction">
+              Drag the handle from a label to the correct numbered pin on the image.
+            </p>
+            <div
+              class="ipm-play-wrap"
+              [id]="'ipm-wrap-' + currentQuestion.index"
+            >
+              <!-- Left labels (even indices) -->
+              <div class="ipm-label-col">
+                <button
+                  *ngFor="let label of getImagePinLabelsLeft(currentQuestion)"
+                  class="ipm-label-pill"
+                  [class.active]="currentQuestion.selectedLabelId === label.id"
+                  [class.connected]="!!getImagePinConnection(currentQuestion, label.id)"
+                  [style.--ipm-color]="label.color"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="selectImagePinLabel(currentQuestion, label.id)"
+                >
+                  <div class="ipm-label-card">{{ label.text }}</div>
+                  <div class="ipm-label-stem"></div>
+                  <div
+                    class="ipm-handle ipm-handle--left"
+                    [id]="'ipm-handle-' + currentQuestion.index + '-' + label.id"
+                    (pointerdown)="startImagePinDrag(currentQuestion, label.id, $event)"
+                  ></div>
+                </button>
+              </div>
+
+              <!-- Image + pins in the centre -->
+              <div class="ipm-image-wrap">
+                <img
+                  class="ipm-image"
+                  [src]="getMediaFullUrl(getImagePinImageUrl(currentQuestion.data))"
+                  alt="Pin match image"
+                  draggable="false"
+                />
+                  <span
+                    *ngFor="let pin of getImagePinPins(currentQuestion.data); let pi = index"
+                    class="ipm-pin"
+                    [class.active]="currentQuestion.selectedLabelId !== null"
+                    [class.near]="imagePinIsPinNearDrag(currentQuestion, pin.id)"
+                    [style.left.%]="pin.x"
+                    [style.top.%]="pin.y"
+                    [id]="'ipm-pin-' + currentQuestion.index + '-' + pin.id"
+                    (click)="connectImagePin(currentQuestion, pin.id)"
+                  >{{ pi + 1 }}</span>
+              </div>
+
+              <!-- Right labels (odd indices) -->
+              <div class="ipm-label-col">
+                <button
+                  *ngFor="let label of getImagePinLabelsRight(currentQuestion)"
+                  class="ipm-label-pill ipm-label-pill--right"
+                  [class.active]="currentQuestion.selectedLabelId === label.id"
+                  [class.connected]="!!getImagePinConnection(currentQuestion, label.id)"
+                  [style.--ipm-color]="label.color"
+                  [disabled]="hasCurrentSubmitted"
+                  (click)="selectImagePinLabel(currentQuestion, label.id)"
+                >
+                  <div
+                    class="ipm-handle"
+                    [id]="'ipm-handle-' + currentQuestion.index + '-' + label.id"
+                    (pointerdown)="startImagePinDrag(currentQuestion, label.id, $event)"
+                  ></div>
+                  <div class="ipm-label-stem ipm-label-stem--right"></div>
+                  <div class="ipm-label-card ipm-label-card--right">{{ label.text }}</div>
+                </button>
+              </div>
+
+              <!-- SVG connection lines overlay (spans all columns) -->
+              <svg
+                class="ipm-lines"
+                xmlns="http://www.w3.org/2000/svg"
+                *ngIf="imagePinSvgLines(currentQuestion).length || imagePinTempLine(currentQuestion)"
+              >
+                <line
+                  *ngFor="let ln of imagePinSvgLines(currentQuestion)"
+                  [attr.x1]="ln.x1"
+                  [attr.y1]="ln.y1"
+                  [attr.x2]="ln.x2"
+                  [attr.y2]="ln.y2"
+                  [attr.stroke]="ln.color"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                />
+                <line
+                  *ngIf="imagePinTempLine(currentQuestion) as tl"
+                  class="ipm-line-temp"
+                  [attr.x1]="tl.x1"
+                  [attr.y1]="tl.y1"
+                  [attr.x2]="tl.x2"
+                  [attr.y2]="tl.y2"
+                  [attr.stroke]="tl.color"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-dasharray="6 4"
+                />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Video Pronunciation (mixed exercises only — video-only uses split layout above) -->
+          <div
+            class="q-body vp-body"
+            *ngIf="
+              currentQuestion.data.type === 'video-pronunciation' &&
+              !isVideoOnlyExercise
+            "
+          >
+            <div class="vp-mobile-outer">
+              <div class="vp-mobile-shell">
+                <div class="vp-mobile-notch" aria-hidden="true"></div>
+
+                <div class="vp-mobile-top">
+                  <span class="vp-mobile-kicker">Say this phrase</span>
+                  <div
+                    class="vp-variants-hint vp-variants-hint--top"
+                    *ngIf="currentQuestion.data.context"
+                  >
+                    {{ currentQuestion.data.context }}
+                  </div>
+                  <div class="vp-caption vp-caption--mobile">
+                    {{ getVpPromptCaption(currentQuestion) }}
+                  </div>
+                  <div
+                    class="vp-variants-hint vp-variants-hint--top"
+                    *ngIf="currentQuestion.data.acceptedVariants?.length > 0"
+                  >
+                    Also ok:
+                    {{ currentQuestion.data.acceptedVariants.join(", ") }}
+                  </div>
+                </div>
+
+                <ng-container
+                  *ngTemplateOutlet="playerQuestionMediaAttachment"
+                ></ng-container>
+
+                <div
+                  class="vp-video-stage vp-video-stage--mobile"
+                  *ngIf="currentQuestion.data.videoUrl"
+                >
+                  <video
+                    class="vp-video vp-video--mobile"
+                    [src]="getMediaFullUrl(currentQuestion.data.videoUrl)"
+                    controls
+                    playsinline
+                    webkit-playsinline
+                    preload="auto"
+                    disablePictureInPicture
+                    (loadeddata)="onVpVideoReady($event, currentQuestion)"
+                    (loadstart)="onVpLoadStart(currentQuestion)"
+                    (timeupdate)="onVpVideoTimeUpdate($event, currentQuestion)"
+                    (ended)="onVpVideoEnded($event, currentQuestion)"
+                  ></video>
+                </div>
+                <div
+                  class="vp-no-video vp-no-video--mobile"
+                  *ngIf="!currentQuestion.data.videoUrl"
+                >
+                  <span class="material-icons">videocam_off</span> Video not
+                  available
+                </div>
+
+                <div class="vp-mobile-bottom" *ngIf="!hasCurrentSubmitted">
+                  <!-- While video is playing -->
+                  <p
+                    class="vp-mobile-wait"
+                    *ngIf="
+                      (currentQuestion.vpResult === 'idle' ||
+                        !currentQuestion.vpResult) &&
+                      !currentQuestion.vpPlaybackEnded &&
+                      !currentQuestion.isRecording
+                    "
+                  >
+                    <span class="material-icons">play_circle_outline</span>
+                    Watch the clip — buttons appear when it finishes
+                  </p>
+
+                  <!-- After video ends: Replay + Speak -->
+                  <div
+                    class="vp-mob-btn-row"
+                    *ngIf="
+                      (currentQuestion.vpResult === 'idle' ||
+                        !currentQuestion.vpResult) &&
+                      currentQuestion.vpPlaybackEnded &&
+                      !currentQuestion.isRecording &&
+                      currentQuestion.pronUiState !== 'processing'
+                    "
+                  >
+                    <button
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--secondary"
+                      (click)="replayVpVideo()"
+                    >
+                      <span class="material-icons">replay</span>
+                      <span>Replay</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--primary"
+                      (click)="startVideoPronunciation(currentQuestion)"
+                    >
+                      <span class="material-icons">mic</span>
+                      <span>Speak</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--retry"
+                      (click)="openMicTest()"
+                    >
+                      <span class="material-icons">settings_voice</span>
+                      <span>Test mic</span>
+                    </button>
+                  </div>
+
+                  <p
+                    class="vp-mic-hint"
+                    *ngIf="
+                      !speechSupported &&
+                      !audioRecorderSupported &&
+                      currentQuestion.vpPlaybackEnded
+                    "
+                  >
+                    <span class="material-icons" style="font-size: 1rem"
+                      >warning</span
+                    >
+                    Audio recording not supported in this browser. Try Chrome,
+                    Edge, or Safari 14.3+.
+                  </p>
+
+                  <!-- Listening -->
+                  <div
+                    class="vp-mob-listening"
+                    *ngIf="currentQuestion.isRecording"
+                  >
+                    <span class="material-icons vp-mob-pulse">mic</span>
+                    <span
+                      >🎤 Listening<span
+                        class="vp-listening-dots vp-listening-dots--light"
+                        aria-hidden="true"
+                        ><span>.</span><span>.</span><span>.</span></span
+                      >
+                      — speak now</span
+                    >
+                    <app-audio-visualizer
+                      class="vp-mob-visualizer"
+                      [analyser]="getPronAnalyser()"
+                      [active]="!!currentQuestion.isRecording"
+                    ></app-audio-visualizer>
+                    <button
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--retry"
+                      (click)="stopVideoPronunciation(currentQuestion)"
+                    >
+                      <span class="material-icons">stop</span>
+                      <span>Stop</span>
+                    </button>
+                  </div>
+
+                  <!-- Processing (audio flow) -->
+                  <div
+                    class="vp-mob-listening"
+                    *ngIf="
+                      currentQuestion.pronUiState === 'processing' &&
+                      !currentQuestion.isRecording
+                    "
+                  >
+                    <span class="material-icons vp-mob-pulse"
+                      >hourglass_top</span
+                    >
+                    <span
+                      >Processing<span
+                        class="vp-listening-dots vp-listening-dots--light"
+                        aria-hidden="true"
+                        ><span>.</span><span>.</span><span>.</span></span
+                      ></span
+                    >
+                    <span
+                      class="vp-mob-processing-hint"
+                      *ngIf="pronProcessingSlow"
+                    >
+                      This may take a moment.
+                    </span>
+                  </div>
+
+                  <ng-container *ngIf="currentQuestion.vpResult === 'correct'">
+                    <div
+                      class="vp-feedback vp-feedback--correct vp-feedback--mobile"
+                    >
+                      <span class="material-icons">check_circle</span>
+                      <strong>{{
+                        isVideoOnlyExercise ? "Got it!" : "Correct!"
+                      }}</strong>
+                      <span class="vp-spoken"
+                        >"{{ currentQuestion.vpSpokenText }}"</span
+                      >
+                      <span class="vp-score" *ngIf="!isVideoOnlyExercise"
+                        >{{ currentQuestion.pronunciationScore }}%</span
+                      >
+                    </div>
+                    <p class="vp-auto-advance">
+                      {{
+                        isVideoOnlyExercise
+                          ? "Moving to next clip…"
+                          : "Next clip…"
+                      }}
+                    </p>
+                  </ng-container>
+
+                  <!-- Almost correct (mobile) -->
+                  <ng-container
+                    *ngIf="currentQuestion.vpResult === 'almostCorrect'"
+                  >
+                    <div
+                      class="vp-feedback vp-feedback--almost vp-feedback--mobile vp-mob-wrong-feedback-hide"
+                    >
+                      <span class="material-icons">star_half</span>
+                      <strong>Almost there — try once more</strong>
+                      <span
+                        class="vp-spoken"
+                        *ngIf="currentQuestion.vpSpokenText"
+                        >You said: "{{ currentQuestion.vpSpokenText }}"</span
+                      >
+                      <span
+                        class="vp-spoken vp-spoken--expected"
+                        *ngIf="currentQuestion.vpExpectedText"
+                        >Expected: "{{ currentQuestion.vpExpectedText }}"</span
+                      >
+                    </div>
+                    <div
+                      class="pron-word-chips pron-word-chips--mob vp-mob-wrong-extra-hide"
+                      *ngIf="
+                        currentQuestion.vpWordAnalysis &&
+                        currentQuestion.vpWordAnalysis.length > 0
+                      "
+                    >
+                      <span
+                        *ngFor="let w of currentQuestion.vpWordAnalysis"
+                        class="pron-chip"
+                        [class.pron-chip--correct]="w.status === 'correct'"
+                        [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                        [class.pron-chip--missing]="w.status === 'missing'"
+                        >{{ w.expected
+                        }}<span class="pron-chip-icon material-icons">{{
+                          w.status === "correct"
+                            ? "check"
+                            : w.status === "missing"
+                              ? "remove"
+                              : "close"
+                        }}</span></span
+                      >
+                    </div>
+                    <p class="vp-mob-retry-nudge vp-mob-wrong-extra-hide">
+                      🔶 So close! Retry for full credit or continue.
+                    </p>
+                    <div class="vp-mob-btn-row">
+                      <button
+                        type="button"
+                        class="vp-mob-btn vp-mob-btn--primary vp-mob-btn--wrong-mini"
+                        (click)="speakAgainVideoPronunciation(currentQuestion)"
+                      >
+                        <span class="material-icons">mic</span>
+                        <span>Try again</span>
+                      </button>
+                      <button
+                        *ngIf="!isLastQuestion"
+                        type="button"
+                        class="vp-mob-btn vp-mob-btn--secondary vp-mob-btn--wrong-mini"
+                        (click)="goToNextClipAfterIncorrect()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">skip_next</span>
+                        <span>Next clip</span>
+                      </button>
+                      <button
+                        *ngIf="isLastQuestion"
+                        type="button"
+                        class="vp-mob-btn vp-mob-btn--finish vp-mob-btn--wrong-mini"
+                        (click)="finishVideoExercise()"
+                        [disabled]="
+                          finishingAll ||
+                          submitting ||
+                          !canCompleteByAttemptRate
+                        "
+                      >
+                        <span class="material-icons">flag</span>
+                        <span>{{
+                          finishingAll ? "Submitting…" : "Submit Exercise"
+                        }}</span>
+                      </button>
+                    </div>
+                  </ng-container>
+
+                  <ng-container
+                    *ngIf="currentQuestion.vpResult === 'incorrect'"
+                  >
+                    <div
+                      class="vp-feedback vp-feedback--incorrect vp-feedback--mobile vp-mob-wrong-feedback-hide"
+                    >
+                      <span class="material-icons">cancel</span>
+                      <strong>Let's try again</strong>
+                      <span
+                        class="vp-spoken"
+                        *ngIf="currentQuestion.vpSpokenText"
+                        >You said: "{{ currentQuestion.vpSpokenText }}"</span
+                      >
+                      <span
+                        class="vp-spoken vp-spoken--expected"
+                        *ngIf="currentQuestion.vpExpectedText"
+                        >Expected: "{{ currentQuestion.vpExpectedText }}"</span
+                      >
+                    </div>
+                    <div
+                      class="pron-word-chips pron-word-chips--mob vp-mob-wrong-extra-hide"
+                      *ngIf="
+                        currentQuestion.vpWordAnalysis &&
+                        currentQuestion.vpWordAnalysis.length > 0
+                      "
+                    >
+                      <span
+                        *ngFor="let w of currentQuestion.vpWordAnalysis"
+                        class="pron-chip"
+                        [class.pron-chip--correct]="w.status === 'correct'"
+                        [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                        [class.pron-chip--missing]="w.status === 'missing'"
+                        >{{ w.expected
+                        }}<span class="pron-chip-icon material-icons">{{
+                          w.status === "correct"
+                            ? "check"
+                            : w.status === "missing"
+                              ? "remove"
+                              : "close"
+                        }}</span></span
+                      >
+                    </div>
+                    <p class="vp-mob-retry-nudge vp-mob-wrong-extra-hide">
+                      ❌ Not quite — 👉 try again clearly.
+                    </p>
+                    <div class="vp-mob-btn-row">
+                      <button
+                        type="button"
+                        class="vp-mob-btn vp-mob-btn--primary vp-mob-btn--wrong-mini"
+                        (click)="speakAgainVideoPronunciation(currentQuestion)"
+                      >
+                        <span class="material-icons">mic</span>
+                        <span>Speak again</span>
+                      </button>
+                      <button
+                        *ngIf="!isLastQuestion"
+                        type="button"
+                        class="vp-mob-btn vp-mob-btn--secondary vp-mob-btn--wrong-mini"
+                        (click)="goToNextClipAfterIncorrect()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">skip_next</span>
+                        <span>Next clip</span>
+                      </button>
+                      <button
+                        *ngIf="isLastQuestion"
+                        type="button"
+                        class="vp-mob-btn vp-mob-btn--finish vp-mob-btn--wrong-mini"
+                        (click)="finishVideoExercise()"
+                        [disabled]="
+                          finishingAll ||
+                          submitting ||
+                          !canCompleteByAttemptRate
+                        "
+                      >
+                        <span class="material-icons">flag</span>
+                        <span>{{
+                          finishingAll ? "Submitting…" : "Submit Exercise"
+                        }}</span>
+                      </button>
+                    </div>
+                  </ng-container>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Question / Answer body -->
+          <div
+            class="q-body qa-body"
+            [class.qa-body--multipart]="hasSubQuestions(currentQuestion.data)"
+            *ngIf="currentQuestion.data.type === 'question-answer'"
+          >
+            <div
+              class="q-question-box"
+              [class.multipart-part-card]="hasSubQuestions(currentQuestion.data)"
+            >
+              <div class="sub-q-header" *ngIf="hasSubQuestions(currentQuestion.data)">
+                <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getParentPartNumber()) }}</span>
+                <span class="sub-q-points">{{ currentQuestion.data.points || 1 }} pt</span>
+              </div>
+              <ng-container
+                *ngTemplateOutlet="playerQuestionAudioAttachment"
+              ></ng-container>
+              <ng-container
+                *ngIf="
+                  isTrueFalseQuestion(currentQuestion.data);
+                  else normalPrompt
+                "
+              >
+                <div class="qa-tf-inline-row">
+                  <div
+                    class="qa-prompt"
+                    [innerHTML]="currentQuestion.data.prompt | safeHtml"
+                  ></div>
+                  <div
+                    class="tf-answers tf-answers-inline"
+                    role="group"
+                    aria-label="Richtig oder Falsch"
+                  >
+                    <button
+                      type="button"
+                      class="tf-btn tf-btn--true"
+                      [class.active]="
+                        parseTrueFalse(currentQuestion.qaResponse) === true
+                      "
+                      [disabled]="hasCurrentSubmitted"
+                      [attr.aria-pressed]="
+                        parseTrueFalse(currentQuestion.qaResponse) === true
+                      "
+                      (click)="selectTrueFalse(currentQuestion, true)"
+                    >
+                      Richtig
+                    </button>
+                    <button
+                      type="button"
+                      class="tf-btn tf-btn--false"
+                      [class.active]="
+                        parseTrueFalse(currentQuestion.qaResponse) === false
+                      "
+                      [disabled]="hasCurrentSubmitted"
+                      [attr.aria-pressed]="
+                        parseTrueFalse(currentQuestion.qaResponse) === false
+                      "
+                      (click)="selectTrueFalse(currentQuestion, false)"
+                    >
+                      Falsch
+                    </button>
+                  </div>
+                </div>
+              </ng-container>
+              <ng-template #normalPrompt>
+                <div
+                  class="qa-prompt"
+                  [innerHTML]="currentQuestion.data.prompt | safeHtml"
+                ></div>
+              </ng-template>
+            </div>
+            <ng-container
+              *ngIf="!currentQuestion.data.subQuestions?.length"
+            >
+              <ng-container
+                *ngTemplateOutlet="playerQuestionMediaAttachment"
+              ></ng-container>
+            </ng-container>
+
+            <ng-container *ngIf="!isTrueFalseQuestion(currentQuestion.data)">
+              <label class="qa-input-label">Your Answer</label>
+              <textarea
+                class="qa-textarea"
+                rows="4"
+                placeholder="Write your answer here..."
+                [(ngModel)]="currentQuestion.qaResponse"
+                (ngModelChange)="markAttempted(currentQuestion)"
+                (focus)="
+                  setActiveSpecialInputTarget({ type: 'question-answer' })
+                "
+                [disabled]="hasCurrentSubmitted"
+              ></textarea>
+              <div
+                class="special-char-pad"
+                *ngIf="
+                  showSpecialCharacterPad(currentQuestion) &&
+                  !hasCurrentSubmitted
+                "
+              >
+                <div class="special-char-label">Special letters</div>
+                <div
+                  class="special-char-list"
+                  role="group"
+                  aria-label="German special letters"
+                >
+                  <button
+                    type="button"
+                    class="special-char-btn"
+                    *ngFor="let char of specialCharacters"
+                    (mousedown)="$event.preventDefault()"
+                    (click)="insertSpecialCharacter(char)"
+                  >
+                    {{ char }}
+                  </button>
+                </div>
+              </div>
+            </ng-container>
+
+            <div
+              class="qa-hint"
+              *ngIf="
+                hasCurrentSubmitted &&
+                currentQuestion.data.sampleAnswers?.length
+              "
+            >
+              <strong>Sample answers:</strong>
+              <span
+                *ngFor="
+                  let sa of currentQuestion.data.sampleAnswers;
+                  let si = index
+                "
+              >
+                {{ sa
+                }}<span
+                  *ngIf="si < currentQuestion.data.sampleAnswers.length - 1"
+                  >;
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Sub-questions with same context - rendered at bottom -->
+          <div class="sub-questions-section" *ngIf="currentQuestion.data.subQuestions && currentQuestion.data.subQuestions.length > 0">
+            <div class="sub-questions-inner">
+              <div class="sub-questions-list">
+                <div class="sub-question-card multipart-part-card" *ngFor="let sq of currentQuestion.data.subQuestions; let sqIndex = index">
+                  <div class="sub-q-header">
+                    <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getSubQuestionPartNumber(sqIndex, currentQuestion.data)) }}</span>
+                    <span class="sub-q-points">{{ sq.points || 1 }} pt</span>
+                  </div>
+                  <ng-container
+                    *ngIf="shouldShowPassageAudioOnFirstSub(sqIndex, currentQuestion.data)"
+                  >
+                    <ng-container
+                      *ngTemplateOutlet="playerQuestionAudioAttachment"
+                    ></ng-container>
+                  </ng-container>
+
+                  <div class="sub-q-body">
+                    <!-- MCQ -->
+                    <div *ngIf="sq.type === 'mcq'" class="sub-q-mcq">
+                      <div
+                        class="q-attachment-box q-attachment-box--audio"
+                        *ngIf="hasSubQuestionOwnAudio(currentQuestion.data, sq)"
+                      >
+                        <audio
+                          [src]="getMediaFullUrl(sq.attachmentUrl)"
+                          controls
+                          class="q-attachment-audio"
+                        ></audio>
+                      </div>
+                      <p class="sub-q-text" [innerHTML]="sq.question | safeHtml"></p>
+                      <div class="mcq-options sub-options" [class.mcq-options--visual]="hasMcqOptionImages(sq)">
+                        <div *ngFor="let opt of sq.options; let oi = index"
+                          class="mcq-option"
+                          role="button"
+                          [attr.tabindex]="hasCurrentSubmitted ? -1 : 0"
+                          [class.mcq-option--visual]="hasMcqOptionImages(sq)"
+                          [class.selected]="currentQuestion.subQuestionAnswers?.[sqIndex] === oi"
+                          [class.disabled]="hasCurrentSubmitted"
+                          (click)="selectSubQuestionOption(currentQuestion, sqIndex, oi)"
+                          (keydown.enter)="onMcqSubOptionKeyActivate($event, currentQuestion, sqIndex, oi)"
+                          (keydown.space)="onMcqSubOptionKeyActivate($event, currentQuestion, sqIndex, oi)">
+                          <div class="opt-visual-img-wrap" *ngIf="getMcqOptionImageUrl(sq, oi) as optImg">
+                            <img [src]="getMediaFullUrl(optImg)" alt="" class="opt-visual-img" />
+                            <button
+                              type="button"
+                              class="opt-visual-img-expand"
+                              (mousedown)="$event.stopPropagation()"
+                              (click)="openMcqOptionImageLightbox(optImg, $event)"
+                              aria-label="View larger image"
+                              matTooltip="View larger"
+                            >
+                              <span class="material-icons">zoom_in</span>
+                            </button>
+                          </div>
+                          <div class="opt-visual-label">
+                            <span class="opt-letter" [class.opt-letter-box]="hasMcqOptionImages(sq)">{{ hasMcqOptionImages(sq) ? "abcd"[oi] : "ABCD"[oi] }}</span>
+                            <span class="opt-text" [innerHTML]="opt | safeHtml"></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Fill Blank -->
+                    <div *ngIf="sq.type === 'fill-blank'" class="sub-q-fill-blank">
+                      <div class="sentence-container">
+                        <ng-container *ngFor="let part of getSentenceParts(sq.sentence); let pi = index">
+                          <span class="sentence-part" [innerHTML]="part | safeHtml"></span>
+                          <span class="blank-wrap" *ngIf="pi < getSentenceParts(sq.sentence).length - 1">
+                            <input type="text" class="blank-input"
+                              [ngModel]="getSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi)"
+                              (ngModelChange)="setSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi, $event)"
+                              [disabled]="hasCurrentSubmitted"
+                              [placeholder]="'blank ' + (pi + 1)"
+                              [class.correct]="hasCurrentSubmitted && isSubFillCorrect(currentQuestion, sqIndex, pi)"
+                              [class.wrong]="hasCurrentSubmitted && !isSubFillCorrect(currentQuestion, sqIndex, pi)" />
+                            <span class="blank-correct-val"
+                              *ngIf="hasCurrentSubmitted && !isSubFillCorrect(currentQuestion, sqIndex, pi)">
+                              → {{ getSubCorrectFillAnswer(currentQuestion, sqIndex, pi) }}
+                            </span>
+                          </span>
+                        </ng-container>
+                      </div>
+                      <p class="sub-q-hint" *ngIf="sq.hint"><span class="material-icons">lightbulb</span> {{ sq.hint }}</p>
+                    </div>
+
+                    <!-- Matching -->
+                    <div *ngIf="sq.type === 'matching'" class="sub-q-matching">
+                      <p class="sub-q-text">Match the items on the left with their correct pairs.</p>
+                      <div class="matching-cols">
+                        <div class="matching-left">
+                          <div class="match-item" *ngFor="let item of sq.leftItems; let li = index"
+                            [class.matched]="currentQuestion.subQuestionMatching?.[sqIndex]?.[li] !== null"
+                            (click)="selectSubQuestionMatchingLeft(currentQuestion, sqIndex, li)">
+                            <span class="match-label">{{ sq.leftLabels?.[li] || 'A' + li }}</span>
+                            <span class="match-text">{{ item }}</span>
+                          </div>
+                        </div>
+                        <div class="matching-right">
+                          <div class="match-item" *ngFor="let item of sq.rightItems; let ri = index"
+                            [class.matched]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, ri)"
+                            (click)="selectSubQuestionMatchingRight(currentQuestion, sqIndex, ri)">
+                            <span class="match-text">{{ item }}</span>
+                            <span class="match-label">{{ sq.rightLabels?.[ri] || ri + 1 }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Word Bank Fill -->
+                    <div *ngIf="sq.type === 'word_bank_fill'" class="sub-q-word-bank">
+                      <div class="word-bank-box" *ngIf="sq.wordBank?.length">
+                        <div class="word-bank-box-label">Word bank</div>
+                        <div class="word-bank-pills">
+                          <button type="button" class="word-bank-pill"
+                            *ngFor="let word of sq.wordBank; trackBy: trackByIndex"
+                            [disabled]="hasCurrentSubmitted"
+                            (click)="fillSubQuestionWordBankBlank(currentQuestion, sqIndex, word)">
+                            {{ word }}
+                          </button>
+                        </div>
+                      </div>
+                      <div class="word-bank-items">
+                        <div class="word-bank-item-row" *ngFor="let item of getSubQuestionWordBankItems(sq); let ii = index">
+                          <div class="word-bank-prompt q-text" [innerHTML]="displaySubQuestionWordBankPrompt(item, ii) | safeHtml"></div>
+                          <div class="word-bank-answer-wrap">
+                            <input type="text" class="blank-input word-bank-answer-input"
+                              [ngModel]="getSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii)"
+                              (ngModelChange)="setSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii, $event)"
+                              [disabled]="hasCurrentSubmitted"
+                              [placeholder]="'Blank ' + (ii + 1)" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Question Answer -->
+                    <div *ngIf="sq.type === 'question-answer'" class="sub-q-qa">
+                      <ng-container *ngIf="isTrueFalseQuestion(sq); else normalQAPrompt">
+                        <div class="qa-tf-inline-row">
+                          <div
+                            class="qa-prompt"
+                            [innerHTML]="sq.prompt | safeHtml"
+                          ></div>
+                          <div class="tf-answers tf-answers-inline" role="group" aria-label="Richtig oder Falsch">
+                            <button type="button" class="tf-btn tf-btn--true"
+                              [class.active]="parseTrueFalse(getSubQuestionAnswer(currentQuestion, sqIndex)) === true"
+                              [disabled]="hasCurrentSubmitted"
+                              (click)="setSubQuestionTrueFalse(currentQuestion, sqIndex, true)">
+                              Richtig
+                            </button>
+                            <button type="button" class="tf-btn tf-btn--false"
+                              [class.active]="parseTrueFalse(getSubQuestionAnswer(currentQuestion, sqIndex)) === false"
+                              [disabled]="hasCurrentSubmitted"
+                              (click)="setSubQuestionTrueFalse(currentQuestion, sqIndex, false)">
+                              Falsch
+                            </button>
+                          </div>
+                        </div>
+                      </ng-container>
+                      <ng-template #normalQAPrompt>
+                        <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                        <input type="text" class="sub-q-input"
+                          [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
+                          (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                          [disabled]="hasCurrentSubmitted"
+                          placeholder="Type your answer..." />
+                      </ng-template>
+                    </div>
+
+                    <!-- Pronunciation -->
+                    <div *ngIf="sq.type === 'pronunciation'" class="sub-q-pronunciation">
+                      <div class="pronunciation-word-card">
+                        <div class="big-word">{{ sq.word }}</div>
+                        <div class="word-phonetic" *ngIf="sq.phonetic">{{ sq.phonetic }}</div>
+                        <div class="word-translation" *ngIf="sq.translation">= {{ sq.translation }}</div>
+                      </div>
+                    </div>
+
+                    <!-- Listening -->
+                    <div *ngIf="sq.type === 'listening'" class="sub-q-listening">
+                      <div class="listening-audio-wrap" *ngIf="sq.audioUrl">
+                        <audio [src]="getMediaFullUrl(sq.audioUrl)" controls></audio>
+                      </div>
+                      <p class="sub-q-text" [innerHTML]="sq.prompt | safeHtml"></p>
+                      <input type="text" class="sub-q-input"
+                        [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
+                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                        [disabled]="hasCurrentSubmitted"
+                        placeholder="Type what you hear..." />
+                    </div>
+
+                    <!-- Singular Plural -->
+                    <div *ngIf="sq.type === 'singular_plural'" class="sub-q-singular-plural">
+                      <table class="sp-pairs-table" *ngIf="sq.singularPluralPairs?.length">
+                        <thead>
+                          <tr>
+                            <th>Singular</th>
+                            <th>Plural</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr *ngFor="let sp of sq.singularPluralPairs; let ri = index">
+                            <td class="sp-singular-cell">{{ sp.singular }}</td>
+                            <td class="sp-plural-cell">
+                              <input type="text" class="blank-input"
+                                [ngModel]="getSubQuestionSpInput(currentQuestion, sqIndex, ri)"
+                                (ngModelChange)="setSubQuestionSpInput(currentQuestion, sqIndex, ri, $event)"
+                                [disabled]="hasCurrentSubmitted"
+                                [placeholder]="'Plural'" />
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- Jumble Word -->
+                    <div *ngIf="sq.type === 'jumble-word'" class="sub-q-jumble">
+                      <p class="sub-q-text" *ngIf="sq.categoryTip">{{ sq.categoryTip }}</p>
+                      <p class="sub-q-text">Form the word: <strong>{{ sq.scrambledText || sq.word }}</strong></p>
+                      <div class="jumble-scramble">
+                        <ng-container *ngFor="let token of getJumbleTokens(sq); let ti = index">
+                          <button *ngIf="token !== ' '" type="button" class="jumble-letter jumble-letter-btn"
+                            [class.jumble-letter--bold]="token === sq.boldLetter && ti === getFirstBoldIndex(sq)"
+                            [class.jumble-letter--used]="isSubQuestionJumbleTokenUsed(currentQuestion, sqIndex, ti)"
+                            (click)="insertSubQuestionJumbleToken(currentQuestion, sqIndex, token, ti)"
+                            [disabled]="hasCurrentSubmitted || isSubQuestionJumbleTokenUsed(currentQuestion, sqIndex, ti)">
+                            {{ token }}
+                          </button>
+                          <span *ngIf="token === ' '" class="jumble-space"> </span>
+                        </ng-container>
+                      </div>
+                      <input type="text" class="sub-q-input jumble-input"
+                        [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
+                        (ngModelChange)="onSubQuestionJumbleResponseChange(currentQuestion, sqIndex, sq, $event)"
+                        [disabled]="hasCurrentSubmitted"
+                        placeholder="Type the unscrambled word..." />
+                    </div>
+
+                    <!-- Rearrange -->
+                    <div *ngIf="sq.type === 'rearrange'" class="sub-q-rearrange">
+                      <p class="sub-q-text" [innerHTML]="sq.rearrangePrompt | safeHtml"></p>
+                      <div class="rearrange-tokens-wrap" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.length">
+                        <div class="rearrange-label">Drag to rearrange:</div>
+                        <div class="rearrange-drop" cdkDropList cdkDropListOrientation="horizontal"
+                          [cdkDropListData]="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)"
+                          [cdkDropListSortingDisabled]="hasCurrentSubmitted"
+                          [class.disabled]="hasCurrentSubmitted"
+                          (cdkDropListDropped)="onSubQuestionRearrangeDrop(currentQuestion, sqIndex, $event)">
+                          <div class="rearrange-token" *ngFor="let t of getSubQuestionRearrangeTokens(currentQuestion, sqIndex); let ti = index"
+                            cdkDrag [cdkDragDisabled]="hasCurrentSubmitted">
+                            {{ t }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Image Pin Match -->
+                    <div *ngIf="sq.type === 'image_pin_match'" class="sub-q-image-pin">
+                      <p class="sub-q-text">Drag the handle from a label to the correct numbered pin on the image.</p>
+                    </div>
+
+                    <!-- Video Pronunciation -->
+                    <div *ngIf="sq.type === 'video-pronunciation'" class="sub-q-video-pron">
+                      <p class="sub-q-text">Say: <strong>{{ sq.caption }}</strong></p>
+                      <p *ngIf="sq.context" class="sub-q-text-sub">{{ sq.context }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="q-passage-reference-wrap"
+            *ngIf="shouldShowPassageAttachmentAtBottom(currentQuestion.data)"
+          >
+            <ng-container
+              *ngTemplateOutlet="playerQuestionMediaAttachment"
+            ></ng-container>
+          </div>
+
+          <!-- Result Banner -->
+          <div
+            class="result-banner"
+            *ngIf="hasCurrentSubmitted && currentQuestion.isCorrect !== null"
+          >
+            <div class="result-correct" *ngIf="currentQuestion.isCorrect">
+              <span class="material-icons">check_circle</span> Correct! +{{
+                currentQuestion.data.points || 1
+              }}
+              point{{ currentQuestion.data.points !== 1 ? "s" : "" }}
+            </div>
+            <div class="result-wrong" *ngIf="!currentQuestion.isCorrect">
+              <span class="material-icons">cancel</span> Incorrect
+            </div>
+          </div>
+
+          <!-- Navigation Buttons (inside card) -->
+          <div class="question-nav-btns">
+            <button
+              class="btn-nav btn-prev"
+              (click)="prevQuestion()"
+              [disabled]="isFirstQuestion || finishingAll"
+            >
+              <span class="material-icons">arrow_back</span> Previous
+            </button>
+            <button
+              class="btn-nav btn-next"
+              *ngIf="!isLastQuestion"
+              (click)="nextQuestion()"
+              [disabled]="finishingAll"
+            >
+              Next <span class="material-icons">arrow_forward</span>
+            </button>
+            <button
+              class="btn-submit btn-finish"
+              *ngIf="isLastQuestion"
+              (click)="openFinishSummary()"
+              [disabled]="finishingAll || !canCompleteByAttemptRate"
+            >
+              <span class="material-icons">{{
+                finishingAll ? "hourglass_empty" : "flag"
+              }}</span>
+              {{ finishingAll ? "Finishing..." : "Finish & Submit" }}
+            </button>
+          </div>
         </div>
-        <div class="status-legend">
-          <span class="status-item correct">
-            <span class="status-icon correct"></span>
-            {{ correctCount }} Correct
-          </span>
-          <span class="status-item wrong">
-            <span class="status-icon wrong"></span>
-            {{ wrongCount }} Wrong
-          </span>
-          <span class="status-item unanswered">
-            <span class="status-icon unanswered"></span>
-            {{ unattemptedCount }} Unanswered
-          </span>
-        </div>
-      </aside>
+      </div>
     </div>
 
     <!-- Finish Summary Modal -->
@@ -574,8 +4095,12 @@
           </div>
         </div>
         <div class="finish-actions">
-          <button class="btn-nav" (click)="cancelFinishSummary()">Continue Editing</button>
-          <button class="btn-submit btn-finish" (click)="confirmFinishSubmit()">Submit Final</button>
+          <button class="btn-nav" (click)="cancelFinishSummary()">
+            Continue Editing
+          </button>
+          <button class="btn-submit btn-finish" (click)="confirmFinishSubmit()">
+            Submit Final
+          </button>
         </div>
       </div>
     </div>
@@ -588,7 +4113,154 @@
         <p>Please wait, do not close this page.</p>
       </div>
     </div>
-
   </div>
+</div>
 
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<!-- Microphone Test Dialog (bonus feature)                                 -->
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<div class="mic-test-overlay" *ngIf="micTestOpen" (click)="closeMicTest()">
+  <div
+    class="mic-test-card"
+    (click)="$event.stopPropagation()"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Test your microphone"
+  >
+    <button
+      type="button"
+      class="mic-test-close"
+      (click)="closeMicTest()"
+      aria-label="Close"
+    >
+      <span class="material-icons">close</span>
+    </button>
+    <h3 class="mic-test-title">
+      <span class="material-icons">settings_voice</span>
+      Test your microphone
+    </h3>
+    <p class="mic-test-subtitle">
+      We'll record a 5-second sample so you can hear exactly what your
+      microphone captures.
+    </p>
+
+    <div class="mic-test-body" [ngSwitch]="micTestState">
+      <div *ngSwitchCase="'idle'" class="mic-test-idle">
+        <button
+          type="button"
+          class="mic-test-record-btn"
+          (click)="runMicTest()"
+        >
+          <span class="material-icons">fiber_manual_record</span>
+          Start test (5s)
+        </button>
+        <p class="mic-test-hint" *ngIf="micPermission === 'denied'">
+          <span class="material-icons">warning</span>
+          Microphone access is blocked. Please allow it in your browser settings
+          first.
+        </p>
+      </div>
+
+      <div *ngSwitchCase="'recording'" class="mic-test-recording">
+        <span class="material-icons mic-test-pulse">mic</span>
+        <div class="mic-test-count">Recording… {{ micTestCountdown }}s</div>
+        <p class="mic-test-hint">
+          Say something clearly, e.g. <em>“Hallo, ich teste mein Mikrofon.”</em>
+        </p>
+      </div>
+
+      <div *ngSwitchCase="'ready'" class="mic-test-ready">
+        <p class="mic-test-hint">
+          <span class="material-icons" style="color: #16a34a"
+            >check_circle</span
+          >
+          Captured. Press play to hear yourself.
+        </p>
+        <audio
+          *ngIf="micTestAudioUrl"
+          [src]="micTestAudioUrl"
+          controls
+          preload="auto"
+        ></audio>
+        <p class="mic-test-hint" *ngIf="micTestError">
+          <span class="material-icons">info</span>
+          {{ micTestError }}
+        </p>
+        <div class="mic-test-actions">
+          <button
+            type="button"
+            class="mic-test-secondary"
+            (click)="playMicTestBoosted()"
+          >
+            <span class="material-icons">volume_up</span>
+            Play louder
+          </button>
+          <button
+            type="button"
+            class="mic-test-secondary"
+            (click)="runMicTest()"
+          >
+            <span class="material-icons">refresh</span>
+            Record again
+          </button>
+          <button
+            type="button"
+            class="mic-test-primary"
+            (click)="closeMicTest()"
+          >
+            <span class="material-icons">thumb_up</span>
+            Sounds good
+          </button>
+        </div>
+      </div>
+
+      <div *ngSwitchCase="'error'" class="mic-test-error">
+        <p class="mic-test-hint">
+          <span class="material-icons" style="color: #dc2626"
+            >error_outline</span
+          >
+          {{ micTestError || "Microphone test failed." }}
+        </p>
+        <div class="mic-test-actions">
+          <button
+            type="button"
+            class="mic-test-secondary"
+            (click)="runMicTest()"
+          >
+            <span class="material-icons">refresh</span>
+            Try again
+          </button>
+          <button
+            type="button"
+            class="mic-test-primary"
+            (click)="closeMicTest()"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MCQ option image lightbox (must be outside mic-test *ngIf) -->
+<div
+  class="mcq-image-lightbox"
+  *ngIf="mcqImageLightboxUrl"
+  (click)="closeMcqOptionImageLightbox()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Enlarged option image"
+>
+  <button
+    type="button"
+    class="mcq-image-lightbox-close"
+    (click)="closeMcqOptionImageLightbox(); $event.stopPropagation()"
+    aria-label="Close"
+  >
+    <span class="material-icons">close</span>
+  </button>
+  <div class="mcq-image-lightbox-panel" (click)="$event.stopPropagation()">
+    <img [src]="mcqImageLightboxUrl" alt="Enlarged option image" class="mcq-image-lightbox-img" />
+  </div>
 </div>

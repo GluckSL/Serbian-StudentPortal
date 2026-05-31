@@ -29,7 +29,7 @@
       <input
         type="text"
         class="search-input"
-        placeholder="Search exercises by title or topic..."
+        [placeholder]="searchInputPlaceholder"
         [(ngModel)]="searchQuery"
         (input)="onSearchChange()"
       />
@@ -38,33 +38,63 @@
       </button>
     </div>
     <div class="filter-chips">
-      <select [(ngModel)]="selectedLevel" (change)="onFilterChange()" class="filter-select">
-        <option value="">All Levels</option>
-        <option *ngFor="let l of levelFilterOptions" [value]="l">{{ l }}</option>
-      </select>
-      <select [(ngModel)]="selectedCategory" (change)="onFilterChange()" class="filter-select">
-        <option value="">All Categories</option>
-        <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
-      </select>
-      <select [(ngModel)]="selectedDifficulty" (change)="onFilterChange()" class="filter-select">
-        <option value="">All Difficulties</option>
-        <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
-      </select>
-      <label class="today-only-inline" *ngIf="userRole === 'STUDENT'">
-        <input type="checkbox" [(ngModel)]="todayOnly" (change)="onTodayOnlyChange()" />
-        <span>Today only</span>
-      </label>
+      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+        <mat-select
+          [(ngModel)]="selectedLevel"
+          (selectionChange)="onFilterChange()"
+          panelClass="dex-select-panel"
+          [attr.aria-label]="'Filter by level'"
+        >
+          <mat-option value="">All Levels</mat-option>
+          <mat-option *ngFor="let l of levelFilterOptions" [value]="l">{{ l }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+        <mat-select
+          [(ngModel)]="selectedCategory"
+          (selectionChange)="onFilterChange()"
+          panelClass="dex-select-panel"
+          [attr.aria-label]="'Filter by category'"
+        >
+          <mat-option value="">All Categories</mat-option>
+          <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+        <mat-select
+          [(ngModel)]="selectedDifficulty"
+          (selectionChange)="onFilterChange()"
+          panelClass="dex-select-panel"
+          [attr.aria-label]="'Filter by difficulty'"
+        >
+          <mat-option value="">All Difficulties</mat-option>
+          <mat-option *ngFor="let d of difficulties" [value]="d">{{ d }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
       <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
       </button>
     </div>
   </div>
 
-  <!-- Tabs -->
-  <div class="tabs-bar" *ngIf="!loading && exercises.length > 0">
-    <button class="tab-btn" [class.active]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
-    <button class="tab-btn" [class.active]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
-    <button class="tab-btn" [class.active]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
+  <!-- Tabs + compact analytics entry (students) -->
+  <div class="mc-tabs-wrap" *ngIf="!loading && exercises.length > 0">
+    <div class="mc-tabs">
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
+    </div>
+    <button
+      *ngIf="userRole === 'STUDENT'"
+      type="button"
+      class="tabs-analytics-btn"
+      (click)="openStudentAnalyticsPage()"
+      title="Open full analytics: overall summary and every exercise"
+    >
+      <span class="material-icons">analytics</span>
+      <span class="tabs-analytics-label">Analytics</span>
+    </button>
   </div>
 
   <!-- Loading -->
@@ -75,49 +105,124 @@
   </div>
 
   <!-- Exercise List (Card-based rows) -->
-  <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0">
+  <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0" [class.exercise-list--student]="userRole === 'STUDENT'">
     <div class="list-headers">
       <span class="col-details">EXERCISE DETAILS</span>
       <span class="col-level">LEVEL</span>
       <span class="col-cat">CATEGORY</span>
+      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAY / SEQ</span>
       <span class="col-vol">VOLUME</span>
       <span class="col-dur">DURATION</span>
       <span class="col-priority">STATUS</span>
       <span class="col-action">ACTION</span>
     </div>
-    <div class="exercise-row" *ngFor="let ex of paginatedExercises">
+  <div class="exercise-row" *ngFor="let ex of paginatedExercises">
       <div class="row-icon">
         <span class="material-icons">{{ getCategoryIcon(ex.category) }}</span>
       </div>
       <div class="row-details">
+        <span class="ex-category">{{ ex.category }}</span>
         <span class="ex-title">{{ ex.title }}</span>
         <span class="ex-desc">{{ ex.description }}</span>
       </div>
       <div class="row-level">
-        <span class="level-badge" [style.background]="getLevelColor(ex.level)">LEVEL {{ ex.level }}</span>
+        <span class="level-badge" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
       </div>
-      <div class="row-category">{{ ex.category }}</div>
-      <div class="row-volume">
-        <span class="vol-num">{{ ex.questions?.length || 0 }}</span>
-        <span class="vol-label">ITEMS</span>
-      </div>
-      <div class="row-duration">
-        <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
-        <span class="dur-label">EST.</span>
-      </div>
-      <div class="row-priority">
-        <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
-          <svg class="ring-svg" viewBox="0 0 36 36">
-            <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-            <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-          </svg>
-          <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+
+      <!-- Mobile: Meta Row (visible on mobile only) -->
+      <div class="row-meta-footer">
+        <div class="row-stats-group">
+          <div class="row-day" *ngIf="userRole === 'STUDENT'">
+            <span class="vol-num">{{ journeyDaySequenceLabel(ex) }}</span>
+            <span class="vol-label">DAY / SEQ</span>
+          </div>
+          <div class="row-volume">
+            <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+            <span class="vol-label">ITEMS</span>
+          </div>
+          <div class="row-duration">
+            <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
+            <span class="dur-label">EST.</span>
+          </div>
+          <div class="row-priority">
+            <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+              <svg class="ring-svg" viewBox="0 0 36 36">
+                <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              </svg>
+              <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="row-action">
+          <button
+            *ngIf="!isExerciseJourneyLocked(ex)"
+            type="button"
+            class="btn-start"
+            (click)="startExercise(ex)"
+          >
+            {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+          </button>
         </div>
       </div>
-      <div class="row-action">
-        <button class="btn-start" (click)="startExercise(ex)">
-          {{ ex.studentAttempt ? 'Retry' : 'Start' }}
-        </button>
+      <!-- End Mobile Footer -->
+
+      <!-- Desktop-only elements (grid items) -->
+      <div class="desktop-only-wrapper">
+        <div class="row-category">{{ ex.category }}</div>
+        <div class="row-day" *ngIf="userRole === 'STUDENT'">
+          <span class="journey-day-pill" [class.journey-day-pill--any]="ex.courseDay == null">
+            {{ journeyDaySequenceLabel(ex) }}
+          </span>
+        </div>
+        <div class="row-volume">
+          <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+          <span class="vol-label">ITEMS</span>
+        </div>
+        <div class="row-duration">
+          <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
+          <span class="dur-label">EST.</span>
+        </div>
+        <div class="row-priority">
+          <div class="priority-stack">
+            <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
+              <svg class="ring-svg" viewBox="0 0 36 36">
+                <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="ring-fill" [attr.stroke-dasharray]="ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + ', 100' : '0, 100'" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              </svg>
+              <span class="ring-text">{{ ex.studentAttempt ? (ex.studentAttempt.scorePercentage || 0) + '%' : '0%' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="row-action">
+          <div class="row-action-inner">
+            <button
+              *ngIf="userRole === 'STUDENT' && ex.studentAttempt"
+              type="button"
+              class="btn-icon-analytics"
+              (click)="openExerciseReview(ex, $event)"
+              title="Analytics"
+            >
+              <span class="material-icons">analytics</span>
+            </button>
+            <button
+              *ngIf="!isExerciseJourneyLocked(ex)"
+              type="button"
+              class="btn-start"
+              (click)="startExercise(ex)"
+            >
+              {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+            </button>
+            <button
+              *ngIf="isExerciseJourneyLocked(ex)"
+              type="button"
+              class="btn-start btn-start--locked"
+              (click)="openPrerequisiteExercise(ex)"
+            >
+              {{ journeyUnlockButtonLabel(ex) }}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

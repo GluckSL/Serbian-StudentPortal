@@ -4,16 +4,25 @@ const mongoose = require('mongoose');
 
 const QuestionResponseSchema = new mongoose.Schema({
   questionIndex: { type: Number, required: true },
-  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'pronunciation', 'question-answer', 'listening'] },
+  questionType: { type: String, enum: ['mcq', 'matching', 'fill-blank', 'word_bank_fill', 'pronunciation', 'question-answer', 'listening', 'video-pronunciation', 'singular_plural', 'jumble-word', 'rearrange', 'image_pin_match'] },
   // MCQ response
   selectedOptionIndex: Number,
   // Matching response: array of { leftIndex, rightIndex }
   matchingResponse: [{
     leftIndex: Number,
-    rightIndex: Number
+    rightIndex: Number,
+    // Optional: submitted right value so grading can work even when the UI shuffles.
+    rightValue: String
   }],
   // Fill-blank response: array of answers per blank
   fillBlankResponses: [String],
+  // Word-bank-fill response: selected/typed value per item index
+  wordBankAnswers: [{
+    index: Number,
+    value: String
+  }],
+  // Singular/plural: student typed plural per row (same order as question.pairs)
+  singularPluralResponses: [String],
   // Pronunciation response
   spokenText: String,
   pronunciationScore: Number, // 0-100
@@ -21,6 +30,30 @@ const QuestionResponseSchema = new mongoose.Schema({
   qaResponse: String,
   // Listening response (typed or transcribed from speech)
   listeningText: String,
+  // Jumble-word response
+  jumbleWordResponse: String,
+  // Rearrange response
+  rearrangeTextResponse: String,
+  rearrangeTokensResponse: [String],
+  // Image pin match response
+  imagePinAnswers: [{
+    labelId: String,
+    pinId: String
+  }],
+  // Sub-questions (same context group)
+  subQuestionResponses: [{
+    questionIndex: Number,
+    selectedOptionIndex: Number,
+    textAnswer: String,
+    fillBlankResponses: [String]
+  }],
+  // Per sub-question grading (auto or staff override)
+  subQuestionGrades: [{
+    questionIndex: Number,
+    isCorrect: Boolean,
+    pointsEarned: Number,
+    staffOverride: { type: Boolean, default: false }
+  }],
   // Common
   isCorrect: { type: Boolean, default: false },
   pointsEarned: { type: Number, default: 0 }
@@ -64,6 +97,7 @@ const ExerciseAttemptSchema = new mongoose.Schema({
 
 // Index for fast queries by student, exercise, date
 ExerciseAttemptSchema.index({ studentId: 1, exerciseId: 1 });
+ExerciseAttemptSchema.index({ studentId: 1, status: 1 }); // batch progress overall aggregate
 ExerciseAttemptSchema.index({ exerciseId: 1, status: 1 });
 ExerciseAttemptSchema.index({ studentId: 1, createdAt: -1 });
 // Daily completion tracking

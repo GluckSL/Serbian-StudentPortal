@@ -7,10 +7,15 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface DocumentRequirement {
+  id: string;
   type: string;
+  name: string;
   label: string;
   required: boolean;
+  isRequired: boolean;
   description: string;
+  category?: string;
+  allowMultiple: boolean;
 }
 
 export interface StudentDocument {
@@ -19,6 +24,7 @@ export interface StudentDocument {
   studentName: string;
   studentEmail: string;
   documentType: string;
+  documentTypeId: string;
   documentName: string;
   fileName: string;
   filePath: string;
@@ -30,6 +36,10 @@ export interface StudentDocument {
   verifiedBy?: string;
   verifiedAt?: Date;
   verificationNotes?: string;
+  remarks?: string;
+  version?: number;
+  isCurrent?: boolean;
+  documentCategory?: string;
   uploadedAt: Date;
   updatedAt: Date;
   documentTypeDisplay: string;
@@ -52,6 +62,19 @@ export class StudentDocumentsService {
   private apiUrl = `${environment.apiUrl}/student-documents`;
 
   constructor(private http: HttpClient) {}
+
+  private getAuthToken(): string {
+    try {
+      return (
+        localStorage.getItem('authToken') ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('jwtToken') ||
+        ''
+      );
+    } catch {
+      return '';
+    }
+  }
 
   // Get student's documents
   getMyDocuments(): Observable<{
@@ -79,6 +102,21 @@ export class StudentDocumentsService {
     }>(`${this.apiUrl}/upload`, formData, { withCredentials: true });
   }
 
+  // Replace an existing document with a new version
+  replaceDocument(documentId: string, file: File): Observable<{
+    success: boolean;
+    message: string;
+    document: StudentDocument;
+  }> {
+    const formData = new FormData();
+    formData.append('document', file);
+    return this.http.post<{
+      success: boolean;
+      message: string;
+      document: StudentDocument;
+    }>(`${this.apiUrl}/admin/replace/${documentId}`, formData, { withCredentials: true });
+  }
+
   // Delete a document
   deleteDocument(documentId: string): Observable<{
     success: boolean;
@@ -98,9 +136,26 @@ export class StudentDocumentsService {
     });
   }
 
+  // Download by browser navigation to avoid XHR/CORS false errors on S3 redirects
+  triggerServerDownload(documentId: string): void {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    const token = encodeURIComponent(this.getAuthToken());
+    const baseUrl = `${this.apiUrl}/download/${encodeURIComponent(documentId)}`;
+    iframe.src = token ? `${baseUrl}?token=${token}` : baseUrl;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    }, 30000);
+  }
+
   // Preview a document inline
   getPreviewUrl(documentId: string): string {
-    return `${this.apiUrl}/preview/${documentId}`;
+    const token = encodeURIComponent(this.getAuthToken());
+    const baseUrl = `${this.apiUrl}/preview/${encodeURIComponent(documentId)}`;
+    return token ? `${baseUrl}?token=${token}` : baseUrl;
   }
 
   // Preview a document as blob (sends auth cookie)
@@ -141,6 +196,19 @@ export class StudentDocumentsService {
     link.download = filename;
     link.click();
     window.URL.revokeObjectURL(url);
+  }
+
+  /** Open PDF/image in a new browser tab (view, not download). */
+  openBlobInNewTab(blob: Blob, mimeType = 'application/pdf'): void {
+    const type = blob.type || mimeType;
+    const url = window.URL.createObjectURL(new Blob([blob], { type }));
+    const hash = type.includes('pdf') ? '#toolbar=0&navpanes=0&view=FitH' : '';
+    const w = window.open(url + hash, '_blank', 'noopener');
+    if (!w) {
+      window.URL.revokeObjectURL(url);
+      throw new Error('Popup blocked — allow popups for this site to view documents');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
   }
 
   // Get status badge class
@@ -212,12 +280,13 @@ export class StudentDocumentsService {
   // Verify or reject a document (Admin/Teacher only)
   verifyDocument(
     documentId: string,
-    status: 'VERIFIED' | 'REJECTED',
+    status: 'PENDING' | 'VERIFIED' | 'REJECTED',
     verificationNotes?: string
   ): Observable<{
     success: boolean;
     message: string;
     document: StudentDocument;
+    emailSent?: boolean;
   }> {
     return this.http.put<{
       success: boolean;
@@ -297,14 +366,20 @@ export class StudentDocumentsService {
   // ========== BULK OPERATIONS ==========
   
   // Get all students (Admin only)
-  getAllStudents(): Observable<{
+  getAllStudents(params?: { page?: number; limit?: number }): Observable<{
     success: boolean;
-    students: any[];
+    data: any[];
+    pagination?: { total: number; page: number; limit: number; pages: number };
   }> {
+    const q: string[] = [];
+    if (params?.page) q.push(`page=${encodeURIComponent(String(params.page))}`);
+    if (params?.limit) q.push(`limit=${encodeURIComponent(String(params.limit))}`);
+    const url = `${environment.apiUrl}/admin/students${q.length ? `?${q.join('&')}` : ''}`;
     return this.http.get<{
       success: boolean;
-      students: any[];
-    }>(`${environment.apiUrl}/admin/students`, { withCredentials: true });
+      data: any[];
+      pagination?: { total: number; page: number; limit: number; pages: number };
+    }>(url, { withCredentials: true });
   }
   
   // Admin upload document for student (Admin only)
@@ -323,6 +398,7 @@ export class StudentDocumentsService {
   // Mark document as verified without uploading file (Admin only)
   markDocumentAsVerified(data: {
     studentEmail: string;
+    documentTypeId?: string;
     documentType: string;
     documentName: string;
     verificationNotes: string;

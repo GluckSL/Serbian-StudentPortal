@@ -2,11 +2,13 @@
 
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DigitalExerciseService, DigitalExercise } from '../../../services/digital-exercise.service';
 
 interface Attempt {
-  _id: string;
+  _id?: string;
   studentId?: { name?: string; email?: string; batch?: string; level?: string };
   studentName?: string;
   studentBatch?: string;
@@ -25,6 +27,7 @@ interface StudentSummary {
   email?: string;
   batch?: string;
   level?: string;
+  isTestAccount?: boolean;
   attempts: number;
   bestScore: number;
   lastAttemptAt: string;
@@ -43,7 +46,7 @@ interface QuestionStats {
 @Component({
   selector: 'app-exercise-completion-details',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule, TestAccountBadgeComponent],
   templateUrl: './exercise-completion-details.component.html',
   styleUrls: ['./exercise-completion-details.component.css']
 })
@@ -59,6 +62,14 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
   totalCompletions = 0;
   avgScore = 0;
   uniqueStudents = 0;
+  allAttempts: Attempt[] = [];
+  selectedBatch = 'all';
+  regradingAll = false;
+  regradeAllMessage = '';
+  regradeAllError = '';
+  private autoRegradeDone = false;
+  private completionsLoaded = false;
+  private exerciseLoaded = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -79,8 +90,48 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
 
   loadExercise(): void {
     this.exerciseService.getExercise(this.exerciseId).subscribe({
-      next: (ex) => { this.exercise = ex; },
+      next: (ex) => {
+        this.exercise = ex;
+        this.exerciseLoaded = true;
+        this.tryAutoRegradeFillBlankAttempts();
+      },
       error: () => { this.exercise = null; }
+    });
+  }
+
+  exerciseHasMultipartFillBlank(): boolean {
+    return (this.exercise?.questions || []).some((q: any) => {
+      const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
+      return q?.type === 'fill-blank' && subs.some((sq: any) => sq?.type === 'fill-blank');
+    });
+  }
+
+  private tryAutoRegradeFillBlankAttempts(): void {
+    if (!this.completionsLoaded || !this.exerciseLoaded) return;
+    if (this.autoRegradeDone || this.regradingAll) return;
+    if (!this.exerciseId || !this.exerciseHasMultipartFillBlank() || !this.allAttempts.length) return;
+    this.autoRegradeDone = true;
+    this.regradeAllAttempts(false);
+  }
+
+  regradeAllAttempts(manual = true): void {
+    if (!this.exerciseId || this.regradingAll) return;
+    this.regradingAll = true;
+    this.regradeAllError = '';
+    this.regradeAllMessage = manual ? 'Updating scores…' : 'Auto-mapping fill-in-the-blank answers and updating scores…';
+
+    this.exerciseService.regradeAllAttemptsForStaff(this.exerciseId).subscribe({
+      next: (res) => {
+        this.regradingAll = false;
+        this.regradeAllMessage =
+          `Updated ${res.updated} of ${res.totalAttempts} attempt(s). Scores and progress records are refreshed.`;
+        this.loadCompletions();
+      },
+      error: (err) => {
+        this.regradingAll = false;
+        this.regradeAllMessage = '';
+        this.regradeAllError = err?.error?.error || 'Could not update all attempts';
+      }
     });
   }
 
@@ -88,9 +139,11 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
     this.loading = true;
     this.exerciseService.getExerciseCompletions(this.exerciseId, { limit: 500 }).subscribe({
       next: (res) => {
-        this.attempts = res.attempts || [];
-        this.computeAnalytics();
+        this.allAttempts = res.attempts || [];
+        this.applyFilters();
         this.loading = false;
+        this.completionsLoaded = true;
+        this.tryAutoRegradeFillBlankAttempts();
       },
       error: () => {
         this.loading = false;
@@ -99,7 +152,8 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
     });
   }
 
-  private computeAnalytics(): void {
+  private computeAnalytics(sourceAttempts: Attempt[]): void {
+    this.attempts = sourceAttempts;
     this.totalCompletions = this.attempts.length;
 
     // Student summaries
@@ -124,6 +178,7 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
         email: student?.email,
         batch: student?.batch || first.studentBatch,
         level: student?.level,
+        isTestAccount: !!(student && student.isTestAccount),
         attempts: data.attempts.length,
         bestScore: best,
         lastAttemptAt: last.completedAt
@@ -165,6 +220,61 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
         failureRate: total > 0 ? Math.round((stats.wrong / total) * 100) : 0
       };
     }).sort((a, b) => b.failureRate - a.failureRate);
+  }
+
+  private applyFilters(): void {
+    const filtered = this.selectedBatch === 'all'
+      ? this.allAttempts
+      : this.allAttempts.filter((a) => {
+        const student = a.studentId as any;
+        const batch = String(student?.batch || a.studentBatch || '').trim();
+        return batch === this.selectedBatch;
+      });
+    this.computeAnalytics(filtered);
+  }
+
+  onBatchChange(): void {
+    this.applyFilters();
+  }
+
+  get batchOptions(): string[] {
+    const set = new Set<string>();
+    (this.allAttempts || []).forEach((a) => {
+      const student = a.studentId as any;
+      const batch = String(student?.batch || a.studentBatch || '').trim();
+      if (batch) set.add(batch);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  }
+
+  exportStudentSummaryCsv(): void {
+    const rows = this.studentSummaries || [];
+    const headers = ['Student Name', 'Email', 'Batch', 'Level', 'Attempts', 'Best Score (%)', 'Last Attempt'];
+    const lines = [headers.join(',')];
+    rows.forEach((s) => {
+      lines.push([
+        this.csvCell(s.name || ''),
+        this.csvCell(s.email || ''),
+        this.csvCell(s.batch || ''),
+        this.csvCell(s.level || ''),
+        this.csvCell(String(s.attempts || 0)),
+        this.csvCell(String(s.bestScore || 0)),
+        this.csvCell(this.formatDate(s.lastAttemptAt))
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const batchPart = this.selectedBatch === 'all' ? 'all-batches' : this.selectedBatch.replace(/[^a-z0-9_-]+/gi, '-');
+    a.href = url;
+    a.download = `exercise-completions-${this.exerciseId}-${batchPart}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  private csvCell(v: string): string {
+    const safe = String(v ?? '');
+    return `"${safe.replace(/"/g, '""')}"`;
   }
 
   private getQuestionPrompt(q: any, idx: number): string {
@@ -219,5 +329,33 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
 
   get hasQuestionStats(): boolean {
     return Array.isArray(this.questionStats) && this.questionStats.length > 0;
+  }
+
+  /** Cohort-wide item correctness from aggregated question stats */
+  get cohortItemAccuracy(): { correct: number; wrong: number; pct: number } {
+    let correct = 0;
+    let wrong = 0;
+    for (const q of this.questionStats) {
+      correct += q.correctCount;
+      wrong += q.wrongCount;
+    }
+    const denom = correct + wrong;
+    const pct = denom > 0 ? Math.round((correct / denom) * 100) : 0;
+    return { correct, wrong, pct };
+  }
+
+  get cohortDonutDash(): string {
+    return `${this.cohortItemAccuracy.pct}, 100`;
+  }
+
+  openAttemptDetailInNewTab(attempt: Attempt, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const aid = attempt._id;
+    if (!aid || !this.exerciseId) return;
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/admin/digital-exercises', this.exerciseId, 'attempt', aid])
+    );
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }

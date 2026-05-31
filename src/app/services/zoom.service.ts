@@ -13,6 +13,7 @@ export interface Student {
   level: string;
   subscription: string;
   studentStatus: string;
+  isTestAccount?: boolean;
 }
 
 export interface ZoomMeeting {
@@ -33,6 +34,8 @@ export interface CreateMeetingRequest {
   plan: string;
   topic: string;
   startTime: string;
+  startTimes?: string[];
+  scheduleMode?: 'single' | 'selected_dates' | 'weekly' | 'monthly';
   duration: number;
   timezone?: string;
   agenda?: string;
@@ -40,6 +43,15 @@ export interface CreateMeetingRequest {
   teacherId: string;
   zoomHostEmail: string;
   courseDay?: number | null;
+  courseDaysByStart?: Record<string, number | null>;
+}
+
+export interface ZoomHostConflict {
+  meetingId: string;
+  topic: string;
+  startTime: string;
+  duration: number;
+  batch?: string;
 }
 
 export interface ZoomAccount {
@@ -47,6 +59,7 @@ export interface ZoomAccount {
   email: string;
   name: string;
   isBusy?: boolean;
+  conflicts?: ZoomHostConflict[];
 }
 
 export interface Teacher {
@@ -74,6 +87,20 @@ export class ZoomService {
     });
   }
 
+  /** Server-side journey preview + conflict strings (no Zoom). */
+  previewBulkJourneyMeetings(body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/preview-bulk-journey-meetings`, body, {
+      withCredentials: true
+    });
+  }
+
+  /** One chunk of bulk journey creates (max 25 slots per request). */
+  createBulkJourneyMeetingsChunk(body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/create-bulk-journey-meetings`, body, {
+      withCredentials: true
+    });
+  }
+
   /**
    * Get all teachers for meeting creation
    */
@@ -91,9 +118,20 @@ export class ZoomService {
   /**
    * Get available zoom hosts for a time slot (checks overlap)
    */
-  getAvailableZoomHosts(startTime: string, duration: number): Observable<any> {
+  getAvailableZoomHosts(
+    startTime: string,
+    duration: number,
+    startTimes?: string[]
+  ): Observable<any> {
+    const params: Record<string, string> = {
+      startTime,
+      duration: duration.toString()
+    };
+    if (startTimes && startTimes.length > 1) {
+      params['startTimes'] = JSON.stringify(startTimes);
+    }
     return this.http.get(`${this.apiUrl}/available-hosts`, {
-      params: { startTime, duration: duration.toString() },
+      params,
       withCredentials: true
     });
   }
@@ -137,6 +175,31 @@ export class ZoomService {
   }
 
   /**
+   * Bulk update scheduled meetings (metadata + attendees).
+   */
+  bulkUpdateMeetings(payload: {
+    meetingIds: string[];
+    updates?: {
+      duration?: number;
+      topic?: string;
+      agenda?: string;
+      courseDay?: number | null;
+      assignedTeacher?: string;
+      startTime?: string;
+      /** HH:mm (IST) — applies new wall-clock time on each meeting's existing date */
+      startClockTime?: string;
+    };
+    attendeeUpdates?: {
+      addStudentIds?: string[];
+      removeStudentIds?: string[];
+    };
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meetings/bulk-update`, payload, {
+      withCredentials: true
+    });
+  }
+
+  /**
    * Delete a Zoom meeting
    */
   deleteMeeting(meetingId: string): Observable<any> {
@@ -158,10 +221,15 @@ export class ZoomService {
    * Get meeting attendance report
    * @param meetingId - Database meeting ID
    */
-  getAttendance(meetingId: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/meeting/${meetingId}/attendance`, {
+  getAttendance(meetingId: string, forceRefresh: boolean = false): Observable<any> {
+    const refreshParam = forceRefresh ? `?refreshTs=${Date.now()}` : '';
+    return this.http.get(`${this.apiUrl}/meeting/${meetingId}/attendance${refreshParam}`, {
       withCredentials: true
     });
+  }
+
+  refetchAttendance(meetingId: string): Observable<any> {
+    return this.getAttendance(meetingId, true);
   }
 
   /**
@@ -207,29 +275,68 @@ export class ZoomService {
   /**
    * Get all meetings for teacher
    */
-  getAllMeetings(filters?: { status?: string; batch?: string }): Observable<any> {
+  getAllMeetings(filters?: {
+    status?: string;
+    batch?: string;
+    plan?: string;
+    date?: string;
+    page?: number;
+    limit?: number;
+    completed?: boolean;
+    search?: string;
+    teacherName?: string;
+    datePreset?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    /** scheduled | ongoing | ended — server filters entire collection before pagination */
+    lifecycle?: string;
+    includeTabCounts?: boolean;
+    /** asc = soonest start first (teacher My Classes); desc = latest first */
+    sort?: 'asc' | 'desc' | 'start_asc' | 'start_desc';
+  }): Observable<any> {
     let url = `${this.apiUrl}/meetings`;
-    
-    if (filters) {
-      const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.batch) params.append('batch', filters.batch);
-      
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-    }
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.batch) params.append('batch', filters.batch);
+    if (filters?.plan) params.append('plan', filters.plan);
+    if (filters?.date) params.append('date', filters.date);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.completed !== undefined) params.append('completed', String(filters.completed));
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.teacherName) params.append('teacherName', filters.teacherName);
+    if (filters?.datePreset) params.append('datePreset', filters.datePreset);
+    if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters?.lifecycle) params.append('lifecycle', filters.lifecycle);
+    if (filters?.includeTabCounts) params.append('includeTabCounts', 'true');
+    if (filters?.sort) params.append('sort', filters.sort);
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
 
+    // Do not add Cache-Control / Pragma on the request — that triggers a CORS preflight
+    // and allowedHeaders on the API only permits Content-Type and Authorization.
     return this.http.get(url, { withCredentials: true });
   }
 
   /**
-   * Get meetings for logged-in student
+   * Get meetings for logged-in student.
+   * Pass tab + page + limit for paginated My Course tabs (7 per page).
    */
-  getStudentMeetings(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/student-meetings`, {
-      withCredentials: true
-    });
+  getStudentMeetings(filters?: {
+    tab?: 'upcoming' | 'live' | 'attempted';
+    page?: number;
+    limit?: number;
+    includeTabCounts?: boolean;
+  }): Observable<any> {
+    const params = new URLSearchParams();
+    if (filters?.tab) params.append('tab', filters.tab);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.includeTabCounts) params.append('includeTabCounts', 'true');
+    const qs = params.toString();
+    const url = qs ? `${this.apiUrl}/student-meetings?${qs}` : `${this.apiUrl}/student-meetings`;
+    return this.http.get(url, { withCredentials: true });
   }
 
   /**
@@ -246,6 +353,27 @@ export class ZoomService {
    */
   updateMeeting(meetingId: string, updateData: any): Observable<any> {
     return this.http.put(`${this.apiUrl}/meeting/${meetingId}`, updateData, {
+      withCredentials: true
+    });
+  }
+
+  /**
+   * Map a Zoom participant to a batch student
+   */
+  mapParticipantToStudent(meetingId: string, data: { participantName: string; participantEmail: string; studentEmail: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/map-participant`, data, {
+      withCredentials: true
+    });
+  }
+
+  manualMarkAttendance(meetingId: string, data: { studentId?: string; studentEmail?: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/manual-mark`, data, {
+      withCredentials: true
+    });
+  }
+
+  manualMarkAllAttendance(meetingId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/manual-mark-all`, {}, {
       withCredentials: true
     });
   }

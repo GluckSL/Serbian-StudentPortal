@@ -29,6 +29,13 @@
   color: #011f4b;
 }
 
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .header button {
   font-size: 11px;
   font-weight: 600;
@@ -58,7 +65,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 8px;
 }
 
@@ -116,6 +123,47 @@
 
 .loading-container ::ng-deep .mat-mdc-progress-spinner circle { stroke: #005b96; }
 
+/* ── Skeleton loading ── */
+.meetings-skeleton {
+  padding: 14px 16px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  margin-bottom: 10px;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.skeleton-line {
+  height: 13px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e2e8f0 0%, #f8fafc 40%, #e2e8f0 80%);
+  background-size: 220% 100%;
+  animation: meetings-skel-shimmer 1.15s ease-in-out infinite;
+}
+
+.skeleton-line--short { width: 72px; flex-shrink: 0; }
+.skeleton-line--medium { width: 130px; flex-shrink: 0; }
+.skeleton-line--long { flex: 1; min-width: 100px; }
+
+@keyframes meetings-skel-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.meetings-paginator {
+  margin-top: 12px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8ecf4;
+}
+
 /* ── Error Card ── */
 .error-card {
   display: flex;
@@ -134,7 +182,226 @@
 .error-card mat-icon { font-size: 28px; width: 28px; height: 28px; color: #e11d48; }
 .error-card p { font-size: 12px; color: #64748b; margin: 0; }
 
-/* ── Meetings Grid ── */
+/* ── Tabs (content lives below tab strip; hide empty MDC tab bodies) ── */
+.meetings-tabs {
+  margin-bottom: 10px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.meetings-tabs ::ng-deep .mat-mdc-tab-body-wrapper {
+  display: none;
+}
+
+.meetings-tabs ::ng-deep .mat-mdc-tab-labels {
+  border-bottom: 1px solid #e8ecf4;
+}
+
+.tab-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.tab-count {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.meetings-content {
+  margin-top: 0;
+}
+
+.bulk-actions-card {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.bulk-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bulk-select-left {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+
+.select-all-batch-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.select-batch-sep {
+  color: #cbd5e1;
+  margin: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.select-all-batch-btn {
+  font-size: 12px;
+  color: #3b82f6;
+  padding: 0 6px;
+  min-width: 0;
+  height: 32px;
+  line-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.select-all-batch-btn mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.inline-spinner {
+  display: inline-flex;
+  align-items: center;
+}
+
+.bulk-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.selected-count {
+  font-size: 11px;
+  color: #334155;
+  font-weight: 600;
+}
+
+/* ── Desktop: table ── */
+.meetings-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+}
+
+.meetings-table {
+  width: 100%;
+  background: #fff;
+  border-radius: 14px;
+}
+
+.meetings-table ::ng-deep .mat-mdc-header-cell {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.meetings-table ::ng-deep .mat-column-select {
+  width: 52px;
+  padding-right: 0;
+}
+
+.meetings-table ::ng-deep .mat-mdc-cell {
+  font-size: 12px;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.meeting-row {
+  cursor: pointer;
+}
+
+.meeting-row:hover {
+  background: #f8fafc;
+}
+
+.status-chip ::ng-deep .mdc-evolution-chip__text-label {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.cell-topic {
+  font-weight: 600;
+  color: #011f4b;
+}
+
+.meeting-id-cell {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.batch-pill {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.col-actions {
+  white-space: nowrap;
+  min-width: 180px;
+  text-align: right;
+}
+
+/* Join — light blue fill, black text, rounded (table + mobile) */
+.join-action-btn.mat-mdc-unelevated-button {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1.25;
+  min-height: 32px;
+  padding: 0 12px;
+  margin-right: 4px;
+  white-space: nowrap;
+  border-radius: 10px;
+  background-color: #dbeafe !important;
+  color: #0f172a !important;
+  border: 1px solid #93c5fd !important;
+  box-shadow: none !important;
+  letter-spacing: normal;
+}
+
+.join-action-btn.mat-mdc-unelevated-button:hover:not([disabled]) {
+  background-color: #bfdbfe !important;
+  border-color: #60a5fa !important;
+}
+
+.join-action-btn.mat-mdc-unelevated-button[disabled] {
+  background-color: #e2e8f0 !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+}
+
+.join-action-btn ::ng-deep .mdc-button__label {
+  color: inherit;
+}
+
+.meeting-card mat-card-actions button.join-action-btn.mat-mdc-unelevated-button {
+  padding: 8px 14px;
+  min-height: 36px;
+}
+
+/* ── Mobile: cards (hidden on large screens) ── */
+.meetings-cards-wrap {
+  display: none;
+}
+
+/* ── Meetings Grid (legacy) ── */
 .meetings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -183,6 +450,10 @@
   align-items: center;
   margin-bottom: 6px;
   padding: 10px 14px 0;
+}
+
+.card-select {
+  margin-right: 8px;
 }
 
 .card-header ::ng-deep .mat-mdc-chip {
@@ -312,6 +583,20 @@
   .header button { width: 100%; }
   .filters { grid-template-columns: 1fr; }
   .meetings-grid { grid-template-columns: 1fr; }
+  .meetings-table-wrap { display: none; }
+  .meetings-cards-wrap {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .bulk-actions-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .bulk-actions-right {
+    width: 100%;
+    justify-content: space-between;
+  }
   .meeting-card mat-card-actions { flex-direction: column; }
   .meeting-card mat-card-actions button { width: 100%; }
 }

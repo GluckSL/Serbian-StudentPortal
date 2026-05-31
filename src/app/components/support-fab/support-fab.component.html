@@ -1,0 +1,184 @@
+<div class="sf-wrap" [class.open]="open">
+  <div class="sf-panel" *ngIf="open" role="dialog" aria-label="Help and support quick actions">
+    <div class="sf-panel__hdr">
+      <div class="sf-panel__title">
+        <i class="fas fa-headset"></i>
+        Help &amp; Support
+      </div>
+      <button class="sf-panel__close" type="button" (click)="close()" aria-label="Close">
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+
+    <div class="sf-panel__body">
+      <button class="sf-action primary" type="button" (click)="openModal('submit')">
+        <i class="fas fa-ticket-alt"></i>
+        Raise Ticket
+      </button>
+      <button class="sf-action" type="button" [disabled]="!isLoggedIn" (click)="openModal('tickets')">
+        <i class="fas fa-list-alt"></i>
+        My Tickets
+      </button>
+      <button
+        *ngIf="showAnnouncementsTab"
+        class="sf-action"
+        [class.sf-action--highlight]="announcementBadgeCount > 0"
+        type="button"
+        (click)="openModal('announcements')"
+      >
+        <i class="fas fa-bullhorn"></i>
+        Announcements
+        <span *ngIf="announcementBadgeCount > 0" class="sf-badge" aria-label="New announcements">
+          {{ announcementBadgeCount > 9 ? '9+' : announcementBadgeCount }}
+        </span>
+      </button>
+      <a class="sf-action link" href="mailto:support@gluckglobal.com" (click)="close()">
+        <i class="fas fa-envelope"></i>
+        Email Support
+      </a>
+    </div>
+  </div>
+
+  <button class="sf-fab" type="button" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open help and support">
+    <i class="fas" [class.fa-comment-dots]="!open" [class.fa-times]="open"></i>
+    <span
+      *ngIf="showAnnouncementsTab && announcementBadgeCount > 0"
+      class="sf-fab__badge"
+      [attr.aria-label]="'New announcements (' + announcementBadgeCount + ')'"
+    ></span>
+  </button>
+</div>
+
+<!-- Modal -->
+<div class="sf-modalOverlay" *ngIf="modalOpen" (click)="closeModal()"></div>
+<div class="sf-modal" *ngIf="modalOpen" role="dialog" aria-label="Help and support" [class.sf-modal--announcement]="activeTab==='announcements'">
+  <div class="sf-modal__hdr">
+    <div class="sf-modal__title" *ngIf="activeTab !== 'announcements'">
+      <i class="fas fa-headset"></i> Help &amp; Support
+    </div>
+    <div class="sf-ann-hdr-title" *ngIf="activeTab === 'announcements'">Announcement</div>
+    <button class="sf-modal__x" type="button" (click)="closeModal()" aria-label="Close">
+      <span aria-hidden="true">×</span>
+    </button>
+  </div>
+
+  <div class="sf-modal__tabs" *ngIf="activeTab !== 'announcements'">
+    <button class="sf-tab" [class.active]="activeTab==='submit'" (click)="setTab('submit')">Raise Ticket</button>
+    <button class="sf-tab" [class.active]="activeTab==='tickets'" (click)="setTab('tickets')" [disabled]="!isLoggedIn">My Tickets</button>
+    <button *ngIf="showAnnouncementsTab" class="sf-tab" (click)="setTab('announcements')">Announcements</button>
+  </div>
+
+  <div class="sf-modal__body">
+    <!-- Submit -->
+    <div *ngIf="activeTab==='submit'">
+      <div *ngIf="submitSuccess" class="sf-success">
+        <i class="fas fa-check-circle"></i>
+        Ticket submitted successfully.
+      </div>
+      <div *ngIf="submitError" class="sf-error">
+        <i class="fas fa-exclamation-circle"></i> {{ submitError }}
+      </div>
+
+      <form [formGroup]="ticketForm" (ngSubmit)="submitTicket()" class="sf-form" novalidate>
+        <div class="sf-grid">
+          <div class="sf-field">
+            <label>Your Name <span class="req">*</span></label>
+            <input type="text" formControlName="name" placeholder="Full name">
+          </div>
+          <div class="sf-field">
+            <label>Email <span class="req">*</span></label>
+            <input type="email" formControlName="email" placeholder="you@example.com">
+          </div>
+        </div>
+
+        <div class="sf-grid">
+          <div class="sf-field">
+            <label>Category <span class="req">*</span></label>
+            <select formControlName="category">
+              <option value="" disabled>Select…</option>
+              <option *ngFor="let c of categories" [value]="c.value">{{ c.label }}</option>
+            </select>
+          </div>
+          <div class="sf-field">
+            <label>Priority <span class="req">*</span></label>
+            <select formControlName="priority">
+              <option *ngFor="let p of priorities" [value]="p.value">{{ p.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sf-field">
+          <label>Subject <span class="req">*</span></label>
+          <input type="text" formControlName="subject" placeholder="Short summary">
+        </div>
+
+        <div class="sf-field">
+          <label>Description <span class="req">*</span> <span class="sf-count">{{ descriptionLen }}/1000</span></label>
+          <textarea rows="4" formControlName="description" placeholder="Describe the issue…"></textarea>
+        </div>
+
+        <div class="sf-field">
+          <label>Screenshot <span class="req">*</span></label>
+          <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" (change)="onScreenshotSelected($event)">
+          <div class="sf-hint">Required (PNG/JPG/WEBP, max 6MB).</div>
+        </div>
+
+        <div class="sf-actions">
+          <button class="sf-btnPrimary" type="submit" [disabled]="submitting">
+            <span *ngIf="!submitting"><i class="fas fa-paper-plane"></i> Submit</span>
+            <span *ngIf="submitting"><i class="fas fa-spinner fa-spin"></i> Submitting…</span>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Tickets -->
+    <div *ngIf="activeTab==='tickets'">
+      <div *ngIf="!isLoggedIn" class="sf-hint">Please login to view your tickets.</div>
+      <div *ngIf="loadingTickets" class="sf-hint"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
+      <div *ngIf="!loadingTickets && isLoggedIn && tickets.length===0" class="sf-hint">No tickets yet.</div>
+
+      <div class="sf-ticket" *ngFor="let t of tickets">
+        <div class="sf-ticket__top">
+          <div class="sf-ticket__num">{{ t.ticketNumber || 'Ticket' }}</div>
+          <div class="sf-ticket__status">{{ t.status || 'open' }}</div>
+        </div>
+        <div class="sf-ticket__sub">{{ t.subject }}</div>
+        <div class="sf-ticket__desc">{{ t.description }}</div>
+        <a *ngIf="t.screenshot?.url" class="sf-ticket__shot" [href]="t.screenshot.url" target="_blank" rel="noreferrer">
+          View screenshot
+        </a>
+
+        <div class="sf-replies" *ngIf="t.replies?.length">
+          <div class="sf-reply" *ngFor="let r of t.replies">
+            <div class="sf-reply__meta">
+              <strong>{{ r.authorRole }}</strong>
+              <span *ngIf="r.createdAt">• {{ r.createdAt | date:'short' }}</span>
+            </div>
+            <div class="sf-reply__msg">{{ r.message }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="activeTab==='announcements'" class="sf-announcement-only">
+      <div *ngIf="!isLoggedIn && !loadingAnnouncements && (!selectedAnnouncement)" class="sf-hint">
+        Please login to view announcements.
+      </div>
+      <div *ngIf="loadingAnnouncements" class="sf-hint">
+        <i class="fas fa-spinner fa-spin"></i> Loading…
+      </div>
+      <div *ngIf="!loadingAnnouncements && isLoggedIn && !selectedAnnouncement" class="sf-hint">
+        No announcements yet.
+      </div>
+
+      <ng-container *ngIf="selectedAnnouncement as a">
+        <div class="sf-ann-detail sf-ann-detail--announcement">
+          <div class="sf-ann-detail__title">{{ a.title }}</div>
+          <div class="sf-ann-detail__body">{{ a.body }}</div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>
+

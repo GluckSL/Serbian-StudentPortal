@@ -1,0 +1,219 @@
+/* Match create-zoom-meeting / Gluck admin styling */
+:host {
+  display: block;
+  min-height: calc(100vh - 80px);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.page-header {
+  background: #b3cde0;
+  color: #011f4b;
+  padding: 14px 18px;
+  margin: 14px;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-header-left h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-header-left p {
+  font-size: 11px;
+  opacity: 0.65;
+  margin: 2px 0 0;
+}
+
+.page-content {
+  padding: 0 14px 24px;
+}
+
+.form-card {
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  margin-bottom: 12px;
+}
+
+.form-card-header {
+  background: #03396c;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-card-body {
+  padding: 14px;
+}
+
+.form-label {
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 3px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.bulk-stepper ::ng-deep .mat-step-header .mat-step-icon {
+  background: #03396c;
+  color: #fff;
+}
+
+.step-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.student-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.student-chip {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  background: #f8fafc;
+  max-width: 240px;
+}
+
+.student-chip small {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  word-break: break-all;
+}
+
+.student-chip--on {
+  border-color: #03396c;
+  background: #e0ecf7;
+}
+
+.mapping-scroll {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.preview-table-wrap {
+  max-height: min(60vh, 520px);
+  overflow: auto;
+}
+
+.preview-table {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.preview-table th,
+.preview-table td {
+  vertical-align: middle;
+  padding: 6px 8px;
+}
+
+.preview-table .text-break {
+  white-space: normal;
+  max-width: 140px;
+}
+
+.preview-actions-cell {
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.preview-row-editing {
+  background: #f0f7ff;
+}
+
+.preview-edit-input {
+  min-width: 110px;
+  font-size: 11px;
+}
+
+.preview-edit-journey {
+  min-width: 64px;
+  max-width: 72px;
+}
+
+.journey-today-banner {
+  border-radius: 10px;
+}
+
+.summary-warnings {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.align-baseline {
+  vertical-align: baseline;
+}
+
+.zoom-busy-panel {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  font-size: 11px;
+  color: #78350f;
+}
+
+.zoom-busy-panel-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoom-busy-account + .zoom-busy-account {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #fde68a;
+}
+
+.zoom-busy-account-name {
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoom-busy-info-icon {
+  color: #b45309;
+  cursor: help;
+  font-size: 12px;
+}
+
+.zoom-busy-conflict-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+::ng-deep .zoom-busy-tooltip {
+  white-space: pre-line;
+  max-width: 320px;
+  font-size: 12px;
+  line-height: 1.4;
+}

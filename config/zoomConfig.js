@@ -22,6 +22,8 @@ module.exports = {
     audio: 'both',
     auto_recording: 'cloud', // 'none', 'local', or 'cloud'
     approval_type: 0, // 0 = automatically approve, 1 = manually approve, 2 = no registration required
+    /** Zoom: disable participant-to-participant private 1:1 chat (enforced again in zoomService.createMeeting). */
+    private_chat: false,
   },
   
   // Meeting Types

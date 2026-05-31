@@ -40,6 +40,8 @@ const GradingResultSchema = new mongoose.Schema({
   gradedAt: { type: Date, default: Date.now },
 });
 
+GradingResultSchema.index({ studentId: 1 });
+
 module.exports = mongoose.model("GradingResult", GradingResultSchema);
 
 

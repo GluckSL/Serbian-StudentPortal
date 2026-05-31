@@ -1,84 +1,418 @@
 // src/app/components/login/login.component.ts
 
-import { Component } from '@angular/core';
-import { AuthService } from '../../services/auth.service';
-import { Router } from '@angular/router';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  NgZone,
+  OnInit,
+  ViewChild
+} from '@angular/core';
+import { AuthService, SKIP_SESSION_RESTORE_KEY } from '../../services/auth.service';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { isSafeReturnUrl } from '../../services/join-class-flow.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 
+
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule],
+  imports: [FormsModule, ReactiveFormsModule, HttpClientModule, CommonModule, RouterModule],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.css']
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   regNo: string = '';
   password: string = '';
-  errorMessage: string = '';   // <-- holds error messages
-  loading: boolean = false;    // <-- for optional spinner
-  showPassword: boolean = false; // <-- for password visibility toggle
+  errorMessage: string = '';
+  loading: boolean = false;
+  showPassword: boolean = false;
+  keepSessionActive = true;
+  readonly currentYear = new Date().getFullYear();
+  showSessionExpiredNotice = false;
+  /** True while checking for an existing token session */
+  checkingExistingSession = false;
+  /** Safe internal path to navigate to after successful login (from ?returnUrl query param). */
+  pendingReturnUrl = '';
+  // Uncertain / Withdrawal confirmation modal
+  showWithdrawalModal = false;
+  withdrawalStudentInfo: { studentId: string; studentName: string; batch: string; studentStatus: string; email: string; regNo: string } | null = null;
+  loginAttemptTime = '';
+  confirmingDecision: 'YES' | 'NO' | null = null;
+  withdrawalDecisionError = '';
+  withdrawalAckMessage = '';
 
-  constructor(private authService: AuthService, private router: Router) {}
+  // First-login password setup modal
+  showPasswordSetupModal = false;
+  setupToken = '';
+  setupStudentInfo: {
+    studentId: string;
+    studentName: string;
+    email: string;
+    regNo: string;
+    studentStatus?: string;
+  } | null = null;
+  setupEmail = '';
+  setupNewEmail = '';
+  setupOtp = '';
+  setupNewPassword = '';
+  setupConfirmPassword = '';
+  setupShowNew = false;
+  setupShowConfirm = false;
+  setupError = '';
+  setupSuccess = '';
+  setupLoading = false;
+  /** 'start' | 'otp' | 'change-email' | 'change-email-sent' */
+  setupStep: 'start' | 'otp' | 'change-email' | 'change-email-sent' = 'start';
+  setupChangeNewEmail = '';
+  setupChangeNewPassword = '';
+  setupChangeConfirmPassword = '';
+  setupShowChangeNewPwd = false;
+  setupShowChangeConfirmPwd = false;
+
+  /** Pupil offset in px (translate) for each eye */
+  leftPupil = { x: 0, y: 0 };
+  rightPupil = { x: 0, y: 0 };
+
+  @ViewChild('eyeLeft', { read: ElementRef }) eyeLeft?: ElementRef<HTMLElement>;
+  @ViewChild('eyeRight', { read: ElementRef }) eyeRight?: ElementRef<HTMLElement>;
+
+  private moveRaf = 0;
+  private lastMove: MouseEvent | null = null;
+
+  constructor(
+    private authService: AuthService,
+    private router: Router,
+    private route: ActivatedRoute,
+    private ngZone: NgZone
+  ) {}
+
+  ngOnInit(): void {
+    const session = this.route.snapshot.queryParamMap.get('session');
+    // Read returnUrl before clearing query params so it can be used after login.
+    const rawReturnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || '';
+    if (rawReturnUrl && isSafeReturnUrl(rawReturnUrl)) {
+      this.pendingReturnUrl = rawReturnUrl;
+    }
+
+    if (session === 'expired') {
+      this.showSessionExpiredNotice = true;
+      // Strip query params from the URL bar but keep pendingReturnUrl in memory.
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true,
+      });
+      return;
+    }
+
+    // User just logged out (or chose a fresh login): show the form; do not auto-restore.
+    try {
+      if (sessionStorage.getItem(SKIP_SESSION_RESTORE_KEY) === '1') {
+        sessionStorage.removeItem(SKIP_SESSION_RESTORE_KEY);
+        this.authService.clearClientSession();
+        this.checkingExistingSession = false;
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    this.checkingExistingSession = true;
+    this.authService.refreshUserProfile().subscribe({
+      next: (user) => {
+        this.checkingExistingSession = false;
+        const path = this.authService.getPostLoginPath(user);
+        if (path) {
+          this.router.navigateByUrl(path);
+        }
+      },
+      error: () => {
+        this.checkingExistingSession = false;
+      }
+    });
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onDocumentMouseMove(event: MouseEvent): void {
+    this.lastMove = event;
+    if (this.moveRaf) {
+      return;
+    }
+    this.moveRaf = requestAnimationFrame(() => {
+      this.moveRaf = 0;
+      const e = this.lastMove;
+      if (!e) {
+        return;
+      }
+      this.ngZone.run(() => {
+        this.updatePupil(this.eyeLeft, e, (o) => (this.leftPupil = o));
+        this.updatePupil(this.eyeRight, e, (o) => (this.rightPupil = o));
+      });
+    });
+  }
+
+  private updatePupil(
+    eyeRef: ElementRef<HTMLElement> | undefined,
+    e: MouseEvent,
+    set: (o: { x: number; y: number }) => void
+  ): void {
+    const el = eyeRef?.nativeElement;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = e.clientX - cx;
+    let dy = e.clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    const maxMove = 9;
+    const sensitivity = 0.12;
+    if (dist < 0.5) {
+      set({ x: 0, y: 0 });
+      return;
+    }
+    const move = Math.min(maxMove, dist * sensitivity);
+    dx = (dx / dist) * move;
+    dy = (dy / dist) * move;
+    set({ x: dx, y: dy });
+  }
+
+  pupilTransform(p: { x: number; y: number }): string {
+    return `translate(${p.x}px, ${p.y}px)`;
+  }
+
+  dismissSessionExpiredNotice(): void {
+    this.showSessionExpiredNotice = false;
+  }
+
+  onCredentialFocus(): void {
+    this.showSessionExpiredNotice = false;
+  }
 
   togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;
   }
 
-  onSubmit() {
+  onSubmit(): void {
     this.errorMessage = '';
+    this.withdrawalAckMessage = '';
+    this.showSessionExpiredNotice = false;
     this.loading = true;
 
-    const user = { regNo: this.regNo, password: this.password };
-    console.log('🔍 Sending to server:', user);
-    console.log('🔍 regNo value:', this.regNo);
-    console.log('🔍 password value:', this.password);
+    const user = {
+      identifier: this.regNo, // supports both regNo and email via backend
+      password: this.password,
+      keepSessionActive: this.keepSessionActive
+    };
 
     this.authService.login(user).subscribe({
       next: (response) => {
-        console.log('✅ Login successful:', response);
-        
-        // Ensure user profile is refreshed before navigation
-        this.authService.refreshUserProfile().subscribe({
-          next: (user) => {
-            console.log('✅ User profile refreshed:', user);
-            this.loading = false;
+        // ⚠️ Uncertain / Withdrawal batch — show confirmation modal
+        if (response?.requiresConfirmation) {
+          this.loading = false;
+          this.withdrawalStudentInfo = response.studentInfo;
+          this.loginAttemptTime = response.loginAttemptTime;
+          this.showWithdrawalModal = true;
+          return;
+        }
 
-            const role = user?.role || response.user?.role || response.role;
+        if (response?.requiresPasswordSetup) {
+          this.loading = false;
+          this.setupToken = response.setupToken;
+          this.setupStudentInfo = response.studentInfo;
+          this.setupEmail = response.studentInfo?.email || '';
+          this.setupOtp = '';
+          this.setupNewPassword = '';
+          this.setupConfirmPassword = '';
+          this.setupChangeNewEmail = '';
+          this.setupChangeNewPassword = '';
+          this.setupChangeConfirmPassword = '';
+          this.setupError = '';
+          this.setupSuccess = '';
+          this.setupStep = response.otpPreSent ? 'otp' : 'start';
+          this.setupSuccess = response.otpPreSent
+            ? 'Enter the verification code from your email. You can request a new code if needed.'
+            : '';
+          this.showPasswordSetupModal = true;
+          return;
+        }
 
-            if (role === 'ADMIN') {
-              this.router.navigate(['/admin-dashboard']);
-            } else if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
-              this.router.navigate(['/teacher-dashboard']);
-            } else if (role === 'STUDENT') {
-              const isVisaDocOnly = (user?.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
-              this.router.navigate([isVisaDocOnly ? '/student-progress' : '/student/my-course']);
-            } else {
-              this.errorMessage = 'Unknown user role.';
-            }
-          },
-          error: (err) => {
-            console.error('❌ Error refreshing profile:', err);
-            this.loading = false;
-            this.errorMessage = 'Failed to load user profile.';
-          }
-        });
+        this.navigateAfterLogin(response.user);
       },
       error: (err) => {
         this.loading = false;
-        console.error('Login failed', err);
 
         if (err.status === 403) {
           this.errorMessage = 'Access denied. Your student account has been withdrawn.';
-        }
-        else if (err.status === 401 || err.status === 400) {
+        } else if (err.status === 401 || err.status === 400) {
           this.errorMessage = 'Invalid username or password!';
-        }
-        else {
+        } else {
           this.errorMessage = 'Server error. Please try again later.';
         }
+      }
+    });
+  }
+
+  navigateAfterLogin(userFromResponse?: { role?: string; subscription?: string }): void {
+    this.authService.refreshUserProfile().subscribe({
+      next: (profile) => {
+        this.loading = false;
+        this.setupLoading = false;
+        const merged = profile || userFromResponse;
+        if (this.pendingReturnUrl) {
+          this.router.navigateByUrl(this.pendingReturnUrl);
+        } else {
+          const path = this.authService.getPostLoginPath(merged);
+          if (path) {
+            this.router.navigateByUrl(path);
+          } else {
+            this.errorMessage = 'Unknown user role.';
+          }
+        }
+      },
+      error: () => {
+        this.loading = false;
+        this.setupLoading = false;
+        this.errorMessage = 'Failed to load user profile.';
+      },
+    });
+  }
+
+  startEmailChange(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
+    this.setupChangeNewEmail = '';
+    this.setupChangeNewPassword = '';
+    this.setupChangeConfirmPassword = '';
+    this.setupStep = 'change-email';
+  }
+
+  cancelEmailChange(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
+    this.setupStep = 'start';
+  }
+
+  /** Flow A: submit email change request to admin */
+  submitEmailChangeRequest(): void {
+    this.setupError = '';
+    const newEmail = this.setupChangeNewEmail.trim().toLowerCase();
+    if (!newEmail || !newEmail.includes('@')) {
+      this.setupError = 'Enter a valid new email address.';
+      return;
+    }
+    if (this.setupChangeNewPassword.length < 8) {
+      this.setupError = 'Password must be at least 8 characters.';
+      return;
+    }
+    if (this.setupChangeNewPassword !== this.setupChangeConfirmPassword) {
+      this.setupError = 'Passwords do not match.';
+      return;
+    }
+    this.setupLoading = true;
+    this.authService.requestSetupEmailChange({
+      setupToken: this.setupToken,
+      newEmail,
+      newPassword: this.setupChangeNewPassword,
+      confirmPassword: this.setupChangeConfirmPassword,
+    }).subscribe({
+      next: () => {
+        this.setupLoading = false;
+        this.setupStep = 'change-email-sent';
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not submit request. Please try again.';
+      },
+    });
+  }
+
+  /** Flow B step 1: send OTP to current email */
+  sendSetupOtp(): void {
+    this.setupError = '';
+    this.setupLoading = true;
+    this.authService.sendSetupOtp(this.setupToken).subscribe({
+      next: (res: any) => {
+        this.setupLoading = false;
+        this.setupStep = 'otp';
+        this.setupSuccess = res.msg || `A verification code was sent to ${this.setupEmail}.`;
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not send verification code. Please try again.';
+      },
+    });
+  }
+
+  /** Flow B step 2: verify OTP + set password → log in */
+  completePasswordSetup(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
+    if (!this.setupOtp.trim()) {
+      this.setupError = 'Enter the verification code sent to your email.';
+      return;
+    }
+    if (this.setupNewPassword.length < 8) {
+      this.setupError = 'Password must be at least 8 characters.';
+      return;
+    }
+    if (this.setupNewPassword !== this.setupConfirmPassword) {
+      this.setupError = 'Passwords do not match.';
+      return;
+    }
+    this.setupLoading = true;
+    this.authService.completePasswordSetup({
+      setupToken: this.setupToken,
+      otp: this.setupOtp.trim(),
+      newPassword: this.setupNewPassword,
+      confirmPassword: this.setupConfirmPassword,
+      keepSessionActive: this.keepSessionActive,
+    }).subscribe({
+      next: () => {
+        this.showPasswordSetupModal = false;
+        this.setupToken = '';
+        this.setupStudentInfo = null;
+        this.navigateAfterLogin();
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not complete setup. Please try again.';
+      },
+    });
+  }
+
+  confirmWithdrawal(decision: 'YES' | 'NO'): void {
+    if (!this.withdrawalStudentInfo || this.confirmingDecision) return;
+
+    this.confirmingDecision = decision;
+    this.withdrawalDecisionError = '';
+
+    this.authService.confirmWithdrawalStatus({
+      studentId: this.withdrawalStudentInfo.studentId,
+      decision,
+      loginAttemptTime: this.loginAttemptTime,
+      keepSessionActive: this.keepSessionActive
+    }).subscribe({
+      next: (response) => {
+        this.confirmingDecision = null;
+        this.showWithdrawalModal = false;
+        this.authService.clearClientSession();
+        this.errorMessage = '';
+        this.regNo = '';
+        this.password = '';
+
+        this.withdrawalAckMessage =
+          response?.message ||
+          (decision === 'YES'
+            ? 'Our team will reach you within 24-72 hours. You cannot log in until your account status is updated by the Gluck Global team.'
+            : 'Thank you. Your response has been recorded and our team has been notified.');
+      },
+      error: () => {
+        this.confirmingDecision = null;
+        this.withdrawalDecisionError = 'Something went wrong. Please try again.';
       }
     });
   }

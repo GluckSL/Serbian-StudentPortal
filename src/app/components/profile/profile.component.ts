@@ -3,14 +3,16 @@ import { AuthService } from '../../services/auth.service';
 import { CommonModule } from '@angular/common';
 import { HttpClientModule, HttpClient } from '@angular/common/http';
 import { Router, RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, HttpClientModule, RouterModule],
+  imports: [CommonModule, HttpClientModule, RouterModule, FormsModule],
   templateUrl: './profile.component.html',
   styleUrls: ['./profile.component.css']
 })
@@ -20,10 +22,23 @@ export class ProfileComponent implements OnInit {
   uploading: boolean = false;         // Upload in progress flag
   uploadError: string = '';           // Upload error message
 
+  // Change password state
+  showChangePassword = false;
+  pwCurrent = '';
+  pwNew = '';
+  pwConfirm = '';
+  showCurrentPw = false;
+  showNewPw = false;
+  showConfirmPw = false;
+  pwLoading = false;
+  pwError = '';
+  pwSuccess = '';
+
   constructor(
     private authService: AuthService,
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -77,7 +92,7 @@ export class ProfileComponent implements OnInit {
     this.authService.uploadProfilePhoto(this.selectedFile).subscribe({
       next: (res: any) => {
         this.uploading = false;
-        alert('Profile photo uploaded successfully!');
+        this.notify.success('Profile photo uploaded successfully!');
 
         if (res.profilePhoto) {
           this.userProfile.profilePhoto = this.getFullPhotoUrl(res.profilePhoto);
@@ -116,17 +131,63 @@ export class ProfileComponent implements OnInit {
   }
 
   deleteAccount(userId: string) {
-    if (confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
+    this.notify.confirm('Delete Account', 'Are you sure you want to delete this account? This action cannot be undone.', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.authService.deleteUser(userId).subscribe({
         next: () => {
-          alert('Account deleted successfully.');
+          this.notify.success('Account deleted successfully.');
           this.router.navigate(['/login']);
         },
         error: (err) => {
           console.error('Error deleting account:', err);
-          alert('Failed to delete account. Please try again.');
+          this.notify.error('Failed to delete account. Please try again.');
         }
       });
+    });
+  }
+
+  cancelChangePassword(): void {
+    this.showChangePassword = false;
+    this.pwCurrent = '';
+    this.pwNew = '';
+    this.pwConfirm = '';
+    this.pwError = '';
+    this.pwSuccess = '';
+  }
+
+  submitChangePassword(): void {
+    this.pwError = '';
+    this.pwSuccess = '';
+    if (!this.pwCurrent || !this.pwNew || !this.pwConfirm) {
+      this.pwError = 'All fields are required.';
+      return;
     }
+    if (this.pwNew.length < 8) {
+      this.pwError = 'New password must be at least 8 characters.';
+      return;
+    }
+    if (this.pwNew !== this.pwConfirm) {
+      this.pwError = 'New passwords do not match.';
+      return;
+    }
+    this.pwLoading = true;
+    this.authService.changePassword({
+      currentPassword: this.pwCurrent,
+      newPassword: this.pwNew,
+      confirmPassword: this.pwConfirm,
+    }).subscribe({
+      next: () => {
+        this.pwLoading = false;
+        this.pwSuccess = 'Password updated successfully!';
+        this.pwCurrent = '';
+        this.pwNew = '';
+        this.pwConfirm = '';
+        setTimeout(() => { this.cancelChangePassword(); }, 2000);
+      },
+      error: (err: any) => {
+        this.pwLoading = false;
+        this.pwError = err?.error?.msg || 'Failed to update password. Please try again.';
+      },
+    });
   }
 }

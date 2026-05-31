@@ -1,0 +1,228 @@
+<div class="ltsd-page">
+  <header class="ltsd-topbar">
+    <a routerLink="/admin/language-tracking" [queryParams]="{ from, to }" class="ltsd-back">
+      <mat-icon>arrow_back</mat-icon>
+      Language Tracking
+    </a>
+  </header>
+
+  <div *ngIf="loadingOverview" class="ltsd-loading">
+    <mat-spinner diameter="44"></mat-spinner>
+    <p>Loading student…</p>
+  </div>
+
+  <div *ngIf="overviewError && !loadingOverview" class="ltsd-error">
+    <mat-icon>error_outline</mat-icon>
+    <p>{{ overviewError }}</p>
+    <button mat-stroked-button (click)="loadOverview()">Retry</button>
+  </div>
+
+  <ng-container *ngIf="overview && !loadingOverview">
+    <div class="ltsd-header">
+      <div class="ltsd-header__avatar">{{ studentName.charAt(0).toUpperCase() }}</div>
+      <div class="ltsd-header__info">
+        <h1 class="ltsd-header__name">{{ studentName }}</h1>
+        <p class="ltsd-header__meta">
+          {{ overview.student.regNo }} · {{ overview.student.level }}
+          <span *ngIf="overview.student.batch" class="ltsd-badge ltsd-badge--batch">{{ overview.student.batch }}</span>
+          <span class="ltsd-badge ltsd-badge--day">Day {{ currentCourseDay }}</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="ltsd-time-pills">
+      <div class="ltsd-pill ltsd-pill--ex">
+        <mat-icon>fitness_center</mat-icon>
+        <div>
+          <div class="ltsd-pill__val">{{ fmt(overview.timeSummary.exercisesSeconds) }}</div>
+          <div class="ltsd-pill__lbl">Exercises</div>
+        </div>
+      </div>
+      <div class="ltsd-pill ltsd-pill--dg">
+        <mat-icon>smart_toy</mat-icon>
+        <div>
+          <div class="ltsd-pill__val">{{ fmt(overview.timeSummary.digibotSeconds) }}</div>
+          <div class="ltsd-pill__lbl">DG Bot</div>
+        </div>
+      </div>
+      <div class="ltsd-pill ltsd-pill--ar">
+        <mat-icon>sports_esports</mat-icon>
+        <div>
+          <div class="ltsd-pill__val">{{ fmt(overview.timeSummary.arenaSeconds) }}</div>
+          <div class="ltsd-pill__lbl">GlückArena</div>
+        </div>
+      </div>
+      <div class="ltsd-pill ltsd-pill--total">
+        <mat-icon>schedule</mat-icon>
+        <div>
+          <div class="ltsd-pill__val">{{ fmt(overview.timeSummary.totalSeconds) }}</div>
+          <div class="ltsd-pill__lbl">Total</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Week tabs -->
+    <section class="ltsd-section">
+      <h2 class="ltsd-section__title">
+        <mat-icon>calendar_view_week</mat-icon>
+        Journey weeks
+      </h2>
+      <div class="ltsd-week-tabs">
+        <button
+          *ngFor="let w of weeks"
+          type="button"
+          class="ltsd-week-tab"
+          [class.ltsd-week-tab--active]="w === selectedWeek"
+          [class.ltsd-week-tab--current]="w === currentWeek"
+          (click)="selectWeek(w)">
+          Week {{ w }}
+          <span class="ltsd-week-tab__range">{{ weekRangeLabel(w) }}</span>
+        </button>
+      </div>
+
+      <div *ngIf="loadingWeek" class="ltsd-inline-load">
+        <mat-spinner diameter="28"></mat-spinner>
+      </div>
+      <p *ngIf="weekError" class="ltsd-inline-err">{{ weekError }}</p>
+
+      <div *ngIf="weekSummary && !loadingWeek" class="ltsd-day-grid">
+        <button
+          *ngFor="let d of weekSummary.days"
+          type="button"
+          class="ltsd-day-card"
+          [class.ltsd-day-card--active]="d.day === selectedDay"
+          [class.ltsd-day-card--complete]="d.complete && !d.isFuture"
+          [class.ltsd-day-card--future]="d.isFuture"
+          [disabled]="d.isFuture"
+          (click)="selectDay(d)">
+          <span class="ltsd-day-card__num">Day {{ d.day }}</span>
+          <span *ngIf="d.isFuture" class="ltsd-day-card__status">Upcoming</span>
+          <span *ngIf="!d.isFuture && d.complete" class="ltsd-day-card__status ltsd-day-card__status--ok">Done</span>
+          <span *ngIf="!d.isFuture && !d.complete" class="ltsd-day-card__pct">{{ d.completionPercent }}%</span>
+          <span *ngIf="!d.isFuture && d.incompleteCount > 0" class="ltsd-day-card__pending">{{ d.incompleteCount }} left</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Selected day detail -->
+    <section class="ltsd-section" *ngIf="selectedDay">
+      <div class="ltsd-day-head">
+        <h2 class="ltsd-section__title">
+          <mat-icon>map</mat-icon>
+          Day {{ selectedDay }} — tasks
+          <span
+            *ngIf="dayCompletion"
+            class="ltsd-section__badge"
+            [class.ltsd-section__badge--done]="dayCompletion.complete"
+            [class.ltsd-section__badge--pct]="!dayCompletion.complete">
+            {{ dayCompletion.complete ? 'Complete' : dayCompletion.completionPercent + '%' }}
+          </span>
+        </h2>
+        <button
+          mat-stroked-button
+          class="ltsd-remind-btn"
+          type="button"
+          [disabled]="sendingReminder || loadingDay || !dayCompletion?.incompleteTasks?.length"
+          (click)="sendReminderForSelectedDay()">
+          <mat-icon>mail</mat-icon>
+          Send reminder for Day {{ selectedDay }}
+        </button>
+      </div>
+
+      <div *ngIf="loadingDay" class="ltsd-inline-load">
+        <mat-spinner diameter="28"></mat-spinner>
+      </div>
+      <p *ngIf="dayError" class="ltsd-inline-err">{{ dayError }}</p>
+
+      <ng-container *ngIf="dayCompletion && !loadingDay">
+        <div class="ltsd-progress-bar">
+          <div class="ltsd-progress-bar__fill" [style.width.%]="dayCompletion.completionPercent"></div>
+        </div>
+        <p class="ltsd-progress-label">
+          {{ dayCompletion.doneTasks }} of {{ dayCompletion.totalTasks }} tasks completed
+        </p>
+
+        <div class="ltsd-breakdown" *ngIf="dayCompletion.breakdown">
+          <ng-container *ngFor="let entry of (dayCompletion.breakdown | keyvalue)">
+            <div
+              *ngIf="entry.key !== 'modules'"
+              class="ltsd-breakdown__chip"
+              [class.ltsd-breakdown__chip--done]="entry.value.done >= entry.value.total && entry.value.total > 0">
+              <span class="ltsd-breakdown__label">{{ entry.key }}</span>
+              <span class="ltsd-breakdown__val">{{ entry.value.done }}/{{ entry.value.total }}</span>
+            </div>
+          </ng-container>
+        </div>
+
+        <div *ngIf="dayCompletion.incompleteTasks.length > 0" class="ltsd-tasks">
+          <h3 class="ltsd-tasks__title">Incomplete — will be listed in the email</h3>
+          <div *ngFor="let task of dayCompletion.incompleteTasks" class="ltsd-task">
+            <ng-container *ngIf="task.kind !== 'module'">
+              <div class="ltsd-task__icon ltsd-task__icon--{{ task.kind }}">
+                <mat-icon>{{ taskIcon(task) }}</mat-icon>
+              </div>
+              <div class="ltsd-task__body">
+                <span class="ltsd-task__title">{{ task.title }}</span>
+                <span class="ltsd-task__kind">{{ taskKindLabel(task.kind) }}</span>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+
+        <div
+          *ngIf="dayCompletion.incompleteTasks.length === 0 && dayCompletion.complete"
+          class="ltsd-all-done">
+          <mat-icon>check_circle</mat-icon>
+          All tasks for Day {{ selectedDay }} are complete.
+        </div>
+      </ng-container>
+
+      <div *ngIf="!dayCompletion && !loadingDay && !dayError" class="ltsd-no-journey">
+        <mat-icon>info</mat-icon>
+        Journey data not available for this day.
+      </div>
+    </section>
+
+    <!-- Recent sessions (date range) -->
+    <section class="ltsd-section" *ngIf="overview.sessions.exercises.length > 0">
+      <h2 class="ltsd-section__title ltsd-section__title--ex">
+        <mat-icon>fitness_center</mat-icon>
+        Recent Exercises
+        <span class="ltsd-section__count">{{ overview.sessions.exercises.length }}</span>
+      </h2>
+      <div class="ltsd-sessions">
+        <div *ngFor="let s of overview.sessions.exercises" class="ltsd-session ltsd-session--ex">
+          <div class="ltsd-session__head">
+            <span class="ltsd-session__title">{{ s.title }}</span>
+            <span class="ltsd-session__time">{{ fmt(s.timeSpentSeconds) }}</span>
+          </div>
+          <div class="ltsd-session__meta">
+            {{ fmtDate(s.startedAt) }} ·
+            <span class="ltsd-status ltsd-status--{{ s.status }}">{{ s.status }}</span>
+            · {{ s.scorePercentage }}%
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ltsd-section" *ngIf="overview.sessions.digibot.length > 0">
+      <h2 class="ltsd-section__title ltsd-section__title--dg">
+        <mat-icon>smart_toy</mat-icon>
+        Recent DG Bot
+        <span class="ltsd-section__count">{{ overview.sessions.digibot.length }}</span>
+      </h2>
+      <div class="ltsd-sessions">
+        <div *ngFor="let s of overview.sessions.digibot" class="ltsd-session ltsd-session--dg">
+          <div class="ltsd-session__head">
+            <span class="ltsd-session__title">{{ s.title }}</span>
+            <span class="ltsd-session__time">{{ fmt(s.timeSpentSeconds) }}</span>
+          </div>
+          <div class="ltsd-session__meta">
+            {{ fmtDate(s.startedAt) }} ·
+            {{ s.completed ? 'completed' : 'incomplete' }}
+          </div>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+</div>

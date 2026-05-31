@@ -1,0 +1,255 @@
+.dg-practice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.dg-practice__countdown {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+  min-height: 2rem;
+  animation: dg-count-pulse 650ms ease-in-out infinite;
+}
+
+@keyframes dg-count-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.04);
+  }
+}
+
+.dg-practice__listen {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.dg-practice__process {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.dg-practice__slow {
+  margin: 0;
+  max-width: 420px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.dg-practice__wave {
+  width: 200px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #14532d 0%, #166534 100%);
+  display: block;
+  transition:
+    box-shadow 280ms ease,
+    transform 280ms ease;
+  box-shadow:
+    0 6px 16px rgba(22, 101, 52, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dg-practice__wave--live {
+  box-shadow:
+    0 0 0 2px rgba(74, 222, 128, 0.38),
+    0 8px 20px rgba(34, 197, 94, 0.25);
+  transform: scale(1.01);
+}
+
+.dg-practice__mic-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dg-practice__mic {
+  width: 88px !important;
+  height: 88px !important;
+  transform: scale(1);
+  box-shadow:
+    0 14px 36px rgba(79, 70, 229, 0.4),
+    0 0 0 4px rgba(255, 255, 255, 0.85) !important;
+  background: linear-gradient(145deg, #6366f1 0%, #7c3aed 55%, #2563eb 100%) !important;
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    box-shadow 220ms ease;
+
+  mat-icon {
+    font-size: 40px;
+    width: 40px;
+    height: 40px;
+  }
+
+  &:hover:not([disabled]) {
+    transform: scale(1.04);
+  }
+}
+
+.dg-practice__mic--on {
+  background: linear-gradient(145deg, #dc2626 0%, #b91c1c 100%) !important;
+  box-shadow:
+    0 14px 36px rgba(220, 38, 38, 0.45),
+    0 0 0 4px rgba(254, 226, 226, 0.9) !important;
+  animation: dg-mic-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dg-mic-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.dg-practice__mic-label {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #4338ca;
+  letter-spacing: 0.02em;
+}
+
+.dg-practice__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-align: center;
+  max-width: 420px;
+}
+
+.dg-practice__transcript {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #334155;
+  text-align: center;
+}
+
+.dg-practice__said-text {
+  font-weight: 700;
+}
+
+.dg-practice__words {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 0.5rem;
+  max-width: 440px;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.dg-practice__word {
+  font-weight: 600;
+  border-radius: 0.35rem;
+  padding: 0.12rem 0.35rem;
+}
+
+.dg-practice__word--ok {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.dg-practice__word--bad,
+.dg-practice__word--miss {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.dg-practice__word-sep {
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+.dg-practice__arrow {
+  margin: 0 0.2rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.dg-practice__gap {
+  font-style: italic;
+  font-weight: 500;
+}
+
+.dg-practice__mark--ok {
+  color: #15803d;
+}
+
+.dg-practice__mark--bad {
+  margin-right: 0.15rem;
+}
+
+.dg-practice__tips {
+  max-width: 420px;
+  text-align: left;
+  background: #f8fafc;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid #e2e8f0;
+}
+
+.dg-practice__tips-lead {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dg-practice__tips-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.dg-practice__retry {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4338ca;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-practice__countdown {
+    animation: none;
+  }
+
+  .dg-practice__wave {
+    transition: none;
+  }
+
+  .dg-practice__wave--live {
+    transform: none;
+  }
+
+  .dg-practice__mic--on {
+    animation: none;
+  }
+
+  .dg-practice__mic:hover:not([disabled]) {
+    transform: none;
+  }
+}

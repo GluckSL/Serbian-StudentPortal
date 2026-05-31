@@ -2,8 +2,9 @@
 
 
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 interface CourseProgress {
   courseId: { _id: string; name: string };
@@ -15,13 +16,11 @@ interface CourseProgress {
   providedIn: 'root'
 })
 export class CourseProgressService {
-  private apiUrl = 'http://localhost:4000/api/student';  // update if hosted elsewhere
+  private readonly apiUrl = `${environment.apiUrl}/student`;
 
   constructor(private http: HttpClient) {}
 
   getProgress(): Observable<CourseProgress[]> {
-    const token = localStorage.getItem('authToken');
-    const headers = new HttpHeaders().set('Authorization', `Bearer ${token}`);
-    return this.http.get<CourseProgress[]>(`${this.apiUrl}/progress`, { headers });
+    return this.http.get<CourseProgress[]>(`${this.apiUrl}/progress`);
   }
 }

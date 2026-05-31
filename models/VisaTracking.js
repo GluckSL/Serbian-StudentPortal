@@ -39,4 +39,7 @@ const VisaTrackingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+VisaTrackingSchema.index({ studentId: 1 });
+VisaTrackingSchema.index({ updatedAt: -1 });
+
 module.exports = mongoose.model('VisaTracking', VisaTrackingSchema);

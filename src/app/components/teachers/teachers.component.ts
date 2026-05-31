@@ -1,16 +1,15 @@
 //src/app/components/admin-dashboard/admin-dashboard.component.ts
 
-import { Component, OnInit, TrackByFunction } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
-import { HttpClient, HttpClientModule} from '@angular/common/http';
+import { HttpClient, HttpClientModule, HttpHeaders } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { FeedbackService } from '../../services/feedback.service';
-import { NgChartsModule } from 'ng2-charts';
 import { MaterialModule } from '../../shared/material.module';
-import { MatDialog } from '@angular/material/dialog';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
+import { getAuthToken } from '../../services/auth.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -28,8 +27,8 @@ interface Teacher {
   assignedCourses: Course[];
   assignedBatches: string[];
   medium: string;
+  studentCount?: number;
 }
-
 
 @Component({
   selector: '',
@@ -39,7 +38,6 @@ interface Teacher {
     CommonModule,
     FormsModule,
     MaterialModule,
-    NgChartsModule,
     RouterModule
   ],
   templateUrl: './teachers.component.html',
@@ -57,36 +55,25 @@ export class TeachersComponent implements OnInit {
   medium: string[] = ['Sinhala', 'Tamil'];
   course: string[] = ['A1', 'A2', 'B1', 'B2'];
 
-  selectedTeacherName?: string;
-
   constructor(
     private authService: AuthService,
     private router: Router,
     private http: HttpClient,
-    private dialog: MatDialog,
+    private notify: NotificationService,
   ) {}
 
   ngOnInit(): void {
-    // ✅ Check user profile from backend (cookie included automatically)
-    this.authService.getUserProfile().subscribe({
-      next: (user) => {
-        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN') {
-          this.router.navigate(['/dashboard']);
-          return;
-        }
-        this.fetchTeachers();
-      },
-      error: (err) => {
-        console.error('Not authenticated:', err);
-        this.router.navigate(['/auth/login']);
-      }
-    });
+    this.fetchTeachers();
   }
 
 fetchTeachers(): void {
   this.loading = true;
+  this.error = '';
 
-  this.http.get<{ success: boolean; data: Teacher[] }>(`${apiUrl}/admin/teachers`, { withCredentials: true }).subscribe({
+  const token = getAuthToken();
+  const headers = token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
+
+  this.http.get<{ success: boolean; data: Teacher[] }>(`${apiUrl}/admin/teachers`, { withCredentials: true, headers }).subscribe({
     next: res => {
       if (res.success) {
         this.teachers = res.data;
@@ -102,6 +89,9 @@ fetchTeachers(): void {
     error: err => {
       console.error('Error fetching teachers:', err);
       this.error = err.error?.msg || 'Failed to load teachers';
+      if (err.status === 401 || err.status === 403) {
+        this.router.navigate(['/login']);
+      }
       this.loading = false;
     }
   });
@@ -127,19 +117,25 @@ fetchTeachers(): void {
   }
 
   deleteUser(id: string): void {
-    if (confirm('Are you sure you want to delete this user?')) {
+    this.notify.confirm('Delete User', 'Are you sure you want to delete this user?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.authService.deleteUser(id).subscribe({
-        next: (response) => {
-          alert('User deleted successfully!');
-          //console.log('Deleted:', response);
-          this.fetchTeachers(); // Refresh your user list after deletion
+        next: () => {
+          this.notify.success('User deleted successfully!');
+          this.fetchTeachers();
         },
         error: (error) => {
-          alert('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
-          //console.error('Delete failed:', error);
+          this.notify.error('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
         }
       });
-    }
+    });
+  }
+
+  openTeacherAnalytics(teacher: Teacher): void {
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/teachers', teacher._id, 'analytics'])
+    );
+    window.open(url, '_blank');
   }
 
 

@@ -1,0 +1,246 @@
+<div class="dg-hub" [class.dg-hub--embedded]="embedded" [class.dg-hub--journey-day]="journeyFixedDay != null">
+  <header class="dg-hub__header" *ngIf="!embedded">
+    <div class="dg-hub__header-main">
+      <h1 class="dg-hub__title">
+        <mat-icon>smart_toy</mat-icon>
+        DG Bot Lessons
+      </h1>
+      <p class="dg-hub__lead">
+        Practice speaking with guided role-play modules and instant feedback.
+      </p>
+    </div>
+    <div class="dg-hub__header-stat">
+      <span class="dg-hub__header-number">{{ totalModules }}</span>
+      <span class="dg-hub__header-label">Total modules</span>
+    </div>
+  </header>
+
+  <header class="dg-hub__header dg-hub__header--embedded" *ngIf="embedded && !hideEmbeddedHeader">
+    <div class="dg-hub__header-main">
+      <h1 class="dg-hub__title dg-hub__title--embedded">
+        <mat-icon>forum</mat-icon>
+        Gluck Buddy
+      </h1>
+      <p class="dg-hub__lead">Guided speaking practice — same lessons as DG Bot, organized by your journey day.</p>
+    </div>
+  </header>
+
+  <div *ngIf="loading" class="dg-hub__loading-cards">
+    <div class="dg-hub__skeleton-card" *ngFor="let _ of [1,2,3,4,5]"></div>
+  </div>
+
+  <div *ngIf="error" class="dg-hub__err">{{ error }}</div>
+
+  <p class="dg-hub__week-banner" *ngIf="showWeeklyHint && !loading && !error">{{ journeyWeekHint }}</p>
+
+  <ng-container *ngIf="!loading && !error">
+    <section class="dg-hub__stats" *ngIf="!embedded && modules.length > 0">
+      <article class="dg-hub__stat-card dg-hub__stat-card--primary">
+        <span class="dg-hub__stat-value">{{ totalModules }}</span>
+        <span class="dg-hub__stat-label">Modules</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--success">
+        <span class="dg-hub__stat-value">{{ a1Count }}</span>
+        <span class="dg-hub__stat-label">A1</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--warning">
+        <span class="dg-hub__stat-value">{{ a2Count }}</span>
+        <span class="dg-hub__stat-label">A2</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--info">
+        <span class="dg-hub__stat-value">{{ b1PlusCount }}</span>
+        <span class="dg-hub__stat-label">B1+</span>
+      </article>
+      <article class="dg-hub__stat-card dg-hub__stat-card--slate">
+        <span class="dg-hub__stat-value">{{ totalScenes }}</span>
+        <span class="dg-hub__stat-label">Scenes</span>
+      </article>
+    </section>
+
+    <section class="dg-hub__summary" *ngIf="!embedded && modules.length > 0">
+      <span class="dg-hub__summary-count">{{ totalModules }}</span>
+      <span class="dg-hub__summary-text">modules available for practice</span>
+    </section>
+
+    <!-- Standalone hub: full filters -->
+    <div class="dg-hub__filters" *ngIf="showFullFilters()">
+      <div class="dg-hub__search-wrap">
+        <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
+        <input
+          type="text"
+          class="dg-hub__search-input"
+          [placeholder]="searchInputPlaceholder"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchInput()"
+        />
+        <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="dg-hub__filter-row">
+        <mat-form-field appearance="outline" class="dg-hub__filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+          <mat-select
+            [(ngModel)]="selectedLevel"
+            (selectionChange)="onFilterChange()"
+            panelClass="dg-hub-select-panel"
+            aria-label="Filter by level"
+          >
+            <mat-option value="">All levels</mat-option>
+            <mat-option *ngFor="let l of levelOptions" [value]="l">{{ l }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="dg-hub__filter-field" subscriptSizing="dynamic" hideRequiredMarker>
+          <mat-select
+            [(ngModel)]="selectedLanguage"
+            (selectionChange)="onFilterChange()"
+            panelClass="dg-hub-select-panel"
+            aria-label="Filter by language"
+          >
+            <mat-option value="">All languages</mat-option>
+            <mat-option *ngFor="let lang of languageOptions" [value]="lang">{{ lang }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <span class="dg-hub__journey-hint">{{ journeyWeekHint }}</span>
+        <button type="button" class="dg-hub__clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+          <span class="material-icons">filter_alt_off</span>
+          Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- My Course → Gluck Buddy tab: optional title search only -->
+    <div class="dg-hub__toolbar" *ngIf="embedded && modules.length > 0">
+      <div class="dg-hub__search-wrap dg-hub__search-wrap--toolbar">
+        <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
+        <input type="text" class="dg-hub__search-input" [placeholder]="searchInputPlaceholder" [(ngModel)]="searchQuery" (input)="onSearchInput()" />
+        <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="dg-hub__status-row" role="tablist" aria-label="Module status">
+        <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'new'" (click)="setTab('new')">
+          New <span class="dg-hub__status-count">{{ countForTab('new') }}</span>
+        </button>
+        <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'pending'" (click)="setTab('pending')">
+          Pending <span class="dg-hub__status-count">{{ countForTab('pending') }}</span>
+        </button>
+        <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'completed'" (click)="setTab('completed')">
+          Completed <span class="dg-hub__status-count">{{ countForTab('completed') }}</span>
+        </button>
+      </div>
+      <p class="dg-hub__day-hint" *ngIf="journeyFixedDay == null">
+        <span class="material-icons" aria-hidden="true">calendar_today</span>
+        Journey day {{ studentCourseDay }} — “New” matches today’s assigned lessons.
+      </p>
+    </div>
+
+    <div class="dg-hub__filters dg-hub__filters--search-only" *ngIf="showEmbeddedSearchOnly() && !embedded">
+      <div class="dg-hub__search-wrap">
+        <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
+        <input
+          type="text"
+          class="dg-hub__search-input"
+          [placeholder]="searchInputPlaceholder"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchInput()"
+        />
+        <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="mc-tabs-wrap" *ngIf="!embedded">
+      <div class="mc-tabs">
+        <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed')">
+          Completed
+        </button>
+        <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending')">
+          Pending
+        </button>
+        <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new')">
+          New
+        </button>
+      </div>
+    </div>
+
+    <div class="dg-hub__loading-cards" *ngIf="loading">
+      <div class="dg-hub__skeleton-card" *ngFor="let _ of [1,2,3,4,5]"></div>
+    </div>
+
+    <section class="dg-hub__list" *ngIf="!loading && modules.length > 0 && filteredModules.length > 0">
+      <div class="dg-hub__card" *ngFor="let m of paginatedModules; trackBy: trackModule">
+        <div class="dg-hub__card-main">
+          <div class="dg-hub__module-title">{{ m.title }}</div>
+          <div class="dg-hub__module-desc">{{ m.description || 'Guided speaking practice' }}</div>
+          <div class="dg-hub__meta">
+            <div class="dg-hub__meta-items">
+              <span class="dg-hub__day-pill" *ngIf="journeyFixedDay == null">{{ journeyDayLabel(m) }}</span>
+              <span class="dg-hub__level-badge">{{ m.level || '—' }}</span>
+              <span class="dg-hub__lang">{{ m.language || 'German' }}</span>
+              <span
+                class="dg-hub__status-badge"
+                [class.dg-hub__status-badge--done]="isModuleCompleted(m)"
+                [class.dg-hub__status-badge--wip]="moduleHasPartialProgress(m)"
+                [class.dg-hub__status-badge--live]="!isModuleCompleted(m) && !moduleHasPartialProgress(m) && m.visibleToStudents"
+              >
+                {{ hubStatusLabel(m) }}
+              </span>
+            </div>
+            <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']"
+               *ngIf="activeTab !== 'completed'">
+              <mat-icon>play_arrow</mat-icon>
+              Start
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="dg-hub__pager" *ngIf="totalPages > 1">
+        <button type="button" class="dg-hub__pager-btn" [disabled]="currentPage <= 1" (click)="changePage(currentPage - 1)">
+          <mat-icon>chevron_left</mat-icon>
+        </button>
+        <button
+          type="button"
+          class="dg-hub__pager-num"
+          *ngFor="let p of getPageNumbers()"
+          [class.dg-hub__pager-num--on]="p === currentPage"
+          (click)="changePage(p)"
+        >
+          {{ p }}
+        </button>
+        <button
+          type="button"
+          class="dg-hub__pager-btn"
+          [disabled]="currentPage >= totalPages"
+          (click)="changePage(currentPage + 1)"
+        >
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+      </div>
+    </section>
+
+    <section *ngIf="modules.length > 0 && filteredModules.length === 0" class="dg-hub__empty dg-hub__empty--soft">
+      <img class="dg-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
+      <h3>No modules in this view</h3>
+      <p>Nothing here for <strong>{{ activeTab }}</strong> yet. Try another status or clear your search.</p>
+      <div class="dg-hub__empty-actions" *ngIf="embedded">
+        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'new'" (click)="setTab('new')">View New</button>
+        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'pending'" (click)="setTab('pending')">View Pending</button>
+        <button type="button" class="dg-hub__empty-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">Clear search</button>
+      </div>
+    </section>
+
+    <section *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null" class="dg-hub__empty dg-hub__empty--soft">
+      <div class="dg-hub__empty-icon">🦊</div>
+      <h3>No Gluck Buddy for this day</h3>
+      <p>There are no speaking lessons assigned to <strong>Day {{ journeyFixedDay }}</strong> yet.</p>
+    </section>
+
+    <section *ngIf="modules.length === 0 && rawModuleCount === 0" class="dg-hub__empty">
+      <div class="dg-hub__empty-icon">🦊</div>
+      <h3>No Gluck Buddy assigned for your current day</h3>
+      <p>Only modules matching your journey day are shown. Ask your teacher to assign/publish a lesson for Day {{ studentCourseDay }}.</p>
+    </section>
+  </ng-container>
+</div>

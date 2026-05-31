@@ -3,6 +3,15 @@
     "target": "http://localhost:4000",
     "secure": false,
     "changeOrigin": true,
-    "logLevel": "debug"
+    "logLevel": "debug",
+    "timeout": 3600000,
+    "proxyTimeout": 3600000
+  },
+  "/uploads": {
+    "target": "http://localhost:4000",
+    "secure": false,
+    "changeOrigin": true,
+    "timeout": 3600000,
+    "proxyTimeout": 3600000
   }
 }

@@ -4,25 +4,42 @@
   <!-- Public pages (home/login): no sidebar, show header -->
   <ng-container *ngIf="!showSidebar">
     <app-header *ngIf="showHeader"></app-header>
-    <main class="main-content">
+    <main class="main-content" [class.login-route]="isLoginRoute" [class.home-route]="isHomeRoute">
       <router-outlet></router-outlet>
     </main>
-    <app-footer></app-footer>
+    <app-footer *ngIf="!isLoginRoute && !isHomeRoute"></app-footer>
   </ng-container>
 
   <!-- Logged-in pages: sidebar + content -->
   <ng-container *ngIf="showSidebar">
-    <!-- Mobile hamburger -->
-    <button class="mobile-menu-btn" (click)="toggleSidebar()">☰ <span style="font-size:14px;font-weight:700;margin-left:8px;">Glück Global</span></button>
+    <!-- Mobile hamburger — only when drawer closed; close lives inside sidebar drawer -->
+    <button
+      type="button"
+      class="mobile-menu-btn"
+      *ngIf="!sidebarOpen"
+      (click)="toggleSidebar()"
+      [attr.aria-expanded]="sidebarOpen"
+      aria-controls="app-sidebar"
+      [attr.aria-label]="sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'">
+      <span class="material-icons menu-icon" aria-hidden="true">{{ sidebarOpen ? 'close' : 'menu' }}</span>
+      <span class="menu-brand">Glück Global</span>
+    </button>
 
-    <!-- Overlay for mobile -->
-    <div class="sidebar-overlay" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
-
-    <div class="app-shell">
+    <div class="app-shell" [class.sidebar-drawer-open]="sidebarOpen">
       <app-sidebar
+        id="app-sidebar"
         [class.open]="sidebarOpen"
-        (closeSidebar)="sidebarOpen = false">
+        (closeSidebar)="closeSidebar()">
       </app-sidebar>
+
+      <!-- Tap outside drawer to close (after sidebar in DOM so drawer stays on top on iOS) -->
+      <div
+        class="sidebar-overlay"
+        *ngIf="sidebarOpen"
+        role="presentation"
+        (click)="closeSidebar()">
+      </div>
+
       <div class="shell-content">
         <main class="main-content">
           <router-outlet></router-outlet>
@@ -31,6 +48,9 @@
       </div>
     </div>
   </ng-container>
+
+  <!-- Floating Help button (all pages) -->
+  <app-support-fab></app-support-fab>
 
 </ng-container>
 

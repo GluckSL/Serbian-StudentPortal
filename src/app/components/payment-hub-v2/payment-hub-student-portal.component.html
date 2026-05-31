@@ -1,0 +1,349 @@
+<div class="sp-root">
+
+  <!-- Reupload banners -->
+  <div class="sp-reupload-banner" *ngFor="let req of reuploadRequests">
+    <mat-icon>warning_amber</mat-icon>
+    <div class="sp-banner-text">
+      <strong>Please re-upload your payment proof</strong>
+      for <em>{{ formatPaymentType(req.paymentType, req.customType) }}</em>.
+      <span class="sp-banner-note">{{ getReuploadNote(req) }}</span>
+    </div>
+    <button mat-flat-button color="warn" type="button" (click)="openUpload(req)">Re-upload</button>
+  </div>
+
+  <!-- Page Header -->
+  <div class="sp-page-header">
+    <div class="sp-header-left">
+      <h1 class="sp-page-title">Payment Dashboard</h1>
+      <p class="sp-page-subtitle">Track your payments, installments, and payment history</p>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="sp-skeleton-wrap">
+    <!-- Page Header Skeleton -->
+    <div class="sp-skeleton-header">
+      <div class="sp-skeleton-title"></div>
+      <div class="sp-skeleton-subtitle"></div>
+    </div>
+
+    <!-- Analytics Row 1 Skeleton -->
+    <div class="sp-analytics-row">
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+      <div class="sp-skeleton-card sp-skeleton-card--wide"></div>
+    </div>
+
+    <!-- Analytics Row 2 Skeleton -->
+    <div class="sp-analytics-row sp-analytics-row--secondary">
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+      <div class="sp-skeleton-card"></div>
+    </div>
+
+    <!-- Table Skeleton -->
+    <div class="sp-skeleton-table-section">
+      <div class="sp-skeleton-table-header">
+        <div class="sp-skeleton-title-small"></div>
+        <div class="sp-skeleton-search"></div>
+      </div>
+      <div class="sp-skeleton-table">
+        <div class="sp-skeleton-table-head">
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+          <div class="sp-skeleton-th"></div>
+        </div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+        <div class="sp-skeleton-table-row"></div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="!loading">
+
+    <!-- CRM-Style Analytics Cards Row 1 -->
+    <div class="sp-analytics-row">
+      <div class="sp-analytics-card sp-analytics--total">
+        <div class="sp-analytics-icon">
+          <mat-icon>account_balance_wallet</mat-icon>
+        </div>
+        <div class="sp-analytics-content">
+          <span class="sp-analytics-label">Total Amount Due</span>
+          <span class="sp-analytics-value" *ngIf="catalogFeeDisplay">{{ catalogFeeDisplay!.currency }} {{ fmt(catalogFeeDisplay!.amount) }}</span>
+          <span class="sp-analytics-value sp-analytics-muted" *ngIf="!catalogFeeDisplay">—</span>
+          <span class="sp-analytics-sub">Level {{ catalog?.studentLevel || '—' }} Program Fee</span>
+        </div>
+      </div>
+
+      <div class="sp-analytics-card sp-analytics--paid">
+        <div class="sp-analytics-icon">
+          <mat-icon>check_circle</mat-icon>
+        </div>
+        <div class="sp-analytics-content">
+          <span class="sp-analytics-label">Total received</span>
+          <div class="sp-paid-by-ccy" *ngIf="hasAnyPaid; else noPaid">
+            <app-payment-currency-totals
+              [lkr]="paidFiltered[0].amount"
+              [inr]="paidFiltered[1].amount"
+              [usd]="paidFiltered[2].amount"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-totals>
+          </div>
+          <ng-template #noPaid>
+            <span class="sp-analytics-value sp-analytics-muted">—</span>
+          </ng-template>
+          <span class="sp-analytics-sub">Approved payments</span>
+        </div>
+      </div>
+
+      <div class="sp-analytics-card sp-analytics--pending">
+        <div class="sp-analytics-icon">
+          <mat-icon>pending_actions</mat-icon>
+        </div>
+        <div class="sp-analytics-content">
+          <span class="sp-analytics-label">Pending</span>
+          <span class="sp-analytics-value sp-analytics-amber" *ngIf="nextPaymentBlock">{{ nextPaymentBlock.currency }} {{ fmt(nextPaymentBlock.amount) }}</span>
+          <span class="sp-analytics-value sp-analytics-muted" *ngIf="!nextPaymentBlock">—</span>
+          <span class="sp-analytics-sub" *ngIf="nextPaymentBlock">Next: {{ fmtDate(nextPaymentBlock.dueDate) }}</span>
+          <span class="sp-analytics-sub" *ngIf="!nextPaymentBlock">{{ nextPaymentClearHint }}</span>
+        </div>
+      </div>
+
+      <div class="sp-analytics-card sp-analytics--balance">
+        <div class="sp-analytics-icon">
+          <mat-icon>calculate</mat-icon>
+        </div>
+        <div class="sp-analytics-content">
+          <span class="sp-analytics-label">Balance Due</span>
+          <span class="sp-analytics-value sp-analytics-red" *ngIf="catalogBalanceDisplay">{{ catalogBalanceDisplay!.currency }} {{ fmt(catalogBalanceDisplay!.amount) }}</span>
+          <span class="sp-analytics-value sp-analytics-green" *ngIf="!catalogBalanceDisplay">—</span>
+          <span class="sp-analytics-sub" *ngIf="catalogBalanceDisplay">Remaining to pay</span>
+          <span class="sp-analytics-sub" *ngIf="!catalogBalanceDisplay">All cleared!</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRM-Style Analytics Cards Row 2 -->
+    <div class="sp-analytics-row sp-analytics-row--secondary">
+      <div class="sp-mini-stat-card" *ngIf="loadingCatalog">
+        <mat-spinner diameter="24"></mat-spinner>
+        <span>Loading...</span>
+      </div>
+
+      <div class="sp-mini-stat-card" *ngIf="!loadingCatalog && catalog?.studentLevel">
+        <div class="sp-mini-stat-header">
+          <mat-icon>school</mat-icon>
+          <span>Current Level</span>
+        </div>
+        <div class="sp-mini-stat-value">{{ catalog?.studentLevel || '—' }}</div>
+        <div class="sp-mini-stat-sub">CEFR Level</div>
+      </div>
+
+      <div class="sp-mini-stat-card" [class.sp-mini-stat--paid]="documentationIsPaid" [class.sp-mini-stat--pending]="!documentationIsPaid">
+        <div class="sp-mini-stat-header">
+          <mat-icon>description</mat-icon>
+          <span>Documentation</span>
+        </div>
+        <div class="sp-mini-stat-value" *ngIf="documentationIsPaid && documentationPaidLine">
+          {{ documentationPaidLine!.currency }} {{ fmt(documentationPaidLine!.amount) }}
+        </div>
+        <div class="sp-mini-stat-value" *ngIf="!documentationIsPaid">Pending</div>
+        <div class="sp-mini-stat-sub">{{ documentationIsPaid ? 'Fees settled' : 'Awaiting payment' }}</div>
+      </div>
+
+      <div class="sp-mini-stat-card" *ngIf="hasActiveInstallmentPlan">
+        <div class="sp-mini-stat-header">
+          <mat-icon>date_range</mat-icon>
+          <span>Installments</span>
+        </div>
+        <div class="sp-mini-stat-value">{{ getActiveInstallmentCount() }}</div>
+        <div class="sp-mini-stat-sub">Active plan</div>
+      </div>
+
+      <div class="sp-mini-stat-card">
+        <div class="sp-mini-stat-header">
+          <mat-icon>receipt_long</mat-icon>
+          <span>Total Requests</span>
+        </div>
+        <div class="sp-mini-stat-value">{{ total }}</div>
+        <div class="sp-mini-stat-sub">Payment requests</div>
+      </div>
+    </div>
+
+    <!-- Level fee card (conditional) -->
+    <section class="sp-catalog-card sp-level-fee-card" *ngIf="showDefaultLevelFeeUploadCard">
+      <div class="sp-catalog-head sp-level-fee-head">
+        <mat-icon class="sp-catalog-icon">account_balance_wallet</mat-icon>
+        <div>
+          <h2 class="sp-catalog-title">Level {{ catalog?.studentLevel }} — full payment</h2>
+          <p class="sp-catalog-sub">
+            Total program amount for your current level. Upload proof against the payment request your coordinator sends for this level.
+          </p>
+        </div>
+      </div>
+
+      <div class="sp-level-fee-body" *ngIf="catalogFeeDisplay">
+        <div class="sp-level-fee-amounts">
+          <div class="sp-level-fee-line">
+            <span class="sp-level-fee-cur">{{ catalogFeeDisplay.currency }}</span>
+            <span class="sp-level-fee-num">{{ fmt(catalogFeeDisplay.amount) }}</span>
+          </div>
+        </div>
+        <button mat-flat-button color="primary" type="button" class="sp-level-fee-upload" (click)="openLevelFeeUpload()">
+          <mat-icon>cloud_upload</mat-icon>
+          Upload payment proof
+        </button>
+      </div>
+
+      <p class="sp-catalog-sub sp-level-fee-missing" *ngIf="catalogCefrRows.length === 0">
+        No catalog pricing is set for level {{ catalog?.studentLevel }}. Please contact support.
+      </p>
+    </section>
+
+    <!-- Data Table Section -->
+    <section class="sp-table-section">
+      <div class="sp-table-header">
+        <div class="sp-table-title">
+          <h2>Payment Requests</h2>
+          <span class="sp-table-count" *ngIf="total > 0">{{ total }} records</span>
+        </div>
+        <div class="sp-table-actions">
+          <input type="text" placeholder="Search requests..." class="sp-search-input" />
+        </div>
+      </div>
+
+      <div *ngIf="requests.length === 0" class="sp-empty">
+        <div class="sp-empty-icon">
+          <mat-icon>sentiment_satisfied_alt</mat-icon>
+        </div>
+        <h3 class="sp-empty-title">You're all set</h3>
+        <p class="sp-empty-text">There are no payment requests for your account right now.</p>
+      </div>
+
+      <!-- CRM-Style Table -->
+      <div class="sp-table-wrap" *ngIf="requests.length > 0">
+        <table class="sp-data-table">
+          <thead>
+            <tr>
+              <th>Payment Details</th>
+              <th>Amount</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let req of requests">
+              <!-- Main Row -->
+              <tr class="sp-table-row" [class.sp-row-overdue]="isUrgent(req)" [class.sp-row-approved]="req.status === 'APPROVED' || req.status === 'FULLY_PAID'" [class.sp-row-review]="req.status === 'SUBMITTED' || req.status === 'UNDER_REVIEW'">
+                <td class="sp-cell-main">
+                  <div class="sp-payment-type">
+                    <span class="sp-type-label">{{ formatPaymentType(req.paymentType, req.customType) }}</span>
+                    <span class="sp-type-meta" *ngIf="req.installmentAllowed">
+                      <mat-icon>date_range</mat-icon>
+                      {{ installmentTotalParts(req) }} installments
+                    </span>
+                  </div>
+                  <div class="sp-payment-remarks" *ngIf="req.remarks">{{ req.remarks }}</div>
+                  <div class="sp-installment-row-toggle" *ngIf="req.installmentAllowed && req.installments?.length">
+                    <button mat-stroked-button type="button" (click)="toggleInstallments(req._id)" class="sp-toggle-btn">
+                      <mat-icon>{{ isInstallmentExpanded(req._id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      {{ isInstallmentExpanded(req._id) ? 'Hide' : 'View' }} Installments
+                    </button>
+                  </div>
+                </td>
+                <td class="sp-cell-amount">
+                  <span class="sp-amount">{{ req.currency }} {{ fmt(req.amount) }}</span>
+                </td>
+                <td class="sp-cell-paid">
+                  <span class="sp-paid" [class.sp-paid-green]="req.amount - req.amountRemaining > 0">{{ req.currency }} {{ fmt(req.amount - req.amountRemaining) }}</span>
+                </td>
+                <td class="sp-cell-balance">
+                  <span class="sp-balance" [class.sp-balance-red]="req.amountRemaining > 0">{{ req.currency }} {{ fmt(req.amountRemaining) }}</span>
+                </td>
+                <td class="sp-cell-date">
+                  <span class="sp-date" [class.sp-date-overdue]="isUrgent(req)">
+                    {{ fmtDate(req.dueDate) }}
+                  </span>
+                  <span class="sp-date-hint" *ngIf="dueHint(req)">{{ dueHint(req) }}</span>
+                </td>
+                <td class="sp-cell-status">
+                  <span class="sp-status-badge" [ngClass]="statusClass(req)">{{ displayStatus(req) }}</span>
+                </td>
+                <td class="sp-cell-actions">
+                  <button mat-icon-button color="primary" matTooltip="Download Invoice" (click)="downloadInvoice(req)">
+                    <mat-icon>receipt_long</mat-icon>
+                  </button>
+                  <!--<button mat-flat-button
+                    *ngIf="canUpload(req)"
+                    [color]="isUrgent(req) ? 'warn' : 'primary'"
+                    class="sp-btn-upload"
+                    (click)="openUpload(req)">
+                    <mat-icon>cloud_upload</mat-icon>
+                    {{ actionLabel(req) }}
+                  </button>-->
+                </td>
+              </tr>
+              <!-- Expandable Installment Details -->
+              <tr *ngIf="req.installmentAllowed && req.installments?.length && isInstallmentExpanded(req._id)" class="sp-installment-row">
+                <td colspan="7">
+                  <div class="sp-installment-details">
+                    <div class="sp-inst-grid">
+                      <div *ngFor="let inst of sortedInstallments(req)" class="sp-inst-card" [ngClass]="{'sp-inst-card--paid': inst.status === 'APPROVED', 'sp-inst-card--pending': inst.status === 'PENDING', 'sp-inst-card--overdue': inst.status === 'OVERDUE'}">
+                        <div class="sp-inst-card-header">
+                          <span class="sp-inst-num">Part {{ inst.installmentNumber }}</span>
+                          <span class="sp-inst-status" [ngClass]="installmentStatusClass(inst.status)">{{ inst.status }}</span>
+                        </div>
+                        <div class="sp-inst-card-body">
+                          <div class="sp-inst-amount">
+                            <span class="sp-inst-label">Amount</span>
+                            <span class="sp-inst-value">{{ inst.currency || req.currency }} {{ fmt(inst.requestedAmount) }}</span>
+                          </div>
+                          <div class="sp-inst-due">
+                            <span class="sp-inst-label">Due</span>
+                            <span class="sp-inst-value">{{ fmtDate(inst.dueDate) }}</span>
+                          </div>
+                          <div class="sp-inst-paid-amt" *ngIf="inst.paidAmount > 0">
+                            <span class="sp-inst-label">Paid</span>
+                            <span class="sp-inst-value sp-inst-value-green">{{ inst.currency || req.currency }} {{ fmt(inst.paidAmount) }}</span>
+                          </div>
+                          <div class="sp-inst-remaining" *ngIf="inst.remainingAmount > 0">
+                            <span class="sp-inst-label">Remaining</span>
+                            <span class="sp-inst-value">{{ inst.currency || req.currency }} {{ fmt(inst.remainingAmount) }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+
+        <div class="sp-pager" *ngIf="total > pageSize">
+          <button mat-stroked-button type="button" (click)="prevPage()" [disabled]="page <= 1">
+            <mat-icon>chevron_left</mat-icon> Previous
+          </button>
+          <span class="sp-pager-info">Page {{ page }} of {{ totalPages }}</span>
+          <button mat-stroked-button type="button" (click)="nextPage()" [disabled]="page * pageSize >= total">
+            Next <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>

@@ -5,6 +5,12 @@
      *ngIf="!isLoading">
   <!-- Header -->
   <div class="chat-header">
+    <div class="chat-back-row">
+      <button class="chat-back-btn" (click)="goBack()" title="Go back">
+        <i class="fas fa-arrow-left"></i>
+        <span>Back</span>
+      </button>
+    </div>
     <div class="header-content">
       <div class="module-info">
         <h2>{{ getSessionTypeLabel() }}</h2>
@@ -164,12 +170,6 @@
         </div>
         
         <button 
-          class="btn btn-outline-secondary btn-sm"
-          (click)="router.navigate(['/learning-modules'])"
-          title="Back to Module">
-          ← Back
-        </button>
-        <button 
           class="btn btn-danger btn-sm"
           (click)="endSession()"
           *ngIf="sessionActive"
@@ -221,7 +221,7 @@
     
     <div class="messages-list">
       <!-- Debug: Show message count -->
-      <div class="debug-info" *ngIf="messages.length === 0" style="text-align: center; padding: 2rem; color: #6c757d;">
+      <div class="debug-info" *ngIf="messages.length === 0 && sessionActive" style="text-align: center; padding: 2rem; color: #6c757d;">
         <p>No messages yet. Start a conversation!</p>
         <button class="btn btn-sm btn-outline-primary" (click)="refreshMessages()">Refresh Messages</button>
       </div>
@@ -522,19 +522,139 @@
       </button>
       <button 
         class="btn btn-outline-secondary"
-        (click)="router.navigate(['/learning-modules'])">
-        Back to Module
+        (click)="router.navigateByUrl(returnUrl)">
+        Go Back
       </button>
     </div>
   </div>
 </div>
 
-<!-- Loading State -->
-<div class="loading-container" *ngIf="isLoading">
-  <div class="text-center">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Loading...</span>
+<!-- ═══ Session Summary Card (shown after "End Session") ═══ -->
+<div class="summary-overlay" *ngIf="showSummaryCard">
+  <div class="summary-card">
+
+    <!-- Top accent bar -->
+    <div class="summary-card__accent"></div>
+
+    <!-- Trophy icon -->
+    <div class="summary-card__icon">{{ summaryData.wasCompleted ? '🎉' : '👋' }}</div>
+
+    <h2 class="summary-card__title">{{ summaryData.wasCompleted ? 'Session Complete!' : 'Session Ended' }}</h2>
+    <p class="summary-card__subtitle">{{ summaryData.wasCompleted ? "Great work! Here's how your session went." : "Here's a summary of your session." }}</p>
+
+    <!-- Stats row -->
+    <div class="summary-stats">
+      <div class="summary-stat">
+        <div class="summary-stat__value">{{ summaryData.conversations }}</div>
+        <div class="summary-stat__label">Conversations</div>
+      </div>
+      <div class="summary-stat summary-stat--mid">
+        <div class="summary-stat__value">{{ summaryData.duration }} <span class="summary-stat__unit">min</span></div>
+        <div class="summary-stat__label">Time Spent</div>
+      </div>
+      <div class="summary-stat">
+        <div class="summary-stat__value">{{ summaryData.vocabulary.length }}</div>
+        <div class="summary-stat__label">Words Used</div>
+      </div>
     </div>
-    <p class="mt-3">Starting your AI tutoring session...</p>
+
+    <!-- Vocabulary chips -->
+    <div class="summary-vocab" *ngIf="summaryData.vocabulary.length > 0">
+      <p class="summary-vocab__label">Vocabulary practiced</p>
+      <div class="summary-vocab__chips">
+        <span class="summary-vocab__chip" *ngFor="let word of summaryData.vocabulary">{{ word }}</span>
+      </div>
+    </div>
+    <div class="summary-vocab" *ngIf="summaryData.vocabulary.length === 0">
+      <p class="summary-vocab__label" style="color:#64748b;">{{ summaryData.wasCompleted ? 'Practice completed — keep it up! 🌟' : 'Keep practicing to complete this module! 💪' }}</p>
+    </div>
+
+    <!-- Actions -->
+    <div class="summary-card__actions">
+      <button class="summary-btn summary-btn--secondary" (click)="showSummaryCard = false; startNewSession()">
+        <i class="fas fa-redo"></i> Practice Again
+      </button>
+      <button class="summary-btn summary-btn--primary" (click)="dismissSummary()">
+        <i class="fas fa-arrow-left"></i> Go Back
+      </button>
+    </div>
+
   </div>
+</div>
+
+<!-- Skeleton Loading State -->
+<div class="skeleton-page" *ngIf="isLoading">
+
+  <!-- Skeleton Header -->
+  <div class="skeleton-header">
+    <div class="skeleton-header-top">
+      <div class="skeleton-block sk-back-btn"></div>
+    </div>
+    <div class="skeleton-header-body">
+      <div class="skeleton-header-left">
+        <div class="skeleton-block sk-title"></div>
+        <div class="skeleton-block sk-subtitle"></div>
+        <div class="sk-badge-row">
+          <div class="skeleton-block sk-badge"></div>
+          <div class="skeleton-block sk-badge-wide"></div>
+        </div>
+      </div>
+      <div class="skeleton-header-right">
+        <div class="skeleton-block sk-stat"></div>
+        <div class="skeleton-block sk-stat"></div>
+        <div class="skeleton-block sk-stat"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skeleton Messages Area -->
+  <div class="skeleton-messages">
+
+    <!-- AI message (left) -->
+    <div class="sk-message sk-message-left">
+      <div class="sk-avatar skeleton-block"></div>
+      <div class="sk-bubble-wrap">
+        <div class="skeleton-block sk-bubble-line" style="width:80%"></div>
+        <div class="skeleton-block sk-bubble-line" style="width:60%"></div>
+        <div class="skeleton-block sk-bubble-line" style="width:70%"></div>
+      </div>
+    </div>
+
+    <!-- User message (right) -->
+    <div class="sk-message sk-message-right">
+      <div class="sk-bubble-wrap sk-bubble-wrap-right">
+        <div class="skeleton-block sk-bubble-line" style="width:50%"></div>
+        <div class="skeleton-block sk-bubble-line" style="width:35%"></div>
+      </div>
+      <div class="sk-avatar skeleton-block"></div>
+    </div>
+
+    <!-- AI message (left) -->
+    <div class="sk-message sk-message-left">
+      <div class="sk-avatar skeleton-block"></div>
+      <div class="sk-bubble-wrap">
+        <div class="skeleton-block sk-bubble-line" style="width:75%"></div>
+        <div class="skeleton-block sk-bubble-line" style="width:55%"></div>
+      </div>
+    </div>
+
+    <!-- Spinner + label -->
+    <div class="sk-loading-label">
+      <div class="sk-spinner">
+        <svg viewBox="0 0 50 50" class="sk-spinner-svg">
+          <circle class="sk-spinner-track" cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
+          <circle class="sk-spinner-arc"   cx="25" cy="25" r="20" fill="none" stroke-width="4"
+                  stroke-dasharray="80 200" stroke-dashoffset="0" stroke-linecap="round"></circle>
+        </svg>
+      </div>
+      <span>Starting your session&hellip;</span>
+    </div>
+  </div>
+
+  <!-- Skeleton Mic Button Footer -->
+  <div class="skeleton-footer">
+    <div class="skeleton-block sk-mic-btn"></div>
+    <div class="skeleton-block sk-mic-label"></div>
+  </div>
+
 </div>

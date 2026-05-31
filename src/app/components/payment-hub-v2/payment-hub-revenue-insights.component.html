@@ -1,0 +1,110 @@
+<div class="ph-insights-page">
+  <div class="ph-insights-header rev-header">
+    <div class="ph-insights-header-inner">
+      <a routerLink="/admin/payment-hub" class="ph-insights-back">
+        <mat-icon>arrow_back</mat-icon>
+        Back to hub
+      </a>
+      <h1 class="ph-insights-title">Revenue & collections</h1>
+      <p class="ph-insights-sub">
+        Snapshot of what is already collected, awaiting approval, and overdue — LKR, INR, and Euro shown separately.
+      </p>
+    </div>
+  </div>
+
+  <div class="ph-insights-body">
+    <ng-container *ngIf="!loading && stats; else spin">
+      <div class="ph-insights-cards">
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Total received</div>
+          <app-payment-currency-totals
+            [lkr]="stats.totalReceivedLKR"
+            [inr]="stats.totalReceivedINR"
+            [usd]="stats.totalReceivedUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
+        </div>
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Pending approval</div>
+          <app-payment-currency-totals
+            [lkr]="stats.pendingApprovalAmountLKR"
+            [inr]="stats.pendingApprovalAmountINR"
+            [usd]="stats.pendingApprovalAmountUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
+        </div>
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Expected this month</div>
+          <app-payment-currency-totals
+            [lkr]="stats.totalExpectedThisMonthLKR"
+            [inr]="stats.totalExpectedThisMonthINR"
+            [usd]="stats.totalExpectedThisMonthUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
+        </div>
+        <div class="ph-insight-card ph-insight-card--currency">
+          <div class="ph-insight-card-label">Overdue</div>
+          <app-payment-currency-totals
+            [lkr]="stats.totalOverdueLKR"
+            [inr]="stats.totalOverdueINR"
+            [usd]="stats.totalOverdueUSD"
+            [compact]="true"
+          ></app-payment-currency-totals>
+          <div class="ph-insight-card-hint">{{ stats.overdueCount }} requests</div>
+        </div>
+      </div>
+
+      <div class="ph-insights-split">
+        <div class="ph-insights-panel">
+          <h2 class="ph-insights-panel-title">LKR flow (received vs pending vs overdue)</h2>
+          <div class="ph-insights-chart-wrap ph-chart-short">
+            <canvas baseChart [data]="doughnutData" [options]="doughnutOptions" type="doughnut"></canvas>
+          </div>
+        </div>
+        <div class="ph-insights-panel">
+          <h2 class="ph-insights-panel-title">Total received by currency</h2>
+          <div class="ph-insights-chart-wrap ph-chart-short">
+            <canvas baseChart [data]="currencyBarData" [options]="currencyBarOptions" type="bar"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="ph-insights-panel ph-tableish">
+        <h2 class="ph-insights-panel-title">Cross-currency totals</h2>
+        <table class="ph-mini-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="ph-num">LKR</th>
+              <th class="ph-num">INR</th>
+              <th class="ph-num">Euro</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Received</td>
+              <td class="ph-num">{{ fmt(stats.totalReceivedLKR) }}</td>
+              <td class="ph-num">{{ fmt(stats.totalReceivedINR) }}</td>
+              <td class="ph-num">{{ fmt(stats.totalReceivedUSD) }}</td>
+            </tr>
+            <tr>
+              <td>Pending approval</td>
+              <td class="ph-num">{{ fmt(stats.pendingApprovalAmountLKR) }}</td>
+              <td class="ph-num">{{ fmt(stats.pendingApprovalAmountINR) }}</td>
+              <td class="ph-num">{{ fmt(stats.pendingApprovalAmountUSD) }}</td>
+            </tr>
+            <tr>
+              <td>Overdue</td>
+              <td class="ph-num">{{ fmt(stats.totalOverdueLKR) }}</td>
+              <td class="ph-num">{{ fmt(stats.totalOverdueINR) }}</td>
+              <td class="ph-num">{{ fmt(stats.totalOverdueUSD) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </ng-container>
+    <ng-template #spin>
+      <div class="ph-insights-spinner"><mat-spinner diameter="44"></mat-spinner></div>
+    </ng-template>
+  </div>
+</div>

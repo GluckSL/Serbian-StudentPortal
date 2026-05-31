@@ -1,7 +1,7 @@
 // models/User.js
 
 const mongoose = require("mongoose");
-const { readBuilderProgram } = require("typescript");
+const { detectPhoneCountry } = require("../utils/phoneCountryDetect");
 
 const completionDates = new mongoose.Schema({
   A1CompletionDate: { type: Date },
@@ -22,10 +22,37 @@ const UserSchema = new mongoose.Schema({
   regNo: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ["STUDENT", "TEACHER", "ADMIN", "TEACHER_ADMIN"], required: true },
+  passwordRecoverable: { type: String, default: null }, // AES-256-GCM ciphertext for ADMIN display only
+  /** Student must complete first-login setup (set own password; one-time emailed password). */
+  mustChangePassword: { type: Boolean, default: false },
+  /** Set when the student completes password setup or changes password while logged in. */
+  passwordChangedAt: { type: Date, default: null },
+  /** Incremented to invalidate all outstanding JWTs (force logout). */
+  authTokenVersion: { type: Number, default: 0 },
+  role: { type: String, enum: ["STUDENT", "TEACHER", "ADMIN", "TEACHER_ADMIN", "SUB_ADMIN"], required: true },
+  sidebarPermissions: { type: [String], default: [] },
+  teacherTabPermissions: { type: [String], default: [] },
+  sidebarAccessLevels: {
+    type: Map,
+    of: { type: String, enum: ["view", "edit", "full"] },
+    default: {}
+  },
+  /** Tab IDs where SUB_ADMIN may delete data (requires edit access; full level always allows delete). */
+  sidebarDeletePermissions: { type: [String], default: [] },
+  teacherTabAccessLevels: {
+    type: Map,
+    of: { type: String, enum: ["view", "edit", "full"] },
+    default: {}
+  },
   subscription: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: function() { return this.role === "STUDENT"; } },
   level: { type: String, enum: ["A1", "A2", "B1", "B2", "C1", "C2"], required: function() { return this.role === "STUDENT"; }},
-  batch: { type: String, required: function() { return this.role === "STUDENT"; }},
+  batch: {
+    type: String,
+    required: function () {
+      if (this.role !== "STUDENT") return false;
+      return String(this.subscription || "").toUpperCase() !== "SILVER";
+    }
+  },
   medium: { type: [String], required: function() { return this.role === "STUDENT" || this.role === "TEACHER"; }},
   conversationId: { type: String, default: "" },
   assignedCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: function() { return this.role === "TEACHER"; } }], // Courses assigned to the user
@@ -35,6 +62,10 @@ const UserSchema = new mongoose.Schema({
   profilePic: { type: String, default: "" },
   subscriptionExpiry: { type: Date, default: null },
   lastLogin: { type: Date, default: null },
+  /** Normalized: India | Sri Lanka | Russia | Other | Unknown — from latest login IP/headers */
+  lastLoginCountry: { type: String, default: '' },
+  /** Normalized from phoneNumber / whatsappNumber — India | Sri Lanka | Russia | Other | Unknown */
+  phoneCountry: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   registeredAt: { type: Date, default: Date.now },
@@ -68,9 +99,34 @@ const UserSchema = new mongoose.Schema({
   },
   examRemark: { type: String, default: "", function() { return this.role === "STUDENT"; } },
   candidateStatus: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+  /** Monday.com Documentation payment status; column id from MONDAY_COL_DOCUMENTATION_PAYMENT_STATUS */
+  documentationPaymentStatus: { type: String, default: "", required: false },
+
+  /**
+   * Marks this student as a test/internal account.
+   * When true, this user is excluded from all batch analytics and completion %
+   * calculations so test usage doesn't skew real student progress metrics.
+   */
+  isTestAccount: { type: Boolean, default: false, index: true },
 
   /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
   currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
+
+  /**
+   * CEFR levels whose journey content this student cannot access (e.g. ['A1'] blocks days 1–42).
+   * Used for students who join at A2 and should not see A1 modules, videos, or exercises.
+   */
+  blockedJourneyLevels: {
+    type: [{ type: String, enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] }],
+    default: []
+  },
+
+  /**
+   * Set when student attended the live class for currentCourseDay (meeting.courseDay matches).
+   * Cleared after midnight rollover when currentCourseDay increments, or when admin changes day.
+   */
+  pendingJourneyDayAdvance: { type: Boolean, default: false },
+  pendingJourneyDayAdvanceForDay: { type: Number, default: null, min: 1, max: 200, required: false },
 
   // ✅ move these inside schema
   courseProgress: [{
@@ -78,6 +134,39 @@ const UserSchema = new mongoose.Schema({
     progressPercent: { type: Number, default: 0 },
     lastUpdated: { type: Date, default: Date.now }
   }],
+
+  // WhatsApp consecutive-absence alert state
+  consecutiveAbsenceAlertSentAt: { type: Date, default: null },
+  consecutiveAbsenceAlertStreak: { type: Number, default: null },
+
+  // GO Silver batch fields
+  goStatus: { type: String, enum: ['GO'], default: undefined },
+  /** Tamil → GO-SILVER journey; Sinhala → GO-SINHALA journey */
+  goLanguage: { type: String, enum: ['Tamil', 'Sinhala'], default: undefined },
+  goJoiningDate: { type: Date, default: null },
+
+  // CRM link — stores the external WP/Gluck CRM contact ID so portal ↔ CRM records stay linked
+  crmExternalId: { type: String, default: '' },
+
+  // Self-signup fields
+  nationality:  { type: String, default: '' },
+  signupSource: { type: String, enum: ['admin', 'public_signup', 'bulk_upload', 'crm', ''], default: '' },
+});
+
+// Sparse unique index: two students cannot share the same non-empty crmExternalId,
+// but an empty string is allowed on all records (sparse = only indexes non-empty values).
+UserSchema.index(
+  { crmExternalId: 1 },
+  { unique: true, sparse: true, partialFilterExpression: { crmExternalId: { $gt: '' } } }
+);
+UserSchema.index({ role: 1, createdAt: -1 });
+UserSchema.index({ role: 1, assignedTeacher: 1 });
+
+UserSchema.pre('save', function setPhoneCountry(next) {
+  if (this.role === 'STUDENT') {
+    this.phoneCountry = detectPhoneCountry(this.phoneNumber, this.whatsappNumber);
+  }
+  next();
 });
 
 module.exports = mongoose.model("User", UserSchema);

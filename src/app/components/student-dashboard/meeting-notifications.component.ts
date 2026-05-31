@@ -5,6 +5,8 @@ import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../shared/material.module';
 import { Router } from '@angular/router';
 import { ZoomService } from '../../services/zoom.service';
+import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import { NotificationService } from '../../services/notification.service';
 
 interface UpcomingMeeting {
   _id: string;
@@ -42,7 +44,9 @@ export class MeetingNotificationsComponent implements OnInit, OnDestroy {
 
   constructor(
     private zoomService: ZoomService,
-    private router: Router
+    private router: Router,
+    private joinClassFlow: JoinClassFlowService,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -100,7 +104,7 @@ export class MeetingNotificationsComponent implements OnInit, OnDestroy {
 
   joinMeeting(meeting: UpcomingMeeting): void {
     if (meeting.canJoin && meeting.joinUrl) {
-      window.open(meeting.joinUrl, '_blank');
+      this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
     }
   }
 

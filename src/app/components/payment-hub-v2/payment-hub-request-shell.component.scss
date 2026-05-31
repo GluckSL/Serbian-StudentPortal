@@ -1,0 +1,39 @@
+.ph-shell {
+  min-height: 100vh;
+  background: #f5f7fa;
+}
+
+.ph-header {
+  background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+  color: white;
+  padding: 22px 0 18px;
+}
+
+.ph-header-inner {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-inline: clamp(12px, 2.5vw, 28px);
+  box-sizing: border-box;
+}
+
+.ph-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.5px;
+}
+
+.ph-subtitle {
+  font-size: 14px;
+  margin: 0;
+  opacity: 0.85;
+}
+
+.ph-body {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px clamp(12px, 2.5vw, 28px) 48px;
+  box-sizing: border-box;
+}

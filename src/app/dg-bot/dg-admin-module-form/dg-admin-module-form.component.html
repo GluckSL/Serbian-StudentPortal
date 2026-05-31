@@ -1,0 +1,908 @@
+<div class="dg-form-page">
+  <div class="container-fluid px-3 py-3">
+    <div
+      id="dg-form-alert"
+      *ngIf="message"
+      class="alert d-flex align-items-start gap-2 mb-3"
+      [ngClass]="{
+        'alert-danger': messageType === 'error',
+        'alert-success': messageType === 'success',
+        'alert-info': messageType === 'info'
+      }"
+      role="alert"
+    >
+      <i
+        class="fas mt-1"
+        [ngClass]="{
+          'fa-exclamation-triangle': messageType === 'error',
+          'fa-check-circle': messageType === 'success',
+          'fa-info-circle': messageType === 'info'
+        }"
+      ></i>
+      <div class="flex-grow-1">
+        <div class="fw-semibold">{{ message }}</div>
+        <ul *ngIf="missingFieldLabels.length" class="mb-0 mt-1 ps-3 small">
+          <li *ngFor="let label of missingFieldLabels">{{ label }}</li>
+        </ul>
+      </div>
+      <button
+        type="button"
+        class="btn-close"
+        aria-label="Close"
+        (click)="message = null"
+      ></button>
+    </div>
+
+    <div class="loading-state text-center py-5" *ngIf="loading">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-3 mb-0 text-muted small">Loading…</p>
+    </div>
+
+    <div class="card dg-adm-rp-card" *ngIf="!loading && selected">
+      <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <h4 class="mb-0">🎭 {{ isCreateMode ? 'Create' : 'Edit' }} Role-Play Module</h4>
+          <small class="text-muted mt-1 d-block">DG Bot — same inputs as Learning Modules role-play creator</small>
+        </div>
+        <button type="button" class="btn btn-secondary dg-form-back" (click)="goBack()">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+      </div>
+          <div class="card-body">
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">📝 Basic Information</h5>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Module Title *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('title')"
+                  [(ngModel)]="editTitle"
+                  (ngModelChange)="onFieldInput('title')"
+                  name="title"
+                  placeholder="e.g., Restaurant Conversation"
+                />
+                <div class="invalid-feedback" *ngIf="isInvalid('title')">
+                  Module title is required.
+                </div>
+              </div>
+              <div class="col-12 mb-3">
+                <label class="form-label">Description *</label>
+                <textarea
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('description')"
+                  rows="2"
+                  [(ngModel)]="editDescription"
+                  (ngModelChange)="onFieldInput('description')"
+                  name="description"
+                  placeholder="Brief description of the role-play scenario"
+                ></textarea>
+                <div class="invalid-feedback" *ngIf="isInvalid('description')">
+                  Description is required.
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">🌍 Language &amp; Level</h5>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Target Language *</label>
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('targetLang')"
+                  [(ngModel)]="editLanguage"
+                  (ngModelChange)="onFieldInput('targetLang')"
+                  name="targetLang"
+                >
+                  <option *ngFor="let lang of targetLanguages" [value]="lang">{{ lang }}</option>
+                </select>
+                <div class="invalid-feedback" *ngIf="isInvalid('targetLang')">
+                  Target language is required.
+                </div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Native Language *</label>
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('nativeLang')"
+                  [(ngModel)]="editNativeLanguage"
+                  (ngModelChange)="onFieldInput('nativeLang')"
+                  name="nativeLang"
+                >
+                  <option value="">Select language</option>
+                  <option *ngFor="let lang of nativeLanguages" [value]="lang">{{ lang }}</option>
+                </select>
+                <div class="invalid-feedback" *ngIf="isInvalid('nativeLang')">
+                  Native language is required.
+                </div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Level *</label>
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('cefrLevel')"
+                  [(ngModel)]="editLevel"
+                  (ngModelChange)="onFieldInput('cefrLevel')"
+                  name="cefrLevel"
+                >
+                  <option value="">Select Level</option>
+                  <option *ngFor="let lv of cefrLevels" [value]="lv">{{ lv }}</option>
+                </select>
+                <div class="invalid-feedback" *ngIf="isInvalid('cefrLevel')">
+                  Please select a CEFR level.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('cefrLevel')">
+                  CEFR proficiency level — determines content complexity and student access
+                </small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Duration (minutes) *</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('duration')"
+                  [(ngModel)]="editMinimumCompletionTime"
+                  (ngModelChange)="onFieldInput('duration')"
+                  name="duration"
+                  min="2"
+                  placeholder="5"
+                />
+                <div class="invalid-feedback" *ngIf="isInvalid('duration')">
+                  Enter a duration of at least 2 minutes.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('duration')">
+                  Time the student must spend on this exercise to complete it.
+                </small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Maximum time (minutes)</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('maxTime')"
+                  [(ngModel)]="editMaxPracticeMinutes"
+                  (ngModelChange)="onFieldInput('maxTime')"
+                  name="maxTime"
+                  min="5"
+                  max="180"
+                  placeholder="Leave empty for no limit"
+                />
+                <div class="invalid-feedback" *ngIf="isInvalid('maxTime')">
+                  Must be ≥ duration and between 5–180 minutes.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('maxTime')">
+                  Optional. Bot automatically ends the session as completed when this limit is reached.
+                </small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Course Day (Optional)</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('courseDay')"
+                  [(ngModel)]="editCourseDay"
+                  (ngModelChange)="onFieldInput('courseDay')"
+                  name="courseDay"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="e.g., 45"
+                />
+                <div class="invalid-feedback" *ngIf="isInvalid('courseDay')">
+                  Enter a number between 1 and 200, or leave empty.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('courseDay')">
+                  📅 Day in the 200-day course journey (1–200). Leave empty for general pool.
+                </small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Character *</label>
+                <select
+                  class="form-select"
+                  [class.is-invalid]="isInvalid('char')"
+                  [(ngModel)]="editCharacterId"
+                  (ngModelChange)="onFieldInput('char')"
+                  name="char"
+                  required
+                >
+                  <option value="">Select character…</option>
+                  <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}</option>
+                </select>
+                <div class="invalid-feedback" *ngIf="isInvalid('char')">
+                  Please select a character (or create one below).
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('char')">Digital guide persona for this DG module.</small>
+              </div>
+              <div class="col-md-6 mb-3 d-flex align-items-end">
+                <div class="w-100">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="dgVisibleStudents"
+                      [(ngModel)]="editVisible"
+                      name="vis"
+                    />
+                    <label class="form-check-label" for="dgVisibleStudents">Visible to students</label>
+                  </div>
+                  <small class="form-text text-muted">When off, the module stays in draft for admins only.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">👥 Target batches (Pilot)</h5>
+                <p class="text-muted small mb-2">
+                  Leave empty to show this module to <strong>all</strong> batches (still gated by journey day + visibility).
+                </p>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Add batch</label>
+                <select class="form-select" [(ngModel)]="batchToAdd" name="batchToAdd" (change)="onBatchDropdownChange()">
+                  <option value="">Select batch…</option>
+                  <option *ngFor="let b of batches" [value]="b.batchName">
+                    {{ b.batchName }}
+                  </option>
+                </select>
+                <small class="form-text text-muted">Batches are loaded from Journey (`/batch-journey`).</small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Selected batches</label>
+                <div class="border rounded p-2 bg-white" style="min-height: 44px;">
+                  <div *ngIf="targetBatches.length === 0" class="text-muted small">No batch selected (visible to all).</div>
+                  <div class="d-flex flex-wrap gap-2" *ngIf="targetBatches.length > 0">
+                    <span *ngFor="let t of targetBatches" class="badge bg-primary d-inline-flex align-items-center gap-2">
+                      {{ t }}
+                      <button type="button" class="btn btn-sm btn-light py-0 px-1" (click)="removeBatch(t)" aria-label="Remove batch">
+                        <i class="fas fa-times"></i>
+                      </button>
+                    </span>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" (click)="clearBatches()" [disabled]="targetBatches.length === 0">
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <!-- Role-play scenario (Learning Modules parity) -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">🎭 Role-Play Scenario</h5>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Situation *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('rpsSit')"
+                  [(ngModel)]="editRolePlay.situation"
+                  (ngModelChange)="onFieldInput('rpsSit')"
+                  name="rpsSit"
+                  placeholder="e.g., At a restaurant, Job interview, Shopping"
+                />
+                <div class="invalid-feedback" *ngIf="isInvalid('rpsSit')">
+                  Situation is required.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSit')">The context/location of the role-play</small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Setting</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [(ngModel)]="editRolePlay.setting"
+                  name="rpsSet"
+                  placeholder="e.g., A busy restaurant in Berlin"
+                />
+                <small class="form-text text-muted">Detailed description of the environment</small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Student Role *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('rpsSr')"
+                  [(ngModel)]="editRolePlay.studentRole"
+                  (ngModelChange)="onFieldInput('rpsSr')"
+                  name="rpsSr"
+                  placeholder="e.g., Customer, Tourist, Job applicant"
+                />
+                <div class="invalid-feedback" *ngIf="isInvalid('rpsSr')">
+                  Student role is required.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSr')">What role the student plays</small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">AI Role *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [class.is-invalid]="isInvalid('rpsAr')"
+                  [(ngModel)]="editRolePlay.aiRole"
+                  (ngModelChange)="onFieldInput('rpsAr')"
+                  name="rpsAr"
+                  placeholder="e.g., Waiter, Shop assistant, Interviewer"
+                />
+                <div class="invalid-feedback" *ngIf="isInvalid('rpsAr')">
+                  AI role is required.
+                </div>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsAr')">What role the AI plays</small>
+              </div>
+              <div class="col-12 mb-3">
+                <label class="form-label">Objective</label>
+                <textarea
+                  class="form-control"
+                  rows="2"
+                  [(ngModel)]="editRolePlay.objective"
+                  name="rpsObj"
+                  placeholder="e.g., Order a meal, ask about prices, and request the bill"
+                ></textarea>
+                <small class="form-text text-muted">What the student should accomplish in this role-play</small>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">🎪 Role Personalities &amp; Introductions</h5>
+                <p class="text-muted small mb-3">Define how each role should behave and introduce themselves</p>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">AI Role Personality</label>
+                <textarea
+                  class="form-control"
+                  rows="4"
+                  [(ngModel)]="editRolePlay.aiPersonality"
+                  name="rppAi"
+                  placeholder="e.g., Friendly and helpful waiter, professional but approachable, speaks clearly and patiently"
+                ></textarea>
+                <small class="form-text text-muted">How should the AI behave in this role?</small>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Student Role Guidance</label>
+                <textarea
+                  class="form-control"
+                  rows="4"
+                  [(ngModel)]="editRolePlay.studentGuidance"
+                  name="rppStu"
+                  placeholder="e.g., You are a tourist visiting Germany for the first time. Be polite and ask questions if you don't understand something."
+                ></textarea>
+                <small class="form-text text-muted">Instructions for the student about their role</small>
+              </div>
+              <div class="col-12 mb-3">
+                <label class="form-label">AI Opening Lines</label>
+                <div class="row g-2 mb-2">
+                  <div class="col-md-10">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newAiOpeningLine"
+                      name="newAiOp"
+                      placeholder="e.g., Guten Tag! Welcome to our restaurant. How can I help you today?"
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <button type="button" class="btn btn-outline-primary w-100" (click)="addAiOpeningLine()">
+                      <i class="fas fa-plus"></i> Add
+                    </button>
+                  </div>
+                </div>
+                <div class="vocabulary-list">
+                  <div
+                    *ngFor="let line of editRolePlay.aiOpeningLines; let i = index"
+                    class="d-flex align-items-center mb-2 p-2 border rounded"
+                  >
+                    <div class="flex-grow-1"><i class="fas fa-robot text-primary me-2"></i>{{ line }}</div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeAiOpeningLine(i)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="form-text text-muted">Different ways the AI can start the conversation</small>
+              </div>
+              <div class="col-12 mb-3">
+                <label class="form-label">Suggested Student Responses</label>
+                <div class="row g-2 mb-2">
+                  <div class="col-md-10">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newStudentResponse"
+                      name="newStuResp"
+                      placeholder="e.g., Hallo! Ich hätte gern einen Tisch für zwei Personen."
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <button type="button" class="btn btn-outline-success w-100" (click)="addStudentResponse()">
+                      <i class="fas fa-plus"></i> Add
+                    </button>
+                  </div>
+                </div>
+                <div class="vocabulary-list">
+                  <div
+                    *ngFor="let response of editRolePlay.suggestedStudentResponses; let i = index"
+                    class="d-flex align-items-center mb-2 p-2 border rounded"
+                  >
+                    <div class="flex-grow-1"><i class="fas fa-user text-success me-2"></i>{{ response }}</div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeStudentResponse(i)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="form-text text-muted">Example responses students can use to get started</small>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">📚 Student Learning Vocabulary</h5>
+                <p class="text-muted small">Words that students should learn in this module (10–20 words)</p>
+              </div>
+              <div class="col-12 mb-3">
+                <div class="row g-2 mb-2">
+                  <div class="col-md-4">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newVocabWord"
+                      name="nvw"
+                      placeholder="Word/Phrase"
+                    />
+                  </div>
+                  <div class="col-md-4">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newVocabTranslation"
+                      name="nvt"
+                      placeholder="Translation"
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newVocabCategory"
+                      name="nvc"
+                      placeholder="Category"
+                    />
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-primary w-100" (click)="addVocabulary()">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="text-muted d-block mb-2">
+                  Format: word, translation (optional), category (optional) — translations auto-generated if missing
+                </small>
+                <div class="vocabulary-list">
+                  <div
+                    *ngFor="let vocab of allowedVocabulary; let i = index"
+                    class="d-flex align-items-center mb-2 p-2 border rounded"
+                  >
+                    <div class="flex-grow-1">
+                      <strong>{{ vocab.word }}</strong> — {{ vocab.translation }}
+                      <small class="text-muted ms-2">({{ vocab.category }})</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeVocabulary(i)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="form-text text-muted"
+                  ><i class="fas fa-info-circle me-1"></i>These are the core words students will learn</small
+                >
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">🤖 AI Tutor Vocabulary Control</h5>
+                <p class="text-muted small mb-1">
+                  <strong>Control what vocabulary the AI tutor can use during conversations (15–30 words)</strong>
+                </p>
+                <p class="text-muted small mb-2">
+                  <i class="fas fa-lightbulb text-warning me-1"></i>Include all student vocabulary PLUS additional support
+                  words the AI needs for natural conversation
+                </p>
+              </div>
+              <div class="col-12 mb-3">
+                <div class="row g-2 mb-2">
+                  <div class="col-md-3">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newAiVocabWord"
+                      name="navw"
+                      placeholder="Word/Phrase"
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newAiVocabTranslation"
+                      name="navt"
+                      placeholder="Translation"
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newAiVocabCategory"
+                      name="navc"
+                      placeholder="Category"
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newAiVocabUsage"
+                      name="navu"
+                      placeholder="Usage example"
+                    />
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-success w-100" (click)="addAiVocabulary()">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                  <button type="button" class="btn btn-sm btn-outline-info" (click)="copyStudentVocabToAi()">
+                    <i class="fas fa-copy me-1"></i> Copy Student Vocabulary to AI
+                  </button>
+                  <input
+                    #aiVocabDocFile
+                    type="file"
+                    class="d-none"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    (change)="onAiVocabDocumentSelected($event)"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    (click)="triggerAiVocabDocumentPicker(aiVocabDocFile)"
+                    [disabled]="aiVocabDocImporting"
+                    title="Upload a PDF or Word (.docx) list; AI reads it and adds words to this section"
+                  >
+                    <span
+                      *ngIf="aiVocabDocImporting"
+                      class="spinner-border spinner-border-sm me-1"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    <i class="fas fa-file-import me-1" *ngIf="!aiVocabDocImporting"></i>
+                    {{ aiVocabDocImporting ? 'Reading…' : 'Import from PDF or Word' }}
+                  </button>
+                </div>
+                <small class="text-muted d-block mb-2"
+                  >Quick start: Copy student words, import a teacher word list from a document, or add words manually</small
+                >
+                <small class="text-muted d-block mb-2">
+                  Format: word, translation (optional), category, usage — translations auto-generated if missing
+                </small>
+                <div class="vocabulary-list border rounded p-2 dg-adm__ai-vocab-box">
+                  <div *ngIf="aiTutorVocabulary.length === 0" class="text-center text-muted py-3">
+                    <i class="fas fa-robot fa-2x mb-2"></i>
+                    <p class="mb-0 small">No AI vocabulary defined yet. Add words the AI tutor can use.</p>
+                  </div>
+                  <div
+                    *ngFor="let vocab of aiTutorVocabulary; let i = index"
+                    class="d-flex align-items-start mb-2 p-2 border rounded bg-white"
+                  >
+                    <div class="flex-grow-1">
+                      <div>
+                        <strong class="text-success">{{ vocab.word }}</strong> — {{ vocab.translation }}
+                        <small class="text-muted ms-2">({{ vocab.category }})</small>
+                      </div>
+                      <div *ngIf="vocab.usage" class="small text-muted mt-1">
+                        <i class="fas fa-quote-left me-1"></i>{{ vocab.usage }}
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeAiVocabulary(i)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="text-success d-block mt-1"
+                  ><i class="fas fa-check-circle me-1"></i>AI tutor will only use these
+                  {{ aiTutorVocabulary.length }} words during conversations</small
+                >
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">📖 Allowed Grammar</h5>
+                <p class="text-muted small">Define the grammar structures the AI should focus on</p>
+              </div>
+              <div class="col-12 mb-3">
+                <div class="row g-2 mb-2">
+                  <div class="col-md-6">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newGrammarStructure"
+                      name="ngs"
+                      placeholder="Grammar structure (e.g., Present tense)"
+                    />
+                  </div>
+                  <div class="col-md-5">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newGrammarExample"
+                      name="nge"
+                      placeholder="Example"
+                    />
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-primary w-100" (click)="addGrammar()">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="text-muted d-block mb-2">Format: structure, example1; example2; example3</small>
+                <div class="grammar-list">
+                  <div
+                    *ngFor="let grammar of allowedGrammar; let i = index"
+                    class="d-flex align-items-center mb-2 p-2 border rounded"
+                  >
+                    <div class="flex-grow-1">
+                      <strong>{{ grammar.structure }}</strong>
+                      <div class="text-muted small">Examples: {{ grammar.examples.join(', ') }}</div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeGrammar(i)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">💬 Conversation Flow (Optional)</h5>
+                <p class="text-muted small">Define the expected flow of the conversation</p>
+                <small class="text-muted d-block mb-2">
+                  Format: stage, aiPrompts, expectedResponses, helpfulPhrases (semicolon-separated within columns)
+                </small>
+              </div>
+              <div class="col-12 mb-3">
+                <div class="row g-2 mb-2">
+                  <div class="col-md-3">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newFlowStage"
+                      name="nfs"
+                      placeholder="Stage (e.g., greeting)"
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newFlowAiPrompt"
+                      name="nfai"
+                      placeholder="What AI might say"
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newFlowExpectedResponse"
+                      name="nfer"
+                      placeholder="Expected student response"
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <input
+                      type="text"
+                      class="form-control"
+                      [(ngModel)]="newFlowHelpful"
+                      name="nfh"
+                      placeholder="Helpful phrases (; sep)"
+                    />
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-primary w-100" (click)="addConversationFlow()">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="flow-list">
+                  <div *ngFor="let flow of conversationFlow; let i = index" class="mb-3 p-3 border rounded">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h6 class="mb-0">Stage: {{ flow.stage }}</h6>
+                      <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeConversationFlow(i)">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                    <div class="row">
+                      <div class="col-md-6">
+                        <small class="text-muted">AI might say:</small>
+                        <div class="small">{{ flow.aiPrompts.join(', ') }}</div>
+                      </div>
+                      <div class="col-md-6">
+                        <small class="text-muted">Student should try:</small>
+                        <div class="small">{{ flow.expectedResponses.join(', ') }}</div>
+                      </div>
+                      <div class="col-12 mt-2" *ngIf="flow.helpfulPhrases?.length">
+                        <small class="text-muted">Helpful phrases:</small>
+                        <div class="small">{{ flow.helpfulPhrases.join('; ') }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">👤 New character</h5>
+                <p class="text-muted small mb-3">Optional — add a custom character; built-in avatars work without a URL.</p>
+              </div>
+              <div class="col-md-3 mb-3">
+                <label class="form-label">Name</label>
+                <input type="text" class="form-control" [(ngModel)]="newCharName" name="ncn" placeholder="Display name" />
+              </div>
+              <div class="col-md-5 mb-3">
+                <label class="form-label">Avatar URL</label>
+                <input type="text" class="form-control" [(ngModel)]="newCharAvatar" name="nca" placeholder="https://…" />
+              </div>
+              <div class="col-md-2 mb-3">
+                <label class="form-label">Voice</label>
+                <input type="text" class="form-control" [(ngModel)]="newCharVoice" name="ncv" placeholder="alloy" />
+              </div>
+              <div class="col-md-2 mb-3 d-flex align-items-end">
+                <button class="btn btn-outline-primary w-100" type="button" (click)="createCharacterQuick()">
+                  <i class="fas fa-plus"></i> Add
+                </button>
+              </div>
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-12">
+                <h5 class="border-bottom pb-2">🎬 Scenes <span class="fw-normal text-muted">(drag to reorder)</span></h5>
+              </div>
+              <div class="col-12 mb-3">
+                <div class="dg-adm__ai-scenes border rounded p-3 bg-light">
+                  <div class="d-flex flex-wrap align-items-end gap-3">
+                    <div>
+                      <div class="fw-semibold mb-1">
+                        <i class="fas fa-magic text-primary me-1"></i>
+                        AI scene generator
+                      </div>
+                      <small class="text-muted d-block">
+                        Uses your role-play, vocabulary, and grammar above to draft scenes automatically.
+                      </small>
+                    </div>
+                    <div style="min-width: 130px;">
+                      <label class="form-label small mb-1">How many scenes?</label>
+                      <input
+                        type="number"
+                        class="form-control form-control-sm"
+                        [(ngModel)]="aiSceneCount"
+                        name="aiSceneCount"
+                        min="2"
+                        max="30"
+                        [disabled]="aiGenerating"
+                      />
+                    </div>
+                    <div class="form-check form-switch align-self-center mt-3">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="aiSceneReplace"
+                        [(ngModel)]="aiSceneReplace"
+                        name="aiSceneReplace"
+                        [disabled]="aiGenerating"
+                      />
+                      <label class="form-check-label small" for="aiSceneReplace">
+                        Replace existing scenes
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm ms-auto"
+                      (click)="generateScenesWithAi()"
+                      [disabled]="aiGenerating"
+                    >
+                      <span *ngIf="aiGenerating" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                      <i class="fas fa-magic me-1" *ngIf="!aiGenerating"></i>
+                      {{ aiGenerating ? 'Generating…' : 'Create scenes with AI' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
+                <div cdkDropList class="dg-adm__scenes" (cdkDropListDropped)="drop($event)">
+                  <div class="dg-adm__scene" *ngFor="let s of editScenes; let i = index" cdkDrag>
+                    <div class="dg-adm__scene-handle" cdkDragHandle aria-label="Drag to reorder">
+                      <i class="fas fa-grip-vertical"></i>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-md-3">
+                        <label class="form-label">Type</label>
+                        <select class="form-select" [(ngModel)]="s.type" [name]="'type' + i">
+                          <option *ngFor="let t of sceneTypes" [value]="t">{{ t }}</option>
+                        </select>
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label">Text / line</label>
+                        <textarea class="form-control" rows="2" [(ngModel)]="s.text" [name]="'text' + i"></textarea>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Expected answer</label>
+                        <input type="text" class="form-control" [(ngModel)]="s.expectedAnswer" [name]="'exp' + i" />
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Translation</label>
+                        <input type="text" class="form-control" [(ngModel)]="s.translation" [name]="'tr' + i" />
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label">Hint</label>
+                        <input type="text" class="form-control" [(ngModel)]="s.hint" [name]="'hint' + i" />
+                      </div>
+                      <div class="col-auto d-flex align-items-end justify-content-end mb-1">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-danger"
+                          (click)="removeScene(i)"
+                          aria-label="Remove scene"
+                        >
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" type="button" (click)="addScene()">
+                  <i class="fas fa-plus"></i> Add scene
+                </button>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-12">
+                <div class="module-actions dg-adm__footer-actions d-flex gap-2 flex-wrap">
+                  <button class="btn btn-outline-primary btn-sm" type="button" (click)="preview()" [disabled]="!selected._id">
+                    <i class="fas fa-play"></i> Preview
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm" type="button" (click)="removeModule()" [disabled]="!selected._id">
+                    <i class="fas fa-archive"></i> Archive
+                  </button>
+                  <button class="btn btn-outline-success btn-sm" type="button" (click)="togglePublish(true)" [disabled]="!selected._id">
+                    <i class="fas fa-eye"></i> Publish
+                  </button>
+                  <button class="btn btn-outline-warning btn-sm" type="button" (click)="togglePublish(false)" [disabled]="!selected._id">
+                    <i class="fas fa-eye-slash"></i> Unpublish
+                  </button>
+                  <button
+                    class="btn btn-primary btn-sm dg-adm__save-btn ms-auto"
+                    type="button"
+                    (click)="save()"
+                    [disabled]="saving"
+                  >
+                    <span *ngIf="saving" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    <i class="fas fa-save" *ngIf="!saving"></i> {{ saving ? 'Saving…' : 'Save' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
+</div>

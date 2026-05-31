@@ -61,6 +61,10 @@ export class TimeTableService {
     return this.http.put(`${this.apiUrl}/${id}`, timeTable);
   }
 
+  deleteTimeTable(id: string) {
+    return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true });
+  }
+
   // Fetch timetables for a specific teacher
   getTimeTablesByTeacher(teacherId: string): Observable<TimeTable[]> {
     const params = { teacherId };

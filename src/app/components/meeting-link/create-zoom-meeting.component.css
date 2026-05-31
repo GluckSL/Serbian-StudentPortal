@@ -87,6 +87,13 @@
   transition: border-color 0.15s;
 }
 
+.timezone-readonly {
+  cursor: default;
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 600;
+}
+
 .form-select:focus,
 .form-control:focus {
   border-color: #005b96;
@@ -147,6 +154,138 @@ textarea.form-control {
 
 .btn-sm { padding: 3px 8px; font-size: 10px; }
 
+/* ── Start time picker modal ── */
+.start-time-trigger {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.start-time-trigger .form-control {
+  cursor: pointer;
+}
+
+.dt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.dt-modal-card {
+  width: min(520px, 100%);
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 30px rgba(2, 6, 23, 0.2);
+  overflow: hidden;
+}
+
+.confirm-modal-card {
+  width: min(700px, 100%);
+}
+
+.dt-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dt-modal-header h5 {
+  margin: 0;
+  font-size: 13px;
+  color: #011f4b;
+  font-weight: 700;
+}
+
+.dt-modal-body {
+  padding: 14px;
+}
+
+.confirm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  font-size: 11px;
+  color: #334155;
+}
+
+.confirm-time-list {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.confirm-time-item {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11px;
+}
+
+.confirm-time-item--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.confirm-time-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.confirm-course-day-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #3730a3;
+  background: #e0e7ff;
+  flex-shrink: 0;
+}
+
+.confirm-time-remove {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  line-height: 1.2;
+}
+
+.confirm-time-item:last-child {
+  border-bottom: none;
+}
+
+.confirm-agenda {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  font-size: 11px;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.dt-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
 /* ── Alerts ── */
 .alert {
   border-radius: 10px;
@@ -194,7 +333,14 @@ textarea.form-control {
   border-left: 3px solid #005b96 !important;
 }
 
-.student-item .fw-bold { font-size: 12px; color: #0f172a; }
+.student-item .fw-bold {
+  font-size: 12px;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .student-item small { font-size: 10px; }
 
 .form-check-input { width: 14px; height: 14px; cursor: pointer; border-radius: 4px; }
@@ -221,8 +367,48 @@ textarea.form-control {
   padding: 6px 10px !important;
 }
 
-.selected-students-list .fw-bold { font-size: 11px; }
+.selected-students-list .fw-bold {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .selected-students-list .text-muted { font-size: 10px !important; }
+
+/* ── Multi-date picker list ── */
+.selected-date-list {
+  border: 1px solid #e8ecf4;
+  border-radius: 10px;
+  background: #f8fafc;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.selected-date-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.selected-date-item-date {
+  flex: 1;
+  min-width: 0;
+}
+
+.selected-date-course-day-input {
+  width: 130px;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+.selected-date-item:last-child {
+  border-bottom: none;
+}
 
 /* ── Footer Card ── */
 .footer-card {
@@ -250,4 +436,59 @@ textarea.form-control {
   .footer-card .d-flex { flex-direction: column; gap: 8px; }
   .footer-card .d-flex .d-flex { width: 100%; }
   .footer-card .btn { flex: 1; }
+  .confirm-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Zoom busy conflict panel ── */
+.zoom-busy-panel {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  font-size: 11px;
+  color: #78350f;
+}
+
+.zoom-busy-panel-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoom-busy-account + .zoom-busy-account {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #fde68a;
+}
+
+.zoom-busy-account-name {
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zoom-busy-info-icon {
+  color: #b45309;
+  cursor: help;
+  font-size: 12px;
+}
+
+.zoom-busy-conflict-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+.zoom-busy-conflict-list li {
+  margin-bottom: 2px;
+}
+
+::ng-deep .zoom-busy-tooltip {
+  white-space: pre-line;
+  max-width: 320px;
+  font-size: 12px;
+  line-height: 1.4;
 }

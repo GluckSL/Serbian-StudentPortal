@@ -3,13 +3,14 @@
 import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { MaterialModule } from '../shared/material.module';
+import { TestAccountBadgeComponent } from '../shared/test-account-badge/test-account-badge.component';
 
 
 @Component({
   selector: 'app-student-card',
   standalone: true,
   imports: [ CommonModule,
-    MaterialModule,],
+    MaterialModule, TestAccountBadgeComponent],
   templateUrl: './student-card.component.html',
   styleUrl: './student-card.component.css'
 })

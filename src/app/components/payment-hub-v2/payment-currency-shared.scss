@@ -1,0 +1,88 @@
+.ph-ccy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.ph-ccy-badge-symbol {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ph-ccy-badge-code {
+  font-size: 9px;
+  opacity: 0.95;
+}
+
+.ph-ccy-badge--lkr {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.ph-ccy-badge--inr {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.ph-ccy-badge--eur {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.ph-ccy-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ph-ccy-inline-amt {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ph-ccy-empty {
+  color: #94a3b8;
+}
+
+.ph-currency-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #f1f5f9;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.ph-currency-value {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.ph-currency-value--compact {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ph-currency-value--amber {
+  color: #b45309;
+}
+
+.ph-currency-value--red {
+  color: #be123c;
+}

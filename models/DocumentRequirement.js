@@ -4,6 +4,28 @@
 const mongoose = require('mongoose');
 
 const documentRequirementSchema = new mongoose.Schema({
+  // Canonical API fields
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  isRequired: {
+    type: Boolean,
+    default: false
+  },
+  allowMultiple: {
+    type: Boolean,
+    default: false
+  },
+
+  // Optional program scoping. Empty = all programs.
+  programKeys: [{
+    type: String,
+    trim: true
+  }],
+
+  // Legacy aliases kept for backward compatibility
   type: {
     type: String,
     required: true,
@@ -13,7 +35,7 @@ const documentRequirementSchema = new mongoose.Schema({
   },
   label: {
     type: String,
-    required: true,
+    required: false,
     trim: true
   },
   description: {
@@ -27,7 +49,7 @@ const documentRequirementSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['ACADEMIC', 'IDENTIFICATION', 'PROFESSIONAL', 'LEGAL', 'VISA', 'OTHER'],
+    enum: ['ACADEMIC', 'IDENTIFICATION', 'PROFESSIONAL', 'LEGAL', 'VISA', 'AGREEMENT', 'OTHER'],
     default: 'OTHER'
   },
   // Which services this document applies to. Empty array = ALL services.
@@ -55,7 +77,32 @@ const documentRequirementSchema = new mongoose.Schema({
   timestamps: true
 });
 
+documentRequirementSchema.pre('validate', function(next) {
+  if (!this.name && this.label) this.name = this.label;
+  if (!this.label && this.name) this.label = this.name;
+  if (typeof this.isRequired !== 'boolean' && typeof this.required === 'boolean') {
+    this.isRequired = this.required;
+  }
+  if (typeof this.required !== 'boolean' && typeof this.isRequired === 'boolean') {
+    this.required = this.isRequired;
+  }
+
+  if (!this.type && this.name) {
+    this.type = this.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  if (Array.isArray(this.applicableServices) && this.applicableServices.length > 0 && (!this.programKeys || this.programKeys.length === 0)) {
+    this.programKeys = [...this.applicableServices];
+  }
+  if (Array.isArray(this.programKeys) && this.programKeys.length > 0 && (!this.applicableServices || this.applicableServices.length === 0)) {
+    this.applicableServices = [...this.programKeys];
+  }
+
+  next();
+});
+
 // Index for faster queries
 documentRequirementSchema.index({ active: 1, order: 1 });
+documentRequirementSchema.index({ type: 1, active: 1 });
 
 module.exports = mongoose.model('DocumentRequirement', documentRequirementSchema);

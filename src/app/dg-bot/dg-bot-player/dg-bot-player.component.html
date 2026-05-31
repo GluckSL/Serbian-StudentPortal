@@ -1,0 +1,514 @@
+<!-- ── Loading ── -->
+<div class="dg-player" *ngIf="loading">
+    <!-- Header -->
+    <div class="dg-player__sk-full-header"></div>
+
+    <!-- Character & Chat area -->
+    <div class="dg-player__sk-grid">
+      <div class="dg-player__sk-char"></div>
+      <div class="dg-player__sk-chat-wrap">
+        <div class="dg-player__sk-chat-header"></div>
+        <div class="dg-player__sk-chat-body">
+          <div class="dg-player__sk-datetime-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+          <div class="dg-player__sk-bubble"></div>
+        </div>
+      </div>
+    </div>
+</div>
+<div class="dg-player__err" *ngIf="error">{{ error }}</div>
+
+<!-- ── Main player ── -->
+<div class="dg-player" *ngIf="!loading && !error && payload">
+  <div class="dg-player__ambient" aria-hidden="true"></div>
+
+  <!-- Header -->
+  <header class="dg-player__top">
+    <div class="dg-player__progress-block">
+      <div class="dg-player__progress-head">
+        <!--<span class="dg-player__step-pill" *ngIf="conversationMode && (conversationStarted || conversationComplete)">
+          <span *ngIf="conversationStarted && !conversationComplete">
+            {{ formatMmSs(sessionElapsedSec) }} / {{ formatMmSs(conversationMinTargetSeconds) }}
+          </span>
+          <span *ngIf="conversationComplete">Complete!</span>
+        </span>-->
+        <span class="dg-player__module-title">{{ payload.module.title }}</span>
+      </div>
+    </div>
+    <div class="dg-player__exit" (click)="exit()" role="button" tabindex="0" aria-label="Exit">
+      <mat-icon>close</mat-icon>
+    </div>
+  </header>
+
+  <!-- Stage -->
+  <div class="dg-player__stage-wrap"
+       [class.dg-player__stage-wrap--transition]="isTransitioning">
+
+    <!-- ── INTRO / BRIEFING SCENES ── -->
+    <div class="dg-conv dg-conv--intro" *ngIf="!conversationMode">
+      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
+        <!-- Mobile: mic area in char header (big screens: hidden) -->
+        <div class="dg-conv__char-header" *ngIf="isMobile">
+          <div class="dg-conv__mic-area dg-conv__mic-area--intro">
+            <p class="dg-player__non-practice-text">Speak to continue.</p>
+          </div>
+          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+        </div>
+        <div class="dg-conv__mascot">
+          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
+            <p>{{ mascotSpeechText }}</p>
+          </div>
+          <app-dg-character
+            [minimalChrome]="true"
+            [name]="payload.character.name"
+            [animations]="payload.character.animations || null"
+          ></app-dg-character>
+        </div>
+      </aside>
+
+      <main class="dg-conv__chat">
+        <header class="dg-conv__chat-head">
+          <div class="dg-conv__brand">
+            <div class="dg-conv__brand-avatar" aria-hidden="true">
+              <mat-icon>smart_toy</mat-icon>
+            </div>
+            <div class="dg-conv__brand-text">
+              <h3>Conversation Session</h3>
+              <p>Practicing {{ payload.module.title }}</p>
+            </div>
+          </div>
+          <div class="dg-conv__head-tools">
+            <button
+              mat-stroked-button
+              type="button"
+              class="dg-conv__replay"
+              [disabled]="status === 'speaking' || isTransitioning"
+              (click)="replayTts()"
+            >
+              <mat-icon>volume_up</mat-icon>
+              Replay
+            </button>
+          </div>
+        </header>
+        <div class="dg-conv__session-divider">
+          <span>Session started - now</span>
+        </div>
+
+        <div class="dg-conv__history">
+          <div class="dg-conv__msg dg-conv__msg--ai" *ngIf="displayLine">
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-stack">
+              <span class="dg-conv__msg-label">{{ botDisplayName }}</span>
+              <div class="dg-conv__msg-bubble">
+                <span class="dg-conv__msg-text" [innerHTML]="highlightStartCue(displayLine)"></span>
+                <span class="dg-conv__msg-translation" *ngIf="displaySub">{{ displaySub }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- ── CONVERSATION MODE ── -->
+    <div class="dg-conv" *ngIf="conversationMode">
+
+      <!-- Character column -->
+      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
+        <!-- Mobile: mic/practice area in char header (big screens: hidden) -->
+        <div class="dg-conv__char-header" *ngIf="isMobile">
+          <div class="dg-conv__mic-area">
+            <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
+            <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
+              🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
+            </p>
+            <app-dg-practice
+              *ngIf="showStudentTurnUi"
+              #convPractice
+              [expected]="''"
+              [allowFreeSpeech]="true"
+              [instantStart]="true"
+              [language]="pronLanguage"
+              [hint]="''"
+              [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+              [retryTick]="convRetryTick"
+              [sceneKey]="'conv-' + convRetryTick"
+              (evaluated)="onEvaluated($event)"
+              (silence)="onSilence()"
+              (phaseChange)="onPracticePhase($event)"
+            ></app-dg-practice>
+
+            <div class="dg-conv__complete-msg" *ngIf="conversationComplete">
+              <mat-icon>check_circle</mat-icon>
+              Conversation complete!
+            </div>
+          </div>
+        </div>
+        <div class="dg-conv__mascot">
+          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
+            <p>{{ mascotSpeechText }}</p>
+          </div>
+          <app-dg-character
+            [minimalChrome]="true"
+            [name]="payload.character.name"
+            [animations]="payload.character.animations || null"
+          ></app-dg-character>
+        </div>
+      </aside>
+
+      <!-- Chat column -->
+      <main class="dg-conv__chat">
+        <header class="dg-conv__chat-head">
+          <div class="dg-conv__brand">
+            <div class="dg-conv__brand-avatar" aria-hidden="true">
+              <mat-icon>smart_toy</mat-icon>
+            </div>
+            <div class="dg-conv__brand-text">
+              <h3>Conversation Session</h3>
+              <p>Practicing {{ payload.module.title }}</p>
+              <p class="dg-conv__info-note">
+                Practice until the timer runs out — then you can continue or end the session.
+              </p>
+
+              <div class="dg-conv__actions-row">
+                <button
+                  type="button"
+                  class="dg-conv__action-btn"
+                  [class.dg-conv__action-btn--active]="ccMode === 'en'"
+                  (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
+                >
+                  CC EN
+                </button>
+                <button
+                  type="button"
+                  class="dg-conv__action-btn"
+                  [class.dg-conv__action-btn--active]="ccMode === 'ta'"
+                  (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
+                >
+                  CC தமிழ்
+                </button>
+                <button
+                  type="button"
+                  class="dg-conv__action-btn dg-conv__action-btn--replay"
+                  [disabled]="status === 'speaking' || isAiThinking"
+                  (click)="replayTts()"
+                >
+                  <mat-icon>volume_up</mat-icon>
+                  Replay
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="dg-conv__session-divider">
+          <span>Session started - now</span>
+        </div>
+
+        <!-- Status pill -->
+        <div class="dg-conv__status" *ngIf="statusLabel" aria-live="polite">
+          <span class="dg-conv__status-dot"
+                [class.dg-conv__status-dot--thinking]="isAiThinking"></span>
+          {{ statusLabel }}
+        </div>
+        <div class="dg-conv__status" *ngIf="waitingForUser && !isAiThinking && !awaitingGermanRepeat" aria-live="polite">
+          your turn to speak 
+        </div>
+        <div class="dg-conv__status dg-conv__status--repeat" *ngIf="waitingForUser && !isAiThinking && awaitingGermanRepeat" aria-live="polite">
+          🎤 Now say this in German
+        </div>
+
+        <!-- Countdown timer (hidden while completion modal is open; interval stops at 0) -->
+        <div class="dg-conv__session-timer"
+             *ngIf="!showCompletionOverlay"
+             [class.dg-conv__session-timer--waiting]="!conversationStarted"
+             [class.dg-conv__session-timer--overtime]="overtimeMode">
+          <div class="dg-conv__session-timer__top">
+            <span class="dg-conv__timer-label">
+              <ng-container *ngIf="!conversationStarted">Duration</ng-container>
+              <ng-container *ngIf="conversationStarted && !overtimeMode">Time remaining</ng-container>
+              <ng-container *ngIf="overtimeMode">Bonus time</ng-container>
+            </span>
+            <span class="dg-conv__timer-caption dg-conv__timer-caption--muted" *ngIf="!conversationStarted">
+              Target length
+            </span>
+            <span class="dg-conv__timer-overtime-badge" *ngIf="overtimeMode">
+              +{{ formatMmSs(conversationMinTargetSeconds) }} goal reached ✓
+            </span>
+            <!-- End-session hint -->
+            <span class="dg-conv__timer-end-hint" *ngIf="conversationStarted && !conversationComplete && !overtimeMode">
+              Say <strong>"end"</strong> or <strong>"beenden"</strong> to stop
+            </span>
+          </div>
+          <div class="dg-conv__timer-main">
+            <!-- Normal countdown -->
+            <ng-container *ngIf="!overtimeMode">
+              <span class="dg-conv__timer-elapsed"
+                    [class.dg-conv__timer-elapsed--urgent]="conversationStarted && countdownRemainSec > 0 && countdownRemainSec <= 30">
+                {{ formatMmSs(countdownRemainSec) }}
+              </span>
+              <span class="dg-conv__timer-of" *ngIf="conversationStarted">
+                <span class="dg-conv__timer-of__sep">/</span>
+                <span class="dg-conv__timer-of__total">{{ formatMmSs(conversationMinTargetSeconds) }}</span>
+              </span>
+            </ng-container>
+            <!-- Overtime count-up -->
+            <ng-container *ngIf="overtimeMode">
+              <span class="dg-conv__timer-elapsed dg-conv__timer-elapsed--overtime">
+                +{{ formatMmSs(overtimeElapsedSec) }}
+              </span>
+            </ng-container>
+          </div>
+          <div class="dg-conv__timer-track" aria-hidden="true">
+            <div class="dg-conv__timer-fill"
+                 [style.width.%]="overtimeMode ? 100 : (conversationStarted ? (countdownRemainSec / conversationMinTargetSeconds) * 100 : 100)"
+                 [class.dg-conv__timer-fill--waiting]="!conversationStarted"
+                 [class.dg-conv__timer-fill--urgent]="conversationStarted && !overtimeMode && countdownRemainSec > 0 && countdownRemainSec <= 30"
+                 [class.dg-conv__timer-fill--overtime]="overtimeMode">
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat history -->
+        <div class="dg-conv__history" #chatScroll>
+          <div
+            *ngFor="let msg of chatHistory"
+            class="dg-conv__msg"
+            [class.dg-conv__msg--ai]="msg.speaker === 'ai'"
+            [class.dg-conv__msg--student]="msg.speaker === 'student'"
+            [class.dg-conv__msg--hint]="msg.speaker === 'hint'"
+          >
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" *ngIf="msg.speaker === 'ai'" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--hint" *ngIf="msg.speaker === 'hint'" aria-hidden="true">💡</div>
+            <div class="dg-conv__msg-stack">
+              <span class="dg-conv__msg-label" *ngIf="msg.speaker === 'ai'">{{ botDisplayName }}</span>
+              <span class="dg-conv__msg-label dg-conv__msg-label--student" *ngIf="msg.speaker === 'student'">{{ studentDisplayName }}</span>
+              <span class="dg-conv__msg-label dg-conv__msg-label--hint" *ngIf="msg.speaker === 'hint'">Hint</span>
+              <div class="dg-conv__msg-bubble" [class.dg-conv__msg-bubble--hint]="msg.speaker === 'hint'">
+                <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'ai'" [innerHTML]="highlightStartCue(msg.text)"></span>
+                <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'student'">{{ msg.text }}</span>
+                <div class="dg-conv__hint-de-row" *ngIf="msg.speaker === 'hint'">
+                  <span class="dg-conv__msg-text dg-conv__msg-text--hint-de">{{ msg.text }}</span>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="dg-conv__hint-speak-btn"
+                    [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+                    (click)="playHintPronunciation(msg.text)"
+                    aria-label="Play pronunciation"
+                    title="Play pronunciation"
+                  >
+                    <mat-icon>volume_up</mat-icon>
+                  </button>
+                </div>
+                <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'ai' && getCcCaption(msg)">
+                  {{ getCcCaption(msg) }}
+                </span>
+                <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'hint' && getCcCaption(msg)">
+                  {{ getCcCaption(msg) }}
+                </span>
+                <span class="dg-conv__hint-instruction" *ngIf="msg.speaker === 'hint' && msg.instructionEn">{{ msg.instructionEn }}</span>
+              </div>
+            </div>
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--student" *ngIf="msg.speaker === 'student'" aria-hidden="true">👤</div>
+          </div>
+
+          <!-- AI typing indicator -->
+          <div class="dg-conv__msg dg-conv__msg--ai" *ngIf="aiTyping">
+            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" aria-hidden="true">🦊</div>
+            <div class="dg-conv__msg-stack">
+              <span class="dg-conv__msg-label">{{ botDisplayName }}</span>
+              <div class="dg-conv__msg-bubble">
+                <div class="dg-conv__typing-bubble">
+                  <span class="dg-conv__typing-dot"></span>
+                  <span class="dg-conv__typing-dot"></span>
+                  <span class="dg-conv__typing-dot"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty state before conversation starts -->
+          <div class="dg-conv__waiting" *ngIf="chatHistory.length === 0">
+            <div class="dg-conv__start-prompt" *ngIf="!conversationStarted">
+              <div class="dg-conv__start-icon">🦊</div>
+              <p class="dg-conv__start-heading">Ready to practice?</p>
+              <p class="dg-conv__start-sub">
+                {{ botDisplayName }} will speak German — reply in <strong>English</strong>, then say it in German.
+                The timer starts when you click below.
+              </p>
+              <button
+                mat-flat-button
+                color="primary"
+                class="dg-conv__start-btn"
+                [disabled]="isAiThinking || isTransitioning"
+                (click)="onStartConversationClick()"
+              >
+                <mat-icon>play_arrow</mat-icon>
+                Start Practice
+              </button>
+            </div>
+            <p *ngIf="conversationStarted && displayLine">
+              🤖 {{ displayLine }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Milestone row hidden; completion is handled by the overlay below -->
+
+        <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
+        <div class="dg-conv__mic-area" *ngIf="!isMobile">
+         
+          <p class="dg-conv__mic-hint dg-conv__mic-hint--repeat" *ngIf="conversationStarted && !conversationComplete && awaitingGermanRepeat">
+            🎤 Speak the German phrase shown above — then {{ botDisplayName }} will continue the conversation.
+          </p>
+          <!-- German repeat banner -->
+          <div class="dg-conv__german-repeat-banner" *ngIf="showStudentTurnUi && awaitingGermanRepeat">
+            <span class="dg-conv__german-repeat-label">Say in German:</span>
+            <span class="dg-conv__german-repeat-phrase">{{ pendingGermanHint }}</span>
+            <button
+              mat-icon-button
+              type="button"
+              class="dg-conv__german-repeat-play"
+              [disabled]="status === 'speaking' || isAiThinking"
+              (click)="playHintPronunciation(pendingGermanHint)"
+              aria-label="Hear pronunciation"
+              title="Hear pronunciation"
+            >
+              <mat-icon>volume_up</mat-icon>
+            </button>
+          </div>
+
+          <div class="dg-conv__turn-pill"
+               [class.dg-conv__turn-pill--repeat]="awaitingGermanRepeat"
+               *ngIf="showStudentTurnUi">
+            {{ awaitingGermanRepeat ? 'SAY IT IN GERMAN' : 'YOUR TURN' }}
+          </div>
+          <app-dg-practice
+            *ngIf="showStudentTurnUi"
+            [expected]="''"
+            [allowFreeSpeech]="true"
+            [instantStart]="true"
+            [language]="pronLanguage"
+            [hint]="''"
+            [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
+            [retryTick]="convRetryTick"
+            [sceneKey]="'conv-' + convRetryTick"
+            (evaluated)="onEvaluated($event)"
+            (silence)="onSilence()"
+            (phaseChange)="onPracticePhase($event)"
+          ></app-dg-practice>
+
+          <div class="dg-conv__complete-msg" *ngIf="conversationComplete">
+            <mat-icon>check_circle</mat-icon>
+            Conversation complete!
+          </div>
+
+          <!-- Skip button -->
+          <button
+            mat-button
+            type="button"
+            class="dg-conv__skip"
+            *ngIf="!conversationComplete && conversationStarted"
+            [disabled]="status === 'speaking' || isAiThinking"
+            (click)="onSkip()"
+          >
+            I can't speak right now
+          </button>
+        </div>
+      </main>
+    </div>
+
+  <!-- ── Completion overlay ── -->
+  <div class="dg-completion-overlay" *ngIf="showCompletionOverlay">
+    <div class="dg-completion-card">
+      <mat-icon
+        class="dg-completion-icon"
+        [class.dg-completion-icon--progress]="completionPercentage < 100"
+      >{{ completionPercentage >= 100 ? 'emoji_events' : 'trending_up' }}</mat-icon>
+      <h2 class="dg-completion-title" *ngIf="completionPercentage >= 100">Congratulations!</h2>
+      <h2 class="dg-completion-title dg-completion-title--progress" *ngIf="completionPercentage < 100 && completionPercentage >= 75">
+        Good effort — almost there!
+      </h2>
+      <h2 class="dg-completion-title dg-completion-title--progress" *ngIf="completionPercentage < 75">
+        Good effort — try a bit more!
+      </h2>
+      <p class="dg-completion-module-name" *ngIf="completionPercentage >= 100">
+        You completed "{{ payload != null ? payload.module.title : '' }}"
+      </p>
+      <p class="dg-completion-module-name" *ngIf="completionPercentage < 100">
+        Session saved for "{{ payload != null ? payload.module.title : '' }}" — you're at {{ completionPercentage }}% of the practice goal.
+      </p>
+
+      <!-- Completion percentage block -->
+      <div class="dg-completion-pct-block">
+        <div class="dg-completion-pct-ring"
+             [class.dg-completion-pct-ring--full]="completionPercentage >= 100">
+          <span class="dg-completion-pct-value">{{ completionPercentage }}%</span>
+          <span class="dg-completion-pct-label">Completed</span>
+        </div>
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--success" *ngIf="completionPercentage >= 100">
+          <mat-icon>check_circle</mat-icon>
+          Full completion — this module will show under Completed.
+        </p>
+        <p class="dg-completion-pct-msg dg-completion-pct-msg--partial" *ngIf="completionPercentage < 100">
+          Reach <strong>100%</strong> of the practice goal (or finish the full conversation) to move this module to Completed.
+        </p>
+      </div>
+
+      <!-- Motivation text -->
+      <p class="dg-completion-motivation">{{ currentMotivationText }}</p>
+
+      <p class="dg-completion-tip">
+        You can click <strong>Continue</strong> to practice more, or <strong>End Session</strong> when you are done.
+      </p>
+
+      <!-- Stats row -->
+      <div class="dg-completion-stats">
+        <div class="dg-completion-stat">
+          <span class="dg-completion-stat__value">{{ formatMmSs(sessionElapsedSec) }}</span>
+          <span class="dg-completion-stat__label">Time Spent</span>
+        </div>
+        <div class="dg-completion-stat">
+          <span class="dg-completion-stat__value">{{ adminVocabCovered.length }}</span>
+          <span class="dg-completion-stat__label">Vocab Learned</span>
+        </div>
+        <div class="dg-completion-stat">
+          <span class="dg-completion-stat__value">{{ adminVocabList.length }}</span>
+          <span class="dg-completion-stat__label">Total Vocab</span>
+        </div>
+      </div>
+
+      <!-- Vocab learned -->
+      <div class="dg-vocab-block" *ngIf="adminVocabCovered.length">
+        <p class="dg-vocab-block__title">✅ Vocab You Learned</p>
+        <div class="dg-vocab-chips">
+          <span class="dg-vocab-chip dg-vocab-chip--covered"
+                *ngFor="let v of adminVocabCovered"
+                [title]="v.translation">{{ v.word }}</span>
+        </div>
+      </div>
+
+      <div class="dg-completion-actions">
+        <button
+          mat-flat-button
+          color="primary"
+          class="dg-completion-btn dg-completion-btn--continue"
+          [disabled]="isAiThinking || isTransitioning"
+          (click)="continueAfterCompletion()"
+        >
+          Continue
+        </button>
+        <button
+          mat-stroked-button
+          class="dg-completion-btn dg-completion-btn--end"
+          [disabled]="isAiThinking || isTransitioning"
+          (click)="endAfterCompletion()"
+        >
+          End Session
+        </button>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /stage-wrap -->
+</div><!-- /dg-player -->

@@ -1,0 +1,177 @@
+<div class="structure-card">
+  <div class="step-header">
+    <div class="step-icon-wrap"><span class="material-icons step-icon">schema</span></div>
+    <div>
+      <h2>Detected Exercises from PDF</h2>
+      <p>Review extracted structure, enable the exercises you want, then start extraction.</p>
+    </div>
+  </div>
+
+  <div class="type-summary" *ngIf="extracting">
+    <span class="material-icons">sync</span>
+    Extracting exercises ({{ progressCurrent }} / {{ progressTotal }})...
+  </div>
+
+  <ng-container *ngFor="let group of grouped; trackBy: trackByTopic">
+    <details class="topic-group" open>
+      <summary>
+        <span class="topic-title">{{ group.topic }}</span>
+        <span class="topic-count">{{ group.items.length }} exercises</span>
+      </summary>
+
+      <div class="exercise-row" *ngFor="let ex of group.items; trackBy: trackByExId">
+        <label class="check-label">
+          <input type="checkbox" [(ngModel)]="ex.enabled" />
+          <span>{{ ex.exerciseId || '—' }}</span>
+        </label>
+        <span class="type-pill">{{ typeLabel(ex.type) }}</span>
+        <select class="field-select type-select" [(ngModel)]="ex.type">
+          <option *ngFor="let t of typeOptions" [value]="t">{{ typeLabel(t) }}</option>
+        </select>
+        <label class="q-count-input-wrap">
+          <input
+            type="number"
+            class="q-count-input"
+            min="0"
+            step="1"
+            [ngModel]="ex.questionCount || 0"
+            (ngModelChange)="setQuestionCount(ex, $event)"
+            (click)="$event.stopPropagation()"
+          />
+          <span class="q-count-label">questions</span>
+        </label>
+        <button
+          type="button"
+          class="ex-view-btn"
+          (click)="openPreview(ex); $event.stopPropagation()"
+        >
+          👁 View
+        </button>
+      </div>
+    </details>
+  </ng-container>
+
+  <div class="step-footer">
+    <button class="btn-secondary" (click)="rescan.emit()" [disabled]="extracting || aiRescanning">
+      <span class="material-icons">refresh</span> Re-scan PDF
+    </button>
+    <button class="btn-ai" (click)="useAiRescan.emit()" [disabled]="extracting || aiRescanning">
+      <span class="material-icons">{{ aiRescanning ? 'hourglass_empty' : 'auto_awesome' }}</span>
+      {{ aiRescanning ? 'Running AI...' : 'Use AI' }}
+    </button>
+    <button class="btn-primary" (click)="extractAll.emit()" [disabled]="extracting || aiRescanning">
+      <span class="material-icons">play_arrow</span> Extract All Exercises
+    </button>
+  </div>
+</div>
+
+<!-- Preview drawer (outside .structure-card so fixed positioning stacks correctly) -->
+<ng-container *ngIf="isPreviewOpen && selectedExercise as ex">
+  <div class="preview-backdrop" (click)="closePreview()" aria-hidden="true"></div>
+  <aside
+    class="preview-modal"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="'Preview ' + previewTitle(ex)"
+  >
+  <div class="preview-header">
+    <h3>{{ previewTitle(ex) }} · Preview</h3>
+    <button type="button" class="preview-close" (click)="closePreview()" aria-label="Close">✖</button>
+  </div>
+
+  <div class="preview-body">
+    <p><strong>Detected type:</strong> {{ typeLabel(ex.type) }}</p>
+
+    <p><strong>Instruction:</strong></p>
+    <div class="preview-block">{{ ex.instruction || ex.instruction_de || '—' }}</div>
+    <ng-container *ngIf="ex.instruction_en && (ex.instruction || '').indexOf(ex.instruction_en) < 0">
+      <p><strong>Instruction (EN):</strong></p>
+      <div class="preview-block preview-block--muted"><em>{{ ex.instruction_en }}</em></div>
+    </ng-container>
+
+    <p><strong>Estimated question count:</strong> {{ ex.questionCount || 0 }}</p>
+
+    <ng-container *ngIf="hasDeterministic(ex)">
+      <h4 class="preview-section-title">Preview (PDF + answer key)</h4>
+      <ul class="pair-list" *ngIf="ex.pairs?.length">
+        <li *ngFor="let p of ex.pairs">{{ p.left }} ↔ {{ p.right }}</li>
+      </ul>
+      <div class="extracted-item" *ngFor="let row of ex.questions; let ri = index">
+        <p class="extracted-ix">Item {{ ri + 1 }} · fill-in-blank</p>
+        <div class="preview-sub">
+          <p><strong>Sentence:</strong> {{ row.sentence }}</p>
+          <p *ngIf="row.answer"><strong>Answer:</strong> {{ row.answer }}</p>
+        </div>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="hasExtracted(ex)">
+      <h4 class="preview-section-title">Extracted items</h4>
+      <div class="extracted-item" *ngFor="let q of (ex.extractedItems || []); let qi = index">
+        <p class="extracted-ix">Item {{ qi + 1 }} · <span class="mono">{{ q.type }}</span></p>
+
+        <ng-container [ngSwitch]="q.type">
+          <div *ngSwitchCase="'matching'" class="preview-sub">
+            <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
+            <ul class="pair-list" *ngIf="q.pairs?.length">
+              <li *ngFor="let p of q.pairs">{{ p.left }} ↔ {{ p.right }}</li>
+            </ul>
+          </div>
+
+          <div *ngSwitchCase="'fill-blank'" class="preview-sub">
+            <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
+            <p><strong>Sentence:</strong> {{ q.sentence }}</p>
+            <p *ngIf="q.answers?.length"><strong>Answers:</strong> {{ q.answers.join(', ') }}</p>
+          </div>
+
+          <div *ngSwitchCase="'mcq'" class="preview-sub">
+            <p><strong>Question:</strong> {{ q.question }}</p>
+            <ul *ngIf="q.options?.length">
+              <li *ngFor="let opt of q.options; let oi = index">
+                {{ opt }}
+                <span *ngIf="oi === q.correctAnswerIndex" class="ok-mark">✔ correct</span>
+              </li>
+            </ul>
+          </div>
+
+          <div *ngSwitchCase="'singular_plural'" class="preview-sub">
+            <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
+            <ul class="pair-list" *ngIf="q.pairs?.length">
+              <li *ngFor="let p of q.pairs">{{ p.singular }} → {{ p.plural }}</li>
+            </ul>
+          </div>
+
+          <div *ngSwitchCase="'jumble-word'" class="preview-sub">
+            <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
+            <p *ngIf="q.categoryTip"><strong>Category:</strong> {{ q.categoryTip }}</p>
+            <p><strong>Scrambled:</strong> {{ q.scrambledText || '—' }}</p>
+            <p *ngIf="q.boldLetter"><strong>Bold hint:</strong> {{ q.boldLetter }}</p>
+            <p><strong>Expected word:</strong> {{ q.expectedWord || '—' }}</p>
+          </div>
+
+          <div *ngSwitchCase="'question-answer'" class="preview-sub">
+            <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
+            <p><strong>Prompt:</strong> {{ q.prompt }}</p>
+            <p *ngIf="q.sampleAnswers?.length"><strong>Sample answers:</strong> {{ q.sampleAnswers.join('; ') }}</p>
+            <p *ngIf="q.worksheetKind"><strong>Worksheet kind:</strong> {{ q.worksheetKind }}</p>
+          </div>
+
+          <div *ngSwitchDefault class="preview-sub">
+            <pre class="preview-json">{{ q | json }}</pre>
+          </div>
+        </ng-container>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="!hasDeterministic(ex) && !hasExtracted(ex)">
+      <p class="preview-hint">Upload preview has no parsed rows yet. Run <strong>Extract All Exercises</strong> for full AI parsing, or check the raw block below.</p>
+    </ng-container>
+
+    <div class="raw-block">
+      <h4>Raw extracted block</h4>
+      <pre class="raw-pre">{{ ex.rawText || '—' }}</pre>
+    </div>
+  </div>
+  </aside>
+</ng-container>
+

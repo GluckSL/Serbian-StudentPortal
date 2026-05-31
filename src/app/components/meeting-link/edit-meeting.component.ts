@@ -75,17 +75,20 @@ import { ZoomService } from '../../services/zoom.service';
               </mat-error>
             </mat-form-field>
 
-            <!-- Timezone -->
+            <!-- Course Day -->
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Timezone</mat-label>
-              <mat-select formControlName="timezone">
-                <mat-option value="Asia/Colombo">Asia/Colombo (Sri Lanka)</mat-option>
-                <mat-option value="Asia/Kolkata">Asia/Kolkata (India)</mat-option>
-                <mat-option value="UTC">UTC</mat-option>
-                <mat-option value="America/New_York">America/New_York (EST)</mat-option>
-                <mat-option value="Europe/London">Europe/London (GMT)</mat-option>
-              </mat-select>
+              <mat-label>Course Day</mat-label>
+              <input matInput type="number" formControlName="courseDay" min="1" max="200" placeholder="e.g., 45">
+              <mat-hint>Optional. Students can join this class only on this exact journey day.</mat-hint>
+              <mat-error *ngIf="editForm.get('courseDay')?.hasError('min') || editForm.get('courseDay')?.hasError('max')">
+                Course day must be between 1 and 200
+              </mat-error>
             </mat-form-field>
+
+            <p class="timezone-india-note">
+              <mat-icon class="tz-note-icon">schedule</mat-icon>
+              <span>Timezone is fixed to <strong>India (IST)</strong> — Asia/Kolkata.</span>
+            </p>
 
             <!-- Agenda -->
             <mat-form-field appearance="outline" class="full-width">
@@ -134,6 +137,26 @@ import { ZoomService } from '../../services/zoom.service';
     .full-width {
       width: 100%;
       margin-bottom: 16px;
+    }
+
+    .timezone-india-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin: 0 0 16px;
+      padding: 12px 16px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #424242;
+    }
+
+    .tz-note-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: #666;
+      flex-shrink: 0;
     }
 
     .date-time-row {
@@ -237,8 +260,8 @@ export class EditMeetingComponent implements OnInit {
       date: ['', Validators.required],
       time: ['', Validators.required],
       duration: [60, Validators.required],
-      timezone: ['Asia/Colombo'],
-      agenda: ['']
+      agenda: [''],
+      courseDay: [null, [Validators.min(1), Validators.max(200)]]
     });
   }
 
@@ -308,8 +331,10 @@ export class EditMeetingComponent implements OnInit {
         date: dateString,
         time: timeString,
         duration: meeting.duration || 60,
-        timezone: meeting.timezone || 'Asia/Colombo',
-        agenda: meeting.agenda || ''
+        agenda: meeting.agenda || '',
+        courseDay: meeting.courseDay != null && Number.isFinite(Number(meeting.courseDay))
+          ? Number(meeting.courseDay)
+          : null
       });
 
     } catch (error) {
@@ -382,8 +407,13 @@ export class EditMeetingComponent implements OnInit {
         topic: formValue.topic,
         startTime: startTime,
         duration: formValue.duration,
-        timezone: formValue.timezone,
-        agenda: formValue.agenda
+        timezone: 'Asia/Kolkata',
+        agenda: formValue.agenda,
+        courseDay: (() => {
+          if (formValue.courseDay === '' || formValue.courseDay == null) return null;
+          const n = parseInt(String(formValue.courseDay), 10);
+          return Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        })()
       };
 
       console.log('Sending update data:', updateData);

@@ -8,6 +8,7 @@ import { LearningModulesService } from '../../services/learning-modules.service'
 import { ModuleDataTransferService } from '../../services/module-data-transfer.service';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
@@ -427,7 +428,8 @@ export class AiModuleCreatorComponent implements OnInit {
     private learningModulesService: LearningModulesService,
     private moduleDataTransferService: ModuleDataTransferService,
     private router: Router,
-    private http: HttpClient
+    private http: HttpClient,
+    private notify: NotificationService
   ) {
     this.aiForm = this.createForm();
   }
@@ -513,12 +515,12 @@ export class AiModuleCreatorComponent implements OnInit {
       // Show specific error for missing roles
       if (this.aiForm.get('moduleType')?.value === 'roleplay') {
         if (!this.aiForm.get('studentRole')?.value || !this.aiForm.get('aiRole')?.value) {
-          alert('Role-play modules require both Student Role and AI Role to be specified. Please fill in both fields.');
+          this.notify.warning('Role-play modules require both Student Role and AI Role to be specified.');
           return;
         }
       }
       
-      alert('Please fill in all required fields before generating the module.');
+      this.notify.warning('Please fill in all required fields before generating the module.');
       return;
     }
     
@@ -550,7 +552,7 @@ export class AiModuleCreatorComponent implements OnInit {
       this.isGenerating = false;
       
       // Show user-friendly error message
-      alert('AI generation encountered an issue, but we created a basic module template for you. You can edit and customize it as needed.');
+      this.notify.info('AI generation encountered an issue, but we created a basic module template for you. You can edit and customize it as needed.');
     }
   }
   
@@ -863,13 +865,13 @@ export class AiModuleCreatorComponent implements OnInit {
     if (!this.generatedModule) return;
     
     this.learningModulesService.createModule(this.generatedModule).subscribe({
-      next: (response) => {
-        alert('Module saved successfully!');
+      next: (_response: unknown) => {
+        this.notify.success('Module saved successfully!');
         this.router.navigate(['/learning-modules']);
       },
-      error: (error) => {
+      error: (error: unknown) => {
         console.error('Error saving module:', error);
-        alert('Failed to save module. Please try again.');
+        this.notify.error('Failed to save module. Please try again.');
       }
     });
   }

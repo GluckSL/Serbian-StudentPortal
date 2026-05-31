@@ -1,0 +1,269 @@
+<div class="ei-import-root">
+  <!-- Header + stepper -->
+  <header class="ei-header">
+    <div class="ei-header-left">
+      <div class="ei-logo-mark">
+        <mat-icon>account_balance</mat-icon>
+      </div>
+      <div>
+        <h1 class="ei-title">Bulk payment import</h1>
+        <p class="ei-subtitle">Upload, verify, and map legacy payments with safeguards</p>
+      </div>
+    </div>
+    <button type="button" class="ei-icon-btn" (click)="close()" aria-label="Close" *ngIf="step !== 'mapping'">
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  <nav class="ei-stepper" *ngIf="!loadingStudents" aria-label="Import steps">
+    <div class="ei-step" [class.ei-step-active]="step === 'upload'" [class.ei-step-done]="step === 'preview' || step === 'mapping'">
+      <span class="ei-step-dot">1</span>
+      <span class="ei-step-text">Upload</span>
+    </div>
+    <div class="ei-step-line" [class.ei-step-line-active]="step === 'preview' || step === 'mapping'"></div>
+    <div class="ei-step" [class.ei-step-active]="step === 'preview'" [class.ei-step-done]="step === 'mapping'">
+      <span class="ei-step-dot">2</span>
+      <span class="ei-step-text">Preview</span>
+    </div>
+    <div class="ei-step-line" [class.ei-step-line-active]="step === 'mapping'"></div>
+    <div class="ei-step" [class.ei-step-active]="step === 'mapping'">
+      <span class="ei-step-dot">3</span>
+      <span class="ei-step-text">Map</span>
+    </div>
+  </nav>
+
+  <!-- Scrollable body -->
+  <div class="ei-body" role="region">
+
+    <div class="ei-loading" *ngIf="loadingStudents">
+      <div class="ei-spinner-ring"></div>
+      <p>Syncing student directory…</p>
+    </div>
+
+    <!-- UPLOAD -->
+    <section class="ei-section" *ngIf="!loadingStudents && step === 'upload'">
+      <div class="ei-glass-card ei-template-card">
+        <div class="ei-template-copy">
+          <span class="ei-kicker">Template</span>
+          <h2>Structured import file</h2>
+          <p>Headers match the legacy sheet (Name, Lng Quoted / Lng Received, Doc Quoted / Doc Paid, Visa Quo / Visa Re, …) plus aliases like student_email. Batch, payment date, type, and note are optional. Currency falls back to each student’s profile when omitted; payment date defaults to today and type to Language when blank.</p>
+        </div>
+        <button type="button" class="ei-btn ei-btn-secondary" (click)="downloadTemplate()">
+          <mat-icon>download</mat-icon>
+          Download .xlsx
+        </button>
+      </div>
+
+      <div class="ei-dropzone" (click)="fileInput.click()">
+        <div class="ei-dropzone-glow"></div>
+        <mat-icon class="ei-dropzone-icon">cloud_upload</mat-icon>
+        <p class="ei-dropzone-title">Drop your workbook here or browse</p>
+        <p class="ei-dropzone-hint">.xlsx only · First sheet is read</p>
+        <input #fileInput type="file" accept=".xlsx" hidden (change)="onFileChange($event)" />
+      </div>
+
+      <div class="ei-alert ei-alert-error" *ngIf="parseErrors.length">
+        <mat-icon>gpp_maybe</mat-icon>
+        <div>
+          <strong>{{ parseErrors.length }} issue(s)</strong>
+          <ul>
+            <li *ngFor="let e of parseErrors">{{ e }}</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREVIEW -->
+    <section class="ei-section ei-preview-section" *ngIf="!loadingStudents && step === 'preview'">
+
+      <div class="ei-summary-sticky">
+        <div class="ei-summary-grid">
+          <div class="ei-stat-card ei-stat-total">
+            <span class="ei-stat-label">Total rows</span>
+            <span class="ei-stat-value">{{ previewRows.length }}</span>
+          </div>
+          <div class="ei-stat-card ei-stat-ok">
+            <span class="ei-stat-label">Matched</span>
+            <span class="ei-stat-value">{{ matchedCount }}</span>
+          </div>
+          <div class="ei-stat-card ei-stat-warn">
+            <span class="ei-stat-label">Unmatched</span>
+            <span class="ei-stat-value">{{ unmatchedCount }}</span>
+          </div>
+          <div class="ei-stat-card ei-stat-warn2">
+            <span class="ei-stat-label">Warnings</span>
+            <span class="ei-stat-value">{{ warningRowCount }}</span>
+          </div>
+          <div class="ei-stat-card ei-stat-dup">
+            <span class="ei-stat-label">Duplicates</span>
+            <span class="ei-stat-value">{{ duplicateRowCount }}</span>
+          </div>
+          <div class="ei-stat-card ei-stat-bad">
+            <span class="ei-stat-label">Invalid</span>
+            <span class="ei-stat-value">{{ invalidCount }}</span>
+          </div>
+        </div>
+
+        <div class="ei-currency-strip">
+          <app-payment-currency-totals
+            [lkr]="currencyTotalsPreview.LKR"
+            [inr]="currencyTotalsPreview.INR"
+            [usd]="currencyTotalsPreview.USD"
+            [compact]="true"
+          ></app-payment-currency-totals>
+          <button type="button" class="ei-btn ei-btn-ghost ei-export-fail" (click)="downloadFailedRows()">
+            <mat-icon>table_view</mat-icon>
+            FailedRows.xlsx
+          </button>
+        </div>
+      </div>
+
+      <div class="ei-table-card">
+        <div class="ei-table-scroll">
+          <table class="ei-table">
+            <thead>
+              <tr>
+                <th class="ei-th-expand"></th>
+                <th>Row</th>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Resolved</th>
+                <th>Email</th>
+                <th>Level</th>
+                <th>Type</th>
+                <th class="ei-num">Amount</th>
+                <th class="ei-num">Total</th>
+                <th class="ei-num">Balance</th>
+                <th>CCY</th>
+                <th>Date</th>
+                <th>Note</th>
+                <th class="ei-num">Doc quote</th>
+                <th class="ei-num">Doc recv</th>
+                <th class="ei-num">Visa Quo</th>
+                <th class="ei-num">Visa Re</th>
+              </tr>
+            </thead>
+            <tbody>
+              <ng-container *ngFor="let row of previewRows">
+                <tr
+                  (click)="toggleExpand(row)"
+                  [class.ei-tr-ok]="row.matchedStudent && !row.parseError"
+                  [class.ei-tr-bad]="!!row.parseError"
+                  [class.ei-tr-warn]="!row.matchedStudent && !row.parseError"
+                  [class.ei-tr-expandable]="rowHasExpandableIssues(row)"
+                >
+                  <td class="ei-td-expand">
+                    <button
+                      type="button"
+                      class="ei-expand-hit"
+                      *ngIf="rowHasExpandableIssues(row)"
+                      (click)="toggleExpand(row); $event.stopPropagation()"
+                      [attr.aria-expanded]="isExpanded(row)"
+                    >
+                      <mat-icon>{{ isExpanded(row) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                    </button>
+                  </td>
+                  <td>{{ row.rowIndex }}</td>
+                  <td>
+                    <div class="ei-chip-stack">
+                      <span class="ei-pill ei-pill-ok" *ngIf="row.matchedStudent && !row.parseError">Matched</span>
+                      <span class="ei-pill ei-pill-err" *ngIf="row.parseError">Invalid</span>
+                      <span class="ei-pill ei-pill-warn" *ngIf="!row.matchedStudent && !row.parseError">No match</span>
+                      <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">⚠ Possible duplicate</span>
+                      <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">CCY inferred</span>
+                    </div>
+                  </td>
+                  <td>{{ row.name || '—' }}</td>
+                  <td>{{ row.resolvedName || '—' }}</td>
+                  <td class="ei-ellipsis" [matTooltip]="row.email">{{ row.email || '—' }}</td>
+                  <td>{{ row.level || '—' }}</td>
+                  <td><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type }}</span></td>
+                  <td class="ei-num">{{ fmt(row.amount) }}</td>
+                  <td class="ei-num">{{ fmt(row.totalAmount) }}</td>
+                  <td class="ei-num">{{ fmt(row.balance) }}</td>
+                  <td>{{ row.currency || row.effectiveCurrency }}<span class="ei-ccy-hint" *ngIf="row.currencyInferred">*</span></td>
+                  <td>{{ fmtDate(row.dateOfPayment) }}</td>
+                  <td class="ei-ellipsis" [matTooltip]="row.note">{{ row.note || '—' }}</td>
+                  <td class="ei-num">{{ fmt(row.documentQuotation) }}</td>
+                  <td class="ei-num">{{ fmt(row.documentReceived) }}</td>
+                  <td class="ei-num">{{ fmt(row.visaQuotation) }}</td>
+                  <td class="ei-num">{{ fmt(row.visaReceived) }}</td>
+                </tr>
+                <tr class="ei-expand-row" *ngIf="isExpanded(row) && rowHasExpandableIssues(row)">
+                  <td [attr.colspan]="18">
+                    <div class="ei-expand-panel">
+                      <div class="ei-issue" *ngFor="let issue of issueDetails(row)">
+                        <mat-icon>lightbulb_outline</mat-icon>
+                        <div>
+                          <div class="ei-issue-reason">{{ issue.reason }}</div>
+                          <div class="ei-issue-fix"><strong>Suggested fix:</strong> {{ issue.fix }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </ng-container>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="ei-alert ei-alert-error" *ngIf="parseErrors.length">
+        <mat-icon>error_outline</mat-icon>
+        <div>
+          <strong>Invalid rows are skipped on map</strong>
+          <ul>
+            <li *ngFor="let e of parseErrors">{{ e }}</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAPPING OVERLAY (full panel) -->
+    <section class="ei-mapping-full" *ngIf="step === 'mapping'">
+      <div class="ei-mapping-card">
+        <div class="ei-spinner-ring ei-spinner-lg"></div>
+        <mat-progress-bar mode="determinate" [value]="mappingProgressFraction() * 100" class="ei-progress"></mat-progress-bar>
+        <p class="ei-map-title">
+          Mapping {{ mappingPaymentRowsSucceeded + mappingPaymentRowsFailed }} / {{ totalPaymentRowsQueued() }} payments…
+        </p>
+        <p class="ei-map-sub">Student groups {{ mappingCompletedSteps }} / {{ mappingTotalSteps }}</p>
+        <p class="ei-map-current" *ngIf="mappingCurrentStudentName">
+          <mat-icon>person</mat-icon> {{ mappingCurrentStudentName }}
+        </p>
+        <div class="ei-map-counts">
+          <span class="ei-count-ok"><mat-icon>check_circle</mat-icon> {{ mappingSuccessCount }} ok</span>
+          <span class="ei-count-bad"><mat-icon>cancel</mat-icon> {{ mappingFailCount }} failed</span>
+        </div>
+        <p class="ei-map-hint">Keep this window open until the run finishes.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- Sticky footer -->
+  <footer class="ei-footer" *ngIf="!loadingStudents && step !== 'mapping'">
+    <ng-container *ngIf="step === 'upload'">
+      <span class="ei-footer-meta" *ngIf="fileName">{{ fileName }}</span>
+      <span class="ei-footer-spacer"></span>
+      <button type="button" class="ei-btn ei-btn-ghost" (click)="close()">Cancel</button>
+    </ng-container>
+
+    <ng-container *ngIf="step === 'preview'">
+      <button type="button" class="ei-btn ei-btn-ghost" (click)="close()" [disabled]="saving">Cancel</button>
+      <button type="button" class="ei-btn ei-btn-secondary" (click)="backToUpload()" [disabled]="saving">
+        <mat-icon>arrow_back</mat-icon> Back
+      </button>
+      <span class="ei-footer-spacer"></span>
+      <button
+        type="button"
+        class="ei-btn ei-btn-primary"
+        (click)="mapPayments()"
+        [disabled]="!canMap"
+        [matTooltip]="validMappableRows.length === 0 ? 'No matched rows to map' : ''"
+      >
+        <mat-icon>bolt</mat-icon>
+        Map {{ validMappableRows.length }} payment{{ validMappableRows.length !== 1 ? 's' : '' }}
+      </button>
+    </ng-container>
+  </footer>
+</div>

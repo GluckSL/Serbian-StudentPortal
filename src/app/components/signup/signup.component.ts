@@ -6,7 +6,8 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
-import { CoursesService } from '../../services/courses.service'
+import { CoursesService } from '../../services/courses.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-signup',
@@ -16,6 +17,11 @@ import { CoursesService } from '../../services/courses.service'
   styleUrls: ['./signup.component.css']
 })
 export class SignupComponent {
+  /** Silver-plan students may omit batch (e.g. GO Silver journey without a legacy batch label). */
+  get isSilverStudent(): boolean {
+    return String(this.subscription || '').toUpperCase() === 'SILVER';
+  }
+
   name: string = '';
   email: string = '';
   role: string = 'STUDENT'; // default role
@@ -65,6 +71,7 @@ export class SignupComponent {
     private router: Router, 
     private coursesService: CoursesService,
     private route: ActivatedRoute,
+    private notify: NotificationService,
   ) {}
 
   ngOnInit(): void {
@@ -169,12 +176,19 @@ export class SignupComponent {
   onSubmit() {
 
     if (this.role === 'STUDENT') {
-      if (!this.medium || !this.subscription || !this.batch) {
-        alert('Batch, Medium, and Subscription are required for students!');
+      const mediumOk = Array.isArray(this.medium) ? this.medium.length > 0 : !!String(this.medium || '').trim();
+      const batchRequired = !this.isSilverStudent;
+      const batchOk = !batchRequired || !!String(this.batch || '').trim();
+      if (!mediumOk || !this.subscription || !batchOk) {
+        this.notify.warning(
+          this.isSilverStudent
+            ? 'Medium and Subscription are required for students.'
+            : 'Batch, Medium, and Subscription are required for students.'
+        );
         return;
       }
       if (!this.assignedTeacher) {
-        alert('You must select a teacher for the student!');
+        this.notify.warning('You must select a teacher for the student!');
         return;
       }
     }
@@ -183,7 +197,7 @@ export class SignupComponent {
       if (!this.medium || (Array.isArray(this.medium) && this.medium.length === 0) 
           || this.assignedCourses.length === 0 
           || !this.assignedBatches.length) {
-        alert("Medium, and at least one course are required for teachers!");
+        this.notify.warning('Medium, and at least one course are required for teachers!');
         return;
       }
     }
@@ -196,7 +210,8 @@ export class SignupComponent {
     };
 
     if (this.role === 'STUDENT') {
-      user.batch = this.batch;
+      const batchTrim = String(this.batch || '').trim();
+      user.batch = batchTrim || undefined;
       user.medium = this.medium;
       user.conversationId = this.conversationId;
       user.subscription = this.subscription;
@@ -227,7 +242,7 @@ export class SignupComponent {
       // UPDATE existing user
       this.authService.updateUser(this.studentId, user).subscribe({
         next: (response: any) => {
-          alert('User updated successfully!');
+          this.notify.success('User updated successfully!');
           if (this.role === 'STUDENT') {
             this.router.navigate(['/admin-dashboard']);
             return;
@@ -235,7 +250,7 @@ export class SignupComponent {
           this.router.navigate(['/teachers']);
         },
         error: (error: any) => {
-          alert('Update failed: ' + (error.error?.message || 'Please try again later.'));
+          this.notify.error('Update failed: ' + (error.error?.message || 'Please try again later.'));
           console.error('Update failed', error);
         }
       });
@@ -243,7 +258,7 @@ export class SignupComponent {
       // CREATE new user
       this.authService.signup(user).subscribe({
         next: (response: any) => {
-          alert(user.role + ' Registered Successfully!');
+          this.notify.success(user.role + ' Registered Successfully!');
 
           if (this.role === 'TEACHER' || this.role === 'TEACHER_ADMIN') {
             this.router.navigate(['/teachers']);
@@ -252,7 +267,7 @@ export class SignupComponent {
           this.router.navigate(['/admin-dashboard']);
         },
         error: (error: any) => {
-          alert('Registration failed: ' + (error.error?.message || 'Please try again later.'));
+          this.notify.error('Registration failed: ' + (error.error?.message || 'Please try again later.'));
           console.error('Register failed', error);
         }
       });

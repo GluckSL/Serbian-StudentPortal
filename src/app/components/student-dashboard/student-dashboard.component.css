@@ -189,15 +189,20 @@ mat-progress-bar {
 /* Responsive */
 @media (max-width: 768px) {
   .student-dashboard-container {
-    padding: 16px;
+    padding: 12px;
   }
 
   .dashboard-header h1 {
-    font-size: 24px;
+    font-size: 22px;
+  }
+
+  .subtitle {
+    font-size: 14px;
   }
 
   .dashboard-content {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .quick-actions-card {
@@ -205,12 +210,33 @@ mat-progress-bar {
   }
 
   .action-buttons {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .progress-card,
   .profile-card {
     grid-column: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .student-dashboard-container {
+    padding: 8px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 18px;
+  }
+
+  .action-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  /* Full-width tables on small screens */
+  ::ng-deep .mat-mdc-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

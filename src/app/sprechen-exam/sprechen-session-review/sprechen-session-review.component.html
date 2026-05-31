@@ -1,0 +1,182 @@
+<div class="sr-review">
+  <!-- Toolbar -->
+  <div class="sr-review__toolbar">
+    <div>
+      <h2 class="sr-review__title">{{ data?.module?.title || 'Sessions' }}</h2>
+      <p class="sr-review__subtitle" *ngIf="data?.summary">
+        {{ data!.summary.total }} Sessions &nbsp;·&nbsp;
+        {{ data!.summary.completed }} abgeschlossen &nbsp;·&nbsp;
+        Ø {{ data!.summary.avgTotal | number:'1.0-1' }} / 15
+      </p>
+    </div>
+    <div class="sr-review__toolbar-actions">
+      <button mat-stroked-button (click)="exportCsv()">
+        <mat-icon>download</mat-icon> CSV Export
+      </button>
+    </div>
+  </div>
+
+  <div class="sr-review__loading" *ngIf="loading">
+    <div class="sr-review__spinner"></div>
+  </div>
+  <p class="sr-review__error" *ngIf="error">{{ error }}</p>
+
+  <!-- Session table -->
+  <div class="sr-review__table-wrap" *ngIf="!loading && data">
+    <p class="sr-review__empty" *ngIf="data.sessions.length === 0">Noch keine Sessions.</p>
+
+    <table class="sr-review__table" *ngIf="data.sessions.length > 0">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Datum</th>
+          <th>T1</th>
+          <th>T2</th>
+          <th>T3</th>
+          <th>Gesamt</th>
+          <th>Bestanden</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let row of pagedSessions">
+          <tr [class.sr-review__row--expanded]="expandedSessionId === row._id">
+            <td>
+              <div class="sr-review__student">
+                <div class="sr-review__avatar">{{ initials(row.student?.name) }}</div>
+                <div>
+                  <div class="sr-review__student-name">{{ row.student?.name || '—' }}</div>
+                  <div class="sr-review__student-meta">{{ row.student?.batch }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="sr-review__date">{{ formatDate(row.createdAt) }}</td>
+            <td>{{ row.scores.teil1 | number:'1.0-1' }}</td>
+            <td>{{ row.scores.teil2 | number:'1.0-1' }}</td>
+            <td>{{ row.scores.teil3 | number:'1.0-1' }}</td>
+            <td class="sr-review__total">{{ row.scores.total | number:'1.0-1' }}<span class="sr-review__max">/15</span></td>
+            <td>
+              <span class="sr-review__badge" [class.sr-review__badge--pass]="row.scores.passed" [class.sr-review__badge--fail]="!row.scores.passed">
+                {{ row.scores.passed ? 'Ja' : 'Nein' }}
+              </span>
+            </td>
+            <td>
+              <button mat-icon-button (click)="toggleReplay(row._id)" [title]="expandedSessionId === row._id ? 'Schließen' : 'Replay'">
+                <mat-icon>{{ expandedSessionId === row._id ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+            </td>
+          </tr>
+
+          <!-- Replay panel -->
+          <tr *ngIf="expandedSessionId === row._id">
+            <td colspan="8" class="sr-review__replay-cell">
+              <div class="sr-review__replay">
+                <div class="sr-review__replay-loading" *ngIf="replayLoading">
+                  <div class="sr-review__spinner sr-review__spinner--sm"></div> Wird geladen…
+                </div>
+                <p class="sr-review__error" *ngIf="replayError">{{ replayError }}</p>
+
+                <ng-container *ngIf="replay && !replayLoading">
+                  <div class="sr-review__replay-header">
+                    <span>{{ replay.session.student?.name }}</span>
+                    <span class="sr-review__replay-scores">
+                      T1: {{ replay.session.scores.teil1 | number:'1.0-1' }} &nbsp;
+                      T2: {{ replay.session.scores.teil2 | number:'1.0-1' }} &nbsp;
+                      T3: {{ replay.session.scores.teil3 | number:'1.0-1' }} &nbsp;
+                      <strong>Gesamt: {{ replay.session.scores.total | number:'1.0-1' }}/15</strong>
+                    </span>
+                  </div>
+
+                  <p class="sr-review__override-msg" *ngIf="overrideMsg">{{ overrideMsg }}</p>
+
+                  <!-- Turn timeline -->
+                  <div class="sr-review__timeline">
+                    <div
+                      *ngFor="let turn of replay.turns"
+                      class="sr-review__turn"
+                      [class.sr-review__turn--bot]="turn.role === 'bot'"
+                      [class.sr-review__turn--student]="turn.role === 'student'"
+                    >
+                      <!-- Card display -->
+                      <div class="sr-review__turn-card" *ngIf="turn.card?.content">
+                        <span class="sr-review__turn-card-label">Karte</span>
+                        <span class="sr-review__turn-card-text">{{ turn.card!.content }}</span>
+                      </div>
+
+                      <!-- Bot speech -->
+                      <div class="sr-review__turn-speech" *ngIf="turn.role === 'bot'">
+                        <span class="sr-review__turn-tag">Prüfer</span>
+                        <p>{{ turn.botSpeech }}</p>
+                      </div>
+
+                      <!-- Student transcript -->
+                      <div class="sr-review__turn-speech" *ngIf="turn.role === 'student'">
+                        <span class="sr-review__turn-tag">Kandidat (Teil {{ turn.teil }})</span>
+                        <p>{{ turn.transcript || '(keine Antwort)' }}</p>
+
+                        <!-- Evaluation -->
+                        <div class="sr-review__eval" *ngIf="turn.evaluation || turn.tutorOverride">
+                          <span
+                            class="sr-review__score"
+                            [class.sr-review__score--override]="isOverridden(turn)"
+                          >
+                            {{ effectivePoints(turn) | number:'1.0-1' }} / {{ turn.evaluation?.maxPoints | number:'1.0-1' }} Pkt.
+                            <span *ngIf="isOverridden(turn)" class="sr-review__override-tag">Korrigiert</span>
+                          </span>
+
+                          <div class="sr-review__criteria" *ngIf="turn.evaluation?.criteria?.length">
+                            <span
+                              *ngFor="let c of turn.evaluation!.criteria"
+                              class="sr-review__crit"
+                              [class.sr-review__crit--met]="c.met"
+                            >
+                              {{ c.met ? '✓' : '✗' }} {{ c.label }}
+                            </span>
+                          </div>
+
+                          <!-- Tutor override note -->
+                          <p class="sr-review__override-note" *ngIf="turn.tutorOverride?.note">
+                            Tutor-Notiz: {{ turn.tutorOverride!.note }}
+                          </p>
+
+                          <!-- Override form -->
+                          <div class="sr-review__override-form" *ngIf="overrideTurnId === turn._id">
+                            <label>Neue Punktzahl</label>
+                            <input type="number" [(ngModel)]="overridePoints" min="0" [max]="turn.evaluation?.maxPoints ?? 15" step="0.5" />
+                            <input type="text" [(ngModel)]="overrideNote" placeholder="Begründung (optional)" />
+                            <div class="sr-review__override-btns">
+                              <button mat-flat-button color="primary" (click)="saveOverride()" [disabled]="overrideLoading">Speichern</button>
+                              <button mat-stroked-button (click)="cancelOverride()">Abbrechen</button>
+                            </div>
+                          </div>
+
+                          <button
+                            *ngIf="overrideTurnId !== turn._id"
+                            mat-stroked-button
+                            class="sr-review__override-btn"
+                            (click)="openOverride(turn)"
+                          >
+                            <mat-icon>edit</mat-icon> Bewertung ändern
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </ng-container>
+              </div>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+
+    <mat-paginator
+      *ngIf="data.sessions.length > pageSize"
+      [length]="data.sessions.length"
+      [pageSize]="pageSize"
+      [pageSizeOptions]="pageSizeOptions"
+      [pageIndex]="pageIndex"
+      (page)="onPageChange($event)"
+    ></mat-paginator>
+  </div>
+</div>

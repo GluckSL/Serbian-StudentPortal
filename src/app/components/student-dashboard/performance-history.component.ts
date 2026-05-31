@@ -1,690 +1,481 @@
-// src/app/components/student-dashboard/performance-history.component.ts
-
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../environments/environment';
 import { Router } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { environment } from '../../../environments/environment';
+import { DgApiService } from '../../dg-bot/dg-api.service';
+import type { DgModuleSummary } from '../../dg-bot/dg-bot.types';
+import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
+import { StudentProgressService } from '../../services/student-progress.service';
+import { ZoomService } from '../../services/zoom.service';
+
+type RangeMode = 'weekly' | 'overall';
+type TrackTab = 'classes' | 'exercises' | 'dgBot';
 
 interface SessionHistory {
-  id: string;
   sessionId: string;
-  module: {
-    id: string;
-    title: string;
-    level: string;
-    category: string;
-  };
-  sessionType: string;
   sessionState: string;
-  startTime: Date;
-  endTime: Date;
-  durationMinutes: number;
-  formattedDuration: string;
-  summary: {
-    conversationCount: number;
-    timeSpentMinutes: number;
-    vocabularyUsed: string[];
-    exerciseScore: number;
-    conversationScore: number;
-    totalScore: number;
-    correctAnswers: number;
-    incorrectAnswers: number;
-    accuracy: number;
+  module?: { id?: string; title?: string; level?: string; category?: string };
+  summary?: {
+    totalScore?: number;
+    accuracy?: number;
+    conversationCount?: number;
+    timeSpentMinutes?: number;
+    vocabularyUsed?: string[];
   };
-  performanceSummary: {
-    conversationCount: number;
-    timeSpent: number;
-    vocabularyUsed: string[];
-    exerciseAccuracy: number;
-    totalScore: number;
-    sessionCompleted: boolean;
-    moduleCompleted: boolean;
-  };
-  isModuleCompleted: boolean;
-  createdAt: Date;
-  attemptNumber?: number;
-}
-
-interface PerformanceStats {
-  totalSessions: number;
-  completedSessions: number;
-  modulesCompleted: number;
-  totalTimeSpent: number;
-  averageScore: number;
-  totalVocabularyLearned: number;
-  completionRate: number;
-  averageSessionDuration: number;
-  improvementTrend: 'improving' | 'stable' | 'declining';
+  createdAt: string;
 }
 
 @Component({
   selector: 'app-performance-history',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  template: `
-    <div class="container-fluid py-4">
-      <div class="row">
-        <div class="col-12">
-          <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h4 class="mb-0">📊 My Performance History</h4>
-              <div class="d-flex gap-2">
-                <select class="form-select form-select-sm" [(ngModel)]="selectedModule" (change)="loadHistory()">
-                  <option value="">All Modules</option>
-                  <option *ngFor="let module of availableModules" [value]="module.id">
-                    {{module.title}} ({{module.level}})
-                  </option>
-                </select>
-                <button class="btn btn-primary btn-sm" (click)="loadHistory()">
-                  <i class="fas fa-refresh"></i> Refresh
-                </button>
-              </div>
-            </div>
-            
-            <div class="card-body">
-              <!-- Performance Statistics -->
-              <div class="row mb-4" *ngIf="stats">
-                <div class="col-12">
-                  <h5 class="mb-3">📈 Your Learning Statistics</h5>
-                </div>
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 bg-primary text-white rounded">
-                    <h4 class="mb-1">{{stats.totalSessions}}</h4>
-                    <small>Total Sessions</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 bg-success text-white rounded">
-                    <h4 class="mb-1">{{stats.modulesCompleted}}</h4>
-                    <small>Modules Completed</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 bg-info text-white rounded">
-                    <h4 class="mb-1">{{formatTimeSpent(stats.totalTimeSpent)}}</h4>
-                    <small>Total Study Time</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 bg-warning text-white rounded">
-                    <h4 class="mb-1">{{stats.averageScore}}</h4>
-                    <small>Average Score</small>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Additional Stats Row -->
-              <div class="row mb-4" *ngIf="stats">
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 bg-secondary text-white rounded">
-                    <h4 class="mb-1">{{stats.completionRate}}%</h4>
-                    <small>Success Rate</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 bg-dark text-white rounded">
-                    <h4 class="mb-1">{{stats.totalVocabularyLearned}}</h4>
-                    <small>Words Learned</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 bg-purple text-white rounded">
-                    <h4 class="mb-1">{{stats.averageSessionDuration}}m</h4>
-                    <small>Avg Session</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="stat-card text-center p-3 rounded"
-                       [class.bg-success]="stats.improvementTrend === 'improving'"
-                       [class.bg-warning]="stats.improvementTrend === 'stable'"
-                       [class.bg-danger]="stats.improvementTrend === 'declining'"
-                       [class.text-white]="true">
-                    <h4 class="mb-1">
-                      <i class="fas fa-arrow-up" *ngIf="stats.improvementTrend === 'improving'"></i>
-                      <i class="fas fa-minus" *ngIf="stats.improvementTrend === 'stable'"></i>
-                      <i class="fas fa-arrow-down" *ngIf="stats.improvementTrend === 'declining'"></i>
-                    </h4>
-                    <small>{{getTrendLabel(stats.improvementTrend)}}</small>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Session History -->
-              <div class="mb-4">
-                <h5 class="mb-3">📚 Session History</h5>
-                
-                <!-- Group sessions by module -->
-                <div *ngFor="let moduleGroup of groupedSessions" class="module-group mb-4">
-                  <div class="module-header p-3 bg-light rounded-top">
-                    <h6 class="mb-1">
-                      <strong>{{moduleGroup.moduleTitle}}</strong>
-                      <span class="badge bg-secondary ms-2">{{moduleGroup.moduleLevel}}</span>
-                      <span class="badge bg-info ms-1">{{moduleGroup.sessions.length}} attempts</span>
-                    </h6>
-                    <small class="text-muted">{{moduleGroup.moduleCategory}}</small>
-                  </div>
-                  
-                  <div class="sessions-timeline">
-                    <div *ngFor="let session of moduleGroup.sessions; let i = index" 
-                         class="session-card p-3 border-start border-3"
-                         [class.border-success]="session.sessionState === 'completed'"
-                         [class.border-warning]="session.sessionState === 'manually_ended'"
-                         [class.border-danger]="session.sessionState === 'abandoned'"
-                         [class.bg-light]="i % 2 === 0">
-                      
-                      <div class="row align-items-center">
-                        <div class="col-md-2">
-                          <div class="text-center">
-                            <div class="attempt-badge mb-2">
-                              <span class="badge badge-lg"
-                                    [class.bg-success]="session.sessionState === 'completed'"
-                                    [class.bg-warning]="session.sessionState === 'manually_ended'"
-                                    [class.bg-danger]="session.sessionState === 'abandoned'">
-                                Attempt {{session.attemptNumber || i + 1}}
-                              </span>
-                            </div>
-                            <small class="text-muted">{{formatDate(session.createdAt)}}</small>
-                          </div>
-                        </div>
-                        
-                        <div class="col-md-3">
-                          <div class="session-metrics">
-                            <div><strong>💬 {{session.summary.conversationCount}} conversations</strong></div>
-                            <div><small>⏱️ {{session.summary.timeSpentMinutes}} minutes</small></div>
-                            <div><small>🎯 {{session.summary.totalScore}} points</small></div>
-                          </div>
-                        </div>
-                        
-                        <div class="col-md-4">
-                          <div class="vocabulary-section">
-                            <div><strong>📚 Vocabulary ({{session.summary.vocabularyUsed.length}} words):</strong></div>
-                            <div class="vocabulary-tags">
-                              <span *ngFor="let word of session.summary.vocabularyUsed.slice(0, 5)" 
-                                    class="badge bg-light text-dark me-1 mb-1">{{word}}</span>
-                              <span *ngIf="session.summary.vocabularyUsed.length > 5" 
-                                    class="badge bg-secondary">+{{session.summary.vocabularyUsed.length - 5}} more</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div class="col-md-2">
-                          <div class="session-status text-center">
-                            <div class="status-icon mb-2">
-                              <i class="fas fa-check-circle text-success" 
-                                 *ngIf="session.sessionState === 'completed'"></i>
-                              <i class="fas fa-pause-circle text-warning" 
-                                 *ngIf="session.sessionState === 'manually_ended'"></i>
-                              <i class="fas fa-times-circle text-danger" 
-                                 *ngIf="session.sessionState === 'abandoned'"></i>
-                            </div>
-                            <small class="status-text">
-                              {{getSessionStatusLabel(session.sessionState)}}
-                            </small>
-                          </div>
-                        </div>
-                        
-                        <div class="col-md-1">
-                          <button class="btn btn-outline-primary btn-sm" 
-                                  (click)="viewSessionDetails(session.sessionId)">
-                            <i class="fas fa-eye"></i>
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <!-- Improvement indicator -->
-                      <div *ngIf="i > 0 && getImprovementIndicator(session, moduleGroup.sessions[i-1]) as improvement" 
-                           class="improvement-indicator mt-2 p-2 rounded"
-                           [class.bg-success]="improvement.type === 'improved'"
-                           [class.bg-warning]="improvement.type === 'declined'"
-                           [class.text-white]="improvement.type === 'improved'"
-                           [class.text-dark]="improvement.type === 'declined'">
-                        <small>
-                          <i class="fas fa-arrow-up" *ngIf="improvement.type === 'improved'"></i>
-                          <i class="fas fa-arrow-down" *ngIf="improvement.type === 'declined'"></i>
-                          {{improvement.message}}
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- No sessions message -->
-              <div *ngIf="sessionHistory.length === 0 && !isLoading" class="text-center py-5">
-                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No session history yet</h5>
-                <p class="text-muted">Start practicing with modules to see your performance history here!</p>
-                <button class="btn btn-primary" (click)="goToModules()">
-                  <i class="fas fa-play"></i> Start Learning
-                </button>
-              </div>
-
-              <!-- Loading indicator -->
-              <div *ngIf="isLoading" class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2 text-muted">Loading your performance history...</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Session Details Modal -->
-    <div class="modal fade" id="sessionDetailsModal" tabindex="-1" *ngIf="selectedSessionDetails">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
-              📊 Session Details - {{selectedSessionDetails.module.title}}
-            </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <!-- Session Summary -->
-            <div class="row mb-4">
-              <div class="col-md-6">
-                <h6>📋 Session Summary</h6>
-                <ul class="list-unstyled">
-                  <li><strong>💬 Conversations:</strong> {{selectedSessionDetails.summary.conversationCount}}</li>
-                  <li><strong>⏱️ Time Spent:</strong> {{selectedSessionDetails.summary.timeSpentMinutes}} minutes</li>
-                  <li><strong>🎯 Total Score:</strong> {{selectedSessionDetails.summary.totalScore}}</li>
-                  <li><strong>✅ Accuracy:</strong> {{selectedSessionDetails.summary.accuracy}}%</li>
-                </ul>
-              </div>
-              <div class="col-md-6">
-                <h6>📚 Vocabulary Learned</h6>
-                <div class="vocabulary-display">
-                  <span *ngFor="let word of selectedSessionDetails.summary.vocabularyUsed" 
-                        class="badge bg-primary me-1 mb-1">{{word}}</span>
-                  <div *ngIf="selectedSessionDetails.summary.vocabularyUsed.length === 0" 
-                       class="text-muted">No vocabulary recorded</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Performance Breakdown -->
-            <div class="mb-4">
-              <h6>📈 Performance Breakdown</h6>
-              <div class="row">
-                <div class="col-md-4">
-                  <div class="text-center p-3 bg-light rounded">
-                    <h5 class="text-primary">{{selectedSessionDetails.summary.exerciseScore}}</h5>
-                    <small>Exercise Score</small>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="text-center p-3 bg-light rounded">
-                    <h5 class="text-success">{{selectedSessionDetails.summary.conversationScore}}</h5>
-                    <small>Conversation Score</small>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="text-center p-3 bg-light rounded">
-                    <h5 class="text-info">{{selectedSessionDetails.summary.correctAnswers}}/{{selectedSessionDetails.summary.correctAnswers + selectedSessionDetails.summary.incorrectAnswers}}</h5>
-                    <small>Correct Answers</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button type="button" class="btn btn-primary" (click)="retryModule(selectedSessionDetails.module.id)">
-              <i class="fas fa-redo"></i> Try Again
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `,
-  styles: [`
-    :host {
-      font-family: 'Inter', system-ui, sans-serif;
-    }
-    .container-fluid {
-      max-width: 1100px;
-      padding: 14px;
-    }
-    .card {
-      border-radius: 14px;
-      border: 1px solid #e8ecf4;
-      box-shadow: 0 2px 12px rgba(15,23,42,0.07);
-    }
-    .card-header {
-      background: #b3cde0;
-      color: #011f4b;
-      border-radius: 14px 14px 0 0 !important;
-      padding: 12px 16px;
-      border-bottom: 1px solid #e8ecf4;
-    }
-    .card-header h4 {
-      font-size: 14px;
-      font-weight: 700;
-      color: #011f4b;
-    }
-    .card-body {
-      padding: 14px 16px;
-    }
-    .card-body h5 {
-      font-size: 13px;
-      font-weight: 700;
-      color: #0f172a;
-    }
-    .form-select-sm {
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 8px;
-      border: 1px solid #e2e8f0;
-    }
-    .btn-primary {
-      background: #005b96;
-      border-color: #005b96;
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 8px;
-    }
-    .btn-primary:hover {
-      background: #03396c;
-      border-color: #03396c;
-    }
-    .btn-outline-primary {
-      color: #005b96;
-      border-color: #005b96;
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 8px;
-    }
-    .btn-outline-primary:hover {
-      background: #005b96;
-      border-color: #005b96;
-      color: #fff;
-    }
-    .btn-secondary {
-      background: #6497b1;
-      border-color: #6497b1;
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 8px;
-    }
-    .stat-card {
-      transition: transform 0.2s;
-      border-radius: 12px !important;
-      border: none !important;
-    }
-    .stat-card:hover {
-      transform: translateY(-2px);
-    }
-    .stat-card h4 {
-      font-size: 16px;
-      font-weight: 700;
-    }
-    .stat-card small {
-      font-size: 10px;
-    }
-    .bg-primary { background-color: #005b96 !important; }
-    .bg-success { background-color: #28a745 !important; }
-    .bg-info { background-color: #6497b1 !important; }
-    .bg-warning { background-color: #f59e0b !important; }
-    .bg-secondary { background-color: #64748b !important; }
-    .bg-dark { background-color: #011f4b !important; }
-    .bg-purple { background-color: #03396c !important; }
-    .bg-danger { background-color: #FC5C65 !important; }
-    .module-group {
-      border: 1px solid #e8ecf4;
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    .module-header {
-      background: #f1f5f9 !important;
-      padding: 10px 14px !important;
-    }
-    .module-header h6 {
-      font-size: 12px;
-      font-weight: 700;
-      color: #0f172a;
-    }
-    .module-header small {
-      font-size: 10px;
-      color: #94a3b8;
-    }
-    .sessions-timeline {
-      background: white;
-    }
-    .session-card {
-      border-bottom: 1px solid #f1f5f9;
-      transition: background-color 0.2s;
-      padding: 10px 14px !important;
-    }
-    .session-card:hover {
-      background-color: #f8fafc !important;
-    }
-    .session-card:last-child {
-      border-bottom: none;
-    }
-    .session-card strong {
-      font-size: 12px;
-    }
-    .session-card small {
-      font-size: 11px;
-    }
-    .attempt-badge .badge-lg {
-      font-size: 10px;
-      padding: 3px 8px;
-    }
-    .badge {
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-weight: 600;
-    }
-    .vocabulary-tags {
-      max-height: 60px;
-      overflow-y: auto;
-    }
-    .vocabulary-tags .badge {
-      font-size: 10px;
-    }
-    .improvement-indicator {
-      margin-left: 2rem;
-      border-left: 3px solid #28a745;
-      font-size: 11px;
-    }
-    .status-icon i {
-      font-size: 1.2em;
-    }
-    .status-text {
-      font-size: 10px;
-    }
-    .vocabulary-display {
-      max-height: 120px;
-      overflow-y: auto;
-    }
-    .text-muted {
-      font-size: 11px;
-    }
-    .modal-title {
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .modal-body h6 {
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .modal-body li {
-      font-size: 12px;
-    }
-    .modal-body .bg-light h5 {
-      font-size: 14px;
-    }
-    .modal-body .bg-light small {
-      font-size: 10px;
-    }
-    .session-metrics div {
-      font-size: 12px;
-    }
-    .session-metrics small {
-      font-size: 11px;
-    }
-  `]
+  templateUrl: './performance-history.component.html',
+  styleUrls: ['./performance-history.component.scss']
 })
 export class PerformanceHistoryComponent implements OnInit {
+  isLoading = false;
+  rangeMode: RangeMode = 'weekly';
+  activeTab: TrackTab = 'classes';
+  searchText = '';
+  pageSize = 8;
+  classPage = 1;
+  exercisePage = 1;
+  dgBotPage = 1;
+
+  journeyCourseDay = 1;
   sessionHistory: SessionHistory[] = [];
-  groupedSessions: any[] = [];
-  availableModules: any[] = [];
-  selectedModule: string = '';
-  stats: PerformanceStats | null = null;
-  selectedSessionDetails: SessionHistory | null = null;
-  isLoading: boolean = false;
+  exercises: DigitalExercise[] = [];
+  dgBotModules: DgModuleSummary[] = [];
+  meetings: any[] = [];
+  totalVocabulary = 0;
 
   constructor(
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private exerciseService: DigitalExerciseService,
+    private dgApi: DgApiService,
+    private progressService: StudentProgressService,
+    private zoomService: ZoomService
   ) {}
 
   ngOnInit(): void {
-    this.loadAvailableModules();
-    this.loadHistory();
+    this.loadAll();
   }
 
-  loadAvailableModules(): void {
-    this.http.get(`${environment.apiUrl}/learning-modules`, { withCredentials: true })
-      .subscribe({
-        next: (response: any) => {
-          this.availableModules = response.modules || [];
-        },
-        error: (error) => {
-          console.error('Error loading modules:', error);
-        }
-      });
-  }
-
-  loadHistory(): void {
+  loadAll(): void {
     this.isLoading = true;
-    
-    // Get current user's session records
-    this.http.get(`${environment.apiUrl}/session-records/my-history`, {
-      withCredentials: true
+    forkJoin({
+      journey: this.progressService.getStudentJourney().pipe(catchError(() => of(null))),
+      exercises: this.exerciseService.getExercises({ page: 1, limit: 500 }).pipe(catchError(() => of({ exercises: [] }))),
+      dgBot: this.dgApi.listStudentModules().pipe(catchError(() => of({ modules: [], studentCourseDay: undefined }))),
+      meetings: this.zoomService.getStudentMeetings().pipe(catchError(() => of({ success: false, data: [] }))),
+      sessions: this.http.get<any>(`${environment.apiUrl}/session-records/my-history`, { withCredentials: true }).pipe(catchError(() => of({ sessionHistory: [] })))
     }).subscribe({
-      next: (response: any) => {
-        this.sessionHistory = response.sessionHistory || [];
-        this.stats = response.stats;
-        this.groupSessionsByModule();
+      next: ({ journey, exercises, dgBot, meetings, sessions }) => {
+        const dgDay = 'studentCourseDay' in dgBot ? dgBot.studentCourseDay : undefined;
+        this.journeyCourseDay = Number(journey?.profile?.currentCourseDay || dgDay || 1);
+        this.exercises = Array.isArray(exercises?.exercises) ? exercises.exercises : [];
+        this.dgBotModules = Array.isArray(dgBot?.modules) ? dgBot.modules : [];
+        this.meetings = meetings?.success && Array.isArray(meetings?.data) ? meetings.data : [];
+        this.sessionHistory = Array.isArray(sessions?.sessionHistory) ? sessions.sessionHistory : [];
+        this.totalVocabulary = new Set(
+          this.sessionHistory.flatMap((s) => Array.isArray(s.summary?.vocabularyUsed) ? s.summary?.vocabularyUsed || [] : [])
+        ).size;
         this.isLoading = false;
       },
-      error: (error) => {
-        console.error('Error loading session history:', error);
+      error: () => {
         this.isLoading = false;
       }
     });
   }
 
-  groupSessionsByModule(): void {
-    const grouped = this.sessionHistory.reduce((acc: any, session) => {
-      const moduleId = session.module.id;
-      if (!acc[moduleId]) {
-        acc[moduleId] = {
-          moduleId: moduleId,
-          moduleTitle: session.module.title,
-          moduleLevel: session.module.level,
-          moduleCategory: session.module.category,
-          sessions: []
-        };
-      }
-      acc[moduleId].sessions.push(session);
-      return acc;
-    }, {});
-
-    // Convert to array and sort sessions by date
-    this.groupedSessions = Object.values(grouped).map((group: any) => {
-      group.sessions.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      // Add attempt numbers
-      group.sessions.forEach((session: any, index: number) => {
-        session.attemptNumber = index + 1;
-      });
-      return group;
-    });
-
-    // Sort groups by most recent activity
-    this.groupedSessions.sort((a, b) => {
-      const aLatest = Math.max(...a.sessions.map((s: any) => new Date(s.createdAt).getTime()));
-      const bLatest = Math.max(...b.sessions.map((s: any) => new Date(s.createdAt).getTime()));
-      return bLatest - aLatest;
-    });
+  setRange(mode: RangeMode): void {
+    this.rangeMode = mode;
+    this.resetPages();
   }
 
-  viewSessionDetails(sessionId: string): void {
-    const session = this.sessionHistory.find(s => s.sessionId === sessionId);
-    if (session) {
-      this.selectedSessionDetails = session;
-      // Open modal (you might need to use Bootstrap JS or Angular Material)
-      const modal = new (window as any).bootstrap.Modal(document.getElementById('sessionDetailsModal'));
-      modal.show();
-    }
+  setTab(tab: TrackTab): void {
+    this.activeTab = tab;
+    this.searchText = '';
+    this.resetPages();
   }
 
-  retryModule(moduleId: string): void {
-    this.router.navigate(['/ai-tutor-chat'], {
-      queryParams: { moduleId, sessionType: 'practice' }
+  onSearchChange(): void {
+    this.resetPages();
+  }
+
+  private resetPages(): void {
+    this.classPage = 1;
+    this.exercisePage = 1;
+    this.dgBotPage = 1;
+  }
+
+  get skeletonRows(): number[] {
+    return [1, 2, 3, 4, 5, 6];
+  }
+
+  get filteredMeetings(): any[] {
+    const q = this.searchText.trim().toLowerCase();
+    // Only ended classes should contribute to tracking and KPI counts.
+    const items = this.meetings.filter((m) => m?.hasEnded && this.isInRangeByDay(this.getMeetingDay(m)));
+    if (!q) return items;
+    return items.filter((m) => {
+      const text = `${m.topic || ''} ${m.teacher?.name || ''} ${this.getMeetingDay(m)}`.toLowerCase();
+      return text.includes(q);
     });
   }
 
-  goToModules(): void {
-    this.router.navigate(['/learning-modules']);
+  get filteredDgBotModules(): DgModuleSummary[] {
+    const q = this.searchText.trim().toLowerCase();
+    const items = this.dgBotModules.filter((m) => this.isInRangeByDay(Number(m.courseDay || 0)));
+    if (!q) return items;
+    return items.filter((m) => `${m.title || ''} ${m.level || ''} ${m.language || ''} ${m.courseDay || ''}`.toLowerCase().includes(q));
   }
 
-  getSessionStatusLabel(state: string): string {
-    switch (state) {
-      case 'completed': return 'Completed';
-      case 'manually_ended': return 'Stopped Early';
-      case 'abandoned': return 'Abandoned';
-      case 'active': return 'In Progress';
-      default: return state;
+  get filteredExercises(): DigitalExercise[] {
+    const q = this.searchText.trim().toLowerCase();
+    const items = this.exercises.filter((e) => this.isInRangeByDay(Number(e.courseDay || 0)));
+    if (!q) return items;
+    return items.filter((e) => `${e.title || ''} ${e.level || ''} ${e.category || ''} ${e.courseDay || ''}`.toLowerCase().includes(q));
+  }
+
+  get filteredSessions(): SessionHistory[] {
+    if (this.rangeMode === 'overall') return this.sessionHistory;
+    const from = new Date();
+    from.setDate(from.getDate() - 6);
+    from.setHours(0, 0, 0, 0);
+    return this.sessionHistory.filter((s) => new Date(s.createdAt).getTime() >= from.getTime());
+  }
+
+  get overallDone(): number {
+    return this.classAttended + this.dgBotCompleted + this.exerciseCompleted;
+  }
+
+  get overallTotal(): number {
+    return this.classTotal + this.dgBotTotal + this.exerciseTotal;
+  }
+
+  get overallPct(): number {
+    return this.ratio(this.overallDone, this.overallTotal);
+  }
+
+  get classAttended(): number {
+    return this.filteredMeetings.filter((m) => this.getAttendancePercent(m) >= 75).length;
+  }
+
+  get classTotal(): number {
+    return this.filteredMeetings.length;
+  }
+
+  get classPct(): number {
+    return this.ratio(this.classAttended, this.classTotal);
+  }
+
+  get dgBotCompleted(): number {
+    return this.filteredDgBotModules.filter((m) => !!m.studentProgress?.completed).length;
+  }
+
+  get dgBotTotal(): number {
+    return this.filteredDgBotModules.length;
+  }
+
+  get dgBotPct(): number {
+    return this.ratio(this.dgBotCompleted, this.dgBotTotal);
+  }
+
+  get exerciseCompleted(): number {
+    return this.filteredExercises.filter((e) => !!e.studentAttempt).length;
+  }
+
+  get exerciseTotal(): number {
+    return this.filteredExercises.length;
+  }
+
+  get exercisePct(): number {
+    return this.ratio(this.exerciseCompleted, this.exerciseTotal);
+  }
+
+  get sessionCount(): number {
+    return this.filteredSessions.length;
+  }
+
+  get avgScore(): number {
+    const scores = [
+      ...this.filteredSessions.map((s) => Number(s.summary?.totalScore || 0)).filter((n) => n > 0),
+      ...this.filteredExercises.map((e) => Number(e.studentAttempt?.scorePercentage || 0)).filter((n) => n > 0)
+    ];
+    if (!scores.length) return 0;
+    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  }
+
+  get totalStudyMinutes(): number {
+    const sessionMinutes = this.filteredSessions.reduce((sum, s) => sum + Number(s.summary?.timeSpentMinutes || 0), 0);
+    const exerciseMinutes = this.filteredExercises.reduce((sum, e) => sum + Math.round(Number(e.studentAttempt?.timeSpentSeconds || 0) / 60), 0);
+    const classMinutes = this.filteredMeetings.reduce((sum, m) => sum + Number(m.attendedDurationMinutes || 0), 0);
+    return sessionMinutes + exerciseMinutes + classMinutes;
+  }
+
+  get pagedMeetings(): any[] {
+    return this.paginate(this.filteredMeetings, this.classPage);
+  }
+
+  get pagedExercises(): DigitalExercise[] {
+    return this.paginate(this.filteredExercises, this.exercisePage);
+  }
+
+  get pagedDgBotModules(): DgModuleSummary[] {
+    return this.paginate(this.filteredDgBotModules, this.dgBotPage);
+  }
+
+  get classPages(): number {
+    return this.totalPages(this.filteredMeetings.length);
+  }
+
+  get exercisePages(): number {
+    return this.totalPages(this.filteredExercises.length);
+  }
+
+  get dgBotPages(): number {
+    return this.totalPages(this.filteredDgBotModules.length);
+  }
+
+  get currentPage(): number {
+    if (this.activeTab === 'classes') return this.classPage;
+    if (this.activeTab === 'exercises') return this.exercisePage;
+    return this.dgBotPage;
+  }
+
+  get totalPagesForActiveTab(): number {
+    if (this.activeTab === 'classes') return this.classPages;
+    if (this.activeTab === 'exercises') return this.exercisePages;
+    return this.dgBotPages;
+  }
+
+  get totalRowsForActiveTab(): number {
+    if (this.activeTab === 'classes') return this.filteredMeetings.length;
+    if (this.activeTab === 'exercises') return this.filteredExercises.length;
+    return this.filteredDgBotModules.length;
+  }
+
+  get showingFromForActiveTab(): number {
+    if (!this.totalRowsForActiveTab) return 0;
+    return (this.currentPage - 1) * this.pageSize + 1;
+  }
+
+  get showingToForActiveTab(): number {
+    if (!this.totalRowsForActiveTab) return 0;
+    return Math.min(this.totalRowsForActiveTab, this.currentPage * this.pageSize);
+  }
+
+  get activeTabLabel(): string {
+    if (this.activeTab === 'classes') return 'classes';
+    if (this.activeTab === 'exercises') return 'exercises';
+    return 'DG bot lessons';
+  }
+
+  canGoPrev(): boolean {
+    return this.currentPage > 1;
+  }
+
+  canGoNext(): boolean {
+    return this.currentPage < this.totalPagesForActiveTab;
+  }
+
+  changeActivePage(dir: -1 | 1): void {
+    this.changePage(this.activeTab, dir);
+  }
+
+  changePage(tab: TrackTab, dir: -1 | 1): void {
+    if (tab === 'classes') {
+      this.classPage = Math.min(this.classPages, Math.max(1, this.classPage + dir));
+      return;
     }
-  }
-
-  getTrendLabel(trend: string): string {
-    switch (trend) {
-      case 'improving': return 'Improving';
-      case 'stable': return 'Stable';
-      case 'declining': return 'Needs Focus';
-      default: return trend;
+    if (tab === 'exercises') {
+      this.exercisePage = Math.min(this.exercisePages, Math.max(1, this.exercisePage + dir));
+      return;
     }
+    this.dgBotPage = Math.min(this.dgBotPages, Math.max(1, this.dgBotPage + dir));
   }
 
-  getImprovementIndicator(currentSession: SessionHistory, previousSession: SessionHistory): any {
-    const currentScore = currentSession.summary.totalScore;
-    const previousScore = previousSession.summary.totalScore;
-    const scoreDiff = currentScore - previousScore;
-
-    if (scoreDiff > 10) {
-      return {
-        type: 'improved',
-        message: `Improved by ${scoreDiff} points! Great progress! 🎉`
-      };
-    } else if (scoreDiff < -10) {
-      return {
-        type: 'declined',
-        message: `Score decreased by ${Math.abs(scoreDiff)} points. Keep practicing! 💪`
-      };
+  getMeetingStatus(meeting: any): string {
+    if (meeting?.hasEnded) {
+      const pct = this.getAttendancePercent(meeting);
+      if (pct >= 75) return 'Completed';
+      if (pct > 0) return 'Partial';
+      return 'Missed';
     }
-    return null;
+    if (meeting?.isOngoing) return 'Live';
+    return 'Upcoming';
   }
 
-  formatDate(date: Date | string): string {
-    return new Date(date).toLocaleDateString();
+  getMeetingStatusClass(meeting: any): string {
+    const s = this.getMeetingStatus(meeting).toLowerCase();
+    if (s === 'completed') return 'ok';
+    if (s === 'partial') return 'partial';
+    if (s === 'missed') return 'bad';
+    if (s === 'live') return 'live';
+    return 'upcoming';
   }
 
-  formatTimeSpent(minutes: number): string {
-    if (minutes < 60) {
-      return `${minutes}m`;
+  getDgBotStatus(module: DgModuleSummary): string {
+    if (module?.studentProgress?.completed) return 'Completed';
+    const pct = Number(module?.studentProgress?.bestCompletionPercent);
+    if (Number.isFinite(pct) && pct > 0) return 'In progress';
+    return 'Pending';
+  }
+
+  getDgBotStatusClass(module: DgModuleSummary): string {
+    const s = this.getDgBotStatus(module).toLowerCase();
+    if (s === 'completed') return 'ok';
+    if (s === 'in progress') return 'partial';
+    return 'pending';
+  }
+
+  formatDgBotProgress(module: DgModuleSummary): string {
+    const pct = Number(module?.studentProgress?.bestCompletionPercent);
+    return Number.isFinite(pct) && pct > 0 ? `${Math.round(pct)}%` : '—';
+  }
+
+  openDgBot(module: DgModuleSummary): void {
+    if (!module?._id) return;
+    this.router.navigate(['/dg-bot', module._id, 'play']);
+  }
+
+  getExerciseStatus(ex: any): string {
+    return ex?.studentAttempt ? 'Completed' : 'Pending';
+  }
+
+  getExerciseStatusClass(ex: any): string {
+    return ex?.studentAttempt ? 'ok' : 'pending';
+  }
+
+  formatExerciseScore(ex: any): string {
+    if (!ex?.studentAttempt) return '---';
+    const earned = Number(ex.studentAttempt?.earnedPoints ?? NaN);
+    const total = Number(ex.studentAttempt?.totalPoints ?? NaN);
+    if (Number.isFinite(earned) && Number.isFinite(total) && total > 0) {
+      return `${Math.round(earned)}/${Math.round(total)}`;
     }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
+    const pct = Number(ex.studentAttempt?.scorePercentage ?? NaN);
+    return Number.isFinite(pct) ? `${Math.round(pct)}/100` : '---';
+  }
+
+  classRowCountText(): string {
+    return `${this.filteredMeetings.length} classes`;
+  }
+
+  exerciseRowCountText(): string {
+    return `${this.filteredExercises.length} exercises`;
+  }
+
+  dgBotRowCountText(): string {
+    return `${this.filteredDgBotModules.length} DG bot lessons`;
+  }
+
+  openJourney(): void {
+    this.router.navigate(['/student/my-course'], { queryParams: { tab: 'journey' } });
+  }
+
+  private ratio(done: number, total: number): number {
+    if (!total) return 0;
+    return Math.round((done / total) * 100);
+  }
+
+  private paginate<T>(arr: T[], page: number): T[] {
+    const start = (page - 1) * this.pageSize;
+    return arr.slice(start, start + this.pageSize);
+  }
+
+  private totalPages(totalItems: number): number {
+    return Math.max(1, Math.ceil(totalItems / this.pageSize));
+  }
+
+  private isInRangeByDay(day: number): boolean {
+    if (!Number.isFinite(day) || day <= 0) return this.rangeMode === 'overall';
+    if (this.rangeMode === 'overall') return day >= 1 && day <= this.journeyCourseDay;
+    const min = Math.max(1, this.journeyCourseDay - 6);
+    return day >= min && day <= this.journeyCourseDay;
+  }
+
+  getMeetingDay(meeting: any): number {
+    const direct = Number(meeting?.courseDay || 0);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const topic = String(meeting?.topic || '');
+    const matched = topic.match(/\bday\s*[:\-]?\s*(\d{1,3})\b/i);
+    return matched ? Number(matched[1]) : 0;
+  }
+
+  getAttendancePercent(meeting: any): number {
+    if (!meeting?.hasEnded) return 0;
+    const total = Number(meeting?.duration || 0);
+    if (total <= 0) return 0;
+    const attended = Number(meeting?.attendedDurationMinutes ?? meeting?.durationMinutes ?? 0);
+    if (meeting?.attended === true && attended <= 0) return 100;
+    return Math.max(0, Math.min(100, Math.round((attended / total) * 100)));
+  }
+
+  getAttendanceColor(meeting: any): string {
+    const pct = this.getAttendancePercent(meeting);
+    if (pct >= 75) return 'good';
+    if (pct > 0) return 'warn';
+    return 'bad';
+  }
+
+  getClassCode(meeting: any): string {
+    const topic = String(meeting?.topic || 'CL').trim();
+    const words = topic.split(/\s+/).filter(Boolean);
+    const letters = words.slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('');
+    return letters || 'CL';
+  }
+
+  getClassSubTitle(meeting: any): string {
+    const batch = String(meeting?.batch || '').trim();
+    const level = String(meeting?.level || '').trim();
+    return [batch, level].filter(Boolean).join(' · ') || 'Live class';
+  }
+
+  getMeetingWeekday(meeting: any): string {
+    return new Date(meeting?.startTime).toLocaleDateString('en-US', { weekday: 'long' });
+  }
+
+  formatMeetingTimeRange(meeting: any): string {
+    const start = new Date(meeting?.startTime);
+    const end = new Date(start.getTime() + (Number(meeting?.duration || 0) * 60000));
+    const fmt = (d: Date) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return `${fmt(start)} - ${fmt(end)}`;
+  }
+
+  formatMinutes(mins: number): string {
+    if (mins < 60) return `${mins}m`;
+    const h = Math.floor(mins / 60);
+    const r = mins % 60;
+    return `${h}h ${r}m`;
+  }
+
+  formatSecondsAsMinutes(seconds: number | undefined): string {
+    const mins = Math.round(Number(seconds || 0) / 60);
+    return this.formatMinutes(mins);
+  }
+
+  formatDate(date: Date): string {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  }
+
+  formatDateTime(date: any): string {
+    return new Date(date).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 }

@@ -28,8 +28,8 @@
       <div class="zr-stat__lbl">Total Students</div>
     </div>
     <div class="zr-stat"
-         [class.zr-stat--red]="stats.avgAttendance < 70 && stats.totalMeetings > 0"
-         [class.zr-stat--green]="stats.avgAttendance >= 70"
+         [class.zr-stat--red]="stats.avgAttendance < 75 && stats.totalMeetings > 0"
+         [class.zr-stat--green]="stats.avgAttendance >= 75"
          [class.zr-stat--gray]="stats.totalMeetings === 0">
       <div class="zr-stat__val">{{ stats.avgAttendance }}%</div>
       <div class="zr-stat__lbl">Avg Attendance</div>
@@ -49,16 +49,16 @@
     <div class="zr-filters">
       <input class="zr-input zr-input--search" type="text"
              placeholder="Search topic, teacher, batch…"
-             [(ngModel)]="searchQuery" (ngModelChange)="onFilterChange()">
+             [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()">
 
       <select class="zr-select" [(ngModel)]="teacherFilter" (ngModelChange)="onFilterChange()" *ngIf="!isTeacherRole">
         <option value="all">All Teachers</option>
-        <option *ngFor="let t of getUniqueTeachers()" [value]="t">{{ t }}</option>
+        <option *ngFor="let t of teacherOptions" [value]="t">{{ t }}</option>
       </select>
 
       <select class="zr-select" [(ngModel)]="batchFilter" (ngModelChange)="onFilterChange()">
         <option value="all">All Batches</option>
-        <option *ngFor="let b of getUniqueBatches()" [value]="b">{{ b }}</option>
+        <option *ngFor="let b of journeyBatchNames" [value]="b">{{ b }}</option>
       </select>
 
       <select class="zr-select" [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()">
@@ -76,12 +76,6 @@
     </div>
   </div>
 
-  <!-- ── Loading ── -->
-  <div *ngIf="loading" class="zr-loading">
-    <div class="zr-spinner"></div>
-    <p>Loading reports…</p>
-  </div>
-
   <!-- ── Error ── -->
   <div *ngIf="error && !loading" class="zr-error">
     <i class="fa fa-circle-exclamation zr-error__icon"></i>
@@ -92,17 +86,15 @@
   </div>
 
   <!-- ── Table ── -->
-  <div *ngIf="!loading && !error" class="zr-table-wrap">
+  <div *ngIf="!error" class="zr-table-wrap">
 
-    <div *ngIf="filteredMeetings.length === 0" class="zr-empty">
+    <div *ngIf="!loadingPage && meetingsPage.length === 0" class="zr-empty">
       <i class="fa fa-calendar-xmark zr-empty__icon"></i>
       <h3>No completed meetings found</h3>
-      <p *ngIf="searchQuery || teacherFilter !== 'all' || batchFilter !== 'all' || dateFilter !== 'all'">
-        Try adjusting your filters
-      </p>
+      <p>Try adjusting your filters</p>
     </div>
 
-    <table *ngIf="filteredMeetings.length > 0" class="zr-table">
+    <table *ngIf="loadingPage || meetingsPage.length > 0" class="zr-table">
       <thead>
         <tr>
           <th>Date &amp; Time</th>
@@ -116,7 +108,20 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let m of filteredMeetings" class="zr-row">
+        <ng-container *ngIf="loadingPage">
+          <tr class="zr-row zr-row--skeleton" [attr.aria-busy]="true" *ngFor="let _ of skeletonRows">
+            <td><div class="zr-skeleton zr-skeleton--md"></div><div class="zr-skeleton zr-skeleton--sm"></div></td>
+            <td><div class="zr-skeleton zr-skeleton--md"></div></td>
+            <td *ngIf="!isTeacherRole"><div class="zr-skeleton zr-skeleton--md"></div></td>
+            <td><div class="zr-skeleton zr-skeleton--sm"></div></td>
+            <td><div class="zr-skeleton zr-skeleton--sm"></div></td>
+            <td><div class="zr-skeleton zr-skeleton--lg"></div></td>
+            <td><div class="zr-skeleton zr-skeleton--sm"></div></td>
+            <td *ngIf="!isTeacherRole"><div class="zr-skeleton zr-skeleton--lg"></div></td>
+          </tr>
+        </ng-container>
+
+        <tr *ngFor="let m of meetingsPage" class="zr-row">
 
           <!-- Date -->
           <td>
@@ -178,6 +183,12 @@
               <button class="zr-icon-btn zr-icon-btn--blue" (click)="viewMeetingDetails(m._id)" title="View Details">
                 <i class="fa fa-eye"></i>
               </button>
+              <button class="zr-icon-btn zr-icon-btn--amber"
+                      (click)="refetchAttendance(m._id)"
+                      [disabled]="refetchingMeetingIds.has(m._id)"
+                      title="Refetch Attendance">
+                <i class="fa fa-rotate-right"></i>
+              </button>
               <button class="zr-icon-btn zr-icon-btn--green" (click)="viewAttendance(m._id)" title="Attendance">
                 <i class="fa fa-users"></i>
               </button>
@@ -191,8 +202,20 @@
       </tbody>
     </table>
 
-    <div *ngIf="filteredMeetings.length > 0" class="zr-footer">
-      Showing <strong>{{ filteredMeetings.length }}</strong> class{{ filteredMeetings.length !== 1 ? 'es' : '' }}
+    <div *ngIf="totalItems > 0" class="zr-footer">
+      <div class="zr-footer__left">
+        Showing <strong>{{ pageStartIndex }}</strong>-<strong>{{ pageEndIndex }}</strong>
+        of <strong>{{ totalItems }}</strong> class{{ totalItems !== 1 ? 'es' : '' }}
+      </div>
+      <div class="zr-pagination">
+        <label class="zr-pagination__label" for="zr-page-size">Rows</label>
+        <select id="zr-page-size" class="zr-pagination__select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange()">
+          <option *ngFor="let s of pageSizeOptions" [ngValue]="s">{{ s }}</option>
+        </select>
+        <button class="zr-page-btn" (click)="goToPrevPage()" [disabled]="currentPage === 1">Prev</button>
+        <span class="zr-page-info">Page {{ currentPage }} / {{ totalPages }}</span>
+        <button class="zr-page-btn" (click)="goToNextPage()" [disabled]="currentPage === totalPages">Next</button>
+      </div>
     </div>
   </div>
 

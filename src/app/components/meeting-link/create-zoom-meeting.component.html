@@ -6,7 +6,7 @@
     <h2><i class="fas fa-video"></i> Create Zoom Meeting</h2>
     <p>Schedule a Zoom meeting and invite students</p>
   </div>
-  <button class="btn btn-light" (click)="cancel()">
+  <button class="btn btn-light" (click)="cancel()" [disabled]="isCreatingMeeting">
     <i class="fas fa-arrow-left me-1"></i>Back
   </button>
 </div>
@@ -85,17 +85,58 @@
               <select class="form-select" formControlName="zoomHostEmail"
                 [class.is-invalid]="meetingForm.get('zoomHostEmail')?.invalid && meetingForm.get('zoomHostEmail')?.touched">
                 <option value="">Select Zoom Account</option>
-                <option *ngFor="let acc of zoomAccounts" [value]="acc.email" [disabled]="acc.isBusy">
+                <option
+                  *ngFor="let acc of zoomAccounts"
+                  [value]="acc.email"
+                  [disabled]="acc.isBusy"
+                  [attr.title]="acc.isBusy ? conflictTooltip(acc.conflicts) : null">
                   {{ acc.name }} ({{ acc.email }}){{ acc.isBusy ? ' — BUSY' : '' }}
                 </option>
               </select>
-              <small class="text-muted">Accounts marked BUSY have a meeting at the selected time</small>
+              <small class="text-muted d-block">
+                BUSY means another class is already booked on that account in this portal (not the Zoom website calendar).
+                Hover a BUSY option or see details below.
+              </small>
+              <div class="zoom-busy-panel" *ngIf="busyZoomAccounts.length > 0">
+                <div class="zoom-busy-panel-title">
+                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                  Conflicting portal classes at your selected time(s)
+                </div>
+                <div class="zoom-busy-account" *ngFor="let acc of busyZoomAccounts">
+                  <span class="zoom-busy-account-name">
+                    {{ acc.name }}
+                    <i
+                      class="fas fa-circle-info zoom-busy-info-icon"
+                      [matTooltip]="conflictTooltip(acc.conflicts)"
+                      matTooltipClass="zoom-busy-tooltip"
+                      aria-label="Conflict details"></i>
+                  </span>
+                  <ul class="zoom-busy-conflict-list">
+                    <li *ngFor="let c of acc.conflicts">
+                      <strong>{{ c.topic }}</strong>
+                      <span *ngIf="c.batch"> · Batch {{ c.batch }}</span>
+                      — {{ formatConflictWhen(c) }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
 
             <div class="row">
               <div class="col-6 mb-3">
                 <label class="form-label">Start Time *</label>
-                <input type="datetime-local" class="form-control" formControlName="startTime" (change)="onTimeChange()">
+                <div class="start-time-trigger" (click)="openStartTimeModal()">
+                  <input
+                    type="text"
+                    class="form-control"
+                    [value]="formattedStartTime"
+                    placeholder="Select start time"
+                    readonly
+                  >
+                  <button type="button" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-calendar-alt me-1"></i>Select
+                  </button>
+                </div>
               </div>
               <div class="col-6 mb-3">
                 <label class="form-label">Duration (min) *</label>
@@ -106,15 +147,94 @@
 
             <div class="row">
               <div class="col-6 mb-3">
-                <label class="form-label">Timezone *</label>
-                <select class="form-select" formControlName="timezone">
-                  <option value="Asia/Colombo">Asia/Colombo</option>
-                  <option value="Asia/Kolkata">Asia/Kolkata</option>
-                  <option value="Europe/Berlin">Europe/Berlin</option>
-                  <option value="UTC">UTC</option>
+                <label class="form-label">Schedule Mode *</label>
+                <select class="form-select" formControlName="scheduleMode" (change)="onScheduleModeChange()">
+                  <option *ngFor="let mode of scheduleModes" [value]="mode.value">{{ mode.label }}</option>
                 </select>
               </div>
-              <div class="col-6 mb-3">
+              <div class="col-6 mb-3" *ngIf="scheduleMode === 'weekly' || scheduleMode === 'monthly'">
+                <label class="form-label">{{ scheduleMode === 'weekly' ? 'Weeks *' : 'Occurrences *' }}</label>
+                <input
+                  type="number"
+                  class="form-control"
+                  formControlName="recurrenceCount"
+                  min="1"
+                  max="24"
+                  (change)="onTimeChange()"
+                  placeholder="4"
+                >
+                <small class="text-muted" *ngIf="scheduleMode === 'weekly'">
+                  Same time each day from your chosen date through Sunday, then full Mon–Sun for each extra week.
+                </small>
+                <small class="text-muted" *ngIf="scheduleMode === 'monthly'">
+                  How many monthly repeats to create (same date/time each month).
+                </small>
+              </div>
+            </div>
+
+            <div class="mb-3" *ngIf="scheduleMode === 'selected_dates'">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label mb-0">Selected Date/Times *</label>
+                <button type="button" class="btn btn-sm btn-outline-primary" (click)="openStartTimeModal()">
+                  <i class="fas fa-plus me-1"></i>Add Date/Time
+                </button>
+              </div>
+              <div class="selected-date-list" *ngIf="editableScheduleSlots.length > 0">
+                <div class="selected-date-item" *ngFor="let dt of editableScheduleSlots">
+                  <span class="selected-date-item-date">{{ dt.label }}</span>
+                  <input
+                    type="number"
+                    class="form-control selected-date-course-day-input"
+                    [ngModel]="getCourseDayForSlot(dt.raw)"
+                    (ngModelChange)="updateCourseDayForSlot(dt.raw, $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                    [class.is-invalid]="slotCourseDayInvalid(dt.raw)"
+                    min="1"
+                    max="200"
+                    placeholder="Course Day *"
+                    required
+                  />
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeSelectedDateTime(dt.raw)">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+              <small class="text-muted" *ngIf="editableScheduleSlots.length === 0">
+                Add one or more class dates/times (e.g., today and day after tomorrow).
+              </small>
+            </div>
+
+            <div class="mb-3" *ngIf="(scheduleMode === 'weekly' || scheduleMode === 'monthly') && editableScheduleSlots.length > 0">
+              <label class="form-label">Generated Scheduled Times & Course Day *</label>
+              <div class="selected-date-list">
+                <div class="selected-date-item" *ngFor="let dt of editableScheduleSlots">
+                  <span class="selected-date-item-date">{{ dt.label }}</span>
+                  <input
+                    type="number"
+                    class="form-control selected-date-course-day-input"
+                    [ngModel]="getCourseDayForSlot(dt.raw)"
+                    (ngModelChange)="updateCourseDayForSlot(dt.raw, $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                    [class.is-invalid]="slotCourseDayInvalid(dt.raw)"
+                    min="1"
+                    max="200"
+                    placeholder="Course Day *"
+                    required
+                  />
+                </div>
+              </div>
+              <small class="text-muted">Set course day for each class before creating meetings.</small>
+            </div>
+
+            <div class="row">
+              <div class="mb-3" [class.col-6]="scheduleMode === 'single'" [class.col-12]="scheduleMode !== 'single'">
+                <label class="form-label">Timezone</label>
+                <div class="form-control timezone-readonly">
+                  {{ meetingTimezoneLabel }}
+                </div>
+                <small class="text-muted">All times are India Standard Time (IST).</small>
+              </div>
+              <div class="col-6 mb-3" *ngIf="scheduleMode === 'single'">
                 <label class="form-label">Course Day</label>
                 <input type="number" class="form-control" formControlName="courseDay"
                   min="1" max="200" placeholder="e.g., 45"
@@ -181,7 +301,7 @@
                       [checked]="isStudentSelected(student)" (click)="$event.stopPropagation()">
                   </div>
                   <div class="flex-grow-1">
-                    <div class="fw-bold">{{ student.name }}</div>
+                    <div class="fw-bold">{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></div>
                     <small class="text-muted">{{ student.email }}</small>
                     <div class="mt-1">
                       <span class="badge bg-primary me-1">{{ student.batch }}</span>
@@ -205,7 +325,7 @@
                 <div *ngFor="let student of selectedStudents"
                   class="d-flex align-items-center justify-content-between bg-light mb-1">
                   <div>
-                    <small class="fw-bold">{{ student.name }}</small>
+                    <small class="fw-bold">{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></small>
                     <small class="text-muted d-block">{{ student.email }}</small>
                   </div>
                   <button type="button" class="btn btn-sm btn-outline-danger"
@@ -225,7 +345,7 @@
       <div class="d-flex justify-content-between align-items-center">
         <p class="mb-0">
           <i class="fas fa-info-circle me-1"></i>
-          Meeting will be created in Zoom and invitations sent to selected students
+          Meeting is created in Zoom; students get a reminder email about 10 minutes before start with instructions to join via the portal
         </p>
         <div class="d-flex gap-2">
           <button type="button" class="btn btn-secondary" (click)="cancel()" [disabled]="isCreatingMeeting">
@@ -233,7 +353,7 @@
           </button>
           <button type="submit" class="btn btn-primary"
             [disabled]="meetingForm.invalid || selectedStudents.length === 0 || isCreatingMeeting">
-            <span *ngIf="!isCreatingMeeting"><i class="fas fa-video me-1"></i>Create Meeting</span>
+            <span *ngIf="!isCreatingMeeting"><i class="fas fa-video me-1"></i>Create Meetings</span>
             <span *ngIf="isCreatingMeeting">
               <span class="spinner-border spinner-border-sm me-1"></span>Creating...
             </span>
@@ -242,4 +362,116 @@
       </div>
     </div>
   </form>
+</div>
+
+<!-- Start time modal -->
+<div class="dt-modal-backdrop" *ngIf="isStartTimeModalOpen">
+  <div class="dt-modal-card">
+    <div class="dt-modal-header">
+      <h5><i class="fas fa-calendar-alt me-1"></i> Select Start Time</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeStartTimeModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="dt-modal-body">
+      <div class="mb-3">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-control" [(ngModel)]="draftDate" [min]="todayDate">
+        <small class="text-muted">Only today and upcoming dates are available.</small>
+      </div>
+
+      <div class="row g-2">
+        <div class="col-4">
+          <label class="form-label">Hour</label>
+          <select class="form-select" [(ngModel)]="draftHour">
+            <option *ngFor="let h of hourOptions" [value]="h">{{ h }}</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <label class="form-label">Minute</label>
+          <select class="form-select" [(ngModel)]="draftMinute">
+            <option *ngFor="let m of minuteOptions" [value]="m">{{ m }}</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <label class="form-label">AM / PM</label>
+          <select class="form-select" [(ngModel)]="draftPeriod">
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="dt-modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeStartTimeModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" (click)="setStartTimeFromModal()">
+        <i class="fas fa-check me-1"></i>Set Start Time
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm details modal -->
+<div class="dt-modal-backdrop" *ngIf="isConfirmModalOpen">
+  <div class="dt-modal-card confirm-modal-card">
+    <div class="dt-modal-header">
+      <h5><i class="fas fa-clipboard-check me-1"></i> Confirm Meeting Details</h5>
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeConfirmModal()" [disabled]="isCreatingMeeting">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="dt-modal-body">
+      <div class="confirm-grid">
+        <div><strong>Topic:</strong> {{ pendingMeetingData?.topic }}</div>
+        <div><strong>Batch:</strong> {{ pendingMeetingData?.batch }}</div>
+        <div><strong>Plan:</strong> {{ selectedPlanLabel }}</div>
+        <div><strong>Teacher:</strong> {{ selectedTeacherLabel }}</div>
+        <div><strong>Zoom Account:</strong> {{ selectedZoomHostLabel }}</div>
+        <div><strong>Duration:</strong> {{ pendingMeetingData?.duration }} min</div>
+        <div><strong>Schedule Mode:</strong> {{ selectedScheduleModeLabel }}</div>
+        <div><strong>Timezone:</strong> {{ meetingTimezoneLabel }}</div>
+        <div><strong>Course Days:</strong> Set in the create form</div>
+        <div><strong>Students:</strong> {{ selectedStudents.length }}</div>
+      </div>
+
+      <div class="mt-2">
+        <label class="form-label">Scheduled Times</label>
+        <small class="text-muted d-block mb-1" *ngIf="confirmPendingSlots.length > 1">
+          Tap <i class="fas fa-times" aria-hidden="true"></i> to drop a slot you do not need.
+        </small>
+        <div class="confirm-time-list" *ngIf="confirmPendingSlots.length > 0">
+          <div class="confirm-time-item confirm-time-item--row" *ngFor="let slot of confirmPendingSlots">
+            <span class="confirm-time-label">{{ slot.label }}</span>
+            <span class="confirm-course-day-pill">{{ getConfirmCourseDayLabel(slot.raw) }}</span>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger confirm-time-remove"
+              (click)="removePendingStartTime(slot.raw)"
+              [disabled]="isCreatingMeeting || confirmPendingSlots.length <= 1"
+              title="Remove this time"
+              aria-label="Remove this scheduled time"
+            >
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-2" *ngIf="pendingMeetingData?.agenda">
+        <label class="form-label">Agenda</label>
+        <div class="confirm-agenda">{{ pendingMeetingData?.agenda }}</div>
+      </div>
+    </div>
+
+    <div class="dt-modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeConfirmModal()" [disabled]="isCreatingMeeting">Cancel</button>
+      <button type="button" class="btn btn-primary" (click)="confirmCreateMeeting()" [disabled]="isCreatingMeeting || confirmPendingSlots.length === 0">
+        <span *ngIf="!isCreatingMeeting"><i class="fas fa-check me-1"></i>Confirm & Create</span>
+        <span *ngIf="isCreatingMeeting"><span class="spinner-border spinner-border-sm me-1"></span>Scheduling...</span>
+      </button>
+    </div>
+  </div>
 </div>

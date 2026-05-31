@@ -4,7 +4,7 @@ import { Component, OnInit, TrackByFunction } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
 import { jwtDecode } from 'jwt-decode';
-import { HttpClient, HttpClientModule } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { FeedbackService } from '../../services/feedback.service';
@@ -16,8 +16,10 @@ import { HttpHeaders } from '@angular/common/http';
 import {TeacherService} from '../../services/teacher.service';
 import { environment } from '../../../environments/environment';
 import { BulkStudentUploadComponent } from './bulk-student-upload.component';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
+import { NotificationService } from '../../services/notification.service';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -44,6 +46,9 @@ interface Student {
   level: string;
   studentStatus: string;
   lastCredentialsEmailSent?: Date | string | null;
+  lastLogin?: Date | string | null;
+  displayPassword?: string | null;
+  passwordDisplayState?: 'VISIBLE' | 'UNAVAILABLE';
   feedbackStats?: {
     currentLevel: string;
     fluency: number;
@@ -78,18 +83,63 @@ interface TeacherResponse {
   data: any[];
 }
 
+interface StudentListResponse {
+  success: boolean;
+  data: Student[];
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
+interface StudentDataIssueRow {
+  _id: string;
+  regNo: string;
+  name: string;
+  email: string;
+  batch: string;
+  level: string;
+  subscription: string;
+  studentStatus: string;
+  crmExternalId: string;
+  issueTypes: string[];
+  issueDetail: string;
+  severity: 'danger' | 'warning';
+}
+
+interface StudentDataIssuesResponse {
+  success: boolean;
+  students: StudentDataIssueRow[];
+  summary: {
+    totalIssueRows: number;
+    dangerCount: number;
+    warningCount: number;
+    byType: Record<string, number>;
+  };
+  reconciliation: {
+    portalTotal: number;
+    crmUniqueEmails: number;
+    portalMatchedCrm: number;
+    portalExtraNotOnCrm: number;
+    mondayBoardRows: number;
+  } | null;
+  mondayError: string | null;
+}
+
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
   imports: [
-    HttpClientModule,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
     MaterialModule,
     NgChartsModule,
     RouterModule,
-    BulkStudentUploadComponent
+    BulkStudentUploadComponent,
+    TestAccountBadgeComponent
   ],
   templateUrl: './admin-dashboard.component.html',
   styleUrls: ['./admin-dashboard.component.css']
@@ -101,9 +151,56 @@ export class AdminDashboardComponent implements OnInit {
   selectedStudentIds = new Set<string>();
   selectAll = false;
 
-  loading = false;
+  /** True when the logged-in user is a full ADMIN (can see student passwords) */
+  isFullAdmin = false;
+  /** Tracks which student rows have their password revealed */
+  loading = true;
+  readonly skeletonActionPills = [0, 1, 2];
+  readonly skeletonFilterFields = [0, 1, 2, 3, 4, 5];
+  readonly skeletonTableRows = [0, 1, 2, 3, 4, 5, 6, 7];
+  readonly skeletonTableCols = [0, 1, 2, 3, 4, 5, 6, 7, 8];
   error = '';
-  filters = { level: '', plan: '', batch: '', assignedTeacher: '', studentStatus: '', studentName: '', teacherName: '' };
+  filters = {
+    level: '',
+    plan: '',
+    batch: '',
+    assignedTeacher: '',
+    studentStatus: '',
+    studentName: '',
+    teacherName: '',
+    servicesOpted: '',
+    qualifications: '',
+    languageLevelOpted: '',
+    phoneCountry: '',
+    loginCountry: ''
+  };
+
+  /** Distinct values for CRM dropdowns (from `/admin/students/filter-options`) */
+  filterOptions = {
+    batches: [] as string[],
+    servicesOpted: [] as string[],
+    qualifications: [] as string[],
+    languageLevelOpted: [] as string[],
+    phoneCountries: [] as string[],
+    loginCountries: [] as string[]
+  };
+
+  /** Optional table columns (off by default); preferences in localStorage */
+  private readonly studentColumnPrefKey = 'adminStudentTableOptionalColumns';
+  readonly optionalColumns: { id: string; label: string }[] = [
+    { id: 'servicesOpted', label: 'Service opted' },
+    { id: 'qualifications', label: 'Qualification' },
+    { id: 'languageLevelOpted', label: 'Language level opted' },
+    { id: 'leadSource', label: 'Lead source' },
+    { id: 'stream', label: 'Stream' },
+    { id: 'enrollmentDate', label: 'Enrollment date' },
+    { id: 'teacherIncharge', label: 'Teacher in charge (CRM)' },
+    { id: 'whatsappNumber', label: 'WhatsApp' },
+    { id: 'phoneCountry', label: 'Phone country' },
+    { id: 'lastLoginCountry', label: 'Login country' }
+  ];
+  columnVisibility: Record<string, boolean> = {};
+
   plan: string[] = ['PLATINUM', 'SILVER'];
   level: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   teachers: any[] = [];
@@ -118,8 +215,15 @@ export class AdminDashboardComponent implements OnInit {
   filteredTeacherNames!: Observable<string[]>;
   allTeacherNames: string[] = [];
 
+  /** Filter form collapsed by default; use header “Filter” control to expand */
+  filtersPanelOpen = false;
+
   // Bulk upload
   showBulkUpload = false;
+
+  toggleFiltersPanel(): void {
+    this.filtersPanelOpen = !this.filtersPanelOpen;
+  }
 
   // Bulk edit properties
   showBulkEditPanel = false;
@@ -155,6 +259,11 @@ export class AdminDashboardComponent implements OnInit {
 
   resendingCredentials: { [key: string]: boolean } = {};
 
+  showInviteModal = false;
+  inviteEmail = '';
+  inviteName = '';
+  inviteSending = false;
+  inviteError = '';
 
   constructor(
     private authService: AuthService,
@@ -163,50 +272,74 @@ export class AdminDashboardComponent implements OnInit {
     private feedbackService: FeedbackService,
     private dialog: MatDialog,
     private teacherService: TeacherService,
+    private notify: NotificationService,
   ) {}
 
   ngOnInit(): void {
     // ✅ Check user profile from backend (cookie included automatically)
     this.authService.getUserProfile().subscribe({
       next: (user) => {
-        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN') {
+        if (user.role !== 'ADMIN' && user.role !== 'TEACHER_ADMIN' && user.role !== 'SUB_ADMIN') {
           this.router.navigate(['/dashboard']);
           return;
         }
+        this.isFullAdmin = user.role === 'ADMIN';
+        this.initColumnVisibility();
+        this.fetchFilterOptions();
         this.fetchStudents();
         this.fetchTeachers();
       },
-      error: (err) => {
-        //console.error('Not authenticated:', err);
+      error: () => {
+        this.loading = false;
         this.router.navigate(['/auth/login']);
       }
     });
   }
 
   totalStudentsCount(): number {
-    return this.students.length;
+    return this.totalStudents;
+  }
+
+  /** Use filtered total when filters are active (0 is valid, not “show all”). */
+  displayStudentCount(): number {
+    return this.hasActiveStudentFilters() ? this.filteredStudentCount : this.totalStudentsCount();
   }
   
-  fetchStudents(): void {
+  fetchStudents(page: number = this.currentPage): void {
     this.loading = true;
+    this.currentPage = page;
 
-    this.http.get<{ success: boolean; data: Student[] }>(`${apiUrl}/admin/students`, { withCredentials: true }).subscribe({
+    let params = new HttpParams()
+      .set('page', String(this.currentPage))
+      .set('limit', String(this.pageSize));
+
+    if (this.filters.level) params = params.set('level', this.filters.level);
+    if (this.filters.plan) params = params.set('plan', this.filters.plan);
+    if (this.filters.batch) params = params.set('batch', String(this.filters.batch));
+    if (this.filters.studentStatus) params = params.set('studentStatus', this.filters.studentStatus);
+    if (this.filters.studentName) params = params.set('studentName', this.filters.studentName);
+    if (this.filters.teacherName) params = params.set('teacherName', this.filters.teacherName);
+    if (this.filters.servicesOpted) params = params.set('servicesOpted', this.filters.servicesOpted);
+    if (this.filters.qualifications) params = params.set('qualifications', this.filters.qualifications);
+    if (this.filters.languageLevelOpted) params = params.set('languageLevelOpted', this.filters.languageLevelOpted);
+    if (this.filters.phoneCountry) params = params.set('phoneCountry', this.filters.phoneCountry);
+    if (this.filters.loginCountry) params = params.set('loginCountry', this.filters.loginCountry);
+
+    this.http.get<StudentListResponse>(`${apiUrl}/admin/students`, { params, withCredentials: true }).subscribe({
       next: res => {
         if (res.success) {
           this.students = res.data;
-          this.students.forEach(student => {
-            //this.loadFeedbackStats(student);
-            this.loadCourseProgress(student);
-            //console.log('Student data:', student);
-          });
           this.filteredStudents = [...this.students];
-          this.filteredStudentCount = this.students.length;
+          this.totalStudents = res.pagination?.total ?? this.students.length;
+          this.currentPage = res.pagination?.page ?? this.currentPage;
+          this.pageSize = res.pagination?.limit ?? this.pageSize;
+          this.totalPages = res.pagination?.pages ?? 1;
+          this.filteredStudentCount = this.totalStudents;
+          this.selectAll = false;
+          this.selectedStudentIds.clear();
           
-          // Extract student names for autocomplete
-          this.allStudentNames = this.students
-            .map(s => s.name)
-            .filter((name, index, self) => name && self.indexOf(name) === index)
-            .sort();
+          // Hints for autocomplete (name, reg no, email on current result set)
+          this.allStudentNames = this.buildStudentSearchHints(this.students);
           
           // Setup autocomplete filtering
           this.filteredStudentNames = this.studentNameControl.valueChanges.pipe(
@@ -226,73 +359,262 @@ export class AdminDashboardComponent implements OnInit {
     });
     }
 
-    // ✅ Fetch all registered teachers
-    fetchTeachers(): void {
-      this.teacherService.getAllTeachers()
-        .subscribe({
-          next: (res) => {
-            if (res.success) {
-              this.teachers = res.data;
-              
-              // Extract teacher names for autocomplete
-              this.allTeacherNames = this.teachers
-                .map(t => t.name)
-                .filter((name, index, self) => name && self.indexOf(name) === index)
-                .sort();
-              
-              // Setup autocomplete filtering
-              this.filteredTeacherNames = this.teacherNameControl.valueChanges.pipe(
-                startWith(''),
-                map(value => this._filterTeacherNames(value || ''))
-              );
-            } else {
-              alert('Failed to load teachers');
-            }
-          },
-          error: (err) => {
-            //console.error('Error fetching teachers:', err);
-          }
-        });
+  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0 };
+
+  dataIssuesPanelOpen = false;
+  dataIssuesLoading = false;
+  dataIssuesError = '';
+  dataIssuesStudents: StudentDataIssueRow[] = [];
+  dataIssuesSummary: StudentDataIssuesResponse['summary'] | null = null;
+  dataIssuesReconciliation: StudentDataIssuesResponse['reconciliation'] | null = null;
+  dataIssuesMondayError: string | null = null;
+  dataIssuesTypeFilter = '';
+
+  readonly dataIssueTypeLabels: Record<string, string> = {
+    duplicate_email: 'Duplicate email',
+    duplicate_crm_id: 'Duplicate CRM id',
+    missing_email: 'Missing email',
+    placeholder_email: 'Placeholder email',
+    no_crm_link: 'No CRM link',
+    portal_only: 'Not on CRM board'
+  };
+
+  fetchFilterOptions(): void {
+    this.http
+      .get<{
+        success: boolean;
+        batches?: string[];
+        servicesOpted?: string[];
+        qualifications?: string[];
+        languageLevelOpted?: string[];
+        phoneCountries?: string[];
+        loginCountries?: string[];
+        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number };
+      }>(`${apiUrl}/admin/students/filter-options`, { withCredentials: true })
+      .subscribe({
+        next: (res) => {
+          if (!res.success) return;
+          this.filterOptions.batches = res.batches ?? [];
+          this.filterOptions.servicesOpted = res.servicesOpted ?? [];
+          this.filterOptions.qualifications = res.qualifications ?? [];
+          this.filterOptions.languageLevelOpted = res.languageLevelOpted ?? [];
+          this.filterOptions.phoneCountries = res.phoneCountries ?? [];
+          this.filterOptions.loginCountries = res.loginCountries ?? [];
+          if (res.studentCounts) this.portalStudentCounts = res.studentCounts;
+        },
+        error: () => {
+          /* non-blocking */
+        }
+      });
+  }
+
+  initColumnVisibility(): void {
+    let saved: Record<string, boolean> | null = null;
+    try {
+      const raw = localStorage.getItem(this.studentColumnPrefKey);
+      if (raw) saved = JSON.parse(raw);
+    } catch {
+      /* ignore */
     }
+    this.columnVisibility = {};
+    for (const c of this.optionalColumns) {
+      this.columnVisibility[c.id] =
+        saved && typeof saved[c.id] === 'boolean' ? saved[c.id] : false;
+    }
+  }
+
+  isColVisible(columnId: string): boolean {
+    return !!this.columnVisibility[columnId];
+  }
+
+  toggleOptionalColumn(columnId: string, visible: boolean): void {
+    this.columnVisibility[columnId] = visible;
+    try {
+      localStorage.setItem(this.studentColumnPrefKey, JSON.stringify(this.columnVisibility));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // ✅ Fetch all registered teachers
+  fetchTeachers(): void {
+    this.teacherService.getAllTeachers().subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.teachers = res.data;
+
+          this.allTeacherNames = this.teachers
+            .map(t => t.name)
+            .filter((name, index, self) => name && self.indexOf(name) === index)
+            .sort();
+
+          this.filteredTeacherNames = this.teacherNameControl.valueChanges.pipe(
+            startWith(''),
+            map(value => this._filterTeacherNames(value || ''))
+          );
+        } else {
+          this.notify.error('Failed to load teachers');
+        }
+      },
+      error: () => {
+        /* non-blocking */
+      }
+    });
+  }
 
   filteredStudentCount: number = 0;
+  currentPage: number = 1;
+  pageSize: number = 20;
+  totalPages: number = 1;
+  totalStudents: number = 0;
 
   applyFilters() {
-    this.filteredStudents = this.students.filter(student => {
-      const course = student.courseAssigned ? student.courseAssigned.toLowerCase() : '';
-      const plan   = student.subscription ? student.subscription.toUpperCase() : '';
-      const status = student.studentStatus ? student.studentStatus.toLowerCase() : '';
-      const assignedTeacherName =
-      typeof student.assignedTeacher === 'object' && student.assignedTeacher !== null
-        ? (student.assignedTeacher.name?.toLowerCase() || '')
-        : (student.assignedTeacher?.toLowerCase() || '');
-      const studentName = student.name ? student.name.toLowerCase() : '';
+    this.fetchStudents(1);
+  }
 
-      return (
-        (!this.filters.level || student.level === this.filters.level) &&
-        (!this.filters.plan   || plan === this.filters.plan.toUpperCase()) &&
-        (!this.filters.batch || student.batch === this.filters.batch.toString()) &&
-        (!this.filters.assignedTeacher || assignedTeacherName === this.filters.assignedTeacher.toLowerCase()) &&
-        (!this.filters.studentStatus || status === this.filters.studentStatus.toLowerCase()) &&
-        (!this.filters.studentName || studentName.includes(this.filters.studentName.toLowerCase())) &&
-        (!this.filters.teacherName || assignedTeacherName.includes(this.filters.teacherName.toLowerCase()))
-      );
-    });
-
-    this.filteredStudentCount = this.filteredStudents.length;
+  applySearchFilters(): void {
+    this.filters.studentName = (this.studentNameControl.value || '').toString().trim();
+    this.filters.teacherName = (this.teacherNameControl.value || '').toString().trim();
+    this.applyFilters();
   }
 
   clearFilters() {
-    this.filters = { level: '', plan: '', batch: '', assignedTeacher: '', studentStatus: '', studentName: '', teacherName: '' };
+    this.filters = {
+      level: '',
+      plan: '',
+      batch: '',
+      assignedTeacher: '',
+      studentStatus: '',
+      studentName: '',
+      teacherName: '',
+      servicesOpted: '',
+      qualifications: '',
+      languageLevelOpted: '',
+      phoneCountry: '',
+      loginCountry: ''
+    };
     this.studentNameControl.setValue('');
     this.teacherNameControl.setValue('');
-    this.applyFilters();
+    this.fetchStudents(1);
+  }
+
+  hasActiveStudentFilters(): boolean {
+    const f = this.filters;
+    return !!(
+      f.level || f.plan || f.batch || f.studentStatus || f.studentName || f.teacherName ||
+      f.servicesOpted || f.qualifications || f.languageLevelOpted ||
+      f.phoneCountry || f.loginCountry
+    );
+  }
+
+  countryCellDisplay(student: any, field: 'phoneCountry' | 'lastLoginCountry'): string {
+    const v = student?.[field];
+    return v && String(v).trim() ? String(v).trim() : '—';
+  }
+
+  get filteredDataIssuesStudents(): StudentDataIssueRow[] {
+    if (!this.dataIssuesTypeFilter) return this.dataIssuesStudents;
+    return this.dataIssuesStudents.filter((s) => s.issueTypes.includes(this.dataIssuesTypeFilter));
+  }
+
+  toggleDataIssuesPanel(): void {
+    this.dataIssuesPanelOpen = !this.dataIssuesPanelOpen;
+    if (this.dataIssuesPanelOpen && !this.dataIssuesStudents.length && !this.dataIssuesLoading) {
+      this.loadDataIssues();
+    }
+  }
+
+  loadDataIssues(): void {
+    this.dataIssuesLoading = true;
+    this.dataIssuesError = '';
+    this.http
+      .get<StudentDataIssuesResponse>(`${apiUrl}/admin/students/data-issues`, { withCredentials: true })
+      .subscribe({
+        next: (res) => {
+          this.dataIssuesLoading = false;
+          if (!res.success) {
+            this.dataIssuesError = 'Scan failed';
+            return;
+          }
+          this.dataIssuesStudents = res.students || [];
+          this.dataIssuesSummary = res.summary || null;
+          this.dataIssuesReconciliation = res.reconciliation || null;
+          this.dataIssuesMondayError = res.mondayError || null;
+        },
+        error: (err) => {
+          this.dataIssuesLoading = false;
+          this.dataIssuesError = err.error?.message || 'Failed to load data issues';
+        }
+      });
+  }
+
+  closeDataIssuesPanel(): void {
+    this.dataIssuesPanelOpen = false;
+    this.dataIssuesTypeFilter = '';
+  }
+
+  issueTypeLabel(type: string): string {
+    return this.dataIssueTypeLabels[type] || type;
+  }
+
+  filterDataIssuesByType(type: string): void {
+    this.dataIssuesTypeFilter = this.dataIssuesTypeFilter === type ? '' : type;
+  }
+
+  crmCellDisplay(student: any, field: string): string {
+    const v = student?.[field];
+    if (v === null || v === undefined || v === '') return '—';
+    return String(v);
+  }
+
+  changePage(page: number): void {
+    if (page < 1 || page > this.totalPages || page === this.currentPage) {
+      return;
+    }
+    this.fetchStudents(page);
+  }
+
+  getPaginationPages(): number[] {
+    const maxWindow = 5;
+    const half = Math.floor(maxWindow / 2);
+    let start = Math.max(1, this.currentPage - half);
+    let end = Math.min(this.totalPages, start + maxWindow - 1);
+
+    if (end - start + 1 < maxWindow) {
+      start = Math.max(1, end - maxWindow + 1);
+    }
+
+    const pages: number[] = [];
+    for (let p = start; p <= end; p++) {
+      pages.push(p);
+    }
+    return pages;
+  }
+
+  get pageStart(): number {
+    if (this.totalStudents === 0) return 0;
+    return (this.currentPage - 1) * this.pageSize + 1;
+  }
+
+  get pageEnd(): number {
+    if (this.totalStudents === 0) return 0;
+    return Math.min(this.currentPage * this.pageSize, this.totalStudents);
   }
   
+  private buildStudentSearchHints(students: Student[]): string[] {
+    const hints = new Set<string>();
+    for (const s of students) {
+      if (s.name?.trim()) hints.add(s.name.trim());
+      if (s.regNo?.trim()) hints.add(s.regNo.trim());
+      if (s.email?.trim()) hints.add(s.email.trim());
+    }
+    return Array.from(hints).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
   private _filterStudentNames(value: string): string[] {
     const filterValue = value.toLowerCase();
-    return this.allStudentNames.filter(name => 
-      name.toLowerCase().includes(filterValue)
+    return this.allStudentNames.filter(hint =>
+      hint.toLowerCase().includes(filterValue)
     );
   }
   
@@ -305,12 +627,10 @@ export class AdminDashboardComponent implements OnInit {
   
   onStudentNameSelected(studentName: string): void {
     this.filters.studentName = studentName;
-    this.applyFilters();
   }
   
   onTeacherNameSelected(teacherName: string): void {
     this.filters.teacherName = teacherName;
-    this.applyFilters();
   }
 
   toggleStudentSelection(studentId: string): void {
@@ -350,7 +670,7 @@ export class AdminDashboardComponent implements OnInit {
 
   openBulkEditPanel(): void {
     if (this.selectedStudentIds.size === 0) {
-      alert('Please select at least one student');
+      this.notify.warning('Please select at least one student');
       return;
     }
     this.showBulkEditPanel = true;
@@ -369,42 +689,42 @@ export class AdminDashboardComponent implements OnInit {
 
   bulkDeleteStudents(): void {
     if (this.selectedStudentIds.size === 0) {
-      alert('Please select at least one student to delete');
+      this.notify.warning('Please select at least one student to delete');
       return;
     }
 
     const studentIds = Array.from(this.selectedStudentIds);
     const count = studentIds.length;
 
-    const confirmMessage = `⚠️ WARNING: You are about to permanently delete ${count} student(s).\n\nThis action cannot be undone and will remove:\n- Student account\n- All progress data\n- All session records\n- All associated data\n\nAre you absolutely sure you want to continue?`;
-    
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+    this.notify.confirm(
+      'Delete Students',
+      `WARNING: You are about to permanently delete ${count} student(s). This action cannot be undone and will remove all student data, progress, and session records.`,
+      'Yes, Delete', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
 
-    // Double confirmation for safety
-    const doubleConfirm = confirm(`Final confirmation: Delete ${count} student(s)?`);
-    if (!doubleConfirm) {
-      return;
-    }
+      this.notify.confirm('Final Confirmation', `Delete ${count} student(s) permanently?`, 'Yes, Delete', 'Cancel').subscribe(ok2 => {
+        if (!ok2) return;
 
-    console.log('🗑️ [BULK DELETE] Deleting students:', studentIds);
+        console.log('🗑️ [BULK DELETE] Deleting students:', studentIds);
 
-    this.http.post(`${apiUrl}/admin/bulk-delete`, { studentIds }, { withCredentials: true })
-      .subscribe({
-        next: (res: any) => {
-          console.log('✅ [BULK DELETE] SUCCESS:', res);
-          alert(`✅ Successfully deleted ${count} student(s)`);
-          this.selectedStudentIds.clear();
-          this.selectAll = false;
-          this.fetchStudents();
-        },
-        error: (err: any) => {
-          console.error('❌ [BULK DELETE] FAILED:', err);
-          const errorMessage = err.error?.message || err.message || 'Bulk delete failed';
-          alert(`❌ Bulk Delete Failed:\n\n${errorMessage}`);
-        }
+        this.http.post(`${apiUrl}/admin/bulk-delete`, { studentIds }, { withCredentials: true })
+          .subscribe({
+            next: (res: any) => {
+              console.log('✅ [BULK DELETE] SUCCESS:', res);
+              this.notify.success(`Successfully deleted ${count} student(s)`);
+              this.selectedStudentIds.clear();
+              this.selectAll = false;
+              this.fetchStudents();
+            },
+            error: (err: any) => {
+              console.error('❌ [BULK DELETE] FAILED:', err);
+              const errorMessage = err.error?.message || err.message || 'Bulk delete failed';
+              this.notify.error(`Bulk Delete Failed: ${errorMessage}`);
+            }
+          });
       });
+    });
   }
 
   applyBulkUpdate(): void {
@@ -425,42 +745,37 @@ export class AdminDashboardComponent implements OnInit {
     console.log('🔍 [BULK UPDATE] API URL:', `${apiUrl}/admin/bulk-update`);
 
     if (Object.keys(updates).length === 0) {
-      alert('Please select at least one field to update');
+      this.notify.warning('Please select at least one field to update');
       return;
     }
 
-    const confirmMessage = `Are you sure you want to update ${studentIds.length} student(s)?`;
-    if (!confirm(confirmMessage)) return;
+    this.notify.confirm('Bulk Update', `Update ${studentIds.length} student(s)?`).subscribe(ok => {
+      if (!ok) return;
 
-    console.log('🔍 [BULK UPDATE] Sending request to backend...');
+      console.log('🔍 [BULK UPDATE] Sending request to backend...');
 
-    this.http.post(`${apiUrl}/admin/bulk-update`, { studentIds, updates }, { withCredentials: true })
-      .subscribe({
-        next: (res: any) => {
-          console.log('✅ [BULK UPDATE] SUCCESS:', res);
-          alert(res.message || 'Bulk update successful');
-          this.selectedStudentIds.clear();
-          this.selectAll = false;
-          this.closeBulkEditPanel();
-          this.fetchStudents();
-        },
-        error: err => {
-          console.error('❌ [BULK UPDATE] FAILED:', err);
-          console.error('❌ [BULK UPDATE] Status:', err.status);
-          console.error('❌ [BULK UPDATE] Status Text:', err.statusText);
-          console.error('❌ [BULK UPDATE] Error Body:', err.error);
-          console.error('❌ [BULK UPDATE] Full Error Object:', JSON.stringify(err, null, 2));
-          
-          // Show detailed error message
-          const errorMessage = err.error?.message || err.message || 'Bulk update failed';
-          alert(`Bulk Update Failed:\n\n${errorMessage}\n\nCheck browser console for details (F12)`);
-        }
-      });
+      this.http.post(`${apiUrl}/admin/bulk-update`, { studentIds, updates }, { withCredentials: true })
+        .subscribe({
+          next: (res: any) => {
+            console.log('✅ [BULK UPDATE] SUCCESS:', res);
+            this.notify.success(res.message || 'Bulk update successful');
+            this.selectedStudentIds.clear();
+            this.selectAll = false;
+            this.closeBulkEditPanel();
+            this.fetchStudents();
+          },
+          error: err => {
+            console.error('❌ [BULK UPDATE] FAILED:', err);
+            const errorMessage = err.error?.message || err.message || 'Bulk update failed';
+            this.notify.error(`Bulk Update Failed: ${errorMessage}`);
+          }
+        });
+    });
   }
 
   bulkAssign(): void {
     if (!this.bulkCourseName || !this.bulkAssistantId || !this.bulkApiKey) {
-      alert('All fields are required for bulk assignment.');
+      this.notify.warning('All fields are required for bulk assignment.');
       return;
     }
     const studentIds = Array.from(this.selectedStudentIds);
@@ -472,13 +787,12 @@ export class AdminDashboardComponent implements OnInit {
     };
     this.http.post('/api/admin/bulk-assign', body).subscribe({
       next: () => {
-        alert('Bulk assignment successful');
+        this.notify.success('Bulk assignment successful');
         this.selectedStudentIds.clear();
         this.fetchStudents();
       },
       error: err => {
-        //console.error('Bulk assignment failed', err);
-        alert('Bulk assignment failed');
+        this.notify.error('Bulk assignment failed');
       }
     });
   }
@@ -494,11 +808,11 @@ export class AdminDashboardComponent implements OnInit {
     };
     this.http.post('/api/admin/assign-course', body).subscribe({
       next: () => {
-        alert(`Course and VAPI key assigned to ${student.name}`);
+        this.notify.success(`Course assigned to ${student.name}`);
         this.fetchStudents();
       },
       error: err => {
-        alert('Failed to assign course');
+        this.notify.error('Failed to assign course');
       }
     });
   }
@@ -542,7 +856,7 @@ export class AdminDashboardComponent implements OnInit {
   exportFeedbackAsCSV(studentId: string): void {
     const feedbackList = this.feedbackMap[studentId] || [];
     if (feedbackList.length === 0) {
-      alert('No feedback to export.');
+      this.notify.warning('No feedback to export.');
       return;
     }
     const headers = [
@@ -590,40 +904,59 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   resetMonthlyUsage(): void {
-    if (!confirm('Are you sure you want to reset monthly usage for all students?')) return;
-    this.http.post('/api/admin/reset-monthly-usage', {}).subscribe({
-      next: (res: any) => {
-        alert(res.message || 'Monthly usage reset.');
-        this.fetchStudents();
-      },
-      error: err => {
-        alert('Failed to reset usage.');
-      }
+    this.notify.confirm('Reset Monthly Usage', 'Are you sure you want to reset monthly usage for all students?', 'Yes, Reset', 'Cancel').subscribe(ok => {
+      if (!ok) return;
+      this.http.post('/api/admin/reset-monthly-usage', {}).subscribe({
+        next: (res: any) => {
+          this.notify.success(res.message || 'Monthly usage reset.');
+          this.fetchStudents();
+        },
+        error: err => {
+          this.notify.error('Failed to reset usage.');
+        }
+      });
     });
   }
 
+  viewStudentDetails(student: any): void {
+    const tree = this.router.createUrlTree(['/admin/students', student._id], {
+      queryParams: {
+        name: student.name || '',
+        email: student.email || '',
+        regNo: student.regNo || '',
+        batch: student.batch || '',
+        level: student.level || '',
+        subscription: student.subscription || '',
+        medium: student.medium || ''
+      }
+    });
+    const url = this.router.serializeUrl(tree);
+    window.open(url, '_blank', 'noopener');
+  }
+
   deleteUser(id: string): void {
-    if (confirm('Are you sure you want to delete this user?')) {
+    this.notify.confirm('Delete User', 'Are you sure you want to delete this user?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+      if (!ok) return;
       this.authService.deleteUser(id).subscribe({
         next: (response) => {
-          alert('User deleted successfully!');
-          this.fetchStudents(); // Refresh your user list after deletion
+          this.notify.success('User deleted successfully!');
+          this.fetchStudents();
         },
         error: (error) => {
-          alert('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
+          this.notify.error('Failed to delete user: ' + (error.error?.message || 'Please try again.'));
         }
       });
-    }
+    });
   }
 
   updateAssignedTeacherByBatchNo(batchNo: string, teacherId: string): void {
     this.authService.updateAssignedTeacherByBatchNo(batchNo, teacherId).subscribe({
       next: (response) => {
-        alert('Assigned teacher updated successfully for batch ' + batchNo);
-        this.fetchStudents(); // Refresh your user list after update
+        this.notify.success('Assigned teacher updated successfully for batch ' + batchNo);
+        this.fetchStudents();
       },
       error: (error) => {
-        alert('Failed to update assigned teacher: ' + (error.error?.message || 'Please try again.'));
+        this.notify.error('Failed to update assigned teacher: ' + (error.error?.message || 'Please try again.'));
       }
     });
   }
@@ -655,61 +988,145 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
-  resendCredentials(student: Student): void {
-    if (!confirm(`Are you sure you want to resend credentials to ${student.name}?\n\nThis will generate a new password and send it to ${student.email}`)) {
-      return;
-    }
+  forcingPasswordReset: Record<string, boolean> = {};
+  bulkForcingPasswordReset = false;
 
-    this.resendingCredentials[student._id] = true;
-
-    this.authService.resendCredentials(student._id).subscribe({
-      next: (response: any) => {
-        alert(`✅ Credentials email sent successfully to ${student.name}!\n\nThe student will receive their new login details at ${student.email}`);
-        
-        // Update the student's lastCredentialsEmailSent in the local array
-        const studentIndex = this.students.findIndex(s => s._id === student._id);
-        if (studentIndex !== -1) {
-          this.students[studentIndex].lastCredentialsEmailSent = response.lastSent;
+  forcePasswordReset(student: Student): void {
+    this.notify.confirm(
+      'Force password reset',
+      `Sign out ${student.name} (${student.email}), email them a verification code, and require a new password on next login? Their current password still works until they complete the reset.`,
+      'Yes, reset', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+      this.forcingPasswordReset[student._id] = true;
+      this.authService.forcePasswordReset(student._id).subscribe({
+        next: (res) => {
+          this.notify.success(res?.msg || `Password reset email sent to ${student.email}`);
+          if (res?.displayPassword) {
+            this.patchStudentDisplayPassword(student._id, res.displayPassword);
+          }
+          this.forcingPasswordReset[student._id] = false;
+        },
+        error: (err: any) => {
+          this.notify.error(err?.error?.msg || 'Could not initiate password reset');
+          this.forcingPasswordReset[student._id] = false;
         }
-        
-        // Also update in filtered students
-        const filteredIndex = this.filteredStudents.findIndex(s => s._id === student._id);
-        if (filteredIndex !== -1) {
-          this.filteredStudents[filteredIndex].lastCredentialsEmailSent = response.lastSent;
-        }
-        
-        this.resendingCredentials[student._id] = false;
-      },
-      error: (error: any) => {
-        console.error('Error resending credentials:', error);
-        alert(`❌ Failed to send credentials email.\n\nError: ${error.error?.msg || error.message || 'Unknown error'}\n\nPlease try again.`);
-        this.resendingCredentials[student._id] = false;
-      }
+      });
     });
   }
 
-  formatDate(date: Date | string | null | undefined): string {
-    if (!date) return 'Never sent';
-    
+  bulkForcePasswordReset(): void {
+    const count = this.getSelectedCount();
+    if (count === 0) {
+      this.notify.warning('Select at least one student from the table.');
+      return;
+    }
+
+    this.notify.confirm(
+      'Sign out selected students',
+      `Expire login for ${count} selected student(s)? They will be signed out immediately and must log in again to change their password. A verification code will be emailed to each student.`,
+      'Yes, sign them out',
+      'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+
+      const studentIds = Array.from(this.selectedStudentIds);
+      this.bulkForcingPasswordReset = true;
+      this.authService.bulkForcePasswordReset(studentIds).subscribe({
+        next: (res) => {
+          if (res?.successCount) {
+            this.notify.success(res.msg || `Signed out ${res.successCount} student(s).`);
+          } else {
+            this.notify.error(res?.msg || 'Could not sign out selected students.');
+          }
+          this.bulkForcingPasswordReset = false;
+        },
+        error: (err: any) => {
+          this.notify.error(err?.error?.msg || 'Could not sign out selected students.');
+          this.bulkForcingPasswordReset = false;
+        }
+      });
+    });
+  }
+
+  private patchStudentDisplayPassword(studentId: string, displayPassword: string): void {
+    const patch = (s: Student) => {
+      s.displayPassword = displayPassword;
+      s.passwordDisplayState = 'VISIBLE';
+    };
+    const i = this.students.findIndex(s => s._id === studentId);
+    if (i !== -1) patch(this.students[i]);
+    const j = this.filteredStudents.findIndex(s => s._id === studentId);
+    if (j !== -1) patch(this.filteredStudents[j]);
+  }
+
+  resendCredentials(student: Student): void {
+    this.notify.confirm(
+      'Resend Credentials',
+      `Resend login credentials to ${student.name} (${student.email})? A new password will be generated.`,
+      'Yes, Send', 'Cancel'
+    ).subscribe(ok => {
+      if (!ok) return;
+
+      this.resendingCredentials[student._id] = true;
+
+      this.authService.resendCredentials(student._id).subscribe({
+        next: (response: any) => {
+          this.notify.success(`Credentials sent to ${student.name} at ${student.email}`);
+          
+          const studentIndex = this.students.findIndex(s => s._id === student._id);
+          if (studentIndex !== -1) {
+            this.students[studentIndex].lastCredentialsEmailSent = response.lastSent;
+            if (response.displayPassword) {
+              this.students[studentIndex].displayPassword = response.displayPassword;
+            }
+          }
+          const filteredIndex = this.filteredStudents.findIndex(s => s._id === student._id);
+          if (filteredIndex !== -1) {
+            this.filteredStudents[filteredIndex].lastCredentialsEmailSent = response.lastSent;
+            if (response.displayPassword) {
+              this.filteredStudents[filteredIndex].displayPassword = response.displayPassword;
+            }
+          }
+          this.resendingCredentials[student._id] = false;
+        },
+        error: (error: any) => {
+          console.error('Error resending credentials:', error);
+          this.notify.error(`Failed to send credentials: ${error.error?.msg || error.message || 'Unknown error'}`);
+          this.resendingCredentials[student._id] = false;
+        }
+      });
+    });
+  }
+
+  formatDateTime(date: Date | string | null | undefined, emptyLabel = '—'): string {
+    if (!date) return emptyLabel;
     try {
       const dateObj = new Date(date);
-      if (isNaN(dateObj.getTime())) return 'Never sent';
-      
+      if (isNaN(dateObj.getTime())) return emptyLabel;
       return dateObj.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
-    } catch (error) {
-      return 'Never sent';
+    } catch {
+      return emptyLabel;
     }
+  }
+
+  formatDate(date: Date | string | null | undefined): string {
+    return this.formatDateTime(date, 'Never sent');
+  }
+
+  formatLastLogin(date: Date | string | null | undefined): string {
+    return this.formatDateTime(date, 'Never logged in');
   }
 
   exportSelectedStudents(): void {
     if (this.selectedStudentIds.size === 0) {
-      alert('Please select at least one student to export');
+      this.notify.warning('Please select at least one student to export');
       return;
     }
 
@@ -735,7 +1152,8 @@ export class AdminDashboardComponent implements OnInit {
       'Lead Source',
       'Assigned Teacher',
       'Created At',
-      'Last Credentials Sent'
+      'Last Credentials Sent',
+      'Last Login',
     ];
 
     // Build CSV rows
@@ -760,7 +1178,8 @@ export class AdminDashboardComponent implements OnInit {
         (student as any).leadSource || 'N/A',
         teacherName,
         student.registeredAt ? new Date(student.registeredAt).toLocaleDateString() : 'N/A',
-        this.formatDate(student.lastCredentialsEmailSent)
+        this.formatDate(student.lastCredentialsEmailSent),
+        this.formatLastLogin(student.lastLogin),
       ];
     });
 
@@ -783,6 +1202,43 @@ export class AdminDashboardComponent implements OnInit {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    alert(`✅ Successfully exported ${selectedStudents.length} student(s) to CSV`);
+    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to CSV`);
+  }
+
+  openInviteModal(): void {
+    this.inviteEmail = '';
+    this.inviteName = '';
+    this.inviteError = '';
+    this.showInviteModal = true;
+  }
+
+  closeInviteModal(): void {
+    if (this.inviteSending) return;
+    this.showInviteModal = false;
+    this.inviteError = '';
+  }
+
+  sendRegisterInvite(): void {
+    const email = String(this.inviteEmail || '').trim();
+    if (!email || !email.includes('@')) {
+      this.inviteError = 'Please enter a valid email address.';
+      return;
+    }
+
+    this.inviteSending = true;
+    this.inviteError = '';
+    const name = String(this.inviteName || '').trim() || undefined;
+
+    this.authService.sendRegisterInvite(email, name).subscribe({
+      next: (res) => {
+        this.inviteSending = false;
+        this.showInviteModal = false;
+        this.notify.success(res?.msg || `Registration invite sent to ${email}.`);
+      },
+      error: (err) => {
+        this.inviteSending = false;
+        this.inviteError = err?.error?.msg || err?.error?.message || 'Failed to send invite. Please try again.';
+      },
+    });
   }
 }

@@ -1,0 +1,261 @@
+<!-- Filters -->
+<section class="ph-surface ph-filters-panel">
+  <div class="ph-filters-row">
+    <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Batch</mat-label>
+      <mat-select [(ngModel)]="filterBatch">
+        <mat-option value="">All batches</mat-option>
+        <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Level</mat-label>
+      <mat-select [(ngModel)]="filterLevel">
+        <mat-option value="">All Levels</mat-option>
+        <mat-option *ngFor="let l of levels" [value]="l">{{ l }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Currency</mat-label>
+      <mat-select [(ngModel)]="filterCurrency">
+        <mat-option value="">All Currencies</mat-option>
+        <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
+      <mat-label>From Date</mat-label>
+      <input matInput [matDatepicker]="pickerFrom" [(ngModel)]="filterDateFrom" />
+      <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
+      <mat-datepicker #pickerFrom></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
+      <mat-label>To Date</mat-label>
+      <input matInput [matDatepicker]="pickerTo" [(ngModel)]="filterDateTo" />
+      <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
+      <mat-datepicker #pickerTo></mat-datepicker>
+    </mat-form-field>
+  </div>
+
+  <div class="ph-actions-row">
+    <button mat-flat-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-primary ph-anim-btn" (click)="applyFilters()">
+      <mat-icon>filter_alt</mat-icon>
+      Apply filters
+    </button>
+    <button mat-stroked-button type="button" class="ph-pill-btn ph-pill-btn-muted ph-anim-btn" (click)="resetFilters()">
+      <mat-icon>restart_alt</mat-icon>
+      Reset
+    </button>
+    <button
+      mat-stroked-button
+      color="warn"
+      type="button"
+      class="ph-pill-btn ph-pill-btn-warn ph-anim-btn"
+      (click)="runOverdue()"
+      [disabled]="runningOverdue"
+      matTooltip="Detect and mark overdue payments"
+    >
+      <mat-icon>warning_amber</mat-icon>
+      {{ runningOverdue ? 'Running…' : 'Run overdue check' }}
+    </button>
+    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openLegacyMapper()" matTooltip="Manually map old Excel payment records into the portal">
+      <mat-icon>upload_file</mat-icon>
+      Map payment
+    </button>
+    <button mat-flat-button color="accent" type="button" class="ph-pill-btn ph-pill-btn-accent ph-anim-btn" (click)="openExcelImport()" matTooltip="Upload an Excel sheet to bulk-import and map payments">
+      <mat-icon>table_chart</mat-icon>
+      Import from Excel
+    </button>
+    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openCorrectReceived()" [disabled]="selectedCount !== 1" matTooltip="Fix wrong approved amount for one selected student (updates student portal too)">
+      <mat-icon>edit</mat-icon>
+      Correct total received
+    </button>
+    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openBulkLanguagePaid()" [disabled]="selectedCount === 0" matTooltip="Record full language fee for selected students (legacy approved rows)">
+      <mat-icon>account_balance_wallet</mat-icon>
+      Set balance to zero
+    </button>
+  </div>
+</section>
+
+<!-- Stat cards -->
+<div class="ph-cards-section" *ngIf="!loadingStats; else statsSpinner">
+  <div class="ph-cards-grid" *ngIf="stats">
+    <mat-card class="ph-card ph-card-green">
+      <div class="ph-card-header">
+        <mat-icon>check_circle</mat-icon>
+        <span>Total Received</span>
+      </div>
+      <mat-card-content class="ph-card-body">
+        <app-payment-currency-totals
+          [lkr]="stats.totalReceivedLKR"
+          [inr]="stats.totalReceivedINR"
+          [usd]="stats.totalReceivedUSD"
+        ></app-payment-currency-totals>
+      </mat-card-content>
+      <div class="ph-card-footer">All approved payments</div>
+    </mat-card>
+
+    <mat-card class="ph-card ph-card-amber">
+      <div class="ph-card-header">
+        <mat-icon>hourglass_empty</mat-icon>
+        <span>Pending Approval</span>
+      </div>
+      <mat-card-content class="ph-card-body">
+        <app-payment-currency-pending-totals
+          [lkr]="stats.pendingApprovalAmountLKR"
+          [inr]="stats.pendingApprovalAmountINR"
+          [usd]="stats.pendingApprovalAmountUSD"
+          [hideZero]="false"
+        ></app-payment-currency-pending-totals>
+      </mat-card-content>
+      <div class="ph-card-footer">Submitted, not yet approved</div>
+    </mat-card>
+
+    <mat-card class="ph-card ph-card-blue">
+      <div class="ph-card-header">
+        <mat-icon>calendar_today</mat-icon>
+        <span>Expected This Month</span>
+      </div>
+      <mat-card-content class="ph-card-body">
+        <app-payment-currency-totals
+          [lkr]="stats.totalExpectedThisMonthLKR"
+          [inr]="stats.totalExpectedThisMonthINR"
+          [usd]="stats.totalExpectedThisMonthUSD"
+        ></app-payment-currency-totals>
+      </mat-card-content>
+      <div class="ph-card-footer">Due by end of current month</div>
+    </mat-card>
+
+    <mat-card class="ph-card ph-card-red">
+      <div class="ph-card-header">
+        <mat-icon>error_outline</mat-icon>
+        <span>Overdue</span>
+      </div>
+      <mat-card-content class="ph-card-body">
+        <app-payment-currency-overdue-totals
+          [lkr]="stats.totalOverdueLKR"
+          [inr]="stats.totalOverdueINR"
+          [usd]="stats.totalOverdueUSD"
+          [hideZero]="false"
+        ></app-payment-currency-overdue-totals>
+      </mat-card-content>
+      <div class="ph-card-footer">Past due date, not paid ({{ stats.overdueCount }} requests)</div>
+    </mat-card>
+  </div>
+
+  <div class="ph-summary-row" *ngIf="stats">
+    <div class="ph-summary-item"><span class="ph-summary-label">Total Students</span><span class="ph-summary-val">{{ stats.totalStudents }}</span></div>
+    <div class="ph-summary-divider"></div>
+    <div class="ph-summary-item"><span class="ph-summary-label">Fully Paid</span><span class="ph-summary-val ph-val-green">{{ stats.fullyPaidStudents }}</span></div>
+    <div class="ph-summary-divider"></div>
+    <div class="ph-summary-item"><span class="ph-summary-label">Active</span><span class="ph-summary-val ph-val-blue">{{ stats.activeStudents }}</span></div>
+  </div>
+</div>
+<ng-template #statsSpinner>
+  <div class="ph-spinner-wrap"><mat-spinner diameter="40"></mat-spinner></div>
+</ng-template>
+
+<!-- Table -->
+<section class="ph-table-section ph-surface">
+  <div class="ph-table-toolbar">
+    <div class="ph-table-toolbar-left">
+      <h2 class="ph-section-title">Students</h2>
+      <span class="ph-select-meta" *ngIf="selectedCount > 0">{{ selectedCount }} selected</span>
+    </div>
+    <mat-form-field appearance="outline" class="ph-search-field">
+      <mat-label>Search by name or email</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" placeholder="Type to search…" />
+    </mat-form-field>
+  </div>
+
+  <div *ngIf="!loadingTable; else tableSpinner" class="ph-table-responsive">
+    <table class="ph-table" *ngIf="rows.length > 0; else noData">
+      <thead>
+        <tr>
+          <th class="ph-col-check">
+            <mat-checkbox [checked]="allOnPageSelected" [indeterminate]="someOnPageSelected" (change)="toggleSelectAllOnPage($event.checked)" matTooltip="Select all on this page"></mat-checkbox>
+          </th>
+          <th>Student</th>
+          <th>Email</th>
+          <th>Batch</th>
+          <th>Level</th>
+          <th>Date joined</th>
+          <th class="ph-num ph-col-compact">Total journey days</th>
+          <th class="ph-num ph-col-compact">Current journey day</th>
+          <th class="ph-num">Total received</th>
+          <th class="ph-num">Pending</th>
+          <th class="ph-num">Overdue</th>
+          <th>Status</th>
+          <th class="ph-col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of rows">
+          <td class="ph-col-check">
+            <mat-checkbox [checked]="isRowSelected(row)" (change)="toggleRowSelection(row, $event.checked)"></mat-checkbox>
+          </td>
+          <td class="ph-name-cell">{{ studentName(row) }}</td>
+          <td class="ph-email-cell">{{ studentEmail(row) }}</td>
+          <td>{{ studentBatch(row) }}</td>
+          <td><span class="ph-level-pill">{{ studentLevel(row) }}</span></td>
+          <td>{{ studentDateJoined(row) }}</td>
+          <td class="ph-num ph-col-compact ph-muted-num">{{ totalJourneyDays(row) }}</td>
+          <td class="ph-num ph-col-compact"><span class="ph-day-badge">{{ currentJourneyDay(row) ?? '—' }}</span></td>
+          <td class="ph-num ph-val-green ph-paid-cell">
+            <app-payment-currency-totals
+              [lkr]="row.totalPaidLKR"
+              [inr]="row.totalPaidINR"
+              [usd]="row.totalPaidUSD"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-totals>
+          </td>
+          <td class="ph-num ph-val-amber ph-paid-cell">
+            <app-payment-currency-pending-totals
+              [lkr]="row.pendingApprovalAmountLKR"
+              [inr]="row.pendingApprovalAmountINR"
+              [usd]="row.pendingApprovalAmountUSD"
+              [compact]="true"
+            ></app-payment-currency-pending-totals>
+          </td>
+          <td class="ph-num ph-val-red ph-paid-cell">
+            <app-payment-currency-overdue-totals
+              [lkr]="row.overdueAmountLKR"
+              [inr]="row.overdueAmountINR"
+              [usd]="row.overdueAmountUSD"
+              [compact]="true"
+            ></app-payment-currency-overdue-totals>
+          </td>
+          <td><span class="ph-pill" [ngClass]="statusClass(row.overallStatus)">{{ row.overallStatus || '—' }}</span></td>
+          <td class="ph-col-actions">
+            <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(row)">
+              <mat-icon>open_in_new</mat-icon> Payments
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <ng-template #noData>
+      <div class="ph-empty">No students found matching the current filters.</div>
+    </ng-template>
+
+    <div class="ph-pager">
+      <button mat-button type="button" class="ph-pager-btn" (click)="prevPage()" [disabled]="page <= 1">
+        <mat-icon>chevron_left</mat-icon> Previous
+      </button>
+      <span class="ph-pager-info">Page {{ page }} — {{ total }} total students</span>
+      <button mat-button type="button" class="ph-pager-btn" (click)="nextPage()" [disabled]="page * pageSize >= total">
+        Next <mat-icon>chevron_right</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <ng-template #tableSpinner>
+    <div class="ph-spinner-wrap"><mat-spinner diameter="40"></mat-spinner></div>
+  </ng-template>
+</section>

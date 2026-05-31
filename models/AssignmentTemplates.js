@@ -57,4 +57,6 @@ const assignmentTemplateSchema = new mongoose.Schema(
   }
 );
 
+assignmentTemplateSchema.index({ courseId: 1, moduleId: 1, isActive: 1, createdAt: -1 });
+
 module.exports = mongoose.model('AssignmentTemplate', assignmentTemplateSchema);

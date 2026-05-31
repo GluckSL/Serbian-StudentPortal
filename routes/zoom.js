@@ -1,194 +1,99 @@
 // routes/zoom.js
 
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const zoomService = require('../services/zoomService');
 const MeetingLink = require('../models/MeetingLink');
+const JoinLog = require('../models/JoinLog');
 const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
+const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
+const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/studentPortalCrmWebhook');
+const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
+const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
+const { resolveMeetingJoinPwd } = require('../utils/zoomJoinUrls');
+const { getJoinLogDataForMeeting, getPortalJoinsForMeeting } = require('../services/joinLogHelpers');
+const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
+const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
+const { attendanceDebug, attendanceWarn, attendanceDebugEnabled } = require('../utils/attendanceDebug');
+const {
+  createMeetingLinkFromSlot,
+  buildHostAvailability
+} = require('../services/zoomMeetingLifecycle.service');
 
 /**
- * Enhanced participant matching algorithm
- * Matches registered students with Zoom participants using multiple strategies
+ * Build an attendance row for a manual override.
+ *
+ * @param {object} opts
+ * @param {object}  opts.attendee
+ * @param {object|null} opts.existingRow  - Current saved row (may be null).
+ * @param {number}  opts.meetingDuration  - Meeting duration in minutes.
+ * @param {boolean} opts.joinLogPresent   - True if a JoinLog click exists for this student.
+ * @param {'single'|'all'} opts.mode
+ * @param {object|null} opts.participant  - Matching Zoom participant (may be null).
+ * @param {'attended'|'absent'} [opts.status='attended']
+ *   Pass 'absent' to explicitly mark the student absent while preserving the record.
+ *   Defaults to 'attended' so all existing callers are unaffected.
  */
-function findBestParticipantMatch(attendee, participants) {
-  console.log(`🔍 Finding match for: ${attendee.name} (${attendee.email})`);
-  
-  if (!participants || participants.length === 0) {
-    console.log('❌ No participants data available');
-    return { match: null, confidence: 0, method: 'no_participants' };
-  }
+function buildManualAttendanceRecord({ attendee, existingRow, meetingDuration, joinLogPresent, mode, participant, status = 'attended' }) {
+  const isAbsent = status === 'absent';
+  const safeDuration = Number.isFinite(Number(meetingDuration)) ? Number(meetingDuration) : 0;
+  const fallbackName = attendee?.name || existingRow?.name || '';
+  const fallbackEmail = attendee?.email || existingRow?.email || '';
 
-  console.log(`📊 Available participants: ${participants.length}`);
-  participants.forEach((p, i) => {
-    console.log(`  ${i + 1}. ${p.name} (${p.email || 'no email'})`);
-  });
+  // For absent overrides, duration/percent are zero; for present, use meeting duration or participant data.
+  const normalizedDurationMinutes = isAbsent ? 0 : (
+    safeDuration > 0
+      ? safeDuration
+      : (Number.isFinite(Number(participant?.durationMinutes)) ? Math.max(0, Number(participant.durationMinutes)) : 0)
+  );
+  const normalizedDurationSeconds = isAbsent ? 0 : (
+    normalizedDurationMinutes > 0
+      ? Math.round(normalizedDurationMinutes * 60)
+      : (Number.isFinite(Number(participant?.duration)) ? Math.max(0, Number(participant.duration)) : 0)
+  );
+  const attendancePercent = isAbsent ? 0 : (
+    safeDuration > 0
+      ? Math.min(100, Math.round((normalizedDurationMinutes / safeDuration) * 100))
+      : 100
+  );
 
-  let bestMatch = null;
-  let bestConfidence = 0;
-  let bestMethod = 'no_match';
+  const matchMethodLabel = mode === 'all' ? 'manual_mark_all' : 'manual_mark';
+  const debugSummary = isAbsent
+    ? (mode === 'all' ? 'Manually marked absent (mark all)' : 'Manually marked absent')
+    : (mode === 'all' ? 'Manually marked attended (mark all)' : 'Manually marked attended');
 
-  for (const participant of participants) {
-    // Skip if participant already matched (prevent double matching)
-    if (participant._matched) continue;
-
-    console.log(`🔍 Checking participant: ${participant.name} (${participant.email || 'no email'})`);
-
-    // Strategy 1: Exact Email Match (Highest Priority - 100% confidence)
-    if (participant.email && attendee.email && 
-        participant.email.toLowerCase() === attendee.email.toLowerCase()) {
-      console.log('✅ EXACT EMAIL MATCH found!');
-      return { 
-        match: { ...participant, _matched: true }, 
-        confidence: 100, 
-        method: 'email' 
-      };
-    }
-
-    // Strategy 2: Exact Name Match (90% confidence)
-    if (participant.name && attendee.name &&
-        participant.name.toLowerCase().trim() === attendee.name.toLowerCase().trim()) {
-      console.log('✅ EXACT NAME MATCH found!');
-      if (90 > bestConfidence) {
-        bestMatch = participant;
-        bestConfidence = 90;
-        bestMethod = 'exact_name';
-      }
-      continue;
-    }
-
-    // Strategy 3: Partial Name Match (60-80% confidence)
-    if (participant.name && attendee.name) {
-      const confidence = calculatePartialNameMatch(attendee.name, participant.name);
-      console.log(`🔍 Partial name match confidence: ${confidence}%`);
-      if (confidence > bestConfidence && confidence >= 60) {
-        bestMatch = participant;
-        bestConfidence = confidence;
-        bestMethod = 'partial_name';
-      }
-    }
-
-    // Strategy 4: Fuzzy Name Match (40-70% confidence)
-    if (participant.name && attendee.name) {
-      const similarity = calculateStringSimilarity(attendee.name, participant.name);
-      const confidence = Math.round(similarity * 70);
-      console.log(`🔍 Fuzzy name match confidence: ${confidence}%`);
-      if (confidence > bestConfidence && confidence >= 40) {
-        bestMatch = participant;
-        bestConfidence = confidence;
-        bestMethod = 'fuzzy_name';
-      }
-    }
-  }
-
-  // Mark the best match as used to prevent double matching
-  if (bestMatch) {
-    bestMatch._matched = true;
-    console.log(`✅ Best match found: ${bestMatch.name} (${bestConfidence}% confidence, ${bestMethod})`);
-  } else {
-    console.log('❌ No match found');
-  }
-
-  return { 
-    match: bestMatch, 
-    confidence: bestConfidence, 
-    method: bestMethod 
+  return {
+    studentId: attendee.studentId,
+    name: fallbackName,
+    email: fallbackEmail,
+    attended: !isAbsent,
+    confidence: 100,
+    finalConfidence: 100,
+    confidenceLevel: 'high',
+    matchMethod: matchMethodLabel,
+    zoomName: isAbsent ? (existingRow?.zoomName || null) : (participant?.name || existingRow?.zoomName || null),
+    zoomEmail: isAbsent ? (existingRow?.zoomEmail || null) : (participant?.email || existingRow?.zoomEmail || null),
+    joinTime: isAbsent ? (existingRow?.joinTime || null) : (participant?.joinTime || existingRow?.joinTime || null),
+    leaveTime: isAbsent ? (existingRow?.leaveTime || null) : (participant?.leaveTime || existingRow?.leaveTime || null),
+    duration: normalizedDurationSeconds,
+    durationMinutes: normalizedDurationMinutes,
+    attendancePercent,
+    status: isAbsent ? 'absent' : 'attended',
+    needsReview: false,
+    clickedJoin: !!joinLogPresent,
+    appearedInZoom: isAbsent ? false : !!(participant?.name || participant?.joinTime || existingRow?.appearedInZoom),
+    mismatchReason: null,
+    debugSummary,
+    debug: {
+      portalName: fallbackName,
+      zoomName: isAbsent ? (existingRow?.zoomName || null) : (participant?.name || existingRow?.zoomName || null),
+      matchMethod: matchMethodLabel,
+    },
   };
-}
-
-/**
- * Calculate partial name matching confidence
- * Handles cases like "John Smith" vs "John" or "J. Smith"
- */
-function calculatePartialNameMatch(registeredName, zoomName) {
-  const registered = registeredName.toLowerCase().trim().split(/\s+/);
-  const zoom = zoomName.toLowerCase().trim().split(/\s+/);
-  
-  let matchedParts = 0;
-  let totalParts = registered.length;
-
-  for (const regPart of registered) {
-    for (const zoomPart of zoom) {
-      // Exact part match
-      if (regPart === zoomPart) {
-        matchedParts++;
-        break;
-      }
-      // Partial match (for initials like "J." matching "John")
-      if (regPart.startsWith(zoomPart) || zoomPart.startsWith(regPart)) {
-        if (Math.min(regPart.length, zoomPart.length) >= 2) {
-          matchedParts += 0.8;
-          break;
-        }
-      }
-      // Initial match (like "J" matching "John")
-      if ((regPart[0] === zoomPart[0]) && (regPart.length === 1 || zoomPart.length === 1)) {
-        matchedParts += 0.5;
-        break;
-      }
-    }
-  }
-
-  // Calculate confidence based on matched parts
-  const baseConfidence = (matchedParts / totalParts) * 80;
-  
-  // Bonus for having same number of name parts
-  const lengthBonus = registered.length === zoom.length ? 5 : 0;
-  
-  return Math.min(Math.round(baseConfidence + lengthBonus), 80);
-}
-
-/**
- * Calculate string similarity using Levenshtein distance
- * Returns similarity score between 0 and 1
- */
-function calculateStringSimilarity(str1, str2) {
-  if (!str1 || !str2) return 0;
-  
-  const s1 = str1.toLowerCase().trim();
-  const s2 = str2.toLowerCase().trim();
-  
-  if (s1 === s2) return 1;
-  
-  const longer = s1.length > s2.length ? s1 : s2;
-  const shorter = s1.length > s2.length ? s2 : s1;
-  
-  if (longer.length === 0) return 1;
-  
-  const distance = levenshteinDistance(longer, shorter);
-  return (longer.length - distance) / longer.length;
-}
-
-/**
- * Calculate Levenshtein distance between two strings
- */
-function levenshteinDistance(str1, str2) {
-  const matrix = [];
-  
-  for (let i = 0; i <= str2.length; i++) {
-    matrix[i] = [i];
-  }
-  
-  for (let j = 0; j <= str1.length; j++) {
-    matrix[0][j] = j;
-  }
-  
-  for (let i = 1; i <= str2.length; i++) {
-    for (let j = 1; j <= str1.length; j++) {
-      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  
-  return matrix[str2.length][str1.length];
 }
 
 /**
@@ -202,58 +107,58 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       plan,
       topic,
       startTime,
+      startTimes,
+      scheduleMode,
       duration,
       timezone,
       agenda,
       studentIds, // Array of student IDs
       teacherId,  // Teacher assigned to the class
       zoomHostEmail, // Zoom host email from the Zoom API
-      courseDay   // Optional: day in the 200-day journey
+      courseDay,   // Optional: day in the 200-day journey
+      courseDaysByStart // Optional: map of slot -> courseDay
     } = req.body;
 
-    console.log('📝 Creating Zoom meeting for batch:', batch);
+    const requestedStartTimes = (Array.isArray(startTimes) && startTimes.length > 0)
+      ? startTimes
+      : (startTime ? [startTime] : []);
+    const normalizedStartTimes = [...new Set(requestedStartTimes)]
+      .filter((t) => typeof t === 'string' && t.length >= 16)
+      .sort();
+
+    const parseCourseDayValue = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const n = parseInt(String(value), 10);
+      if (!Number.isFinite(n)) return null;
+      return Math.min(200, Math.max(1, n));
+    };
+    const fallbackCourseDay = parseCourseDayValue(courseDay);
+    const normalizedCourseDaysByStart = {};
+    if (courseDaysByStart && typeof courseDaysByStart === 'object' && !Array.isArray(courseDaysByStart)) {
+      for (const [rawSlot, rawCourseDay] of Object.entries(courseDaysByStart)) {
+        if (typeof rawSlot !== 'string' || rawSlot.length < 16) continue;
+        const slotKey = rawSlot.substring(0, 16);
+        normalizedCourseDaysByStart[slotKey] = parseCourseDayValue(rawCourseDay);
+      }
+    }
+
+    console.log('📝 Creating Zoom meeting(s) for batch:', batch);
+    console.log('📅 Schedule mode:', scheduleMode || 'single');
+    console.log('🕒 Start slots:', normalizedStartTimes);
     console.log('👥 Selected students:', studentIds);
 
     // Validate required fields
-    if (!batch || !plan || !topic || !startTime || !studentIds || studentIds.length === 0 || !teacherId || !zoomHostEmail) {
+    if (!batch || !plan || !topic || normalizedStartTimes.length === 0 || !studentIds || studentIds.length === 0 || !teacherId || !zoomHostEmail) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: batch, plan, topic, startTime, studentIds, teacherId, and zoomHostEmail are required'
+        message: 'Missing required fields: batch, plan, topic, startTime/startTimes, studentIds, teacherId, and zoomHostEmail are required'
       });
     }
 
     // Get the assigned teacher
-    const teacher = await User.findById(teacherId).select('email name role');
+    const teacher = await User.findById(teacherId).select('email name role').lean();
     if (!teacher || (teacher.role !== 'TEACHER' && teacher.role !== 'TEACHER_ADMIN')) {
       return res.status(404).json({ success: false, message: 'Teacher not found' });
-    }
-
-    // Overlap detection: check if this zoom host already has a meeting at this time
-    const meetingStart = new Date(startTime);
-    const meetingEnd = new Date(meetingStart.getTime() + (duration || 60) * 60000);
-
-    const overlap = await MeetingLink.findOne({
-      hostEmail: zoomHostEmail,
-      status: { $ne: 'cancelled' },
-      startTime: { $lt: meetingEnd },
-      $expr: {
-        $gt: [
-          { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
-          meetingStart
-        ]
-      }
-    });
-
-    if (overlap) {
-      const err = new Error(`Zoom account "${zoomHostEmail}" is already booked for "${overlap.topic}" at this time.`);
-      err.statusCode = 409;
-      err.conflicts = [{
-        meetingId: overlap._id,
-        topic: overlap.topic,
-        startTime: overlap.startTime,
-        duration: overlap.duration
-      }];
-      throw err;
     }
 
     console.log('👨‍🏫 Teacher:', teacher.name, '— Zoom Host:', zoomHostEmail);
@@ -266,7 +171,7 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
       students = await User.find({
         _id: { $in: studentIds },
         role: 'STUDENT'
-      }).select('name email batch level subscription');
+      }).select('name email batch level subscription').lean();
     }
 
     if (students.length === 0) {
@@ -274,379 +179,84 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     }
 
     console.log(`✅ Found ${students.length} students`);
+    const createdMeetings = [];
+    const failedSchedules = [];
 
-    // Create Zoom meeting on the selected zoom account
-    const zoomResult = await zoomService.createMeeting({
-      topic,
-      startTime,
-      duration: duration || 60,
-      timezone: timezone || 'Asia/Colombo',
-      agenda: agenda || `German Language Class - Batch ${batch}`
-    }, zoomHostEmail);
+    for (const slotStartTime of normalizedStartTimes) {
+      try {
+        const slotCourseDay = Object.prototype.hasOwnProperty.call(normalizedCourseDaysByStart, slotStartTime)
+          ? normalizedCourseDaysByStart[slotStartTime]
+          : fallbackCourseDay;
 
-    if (!zoomResult.success) {
-      throw new Error('Failed to create Zoom meeting');
-    }
-
-    const meeting = zoomResult.meeting;
-
-    console.log('✅ Zoom meeting created on account:', zoomHostEmail, meeting.id);
-
-    // Save meeting to database — all students share the same join URL (no registration)
-    const meetingLink = new MeetingLink({
-      batch,
-      plan,
-      platform: 'Zoom',
-      link: meeting.joinUrl,
-      topic: meeting.topic,
-      agenda: meeting.agenda,
-      startTime: new Date(meeting.startTime),
-      duration: meeting.duration,
-      timezone: meeting.timezone,
-      zoomMeetingId: meeting.id,
-      zoomPassword: meeting.password,
-      hostEmail: meeting.hostEmail,
-      startUrl: meeting.startUrl,
-      joinUrl: meeting.joinUrl,
-      createdBy: req.user.id,
-      assignedTeacher: teacherId,
-      courseDay: courseDay || null,
-      attendees: students.map(student => ({
-        studentId: student._id,
-        name: student.name,
-        email: student.email,
-        joinUrl: meeting.joinUrl // Same URL for all students
-      })),
-      status: 'scheduled'
-    });
-
-    await meetingLink.save();
-
-    console.log('✅ Meeting saved to database');
-
-    // ✅ SEND EMAIL INVITATIONS TO STUDENTS using your email system
-    // Track email sending status
-    const emailResults = {
-      attempted: 0,
-      successful: 0,
-      failed: 0,
-      errors: [],
-      failedStudents: []
-    };
-
-    try {
-      const transporter = require('../config/emailConfig');
-      
-      console.log(`📧 Sending meeting invitations to ${students.length} students...`);
-      
-      for (const student of students) {
-        emailResults.attempted++;
-        
-        try {
-          // All students share the same join URL (teacher is host)
-          const studentJoinUrl = meeting.joinUrl;
-          
-          console.log(`📧 Sending email to ${student.name} with URL: ${studentJoinUrl.substring(0, 50)}...`);
-          
-          const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: student.email,
-            subject: '🎓 Zoom Meeting Invitation - Glück Global',
-            html: `
-              <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
-                <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
-                  
-                  <div style="background:#000e89; border-radius:8px; padding:20px;">
-                    <h2 style="color:white; margin:0;">Glück Global - Meeting Invitation</h2>
-                  </div>
-
-                  <p style="margin-top:20px;">Hello <strong>${student.name}</strong>,</p>
-                  
-                  <p>You have been invited to join a Zoom meeting:</p>
-
-                  <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0;">
-                    <h3 style="color:#000e89; margin:0 0 10px 0;">${meeting.topic}</h3>
-                    <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric',
-                      timeZone: 'Asia/Colombo'
-                    })}</p>
-                    <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
-                      hour: '2-digit', 
-                      minute: '2-digit',
-                      timeZone: 'Asia/Colombo'
-                    })}</p>
-                    <p style="margin:5px 0;"><strong>⏱️ Duration:</strong> ${meeting.duration} minutes</p>
-                    <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${batch} - ${plan}</p>
-                  </div>
-
-                  ${agenda ? `<p style="color:#666; font-style:italic;">${agenda}</p>` : ''}
-
-                  <div style="margin:30px 0;">
-                    <a href="${studentJoinUrl}" target="_blank" 
-                      style="display:inline-block; background-color:#000e89; color:#fff; 
-                            text-decoration:none; padding:15px 30px; border-radius:6px; font-size:16px; font-weight:bold;">
-                      🎥 Join Zoom Meeting
-                    </a>
-                  </div>
-
-                  ${meeting.password ? `
-                    <div style="background:#fff3cd; border:1px solid #ffc107; padding:10px; border-radius:6px; margin:20px 0;">
-                      <p style="margin:0; color:#856404;">
-                        <strong>🔒 Meeting Password:</strong> <code style="background:#fff; padding:5px 10px; border-radius:4px; font-size:16px;">${meeting.password}</code>
-                      </p>
-                    </div>
-                  ` : ''}
-
-                  <div style="background:#e7f3ff; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold; color:#000e89;">📝 Meeting Details:</p>
-                    <p style="margin:5px 0; font-size:14px;"><strong>Meeting ID:</strong> ${meeting.id}</p>
-                    <p style="margin:5px 0; font-size:14px;"><strong>Your Personal Join URL:</strong> <a href="${studentJoinUrl}" style="color:#000e89; word-break:break-all;">${studentJoinUrl}</a></p>
-                  </div>
-
-                  <div style="background:#d4edda; border:1px solid #c3e6cb; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold; color:#155724;">✅ Important - Personal Registration:</p>
-                    <ul style="margin:0; padding-left:20px; text-align:left; font-size:14px; color:#155724;">
-                      <li>This is your <strong>personal registration link</strong> - it's unique to you</li>
-                      <li>Using this link helps us track your attendance accurately</li>
-                      <li>Please don't share this link with other students</li>
-                      <li>If you use the teacher's generic link, your attendance may not be recorded properly</li>
-                    </ul>
-                  </div>
-
-                  <div style="background:#f8f9fa; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                    <p style="margin:0 0 10px 0; font-weight:bold;">💡 Tips for joining:</p>
-                    <ul style="margin:0; padding-left:20px; text-align:left; font-size:14px; color:#666;">
-                      <li>Click the "Join Zoom Meeting" button above</li>
-                      <li>You can join 10 minutes before the scheduled time</li>
-                      <li>Make sure your camera and microphone are working</li>
-                      <li>Join from a quiet place with good internet connection</li>
-                      <li>Keep this email for future reference</li>
-                    </ul>
-                  </div>
-
-                  <p style="margin-top:30px; color:#666; font-size:13px;">
-                    If you have any questions, please contact your teacher.
-                  </p>
-
-                  <hr style="border:none; border-top:1px solid #ddd; margin:30px 0;">
-
-                  <p style="font-size:13px; color:#888;">
-                    Best regards,<br>
-                    <strong>Glück Global Pvt Ltd</strong><br>
-                    German Language Learning Platform
-                  </p>
-                </div>
-              </div>
-            `
-          };
-
-          await transporter.sendMail(mailOptions);
-          emailResults.successful++;
-          console.log(`✅ Invitation email sent to ${student.name} (${student.email})`);
-        } catch (emailError) {
-          emailResults.failed++;
-          emailResults.failedStudents.push({
-            name: student.name,
-            email: student.email,
-            error: emailError.message
-          });
-          console.error(`❌ Failed to send email to ${student.email}:`, emailError.message);
-          // Continue with other students even if one fails
-        }
-      }
-
-      if (emailResults.successful > 0) {
-        console.log(`✅ Meeting invitation emails sent to ${emailResults.successful}/${students.length} students`);
-      }
-      if (emailResults.failed > 0) {
-        console.log(`⚠️ Failed to send ${emailResults.failed}/${students.length} emails`);
-      }
-    } catch (emailError) {
-      console.error('⚠️ Error sending invitation emails (non-critical):', emailError.message);
-      emailResults.errors.push(emailError.message);
-      // Don't fail the meeting creation if email sending fails
-    }
-
-    // Save email status to database
-    meetingLink.emailNotificationStatus = {
-      attempted: emailResults.attempted,
-      successful: emailResults.successful,
-      failed: emailResults.failed,
-      allSent: emailResults.failed === 0 && emailResults.successful === students.length,
-      failedStudents: emailResults.failedStudents,
-      lastAttempt: new Date()
-    };
-    await meetingLink.save();
-
-    // ✅ AUTO-LINK TO TIMETABLE: Find or create timetable slot
-    try {
-      const TimeTable = require('../models/TimeTable');
-      const meetingDate = new Date(meeting.startTime);
-      
-      // Get day of week (lowercase: monday, tuesday, etc.)
-      const dayOfWeek = meetingDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        timeZone: 'Asia/Colombo' 
-      }).toLowerCase();
-      
-      // Get time in HH:MM format
-      const meetingTime = meetingDate.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Colombo'
-      });
-
-      // Calculate end time (meeting start + duration)
-      const endDate = new Date(meetingDate.getTime() + meeting.duration * 60000);
-      const endTime = endDate.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Colombo'
-      });
-
-      console.log('🔍 Looking for timetable slot:', {
-        batch,
-        plan,
-        dayOfWeek,
-        meetingTime,
-        endTime,
-        meetingDate: meetingDate.toISOString()
-      });
-
-      // Find timetable that covers this date
-      let timetable = await TimeTable.findOne({
-        batch: batch,
-        plan: plan,
-        weekStartDate: { $lte: meetingDate },
-        weekEndDate: { $gte: meetingDate }
-      });
-
-      if (!timetable) {
-        // ✅ NO TIMETABLE EXISTS - CREATE ONE AUTOMATICALLY
-        console.log('📅 No timetable found - creating new timetable automatically...');
-        
-        // Calculate week start (Monday) and end (Sunday)
-        const dayOfWeekNum = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-        const daysToMonday = dayOfWeekNum === 0 ? -6 : 1 - dayOfWeekNum;
-        
-        const weekStartDate = new Date(meetingDate);
-        weekStartDate.setDate(meetingDate.getDate() + daysToMonday);
-        weekStartDate.setHours(0, 0, 0, 0);
-        
-        const weekEndDate = new Date(weekStartDate);
-        weekEndDate.setDate(weekStartDate.getDate() + 6);
-        weekEndDate.setHours(23, 59, 59, 999);
-
-        // Get teacher info for timetable
-        
-        // Get student info to determine medium and plan
-        const firstStudent = students[0];
-        console.log('👨‍🎓 Using first student for medium/plan:', firstStudent.name, firstStudent.medium, firstStudent.subscription);
-        
-        timetable = new TimeTable({
-          batch: batch,
-          medium: firstStudent.medium || 'English',
-          plan: plan,
-          weekStartDate: weekStartDate,
-          weekEndDate: weekEndDate,
-          assignedTeacher: teacherId,
-          [dayOfWeek]: [{
-            start: meetingTime,
-            end: endTime,
-            classStatus: 'Scheduled',
-            zoomMeetingId: meeting.id,
-            zoomJoinUrl: meeting.joinUrl,
-            zoomPassword: meeting.password,
-            meetingLinked: true
-          }]
+        const result = await createMeetingLinkFromSlot({
+          createdByUserId: req.user.id,
+          batch,
+          plan,
+          topic,
+          agenda: agenda || `German Language Class - Batch ${batch}`,
+          slotStartTime,
+          duration: duration || 60,
+          timezone: timezone || 'Asia/Kolkata',
+          zoomHostEmail,
+          teacherId,
+          students,
+          courseDay: slotCourseDay
         });
 
-        await timetable.save();
-        console.log('✅ New timetable created automatically:', timetable._id);
-        console.log('   Week:', weekStartDate.toDateString(), 'to', weekEndDate.toDateString());
-        console.log('   Slot:', dayOfWeek, meetingTime, '-', endTime);
-        console.log('   Meeting linked automatically!');
-      } else {
-        // TIMETABLE EXISTS - FIND OR CREATE SLOT
-        console.log('✅ Found existing timetable:', timetable._id);
-        
-        // Check if this day has time slots
-        let daySlots = timetable[dayOfWeek];
-        
-        if (!daySlots || !Array.isArray(daySlots)) {
-          daySlots = [];
-          timetable[dayOfWeek] = daySlots;
-        }
-
-        // Find matching time slot
-        const slotIndex = daySlots.findIndex(slot => {
-          const slotTime = slot.start;
-          return slotTime === meetingTime || 
-                 Math.abs(new Date(`1970-01-01T${slotTime}`) - new Date(`1970-01-01T${meetingTime}`)) < 300000; // 5 min tolerance
-        });
-
-        if (slotIndex !== -1) {
-          // SLOT EXISTS - UPDATE IT
-          timetable[dayOfWeek][slotIndex].zoomMeetingId = meeting.id;
-          timetable[dayOfWeek][slotIndex].zoomJoinUrl = meeting.joinUrl;
-          timetable[dayOfWeek][slotIndex].zoomPassword = meeting.password;
-          timetable[dayOfWeek][slotIndex].meetingLinked = true;
-          
-          await timetable.save();
-          console.log('✅ Existing timetable slot updated with Zoom meeting info');
-        } else {
-          // NO MATCHING SLOT - CREATE NEW SLOT
-          console.log('📅 No matching slot found - adding new slot to timetable...');
-          
-          timetable[dayOfWeek].push({
-            start: meetingTime,
-            end: endTime,
-            classStatus: 'Scheduled',
-            zoomMeetingId: meeting.id,
-            zoomJoinUrl: meeting.joinUrl,
-            zoomPassword: meeting.password,
-            meetingLinked: true
+        if (!result.ok) {
+          failedSchedules.push({
+            startTime: result.startTime,
+            message: result.message,
+            ...(result.conflicts ? { conflicts: result.conflicts } : {})
           });
-          
-          await timetable.save();
-          console.log('✅ New slot added to timetable:', dayOfWeek, meetingTime, '-', endTime);
-          console.log('   Meeting linked automatically!');
+          continue;
         }
+
+        createdMeetings.push(result.createdMeetingSummary);
+      } catch (slotError) {
+        failedSchedules.push({
+          startTime: slotStartTime,
+          message: slotError.message || 'Failed to create meeting for this slot'
+        });
       }
-    } catch (linkError) {
-      console.error('⚠️ Error linking to timetable (non-critical):', linkError.message);
-      // Don't fail the meeting creation if timetable linking fails
     }
+
+    if (createdMeetings.length === 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Could not create any meetings for the selected schedule.',
+        failedSchedules
+      });
+    }
+
+    const primaryMeeting = createdMeetings[0];
 
     res.status(201).json({
       success: true,
-      message: `Zoom meeting created successfully with ${students.length} attendees`,
+      message: `Created ${createdMeetings.length} meeting(s) successfully` +
+        (failedSchedules.length ? `, ${failedSchedules.length} failed.` : '.'),
       data: {
-        meetingId: meetingLink._id,
-        zoomMeetingId: meeting.id,
-        topic: meeting.topic,
-        startTime: meeting.startTime,
-        duration: meeting.duration,
-        joinUrl: meeting.joinUrl,
-        startUrl: meeting.startUrl,
-        password: meeting.password,
-        attendeesCount: students.length,
-        attendees: students.map(s => ({ name: s.name, email: s.email }))
+        ...primaryMeeting,
+        meetings: createdMeetings
+      },
+      summary: {
+        requestedCount: normalizedStartTimes.length,
+        createdCount: createdMeetings.length,
+        failedCount: failedSchedules.length,
+        failedSchedules
       },
       emailStatus: {
-        attempted: emailResults.attempted,
-        successful: emailResults.successful,
-        failed: emailResults.failed,
-        allSent: emailResults.failed === 0 && emailResults.successful === students.length,
-        partialFailure: emailResults.failed > 0 && emailResults.successful > 0,
-        totalFailure: emailResults.failed === students.length,
-        failedStudents: emailResults.failedStudents,
-        errors: emailResults.errors
+        deferred: true,
+        message:
+          'Reminder emails are sent about 10 minutes before each class starts with instructions to join via the student portal.',
+        attempted: 0,
+        successful: 0,
+        failed: 0,
+        allSent: false,
+        partialFailure: false,
+        totalFailure: false,
+        failedStudents: [],
+        errors: []
       }
     });
 
@@ -665,47 +275,656 @@ router.post('/create-meeting', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
   }
 });
 
+const {
+  generateJourneySchedules,
+  validateSchedulePayload,
+  previewJourneyWithConflicts,
+  previewCustomJourneySchedules,
+  collectSlotConflicts
+} = require('../services/journeyMeetingGenerator.service');
+
+const MAX_BULK_CHUNK = 25;
+
+/**
+ * Preview generated journey slots + conflict strings (no Zoom calls).
+ * POST /api/zoom/preview-bulk-journey-meetings
+ */
+router.post('/preview-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const {
+      batch,
+      plan,
+      topic,
+      teacherId,
+      zoomHostEmail,
+      studentIds,
+      duration,
+      weekdaysSun0,
+      startClock,
+      startingJourneyDay,
+      targetJourneyDay,
+      firstClassWeekdaySun0
+    } = body;
+
+    const v = validateSchedulePayload(
+      {
+        batch,
+        plan,
+        topic,
+        teacherId,
+        zoomHostEmail,
+        studentIds,
+        duration,
+        startingJourneyDay,
+        targetJourneyDay
+      },
+      { allowEmptyStudents: true }
+    );
+    if (!v.ok) {
+      return res.status(400).json({ success: false, message: v.errors.join('; ') });
+    }
+
+    const durationMinutes = Number(duration) || 120;
+    const customRows = Array.isArray(body.schedules) ? body.schedules : null;
+
+    const preview =
+      customRows && customRows.length
+        ? await previewCustomJourneySchedules({
+            batch,
+            plan,
+            topic,
+            teacherId,
+            zoomHostEmail,
+            studentIds,
+            durationMinutes,
+            schedules: customRows,
+            startingJourneyDay,
+            targetJourneyDay
+          })
+        : await previewJourneyWithConflicts({
+            batch,
+            plan,
+            topic,
+            teacherId,
+            zoomHostEmail,
+            studentIds,
+            durationMinutes,
+            weekdaysSun0,
+            startClock,
+            startingJourneyDay,
+            targetJourneyDay,
+            firstClassWeekdaySun0
+          });
+
+    const teachingHours = (preview.schedules.length * durationMinutes) / 60;
+
+    return res.json({
+      success: true,
+      data: {
+        schedules: preview.schedules,
+        warnings: preview.allWarnings,
+        blockingErrors: preview.blockingErrors,
+        totalMeetings: preview.schedules.length,
+        totalTeachingHours: Math.round(teachingHours * 100) / 100
+      }
+    });
+  } catch (err) {
+    console.error('preview-bulk-journey-meetings', err);
+    res.status(500).json({ success: false, message: err.message || 'Preview failed' });
+  }
+});
+
+/**
+ * Create many journey-scheduled meetings (chunked). Reuses createMeetingLinkFromSlot.
+ * POST /api/zoom/create-bulk-journey-meetings
+ */
+router.post('/create-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const {
+      batch,
+      plan,
+      topic,
+      agenda,
+      teacherId,
+      zoomHostEmail,
+      timezone,
+      duration,
+      studentIds,
+      bulkScheduleId,
+      schedules,
+      regenerateFromParams,
+      weekdaysSun0,
+      startClock,
+      startingJourneyDay,
+      targetJourneyDay
+    } = body;
+
+    const v = validateSchedulePayload({
+      batch,
+      plan,
+      topic,
+      teacherId,
+      zoomHostEmail,
+      studentIds,
+      duration,
+      startingJourneyDay,
+      targetJourneyDay
+    });
+    if (!v.ok) {
+      return res.status(400).json({ success: false, message: v.errors.join('; ') });
+    }
+
+    if (!bulkScheduleId || typeof bulkScheduleId !== 'string') {
+      return res.status(400).json({ success: false, message: 'bulkScheduleId is required' });
+    }
+
+    let rows = Array.isArray(schedules) ? schedules : [];
+    if (regenerateFromParams && weekdaysSun0 && startClock) {
+      const gen = generateJourneySchedules({
+        weekdaysSun0,
+        startClock,
+        startingJourneyDay,
+        targetJourneyDay,
+        firstClassWeekdaySun0: body.firstClassWeekdaySun0,
+        durationMinutes: Number(duration) || 120
+      });
+      rows = gen.schedules;
+    }
+
+    if (!rows.length) {
+      return res.status(400).json({ success: false, message: 'No schedules in this chunk' });
+    }
+    if (rows.length > MAX_BULK_CHUNK) {
+      return res.status(400).json({
+        success: false,
+        message: `At most ${MAX_BULK_CHUNK} meetings per request`
+      });
+    }
+
+    const teacher = await User.findById(teacherId).select('email name role').lean();
+    if (!teacher || (teacher.role !== 'TEACHER' && teacher.role !== 'TEACHER_ADMIN')) {
+      return res.status(404).json({ success: false, message: 'Teacher not found' });
+    }
+
+    let students = [];
+    if (studentIds[0] && typeof studentIds[0] === 'object' && studentIds[0]._id) {
+      students = studentIds;
+    } else {
+      students = await User.find({
+        _id: { $in: studentIds },
+        role: 'STUDENT'
+      }).select('name email batch level subscription medium').lean();
+    }
+    if (students.length === 0) {
+      return res.status(404).json({ success: false, message: 'No students found with the provided IDs' });
+    }
+
+    const createdMeetings = [];
+    const failedSchedules = [];
+    const dur = Number(duration) || 120;
+    const tz = timezone || 'Asia/Kolkata';
+    const agendaText = agenda || `German Language Class - Batch ${batch}`;
+
+    for (const row of rows) {
+      const slotStart = typeof row.startTime === 'string' && row.startTime.length >= 16
+        ? row.startTime.substring(0, 16)
+        : null;
+      const courseDayRaw = row.journeyDay != null ? row.journeyDay : row.courseDay;
+      const n = parseInt(String(courseDayRaw), 10);
+      const slotCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+
+      if (!slotStart || slotCourseDay == null) {
+        failedSchedules.push({
+          startTime: row.startTime,
+          message: 'Invalid startTime or journeyDay'
+        });
+        continue;
+      }
+
+      const blockers = await collectSlotConflicts({
+        batch,
+        teacherId,
+        zoomHostEmail,
+        studentIds: students.map((s) => s._id),
+        slotStartTime16: slotStart,
+        durationMinutes: dur,
+        courseDay: slotCourseDay
+      });
+      const hard = blockers.filter((b) =>
+        b.includes('Zoom host busy') || b.includes('Teacher overlap') || b.includes('Student overlap') || b.includes('Duplicate future')
+      );
+      if (hard.length) {
+        failedSchedules.push({
+          startTime: slotStart,
+          message: hard.join(' | ')
+        });
+        continue;
+      }
+
+      const meta = {};
+      if (row.moduleId) meta.moduleId = row.moduleId;
+      if (row.aiAgentId) meta.aiAgentId = row.aiAgentId;
+      if (row.notes) meta.notes = String(row.notes).slice(0, 2000);
+      const journeyBulkMeta = Object.keys(meta).length ? meta : undefined;
+
+      try {
+        const result = await createMeetingLinkFromSlot({
+          createdByUserId: req.user.id,
+          batch,
+          plan,
+          topic,
+          agenda: agendaText,
+          slotStartTime: slotStart,
+          duration: dur,
+          timezone: tz,
+          zoomHostEmail,
+          teacherId,
+          students,
+          courseDay: slotCourseDay,
+          bulkScheduleId,
+          journeyBulkMeta
+        });
+
+        if (!result.ok) {
+          failedSchedules.push({
+            startTime: result.startTime,
+            message: result.message,
+            ...(result.conflicts ? { conflicts: result.conflicts } : {})
+          });
+          continue;
+        }
+        createdMeetings.push({
+          ...result.createdMeetingSummary,
+          journeyDay: slotCourseDay
+        });
+      } catch (slotErr) {
+        failedSchedules.push({
+          startTime: slotStart,
+          message: slotErr.message || 'Failed to create meeting'
+        });
+      }
+    }
+
+    return res.status(createdMeetings.length ? 201 : 409).json({
+      success: createdMeetings.length > 0,
+      message:
+        createdMeetings.length > 0
+          ? `Created ${createdMeetings.length} meeting(s) in this chunk`
+          : 'No meetings created in this chunk',
+      data: { meetings: createdMeetings },
+      summary: {
+        createdCount: createdMeetings.length,
+        failedCount: failedSchedules.length,
+        failedSchedules
+      }
+    });
+  } catch (err) {
+    console.error('create-bulk-journey-meetings', err);
+    res.status(500).json({ success: false, message: err.message || 'Bulk create failed' });
+  }
+});
+
 /**
  * Get all meetings for teacher or admin
  * GET /api/zoom/meetings
  * - Teachers see only their own meetings
  * - Admins see all meetings from all teachers
  */
+function escapeRegex(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** YYYY-MM-DD for a calendar day in Asia/Kolkata */
+function istYmdFromDate(d) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+function istMidnightUtcMsFromYmd(ymd) {
+  return new Date(`${ymd}T00:00:00.000+05:30`).getTime();
+}
+
+/**
+ * Time-based lifecycle for meeting list tabs (matches Angular meetings-list `getMeetingStatus` / `effectiveTabStatus`).
+ */
+function lifecycleExprClause(lifecycle) {
+  const durationMs = { $multiply: [{ $toLong: { $ifNull: ['$duration', 0] } }, 60000] };
+  const endTime = { $add: ['$startTime', durationMs] };
+  if (lifecycle === 'scheduled') {
+    return {
+      $expr: {
+        $and: [
+          { $ne: [{ $ifNull: ['$status', ''] }, 'cancelled'] },
+          { $ne: ['$startTime', null] },
+          { $lt: ['$$NOW', '$startTime'] }
+        ]
+      }
+    };
+  }
+  if (lifecycle === 'ongoing') {
+    return {
+      $expr: {
+        $and: [
+          { $ne: [{ $ifNull: ['$status', ''] }, 'cancelled'] },
+          { $ne: ['$startTime', null] },
+          { $gte: ['$$NOW', '$startTime'] },
+          { $lte: ['$$NOW', endTime] }
+        ]
+      }
+    };
+  }
+  if (lifecycle === 'ended') {
+    return {
+      $expr: {
+        $or: [
+          { $eq: [{ $ifNull: ['$status', ''] }, 'cancelled'] },
+          { $eq: ['$startTime', null] },
+          { $gt: ['$$NOW', endTime] }
+        ]
+      }
+    };
+  }
+  return null;
+}
+
+function mergeAndClauses(baseClauses, extraClause) {
+  if (!extraClause) return baseClauses.length ? { $and: baseClauses } : {};
+  if (!baseClauses.length) return { $and: [extraClause] };
+  return { $and: [...baseClauses, extraClause] };
+}
+
 router.get('/meetings', verifyToken, async (req, res) => {
   try {
-    const { status, batch } = req.query;
-    
-    // Get user to check role
-    const user = await User.findById(req.user.id).select('role');
-    
-    const query = {};
-    
-    // If user is TEACHER or TEACHER_ADMIN, only show their meetings
-    // If user is ADMIN, show all meetings
-    if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      query.$or = [
-        { createdBy: req.user.id },
-        { assignedTeacher: req.user.id }
-      ];
-    }
-    // For ADMIN, no filter - show all meetings
+    const { status, batch, date } = req.query;
+    const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 150);
+    const skip = (pageNum - 1) * pageSize;
+    const userId = req.user.id || req.user.userId || req.user._id;
 
-    if (status) query.status = status;
-    if (batch) query.batch = batch;
-    if (req.query.plan) query.plan = req.query.plan;
+    // Get user to check role
+    const user = await User.findById(userId).select('role').lean();
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not found' });
+    }
+
+    // Build with $and so batch / date clauses never break the teacher $or scope
+    const andClauses = [];
+
+    if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
+      andClauses.push({
+        $or: [
+          { createdBy: userId },
+          { assignedTeacher: userId }
+        ]
+      });
+    }
+
+    if (status) andClauses.push({ status });
+
+    // Batch: match string or number (legacy / CRM data sometimes stores numeric batch)
+    if (batch !== undefined && batch !== null && String(batch).trim() !== '') {
+      const b = String(batch).trim();
+      const asNum = Number(b);
+      if (Number.isFinite(asNum) && String(asNum) === b) {
+        andClauses.push({ $or: [{ batch: b }, { batch: asNum }] });
+      } else {
+        andClauses.push({ batch: b });
+      }
+    }
+
+    if (req.query.plan) andClauses.push({ plan: req.query.plan });
+
+    // ── Reports filters (range / teacher / search) — applied before pagination ──
+    const teacherNameParam = String(req.query.teacherName || '').trim();
+    if (
+      teacherNameParam &&
+      teacherNameParam.toLowerCase() !== 'all' &&
+      (user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN')
+    ) {
+      const teacherDocs = await User.find({
+        name: teacherNameParam,
+        role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
+      })
+        .select('_id')
+        .lean();
+      const tids = teacherDocs.map((t) => t._id);
+      if (!tids.length) {
+        andClauses.push({ _id: { $in: [] } });
+      } else {
+        andClauses.push({
+          $or: [{ assignedTeacher: { $in: tids } }, { createdBy: { $in: tids } }]
+        });
+      }
+    }
+
+    const searchRaw = String(req.query.search || '').trim();
+    if (searchRaw) {
+      const rx = new RegExp(escapeRegex(searchRaw), 'i');
+      const teacherHits = await User.find({
+        role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+        name: rx
+      })
+        .select('_id')
+        .lean();
+      const searchTeacherIds = teacherHits.map((u) => u._id);
+      const searchOr = [{ topic: rx }, { agenda: rx }];
+      if (searchTeacherIds.length) {
+        searchOr.push({ assignedTeacher: { $in: searchTeacherIds } });
+        searchOr.push({ createdBy: { $in: searchTeacherIds } });
+      }
+      searchOr.push({
+        $expr: {
+          $regexMatch: {
+            input: { $toString: '$batch' },
+            regex: escapeRegex(searchRaw),
+            options: 'i'
+          }
+        }
+      });
+      andClauses.push({ $or: searchOr });
+    }
+
+    // Calendar day in India (IST) — [dayStart, nextDayStart) avoids end-of-day ms bugs
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
+      const ymd = String(date).trim();
+      const dayStartColombo = new Date(`${ymd}T00:00:00.000+05:30`);
+      const nextDayStart = new Date(dayStartColombo.getTime() + 24 * 60 * 60 * 1000);
+      andClauses.push({
+        startTime: { $gte: dayStartColombo, $lt: nextDayStart }
+      });
+    }
+
+    const datePreset = String(req.query.datePreset || '').trim().toLowerCase();
+    const df = String(req.query.dateFrom || '').trim();
+    const dt = String(req.query.dateTo || '').trim();
+
+    if (!date && datePreset && datePreset !== 'all') {
+      const now = new Date();
+      if (datePreset === 'today') {
+        const ymd = istYmdFromDate(now);
+        const start = new Date(`${ymd}T00:00:00.000+05:30`);
+        const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+        andClauses.push({ startTime: { $gte: start, $lt: end } });
+      } else if (datePreset === 'week') {
+        const todayStart = istMidnightUtcMsFromYmd(istYmdFromDate(now));
+        const weekAgo = todayStart - 7 * 24 * 60 * 60 * 1000;
+        andClauses.push({ startTime: { $gte: new Date(weekAgo), $lte: now } });
+      } else if (datePreset === 'month') {
+        const todayStart = istMidnightUtcMsFromYmd(istYmdFromDate(now));
+        const monthAgo = todayStart - 30 * 24 * 60 * 60 * 1000;
+        andClauses.push({ startTime: { $gte: new Date(monthAgo), $lte: now } });
+      } else if (datePreset === 'custom') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(df)) {
+          const start = new Date(`${df}T00:00:00.000+05:30`);
+          andClauses.push({ startTime: { $gte: start } });
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+          const end = new Date(`${dt}T23:59:59.999+05:30`);
+          andClauses.push({ startTime: { $lte: end } });
+        }
+      }
+    }
+
+    if (String(req.query.completed).toLowerCase() === 'true') {
+      andClauses.push({
+        $expr: {
+          $lt: [
+            {
+              $dateAdd: {
+                startDate: '$startTime',
+                unit: 'minute',
+                amount: { $ifNull: ['$duration', 0] }
+              }
+            },
+            '$$NOW'
+          ]
+        }
+      });
+    }
+
+    const coreAndClauses = [...andClauses];
+
+    const lifecycleRaw = String(req.query.lifecycle || '').trim().toLowerCase();
+    const lifecycle = ['scheduled', 'ongoing', 'ended'].includes(lifecycleRaw) ? lifecycleRaw : null;
+    const includeTabCounts = String(req.query.includeTabCounts || '').toLowerCase() === 'true';
+
+    if (lifecycle) {
+      const lc = lifecycleExprClause(lifecycle);
+      if (lc) andClauses.push(lc);
+    }
+
+    const query = andClauses.length ? { $and: andClauses } : {};
+
+    // Single calendar-day filter: chronological within the day.
+    // Scheduled / ongoing lists: soonest first (next class on page 1).
+    // Ended + legacy queries (no lifecycle): most recent first.
+    const sortRaw = String(req.query.sort || '').trim().toLowerCase();
+    let sortOrder = -1;
+    if (date) {
+      sortOrder = 1;
+    } else if (lifecycle === 'scheduled' || lifecycle === 'ongoing') {
+      sortOrder = 1;
+    } else if (sortRaw === 'asc' || sortRaw === 'start_asc') {
+      sortOrder = 1;
+    } else if (sortRaw === 'desc' || sortRaw === 'start_desc') {
+      sortOrder = -1;
+    }
+    const totalCount = await MeetingLink.countDocuments(query);
+
+    const summaryAgg = await MeetingLink.aggregate([
+      { $match: query },
+      {
+        $addFields: {
+          totalStudents: { $size: { $ifNull: ['$attendees', []] } },
+          attendedCount: {
+            $size: {
+              $filter: {
+                input: { $ifNull: ['$attendance', []] },
+                as: 'a',
+                cond: { $eq: ['$$a.attended', true] }
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          attendanceRate: {
+            $cond: [
+              { $gt: ['$totalStudents', 0] },
+              { $multiply: [{ $divide: ['$attendedCount', '$totalStudents'] }, 100] },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          meetingCount: { $sum: 1 },
+          sumStudentSlots: { $sum: '$totalStudents' },
+          sumDuration: { $sum: { $ifNull: ['$duration', 0] } },
+          sumRates: { $sum: '$attendanceRate' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalMeetings: '$meetingCount',
+          totalStudents: '$sumStudentSlots',
+          totalDurationMinutes: '$sumDuration',
+          avgAttendance: {
+            $cond: [
+              { $gt: ['$meetingCount', 0] },
+              { $round: [{ $divide: ['$sumRates', '$meetingCount'] }, 0] },
+              0
+            ]
+          }
+        }
+      }
+    ]);
+
+    const summaryRow = summaryAgg[0] || {
+      totalMeetings: 0,
+      totalStudents: 0,
+      avgAttendance: 0,
+      totalDurationMinutes: 0
+    };
 
     const meetings = await MeetingLink.find(query)
       .populate('createdBy', 'name email role')
       .populate('assignedTeacher', 'name email')
       .populate('attendees.studentId', 'name email batch level subscription')
-      .sort({ startTime: -1 });
+      .sort({ startTime: sortOrder })
+      .skip(skip)
+      .limit(pageSize)
+      .lean();
 
-    res.status(200).json({
+    const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
+
+    let tabCounts;
+    let availableBatches;
+    if (includeTabCounts) {
+      const batchOnlyClauses = [];
+      if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
+        batchOnlyClauses.push({
+          $or: [{ createdBy: userId }, { assignedTeacher: userId }]
+        });
+      }
+      const batchQuery = batchOnlyClauses.length ? { $and: batchOnlyClauses } : {};
+      const [cScheduled, cOngoing, cEnded, rawBatches] = await Promise.all([
+        MeetingLink.countDocuments(mergeAndClauses(coreAndClauses, lifecycleExprClause('scheduled'))),
+        MeetingLink.countDocuments(mergeAndClauses(coreAndClauses, lifecycleExprClause('ongoing'))),
+        MeetingLink.countDocuments(mergeAndClauses(coreAndClauses, lifecycleExprClause('ended'))),
+        MeetingLink.distinct('batch', batchQuery)
+      ]);
+      tabCounts = { scheduled: cScheduled, ongoing: cOngoing, ended: cEnded };
+      availableBatches = [...new Set(rawBatches.map((b) => String(b || '').trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true })
+      );
+    }
+
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    const payload = {
       success: true,
       count: meetings.length,
+      totalCount,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        totalItems: totalCount,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1
+      },
+      summary: summaryRow,
       data: meetings,
-      userRole: user.role // Include role in response for frontend
-    });
+      userRole: user.role
+    };
+    if (tabCounts) payload.tabCounts = tabCounts;
+    if (availableBatches) payload.availableBatches = availableBatches;
+    res.status(200).json(payload);
 
   } catch (error) {
     console.error('❌ Error fetching meetings:', error);
@@ -727,7 +946,8 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
     const meeting = await MeetingLink.findById(id)
       .populate('createdBy', 'name email')
       .populate('assignedTeacher', 'name email')
-      .populate('attendees.studentId', 'name email batch level subscription studentStatus');
+      .populate('attendees.studentId', 'name email batch level subscription studentStatus')
+      .lean();
 
     if (!meeting) {
       return res.status(404).json({
@@ -748,18 +968,24 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
       currentStatus = 'ended';
     }
 
+    const payload = {
+      ...meeting,
+      currentStatus,
+      isOngoing: currentStatus === 'ongoing',
+      hasEnded: currentStatus === 'ended',
+      canJoin: now >= new Date(meetingStart.getTime() - 10 * 60000), // Can join 10 min before
+      timeUntilStart: meetingStart - now,
+      attendeesCount: meeting.attendees.length,
+      attendedCount: meeting.attendance?.filter(a => a.attended).length || 0
+    };
+
+    if (req.user.role === 'STUDENT') {
+      payload.joinUrl = buildJoinClassProxyUrl(req, meeting._id);
+    }
+
     res.status(200).json({
       success: true,
-      data: {
-        ...meeting.toObject(),
-        currentStatus,
-        isOngoing: currentStatus === 'ongoing',
-        hasEnded: currentStatus === 'ended',
-        canJoin: now >= new Date(meetingStart.getTime() - 10 * 60000), // Can join 10 min before
-        timeUntilStart: meetingStart - now,
-        attendeesCount: meeting.attendees.length,
-        attendedCount: meeting.attendance?.filter(a => a.attended).length || 0
-      }
+      data: payload
     });
 
   } catch (error) {
@@ -771,96 +997,263 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
   }
 });
 
+/** Pull saved attendance row for this student (same data as teacher/admin attendance report). */
+function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {
+  const list = Array.isArray(meetingDoc.attendance) ? meetingDoc.attendance : [];
+  const idStr = sid.toString();
+  let row = list.find(
+    (a) => a && a.studentId && a.studentId.toString() === idStr
+  );
+  if (!row && studentEmail) {
+    const em = String(studentEmail).toLowerCase().trim();
+    row = list.find(
+      (a) => a && a.email && String(a.email).toLowerCase().trim() === em
+    );
+  }
+  if (!row) {
+    return {
+      attended: false,
+      durationMinutes: 0,
+      attendanceRowStatus: null
+    };
+  }
+  let mins = row.durationMinutes;
+  if (mins == null && row.duration != null && Number.isFinite(Number(row.duration))) {
+    mins = Math.round(Number(row.duration) / 60);
+  }
+  mins = Number.isFinite(Number(mins)) ? Math.max(0, Number(mins)) : 0;
+  const attended =
+    row.attended === true ||
+    row.status === 'attended' ||
+    row.status === 'late';
+  return {
+    attended,
+    durationMinutes: mins,
+    attendanceRowStatus: row.status || null
+  };
+}
+
+function filterMeetingsNotBlocked(student, rows) {
+  if (!student || !Array.isArray(rows)) return rows || [];
+  return rows.filter(
+    (m) => !isContentBlockedForStudent(student, { courseDay: m.courseDay, level: student.level })
+  );
+}
+
+function mapStudentMeetingRow(req, meeting, studentId, studentEmail, studentDay) {
+  const now = new Date();
+  const meetingStart = new Date(meeting.startTime);
+  const meetingEnd = new Date(meetingStart.getTime() + meeting.duration * 60000);
+  const rawCd = meeting.courseDay;
+  const journeyLocked =
+    rawCd != null &&
+    Number.isFinite(Number(rawCd)) &&
+    Number(rawCd) > studentDay;
+
+  let currentStatus = meeting.status;
+  let canJoin = false;
+  const timeUntilStart = meetingStart - now;
+
+  if (now >= meetingStart && now <= meetingEnd && meeting.status === 'scheduled') {
+    currentStatus = 'ongoing';
+  } else if (now > meetingEnd) {
+    currentStatus = 'ended';
+  }
+
+  if (!journeyLocked) {
+    if (currentStatus === 'ongoing') {
+      canJoin = true;
+    } else if (currentStatus !== 'ended' && now >= new Date(meetingStart.getTime() - 10 * 60000)) {
+      canJoin = true;
+    }
+  }
+
+  const joinUrl = buildJoinClassProxyUrl(req, meeting._id);
+  const att = studentAttendanceFromMeeting(meeting, studentId, studentEmail);
+
+  return {
+    _id: meeting._id,
+    topic: meeting.topic,
+    batch: meeting.batch,
+    plan: meeting.plan,
+    startTime: meeting.startTime,
+    duration: meeting.duration,
+    courseDay: meeting.courseDay != null ? meeting.courseDay : null,
+    journeyLocked,
+    attended: att.attended,
+    durationMinutes: att.durationMinutes,
+    attendedDurationMinutes: att.durationMinutes,
+    attendanceStatus: att.attendanceRowStatus,
+    teacher: {
+      name: meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown',
+      email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
+    },
+    joinUrl,
+    password: resolveMeetingJoinPwd(meeting),
+    status: meeting.status,
+    currentStatus,
+    canJoin,
+    isOngoing: currentStatus === 'ongoing',
+    hasEnded: currentStatus === 'ended',
+    timeUntilStart,
+    agenda: meeting.agenda,
+    isPersonalUrl: false
+  };
+}
+
+function studentMeetingsBaseAndClauses(student) {
+  const batchKeys = allStudentBatchStringsForContent(student);
+  if (!batchKeys.length) return { batchKeys, baseAnd: null };
+  const batchOr = batchKeys.map((k) => ({
+    batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+  }));
+  return {
+    batchKeys,
+    baseAnd: [
+      { plan: { $in: [student.subscription, 'ALL'] } },
+      { $or: batchOr }
+    ]
+  };
+}
+
+function studentTabToLifecycle(tab) {
+  const t = String(tab || '').trim().toLowerCase();
+  if (t === 'upcoming') return 'scheduled';
+  if (t === 'live') return 'ongoing';
+  if (t === 'attempted') return 'ended';
+  return null;
+}
+
 /**
  * Get meetings for a specific student
  * GET /api/zoom/student-meetings
- * Returns all meetings where the logged-in student is an attendee
+ * Returns all meetings where the logged-in student is an attendee.
+ *
+ * Paginated mode (faster My Course tabs):
+ *   ?tab=upcoming|live|attempted&page=1&limit=7&includeTabCounts=true
  */
 router.get('/student-meetings', verifyToken, async (req, res) => {
   try {
     const studentId = req.user.id;
 
     const student = await User.findById(studentId)
-    .select('batch subscription');
+      .select('batch subscription currentCourseDay email goStatus blockedJourneyLevels level')
+      .lean();
 
-    if(!student) {
+    if (!student) {
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
 
-    // Find meetings for student's batch & plan
-    const meetings = await MeetingLink.find({
-      //'attendees.studentId': studentId,
-      batch: student.batch,
-      plan: student.subscription
-    })
+    const studentDay = (student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay)))
+      ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
+      : 1;
+
+    const { batchKeys, baseAnd } = studentMeetingsBaseAndClauses(student);
+    const tabRaw = String(req.query.tab || '').trim().toLowerCase();
+    const lifecycleFromTab = studentTabToLifecycle(tabRaw);
+    const lifecycleRaw = String(req.query.lifecycle || '').trim().toLowerCase();
+    const lifecycle = lifecycleFromTab ||
+      (['scheduled', 'ongoing', 'ended'].includes(lifecycleRaw) ? lifecycleRaw : null);
+    const hasPagination = req.query.page != null || req.query.limit != null || !!lifecycle;
+    const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const pageSize = Math.min(Math.max(parseInt(req.query.limit, 10) || 7, 1), 50);
+    const skip = (pageNum - 1) * pageSize;
+    const includeTabCounts = String(req.query.includeTabCounts || '').toLowerCase() === 'true';
+
+    if (!baseAnd) {
+      const emptyPayload = {
+        success: true,
+        count: 0,
+        data: [],
+        ...(hasPagination
+          ? {
+              totalCount: 0,
+              pagination: {
+                page: pageNum,
+                limit: pageSize,
+                totalItems: 0,
+                totalPages: 1,
+                hasNext: false,
+                hasPrev: false
+              }
+            }
+          : {})
+      };
+      if (includeTabCounts) {
+        emptyPayload.tabCounts = { upcoming: 0, live: 0, attempted: 0 };
+      }
+      return res.status(200).json(emptyPayload);
+    }
+
+    if (hasPagination && lifecycle) {
+      const andClauses = [...baseAnd];
+      const lc = lifecycleExprClause(lifecycle);
+      if (lc) andClauses.push(lc);
+      const query = { $and: andClauses };
+      const sortOrder = lifecycle === 'ended' ? -1 : 1;
+
+      const [totalCount, meetings, tabCounts] = await Promise.all([
+        MeetingLink.countDocuments(query),
+        MeetingLink.find(query)
+          .populate('createdBy', 'name email')
+          .populate('assignedTeacher', 'name email')
+          .sort({ startTime: sortOrder })
+          .skip(skip)
+          .limit(pageSize)
+          .lean(),
+        includeTabCounts
+          ? Promise.all([
+              MeetingLink.countDocuments(mergeAndClauses(baseAnd, lifecycleExprClause('scheduled'))),
+              MeetingLink.countDocuments(mergeAndClauses(baseAnd, lifecycleExprClause('ongoing'))),
+              MeetingLink.countDocuments(mergeAndClauses(baseAnd, lifecycleExprClause('ended')))
+            ]).then(([upcoming, live, attempted]) => ({ upcoming, live, attempted }))
+          : Promise.resolve(null)
+      ]);
+
+      const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
+      let data = meetings.map((m) =>
+        mapStudentMeetingRow(req, m, studentId, student.email, studentDay)
+      );
+      data = filterMeetingsNotBlocked(student, data);
+
+      const payload = {
+        success: true,
+        count: data.length,
+        totalCount,
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          totalItems: totalCount,
+          totalPages,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1
+        },
+        data
+      };
+      if (tabCounts) payload.tabCounts = tabCounts;
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      return res.status(200).json(payload);
+    }
+
+    const meetings = await MeetingLink.find({ $and: baseAnd })
       .populate('createdBy', 'name email')
       .populate('assignedTeacher', 'name email')
-      //.populate('attendees.studentId', 'name email batch level subscription')
-      .sort({ startTime: -1 });
+      .sort({ startTime: -1 })
+      .lean();
 
-    // Calculate meeting status for each meeting
-    const now = new Date();
-    const meetingsWithStatus = meetings.map(meeting => {
-      const meetingStart = new Date(meeting.startTime);
-      const meetingEnd = new Date(meetingStart.getTime() + meeting.duration * 60000);
-
-      let currentStatus = meeting.status;
-      let canJoin = false;
-      let timeUntilStart = meetingStart - now;
-
-      if (now >= meetingStart && now <= meetingEnd && meeting.status === 'scheduled') {
-        currentStatus = 'ongoing';
-        canJoin = true;
-      } else if (now > meetingEnd) {
-        currentStatus = 'ended';
-      } else if (now >= new Date(meetingStart.getTime() - 10 * 60000)) {
-        // Can join 10 minutes before
-        canJoin = true;
-      }
-
-      // Find student's personal join URL
-      const studentAttendee = meeting.attendees.find(
-        a => a.studentId && a.studentId.toString() === studentId
-      );
-
-      // Use personal join URL if available, otherwise fall back to generic URL
-      const personalJoinUrl = studentAttendee?.joinUrl || meeting.joinUrl;
-      
-      console.log(`🔗 Student ${studentId} join URL: ${personalJoinUrl ? 'Personal' : 'Generic'}`);
-
-      return {
-        _id: meeting._id,
-        topic: meeting.topic,
-        batch: meeting.batch,
-        plan: meeting.plan,
-        startTime: meeting.startTime,
-        duration: meeting.duration,
-        teacher: {
-          name: meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown',
-          email: meeting.assignedTeacher?.email || meeting.createdBy?.email || ''
-        },
-        joinUrl: personalJoinUrl, // Use personal URL
-        password: meeting.zoomPassword,
-        status: meeting.status,
-        currentStatus: currentStatus,
-        canJoin: canJoin,
-        isOngoing: currentStatus === 'ongoing',
-        hasEnded: currentStatus === 'ended',
-        timeUntilStart: timeUntilStart,
-        agenda: meeting.agenda,
-        isPersonalUrl: !!studentAttendee?.joinUrl // Flag to indicate if using personal URL
-      };
-    });
+    let meetingsWithStatus = meetings.map((meeting) =>
+      mapStudentMeetingRow(req, meeting, studentId, student.email, studentDay)
+    );
+    meetingsWithStatus = filterMeetingsNotBlocked(student, meetingsWithStatus);
 
     res.status(200).json({
       success: true,
       count: meetingsWithStatus.length,
       data: meetingsWithStatus
     });
-
   } catch (error) {
     console.error('❌ Error fetching student meetings:', error);
     res.status(500).json({
@@ -884,7 +1277,8 @@ router.get('/students/:batch', verifyToken, async (req, res) => {
       isActive: true
     })
     .select('name email batch level subscription studentStatus')
-    .sort({ name: 1 });
+    .sort({ name: 1 })
+    .lean();
 
     res.status(200).json({
       success: true,
@@ -920,7 +1314,8 @@ router.get('/students', verifyToken, async (req, res) => {
 
     const students = await User.find(query)
       .select('name email batch level subscription studentStatus')
-      .sort({ batch: 1, name: 1 });
+      .sort({ batch: 1, name: 1 })
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -960,7 +1355,7 @@ router.put('/meeting/:id/attendees', verifyToken, async (req, res) => {
       const newStudents = await User.find({
         _id: { $in: addStudentIds },
         role: 'STUDENT'
-      }).select('name email');
+      }).select('name email').lean();
 
       const attendees = newStudents.map(student => ({
         email: student.email,
@@ -977,108 +1372,26 @@ router.put('/meeting/:id/attendees', verifyToken, async (req, res) => {
         });
       });
 
-      // ✅ SEND EMAIL INVITATIONS TO NEW STUDENTS with unique URLs
-      try {
-        const transporter = require('../config/emailConfig');
-        
-        console.log(`📧 Sending meeting invitations to ${newStudents.length} new students...`);
-        
-        for (const student of newStudents) {
-          try {
-            // Get unique registrant URL for this student
-            const studentJoinUrl = meeting.joinUrl;
-            
-            const mailOptions = {
-              from: process.env.EMAIL_USER,
-              to: student.email,
-              subject: '🎓 Zoom Meeting Invitation - Glück Global',
-              html: `
-                <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
-                  <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
-                    
-                    <div style="background:#000e89; border-radius:8px; padding:20px;">
-                      <h2 style="color:white; margin:0;">Glück Global - Meeting Invitation</h2>
-                    </div>
-
-                    <p style="margin-top:20px;">Hello <strong>${student.name}</strong>,</p>
-                    
-                    <p>You have been added to a Zoom meeting:</p>
-
-                    <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0;">
-                      <h3 style="color:#000e89; margin:0 0 10px 0;">${meeting.topic}</h3>
-                      <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric',
-                        timeZone: 'Asia/Colombo'
-                      })}</p>
-                      <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        timeZone: 'Asia/Colombo'
-                      })}</p>
-                      <p style="margin:5px 0;"><strong>⏱️ Duration:</strong> ${meeting.duration} minutes</p>
-                      <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${meeting.batch}</p>
-                    </div>
-
-                    <div style="margin:30px 0;">
-                      <a href="${studentJoinUrl}" target="_blank" 
-                        style="display:inline-block; background-color:#000e89; color:#fff; 
-                              text-decoration:none; padding:15px 30px; border-radius:6px; font-size:16px; font-weight:bold;">
-                        🎥 Join Zoom Meeting
-                      </a>
-                    </div>
-
-                    ${meeting.zoomPassword ? `
-                      <div style="background:#fff3cd; border:1px solid #ffc107; padding:10px; border-radius:6px; margin:20px 0;">
-                        <p style="margin:0; color:#856404;">
-                          <strong>🔒 Meeting Password:</strong> <code style="background:#fff; padding:5px 10px; border-radius:4px; font-size:16px;">${meeting.zoomPassword}</code>
-                        </p>
-                      </div>
-                    ` : ''}
-
-                    <div style="background:#e7f3ff; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                      <p style="margin:0 0 10px 0; font-weight:bold; color:#000e89;">📝 Meeting Details:</p>
-                      <p style="margin:5px 0; font-size:14px;"><strong>Meeting ID:</strong> ${meeting.zoomMeetingId}</p>
-                      <p style="margin:5px 0; font-size:14px;"><strong>Your Personal Join URL:</strong> <a href="${studentJoinUrl}" style="color:#000e89; word-break:break-all;">${studentJoinUrl}</a></p>
-                    </div>
-
-                    <div style="background:#d4edda; border:1px solid #c3e6cb; padding:15px; border-radius:6px; margin:20px 0; text-align:left;">
-                      <p style="margin:0 0 10px 0; font-weight:bold; color:#155724;">✅ Important - Personal Registration:</p>
-                      <ul style="margin:0; padding-left:20px; text-align:left; font-size:14px; color:#155724;">
-                        <li>This is your <strong>personal registration link</strong> - it's unique to you</li>
-                        <li>Using this link helps us track your attendance accurately</li>
-                        <li>Please don't share this link with other students</li>
-                      </ul>
-                    </div>
-
-                    <p style="margin-top:30px; color:#666; font-size:13px;">
-                      If you have any questions, please contact your teacher.
-                    </p>
-
-                    <hr style="border:none; border-top:1px solid #ddd; margin:30px 0;">
-
-                    <p style="font-size:13px; color:#888;">
-                      Best regards,<br>
-                      <strong>Glück Global Pvt Ltd</strong><br>
-                      German Language Learning Platform
-                    </p>
-                  </div>
-                </div>
-              `
-            };
-
-            await transporter.sendMail(mailOptions);
-            console.log(`✅ Invitation email sent to ${student.name} (${student.email})`);
-          } catch (emailError) {
-            console.error(`❌ Failed to send email to ${student.email}:`, emailError.message);
-          }
+      // If the ~10 min reminder already went out, notify new students immediately; otherwise cron includes them
+      if (meeting.reminderEmailSent) {
+        try {
+          const transporter = require('../config/emailConfig');
+          const { sendInvitationEmailsToAttendees } = require('../services/zoomInvitationEmail');
+          const onlyAttendees = newStudents.map((s) => ({
+            name: s.name,
+            email: s.email,
+            joinUrl: meeting.joinUrl
+          }));
+          console.log(`📧 Sending portal join reminders to ${newStudents.length} newly added students (reminder already sent)...`);
+          await sendInvitationEmailsToAttendees(meeting, transporter, {
+            onlyAttendees,
+            subject: '🎓 Class reminder — join via portal (Glück Global)',
+            introParagraph:
+              'You have been added to this class. It is starting soon — join through the student portal using the steps below (no join link is sent by email).'
+          });
+        } catch (emailError) {
+          console.error('⚠️ Error sending emails to new attendees (non-critical):', emailError.message);
         }
-
-        console.log(`✅ Meeting invitation emails sent to ${newStudents.length} new students`);
-      } catch (emailError) {
-        console.error('⚠️ Error sending invitation emails (non-critical):', emailError.message);
       }
     }
 
@@ -1119,7 +1432,8 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
       duration,
       timezone,
       agenda,
-      settings
+      settings,
+      courseDay
     } = req.body;
 
     // Find meeting in database
@@ -1133,7 +1447,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
     }
 
     // Check if user has permission to edit this meeting
-    const user = await User.findById(req.user.id).select('role');
+    const user = await User.findById(req.user.id).select('role').lean();
     const isOwnerOrAssigned = meeting.createdBy.toString() === req.user.id ||
       (meeting.assignedTeacher && meeting.assignedTeacher.toString() === req.user.id);
     if ((user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') && !isOwnerOrAssigned) {
@@ -1142,6 +1456,8 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
         message: 'You can only edit meetings assigned to you'
       });
     }
+
+    const prevStartMs = meeting.startTime ? new Date(meeting.startTime).getTime() : null;
 
     // Prepare update data for Zoom
     const zoomUpdateData = {};
@@ -1169,10 +1485,25 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 
     // Update meeting in database
     if (topic) meeting.topic = topic;
-    if (startTime) meeting.startTime = new Date(startTime);
+    if (startTime) {
+      const nextStartMs = new Date(startTime).getTime();
+      meeting.startTime = new Date(startTime);
+      if (prevStartMs !== nextStartMs) {
+        meeting.reminderEmailSent = false;
+        meeting.reminderEmailSentAt = undefined;
+      }
+    }
     if (duration) meeting.duration = duration;
     if (timezone) meeting.timezone = timezone;
     if (agenda) meeting.agenda = agenda;
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
+      if (courseDay === null || courseDay === '') {
+        meeting.courseDay = null;
+      } else {
+        const n = parseInt(String(courseDay), 10);
+        meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      }
+    }
 
     await meeting.save();
 
@@ -1185,7 +1516,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
         // Get new day of week
         const newDayOfWeek = newMeetingDate.toLocaleDateString('en-US', { 
           weekday: 'long', 
-          timeZone: 'Asia/Colombo' 
+          timeZone: 'Asia/Kolkata' 
         }).toLowerCase();
         
         // Get new time
@@ -1193,7 +1524,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false,
-          timeZone: 'Asia/Colombo'
+          timeZone: 'Asia/Kolkata'
         });
 
         // Calculate new end time
@@ -1202,7 +1533,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false,
-          timeZone: 'Asia/Colombo'
+          timeZone: 'Asia/Kolkata'
         });
 
         console.log('🔄 Updating timetable for meeting time change:', {
@@ -1258,108 +1589,11 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
       }
     }
 
-    // ✅ SEND UPDATE NOTIFICATION EMAILS TO ATTENDEES
-    if (topic || startTime || duration || agenda) {
-      try {
-        const transporter = require('../config/emailConfig');
-        
-        // Get attendees with populated student data
-        const meetingWithStudents = await MeetingLink.findById(id)
-          .populate('attendees.studentId', 'name email');
-        
-        const students = meetingWithStudents.attendees
-          .filter(a => a.studentId)
-          .map(a => ({
-            name: a.studentId.name || a.name,
-            email: a.studentId.email || a.email,
-            joinUrl: a.joinUrl || meeting.joinUrl
-          }));
-
-        if (students.length > 0) {
-          console.log(`📧 Sending meeting update notifications to ${students.length} students...`);
-          
-          for (const student of students) {
-            try {
-              const mailOptions = {
-                from: process.env.EMAIL_USER,
-                to: student.email,
-                subject: '📝 Meeting Updated - Glück Global',
-                html: `
-                  <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
-                    <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
-                      
-                      <div style="background:#ffc107; border-radius:8px; padding:20px;">
-                        <h2 style="color:#000; margin:0;">📝 Meeting Updated</h2>
-                      </div>
-
-                      <p style="margin-top:20px;">Hello <strong>${student.name}</strong>,</p>
-                      
-                      <p>The following Zoom meeting has been <strong>updated</strong>:</p>
-
-                      <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0; border-left:4px solid #ffc107;">
-                        <h3 style="color:#000e89; margin:0 0 10px 0;">${meeting.topic}</h3>
-                        <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric',
-                          timeZone: 'Asia/Colombo'
-                        })}</p>
-                        <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit',
-                          timeZone: 'Asia/Colombo'
-                        })}</p>
-                        <p style="margin:5px 0;"><strong>⏱️ Duration:</strong> ${meeting.duration} minutes</p>
-                        <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${meeting.batch}</p>
-                      </div>
-
-                      ${agenda ? `<p style="color:#666; font-style:italic; margin:20px 0;">${agenda}</p>` : ''}
-
-                      <div style="margin:30px 0;">
-                        <a href="${student.joinUrl}" target="_blank" 
-                          style="display:inline-block; background-color:#000e89; color:#fff; 
-                                text-decoration:none; padding:15px 30px; border-radius:6px; font-size:16px; font-weight:bold;">
-                          🎥 Join Updated Meeting
-                        </a>
-                      </div>
-
-                      <div style="background:#fff3cd; border:1px solid #ffc107; padding:15px; border-radius:6px; margin:20px 0;">
-                        <p style="margin:0; color:#856404;">
-                          <strong>📢 Important:</strong> Please note the updated meeting details above. 
-                          Make sure to join at the new time if it has changed.
-                        </p>
-                      </div>
-
-                      <p style="margin-top:30px; color:#666; font-size:13px;">
-                        If you have any questions about the changes, please contact your teacher.
-                      </p>
-
-                      <hr style="border:none; border-top:1px solid #ddd; margin:30px 0;">
-
-                      <p style="font-size:13px; color:#888;">
-                        Best regards,<br>
-                        <strong>Glück Global Pvt Ltd</strong><br>
-                        German Language Learning Platform
-                      </p>
-                    </div>
-                  </div>
-                `
-              };
-
-              await transporter.sendMail(mailOptions);
-              console.log(`✅ Update notification sent to ${student.name} (${student.email})`);
-            } catch (emailError) {
-              console.error(`❌ Failed to send update notification to ${student.email}:`, emailError.message);
-            }
-          }
-
-          console.log(`✅ Meeting update notifications sent to ${students.length} students`);
-        }
-      } catch (emailError) {
-        console.error('⚠️ Error sending update notifications (non-critical):', emailError.message);
-      }
-    }
+    scheduleDispatchEvent({
+      event: 'REMINDER_UPDATED',
+      entity: { ...sanitizeMeetingLink(meeting), type: 'MeetingLink' },
+      metaOverrides: { syncMode: 'live' }
+    });
 
     res.status(200).json({
       success: true,
@@ -1377,6 +1611,265 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 });
 
 /**
+ * Bulk update scheduled meetings (metadata + attendees)
+ * POST /api/zoom/meetings/bulk-update
+ *
+ * Body: { meetingIds, updates: { duration?, topic?, agenda?, courseDay?, assignedTeacher?, startTime?, startClockTime? },
+ *         attendeeUpdates: { addStudentIds?, removeStudentIds? } }
+ *
+ * startClockTime (HH:mm, IST): keeps each meeting's date and applies the new wall-clock time.
+ */
+function applyClockTimeToMeetingDate(existingStart, clockHHmm) {
+  const cur = new Date(existingStart);
+  if (Number.isNaN(cur.getTime())) {
+    throw new Error('Invalid existing start time');
+  }
+  const datePart = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(cur);
+  const [hh, mm] = String(clockHHmm).trim().split(':');
+  const iso = `${datePart}T${hh.padStart(2, '0')}:${mm.padStart(2, '0')}:00+05:30`;
+  const next = new Date(iso);
+  if (Number.isNaN(next.getTime())) {
+    throw new Error('Invalid start clock time');
+  }
+  return next.toISOString();
+}
+
+router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
+  try {
+    const { meetingIds, updates = {}, attendeeUpdates = {} } = req.body;
+
+    if (!Array.isArray(meetingIds) || meetingIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'meetingIds must be a non-empty array' });
+    }
+
+    if (updates.startClockTime && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(updates.startClockTime).trim())) {
+      return res.status(400).json({ success: false, message: 'Invalid startClockTime (use HH:mm)' });
+    }
+
+    const validIds = meetingIds.filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid meeting IDs provided' });
+    }
+
+    const requestingUser = await User.findById(req.user.id).select('role').lean();
+    const isAdminUser = requestingUser.role === 'ADMIN' || requestingUser.role === 'SUB_ADMIN';
+
+    // Pre-load students to add (done once, reused per meeting)
+    const { addStudentIds = [], removeStudentIds = [] } = attendeeUpdates;
+    let studentsToAdd = [];
+    if (addStudentIds.length > 0) {
+      studentsToAdd = await User.find({
+        _id: { $in: addStudentIds },
+        role: 'STUDENT'
+      }).select('name email').lean();
+    }
+
+    // Pre-validate assignedTeacher if supplied
+    let newTeacher = null;
+    if (updates.assignedTeacher) {
+      newTeacher = await User.findById(updates.assignedTeacher).select('name email role').lean();
+      if (!newTeacher || !['TEACHER', 'TEACHER_ADMIN'].includes(newTeacher.role)) {
+        return res.status(400).json({ success: false, message: 'Invalid assignedTeacher ID' });
+      }
+    }
+
+    const results = [];
+    const CHUNK = 10;
+
+    for (let i = 0; i < validIds.length; i += CHUNK) {
+      const chunk = validIds.slice(i, i + CHUNK);
+
+      await Promise.all(chunk.map(async (meetingId) => {
+        try {
+          const meeting = await MeetingLink.findById(meetingId);
+          if (!meeting) {
+            results.push({ meetingId, success: false, message: 'Meeting not found' });
+            return;
+          }
+
+          // Status guard — only scheduled meetings
+          if (meeting.status !== 'scheduled') {
+            results.push({ meetingId, success: false, message: `Cannot edit a meeting with status "${meeting.status}"` });
+            return;
+          }
+
+          // Permission guard for teachers
+          if (!isAdminUser) {
+            const isOwner = meeting.createdBy && meeting.createdBy.toString() === req.user.id;
+            const isAssigned = meeting.assignedTeacher && meeting.assignedTeacher.toString() === req.user.id;
+            if (!isOwner && !isAssigned) {
+              results.push({ meetingId, success: false, message: 'Permission denied for this meeting' });
+              return;
+            }
+          }
+
+          // ---- Metadata updates ----
+          const { duration, topic, agenda, courseDay, startTime, startClockTime } = updates;
+          const zoomUpdateData = {};
+          const prevStartMs = meeting.startTime ? new Date(meeting.startTime).getTime() : null;
+
+          let effectiveStartTime = null;
+          if (startClockTime) {
+            if (!meeting.startTime) {
+              results.push({ meetingId, success: false, message: 'Meeting has no start time to update' });
+              return;
+            }
+            try {
+              effectiveStartTime = applyClockTimeToMeetingDate(meeting.startTime, startClockTime);
+            } catch (clockErr) {
+              results.push({ meetingId, success: false, message: clockErr.message || 'Invalid start clock time' });
+              return;
+            }
+          } else if (startTime) {
+            effectiveStartTime = startTime;
+          }
+
+          if (topic) { zoomUpdateData.topic = topic; meeting.topic = topic; }
+          if (duration) { zoomUpdateData.duration = duration; meeting.duration = duration; }
+          if (agenda !== undefined && agenda !== null) { zoomUpdateData.agenda = agenda; meeting.agenda = agenda; }
+          if (effectiveStartTime) {
+            zoomUpdateData.start_time = effectiveStartTime;
+            const nextStartMs = new Date(effectiveStartTime).getTime();
+            meeting.startTime = new Date(effectiveStartTime);
+            if (prevStartMs !== nextStartMs) {
+              meeting.reminderEmailSent = false;
+              meeting.reminderEmailSentAt = undefined;
+            }
+          }
+          if (Object.prototype.hasOwnProperty.call(updates, 'courseDay')) {
+            if (courseDay === null || courseDay === '') {
+              meeting.courseDay = null;
+            } else {
+              const n = parseInt(String(courseDay), 10);
+              meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+            }
+          }
+          if (newTeacher) {
+            meeting.assignedTeacher = newTeacher._id;
+          }
+
+          // Sync Zoom if anything changed
+          if (Object.keys(zoomUpdateData).length > 0) {
+            try {
+              await zoomService.updateMeeting(meeting.zoomMeetingId, zoomUpdateData);
+            } catch (zoomErr) {
+              results.push({ meetingId, success: false, message: `Zoom update failed: ${zoomErr.message}` });
+              return;
+            }
+          }
+
+          await meeting.save();
+
+          // Update timetable end-time slot when start time (or duration) changes
+          if (effectiveStartTime || duration) {
+            try {
+              const TimeTable = require('../models/TimeTable');
+              const refDate = effectiveStartTime ? new Date(effectiveStartTime) : new Date(meeting.startTime);
+              const dayOfWeek = refDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' }).toLowerCase();
+              const slotStart = refDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
+              const endDate = new Date(refDate.getTime() + (duration || meeting.duration) * 60000);
+              const slotEnd = endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
+
+              const timetable = await TimeTable.findOne({
+                batch: meeting.batch,
+                plan: meeting.plan,
+                weekStartDate: { $lte: refDate },
+                weekEndDate: { $gte: refDate }
+              });
+
+              if (timetable) {
+                const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                for (const day of days) {
+                  if (!Array.isArray(timetable[day])) continue;
+                  const slotIdx = timetable[day].findIndex((s) => s.zoomMeetingId === meeting.zoomMeetingId);
+                  if (slotIdx !== -1) {
+                    if (effectiveStartTime) {
+                      // Move to new day
+                      timetable[day].splice(slotIdx, 1);
+                      if (!timetable[dayOfWeek]) timetable[dayOfWeek] = [];
+                      timetable[dayOfWeek].push({ start: slotStart, end: slotEnd, classStatus: 'Scheduled', zoomMeetingId: meeting.zoomMeetingId, zoomJoinUrl: meeting.joinUrl, zoomPassword: meeting.zoomPassword, meetingLinked: true });
+                    } else {
+                      // Only end time changed (duration update)
+                      timetable[day][slotIdx].end = slotEnd;
+                    }
+                    await timetable.save();
+                    break;
+                  }
+                }
+              }
+            } catch (ttErr) {
+              // Non-critical — log and continue
+              console.error(`⚠️ Timetable update failed for meeting ${meetingId}:`, ttErr.message);
+            }
+          }
+
+          // ---- Attendee updates ----
+          if (studentsToAdd.length > 0) {
+            const existingIds = new Set(meeting.attendees.map((a) => a.studentId.toString()));
+            const genuinelyNew = studentsToAdd.filter((s) => !existingIds.has(s._id.toString()));
+            genuinelyNew.forEach((student) => {
+              meeting.attendees.push({ studentId: student._id, name: student.name, email: student.email, joinUrl: meeting.joinUrl });
+            });
+
+            if (genuinelyNew.length > 0) {
+              await meeting.save();
+              // Send invite emails if the 10-min reminder already went out
+              if (meeting.reminderEmailSent) {
+                try {
+                  const transporter = require('../config/emailConfig');
+                  const { sendInvitationEmailsToAttendees } = require('../services/zoomInvitationEmail');
+                  await sendInvitationEmailsToAttendees(meeting, transporter, {
+                    onlyAttendees: genuinelyNew.map((s) => ({ name: s.name, email: s.email, joinUrl: meeting.joinUrl })),
+                    subject: '🎓 Class reminder — join via portal (Glück Global)',
+                    introParagraph: 'You have been added to this class. It is starting soon — join through the student portal using the steps below.'
+                  });
+                } catch (emailErr) {
+                  console.error(`⚠️ Email failed for new attendees on meeting ${meetingId}:`, emailErr.message);
+                }
+              }
+            }
+          }
+
+          if (removeStudentIds.length > 0) {
+            meeting.attendees = meeting.attendees.filter((a) => !removeStudentIds.includes(a.studentId.toString()));
+            await meeting.save();
+          }
+
+          // CRM webhook
+          scheduleDispatchEvent({
+            event: 'REMINDER_UPDATED',
+            entity: { ...sanitizeMeetingLink(meeting), type: 'MeetingLink' },
+            metaOverrides: { syncMode: 'live' }
+          });
+
+          results.push({ meetingId, success: true });
+        } catch (perMeetingErr) {
+          console.error(`❌ Bulk update error for meeting ${meetingId}:`, perMeetingErr.message);
+          results.push({ meetingId, success: false, message: perMeetingErr.message || 'Unexpected error' });
+        }
+      }));
+    }
+
+    const updatedCount = results.filter((r) => r.success).length;
+    const failedCount = results.length - updatedCount;
+
+    res.status(200).json({
+      success: true,
+      summary: { total: results.length, updated: updatedCount, failed: failedCount },
+      results
+    });
+  } catch (error) {
+    console.error('❌ Error in bulk-update meetings:', error);
+    res.status(500).json({ success: false, message: error.message || 'Bulk update failed' });
+  }
+});
+
+/**
  * Delete Zoom meeting
  * DELETE /api/zoom/meeting/:id
  */
@@ -1384,7 +1877,7 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const meeting = await MeetingLink.findById(id);
+    const meeting = await MeetingLink.findById(id).lean();
     
     if (!meeting) {
       return res.status(404).json({
@@ -1401,7 +1894,7 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
       // Get day of week
       const dayOfWeek = meetingDate.toLocaleDateString('en-US', { 
         weekday: 'long', 
-        timeZone: 'Asia/Colombo' 
+        timeZone: 'Asia/Kolkata' 
       }).toLowerCase();
 
       console.log('🔍 Unlinking meeting from timetable:', {
@@ -1449,7 +1942,8 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
       
       // Populate student details if not already populated
       const meetingWithStudents = await MeetingLink.findById(id)
-        .populate('attendees.studentId', 'name email');
+        .populate('attendees.studentId', 'name email')
+        .lean();
       
       const students = meetingWithStudents.attendees
         .filter(a => a.studentId) // Only students with valid IDs
@@ -1486,12 +1980,12 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
                         year: 'numeric', 
                         month: 'long', 
                         day: 'numeric',
-                        timeZone: 'Asia/Colombo'
+                        timeZone: 'Asia/Kolkata'
                       })}</p>
                       <p style="margin:5px 0;"><strong>🕐 Time:</strong> ${new Date(meeting.startTime).toLocaleTimeString('en-US', { 
                         hour: '2-digit', 
                         minute: '2-digit',
-                        timeZone: 'Asia/Colombo'
+                        timeZone: 'Asia/Kolkata'
                       })}</p>
                       <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${meeting.batch}</p>
                     </div>
@@ -1541,6 +2035,12 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
     if (meeting.zoomMeetingId) {
       await zoomService.deleteMeeting(meeting.zoomMeetingId);
     }
+
+    scheduleDispatchEvent({
+      event: 'REMINDER_DELETED',
+      entity: { ...sanitizeMeetingLink(meeting), type: 'MeetingLink' },
+      metaOverrides: { syncMode: 'live' }
+    });
 
     // Delete from database
     await MeetingLink.findByIdAndDelete(id);
@@ -1611,9 +2111,10 @@ router.get('/meeting/:meetingId/report', verifyToken, async (req, res) => {
  */
 router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     const { id } = req.params;
 
-    const meeting = await MeetingLink.findById(id);
+    const meeting = await MeetingLink.findById(id).lean();
     
     if (!meeting) {
       return res.status(404).json({
@@ -1637,7 +2138,10 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     let zoomReport;
     try {
       console.log('🔍 Fetching Zoom report for meeting:', meeting.zoomMeetingId);
-      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId);
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
       console.log('✅ Zoom report received:', {
         success: zoomReport.success,
         participantCount: zoomReport.participants?.length || 0,
@@ -1663,46 +2167,127 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       console.log('👥 Sample meeting attendee:', meeting.attendees[0]);
     }
 
+    const joinData = await getJoinLogDataForMeeting(meeting._id);
+    const joinLogMap = joinData.firstJoinByStudent;
+    const joinPresence = joinData.hasJoin;
+    const portalJoins = await getPortalJoinsForMeeting(meeting._id, meeting.attendees);
+
+    const zoomParts = zoomReport.participants || [];
+    for (const p of zoomParts) {
+      delete p._matched;
+      delete p._reserved;
+      delete p._priority;
+      delete p._matchedByStudent;
+    }
+    delete zoomParts[Symbol.for('gluck.attendanceClaimMap')];
+    delete zoomParts[Symbol.for('gluck.attendanceTraceId')];
+    const traceId = new mongoose.Types.ObjectId();
+    const claimedParticipants = new Map();
+
+    // Preserve teacher/admin manual Zoom↔student links across reloads (GET used to overwrite these every time)
+    const manualByStudentId = new Map();
+    for (const row of meeting.attendance || []) {
+      if (
+        row &&
+        row.studentId &&
+        ['manual_map', 'manual_mark', 'manual_mark_all'].includes(row.matchMethod)
+      ) {
+        manualByStudentId.set(row.studentId.toString(), row);
+      }
+    }
+
     const attendanceData = meeting.attendees.map(attendee => {
-      const matchResult = findBestParticipantMatch(attendee, zoomReport.participants);
+      const sid = attendee.studentId && attendee.studentId.toString();
+      const manualRow = sid ? manualByStudentId.get(sid) : null;
+      if (manualRow) {
+        const m = manualRow.toObject ? manualRow.toObject() : { ...manualRow };
+        const clickedJoin = sid ? joinPresence.has(sid) : false;
+        const fc = m.confidence != null ? m.confidence : 100;
+        return {
+          studentId: attendee.studentId,
+          name: attendee.name,
+          email: attendee.email,
+          attended: m.attended !== undefined ? m.attended : false,
+          confidence: fc,
+          finalConfidence: fc,
+          confidenceLevel: fc >= 85 ? 'high' : fc >= 65 ? 'medium' : 'low',
+          matchMethod: 'manual_map',
+          zoomName: m.zoomName || null,
+          zoomEmail: m.zoomEmail || null,
+          joinTime: m.joinTime || null,
+          leaveTime: m.leaveTime || null,
+          duration: m.duration != null ? m.duration : 0,
+          durationMinutes: m.durationMinutes != null ? m.durationMinutes : 0,
+          attendancePercent: m.attendancePercent != null ? m.attendancePercent : 0,
+          status: m.status || 'absent',
+          needsReview: !!m.needsReview,
+          clickedJoin,
+          appearedInZoom: !!(m.zoomName || m.joinTime || m.duration),
+          mismatchReason: null,
+          debugSummary: 'Manual map by admin',
+          debug: {
+            portalName: attendee.name,
+            zoomName: m.zoomName || null,
+            matchMethod: 'manual_map',
+            traceId: String(traceId),
+          },
+        };
+      }
+
+      const joinLogJoinedAt = sid ? joinLogMap.get(sid) : undefined;
+      const clickedJoin = sid ? joinPresence.has(sid) : false;
+      const matchResult = findBestParticipantMatch(attendee, zoomReport.participants, {
+        joinLogJoinedAt,
+        logContext: { meetingId: meeting._id, studentId: sid },
+        meetingDurationSec: (meeting.duration || 60) * 60,
+        traceId,
+        claimedParticipants,
+      });
       const participantDuration = matchResult.match?.durationMinutes || 0;
       const meetingDuration = meeting.duration || 60;
       const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-      // Must be present for at least 70% of the meeting to count as attended
       const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
-      
-      console.log(`🎯 Matching ${attendee.name}:`, {
-        confidence: matchResult.confidence,
-        method: matchResult.method,
-        matched: !!matchResult.match,
-        durationMinutes: participantDuration,
-        attendancePercent: Math.round(attendancePercent),
-        meetsThreshold
+
+      if (attendanceDebugEnabled()) {
+        attendanceDebug('ATTENDANCE_MATCH', {
+          participantName: matchResult.match?.name ?? null,
+          participantEmail: matchResult.match?.email ?? null,
+          matchedStudent: matchResult.match ? attendee.name : null,
+          confidence: matchResult.finalConfidence ?? matchResult.confidence,
+          duration: participantDuration,
+          method: matchResult.method,
+          studentId: sid,
+          traceId: String(traceId),
+        });
+      }
+
+      if (!matchResult.match) {
+        attendanceWarn('Attendance match failed', {
+          studentId: sid,
+          attendeeName: attendee.name,
+          attendeeEmail: attendee.email,
+          method: matchResult.method,
+          debugSummary: matchResult.debugSummary,
+          mismatchReason: matchResult.mismatchReason,
+          traceId: String(traceId),
+        });
+      }
+
+      return buildAttendanceRowFromMatch(attendee, matchResult, {
+        meetingDurationMinutes: meetingDuration,
+        clickedJoin,
+        traceId,
       });
-      
-      return {
-        studentId: attendee.studentId,
-        name: attendee.name,
-        email: attendee.email,
-        attended: meetsThreshold,
-        confidence: matchResult.confidence,
-        matchMethod: matchResult.method,
-        zoomName: matchResult.match?.name || null,
-        zoomEmail: matchResult.match?.email || null,
-        joinTime: matchResult.match?.joinTime || null,
-        leaveTime: matchResult.match?.leaveTime || null,
-        duration: matchResult.match?.duration || 0,
-        durationMinutes: participantDuration,
-        attendancePercent: Math.round(attendancePercent),
-        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
-        needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
-      };
     });
+
+    applyAttendanceStabilityPass(attendanceData, traceId);
 
     // Calculate matching statistics
     const matchingStats = {
       emailMatches: attendanceData.filter(a => a.matchMethod === 'email').length,
       exactNameMatches: attendanceData.filter(a => a.matchMethod === 'exact_name').length,
+      exactTrimNameMatches: attendanceData.filter(a => a.matchMethod === 'exact_trim_name').length,
+      sanitizedNameMatches: attendanceData.filter(a => a.matchMethod === 'sanitized_name').length,
       partialNameMatches: attendanceData.filter(a => a.matchMethod === 'partial_name').length,
       fuzzyMatches: attendanceData.filter(a => a.matchMethod === 'fuzzy_name').length,
       manualReviewRequired: attendanceData.filter(a => a.needsReview).length,
@@ -1714,6 +2299,65 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     meeting.attendanceRecorded = true;
     meeting.attendanceRecordedAt = new Date();
     await meeting.save();
+
+    logAttendanceMatchSummary(attendanceData, meeting._id, traceId);
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (manual attendance):', e.message);
+    }
+
+    // Invalidate Student Log daily-summary cache so student-side analytics
+    // rebuild from corrected MeetingLink.attendance on next fetch.
+    try {
+      const ActivityDailySummary = require('../models/ActivityDailySummary');
+      const ActivityDailySummaryBounds = require('../models/ActivityDailySummaryBounds');
+      const batchValue = String(meeting.batch || '').trim();
+      const batchKeys = ['__all__'];
+      if (batchValue) batchKeys.push(batchValue);
+
+      await Promise.all([
+        ActivityDailySummary.deleteMany({ batchKey: { $in: batchKeys } }),
+        ActivityDailySummaryBounds.deleteMany({ batchKey: { $in: batchKeys } })
+      ]);
+    } catch (e) {
+      console.warn('daily-summary cache invalidation skipped:', e.message);
+    }
+
+    const normAttendStr = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
+    const participants = zoomReport.participants || [];
+
+    const allParticipants = participants.map(p => ({
+      name: p.name || '',
+      email: p.email || '',
+      // firstJoin / finalLeave — explicit session-boundary fields from merged deduplication.
+      firstJoin: p.firstJoin || p.joinTime || null,
+      finalLeave: p.finalLeave || p.leaveTime || null,
+      // Legacy names kept for backward compatibility.
+      joinTime: p.firstJoin || p.joinTime || null,
+      leaveTime: p.finalLeave || p.leaveTime || null,
+      duration: p.duration || 0,
+      totalDuration: p.totalDuration || p.duration || 0,
+      durationMinutes: p.durationMinutes || 0,
+      sessionCount: p.sessionCount || 1,
+      reconnectCount: p.reconnectCount || 0,
+      isMapped: attendanceData.some(a =>
+        (a.zoomEmail && p.email && normAttendStr(a.zoomEmail) === normAttendStr(p.email)) ||
+        (a.zoomName && p.name && normAttendStr(a.zoomName) === normAttendStr(p.name))
+      ),
+      mappedTo: (() => {
+        const mapped = attendanceData.find(a =>
+          (a.zoomEmail && p.email && normAttendStr(a.zoomEmail) === normAttendStr(p.email)) ||
+          (a.zoomName && p.name && normAttendStr(a.zoomName) === normAttendStr(p.name))
+        );
+        return mapped ? { name: mapped.name, email: mapped.email } : null;
+      })()
+    }));
+
+    // Total raw Zoom session rows before deduplication (sum of per-person session counts).
+    const rawZoomSessionCount = participants.reduce((sum, p) => sum + (p.sessionCount || 1), 0);
 
     res.status(200).json({
       success: true,
@@ -1727,6 +2371,9 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
         attendedCount: attendanceData.filter(a => a.attended).length,
         absentCount: attendanceData.filter(a => !a.attended).length,
         attendance: attendanceData,
+        allParticipants,
+        rawZoomSessionCount,
+        portalJoins,
         matchingStats: matchingStats,
         summary: zoomReport.summary
       }
@@ -1738,6 +2385,309 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       success: false,
       message: 'Failed to fetch attendance data'
     });
+  }
+});
+
+/**
+ * Manually map a Zoom participant to a batch student
+ * POST /api/zoom/meeting/:id/attendance/map-participant
+ */
+router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { participantName, participantEmail, studentEmail } = req.body;
+
+    if (!studentEmail) {
+      return res.status(400).json({ success: false, message: 'Student email is required' });
+    }
+
+    const meeting = await MeetingLink.findById(id);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const attendee = meeting.attendees.find(a => a.email.toLowerCase() === studentEmail.toLowerCase());
+    if (!attendee) {
+      return res.status(404).json({ success: false, message: 'Student not found in this batch/meeting. Check the email and try again.' });
+    }
+
+    let zoomReport;
+    try {
+      zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
+    } catch (error) {
+      return res.status(400).json({ success: false, message: 'Could not fetch Zoom data' });
+    }
+
+    const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
+    const participant = (zoomReport.participants || []).find(p =>
+      (participantEmail && p.email && norm(p.email) === norm(participantEmail)) ||
+      (participantName && p.name && norm(p.name) === norm(participantName))
+    );
+
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Zoom participant not found. Try again with the exact Zoom display name, or refresh the page in case the report updated.'
+      });
+    }
+
+    const meetingDuration = meeting.duration || 60;
+    const participantDuration = participant.durationMinutes || 0;
+    const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
+    const meetsThreshold = attendancePercent >= 70;
+
+    const existingIdx = meeting.attendance.findIndex(
+      a => a.studentId && a.studentId.toString() === attendee.studentId.toString()
+    );
+
+    const joinLogRow = await JoinLog.findOne({
+      meetingId: meeting._id,
+      studentId: attendee.studentId,
+    })
+      .select('_id')
+      .lean();
+
+    const mappedRecord = {
+      studentId: attendee.studentId,
+      name: attendee.name,
+      email: attendee.email,
+      attended: meetsThreshold,
+      confidence: 100,
+      finalConfidence: 100,
+      confidenceLevel: 'high',
+      matchMethod: 'manual_map',
+      zoomName: participant.name,
+      zoomEmail: participant.email || '',
+      joinTime: participant.joinTime || null,
+      leaveTime: participant.leaveTime || null,
+      duration: participant.duration || 0,
+      durationMinutes: participantDuration,
+      attendancePercent: Math.round(attendancePercent),
+      status: meetsThreshold ? 'attended' : 'late',
+      needsReview: false,
+      clickedJoin: !!joinLogRow,
+      appearedInZoom: true,
+      mismatchReason: null,
+      debugSummary: 'Manual map by admin',
+      debug: {
+        portalName: attendee.name,
+        zoomName: participant.name,
+        matchMethod: 'manual_map',
+      },
+    };
+
+    if (existingIdx >= 0) {
+      meeting.attendance[existingIdx] = mappedRecord;
+    } else {
+      meeting.attendance.push(mappedRecord);
+    }
+
+    meeting.attendanceRecordedAt = new Date();
+    await meeting.save();
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (map-participant):', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully mapped "${participant.name}" to student "${attendee.name}" (${attendee.email})`,
+      data: mappedRecord
+    });
+
+  } catch (error) {
+    console.error('Error mapping participant:', error);
+    res.status(500).json({ success: false, message: 'Failed to map participant' });
+  }
+});
+
+/**
+ * Manually mark one student as attended or absent.
+ * POST /api/zoom/meeting/:id/attendance/manual-mark
+ *
+ * Body:
+ *   studentId      {string}  – Mongo ObjectId of the student (or studentEmail below).
+ *   studentEmail   {string}  – Student email (alternative to studentId).
+ *   status         {'attended'|'absent'} – Defaults to 'attended' for backward compatibility.
+ */
+router.post('/meeting/:id/attendance/manual-mark', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId, studentEmail, status } = req.body || {};
+    const resolvedStatus = status === 'absent' ? 'absent' : 'attended';
+
+    if (!studentId && !studentEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'studentId or studentEmail is required'
+      });
+    }
+
+    const meeting = await MeetingLink.findById(id);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const normalizedEmail = String(studentEmail || '').trim().toLowerCase();
+    const attendee = meeting.attendees.find((a) =>
+      (studentId && a.studentId && a.studentId.toString() === String(studentId)) ||
+      (normalizedEmail && String(a.email || '').trim().toLowerCase() === normalizedEmail)
+    );
+
+    if (!attendee) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found in this meeting'
+      });
+    }
+
+    const existingIdx = (meeting.attendance || []).findIndex(
+      (a) => a.studentId && a.studentId.toString() === attendee.studentId.toString()
+    );
+    const existingRow = existingIdx >= 0 ? meeting.attendance[existingIdx] : null;
+
+    const joinLogRow = await JoinLog.findOne({
+      meetingId: meeting._id,
+      studentId: attendee.studentId,
+    })
+      .select('_id')
+      .lean();
+
+    let participant = null;
+    try {
+      const zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
+      const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
+      participant = (zoomReport.participants || []).find((p) =>
+        (p.email && attendee.email && norm(p.email) === norm(attendee.email)) ||
+        (p.name && attendee.name && norm(p.name) === norm(attendee.name))
+      ) || null;
+    } catch (error) {
+      participant = null;
+    }
+
+    const markedRecord = buildManualAttendanceRecord({
+      attendee,
+      existingRow: existingRow ? (existingRow.toObject ? existingRow.toObject() : existingRow) : null,
+      meetingDuration: meeting.duration || 60,
+      joinLogPresent: !!joinLogRow,
+      mode: 'single',
+      participant,
+      status: resolvedStatus,
+    });
+
+    if (existingIdx >= 0) {
+      meeting.attendance[existingIdx] = markedRecord;
+    } else {
+      meeting.attendance.push(markedRecord);
+    }
+
+    meeting.attendanceRecorded = true;
+    meeting.attendanceRecordedAt = new Date();
+    await meeting.save();
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (manual-mark):', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${attendee.name} marked as ${resolvedStatus}`,
+      data: markedRecord
+    });
+  } catch (error) {
+    console.error('Error manually marking attendance:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark attendance' });
+  }
+});
+
+/**
+ * Manually mark all students as attended
+ * POST /api/zoom/meeting/:id/attendance/manual-mark-all
+ */
+router.post('/meeting/:id/attendance/manual-mark-all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const meeting = await MeetingLink.findById(id);
+
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const existingByStudent = new Map();
+    for (const row of meeting.attendance || []) {
+      if (row && row.studentId) {
+        existingByStudent.set(row.studentId.toString(), row.toObject ? row.toObject() : row);
+      }
+    }
+
+    const joinLogs = await JoinLog.find({ meetingId: meeting._id })
+      .select('studentId')
+      .lean();
+    const joinLogStudentIds = new Set(joinLogs.map((j) => String(j.studentId)));
+
+    let participants = [];
+    try {
+      const zoomReport = await zoomService.getMeetingReport(meeting.zoomMeetingId, {
+        meetingUuid: meeting.zoomMeetingUuid,
+        expectedStartTime: meeting.startTime
+      });
+      participants = Array.isArray(zoomReport.participants) ? zoomReport.participants : [];
+    } catch (error) {
+      participants = [];
+    }
+
+    const norm = (s) => (s == null ? '' : String(s)).trim().toLowerCase();
+    const attendanceRows = meeting.attendees.map((attendee) => {
+      const existingRow = existingByStudent.get(attendee.studentId.toString()) || null;
+      const participant = participants.find((p) =>
+        (p.email && attendee.email && norm(p.email) === norm(attendee.email)) ||
+        (p.name && attendee.name && norm(p.name) === norm(attendee.name))
+      ) || null;
+
+      return buildManualAttendanceRecord({
+        attendee,
+        existingRow,
+        meetingDuration: meeting.duration || 60,
+        joinLogPresent: joinLogStudentIds.has(String(attendee.studentId)),
+        mode: 'all',
+        participant
+      });
+    });
+
+    meeting.attendance = attendanceRows;
+    meeting.attendanceRecorded = true;
+    meeting.attendanceRecordedAt = new Date();
+    await meeting.save();
+
+    try {
+      const { syncPendingFlagsFromMeeting } = require('../services/journeyDayAdvance.service');
+      await syncPendingFlagsFromMeeting(meeting);
+    } catch (e) {
+      console.warn('journey pending sync (manual-mark-all):', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Marked all ${attendanceRows.length} students as attended`,
+      data: {
+        totalMarked: attendanceRows.length
+      }
+    });
+  } catch (error) {
+    console.error('Error marking all attendance:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark all attendance' });
   }
 });
 
@@ -1923,41 +2873,55 @@ router.get('/meeting/:meetingId/engagement/teacher', verifyToken, async (req, re
  */
 router.get('/available-hosts', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { startTime, duration } = req.query;
+    const { startTime, duration, startTimes: startTimesRaw } = req.query;
+    const durationMin = Number(duration);
 
-    if (!startTime || !duration) {
-      return res.status(400).json({ success: false, message: 'startTime and duration are required' });
+    if (!duration || !Number.isFinite(durationMin) || durationMin <= 0) {
+      return res.status(400).json({ success: false, message: 'duration is required' });
     }
 
-    const meetingStart = new Date(startTime);
-    const meetingEnd = new Date(meetingStart.getTime() + Number(duration) * 60000);
-
-    // Get all Zoom hosts from Zoom API
-    const users = await zoomService.getZoomUsers();
-    const hosts = users.map(u => ({ id: u.id, email: u.email, name: u.first_name + ' ' + u.last_name }));
-
-    // Find meetings that overlap with the requested time
-    const overlapping = await MeetingLink.find({
-      status: { $ne: 'cancelled' },
-      startTime: { $lt: meetingEnd },
-      $expr: {
-        $gt: [
-          { $add: ['$startTime', { $multiply: ['$duration', 60000] }] },
-          meetingStart
-        ]
+    const slotInputs = [];
+    if (startTimesRaw) {
+      try {
+        const parsed = JSON.parse(String(startTimesRaw));
+        if (Array.isArray(parsed)) {
+          slotInputs.push(...parsed.map(String));
+        }
+      } catch {
+        /* ignore malformed JSON */
       }
-    }).select('hostEmail startTime duration');
+    }
+    if (startTime) {
+      slotInputs.unshift(String(startTime));
+    }
+    const uniqueSlots = [...new Set(slotInputs.filter(Boolean))];
+    if (uniqueSlots.length === 0) {
+      return res.status(400).json({ success: false, message: 'startTime or startTimes is required' });
+    }
 
-    const busyEmails = new Set(
-      overlapping
-        .filter(m => m.hostEmail)
-        .map(m => m.hostEmail.toLowerCase())
-    );
+    const windows = uniqueSlots.map((slot) => {
+      const meetingStart = new Date(slot);
+      if (Number.isNaN(meetingStart.getTime())) {
+        return null;
+      }
+      return {
+        start: meetingStart,
+        end: new Date(meetingStart.getTime() + durationMin * 60000)
+      };
+    }).filter(Boolean);
 
-    const data = hosts.map(h => ({
-      ...h,
-      isBusy: busyEmails.has(h.email.toLowerCase())
+    if (windows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid startTime value(s)' });
+    }
+
+    const users = await zoomService.getZoomUsers();
+    const hosts = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: `${u.first_name} ${u.last_name}`.trim()
     }));
+
+    const data = await buildHostAvailability(hosts, windows);
 
     res.json({ success: true, data });
   } catch (error) {
@@ -2028,32 +2992,35 @@ router.post('/external/link', verifyToken, async (req, res) => {
     if (plan) studentFilter.subscription = plan;
     const students = await User.find(studentFilter).select('name email').lean();
 
-    // Match participants to students
-    const attendanceData = students.map(student => {
-      const matchResult = findBestParticipantMatch(student, report.participants);
-      const participantDuration = matchResult.match?.durationMinutes || 0;
-      const meetingDuration = report.meeting?.duration || 60;
-      const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
+    const reportParts = report.participants || [];
+    for (const p of reportParts) {
+      delete p._matched;
+      delete p._reserved;
+      delete p._priority;
+      delete p._matchedByStudent;
+    }
+    delete reportParts[Symbol.for('gluck.attendanceClaimMap')];
+    delete reportParts[Symbol.for('gluck.attendanceTraceId')];
+    const externalTraceId = new mongoose.Types.ObjectId();
+    const externalClaimed = new Map();
 
-      return {
-        studentId: student._id,
-        name: student.name,
-        email: student.email,
-        attended: meetsThreshold,
-        confidence: matchResult.confidence,
-        matchMethod: matchResult.method,
-        zoomName: matchResult.match?.name || null,
-        zoomEmail: matchResult.match?.email || null,
-        joinTime: matchResult.match?.joinTime || null,
-        leaveTime: matchResult.match?.leaveTime || null,
-        duration: matchResult.match?.duration || 0,
-        durationMinutes: participantDuration,
-        attendancePercent: Math.round(attendancePercent),
-        status: meetsThreshold ? 'attended' : (matchResult.match ? 'late' : 'absent'),
-        needsReview: matchResult.confidence < 80 && matchResult.confidence > 0
-      };
+    // Match participants to students
+    const attendanceData = students.map((student) => {
+      const attendee = { studentId: student._id, name: student.name, email: student.email };
+      const matchResult = findBestParticipantMatch(attendee, report.participants, {
+        meetingDurationSec: (report.meeting?.duration || 60) * 60,
+        traceId: externalTraceId,
+        claimedParticipants: externalClaimed,
+        logContext: { studentId: student._id && student._id.toString() },
+      });
+      return buildAttendanceRowFromMatch(attendee, matchResult, {
+        meetingDurationMinutes: report.meeting?.duration || 60,
+        clickedJoin: false,
+        traceId: externalTraceId,
+      });
     });
+
+    applyAttendanceStabilityPass(attendanceData, externalTraceId);
 
     // Save as a MeetingLink
     const meetingLink = new MeetingLink({
@@ -2065,6 +3032,7 @@ router.post('/external/link', verifyToken, async (req, res) => {
       startTime: report.meeting?.startTime ? new Date(report.meeting.startTime) : new Date(),
       duration: report.meeting?.duration || 60,
       zoomMeetingId: String(zoomMeetingId),
+      zoomMeetingUuid: report.meeting?.uuid ? String(report.meeting.uuid) : undefined,
       hostEmail: report.meeting?.hostId || '',
       createdBy: req.user.id,
       attendees: students.map(s => ({ studentId: s._id, name: s.name, email: s.email, joinUrl: '' })),
@@ -2109,6 +3077,28 @@ router.get('/teachers', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), asyn
   } catch (error) {
     console.error('Error fetching teachers:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch teachers' });
+  }
+});
+
+/**
+ * POST /api/zoom/enforce-private-chat-off
+ * One-time (or periodic) admin action: disable private chat at the Zoom
+ * account level AND for every individual licensed host.
+ * Run this once after deployment to close the gap for existing host accounts.
+ */
+router.post('/enforce-private-chat-off', verifyToken, checkRole(['ADMIN']), async (req, res) => {
+  try {
+    const results = await zoomService.disablePrivateChatForAllUsers();
+    const failed = results.filter(r => !r.success);
+    res.json({
+      success: true,
+      message: `Private chat enforcement complete. ${results.length - failed.length}/${results.length} targets updated.`,
+      results,
+      ...(failed.length ? { warnings: failed } : {})
+    });
+  } catch (error) {
+    console.error('Error enforcing private chat off:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

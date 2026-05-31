@@ -1,0 +1,168 @@
+<div class="pa-page">
+
+  <!-- Toast -->
+  <div class="pa-toast" *ngIf="toast" [class.pa-toast--error]="toast.type === 'error'">
+    {{ toast.msg }}
+  </div>
+
+  <!-- Header -->
+  <div class="pa-header">
+    <div class="pa-header__title">
+      <h1 class="pa-title">Payment Approvals</h1>
+      <p class="pa-subtitle">Review and confirm student payment submissions</p>
+    </div>
+    <div class="pa-counts">
+      <div class="pa-count-chip pa-count-chip--pending">
+        <span class="pa-count-chip__num">{{ counts.pending }}</span>
+        <span class="pa-count-chip__label">Awaiting</span>
+      </div>
+      <div class="pa-count-chip pa-count-chip--confirmed">
+        <span class="pa-count-chip__num">{{ counts.confirmed }}</span>
+        <span class="pa-count-chip__label">Confirmed</span>
+      </div>
+      <div class="pa-count-chip pa-count-chip--rejected">
+        <span class="pa-count-chip__num">{{ counts.rejected }}</span>
+        <span class="pa-count-chip__label">Rejected</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div class="pa-filters">
+    <button class="pa-filter-btn" [class.pa-filter-btn--active]="activeFilter === 'all'" (click)="setFilter('all')">All</button>
+    <button class="pa-filter-btn" [class.pa-filter-btn--active]="activeFilter === 'pending'" (click)="setFilter('pending')">Pending</button>
+    <button class="pa-filter-btn" [class.pa-filter-btn--active]="activeFilter === 'processing'" (click)="setFilter('processing')">Processing (Razorpay)</button>
+    <button class="pa-filter-btn" [class.pa-filter-btn--active]="activeFilter === 'confirmed'" (click)="setFilter('confirmed')">Confirmed</button>
+    <button class="pa-filter-btn" [class.pa-filter-btn--active]="activeFilter === 'rejected'" (click)="setFilter('rejected')">Rejected</button>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="isLoading" class="pa-loading">
+    <div class="pa-spinner"></div>
+    <p>Loading submissions...</p>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!isLoading && submissions.length === 0" class="pa-empty">
+    <div class="pa-empty__icon">📭</div>
+    <div class="pa-empty__text">No payment submissions found.</div>
+    <div class="pa-empty__sub">Students will appear here once they submit a payment.</div>
+  </div>
+
+  <!-- Submissions Table -->
+  <div class="pa-card" *ngIf="!isLoading && submissions.length > 0">
+    <div class="pa-table-wrap">
+      <table class="pa-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Invoice #</th>
+            <th>Amount</th>
+            <th>Type</th>
+            <th>Submitted</th>
+            <th>Status</th>
+            <th>Proof / Details</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let sub of submissions" [class.pa-row--confirmed]="sub.status === 'confirmed'" [class.pa-row--rejected]="sub.status === 'rejected'">
+            <td>
+              <div class="pa-student-cell">
+                <div class="pa-student-name">{{ sub.studentName }}</div>
+                <div class="pa-student-email">{{ sub.studentEmail }}</div>
+              </div>
+            </td>
+            <td class="pa-mono">{{ sub.invoiceNumber || '—' }}</td>
+            <td class="pa-amount">₹ {{ formatAmount(sub.amount) }}</td>
+            <td>
+              <span class="pa-type-badge" [class.pa-type-badge--razorpay]="sub.paymentType === 'razorpay'" [class.pa-type-badge--manual]="sub.paymentType === 'manual'">
+                {{ sub.paymentType === 'razorpay' ? '💳 Razorpay' : '📤 Manual' }}
+              </span>
+            </td>
+            <td class="pa-date">{{ formatDate(sub.createdAt) }}</td>
+            <td>
+              <span [class]="getStatusClass(sub.status)">{{ getStatusLabel(sub.status) }}</span>
+            </td>
+            <td>
+              <!-- Razorpay details -->
+              <div *ngIf="sub.paymentType === 'razorpay' && sub.razorpayPaymentId" class="pa-detail-text">
+                ID: {{ sub.razorpayPaymentId }}
+              </div>
+              <!-- Manual proof -->
+              <div *ngIf="sub.paymentType === 'manual'" class="pa-proof-wrap">
+                <div *ngIf="sub.timeOfPayment" class="pa-detail-text">⏰ {{ sub.timeOfPayment }}</div>
+                <div *ngIf="sub.note" class="pa-detail-text">📝 {{ sub.note }}</div>
+                <a *ngIf="sub.proofUrl" [href]="sub.proofUrl" target="_blank" class="pa-proof-link">
+                  📎 View Proof
+                </a>
+                <span *ngIf="!sub.proofUrl" class="pa-no-proof">No screenshot</span>
+              </div>
+              <span *ngIf="sub.status === 'rejected' && sub.rejectionReason" class="pa-rejection-reason">
+                Reason: {{ sub.rejectionReason }}
+              </span>
+              <span *ngIf="sub.status === 'confirmed' && sub.confirmedAt" class="pa-confirmed-by">
+                Confirmed: {{ formatDate(sub.confirmedAt) }}
+              </span>
+            </td>
+            <td>
+              <div class="pa-actions" *ngIf="sub.status === 'pending' || sub.status === 'processing'">
+                <button
+                  class="pa-btn pa-btn--confirm"
+                  [disabled]="actionLoading[sub._id]"
+                  (click)="openConfirmModal(sub)">
+                  {{ actionLoading[sub._id] ? '...' : '✓ Confirm' }}
+                </button>
+                <button
+                  class="pa-btn pa-btn--reject"
+                  [disabled]="actionLoading[sub._id]"
+                  (click)="openRejectModal(sub)">
+                  ✗ Reject
+                </button>
+              </div>
+              <span *ngIf="sub.status === 'confirmed'" class="pa-done-label pa-done-label--confirmed">Confirmed</span>
+              <span *ngIf="sub.status === 'rejected'" class="pa-done-label pa-done-label--rejected">Rejected</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Confirm Modal -->
+<div class="pa-modal-overlay" *ngIf="showConfirmModal" (click)="closeConfirmModal()">
+  <div class="pa-modal" (click)="$event.stopPropagation()">
+    <div class="pa-modal__icon">✅</div>
+    <h3 class="pa-modal__title">Confirm Payment</h3>
+    <p class="pa-modal__body">
+      Are you sure you want to confirm the payment of <strong>₹ {{ formatAmount(confirmingAmount) }}</strong> from <strong>{{ confirmingName }}</strong>?
+      <br><br>
+      The invoice will be updated and a congratulations email will be sent to the student.
+    </p>
+    <div class="pa-modal__actions">
+      <button class="pa-btn pa-btn--confirm" (click)="confirmPayment()">Yes, Confirm</button>
+      <button class="pa-btn pa-btn--cancel" (click)="closeConfirmModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="pa-modal-overlay" *ngIf="showRejectModal" (click)="closeRejectModal()">
+  <div class="pa-modal" (click)="$event.stopPropagation()">
+    <div class="pa-modal__icon">❌</div>
+    <h3 class="pa-modal__title">Reject Submission</h3>
+    <p class="pa-modal__body">Optionally provide a reason for rejection (student will be notified):</p>
+    <textarea
+      class="pa-modal__textarea"
+      [(ngModel)]="rejectReason"
+      rows="3"
+      placeholder="e.g. Screenshot unclear, amount mismatch...">
+    </textarea>
+    <div class="pa-modal__actions">
+      <button class="pa-btn pa-btn--reject" (click)="rejectPayment()">Reject</button>
+      <button class="pa-btn pa-btn--cancel" (click)="closeRejectModal()">Cancel</button>
+    </div>
+  </div>
+</div>

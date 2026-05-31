@@ -29,13 +29,30 @@
             ],
             "styles": [
               "@angular/material/prebuilt-themes/azure-blue.css",
+              "node_modules/shepherd.js/dist/css/shepherd.css",
               "src/styles.scss",
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
             ],
-            "scripts": []
+            "scripts": [],
+            "allowedCommonJsDependencies": [
+              "canvg",
+              "core-js",
+              "html2canvas",
+              "papaparse",
+              "raf",
+              "rgbcolor"
+            ]
           },
           "configurations": {
             "production": {
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              },
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -45,7 +62,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "1.5MB",
+                  "maximumWarning": "2MB",
                   "maximumError": "5MB"
                 },
                 {
@@ -99,6 +116,7 @@
             ],
             "styles": [
               "@angular/material/prebuilt-themes/azure-blue.css",
+              "node_modules/shepherd.js/dist/css/shepherd.css",
               "src/styles.scss",
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
               "src/styles.css"

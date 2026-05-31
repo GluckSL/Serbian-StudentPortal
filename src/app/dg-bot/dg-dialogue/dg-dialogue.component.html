@@ -1,0 +1,53 @@
+<div
+  class="dg-bubble"
+  *ngIf="line || subtitle"
+  [class.dg-bubble--success]="variant === 'success'"
+  [class.dg-bubble--encourage]="variant === 'encourage'"
+  [class.dg-bubble--soft]="variant === 'soft'"
+>
+  <div class="dg-bubble__row">
+    <p class="dg-bubble__text">{{ line }}</p>
+    <button
+      mat-icon-button
+      type="button"
+      class="dg-bubble__tts"
+      *ngIf="showTts"
+      [disabled]="disabled || !line"
+      (click)="replayTts.emit()"
+      aria-label="Replay speech"
+    >
+      <mat-icon>volume_up</mat-icon>
+    </button>
+  </div>
+
+  <p class="dg-bubble__sub" *ngIf="subtitle">{{ subtitle }}</p>
+
+  <!-- CC toggle bar — only shown when CC data is available -->
+  <div class="dg-bubble__cc-bar" *ngIf="hasCc">
+    <button
+      *ngIf="ccEnglish"
+      type="button"
+      class="dg-bubble__cc-btn"
+      [class.dg-bubble__cc-btn--active]="ccMode === 'en'"
+      (click)="toggleCc('en')"
+      aria-label="Toggle English subtitles"
+    >
+      CC EN
+    </button>
+    <button
+      *ngIf="ccTamil"
+      type="button"
+      class="dg-bubble__cc-btn"
+      [class.dg-bubble__cc-btn--active]="ccMode === 'ta'"
+      (click)="toggleCc('ta')"
+      aria-label="Toggle Tamil subtitles"
+    >
+      CC தமிழ்
+    </button>
+  </div>
+
+  <!-- CC text panel -->
+  <div class="dg-bubble__cc-panel" *ngIf="ccMode !== 'none' && ccDisplayText">
+    <p class="dg-bubble__cc-text">{{ ccDisplayText }}</p>
+  </div>
+</div>

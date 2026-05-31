@@ -20,15 +20,24 @@ const studentDocumentSchema = new mongoose.Schema({
   },
   
   // Document details
+  documentTypeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'DocumentRequirement',
+    required: true
+  },
   documentType: {
     type: String,
     required: true
-    // No enum - allow any document type from DocumentRequirement collection
   },
   
   documentName: {
     type: String,
     required: true
+  },
+
+  documentCategory: {
+    type: String,
+    default: 'OTHER'
   },
   
   // File information
@@ -72,6 +81,30 @@ const studentDocumentSchema = new mongoose.Schema({
   verificationNotes: {
     type: String
   },
+
+  remarks: {
+    type: String
+  },
+
+  version: {
+    type: Number,
+    default: 1
+  },
+  isCurrent: {
+    type: Boolean,
+    default: true
+  },
+  supersededBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'StudentDocument'
+  },
+  replacedAt: {
+    type: Date
+  },
+  replacedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   
   // Metadata
   uploadedAt: {
@@ -87,9 +120,17 @@ const studentDocumentSchema = new mongoose.Schema({
 });
 
 // Indexes for efficient querying
+studentDocumentSchema.index({ studentId: 1, documentTypeId: 1, isCurrent: 1 });
 studentDocumentSchema.index({ studentId: 1, documentType: 1 });
 studentDocumentSchema.index({ status: 1 });
 studentDocumentSchema.index({ uploadedAt: -1 });
+studentDocumentSchema.index({ documentTypeId: 1, version: -1 });
+
+studentDocumentSchema.pre('save', function(next) {
+  if (!this.remarks && this.verificationNotes) this.remarks = this.verificationNotes;
+  if (!this.verificationNotes && this.remarks) this.verificationNotes = this.remarks;
+  next();
+});
 
 // Virtual for formatted file size
 studentDocumentSchema.virtual('formattedFileSize').get(function() {
@@ -102,6 +143,8 @@ studentDocumentSchema.virtual('formattedFileSize').get(function() {
 // Method to get document type display name
 studentDocumentSchema.methods.getDocumentTypeDisplayName = function() {
   const displayNames = {
+    'MISCELLANEOUS': 'Other Certificates',
+    'BIRTH_CERTIFICATE': 'Birth Certificate',
     'CV': 'CV',
     'O_LEVEL_CERTIFICATE': 'O Level Certificate',
     'A_LEVEL_CERTIFICATE': 'A Level Certificate',

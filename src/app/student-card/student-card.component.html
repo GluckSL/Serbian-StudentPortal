@@ -5,7 +5,12 @@
 <mat-card class="student-card">
   <mat-card-header>
     <div mat-card-avatar class="avatar" [style.background-image]="'url(' + student.photo + ')'"></div>
-    <mat-card-title>{{ student.name }}</mat-card-title>
+    <mat-card-title
+      ><span class="student-card__title-row"
+        >{{ student.name
+        }}<app-test-account-badge [show]="!!student?.isTestAccount"></app-test-account-badge></span
+      ></mat-card-title
+    >
     <mat-card-subtitle>{{ student.email }}</mat-card-subtitle>
   </mat-card-header>
 

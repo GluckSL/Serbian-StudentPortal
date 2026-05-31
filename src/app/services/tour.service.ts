@@ -33,8 +33,10 @@ export class TourService {
 
   private closeSidebarIfMobile(): void {
     if (this.isMobile) {
+      const closeBtn = document.querySelector('.sidebar-mobile-close') as HTMLElement;
       const overlay = document.querySelector('.sidebar-overlay') as HTMLElement;
-      if (overlay) overlay.click();
+      if (closeBtn) closeBtn.click();
+      else if (overlay) overlay.click();
     }
   }
 
@@ -100,7 +102,7 @@ export class TourService {
     t.addStep(this.sidebarStep('dashboard', '.nav-item[href="/student-progress"]', 'Dashboard', '🏠', 'Your dashboard shows your overall progress — language levels, attendance, AI bot usage, payments, and visa status at a glance.'));
     t.addStep(this.sidebarStep('my-course', '.nav-item[href="/student/my-course"]', 'My Course', '📖', 'Access your Zoom classes, class recordings, digital exercises, and AI learning modules — all in one place.'));
     t.addStep(this.sidebarStep('documents', '.nav-item[href="/student-documents"]', 'Documents', '📁', 'Upload and manage your required documents here. The admin team will verify them for your visa process.'));
-    t.addStep(this.sidebarStep('payments', '.nav-item[href="/student-payments"]', 'Payments', '💳', 'View your payment summary, invoices, and payment history. Track what\'s been paid and what\'s pending.'));
+    t.addStep(this.sidebarStep('payments', '.nav-item[href="/my-payments"]', 'My Payments', '💳', 'View payment requests from the team, upload proof, and track what\'s been paid and what\'s pending.'));
     t.addStep(this.sidebarStep('visa', '.nav-item[href="/visa-status"]', 'Visa Status', '✈️', 'Track your visa application progress step by step. Stay updated on your application status.'));
     t.addStep(this.sidebarStep('profile', '.sidebar-footer .profile-link', 'Your Profile', '👤', 'View and update your profile information, including your photo and contact details.'));
 

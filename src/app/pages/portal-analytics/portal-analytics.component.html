@@ -1,0 +1,167 @@
+<div class="pa-shell">
+  <header class="pa-hero">
+    <div class="pa-hero-text">
+      <h1>Portal Analytics</h1>
+      <p>Heartbeat-based active time. Tables and charts stay separate from Student Logs.</p>
+    </div>
+    <div class="pa-hero-actions">
+      <button
+        mat-stroked-button
+        type="button"
+        disabled
+        matTooltip="Compare two date ranges — coming soon."
+        matTooltipPosition="below">
+        Compare
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        color="primary"
+        matTooltip="Open daily logs in a new tab (same date range and cohort)."
+        matTooltipPosition="below"
+        (click)="openDailyLogsInNewTab()">
+        Logs
+      </button>
+    </div>
+  </header>
+
+  <div class="pa-toolbar card-like">
+    <div class="pa-dates">
+      <label class="pa-field">
+        <span>From</span>
+        <input type="date" class="form-control" [(ngModel)]="draftFrom" name="from" />
+      </label>
+      <label class="pa-field">
+        <span>To</span>
+        <input type="date" class="form-control" [(ngModel)]="draftTo" name="to" />
+      </label>
+      <div class="pa-quick-ranges">
+        <button
+          mat-stroked-button
+          class="pa-quick-btn"
+          type="button"
+          [class.pa-quick-btn--active]="selectedQuickRange === 'today'"
+          [color]="selectedQuickRange === 'today' ? 'primary' : undefined"
+          (click)="setTodayRange()">
+          Today
+        </button>
+        <button
+          mat-stroked-button
+          class="pa-quick-btn"
+          type="button"
+          [class.pa-quick-btn--active]="selectedQuickRange === 'lastDate'"
+          [color]="selectedQuickRange === 'lastDate' ? 'primary' : undefined"
+          (click)="setLastDateRange()">
+          Last Date
+        </button>
+        <button
+          mat-stroked-button
+          class="pa-quick-btn"
+          type="button"
+          [class.pa-quick-btn--active]="selectedQuickRange === 'week'"
+          [color]="selectedQuickRange === 'week' ? 'primary' : undefined"
+          (click)="setWeekRange()">
+          Week
+        </button>
+      </div>
+      <button mat-flat-button color="primary" type="button" (click)="applyRange()">Apply</button>
+    </div>
+    <div class="pa-extra-filters">
+      <label class="pa-field pa-field--select">
+        <span>Batch</span>
+        <select class="form-control" [(ngModel)]="batch" name="batch" (ngModelChange)="onBatchChange()">
+          <option value="">All batches</option>
+          @for (b of availableBatches; track b) {
+            <option [value]="b">{{ b }}</option>
+          }
+        </select>
+      </label>
+      <label class="pa-field pa-field--select">
+        <span>Level</span>
+        <select class="form-control" [(ngModel)]="level" name="level" (ngModelChange)="onLevelChange()">
+          <option value="">All levels</option>
+          @for (lv of availableLevels; track lv) {
+            <option [value]="lv">{{ lv }}</option>
+          }
+        </select>
+      </label>
+      <div class="pa-field pa-field--checkbox" matTooltip="Test accounts are excluded by default. Enable to include their portal time in analytics.">
+        <span>Test accounts</span>
+        <label class="pa-checkbox-control">
+          <input
+            type="checkbox"
+            [(ngModel)]="includeTestAccounts"
+            name="includeTestAccounts"
+            (ngModelChange)="onIncludeTestAccountsChange()" />
+          <span>Include in analytics</span>
+        </label>
+      </div>
+      <div class="pa-field pa-field--cohort">
+        <span>Cohort</span>
+        <div class="pa-cohort-filter">
+        <button
+          type="button"
+          class="pa-cohort-btn"
+          [class.pa-cohort-btn--active]="cohort === 'overall'"
+          (click)="setCohort('overall')">
+          Overall
+        </button>
+        <button
+          type="button"
+          class="pa-cohort-btn pa-cohort-btn--platinum"
+          [class.pa-cohort-btn--active]="cohort === 'platinum'"
+          (click)="setCohort('platinum')">
+          Platinum
+        </button>
+        <button
+          type="button"
+          class="pa-cohort-btn pa-cohort-btn--go"
+          [class.pa-cohort-btn--active]="cohort === 'go'"
+          (click)="setCohort('go')">
+          Go
+        </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @if (range.from && range.to) {
+    <mat-tab-group animationDuration="0ms" class="pa-tabs mat-elevation-z0">
+      <mat-tab label="Overview">
+        <ng-template matTabContent>
+          <app-portal-analytics-dashboard [range]="range" />
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="Student wise">
+        <ng-template matTabContent>
+          <app-portal-analytics-student-wise [range]="range" />
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="Page wise">
+        <ng-template matTabContent>
+          <app-portal-analytics-page-wise [range]="range" />
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="Timeline">
+        <ng-template matTabContent>
+          <app-portal-analytics-timeline [range]="range" />
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="Session wise">
+        <ng-template matTabContent>
+          <app-portal-analytics-session-wise [range]="range" />
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="Devices">
+        <ng-template matTabContent>
+          <app-portal-analytics-device-wise [range]="range" />
+        </ng-template>
+      </mat-tab>
+      <mat-tab label="Learning">
+        <ng-template matTabContent>
+          <app-portal-analytics-learning [range]="range" />
+        </ng-template>
+      </mat-tab>
+    </mat-tab-group>
+  }
+</div>

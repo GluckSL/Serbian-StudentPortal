@@ -1,0 +1,203 @@
+<div class="pa-shell">
+  <header class="pa-hero">
+    <div class="pa-hero-text">
+      <h1>Portal logs by day</h1>
+      <p>
+        Heartbeat segments aggregated per day (Asia/Kolkata).
+        <a routerLink="/portal-analytics" class="pa-back">← Portal Analytics</a>
+      </p>
+    </div>
+  </header>
+
+  <div class="pa-toolbar card-like">
+    <div class="pa-dates">
+      <label class="pa-field">
+        <span>From</span>
+        <input type="date" class="form-control" [(ngModel)]="draftFrom" name="from" />
+      </label>
+      <label class="pa-field">
+        <span>To</span>
+        <input type="date" class="form-control" [(ngModel)]="draftTo" name="to" />
+      </label>
+      <div class="pa-quick-ranges">
+        <button mat-stroked-button class="pa-quick-btn" type="button" (click)="setTodayDraft()">Today</button>
+        <button mat-stroked-button class="pa-quick-btn" type="button" (click)="setWeekDraft()">Week</button>
+        <button mat-flat-button color="primary" type="button" (click)="applyCustomRange()">Apply</button>
+      </div>
+      <button
+        mat-stroked-button
+        type="button"
+        color="primary"
+        matTooltip="Clear date filters and show the latest 7 days again."
+        (click)="setLastSevenDays()">
+        Last 7 days
+      </button>
+    </div>
+    <div class="pa-cohort-filter">
+      <button
+        type="button"
+        class="pa-cohort-btn"
+        [class.pa-cohort-btn--active]="cohort === 'overall'"
+        (click)="setCohort('overall')">
+        Overall
+      </button>
+      <button
+        type="button"
+        class="pa-cohort-btn pa-cohort-btn--platinum"
+        [class.pa-cohort-btn--active]="cohort === 'platinum'"
+        (click)="setCohort('platinum')">
+        Platinum
+      </button>
+      <button
+        type="button"
+        class="pa-cohort-btn pa-cohort-btn--go"
+        [class.pa-cohort-btn--active]="cohort === 'go'"
+        (click)="setCohort('go')">
+        Go
+      </button>
+    </div>
+  </div>
+
+  @if (viewMode === 'rolling' && !loading) {
+    <p class="pa-mode-hint">
+      Showing the latest week. Use <strong>Load more</strong> to add the previous 7 days without changing the URL.
+    </p>
+  }
+
+  @if (loading) {
+    <div class="dlg-loading"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="dlg-error">{{ error }}</p>
+  } @else {
+    <p class="dlg-hint">
+      Interactions counts page segments (each tracked stretch on a page). Avg time uses distinct students active that day.
+      @if (rangeSummary) {
+        <span class="dlg-range">Loaded: {{ rangeSummary }}</span>
+      }
+    </p>
+    <div class="dlg-table-wrap">
+      <table mat-table [dataSource]="rows" class="dlg-table">
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef>Date</th>
+          <td mat-cell *matCellDef="let row">{{ displayDateYmd(row.date) }}</td>
+        </ng-container>
+        <ng-container matColumnDef="portalTime">
+          <th mat-header-cell *matHeaderCellDef>Portal time</th>
+          <td mat-cell *matCellDef="let row">{{ formatDuration(row.portalSeconds) }}</td>
+        </ng-container>
+        <ng-container matColumnDef="interactions">
+          <th mat-header-cell *matHeaderCellDef>Interactions</th>
+          <td mat-cell *matCellDef="let row">{{ row.interactions }}</td>
+        </ng-container>
+        <ng-container matColumnDef="avgTime">
+          <th mat-header-cell *matHeaderCellDef>Avg / student</th>
+          <td mat-cell *matCellDef="let row">{{ formatDuration(row.avgStudentSeconds) }}</td>
+        </ng-container>
+        <ng-container matColumnDef="topPage">
+          <th mat-header-cell *matHeaderCellDef>Top page</th>
+          <td mat-cell *matCellDef="let row">
+            @if (row.topPage) {
+              <span class="cell-main">{{ row.topPage.page }}</span>
+              <span class="cell-sub">{{ formatDuration(row.topPage.seconds) }}</span>
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="topStudent">
+          <th mat-header-cell *matHeaderCellDef>Top student</th>
+          <td mat-cell *matCellDef="let row">
+            @if (row.topStudent) {
+              <span class="cell-main">{{ row.topStudent.name }}</span>
+              <span class="cell-sub">{{ formatDuration(row.topStudent.seconds) }}</span>
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>Details</th>
+          <td mat-cell *matCellDef="let row">
+            <button
+              mat-stroked-button
+              type="button"
+              color="primary"
+              (click)="toggleDetail(row)"
+              [class.dlg-btn-active]="isDetailOpen(row)">
+              {{ isDetailOpen(row) ? 'Hide' : 'View' }}
+            </button>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns" [class.dlg-row-open]="isDetailOpen(row)"></tr>
+      </table>
+    </div>
+
+    @if (showLoadMore) {
+      <div class="load-more-wrap">
+        <button mat-stroked-button type="button" color="primary" [disabled]="loadingMore" (click)="loadMoreSevenDays()">
+          {{ loadingMore ? 'Loading…' : 'Load more (previous 7 days)' }}
+        </button>
+      </div>
+    }
+
+    @if (selected) {
+      <div class="detail-panel">
+        <h3 class="detail-heading">Details — {{ displayDateYmd(selected.date) }}</h3>
+        <div class="detail-grid">
+          <div class="detail-block">
+            <h4>Pages (tracked time)</h4>
+            @if (selected.details.pages.length) {
+              <table class="detail-mini">
+                <thead>
+                  <tr>
+                    <th>Page</th>
+                    <th class="num">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of selected.details.pages; track p.rawPage + p.page) {
+                    <tr>
+                      <td>
+                        <div class="wrap-path">{{ p.page }}</div>
+                        @if (p.rawPage && p.rawPage !== p.page) {
+                          <div class="raw-path">{{ p.rawPage }}</div>
+                        }
+                      </td>
+                      <td class="num">{{ formatDuration(p.seconds) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="muted">No page data.</p>
+            }
+          </div>
+          <div class="detail-block">
+            <h4>Students</h4>
+            @if (selected.details.students.length) {
+              <table class="detail-mini">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th class="num">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (s of selected.details.students; track s.studentId) {
+                    <tr>
+                      <td>{{ s.name }}</td>
+                      <td class="num">{{ formatDuration(s.seconds) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="muted">No student data.</p>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,302 @@
+<div class="student-agreements-container">
+
+  <!-- Header -->
+  <header class="page-header">
+    <div class="header-main">
+      <button mat-icon-button class="back-btn" type="button" (click)="goBackToDocuments()" matTooltip="Back to document profile">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div>
+        <h2>Generate Agreement</h2>
+        <p class="header-sub">Fill a template and send a PDF to the student checklist</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a mat-stroked-button routerLink="/admin/agreements/templates" target="_blank" class="btn-templates">
+        <mat-icon>library_books</mat-icon>
+        Manage Templates
+      </a>
+    </div>
+  </header>
+
+  <div class="student-id-error" *ngIf="studentIdInvalid">
+    <mat-icon>error_outline</mat-icon>
+    <div>
+      <strong>Invalid student link</strong>
+      <p>Open <strong>Document Verification</strong> → student profile → <strong>Generate Agreement</strong> (do not use a broken bookmark).</p>
+      <button mat-stroked-button type="button" (click)="goBackToDocuments()">Back to documents</button>
+    </div>
+  </div>
+
+  <!-- Student banner -->
+  <div class="student-banner" *ngIf="(studentName || studentEmail) && hasValidStudentId">
+    <div class="student-avatar">{{ studentInitials }}</div>
+    <div class="student-meta">
+      <strong>{{ studentName || 'Student' }}</strong>
+      <span>{{ studentEmail }}</span>
+    </div>
+    <div class="banner-stat" *ngIf="!loadingAgreements">
+      <span class="stat-num">{{ agreements.length }}</span>
+      <span class="stat-label">shared</span>
+    </div>
+  </div>
+
+  <!-- Wizard steps -->
+  <div class="wizard-steps" aria-label="Progress">
+    <div class="wizard-step" [class.wizard-step--active]="wizardStep >= 1" [class.wizard-step--done]="wizardStep > 1">
+      <span class="step-num">1</span>
+      <span class="step-label">Choose template</span>
+    </div>
+    <div class="step-connector" [class.step-connector--done]="wizardStep > 1"></div>
+    <div class="wizard-step" [class.wizard-step--active]="wizardStep >= 2" [class.wizard-step--done]="wizardStep > 2">
+      <span class="step-num">2</span>
+      <span class="step-label">Fill fields</span>
+    </div>
+    <div class="step-connector" [class.step-connector--done]="wizardStep > 2"></div>
+    <div class="wizard-step" [class.wizard-step--active]="wizardStep >= 3">
+      <span class="step-num">3</span>
+      <span class="step-label">Preview &amp; send</span>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <!-- ── Share new agreement ── -->
+    <mat-card class="share-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon class="card-title-icon">post_add</mat-icon>
+          Share New Agreement
+        </mat-card-title>
+        <mat-card-subtitle *ngIf="!selectedTemplate">Pick a template to show fields and actions</mat-card-subtitle>
+        <mat-card-subtitle *ngIf="selectedTemplate">
+          {{ selectedTemplate.name }}
+          <span class="mode-pill" [class.mode-pill--word]="isWordTemplate(selectedTemplate)">
+            {{ isWordTemplate(selectedTemplate) ? 'Word' : 'PDF overlay' }}
+          </span>
+        </mat-card-subtitle>
+      </mat-card-header>
+
+      <mat-card-content>
+        <div *ngIf="templatesLoading" class="inline-loading">
+          <mat-spinner diameter="28"></mat-spinner>
+          <span>Loading templates…</span>
+        </div>
+
+        <div class="no-templates-panel" *ngIf="!templatesLoading && templates.length === 0">
+          <mat-icon>folder_open</mat-icon>
+          <h3>No templates yet</h3>
+          <p>Create an agreement template with <code ngNonBindable>{{placeholders}}</code> before you can generate one for this student.</p>
+          <a mat-raised-button color="primary" routerLink="/admin/agreements/templates" target="_blank">
+            <mat-icon>add</mat-icon>
+            Create Template
+          </a>
+        </div>
+
+        <ng-container *ngIf="!templatesLoading && templates.length > 0">
+          <mat-form-field appearance="outline" class="full-width template-select">
+            <mat-label>Agreement template</mat-label>
+            <mat-select [(ngModel)]="selectedTemplate" (ngModelChange)="onTemplateSelect()" [compareWith]="compareTemplates"
+                        placeholder="Select a template…">
+              <mat-option *ngFor="let t of templates" [value]="t">
+                {{ t.name }} — {{ t.dynamicFields.length || 0 }} fields ({{ isWordTemplate(t) ? 'Word' : 'PDF' }})
+              </mat-option>
+            </mat-select>
+            <mat-hint>{{ templates.length }} template(s) available</mat-hint>
+          </mat-form-field>
+
+          <div class="pick-template-hint" *ngIf="!selectedTemplate">
+            <mat-icon>touch_app</mat-icon>
+            <p>Select a template above to fill student details and generate the PDF.</p>
+          </div>
+
+          <div class="fill-mode-warn" *ngIf="selectedTemplate && selectedTemplate.fillMode !== 'docx' && !selectedTemplate.docxR2Key">
+            <mat-icon>info</mat-icon>
+            <div>
+              <strong>PDF overlay mode</strong> — text is drawn on white boxes. For best quality, upload the original
+              <strong>.docx</strong> on the Templates page.
+              <a routerLink="/admin/agreements/templates" target="_blank">Upgrade template</a>
+            </div>
+          </div>
+
+          <ng-container *ngIf="selectedTemplate">
+            <div class="fields-section" *ngIf="templateFields().length > 0">
+              <h4 class="section-label">
+                <mat-icon>edit_note</mat-icon>
+                Agreement fields
+              </h4>
+              <div class="fields-form">
+                <mat-form-field appearance="outline" *ngFor="let f of templateFields()" class="field-input">
+                  <mat-label>{{ f.label }}</mat-label>
+                  <input matInput [(ngModel)]="fieldValues[f.id]" (ngModelChange)="onFieldInputChange()"
+                         [placeholder]="f.sampleText || f.label" [required]="f.required" />
+                  <mat-hint *ngIf="f.sampleText">{{ f.sampleText }}</mat-hint>
+                </mat-form-field>
+              </div>
+            </div>
+
+            <p class="no-fields-msg" *ngIf="templateFields().length === 0">
+              <mat-icon>warning_amber</mat-icon>
+              This template has no fields — edit it under Manage Templates and add placeholders.
+            </p>
+
+            <mat-form-field appearance="outline" class="full-width display-name-field">
+              <mat-label>Agreement name (shown in student checklist)</mat-label>
+              <input matInput [(ngModel)]="displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
+            </mat-form-field>
+
+            <p class="share-mode-hint">
+              <strong>Save &amp; Upload</strong> — adds the agreement to the student portal (view + upload signed).
+              <strong>Save &amp; Email</strong> — same, plus email with PDF attached.
+            </p>
+          </ng-container>
+        </ng-container>
+      </mat-card-content>
+
+      <mat-card-actions class="share-card-actions" *ngIf="selectedTemplate && templates.length > 0 && hasValidStudentId">
+        <button mat-raised-button class="btn-save" type="button" (click)="share(false)" [disabled]="sharing || !canShare">
+          <mat-spinner *ngIf="sharing && !sendEmail" diameter="16"></mat-spinner>
+          <mat-icon *ngIf="!sharing || sendEmail">cloud_upload</mat-icon>
+          {{ sharing && !sendEmail ? 'Saving…' : 'Save & Upload' }}
+        </button>
+        <button mat-raised-button color="primary" type="button" (click)="share(true)" [disabled]="sharing || !canShare">
+          <mat-spinner *ngIf="sharing && sendEmail" diameter="16"></mat-spinner>
+          <mat-icon *ngIf="!sharing || !sendEmail">email</mat-icon>
+          {{ sharing && sendEmail ? 'Sending…' : 'Save & Email' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+    <!-- Preview panel -->
+    <mat-card class="preview-card" [class.preview-card--idle]="!selectedTemplate">
+      <mat-card-header class="preview-card-header">
+        <div class="preview-header-text">
+          <mat-card-title>
+            <mat-icon class="card-title-icon">picture_as_pdf</mat-icon>
+            Document preview
+          </mat-card-title>
+          <mat-card-subtitle *ngIf="selectedTemplate">
+            Loads automatically when you pick a template. After editing fields, click <strong>Update preview</strong>.
+          </mat-card-subtitle>
+        </div>
+        <button mat-raised-button color="primary" type="button" class="btn-refetch"
+                (click)="refetchPreview()"
+                [disabled]="previewing || !canRefetchPreview">
+          <mat-spinner *ngIf="previewing" diameter="18"></mat-spinner>
+          <mat-icon *ngIf="!previewing">refresh</mat-icon>
+          {{ previewing ? 'Loading…' : (previewUrl ? 'Update preview' : 'Load preview') }}
+        </button>
+      </mat-card-header>
+      <mat-card-content class="preview-card-body">
+        <div class="preview-idle" *ngIf="!selectedTemplate">
+          <mat-icon>description</mat-icon>
+          <p>Select a template and fill fields, then load the preview.</p>
+        </div>
+
+        <div class="preview-loading" *ngIf="selectedTemplate && previewing">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p>Generating PDF preview…</p>
+        </div>
+
+        <div class="preview-waiting" *ngIf="selectedTemplate && !previewUrl && !previewing">
+          <mat-icon>hourglass_empty</mat-icon>
+          <p>Fill at least one field, then click <strong>Load preview</strong>.</p>
+          <p class="preview-waiting-note">Editing fields does not auto-refresh — use Update preview when ready.</p>
+        </div>
+
+        <div class="preview-stale-banner" *ngIf="selectedTemplate && previewUrl && previewOutdated && !previewing">
+          <mat-icon>info</mat-icon>
+          <span>Fields changed — click <strong>Update preview</strong> to refresh.</span>
+        </div>
+
+        <div class="preview-viewport" *ngIf="previewUrl && !previewing">
+          <embed [src]="previewUrl" type="application/pdf" class="preview-embed" title="Agreement Preview" />
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- ── Existing agreements ── -->
+  <mat-card class="list-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon class="card-title-icon">history</mat-icon>
+        Shared Agreements
+      </mat-card-title>
+      <mat-card-subtitle>Previously generated for this student</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="loadingAgreements" class="center-spinner">
+        <mat-spinner diameter="32"></mat-spinner>
+        <p>Loading agreements…</p>
+      </div>
+
+      <div *ngIf="!loadingAgreements && agreements.length === 0" class="empty-agreements">
+        <mat-icon>inbox</mat-icon>
+        <h3>No agreements shared yet</h3>
+        <p>Use the form above to generate the first agreement for {{ studentName || 'this student' }}.</p>
+      </div>
+
+      <div class="agreement-cards" *ngIf="!loadingAgreements && agreements.length > 0">
+        <div class="agreement-card" *ngFor="let a of agreements">
+          <div class="agreement-card-top">
+            <mat-icon class="agreement-card-icon">description</mat-icon>
+            <div>
+              <strong>{{ a.displayName }}</strong>
+              <small>{{ a.templateName }}</small>
+            </div>
+            <span class="status-chip" [ngClass]="statusClass(a.status)">{{ statusLabel(a.status) }}</span>
+          </div>
+          <div class="agreement-card-meta">
+            <span><mat-icon>event</mat-icon> {{ a.sentAt | date:'dd MMM yyyy' }}</span>
+          </div>
+          <div class="agreement-card-actions">
+            <button mat-stroked-button type="button" (click)="downloadGenerated(a)">
+              <mat-icon>download</mat-icon>
+              Generated PDF
+            </button>
+            <button mat-stroked-button type="button" (click)="downloadSigned(a)" [disabled]="!a.signedFile">
+              <mat-icon>draw</mat-icon>
+              Signed copy
+            </button>
+            <button mat-flat-button color="primary" type="button" (click)="openVerifyDialog(a)" [disabled]="a.status === 'SENT'">
+              <mat-icon>verified</mat-icon>
+              Verify
+            </button>
+          </div>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Verify dialog -->
+  <div class="dialog-backdrop" *ngIf="verifyDialogAgreement" (click)="closeVerifyDialog()"></div>
+  <div class="verify-dialog" *ngIf="verifyDialogAgreement" role="dialog" aria-labelledby="verify-dialog-title">
+    <div class="verify-dialog-header">
+      <h3 id="verify-dialog-title">Verify Agreement</h3>
+      <button mat-icon-button type="button" (click)="closeVerifyDialog()"><mat-icon>close</mat-icon></button>
+    </div>
+    <p class="verify-doc-name">{{ verifyDialogAgreement.displayName }}</p>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Decision</mat-label>
+      <mat-select [(ngModel)]="verifyStatus">
+        <mat-option value="VERIFIED">Verified</mat-option>
+        <mat-option value="REJECTED">Rejected</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Notes (optional)</mat-label>
+      <textarea matInput [(ngModel)]="verifyNotes" rows="3"></textarea>
+    </mat-form-field>
+
+    <div class="dialog-actions">
+      <button mat-stroked-button type="button" (click)="closeVerifyDialog()">Cancel</button>
+      <button mat-raised-button color="primary" type="button" [disabled]="verifying" (click)="submitVerify()">
+        <mat-spinner *ngIf="verifying" diameter="16"></mat-spinner>
+        Confirm
+      </button>
+    </div>
+  </div>
+
+</div>

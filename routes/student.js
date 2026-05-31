@@ -17,13 +17,14 @@ router.get('/dashboard', verifyToken, checkRole('STUDENT'), async (req, res) => 
     const studentId = req.user.id;
 
     // 1. Get student profile
-    const student = await User.findById(studentId).select('-password');
+    const student = await User.findById(studentId).select('-password').lean();
 
     // 2. Get subscriptions
-    const subscriptions = await Subscription.find({ userId: studentId });
+    const subscriptions = await Subscription.find({ userId: studentId }).lean();
 
-    // 3. Get enrolled courses (if Course model uses "students: [ObjectId]" structure)
-    const enrolledCourses = await Course.find({ students: studentId });
+    // 3. Get enrolled courses via CourseProgress
+    const enrolledCourseIds = await CourseProgress.find({ studentId }).distinct('courseId');
+    const enrolledCourses = enrolledCourseIds.length ? await Course.find({ _id: { $in: enrolledCourseIds } }).lean() : [];
 
     // 4. VAPI access is part of student profile (in vapiAccess field)
 
@@ -45,7 +46,7 @@ router.get('/dashboard', verifyToken, checkRole('STUDENT'), async (req, res) => 
 // GET /api/student/vapi-courses
 router.get('/vapi-courses', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
-    const subscription = await Subscription.findOne({ userId: req.user.id });
+    const subscription = await Subscription.findOne({ userId: req.user.id }).lean();
 
     if (!subscription || subscription.courses.length === 0) {
       return res.status(200).json([]);
@@ -61,7 +62,7 @@ router.get('/vapi-courses', verifyToken, checkRole('STUDENT'), async (req, res) 
 // View own active subscriptions - GET /api/subscriptions/me
 router.get("/me", verifyToken, checkRole("STUDENT"), async (req, res) => {
   try {
-    const subs = await Subscription.find({ userId: req.user.id });
+    const subs = await Subscription.find({ userId: req.user.id }).lean();
     res.status(200).json(subs);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -73,7 +74,8 @@ router.get('/profile', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
     const user = await User.findById(req.userId)
       .select('-password')
-      .populate('assignedCourses.courseId', 'name language level');
+      .populate('assignedCourses.courseId', 'name language level')
+      .lean();
 
     if (!user) {
       return res.status(404).json({ msg: 'Student not found' });
@@ -103,7 +105,7 @@ router.get('/profile', verifyToken, checkRole('STUDENT'), async (req, res) => {
 // ✅ Get course progress for current student
 router.get('/course-progress', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).populate('courseProgress.courseId', 'name');
+    const user = await User.findById(req.user.id).populate('courseProgress.courseId', 'name').lean();
     if (!user) return res.status(404).json({ msg: 'Student not found' });
 
     res.status(200).json(user.courseProgress);
@@ -117,7 +119,7 @@ router.get('/course-progress', verifyToken, checkRole('STUDENT'), async (req, re
 router.get('/progress', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
     const studentId = req.user.id;
-    const progress = await CourseProgress.find({ studentId }).populate('courseId', 'name');
+    const progress = await CourseProgress.find({ studentId }).populate('courseId', 'name').lean();
 
     res.status(200).json(progress);
   } catch (err) {

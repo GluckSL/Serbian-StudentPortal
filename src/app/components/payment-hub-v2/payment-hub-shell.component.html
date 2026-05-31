@@ -1,0 +1,74 @@
+<div class="ph-shell">
+  <header class="ph-header">
+    <div class="ph-header-inner">
+      <div class="ph-header-text">
+        <h1 class="ph-title">Payment Hub</h1>
+        <p class="ph-subtitle">Track collections, journey progress, and student payment history in one calm workspace.</p>
+      </div>
+      <a
+        mat-icon-button
+        routerLink="/admin/payment-hub/settings"
+        class="ph-settings-btn"
+        matTooltip="Pricing &amp; schedule settings"
+      >
+        <mat-icon>settings</mat-icon>
+      </a>
+    </div>
+  </header>
+
+  <div class="ph-body">
+    <section class="ph-hub-dashboard" aria-label="Payment hub insights">
+      <h2 class="ph-hub-heading">Open a detailed view</h2>
+      <p class="ph-hub-lead">Each module opens in a new browser tab so you can keep this list open while you dig in.</p>
+      <div class="ph-hub-grid">
+        <a
+          routerLink="/admin/payment-hub/insights/batches"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ph-hub-card ph-hub-card-indigo"
+        >
+          <div class="ph-hub-card-icon">
+            <mat-icon>groups</mat-icon>
+          </div>
+          <div class="ph-hub-card-body">
+            <span class="ph-hub-card-title">Batch finances</span>
+            <span class="ph-hub-card-desc">Batch-wise totals received, averages, and payment bars.</span>
+          </div>
+          <mat-icon class="ph-hub-card-chevron">open_in_new</mat-icon>
+        </a>
+        <a
+          routerLink="/admin/payment-hub/insights/revenue"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ph-hub-card ph-hub-card-teal"
+        >
+          <div class="ph-hub-card-icon">
+            <mat-icon>account_balance</mat-icon>
+          </div>
+          <div class="ph-hub-card-body">
+            <span class="ph-hub-card-title">Revenue &amp; collections</span>
+            <span class="ph-hub-card-desc">Received, pending, and overdue with currency-level charts.</span>
+          </div>
+          <mat-icon class="ph-hub-card-chevron">open_in_new</mat-icon>
+        </a>
+        <a
+          routerLink="/admin/payment-hub/insights/journey"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="ph-hub-card ph-hub-card-violet"
+        >
+          <div class="ph-hub-card-icon">
+            <mat-icon>route</mat-icon>
+          </div>
+          <div class="ph-hub-card-body">
+            <span class="ph-hub-card-title">Journey analytics</span>
+            <span class="ph-hub-card-desc">Total journey days, current journey day, and progress bands.</span>
+          </div>
+          <mat-icon class="ph-hub-card-chevron">open_in_new</mat-icon>
+        </a>
+      </div>
+    </section>
+
+    <app-payment-hub-all-payments />
+  </div>
+</div>

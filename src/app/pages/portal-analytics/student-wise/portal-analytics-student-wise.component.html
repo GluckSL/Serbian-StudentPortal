@@ -1,0 +1,101 @@
+<div class="pa-table-wrap">
+  @if (loading) {
+    <div class="pa-center"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="text-danger">{{ error }}</p>
+  } @else {
+    <div class="sw-head">
+      <div>
+        <h3>Student Performance Analytics</h3>
+        <p>Engagement and completion metrics across tracked sessions.</p>
+      </div>
+    </div>
+    <div class="sw-filters mb-3">
+      <div class="custom-dropdown">
+        <div class="dropdown-trigger" (click)="toggleDropdown()">
+          <div class="dropdown-value">
+            @if (selectedBatches.length === 0) {
+              <span class="placeholder">Select batches</span>
+            } @else if (selectedBatches.length === 1) {
+              {{ selectedBatches[0] }}
+            } @else {
+              {{ selectedBatches.length }} selected
+            }
+            <mat-icon class="dropdown-arrow">{{ isDropdownOpen ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </div>
+        </div>
+        @if (isDropdownOpen) {
+          <div class="dropdown-options">
+            @for (batch of availableBatches; track batch) {
+              <label class="dropdown-option">
+                <input type="checkbox" [checked]="selectedBatches.includes(batch)" (change)="toggleBatch(batch)" />
+                <span>{{ batch }}</span>
+              </label>
+            }
+          </div>
+        }
+      </div>
+      <div class="custom-input">
+        <input type="text" [(ngModel)]="studentNameSearch" (ngModelChange)="applyFilters()" placeholder="Search by name" />
+      </div>
+      <div class="filter-actions">
+        <button mat-stroked-button type="button" (click)="clearFilters()">Clear</button>
+        <button mat-stroked-button type="button" color="primary" (click)="exportCsv()">
+          <mat-icon>download</mat-icon>
+          Export CSV
+        </button>
+      </div>
+    </div>
+    <div class="pa-pager">
+      <span class="text-muted small">{{ rows.length }} students · page {{ currentPage }} / {{ totalPages }}</span>
+      <div class="pa-pager-nav">
+        <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+        <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+      </div>
+    </div>
+    <div class="table-responsive pa-table-card">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>
+              <button type="button" class="th-btn" (click)="setSort('name')">
+                Student <mat-icon>{{ sortIcon('name') }}</mat-icon>
+              </button>
+            </th>
+            <th>Batch</th>
+            <th class="text-center">Journey day</th>
+            <th class="text-end">
+              <button type="button" class="th-btn" (click)="setSort('time')">
+                Total time <mat-icon>{{ sortIcon('time') }}</mat-icon>
+              </button>
+            </th>
+            <th class="text-end">
+              <button type="button" class="th-btn" (click)="setSort('sessions')">
+                Sessions <mat-icon>{{ sortIcon('sessions') }}</mat-icon>
+              </button>
+            </th>
+            <th class="text-end">Avg session</th>
+            <th class="top-page-header">Top page</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of pagedRows; track r.studentId) {
+            <tr>
+              <td class="fw-medium">{{ r.studentName }}</td>
+              <td>
+                <span class="chip-cell">{{ r.batch || '—' }}</span>
+              </td>
+              <td class="text-center">{{ r.journeyDay || '—' }}</td>
+              <td class="text-end">{{ formatDuration(r.totalSeconds) }}</td>
+              <td class="text-end">{{ r.sessionsCount }}</td>
+              <td class="text-end text-muted">{{ formatDuration(r.avgSessionSeconds) }}</td>
+              <td><span class="page-cell">{{ r.topPage }}</span></td>
+            </tr>
+          } @empty {
+            <tr><td colspan="7" class="text-muted py-4 text-center">No data in this range.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

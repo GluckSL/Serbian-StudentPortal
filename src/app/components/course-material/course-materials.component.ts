@@ -6,6 +6,7 @@ import { CoursesService } from '../../services/courses.service';
 import { AuthService } from '../../services/auth.service';
 import { RouterModule } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { NotificationService } from '../../services/notification.service';
 
 interface Course {
   _id: string;
@@ -30,7 +31,8 @@ export class CourseMaterialsComponent implements OnInit {
   constructor(
     private materialService: CourseMaterialService,
     private coursesService: CoursesService,
-    private authService: AuthService
+    private authService: AuthService,
+    private notify: NotificationService
   ) {}
 
     ngOnInit(): void {
@@ -89,41 +91,31 @@ export class CourseMaterialsComponent implements OnInit {
     }
 
     deleteFile(materialId: string, file: any) {
-        if (!confirm('Are you sure you want to delete this file?')) return;
+        this.notify.confirm('Delete File', 'Are you sure you want to delete this file?', 'Yes, Delete', 'Cancel').subscribe(ok => {
+          if (!ok) return;
 
-        // ✅ Find the correct material document that contains this file
-        const targetMaterial = this.materials.find(m =>
-            m.materials.some(f => f.fileName === file.fileName)
-        );
+          const targetMaterial = this.materials.find(m =>
+              m.materials.some(f => f.fileName === file.fileName)
+          );
+          if (!targetMaterial || !targetMaterial._id) return;
+          const targetMaterialId = targetMaterial._id!;
 
-        if (!targetMaterial || !targetMaterial._id) {
-            return;
-        }
-
-        // ✅ Use non-null assertion (!) to satisfy TypeScript
-        const targetMaterialId = targetMaterial._id!;
-
-        this.materialService.deleteMaterialFile(targetMaterialId, file.fileName).subscribe({
+          this.materialService.deleteMaterialFile(targetMaterialId, file.fileName).subscribe({
             next: (res) => {
-            alert('File deleted successfully');
-            window.location.reload();
-
-            // Remove the file from the UI
-            targetMaterial.materials = targetMaterial.materials.filter(f => f.fileName !== file.fileName);
-
-            // ✅ If no files left, remove the whole course material
-            if (targetMaterial.materials.length === 0) {
+              this.notify.success('File deleted successfully');
+              targetMaterial.materials = targetMaterial.materials.filter(f => f.fileName !== file.fileName);
+              if (targetMaterial.materials.length === 0) {
                 this.materialService.deleteMaterial(targetMaterialId).subscribe({
-                next: () => {
-                    alert('Course material removed since it had no files left.');
+                  next: () => {
+                    this.notify.info('Course material removed since it had no files left.');
                     this.materials = this.materials.filter(m => m._id !== targetMaterialId);
-                    window.location.reload();
-                },
-                error: (error: any) => console.error('❌ Error deleting empty course material', error)
+                  },
+                  error: (error: any) => console.error('❌ Error deleting empty course material', error)
                 });
-            }
+              }
             },
             error: (error) => console.error('❌ Error deleting file', error)
+          });
         });
     }
 }

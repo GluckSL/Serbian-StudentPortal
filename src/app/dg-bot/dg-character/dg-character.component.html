@@ -1,0 +1,17 @@
+<div
+  class="dg-char dg-char--pose-full"
+  [class.dg-char--minimal-ui]="minimalChrome"
+  [attr.data-char-state]="displayState"
+  [ngClass]="displayState"
+>
+  <div class="dg-char__stage dg-char__stage--motion">
+    <img
+      class="dg-char__img"
+      [class.blink]="isBlinking"
+      [src]="getImageSrc()"
+      (error)="onImgError($event)"
+      [alt]="name"
+    />
+  </div>
+  <div class="dg-char__badge" *ngIf="!minimalChrome">{{ moodLabel() }}</div>
+</div>

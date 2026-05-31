@@ -102,7 +102,15 @@
 /* ── Table Content ── */
 .reg-number { font-weight: 600; color: #011f4b; font-size: 11px; font-family: 'Inter', system-ui, sans-serif; }
 .student-info { display: flex; flex-direction: column; gap: 1px; }
-.student-name { font-weight: 600; font-size: 12px; color: #011f4b; }
+.student-name {
+  font-weight: 600;
+  font-size: 12px;
+  color: #011f4b;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .student-email { font-size: 10px; color: #94a3b8; }
 
 /* ── Badges ── */

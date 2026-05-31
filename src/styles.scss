@@ -3,9 +3,6 @@
 @use '@angular/material' as mat;
 @use 'sass:map';
 
-/* Shepherd.js tour styles */
-@import 'shepherd.js/dist/css/shepherd.css';
-
 /* ============================= */
 /* Angular Material Theme Setup  */
 /* ============================= */
@@ -65,6 +62,13 @@ body {
   background-color: var(--app-background);
   line-height: 1.6;
   color: #1c1e21;
+}
+
+/* Material typography / theme can set overflow:hidden on body, which clips nested scroll areas */
+body.mat-typography {
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 a {
@@ -197,11 +201,13 @@ button:disabled,
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2) !important;
   border: 1px solid #e8ecf4 !important;
   padding: 0 !important;
+  overflow: hidden !important;
 }
 
 .gluck-tour-step .shepherd-text {
   padding: 18px 20px !important;
   font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  background: #fff !important;
 }
 
 .gluck-tour-step .shepherd-header {
@@ -209,11 +215,17 @@ button:disabled,
 }
 
 .gluck-tour-step .shepherd-footer {
-  padding: 0 20px 16px !important;
+  padding: 14px 20px !important;
   border-top: none !important;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+  min-height: 56px;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #011f4b 0%, #03396c 100%);
+  border-bottom-left-radius: 13px !important;
+  border-bottom-right-radius: 13px !important;
 }
 
 .gluck-tour-step .shepherd-button {
@@ -259,5 +271,376 @@ button:disabled,
   .shepherd-element { max-width: 90vw !important; }
   .gluck-tour-step .shepherd-content { max-width: 90vw !important; }
   .gluck-tour-step .shepherd-text { padding: 14px 16px !important; }
-  .gluck-tour-step .shepherd-footer { padding: 0 16px 12px !important; }
+  .gluck-tour-step .shepherd-footer {
+    padding: 12px 16px !important;
+    min-height: 52px;
+  }
+}
+
+/* ============================= */
+/* Toast / Snackbar Styles       */
+/* ============================= */
+/* Custom full-screen modals (e.g. Resources) use z-index 9999; CDK default is lower,
+   so snackbars were drawn behind the blurred backdrop. Keep all CDK overlays above them. */
+.cdk-overlay-container {
+  z-index: 10050 !important;
+}
+
+.snack-success .mdc-snackbar__surface,
+.snack-success.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #16a34a !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(22, 163, 74, 0.3) !important;
+}
+
+.snack-error .mdc-snackbar__surface,
+.snack-error.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3) !important;
+}
+
+.snack-info .mdc-snackbar__surface,
+.snack-info.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #2563eb !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3) !important;
+}
+
+.snack-warning .mdc-snackbar__surface,
+.snack-warning.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background: #d97706 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(217, 119, 6, 0.3) !important;
+}
+
+.snack-success .mat-mdc-snack-bar-label,
+.snack-error .mat-mdc-snack-bar-label,
+.snack-info .mat-mdc-snack-bar-label,
+.snack-warning .mat-mdc-snack-bar-label {
+  color: #fff !important;
+  font-weight: 500 !important;
+}
+
+.snack-success .mat-mdc-button,
+.snack-error .mat-mdc-button,
+.snack-info .mat-mdc-button,
+.snack-warning .mat-mdc-button {
+  color: rgba(255,255,255,0.85) !important;
+}
+
+/* Sit toasts higher than the screen edge so they clear modals and the thumb zone */
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-success,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-error,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-info,
+.cdk-overlay-pane .mat-mdc-snack-bar-container.snack-warning {
+  margin-bottom: 96px !important;
+}
+
+/* Confirm dialog panel */
+.confirm-dialog-panel .mat-mdc-dialog-container .mdc-dialog__surface {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+/* ============================= */
+/* Global Responsive Utilities   */
+/* ============================= */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  /* Stacking Bootstrap grid columns */
+  .col-md-6, .col-md-4, .col-md-3, .col-md-2,
+  .col-lg-6, .col-lg-4, .col-lg-3, .col-lg-2 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  /* Card spacing */
+  .card, mat-card, .mat-card {
+    margin-bottom: 16px;
+  }
+  .row > [class*="col-"] {
+    margin-bottom: 8px;
+  }
+
+  /* Inputs full-width */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    max-width: 100% !important;
+    width: 100% !important;
+    font-size: 16px !important; /* prevents iOS zoom */
+  }
+
+  mat-form-field {
+    width: 100% !important;
+  }
+
+  /* Reduce container padding */
+  .container, .container-fluid {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Utility classes */
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: block !important; }
+
+  /* Responsive mat-dialog */
+  .mat-mdc-dialog-container,
+  .mat-dialog-container {
+    max-width: calc(100vw - 32px) !important;
+    margin: 16px !important;
+  }
+
+  /* Table cells ellipsis on tiny screens */
+  td, th {
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Mat tabs scroll on mobile */
+  .mat-mdc-tab-header {
+    overflow-x: auto !important;
+  }
+
+  /* Snackbar full width on phone */
+  .mat-mdc-snack-bar-container {
+    max-width: calc(100vw - 32px) !important;
+    min-width: unset !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small: single column everything */
+  .col-sm-6, .col-sm-4, .col-sm-3 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.25rem !important; }
+  h3 { font-size: 1.1rem !important; }
+}
+
+/* ============================= */
+/* Mobile touch & usability      */
+/* ============================= */
+
+/* Minimum 44px touch targets for interactive elements */
+@media (max-width: 768px) {
+  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play):not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
+  .btn,
+  a[role="button"]:not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
+  [mat-button],
+  [mat-raised-button],
+  [mat-flat-button],
+  [mat-stroked-button],
+  [mat-icon-button] {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Larger checkbox and radio hit areas */
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 20px !important;
+    min-height: 20px !important;
+    cursor: pointer;
+  }
+
+  /* Scrollable select on iOS */
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Better tap state for mat-list-items */
+  .mat-mdc-list-item,
+  .mat-mdc-nav-list .mat-mdc-list-item {
+    min-height: 48px !important;
+  }
+
+  /* Remove default tap highlights */
+  * {
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+  }
+}
+
+/* Recordings filter menu: stay above my-course / FAB stacking */
+.cdk-overlay-container > .cdk-overlay-pane:has(.sr-recordings-filter-menu) {
+  z-index: 12000 !important;
+}
+
+/* Sidebar scrollable on phone */
+@media (max-width: 768px) {
+  app-sidebar {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Allow page-level horizontal scroll tables but not the page itself */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Ensure modals are scrollable on short phones */
+  .mat-mdc-dialog-content,
+  .mat-dialog-content {
+    max-height: 65vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Teacher Read-Only Mode
+   Applied via body.teacher-read-only when a TEACHER role user
+   accesses admin tabs assigned to them in view-only mode.
+   Hides all edit / delete / create action controls globally.
+   ═══════════════════════════════════════════════════════════════ */
+body.teacher-read-only {
+
+  /* ── Buttons with trash/delete icons ── */
+  button:has(.fa-trash),
+  button:has(.fa-trash-alt),
+  a:has(.fa-trash),
+  a:has(.fa-trash-alt) { display: none !important; }
+
+  /* Exception: teachers delete mistaken uploads in My Classes → Resources (not admin UI) */
+  button.resource-delete-btn.allow-teacher-delete {
+    display: inline-flex !important;
+  }
+
+  /* ── Buttons with edit/pen icons ── */
+  button:has(.fa-edit),
+  button:has(.fa-pen),
+  button:has(.fa-pencil),
+  button:has(.fa-pencil-alt),
+  a:has(.fa-edit),
+  a:has(.fa-pen) { display: none !important; }
+
+  /* ── Buttons with plus/add icons (create new records) ── */
+  button:has(.fa-plus):not(.no-hide),
+  button:has(.fa-plus-circle):not(.no-hide) { display: none !important; }
+
+  /* ── Title-attribute based targeting ── */
+  [title="Delete"],
+  [title="delete"],
+  [title="Edit"],
+  [title="edit"],
+  [title="Remove"],
+  [title="remove"],
+  [title="Update"],
+  [title="Save changes"] { display: none !important; }
+
+  /* ── Common class-based delete/edit buttons ── */
+  .btn-del,
+  .btn-danger,
+  .btn-warning:has(.fa-edit),
+  .btn-warning:has(.fa-pen),
+  .zr-icon-btn--red { display: none !important; }
+
+  /* ── Input fields in editable table cells: make read-only visually ── */
+  table input[type="text"],
+  table input[type="number"],
+  table select,
+  table textarea {
+    pointer-events: none !important;
+    opacity: 0.7;
+    background: #f8fafc !important;
+    cursor: default !important;
+  }
+
+  /* ── Hide "Save" / "Update" action buttons in table rows ── */
+  td .btn-success { display: none !important; }
+
+  /* ── Role-change selects ──
+     Scoped to the User Roles admin table only. A previous global
+     `.form-select` rule here disabled every dropdown on every page
+     (including teachers' own filters on My Classes / My Students).
+     The in-table role-change select is already covered by the
+     `table select { pointer-events: none }` rule above, so no extra
+     rule is needed here. */
+}
+
+/* ── Digital Exercises Filter Panels (Mobile Typography) ── */
+@media (max-width: 640px) {
+  .dex-select-panel .mat-mdc-option {
+    font-size: 12px !important;
+    min-height: 34px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .dex-select-panel .mdc-list-item__primary-text {
+    font-size: 12px !important;
+  }
+}
+
+/* ── Legacy mapper dialog: full-screen on mobile ────────────────────────── */
+@media (max-width: 720px) {
+  .lm-dialog-panel .mat-mdc-dialog-container {
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  .lm-dialog-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+  }
+}
+
+/* Mobile nav drawer open — prevent background scroll (iOS Safari) */
+body.mobile-sidebar-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── GlückArena filter dropdown theme ─── */
+.arena-filters__select-panel .mat-mdc-select-panel {
+  border-radius: 12px !important; padding: 6px !important;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.15) !important;
+}
+.arena-filters__select-panel .mat-mdc-option {
+  font-size: 12px !important; font-weight: 700 !important;
+  min-height: 34px !important; padding: 0 12px !important;
+  border-radius: 8px !important; margin-bottom: 2px !important;
+  background: #f8fafc !important; color: #334155 !important;
+}
+.arena-filters__select-panel .mat-mdc-option:last-child { margin-bottom: 0 !important; }
+.arena-filters__select-panel .mat-mdc-option:hover:not(.mdc-list-item--selected) {
+  background: #e2e8f0 !important;
+}
+.arena-filters__select-panel .mat-mdc-option.mdc-list-item--selected,
+.arena-filters__select-panel .mat-mdc-option[aria-selected="true"] {
+  background: #dbeafe !important; color: #1e40af !important;
+  border-left: 3px solid #3b82f6 !important;
+  border-radius: 8px 4px 4px 8px !important;
+}
+.arena-filters__select-panel .mat-mdc-option.mdc-list-item--selected .mat-icon,
+.arena-filters__select-panel .mat-mdc-option[aria-selected="true"] .mat-icon {
+  color: #1e40af !important;
+}
+.arena-filters__select-panel .mat-mdc-option .mat-icon {
+  font-size: 16px !important; width: 16px !important; height: 16px !important;
+  vertical-align: middle; margin-right: 6px; color: #64748b;
+}
+.arena-filters__select-panel .mdc-list-item__primary-text {
+  display: flex !important; align-items: center !important; gap: 6px !important;
 }

@@ -3,50 +3,47 @@
 
 const express = require('express');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const upload = require('../config/documentUpload');
 const StudentDocument = require('../models/StudentDocument');
 const DocumentRequirement = require('../models/DocumentRequirement');
 const User = require('../models/User');
 const mongoose = require('mongoose');
-const fs = require('fs');
-const path = require('path');
+const deleteFromS3 = require('../config/s3Delete');
+const s3Client = require('../config/s3');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 // Services that don't require any documents
 const NO_DOCS_SERVICES = ['German Language Only', 'Language only', 'Only for language', 'None', ''];
 
+const DEFAULT_REQUIREMENTS = [
+  { type: 'MISCELLANEOUS', name: 'Other Certificates', category: 'OTHER', allowMultiple: false, isRequired: true, order: 1 },
+  { type: 'BIRTH_CERTIFICATE', name: 'Birth Certificate', category: 'IDENTIFICATION', allowMultiple: false, isRequired: true, order: 2 },
+  { type: 'EXTRACURRICULAR_CERTIFICATE', name: 'Extra-curricular Certificate', category: 'ACADEMIC', allowMultiple: true, isRequired: true, order: 3 },
+  { type: 'EXPERIENCE_LETTER', name: 'Work Related Certificate', category: 'PROFESSIONAL', allowMultiple: false, isRequired: true, order: 4 },
+  { type: 'LANGUAGE_CERTIFICATE', name: 'Language Certificate', category: 'ACADEMIC', allowMultiple: false, isRequired: true, order: 5 },
+  { type: 'PASSPORT', name: 'Passport Copy', category: 'IDENTIFICATION', allowMultiple: false, isRequired: true, order: 6 },
+  { type: 'ACADEMIC_TRANSCRIPT', name: 'Degree Transcript', category: 'ACADEMIC', allowMultiple: false, isRequired: true, order: 7 },
+  { type: 'A_LEVEL_CERTIFICATE', name: 'A/L Certificate', category: 'ACADEMIC', allowMultiple: false, isRequired: true, order: 8 },
+  { type: 'CV', name: 'CV', category: 'PROFESSIONAL', allowMultiple: false, isRequired: true, order: 9 }
+];
+
 // GET /api/student-documents/requirements - Get document requirements for the logged-in student
 router.get('/requirements', verifyToken, checkRole(['STUDENT']), async (req, res) => {
   try {
+    await ensureDefaultRequirementsSeeded();
+
     const student = await User.findById(req.user.id).select('servicesOpted').lean();
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
     const service = (student.servicesOpted || '').trim();
-
-    // If student's service doesn't require documents, return empty
-    if (!service || NO_DOCS_SERVICES.some(s => s.toLowerCase() === service.toLowerCase())) {
-      return res.json({ success: true, requirements: [] });
-    }
-
-    // Fetch active requirements that apply to this student's service
-    // Normalize: treat spaces and hyphens as interchangeable, case-insensitive
-    const normalized = service.replace(/[\s\-]+/g, '[\\s\\-]*');
-    const serviceRegex = new RegExp('^' + normalized + '$', 'i');
-    const requirements = await DocumentRequirement.find({
-      active: true,
-      applicableServices: serviceRegex
-    }).sort({ order: 1 }).lean();
+    const requirements = await getRequirementsForStudentService(service);
 
     // Map to the shape the frontend expects
-    const mapped = requirements.map(r => ({
-      type: r.type,
-      label: r.label,
-      description: r.description,
-      required: r.required,
-      category: r.category
-    }));
+    const mapped = requirements.map(mapRequirement);
 
     res.json({ success: true, requirements: mapped });
   } catch (error) {
@@ -85,16 +82,18 @@ router.get('/my-documents', verifyToken, checkRole(['STUDENT']), async (req, res
     
     console.log('✅ Student found:', student.name);
     
-    const documents = await StudentDocument.find({ studentId })
+    const documents = await StudentDocument.find({ studentId, isCurrent: true })
+      .populate('documentTypeId', 'type name label category allowMultiple required isRequired')
       .sort({ uploadedAt: -1 })
       .lean();
     
     // Add formatted file sizes
-    const documentsWithFormatting = documents.map(doc => ({
-      ...doc,
-      formattedFileSize: formatFileSize(doc.fileSize),
-      documentTypeDisplay: getDocumentTypeDisplayName(doc.documentType)
-    }));
+    const documentsWithFormatting = documents.map((doc) =>
+      mapStudentDocument({
+        ...doc,
+        documentTypeDisplay: doc.documentTypeId?.name || doc.documentTypeDisplay || getDocumentTypeDisplayName(doc.documentType)
+      })
+    );
     
     res.json({
       success: true,
@@ -126,13 +125,11 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
       });
     }
     
-    const { documentType, documentName, description } = req.body;
+    const { documentTypeId, documentType, documentName, description } = req.body;
     
-    if (!documentType || !documentName) {
-      // Delete uploaded file if validation fails
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+    if ((!documentTypeId && !documentType) || !documentName) {
+      // Delete uploaded file from S3 if validation fails
+      if (req.file) await deleteFromS3(req.file.key || req.file.location);
       return res.status(400).json({
         success: false,
         message: 'Document type and name are required'
@@ -142,39 +139,53 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
     // Get student information
     const student = await User.findById(req.user.id);
     if (!student) {
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) await deleteFromS3(req.file.key || req.file.location);
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
     
-    // Move file to student-specific folder if it was uploaded to temp
-    let finalPath = req.file.path;
-    if (req.file.path.includes('temp')) {
-      const studentFolder = path.join('uploads/student-documents', req.user.id.toString());
-      if (!fs.existsSync(studentFolder)) {
-        fs.mkdirSync(studentFolder, { recursive: true });
-      }
-      finalPath = path.join(studentFolder, req.file.filename);
-      fs.renameSync(req.file.path, finalPath);
+    const requirement = await resolveDocumentRequirement({ documentTypeId, documentType });
+    if (!requirement) {
+      if (req.file) await deleteFromS3(req.file.key || req.file.location);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type. Uploads must match predefined document types.'
+      });
     }
-    
-    // Create document record
+
+    const canonicalType = requirement.type;
+    const latestVersion = await StudentDocument.findOne({
+      studentId: req.user.id,
+      documentTypeId: requirement._id
+    }).sort({ version: -1 }).lean();
+    const nextVersion = latestVersion ? Number(latestVersion.version || 1) + 1 : 1;
+
+    if (!requirement.allowMultiple) {
+      await StudentDocument.updateMany(
+        { studentId: req.user.id, documentTypeId: requirement._id, isCurrent: true },
+        { $set: { isCurrent: false, replacedAt: new Date(), replacedBy: req.user.id } }
+      );
+    }
+
+    // Create document record — filePath stores the S3 URL
     const document = new StudentDocument({
       studentId: req.user.id,
       studentName: student.name,
       studentEmail: student.email,
-      documentType,
+      documentTypeId: requirement._id,
+      documentType: canonicalType,
       documentName,
-      fileName: req.file.filename,
-      filePath: finalPath,
+      documentCategory: requirement.category || 'OTHER',
+      fileName: req.file.originalname,
+      filePath: req.file.location,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
       description: description || '',
-      status: 'PENDING'
+      status: 'PENDING',
+      version: nextVersion,
+      isCurrent: true
     });
     
     await document.save();
@@ -184,19 +195,16 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
     res.json({
       success: true,
       message: 'Document uploaded successfully',
-      document: {
+      document: mapStudentDocument({
         ...document.toObject(),
-        formattedFileSize: formatFileSize(document.fileSize),
-        documentTypeDisplay: getDocumentTypeDisplayName(document.documentType)
-      }
+        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(document.documentType)
+      })
     });
   } catch (error) {
     console.error('❌ Error uploading document:', error);
     
-    // Clean up uploaded file on error
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    // Clean up uploaded file from S3 on error
+    if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
     
     res.status(500).json({
       success: false,
@@ -215,7 +223,8 @@ router.delete('/:documentId', verifyToken, checkRole(['STUDENT']), async (req, r
     // Find document and verify ownership
     const document = await StudentDocument.findOne({
       _id: documentId,
-      studentId: studentId
+      studentId: studentId,
+      isCurrent: true
     });
     
     if (!document) {
@@ -233,13 +242,13 @@ router.delete('/:documentId', verifyToken, checkRole(['STUDENT']), async (req, r
       });
     }
     
-    // Delete physical file
-    if (fs.existsSync(document.filePath)) {
-      fs.unlinkSync(document.filePath);
+    // Delete file from S3 (filePath is now an S3 URL)
+    if (document.filePath && document.filePath !== 'NO_FILE_UPLOADED') {
+      await deleteFromS3(document.filePath);
     }
     
-    // Delete database record
-    await StudentDocument.deleteOne({ _id: documentId });
+    // Delete database record (only current student-owned docs are allowed to be deleted)
+    await StudentDocument.deleteOne({ _id: documentId, isCurrent: true });
     
     console.log(`✅ Document deleted: ${document.documentName} by student ${studentId}`);
     
@@ -258,7 +267,7 @@ router.delete('/:documentId', verifyToken, checkRole(['STUDENT']), async (req, r
 });
 
 // GET /api/student-documents/download/:documentId - Download a document
-router.get('/download/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
+router.get('/download/:documentId', verifyMediaToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
   try {
     const { documentId } = req.params;
     const userId = req.user.id;
@@ -290,16 +299,23 @@ router.get('/download/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER'
       });
     }
     
-    // Check if file exists
-    if (!fs.existsSync(document.filePath)) {
-      return res.status(404).json({
+    if (!document.filePath) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+
+    const signedUrl = await createSignedS3Url(document.filePath, {
+      responseContentDisposition: `attachment; filename="${sanitizeDownloadFilename(document.fileName || document.documentName || 'document')}"`,
+      responseContentType: document.mimeType || undefined
+    });
+
+    if (!signedUrl) {
+      return res.status(500).json({
         success: false,
-        message: 'File not found on server'
+        message: 'File is stored privately but could not generate a secure download link'
       });
     }
-    
-    // Send file
-    res.download(document.filePath, document.fileName);
+
+    res.redirect(signedUrl);
   } catch (error) {
     console.error('❌ Error downloading document:', error);
     res.status(500).json({
@@ -311,7 +327,7 @@ router.get('/download/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER'
 });
 
 // GET /api/student-documents/preview/:documentId - Preview a document inline
-router.get('/preview/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
+router.get('/preview/:documentId', verifyMediaToken, checkRole(['STUDENT', 'TEACHER', 'ADMIN']), async (req, res) => {
   try {
     const { documentId } = req.params;
     const userId = req.user.id;
@@ -331,16 +347,24 @@ router.get('/preview/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER',
       return res.status(404).json({ success: false, message: 'No file available' });
     }
     
-    if (!fs.existsSync(document.filePath)) {
-      return res.status(404).json({ success: false, message: 'File not found on server' });
+    if (!document.filePath) {
+      return res.status(404).json({ success: false, message: 'File not found' });
     }
     
-    // Set content type and serve inline
-    res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
-    
-    const fileStream = fs.createReadStream(document.filePath);
-    fileStream.pipe(res);
+    const signedUrl = await createSignedS3Url(document.filePath, {
+      responseContentDisposition: `inline; filename="${sanitizeDownloadFilename(document.fileName || document.documentName || 'document')}"`,
+      responseContentType: document.mimeType || undefined
+    });
+
+    if (!signedUrl) {
+      return res.status(500).json({
+        success: false,
+        message: 'File is stored privately but could not generate a secure preview link'
+      });
+    }
+
+    // Redirect to signed URL for inline preview
+    res.redirect(signedUrl);
   } catch (error) {
     console.error('❌ Error previewing document:', error);
     res.status(500).json({ success: false, message: 'Error previewing document' });
@@ -350,24 +374,33 @@ router.get('/preview/:documentId', verifyToken, checkRole(['STUDENT', 'TEACHER',
 // GET /api/student-documents/admin/all - Get all student documents (Admin only)
 router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    const { studentId, status, documentType } = req.query;
+    const { studentId, status, documentType, includeHistory } = req.query;
     
-    const filter = {};
+    const filter = includeHistory === 'true' ? {} : { isCurrent: true };
     if (studentId) filter.studentId = studentId;
     if (status) filter.status = status;
     if (documentType) filter.documentType = documentType;
     
     const documents = await StudentDocument.find(filter)
-      .populate('studentId', 'name email batch level servicesOpted')
+      .populate('documentTypeId', 'type name label category allowMultiple required isRequired')
+      .populate(
+        'studentId',
+        'name email regNo batch level subscription studentStatus qualifications servicesOpted languageLevelOpted'
+      )
       .sort({ uploadedAt: -1 })
       .lean();
     
-    const documentsWithFormatting = documents.map(doc => ({
-      ...doc,
-      servicesOpted: doc.studentId?.servicesOpted || '',
-      formattedFileSize: formatFileSize(doc.fileSize),
-      documentTypeDisplay: getDocumentTypeDisplayName(doc.documentType)
-    }));
+    const documentsWithFormatting = documents.map((doc) =>
+      mapStudentDocument({
+        ...doc,
+        servicesOpted: doc.studentId?.servicesOpted || '',
+        subscription: doc.studentId?.subscription || '',
+        studentStatus: doc.studentId?.studentStatus || '',
+        qualifications: doc.studentId?.qualifications || '',
+        languageLevelOpted: doc.studentId?.languageLevelOpted || '',
+        documentTypeDisplay: doc.documentTypeId?.name || getDocumentTypeDisplayName(doc.documentType)
+      })
+    );
     
     res.json({
       success: true,
@@ -384,27 +417,37 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (re
   }
 });
 
-// PUT /api/student-documents/admin/verify/:documentId - Verify/Reject a document (Admin only)
+// PUT /api/student-documents/admin/verify/:documentId - Update document status (Admin only)
 router.put('/admin/verify/:documentId', verifyToken, checkRole(['ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const { documentId } = req.params;
     const { status, verificationNotes } = req.body;
     
-    if (!['VERIFIED', 'REJECTED'].includes(status)) {
+    if (!['PENDING', 'VERIFIED', 'REJECTED'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status. Must be VERIFIED or REJECTED'
+        message: 'Invalid status. Must be PENDING, VERIFIED or REJECTED'
       });
     }
     
+    const now = new Date();
+    const updatePayload = {
+      status,
+      verificationNotes: verificationNotes || '',
+      remarks: verificationNotes || ''
+    };
+
+    if (status === 'PENDING') {
+      updatePayload.verifiedBy = null;
+      updatePayload.verifiedAt = null;
+    } else {
+      updatePayload.verifiedBy = req.user.id;
+      updatePayload.verifiedAt = now;
+    }
+
     const document = await StudentDocument.findByIdAndUpdate(
       documentId,
-      {
-        status,
-        verifiedBy: req.user.id,
-        verifiedAt: new Date(),
-        verificationNotes: verificationNotes || ''
-      },
+      updatePayload,
       { new: true }
     );
     
@@ -416,17 +459,141 @@ router.put('/admin/verify/:documentId', verifyToken, checkRole(['ADMIN', 'TEACHE
     }
     
     console.log(`✅ Document ${status.toLowerCase()}: ${document.documentName}`);
+
+    let emailSent = false;
+    if (status === 'REJECTED' || status === 'VERIFIED') {
+      try {
+        const {
+          sendDocumentReuploadEmail,
+          sendDocumentApprovedEmail,
+          isDocumentEmailConfigured
+        } = require('../config/documentEmailConfig');
+        if (isDocumentEmailConfigured()) {
+          const isAgreement = document.documentCategory === 'AGREEMENT' || String(document.documentType || '').startsWith('AGREEMENT_');
+          if (status === 'REJECTED') {
+            emailSent = await sendDocumentReuploadEmail({
+              studentName: document.studentName,
+              studentEmail: document.studentEmail,
+              documentName: document.documentName,
+              reason: verificationNotes || document.remarks || '',
+              isAgreement
+            });
+          } else {
+            emailSent = await sendDocumentApprovedEmail({
+              studentName: document.studentName,
+              studentEmail: document.studentEmail,
+              documentName: document.documentName,
+              isAgreement
+            });
+          }
+        }
+      } catch (mailErr) {
+        console.warn(`⚠️ ${status === 'REJECTED' ? 'Re-upload' : 'Approval'} email failed:`, mailErr.message);
+      }
+    }
     
     res.json({
       success: true,
-      message: `Document ${status.toLowerCase()} successfully`,
-      document
+      message: status === 'REJECTED'
+        ? (emailSent ? 'Re-upload requested and email sent to student' : 'Re-upload requested (email not sent — check DOCS_EMAIL_* in .env)')
+        : status === 'VERIFIED'
+          ? (emailSent ? 'Approved and confirmation email sent to student' : 'Approved (email not sent — check DOCS_EMAIL_* in .env)')
+          : `Document ${status.toLowerCase()} successfully`,
+      document,
+      emailSent
     });
   } catch (error) {
     console.error('❌ Error verifying document:', error);
     res.status(500).json({
       success: false,
       message: 'Error verifying document',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/student-documents/admin/replace/:documentId - Replace an existing document with a new version (Admin only)
+router.post('/admin/replace/:documentId', verifyToken, checkRole(['ADMIN', 'TEACHER']), upload.single('document'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No replacement file uploaded'
+      });
+    }
+
+    const { documentId } = req.params;
+    const targetDocument = await StudentDocument.findById(documentId).lean();
+    if (!targetDocument) {
+      if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
+      return res.status(404).json({ success: false, message: 'Original document not found' });
+    }
+
+    const requirement = await resolveDocumentRequirement({
+      documentTypeId: targetDocument.documentTypeId,
+      documentType: targetDocument.documentType
+    });
+
+    if (!requirement) {
+      if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
+      return res.status(400).json({ success: false, message: 'Invalid document type mapping for original document' });
+    }
+
+    const latestVersion = await StudentDocument.findOne({
+      studentId: targetDocument.studentId,
+      documentTypeId: requirement._id
+    }).sort({ version: -1 }).lean();
+    const nextVersion = latestVersion ? Number(latestVersion.version || 1) + 1 : 1;
+
+    await StudentDocument.updateMany(
+      { studentId: targetDocument.studentId, documentTypeId: requirement._id, isCurrent: true },
+      { $set: { isCurrent: false, replacedAt: new Date(), replacedBy: req.user.id } }
+    );
+
+    const replacement = await StudentDocument.create({
+      studentId: targetDocument.studentId,
+      studentName: targetDocument.studentName,
+      studentEmail: targetDocument.studentEmail,
+      documentTypeId: requirement._id,
+      documentType: requirement.type,
+      documentName: targetDocument.documentName,
+      documentCategory: requirement.category || targetDocument.documentCategory || 'OTHER',
+      fileName: req.file.originalname,
+      filePath: req.file.location,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
+      description: `Replaced by admin. Previous version: ${targetDocument.version || 1}`,
+      status: 'PENDING',
+      version: nextVersion,
+      isCurrent: true
+    });
+
+    await StudentDocument.updateOne(
+      { _id: targetDocument._id },
+      {
+        $set: {
+          isCurrent: false,
+          supersededBy: replacement._id,
+          replacedAt: new Date(),
+          replacedBy: req.user.id
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Document replaced successfully with a new version',
+      document: mapStudentDocument({
+        ...replacement.toObject(),
+        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(requirement.type)
+      })
+    });
+  } catch (error) {
+    console.error('❌ Error replacing document:', error);
+    if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
+    res.status(500).json({
+      success: false,
+      message: 'Error replacing document',
       error: error.message
     });
   }
@@ -444,12 +611,10 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
       });
     }
     
-    const { studentEmail, documentType, documentName, description } = req.body;
+    const { studentEmail, documentTypeId, documentType, documentName, description } = req.body;
     
-    if (!studentEmail || !documentType || !documentName) {
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+    if (!studentEmail || (!documentTypeId && !documentType) || !documentName) {
+      if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
       return res.status(400).json({
         success: false,
         message: 'Student email, document type, and name are required'
@@ -459,60 +624,87 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
     // Find student by email
     const student = await User.findOne({ email: studentEmail, role: 'STUDENT' });
     if (!student) {
-      if (fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
+      if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
       return res.status(404).json({
         success: false,
         message: 'Student not found with this email'
       });
     }
-    
-    // Move file to student-specific folder
-    const studentFolder = path.join('uploads/student-documents', student._id.toString());
-    if (!fs.existsSync(studentFolder)) {
-      fs.mkdirSync(studentFolder, { recursive: true });
+
+    const requirement = await resolveDocumentRequirement({ documentTypeId, documentType });
+    if (!requirement) {
+      if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type. Admin upload must use predefined document types.'
+      });
+    }
+
+    const latestVersion = await StudentDocument.findOne({
+      studentId: student._id,
+      documentTypeId: requirement._id
+    }).sort({ version: -1 }).lean();
+    const nextVersion = latestVersion ? Number(latestVersion.version || 1) + 1 : 1;
+
+    if (!requirement.allowMultiple) {
+      await StudentDocument.updateMany(
+        { studentId: student._id, documentTypeId: requirement._id, isCurrent: true },
+        { $set: { isCurrent: false, replacedAt: new Date(), replacedBy: req.user.id } }
+      );
     }
     
-    const finalPath = path.join(studentFolder, req.file.filename);
-    if (req.file.path !== finalPath) {
-      fs.renameSync(req.file.path, finalPath);
-    }
-    
-    // Create document record
+    // Create document record — filePath is now the S3 URL
     const document = new StudentDocument({
       studentId: student._id,
       studentName: student.name,
       studentEmail: student.email,
-      documentType,
+      documentTypeId: requirement._id,
+      documentType: requirement.type,
       documentName,
-      fileName: req.file.filename,
-      filePath: finalPath,
+      documentCategory: requirement.category || 'OTHER',
+      fileName: req.file.originalname,
+      filePath: req.file.location,
       fileSize: req.file.size,
       mimeType: req.file.mimetype,
       description: description || 'Uploaded by admin',
-      status: 'PENDING'
+      status: 'PENDING',
+      version: nextVersion,
+      isCurrent: true
     });
     
     await document.save();
+
+    let emailSent = false;
+    try {
+      const { sendDocumentAddedByAdminEmail, isDocumentEmailConfigured } = require('../config/documentEmailConfig');
+      if (isDocumentEmailConfigured()) {
+        emailSent = await sendDocumentAddedByAdminEmail({
+          studentName: student.name,
+          studentEmail: student.email,
+          documentName: documentName || requirement.label || requirement.name
+        });
+      }
+    } catch (mailErr) {
+      console.warn('⚠️  Admin upload notification email failed:', mailErr.message);
+    }
     
     console.log(`✅ Admin uploaded document: ${documentName} for ${student.name}`);
     
     res.json({
       success: true,
-      message: 'Document uploaded successfully',
-      document: {
+      message: emailSent
+        ? 'Document uploaded and student notified by email'
+        : 'Document uploaded successfully',
+      emailSent,
+      document: mapStudentDocument({
         ...document.toObject(),
-        formattedFileSize: formatFileSize(document.fileSize),
-        documentTypeDisplay: getDocumentTypeDisplayName(document.documentType)
-      }
+        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(document.documentType)
+      })
     });
   } catch (error) {
     console.error('❌ Error in admin upload:', error);
     
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file) await deleteFromS3(req.file.key || req.file.location).catch(() => {});
     
     res.status(500).json({
       success: false,
@@ -527,9 +719,9 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
   try {
     console.log('✅ Admin marking document as verified without upload');
     
-    const { studentEmail, documentType, documentName, verificationNotes } = req.body;
+    const { studentEmail, documentTypeId, documentType, documentName, verificationNotes } = req.body;
     
-    if (!studentEmail || !documentType || !documentName) {
+    if (!studentEmail || (!documentTypeId && !documentType) || !documentName) {
       return res.status(400).json({
         success: false,
         message: 'Student email, document type, and document name are required'
@@ -544,14 +736,37 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
         message: 'Student not found with this email'
       });
     }
+
+    const requirement = await resolveDocumentRequirement({ documentTypeId, documentType });
+    if (!requirement) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid document type. Verification must use predefined document types.'
+      });
+    }
+
+    const latestVersion = await StudentDocument.findOne({
+      studentId: student._id,
+      documentTypeId: requirement._id
+    }).sort({ version: -1 }).lean();
+    const nextVersion = latestVersion ? Number(latestVersion.version || 1) + 1 : 1;
+
+    if (!requirement.allowMultiple) {
+      await StudentDocument.updateMany(
+        { studentId: student._id, documentTypeId: requirement._id, isCurrent: true },
+        { $set: { isCurrent: false, replacedAt: new Date(), replacedBy: req.user.id } }
+      );
+    }
     
     // Create document record with VERIFIED status and no file
     const document = new StudentDocument({
       studentId: student._id,
       studentName: student.name,
       studentEmail: student.email,
-      documentType,
+      documentTypeId: requirement._id,
+      documentType: requirement.type,
       documentName,
+      documentCategory: requirement.category || 'OTHER',
       fileName: 'NO_FILE_UPLOADED',
       filePath: 'NO_FILE_UPLOADED',
       fileSize: 0,
@@ -560,7 +775,10 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
       status: 'VERIFIED',
       verifiedBy: req.user.id,
       verifiedAt: new Date(),
-      verificationNotes: verificationNotes || 'Document verified without file upload'
+      verificationNotes: verificationNotes || 'Document verified without file upload',
+      remarks: verificationNotes || 'Document verified without file upload',
+      version: nextVersion,
+      isCurrent: true
     });
     
     await document.save();
@@ -570,11 +788,11 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
     res.json({
       success: true,
       message: 'Document marked as verified successfully',
-      document: {
+      document: mapStudentDocument({
         ...document.toObject(),
         formattedFileSize: 'N/A',
-        documentTypeDisplay: getDocumentTypeDisplayName(document.documentType)
-      }
+        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(document.documentType)
+      })
     });
   } catch (error) {
     console.error('❌ Error marking document as verified:', error);
@@ -611,33 +829,24 @@ router.get('/stats', verifyToken, checkRole(['STUDENT']), async (req, res) => {
       });
     }
     
-    const totalDocuments = await StudentDocument.countDocuments({ studentId });
-    const verifiedDocuments = await StudentDocument.countDocuments({ studentId, status: 'VERIFIED' });
-    const pendingDocuments = await StudentDocument.countDocuments({ studentId, status: 'PENDING' });
-    const rejectedDocuments = await StudentDocument.countDocuments({ studentId, status: 'REJECTED' });
+    const currentFilter = { studentId, isCurrent: true };
+    const totalDocuments = await StudentDocument.countDocuments(currentFilter);
+    const verifiedDocuments = await StudentDocument.countDocuments({ ...currentFilter, status: 'VERIFIED' });
+    const pendingDocuments = await StudentDocument.countDocuments({ ...currentFilter, status: 'PENDING' });
+    const rejectedDocuments = await StudentDocument.countDocuments({ ...currentFilter, status: 'REJECTED' });
     
     // Get document types uploaded - use new keyword for ObjectId
-    const documentsByType = await StudentDocument.aggregate([
-      { $match: { studentId: new mongoose.Types.ObjectId(studentId) } },
-      { $group: { _id: '$documentType', count: { $sum: 1 } } }
+    const currentDocsByType = await StudentDocument.aggregate([
+      { $match: { studentId: new mongoose.Types.ObjectId(studentId), isCurrent: true } },
+      { $group: { _id: '$documentTypeId', count: { $sum: 1 } } }
     ]);
     
     // Get required documents filtered by student's service
     const service = (student.servicesOpted || '').trim();
-    let requiredDocs = [];
+    const requiredDocs = await getRequirementsForStudentService(service, { requiredOnly: true });
     
-    if (service && !NO_DOCS_SERVICES.some(s => s.toLowerCase() === service.toLowerCase())) {
-      const normalized = service.replace(/[\s\-]+/g, '[\\s\\-]*');
-      const serviceRegex = new RegExp('^' + normalized + '$', 'i');
-      requiredDocs = await DocumentRequirement.find({
-        active: true,
-        required: true,
-        applicableServices: serviceRegex
-      }).lean();
-    }
-    
-    const uploadedRequiredDocs = documentsByType.filter(d => 
-      requiredDocs.some(r => r.type === d._id)
+    const uploadedRequiredDocs = currentDocsByType.filter((d) =>
+      requiredDocs.some((r) => String(r._id) === String(d._id))
     ).length;
     
     res.json({
@@ -663,15 +872,166 @@ router.get('/stats', verifyToken, checkRole(['STUDENT']), async (req, res) => {
 });
 
 // Helper functions
+async function ensureDefaultRequirementsSeeded() {
+  const existingCount = await DocumentRequirement.countDocuments({});
+  if (existingCount > 0) return;
+
+  await DocumentRequirement.insertMany(
+    DEFAULT_REQUIREMENTS.map((reqType) => ({
+      type: reqType.type,
+      name: reqType.name,
+      label: reqType.name,
+      description: reqType.name,
+      category: reqType.category,
+      required: reqType.isRequired,
+      isRequired: reqType.isRequired,
+      allowMultiple: reqType.allowMultiple,
+      order: reqType.order,
+      active: true
+    }))
+  );
+}
+
+function buildServiceScopedRequirementFilter(service = '', { requiredOnly = false } = {}) {
+  const baseFilter = {
+    active: true,
+    ...(requiredOnly ? { $or: [{ required: true }, { isRequired: true }] } : {})
+  };
+
+  const trimmedService = String(service || '').trim();
+  if (!trimmedService) {
+    return baseFilter;
+  }
+
+  const normalized = trimmedService.replace(/[\s\-]+/g, '[\\s\\-]*');
+  const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+
+  return {
+    ...baseFilter,
+    $and: [
+      {
+        $or: [
+          { applicableServices: serviceRegex },
+          { programKeys: serviceRegex },
+          { applicableServices: { $size: 0 } },
+          { programKeys: { $size: 0 } }
+        ]
+      }
+    ]
+  };
+}
+
+async function getRequirementsForStudentService(service = '', { requiredOnly = false } = {}) {
+  const scopedFilter = buildServiceScopedRequirementFilter(service, { requiredOnly });
+  let requirements = await DocumentRequirement.find(scopedFilter)
+    .sort({ order: 1, label: 1 })
+    .lean();
+
+  // Fallback: if strict service matching returns nothing, show active defaults
+  // so students can still upload required documents.
+  if (requirements.length === 0) {
+    const fallbackFilter = {
+      active: true,
+      ...(requiredOnly ? { $or: [{ required: true }, { isRequired: true }] } : {})
+    };
+    requirements = await DocumentRequirement.find(fallbackFilter)
+      .sort({ order: 1, label: 1 })
+      .lean();
+  }
+
+  return requirements;
+}
+
+function normalizeType(type = '') {
+  return String(type).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+async function resolveDocumentRequirement({ documentTypeId, documentType }) {
+  await ensureDefaultRequirementsSeeded();
+
+  if (documentTypeId && mongoose.Types.ObjectId.isValid(documentTypeId)) {
+    const byId = await DocumentRequirement.findById(documentTypeId).lean();
+    if (byId && byId.active !== false) return byId;
+  }
+
+  const normalizedType = normalizeType(documentType);
+  if (!normalizedType) return null;
+
+  const byType = await DocumentRequirement.findOne({ type: normalizedType, active: true }).lean();
+  return byType || null;
+}
+
+function mapRequirement(requirement) {
+  return {
+    id: requirement._id,
+    type: requirement.type,
+    name: requirement.name || requirement.label,
+    label: requirement.label || requirement.name,
+    description: requirement.description || '',
+    category: requirement.category || 'OTHER',
+    isRequired: typeof requirement.isRequired === 'boolean' ? requirement.isRequired : !!requirement.required,
+    required: typeof requirement.required === 'boolean' ? requirement.required : !!requirement.isRequired,
+    allowMultiple: !!requirement.allowMultiple
+  };
+}
+
+function mapStudentDocument(doc) {
+  return {
+    ...doc,
+    remarks: doc.remarks || doc.verificationNotes || '',
+    verificationNotes: doc.verificationNotes || doc.remarks || '',
+    documentTypeDisplay: doc.documentTypeDisplay || getDocumentTypeDisplayName(doc.documentType),
+    formattedFileSize: formatFileSize(doc.fileSize || 0)
+  };
+}
+
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
+function extractS3Key(fileUrlOrKey = '') {
+  if (!fileUrlOrKey) return '';
+  if (!String(fileUrlOrKey).startsWith('http')) return String(fileUrlOrKey).replace(/^\//, '');
+
+  try {
+    const parsed = new URL(fileUrlOrKey);
+    return parsed.pathname.replace(/^\//, '');
+  } catch (error) {
+    return '';
+  }
+}
+
+function sanitizeDownloadFilename(name = 'document') {
+  return String(name).replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+async function createSignedS3Url(fileUrlOrKey, opts = {}) {
+  try {
+    const bucket = process.env.S3_BUCKET;
+    const key = extractS3Key(fileUrlOrKey);
+    if (!bucket || !key) return null;
+
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ResponseContentDisposition: opts.responseContentDisposition,
+      ResponseContentType: opts.responseContentType
+    });
+
+    return await getSignedUrl(s3Client, command, { expiresIn: 60 * 5 });
+  } catch (error) {
+    console.error('❌ Failed generating signed S3 URL:', error.message);
+    return null;
+  }
+}
+
 function getDocumentTypeDisplayName(type) {
   // For legacy types, provide display names; for new types, format the type key
   const displayNames = {
+    'MISCELLANEOUS': 'Other Certificates',
+    'BIRTH_CERTIFICATE': 'Birth Certificate',
     'CV': 'CV',
     'O_LEVEL_CERTIFICATE': 'O Level Certificate',
     'A_LEVEL_CERTIFICATE': 'A Level Certificate',
@@ -699,29 +1059,45 @@ router.post('/admin/send-email', verifyToken, checkRole(['ADMIN']), async (req, 
       return res.status(400).json({ success: false, message: 'to, subject, and message are required' });
     }
 
-    const transporter = require('../config/emailConfig');
+    const {
+      getDocumentTransporter,
+      getDocumentFromAddress,
+      getDocumentCc,
+      isDocumentEmailConfigured,
+    } = require('../config/documentEmailConfig');
+
+    if (!isDocumentEmailConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Document email is not configured. Set DOCS_EMAIL_USER and DOCS_EMAIL_PASS in .env',
+      });
+    }
+
+    const transporter = getDocumentTransporter();
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: getDocumentFromAddress(),
       to,
+      cc: getDocumentCc(),
       subject,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background: #1a237e; color: white; padding: 20px; text-align: center;">
-            <h2>Glück Global</h2>
+            <h2 style="margin:0;">Glück Global</h2>
           </div>
           <div style="padding: 20px; background: #f5f5f5;">
-            <div style="white-space: pre-wrap;">${message}</div>
+            <div style="white-space: pre-wrap; color:#1f2937;">${message}</div>
           </div>
-          <div style="padding: 10px; text-align: center; color: #666; font-size: 12px;">
-            <p>Glück Global Language School</p>
+          <div style="padding: 16px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e5e7eb;">
+            <p style="margin:0 0 4px 0;"><strong>Glück Global</strong></p>
+            <p style="margin:0;">info@gluckglobal.com · www.gluckglobal.com</p>
           </div>
         </div>
-      `
+      `,
     });
 
     res.json({ success: true, message: 'Email sent successfully' });
   } catch (error) {
-    console.error('❌ Error sending email:', error.message);
+    console.error('❌ Error sending document email:', error.message);
     res.status(500).json({ success: false, message: 'Failed to send email' });
   }
 });

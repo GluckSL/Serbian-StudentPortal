@@ -1,0 +1,60 @@
+/* GlückArena theme tokens — light default; dark via [data-ga-theme="dark"] on parent */
+
+[data-ga-theme] {
+  --ga-primary: #405980;
+  --ga-accent: #ff8f00;
+  --ga-card-bg: #ffffff;
+  --ga-page-bg: transparent;
+  --ga-text: #2c3e50;
+  --ga-muted: #888888;
+  --ga-border: #e8ecf0;
+}
+
+[data-ga-theme='dark'] {
+  --ga-primary: #7a9cc0;
+  --ga-accent: #ffb74d;
+  --ga-card-bg: #1e2a38;
+  --ga-page-bg: #121820;
+  --ga-text: #e8edf5;
+  --ga-muted: #9aa8b8;
+  --ga-border: #2d3d4f;
+  background: var(--ga-page-bg);
+  color: var(--ga-text);
+}
+
+[data-ga-theme='dark'] .mat-mdc-card {
+  background: var(--ga-card-bg) !important;
+  color: var(--ga-text);
+}
+
+/* Production UX polish — motion-safe, reduced-motion aware */
+@media (prefers-reduced-motion: no-preference) {
+  .gc__card, .tl__card, .mpb__podium-place {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.gc__skeleton {
+  animation: ga-shimmer 1.2s ease-in-out infinite;
+  background: linear-gradient(90deg, #eee 25%, #f5f5f5 50%, #eee 75%);
+  background-size: 200% 100%;
+  border-radius: 16px;
+  min-height: 140px;
+}
+
+@keyframes ga-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--ga-primary);
+  outline-offset: 2px;
+}

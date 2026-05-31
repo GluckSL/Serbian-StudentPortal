@@ -1,0 +1,407 @@
+<div class="page-header">
+  <div class="page-header-left">
+    <h2><i class="fas fa-layer-group"></i> Bulk Journey Meetings</h2>
+    <p>Schedule many journey-day classes at once ({{ meetingTimezoneLabel }})</p>
+  </div>
+  <button type="button" class="btn btn-light" (click)="cancel()" [disabled]="isBulkCreating">
+    <i class="fas fa-arrow-left me-1"></i>Back
+  </button>
+</div>
+
+<div class="page-content">
+  <div *ngIf="errorMessage" class="alert alert-danger">
+    <i class="fas fa-exclamation-circle me-1"></i>{{ errorMessage }}
+    <button type="button" class="btn-close float-end" (click)="errorMessage = ''"></button>
+  </div>
+
+  <mat-vertical-stepper [linear]="false" (selectionChange)="stepperSelectionChanged($event)" class="bulk-stepper">
+    <!-- Step 1: Basic -->
+    <mat-step label="Basic details" [completed]="basicForm.valid">
+      <form [formGroup]="basicForm" class="mt-2">
+        <div class="form-card">
+          <div class="form-card-header"><i class="fas fa-info-circle"></i> Meeting details</div>
+          <div class="form-card-body">
+            <div class="mb-3">
+              <label class="form-label">Topic *</label>
+              <input class="form-control" formControlName="topic" placeholder="e.g. German A2 — Live class" />
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Batch *</label>
+                <select class="form-select" formControlName="batch" (change)="onBatchChange()">
+                  <option value="">Select batch</option>
+                  <option *ngFor="let r of batchJourneyRows" [value]="r.batchName">{{ r.batchName }}</option>
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Plan *</label>
+                <select class="form-select" formControlName="plan" (change)="onPlanChange()">
+                  <option value="">Select plan</option>
+                  <option value="SILVER">SILVER</option>
+                  <option value="PLATINUM">PLATINUM</option>
+                  <option value="VISA_DOC_ONLY">VISA &amp; DOC ONLY</option>
+                </select>
+              </div>
+            </div>
+            <p *ngIf="batchCurrentDayDisplay != null" class="small text-muted mb-2">
+              Current journey day (batch): <strong>{{ batchCurrentDayDisplay }}</strong>
+            </p>
+            <div class="mb-3">
+              <label class="form-label">Assigned teacher *</label>
+              <select class="form-select" formControlName="teacherId">
+                <option value="">Select teacher</option>
+                <option *ngFor="let t of teachers" [value]="t._id">{{ t.name }} ({{ t.email }})</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Zoom account *</label>
+              <select class="form-select" formControlName="zoomHostEmail" (change)="refreshZoomBusyHint()">
+                <option value="">Select Zoom host</option>
+                <option
+                  *ngFor="let z of zoomAccounts"
+                  [value]="z.email"
+                  [disabled]="z.isBusy"
+                  [attr.title]="z.isBusy ? conflictTooltip(z.conflicts) : null">
+                  {{ z.name }} ({{ z.email }}){{ z.isBusy ? ' — BUSY' : '' }}
+                </option>
+              </select>
+              <small class="text-muted d-block">
+                BUSY reflects portal bookings at your journey start time (not the Zoom website calendar).
+                Hover a BUSY option or see details below.
+              </small>
+              <div class="zoom-busy-panel" *ngIf="busyZoomAccounts.length > 0">
+                <div class="zoom-busy-panel-title">
+                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                  Conflicting portal classes
+                </div>
+                <div class="zoom-busy-account" *ngFor="let acc of busyZoomAccounts">
+                  <span class="zoom-busy-account-name">
+                    {{ acc.name }}
+                    <i
+                      class="fas fa-circle-info zoom-busy-info-icon"
+                      [matTooltip]="conflictTooltip(acc.conflicts)"
+                      matTooltipClass="zoom-busy-tooltip"
+                      aria-label="Conflict details"></i>
+                  </span>
+                  <ul class="zoom-busy-conflict-list">
+                    <li *ngFor="let c of acc.conflicts">
+                      <strong>{{ c.topic }}</strong>
+                      <span *ngIf="c.batch"> · Batch {{ c.batch }}</span>
+                      — {{ formatConflictWhen(c) }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Duration (minutes) *</label>
+                <input type="number" class="form-control" formControlName="duration" (change)="refreshZoomBusyHint()" />
+              </div>
+              <div class="col-md-8 mb-3">
+                <label class="form-label">Schedule type *</label>
+                <select class="form-select" formControlName="scheduleType">
+                  <option value="journey">Journey mode (default)</option>
+                  <option value="weekly">Weekly (use Create Meeting)</option>
+                </select>
+                <div *ngIf="scheduleType === 'weekly'" class="alert alert-info small mt-2 mb-0">
+                  For Mon–Sun weekly patterns use the standard
+                  <button type="button" class="btn btn-link btn-sm p-0 align-baseline" (click)="goToWeeklyCreate()">Create Meeting</button> flow.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+      <div class="step-actions">
+        <button mat-raised-button color="primary" matStepperNext [disabled]="basicForm.invalid || scheduleType !== 'journey'">Next</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 2: Journey scheduler -->
+    <mat-step label="Journey schedule" [completed]="selectedWeekdaysSun0.length > 0">
+      <div class="mt-2" *ngIf="scheduleType === 'journey'" [formGroup]="basicForm">
+        <div class="alert alert-light border small py-2 mb-3 journey-today-banner">
+          <div><strong>Today (IST):</strong> {{ istTodayDisplay() }}</div>
+          <div class="text-muted mt-1 mb-0">
+            Classes run only on the weekdays you tick. Each row’s <strong>journey day</strong> grows by the
+            <strong>IST calendar days</strong> since the previous class (Mon→Wed +2, Fri→Mon +3 so Saturday and Sunday count).
+            The first class uses your starting journey day. By default the first slot is the next selected weekday from today (including today if start time is still ahead).
+            Use <strong>First class on</strong> below to start on a specific weekday instead (e.g. Thursday even when today is Saturday).
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="form-card h-100">
+              <div class="form-card-header"><i class="fas fa-calendar-week"></i> Weekdays (IST)</div>
+              <div class="form-card-body" [formGroup]="weekForm">
+                <div class="d-flex flex-wrap gap-3">
+                  <mat-checkbox *ngFor="let d of weekdayOptions" [formControlName]="d.key" (change)="onWeekdayChange()">
+                    {{ d.label }}
+                  </mat-checkbox>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="form-card h-100">
+              <div class="form-card-header"><i class="fas fa-clock"></i> Start time (IST)</div>
+              <div class="form-card-body">
+                <label class="form-label">Class start</label>
+                <input type="time" class="form-control" formControlName="startClock" (change)="refreshZoomBusyHint()" />
+                <p class="small text-muted mt-2 mb-0">End time follows from duration.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-card mt-3">
+          <div class="form-card-header"><i class="fas fa-route"></i> Journey range</div>
+          <div class="form-card-body row">
+            <div class="col-md-4 mb-2">
+              <label class="form-label">First class on (IST weekday)</label>
+              <select
+                class="form-select"
+                formControlName="firstClassWeekday"
+                [compareWith]="compareFirstClassWeekday"
+                (change)="onFirstClassWeekdayChange($event)">
+                <option
+                  *ngFor="let o of firstClassWeekdayOptionsList; trackBy: trackByWeekdayOption"
+                  [ngValue]="o.value">
+                  {{ o.label }}
+                </option>
+              </select>
+              <small class="text-muted d-block">
+                Selected: <strong>{{ firstClassWeekdayLabel() }}</strong>
+              </small>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="form-label">Starting journey day *</label>
+              <input type="number" class="form-control" formControlName="startingJourneyDay" min="1" max="200" />
+              <small class="text-muted">Journey day number for that first class.</small>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="form-label">Target journey day *</label>
+              <input type="number" class="form-control" formControlName="targetJourneyDay" min="1" max="200" />
+              <small class="text-muted">Stop once the next journey day would go above this (weekends count in the gap).</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-raised-button color="primary" matStepperNext [disabled]="!selectedWeekdaysSun0.length">Next</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 3: Students -->
+    <mat-step label="Students" [completed]="selectedStudents.length > 0">
+      <div class="form-card mt-2">
+        <div class="form-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span><i class="fas fa-users"></i> Students (ongoing, filtered by batch &amp; plan)</span>
+          <span class="badge bg-light text-dark">Selected: {{ selectedStudents.length }}</span>
+        </div>
+        <div class="form-card-body">
+          <div class="row mb-2 g-2">
+            <div class="col-md-6">
+              <input class="form-control" placeholder="Search name or email" (input)="onSearchInput($event)" />
+            </div>
+            <div class="col-md-6 text-md-end">
+              <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="selectAllFiltered()">Select all (filtered)</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="deselectAll()">Clear</button>
+            </div>
+          </div>
+          <div class="student-chips">
+            <div
+              *ngFor="let s of filteredStudents"
+              class="student-chip"
+              [class.student-chip--on]="isStudentSelected(s)"
+              (click)="toggleStudent(s)">
+              <span>{{ s.name }}</span>
+              <small>{{ s.email }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Back</button>
+        <button mat-raised-button color="primary" matStepperNext [disabled]="!selectedStudents.length">Next</button>
+      </div>
+    </mat-step>
+
+    <!-- Step 4: Preview & confirm -->
+    <mat-step label="Preview &amp; confirm">
+      <div *ngIf="isPreviewing" class="py-4 text-center">
+        <mat-spinner diameter="36"></mat-spinner>
+        <div class="small mt-2">Building preview…</div>
+      </div>
+
+      <ng-container *ngIf="!isPreviewing">
+        <p class="small text-muted mb-2">
+          Review every meeting below. Use <strong>Edit</strong> on a row to change journey day, date, or start time, then <strong>Save</strong> to refresh warnings.
+          Confirm bulk create uses this saved preview.
+        </p>
+        <p *ngIf="previewSavedAt" class="small text-success mb-2">
+          <i class="fas fa-check-circle me-1"></i>Preview last updated (IST): {{ previewSavedAt }}
+        </p>
+
+        <div class="form-card mb-3">
+          <div class="form-card-header"><i class="fas fa-info-circle"></i> Run summary</div>
+          <div class="form-card-body">
+            <ul class="list-unstyled small mb-0">
+              <li><strong>Today (IST):</strong> {{ istTodayDisplay() }}</li>
+              <li><strong>First class on:</strong> {{ firstClassWeekdayLabel() }}</li>
+              <li><strong>Journey day range:</strong> {{ basicForm.value.startingJourneyDay }} → {{ basicForm.value.targetJourneyDay }} (each step + calendar days since last class, IST)</li>
+              <li><strong>Total meetings:</strong> {{ schedules.length }}</li>
+              <li><strong>Approx. teaching hours:</strong> {{ totalTeachingHours }}</li>
+              <li><strong>Students invited:</strong> {{ selectedStudents.length }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div *ngIf="previewBlocking.length" class="alert alert-danger small mb-3">
+          <strong>Blocking</strong>
+          <ul class="mb-0"><li *ngFor="let b of previewBlocking">{{ b }}</li></ul>
+        </div>
+        <div *ngIf="previewWarnings.length" class="alert alert-warning small mb-3 summary-warnings">
+          <strong>Warnings / conflicts</strong>
+          <ul class="mb-0"><li *ngFor="let w of previewWarnings">{{ w }}</li></ul>
+        </div>
+
+        <div class="form-card" *ngIf="schedules.length">
+          <div class="form-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-table"></i> Meeting schedule (confirmation)</span>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-light"
+              (click)="runPreview()"
+              [disabled]="isPreviewing || isBulkCreating || editingRowIndex != null">
+              <i class="fas fa-sync-alt me-1"></i>Regenerate from settings
+            </button>
+          </div>
+          <div class="form-card-body p-0">
+            <div class="table-responsive preview-table-wrap">
+              <table class="table table-sm table-bordered mb-0 preview-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Actions</th>
+                    <th>Day</th>
+                    <th>Date</th>
+                    <th>Start (IST)</th>
+                    <th>End (IST)</th>
+                    <th>Journey day</th>
+                    <th>Batch</th>
+                    <th>Topic</th>
+                    <th>Duration</th>
+                    <th>Plan</th>
+                    <th>Teacher</th>
+                    <th>Zoom host</th>
+                    <th>Students</th>
+                    <th>Timezone</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    *ngFor="let row of schedules; let idx = index"
+                    [class.preview-row-editing]="isEditingRow(idx)">
+                    <td>{{ idx + 1 }}</td>
+                    <td class="preview-actions-cell">
+                      <ng-container *ngIf="!isEditingRow(idx)">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-primary"
+                          (click)="startEditRow(idx)"
+                          [disabled]="isPreviewing || isBulkCreating || isSavingRowEdit || editingRowIndex != null">
+                          Edit
+                        </button>
+                      </ng-container>
+                      <ng-container *ngIf="isEditingRow(idx) && editDraft">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-primary me-1"
+                          (click)="saveEditRow(idx)"
+                          [disabled]="isSavingRowEdit || isPreviewing">
+                          {{ isSavingRowEdit ? 'Saving…' : 'Save' }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          (click)="cancelEditRow()"
+                          [disabled]="isSavingRowEdit">
+                          Cancel
+                        </button>
+                      </ng-container>
+                    </td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ rowWeekday(row) }}</ng-container>
+                      <span *ngIf="isEditingRow(idx)" class="text-muted small">—</span>
+                    </td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ rowDate(row) }}</ng-container>
+                      <input
+                        *ngIf="isEditingRow(idx) && editDraft"
+                        type="date"
+                        class="form-control form-control-sm preview-edit-input"
+                        [(ngModel)]="editDraft.startDate"
+                        [ngModelOptions]="{ standalone: true }" />
+                    </td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ rowStartTime(row) }}</ng-container>
+                      <input
+                        *ngIf="isEditingRow(idx) && editDraft"
+                        type="time"
+                        class="form-control form-control-sm preview-edit-input"
+                        [(ngModel)]="editDraft.startClock"
+                        [ngModelOptions]="{ standalone: true }" />
+                    </td>
+                    <td>{{ rowEndTime(row) }}</td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ row.journeyDay }}</ng-container>
+                      <input
+                        *ngIf="isEditingRow(idx) && editDraft"
+                        type="number"
+                        class="form-control form-control-sm preview-edit-input preview-edit-journey"
+                        min="1"
+                        max="200"
+                        [(ngModel)]="editDraft.journeyDay"
+                        [ngModelOptions]="{ standalone: true }" />
+                    </td>
+                    <td>{{ basicForm.value.batch }}</td>
+                    <td>{{ basicForm.value.topic }}</td>
+                    <td>{{ basicForm.value.duration }} min</td>
+                    <td>{{ basicForm.value.plan }}</td>
+                    <td class="text-break">{{ teacherLabel(basicForm.value.teacherId) }}</td>
+                    <td class="text-break">{{ basicForm.value.zoomHostEmail }}</td>
+                    <td>{{ selectedStudents.length }}</td>
+                    <td>{{ meetingTimezoneLabel }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p *ngIf="editingRowIndex != null" class="small text-muted px-3 py-2 mb-0 border-top">
+              End time is recalculated from duration ({{ basicForm.value.duration }} min) when you save.
+            </p>
+          </div>
+        </div>
+      </ng-container>
+
+      <div *ngIf="isBulkCreating" class="mt-3">
+        <mat-progress-bar mode="determinate" [value]="bulkProgressTotal ? (100 * bulkProgressDone / bulkProgressTotal) : 0"></mat-progress-bar>
+        <p class="small text-center mt-1 mb-0">
+          Creating {{ bulkProgressDone }} / {{ bulkProgressTotal }} meetings…
+        </p>
+      </div>
+
+      <div class="step-actions">
+        <button mat-button matStepperPrevious [disabled]="isBulkCreating">Back</button>
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="submitBulkCreate()"
+          [disabled]="isBulkCreating || isPreviewing || isSavingRowEdit || editingRowIndex != null || !schedules.length">
+          Confirm bulk create
+        </button>
+      </div>
+    </mat-step>
+  </mat-vertical-stepper>
+</div>

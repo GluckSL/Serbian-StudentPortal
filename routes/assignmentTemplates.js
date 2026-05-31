@@ -30,7 +30,7 @@ router.post(
       }
 
       const files = req.files.map((f) => ({
-        path: f.path.replace(/\\/g, '/'), // normalize windows paths
+        path: f.location, // S3 URL from multer-s3
         originalName: f.originalname,
         mimeType: f.mimetype,
         size: f.size,
@@ -51,7 +51,7 @@ router.post(
       const studentsToNotify = await User.find({
         role: 'STUDENT',
         assignedTeacher: teacherId,
-      }).select('_id name regNo');
+      }).select('_id name regNo').lean();
 
       if (studentsToNotify.length) {
         const notifications = studentsToNotify.map((student) => ({
@@ -86,7 +86,8 @@ router.get('/', verifyToken, async (req, res) => {
     // Optionally also filter by the student's assignedTeacher later
     const templates = await AssignmentTemplate.find(filter)
       .populate('teacherId', 'name regNo email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json({ ok: true, data: templates });
   } catch (err) {

@@ -1,0 +1,52 @@
+<div class="cr-root">
+  <div class="cr-header">
+    <div>
+      <h2 class="cr-title">Correct total received</h2>
+      <p class="cr-sub">
+        Fix an admin mistake for <strong>{{ studentName }}</strong>. The student portal and hub totals update from approved payment records.
+      </p>
+    </div>
+    <button mat-icon-button type="button" (click)="close(false)" matTooltip="Close">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <div class="cr-body">
+    <mat-form-field appearance="outline" class="cr-field">
+      <mat-label>Currency</mat-label>
+      <mat-select [(ngModel)]="currency" (selectionChange)="onCurrencyChange()" [disabled]="saving">
+        <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <div class="cr-summary">
+      <div class="cr-summary-item">
+        <span class="cr-label">Current total received</span>
+        <span class="cr-val">{{ currency }} {{ fmt(currentTotal) }}</span>
+      </div>
+      <mat-form-field appearance="outline" class="cr-field cr-field-amount">
+        <mat-label>Correct to</mat-label>
+        <input matInput type="number" min="0" [(ngModel)]="correctedTotal" [disabled]="saving" />
+      </mat-form-field>
+      <div class="cr-delta" *ngIf="hasDelta" [class.cr-delta--down]="delta < 0" [class.cr-delta--up]="delta > 0">
+        Change: {{ delta > 0 ? '+' : '' }}{{ fmt(delta) }}
+      </div>
+    </div>
+
+    <mat-form-field appearance="outline" class="cr-field cr-field-full">
+      <mat-label>Reason (required)</mat-label>
+      <textarea matInput rows="2" [(ngModel)]="reason" placeholder="e.g. Approved wrong amount by mistake" [disabled]="saving"></textarea>
+    </mat-form-field>
+  </div>
+
+  <div class="cr-footer">
+    <button mat-stroked-button type="button" (click)="close(false)" [disabled]="saving">Cancel</button>
+    <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="saving">
+      <mat-spinner *ngIf="saving" diameter="18" class="cr-btn-spinner"></mat-spinner>
+      <span *ngIf="!saving">Save correction</span>
+      <span *ngIf="saving">Saving…</span>
+    </button>
+  </div>
+</div>

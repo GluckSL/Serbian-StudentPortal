@@ -1,23 +1,66 @@
 <!-- src/app/components/admin-dashboard/admin-dashboard.component.html -->
 
-<div class="admin-dashboard" *ngIf="!loading; else loadingTpl">
+<div class="admin-dashboard">
+  <!-- Skeleton loading -->
+  <div class="admin-skeleton" *ngIf="loading" aria-busy="true" aria-label="Loading student data">
+    <div class="admin-skeleton__header">
+      <div class="admin-skeleton__header-icon"></div>
+      <div class="admin-skeleton__header-text">
+        <div class="admin-sk-line admin-sk-line--title"></div>
+        <div class="admin-sk-line admin-sk-line--sub"></div>
+      </div>
+      <div class="admin-skeleton__stat"></div>
+    </div>
+    <div class="admin-skeleton__content">
+      <div class="admin-skeleton__actions">
+        <div class="admin-sk-pill" *ngFor="let _ of skeletonActionPills"></div>
+      </div>
+      <div class="admin-skeleton__filters">
+        <div class="admin-sk-line admin-sk-line--filter-title"></div>
+        <div class="admin-skeleton__filter-row">
+          <div class="admin-sk-field" *ngFor="let _ of skeletonFilterFields"></div>
+        </div>
+      </div>
+      <div class="admin-skeleton__table-card">
+        <div class="admin-sk-line admin-sk-line--table-title"></div>
+        <div class="admin-skeleton__table">
+          <div class="admin-skeleton__table-row admin-skeleton__table-row--head">
+            <div class="admin-sk-cell" *ngFor="let _ of skeletonTableCols"></div>
+          </div>
+          <div class="admin-skeleton__table-row" *ngFor="let _ of skeletonTableRows">
+            <div class="admin-sk-cell" *ngFor="let __ of skeletonTableCols"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-container *ngIf="!loading">
   <!-- Header Section -->
   <div class="admin-header">
-    <div class="container-fluid">
-      <div class="row align-items-center">
-        <div class="col-md-8">
-          <h1 class="admin-title">
-            <i class="fas fa-users"></i>
-            Student Management
-          </h1>
-          <p class="admin-subtitle">Manage and monitor all registered students</p>
-        </div>
-        <div class="col-md-4 text-end">
-          <div class="admin-stats-quick">
-            <div class="stat-item">
-              <span class="stat-number">{{ filteredStudentCount || totalStudentsCount() }}</span>
-              <span class="stat-label">Total Students</span>
+    <div class="container-fluid px-0">
+      <div class="admin-header-inner">
+        <div class="admin-header-text">
+          <div class="admin-title-row">
+            <span class="admin-title-icon" aria-hidden="true">
+              <i class="fas fa-graduation-cap"></i>
+            </span>
+            <div>
+              <h1 class="admin-title">Student Management</h1>
+              <p class="admin-subtitle">Search, filter, and manage learners synced from your CRM</p>
             </div>
+          </div>
+        </div>
+        <div class="admin-header-stat">
+          <div class="stat-item stat-item--elevated">
+            <span class="stat-number">{{ displayStudentCount() }}</span>
+            <span class="stat-label">Students in portal</span>
+            <span class="stat-hint" *ngIf="!hasActiveStudentFilters() && portalStudentCounts.portalTotal">
+              {{ portalStudentCounts.portalCrmLinked }} linked to Monday CRM ·
+              {{ portalStudentCounts.portalWithdrew }} withdrew ·
+              {{ portalStudentCounts.portalTotal }} total accounts
+            </span>
+            <span class="stat-hint" *ngIf="hasActiveStudentFilters()">matching filters</span>
           </div>
         </div>
       </div>
@@ -32,36 +75,182 @@
       <div class="action-bar">
         <div class="action-bar-row">
           <div class="action-group-left">
-            <button class="btn btn-primary btn-add-user" routerLink="/signup">
-              <i class="fas fa-plus"></i> Add New Student
-            </button>
-            <button class="btn btn-success" (click)="showBulkUpload = !showBulkUpload">
-              <i class="fas fa-upload"></i> Bulk Upload
-            </button>
-            <button class="btn btn-secondary btn-assign-teacher-by-batch" (click)="openAssignTeacherByBatchModal()">
-              <i class="fas fa-edit"></i> Assign Tutor
-            </button>
-
-            <span class="action-divider"></span>
-
-            <button class="btn btn-warning" (click)="openBulkEditPanel()" [disabled]="getSelectedCount() === 0">
-              <i class="fas fa-edit"></i> Bulk Edit ({{ getSelectedCount() }})
-            </button>
-            <button class="btn btn-outline-success" (click)="exportSelectedStudents()" [disabled]="getSelectedCount() === 0">
-              <i class="fas fa-download"></i> Export ({{ getSelectedCount() }})
-            </button>
-            <button class="btn btn-outline-danger" (click)="bulkDeleteStudents()" [disabled]="getSelectedCount() === 0">
-              <i class="fas fa-trash"></i> Delete ({{ getSelectedCount() }})
-            </button>
+            <div class="action-pill action-pill--primary">
+              <button type="button" class="btn btn-action btn-action--primary" routerLink="/signup">
+                <i class="fas fa-plus"></i> Add student
+              </button>
+              <button type="button" class="btn btn-action btn-action--ghost" (click)="showBulkUpload = !showBulkUpload">
+                <i class="fas fa-cloud-upload-alt"></i> Bulk upload
+              </button>
+              <button type="button" class="btn btn-action btn-action--ghost" (click)="openAssignTeacherByBatchModal()">
+                <i class="fas fa-chalkboard-teacher"></i> Assign tutor
+              </button>
+            </div>
+            <div class="action-pill action-pill--selection">
+              <span class="action-pill-label">Selection</span>
+              <button type="button" class="btn btn-action btn-action--soft" (click)="openBulkEditPanel()" [disabled]="getSelectedCount() === 0">
+                <i class="fas fa-layer-group"></i> Edit ({{ getSelectedCount() }})
+              </button>
+              <button type="button" class="btn btn-action btn-action--soft" (click)="exportSelectedStudents()" [disabled]="getSelectedCount() === 0">
+                <i class="fas fa-file-export"></i> Export
+              </button>
+              <button type="button" class="btn btn-action btn-action--danger-outline" (click)="bulkDeleteStudents()" [disabled]="getSelectedCount() === 0">
+                <i class="fas fa-trash-alt"></i> Delete
+              </button>
+            </div>
+            <div class="action-pill action-pill--issues">
+              <button
+                type="button"
+                class="btn btn-action btn-action--warn"
+                [class.btn-action--warn-active]="dataIssuesPanelOpen"
+                (click)="toggleDataIssuesPanel()"
+                [disabled]="dataIssuesLoading"
+              >
+                <i class="fas" [class.fa-spinner]="dataIssuesLoading" [class.fa-spin]="dataIssuesLoading" [class.fa-exclamation-triangle]="!dataIssuesLoading"></i>
+                Data issues
+                <span class="issues-badge" *ngIf="dataIssuesSummary && !dataIssuesLoading">{{ dataIssuesSummary.totalIssueRows }}</span>
+              </button>
+            </div>
           </div>
           <div class="action-group-right">
-            <button class="btn btn-info" routerLink="/student-logs">
-              <i class="fas fa-history"></i> Student Logs
+            <button type="button" class="btn btn-action btn-action--primary" (click)="openInviteModal()">
+              <i class="fas fa-envelope"></i> Invite
             </button>
-            <button class="btn btn-outline-secondary" (click)="clearFilters()">
-              <i class="fas fa-times"></i> Clear Filters
+            <button type="button" class="btn btn-action btn-action--ghost" routerLink="/admin/teacher-resources">
+              <i class="fas fa-file-powerpoint"></i> Teacher Resources
+            </button>
+            <button type="button" class="btn btn-action btn-action--ghost" routerLink="/student-logs">
+              <i class="fas fa-history"></i> Logs
             </button>
           </div>
+        </div>
+
+        <!-- Data issues panel -->
+        <div class="data-issues-panel" *ngIf="dataIssuesPanelOpen">
+          <div class="data-issues-header">
+            <div>
+              <h3 class="data-issues-title"><i class="fas fa-user-shield"></i> Students to review</h3>
+              <p class="data-issues-sub">
+                Portal vs CRM mismatch is usually duplicate emails or portal-only accounts not on the Monday board.
+              </p>
+            </div>
+            <div class="data-issues-header-actions">
+              <button type="button" class="btn btn-action btn-action--ghost btn-action-sm" (click)="loadDataIssues()" [disabled]="dataIssuesLoading">
+                <i class="fas fa-sync-alt"></i> Rescan
+              </button>
+              <button type="button" class="btn btn-action btn-action--ghost btn-action-sm" (click)="closeDataIssuesPanel()">
+                <i class="fas fa-times"></i> Close
+              </button>
+            </div>
+          </div>
+
+          <p class="data-issues-error" *ngIf="dataIssuesError">{{ dataIssuesError }}</p>
+          <p class="data-issues-loading" *ngIf="dataIssuesLoading">Scanning portal and Monday CRM…</p>
+          <p class="data-issues-warn" *ngIf="dataIssuesMondayError && !dataIssuesLoading">{{ dataIssuesMondayError }}</p>
+
+          <div class="data-issues-reconcile" *ngIf="dataIssuesReconciliation && !dataIssuesLoading">
+            <span><strong>{{ dataIssuesReconciliation.portalTotal }}</strong> in portal</span>
+            <span><strong>{{ dataIssuesReconciliation.crmUniqueEmails }}</strong> unique emails on CRM</span>
+            <span class="data-issues-gap" *ngIf="dataIssuesReconciliation.portalExtraNotOnCrm > 0">
+              <strong>{{ dataIssuesReconciliation.portalExtraNotOnCrm }}</strong> portal-only (not on CRM)
+            </span>
+          </div>
+
+          <div class="data-issues-chips" *ngIf="dataIssuesSummary && !dataIssuesLoading">
+            <button
+              type="button"
+              class="issue-chip"
+              [class.issue-chip--active]="!dataIssuesTypeFilter"
+              (click)="dataIssuesTypeFilter = ''"
+            >
+              All ({{ dataIssuesSummary.totalIssueRows }})
+            </button>
+            <button
+              type="button"
+              class="issue-chip issue-chip--danger"
+              *ngIf="dataIssuesSummary.byType['duplicate_email']"
+              [class.issue-chip--active]="dataIssuesTypeFilter === 'duplicate_email'"
+              (click)="filterDataIssuesByType('duplicate_email')"
+            >
+              Duplicate email ({{ dataIssuesSummary.byType['duplicate_email'] }})
+            </button>
+            <button
+              type="button"
+              class="issue-chip"
+              *ngIf="dataIssuesSummary.byType['portal_only']"
+              [class.issue-chip--active]="dataIssuesTypeFilter === 'portal_only'"
+              (click)="filterDataIssuesByType('portal_only')"
+            >
+              Not on CRM ({{ dataIssuesSummary.byType['portal_only'] }})
+            </button>
+            <button
+              type="button"
+              class="issue-chip"
+              *ngIf="dataIssuesSummary.byType['duplicate_crm_id']"
+              [class.issue-chip--active]="dataIssuesTypeFilter === 'duplicate_crm_id'"
+              (click)="filterDataIssuesByType('duplicate_crm_id')"
+            >
+              Duplicate CRM id ({{ dataIssuesSummary.byType['duplicate_crm_id'] }})
+            </button>
+            <button
+              type="button"
+              class="issue-chip"
+              *ngIf="dataIssuesSummary.byType['placeholder_email']"
+              [class.issue-chip--active]="dataIssuesTypeFilter === 'placeholder_email'"
+              (click)="filterDataIssuesByType('placeholder_email')"
+            >
+              Placeholder email ({{ dataIssuesSummary.byType['placeholder_email'] }})
+            </button>
+            <button
+              type="button"
+              class="issue-chip"
+              *ngIf="dataIssuesSummary.byType['no_crm_link']"
+              [class.issue-chip--active]="dataIssuesTypeFilter === 'no_crm_link'"
+              (click)="filterDataIssuesByType('no_crm_link')"
+            >
+              No CRM link ({{ dataIssuesSummary.byType['no_crm_link'] }})
+            </button>
+          </div>
+
+          <div class="data-issues-table-wrap" *ngIf="!dataIssuesLoading && filteredDataIssuesStudents.length">
+            <table class="data-issues-table">
+              <thead>
+                <tr>
+                  <th>Reg #</th>
+                  <th>Student</th>
+                  <th>Issue</th>
+                  <th>Detail</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredDataIssuesStudents" [class.row-danger]="row.severity === 'danger'">
+                  <td>{{ row.regNo || '—' }}</td>
+                  <td>
+                    <strong>{{ row.name || '—' }}</strong>
+                    <div class="di-muted">{{ row.email || '—' }}</div>
+                  </td>
+                  <td>
+                    <span
+                      class="di-pill"
+                      *ngFor="let t of row.issueTypes"
+                      [class.di-pill--danger]="row.severity === 'danger'"
+                    >{{ issueTypeLabel(t) }}</span>
+                  </td>
+                  <td class="di-detail">{{ row.issueDetail }}</td>
+                  <td>
+                    <a class="btn btn-action btn-action--soft btn-action-sm" [routerLink]="['/signup', row._id]">Fix</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="data-issues-empty" *ngIf="!dataIssuesLoading && !dataIssuesError && filteredDataIssuesStudents.length === 0 && dataIssuesStudents.length">
+            No issues in this category.
+          </p>
+          <p class="data-issues-empty data-issues-empty--ok" *ngIf="!dataIssuesLoading && !dataIssuesError && dataIssuesStudents.length === 0">
+            No data issues found — portal and CRM counts should align.
+          </p>
         </div>
 
         <!-- Assign Teacher By Batch Section -->
@@ -93,26 +282,55 @@
 
       <!-- Filters Section -->
       <div class="filters-card">
-        <div class="card">
-          <div class="card-header">
-            <h5 class="mb-0">
-              <i class="fas fa-filter"></i>
-              Filter Students
-            </h5>
+        <div class="card filter-card-shell" [class.filter-card-collapsed]="!filtersPanelOpen">
+          <div class="card-header filter-card-header">
+            <div class="filter-header-row">
+              <div class="filter-header-title">
+                <span class="filter-header-icon"><i class="fas fa-sliders-h"></i></span>
+                <div>
+                  <h2 class="filter-card-heading">Filters</h2>
+                  <p class="filter-card-sub">
+                    <ng-container *ngIf="filtersPanelOpen">Set filters and click Apply — includes Monday CRM fields.</ng-container>
+                    <ng-container *ngIf="!filtersPanelOpen">Open to search by name, course, batch, service, and more.</ng-container>
+                  </p>
+                </div>
+              </div>
+              <div class="filter-header-actions">
+                <div class="filter-total-count">
+                  <span class="count-number">{{ displayStudentCount() }}</span>
+                  <span class="count-label">total</span>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-filter-toggle"
+                  (click)="toggleFiltersPanel()"
+                  [attr.aria-expanded]="filtersPanelOpen"
+                  aria-controls="student-filters-panel"
+                >
+                  <span>Filter</span>
+                  <i class="fas fa-chevron-down btn-filter-toggle-chevron" [class.is-open]="filtersPanelOpen"></i>
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="card-body">
-            <div class="row g-2">
-              <!-- Student Name Filter -->
-              <div class="col-md-2">
-                <label class="form-label">Student Name</label>
+          <div
+            id="student-filters-panel"
+            class="card-body filter-card-body"
+            *ngIf="filtersPanelOpen"
+          >
+            <p class="filter-section-label"><span class="filter-section-dot"></span> Search &amp; course</p>
+            <div class="row g-3 align-items-end filter-row-full">
+              <!-- Student search: name, reg no, or email -->
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Student name, ID or email</label>
                 <mat-form-field class="filter-autocomplete" appearance="outline">
                   <input 
                     type="text" 
                     matInput 
                     [formControl]="studentNameControl"
                     [matAutocomplete]="autoStudentName"
-                    placeholder="Search..."
-                    (input)="onStudentNameSelected(studentNameControl.value || '')"
+                    placeholder="Name, reg no, or email..."
+                    (keyup.enter)="applySearchFilters()"
                   >
                   <mat-autocomplete #autoStudentName="matAutocomplete" (optionSelected)="onStudentNameSelected($event.option.value)">
                     <mat-option *ngFor="let name of filteredStudentNames | async" [value]="name">
@@ -123,7 +341,7 @@
               </div>
               
               <!-- Teacher Name Filter -->
-              <div class="col-md-2">
+              <div class="col-xl-2 col-lg-3 col-md-6">
                 <label class="form-label">Teacher</label>
                 <mat-form-field class="filter-autocomplete" appearance="outline">
                   <input 
@@ -132,7 +350,7 @@
                     [formControl]="teacherNameControl"
                     [matAutocomplete]="autoTeacherName"
                     placeholder="Search..."
-                    (input)="onTeacherNameSelected(teacherNameControl.value || '')"
+                    (keyup.enter)="applySearchFilters()"
                   >
                   <mat-autocomplete #autoTeacherName="matAutocomplete" (optionSelected)="onTeacherNameSelected($event.option.value)">
                     <mat-option *ngFor="let name of filteredTeacherNames | async" [value]="name">
@@ -143,9 +361,9 @@
               </div>
               
               <!-- Level Filter -->
-              <div class="col-md-2">
+              <div class="col-xl-1 col-lg-2 col-md-4 col-6">
                 <label class="form-label">Level</label>
-                <select class="form-select" [(ngModel)]="filters.level" (change)="applyFilters()">
+                <select class="form-select filter-select" [(ngModel)]="filters.level">
                   <option value="">All</option>
                   <option value="A1">A1</option>
                   <option value="A2">A2</option>
@@ -157,19 +375,20 @@
               </div>
               
               <!-- Plan Filter -->
-              <div class="col-md-2">
+              <div class="col-xl-1 col-lg-2 col-md-4 col-6">
                 <label class="form-label">Plan</label>
-                <select class="form-select" [(ngModel)]="filters.plan" (change)="applyFilters()">
+                <select class="form-select filter-select" [(ngModel)]="filters.plan">
                   <option value="">All</option>
                   <option value="PLATINUM">Platinum</option>
                   <option value="SILVER">Silver</option>
+                  <option value="VISA_DOC_ONLY">Visa / doc only</option>
                 </select>
               </div>
               
               <!-- Status Filter -->
-              <div class="col-md-2">
+              <div class="col-xl-1 col-lg-2 col-md-4 col-6">
                 <label class="form-label">Status</label>
-                <select class="form-select" [(ngModel)]="filters.studentStatus" (change)="applyFilters()">
+                <select class="form-select filter-select" [(ngModel)]="filters.studentStatus">
                   <option value="">All</option>
                   <option value="UNCERTAIN">Uncertain</option>
                   <option value="ONGOING">Ongoing</option>
@@ -178,31 +397,62 @@
                 </select>
               </div>
               
-              <!-- Batch Filter -->
-              <div class="col-md-2">
+              <!-- Batch (CRM) -->
+              <div class="col-xl-2 col-lg-3 col-md-6">
                 <label class="form-label">Batch</label>
-                <input type="number" class="form-control" [(ngModel)]="filters.batch" placeholder="Batch #" (input)="applyFilters()">
+                <select class="form-select filter-select" [(ngModel)]="filters.batch">
+                  <option value="">All batches</option>
+                  <option *ngFor="let b of filterOptions.batches" [value]="b">{{ b }}</option>
+                </select>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Results Summary -->
-      <div class="results-summary">
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="results-info">
-            <span class="results-count">{{ filteredStudentCount || totalStudentsCount() }}</span>
-            <span class="results-text">students found</span>
-          </div>
-          <div class="view-options">
-            <div class="btn-group" role="group">
-              <button type="button" class="btn btn-outline-secondary btn-sm active">
-                <i class="fas fa-table"></i>
-              </button>
-              <button type="button" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-th-large"></i>
-              </button>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Service opted</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.servicesOpted">
+                  <option value="">All services</option>
+                  <option *ngFor="let s of filterOptions.servicesOpted" [value]="s">{{ s }}</option>
+                </select>
+              </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Qualification</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.qualifications">
+                  <option value="">All qualifications</option>
+                  <option *ngFor="let q of filterOptions.qualifications" [value]="q">{{ q }}</option>
+                </select>
+              </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Language level opted</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.languageLevelOpted">
+                  <option value="">All levels</option>
+                  <option *ngFor="let l of filterOptions.languageLevelOpted" [value]="l">{{ l }}</option>
+                </select>
+              </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Phone country</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.phoneCountry">
+                  <option value="">All countries</option>
+                  <option *ngFor="let c of filterOptions.phoneCountries" [value]="c">{{ c }}</option>
+                </select>
+              </div>
+              <div class="col-xl-2 col-lg-3 col-md-6">
+                <label class="form-label">Login country</label>
+                <select class="form-select filter-select" [(ngModel)]="filters.loginCountry">
+                  <option value="">All countries</option>
+                  <option *ngFor="let c of filterOptions.loginCountries" [value]="c">{{ c }}</option>
+                </select>
+              </div>
+
+              <!-- Search Action -->
+              <div class="col-xl-12 col-lg-12">
+                <div class="filter-actions-bar">
+                  <button type="button" class="btn btn-filter-apply" (click)="applySearchFilters()">
+                    <i class="fas fa-search"></i> Apply filters
+                  </button>
+                  <button type="button" class="btn btn-filter-reset" (click)="clearFilters()">
+                    <i class="fas fa-undo-alt"></i> Reset all
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -210,10 +460,55 @@
 
       <!-- Students Table -->
       <div class="data-table-card">
-        <div class="card">
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead class="table-dark">
+        <div class="card table-card-shell">
+          <div class="table-toolbar">
+            <div class="table-toolbar-main">
+              <span class="table-toolbar-icon"><i class="fas fa-table"></i></span>
+              <div>
+                <span class="table-toolbar-title">Directory</span>
+                <span class="table-toolbar-meta">Page {{ currentPage }} of {{ totalPages }}</span>
+              </div>
+            </div>
+            <span class="table-toolbar-actions">
+              <button
+                mat-icon-button
+                type="button"
+                class="table-columns-btn table-expire-sessions-btn"
+                [disabled]="getSelectedCount() === 0 || bulkForcingPasswordReset"
+                (click)="bulkForcePasswordReset()"
+                matTooltip="Sign out selected students (expires login) — they must log in again and change password"
+                aria-label="Sign out selected students"
+              >
+                <mat-icon [class.table-expire-spin]="bulkForcingPasswordReset">{{ bulkForcingPasswordReset ? 'sync' : 'logout' }}</mat-icon>
+              </button>
+              <button
+                mat-icon-button
+                type="button"
+                class="table-columns-btn"
+                [matMenuTriggerFor]="studentColMenu"
+                matTooltip="Show or hide columns"
+                aria-label="Show or hide columns"
+              >
+                <mat-icon>view_column</mat-icon>
+              </button>
+              <mat-menu #studentColMenu="matMenu" class="student-column-picker-menu">
+                <div class="student-column-picker-inner" (click)="$event.stopPropagation()">
+                  <div class="student-column-picker-title">Optional columns</div>
+                  <mat-checkbox
+                    *ngFor="let c of optionalColumns"
+                    class="student-column-picker-check"
+                    [checked]="columnVisibility[c.id]"
+                    (change)="toggleOptionalColumn(c.id, $event.checked)"
+                  >
+                    {{ c.label }}
+                  </mat-checkbox>
+                </div>
+              </mat-menu>
+            </span>
+          </div>
+          <div class="table-responsive table-responsive--rounded">
+            <table class="table table-hover admin-student-table mb-0">
+              <thead>
                 <tr>
                   <th style="width: 50px;">
                     <input 
@@ -227,10 +522,21 @@
                   <th>Student Info</th>
                   <th>Plan & Level</th>
                   <th>Batch & Medium</th>
+                  <th *ngIf="isColVisible('servicesOpted')">Service opted</th>
+                  <th *ngIf="isColVisible('qualifications')">Qualification</th>
+                  <th *ngIf="isColVisible('languageLevelOpted')">Lang. level opted</th>
+                  <th *ngIf="isColVisible('leadSource')">Lead source</th>
+                  <th *ngIf="isColVisible('stream')">Stream</th>
+                  <th *ngIf="isColVisible('enrollmentDate')">Enrollment</th>
+                  <th *ngIf="isColVisible('teacherIncharge')">Teacher in charge</th>
+                  <th *ngIf="isColVisible('whatsappNumber')">WhatsApp</th>
+                  <th *ngIf="isColVisible('phoneCountry')">Phone country</th>
+                  <th *ngIf="isColVisible('lastLoginCountry')">Login country</th>
                   <th>Status</th>
                   <th>Assigned Teacher</th>
-                  <th>Last Credentials Sent</th>
-                  <th class="text-center">Actions</th>
+                  <th>Credentials &amp; login</th>
+                  <th *ngIf="isFullAdmin" class="text-center">Password</th>
+                  <th class="text-center actions-col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,14 +554,17 @@
                   </td>
                   <td>
                     <div class="student-info">
-                      <div class="student-name">{{ student.name }}</div>
+                      <div class="student-name">
+                        {{ student.name }}
+                        <app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge>
+                      </div>
                       <div class="student-email">{{ student.email }}</div>
                     </div>
                   </td>
                   <td>
                     <div class="plan-level">
                       <span class="badge bg-primary">{{ student.subscription || 'N/A' }}</span>
-                      <span class="badge bg-info ms-1">{{ student.level || 'N/A' }}</span>
+                      <span class="badge bg-info">{{ student.level || 'N/A' }}</span>
                     </div>
                   </td>
                   <td>
@@ -264,13 +573,26 @@
                       <div class="medium">{{ student.medium || 'N/A' }}</div>
                     </div>
                   </td>
+                  <td *ngIf="isColVisible('servicesOpted')" class="crm-cell">{{ crmCellDisplay(student, 'servicesOpted') }}</td>
+                  <td *ngIf="isColVisible('qualifications')" class="crm-cell">{{ crmCellDisplay(student, 'qualifications') }}</td>
+                  <td *ngIf="isColVisible('languageLevelOpted')" class="crm-cell">{{ crmCellDisplay(student, 'languageLevelOpted') }}</td>
+                  <td *ngIf="isColVisible('leadSource')" class="crm-cell">{{ crmCellDisplay(student, 'leadSource') }}</td>
+                  <td *ngIf="isColVisible('stream')" class="crm-cell">{{ crmCellDisplay(student, 'stream') }}</td>
+                  <td *ngIf="isColVisible('enrollmentDate')" class="crm-cell text-muted small">
+                    {{ student.enrollmentDate ? formatDate(student.enrollmentDate) : '—' }}
+                  </td>
+                  <td *ngIf="isColVisible('teacherIncharge')" class="crm-cell">{{ crmCellDisplay(student, 'teacherIncharge') }}</td>
+                  <td *ngIf="isColVisible('whatsappNumber')" class="crm-cell">{{ crmCellDisplay(student, 'whatsappNumber') }}</td>
+                  <td *ngIf="isColVisible('phoneCountry')" class="crm-cell">{{ countryCellDisplay(student, 'phoneCountry') }}</td>
+                  <td *ngIf="isColVisible('lastLoginCountry')" class="crm-cell">{{ countryCellDisplay(student, 'lastLoginCountry') }}</td>
                   <td>
-                    <span class="badge" [ngClass]="{
-                      'bg-success': student.studentStatus === 'COMPLETED',
-                      'bg-primary': student.studentStatus === 'ONGOING',
-                      'bg-warning': student.studentStatus === 'UNCERTAIN',
-                      'bg-danger': student.studentStatus === 'DROPPED',
-                      'bg-secondary': !student.studentStatus
+                    <span class="badge student-status-pill" [ngClass]="{
+                      'student-status--done': student.studentStatus === 'COMPLETED',
+                      'student-status--ongoing': student.studentStatus === 'ONGOING',
+                      'student-status--uncertain': student.studentStatus === 'UNCERTAIN',
+                      'student-status--dropped': student.studentStatus === 'DROPPED',
+                      'student-status--withdrew': student.studentStatus === 'WITHDREW',
+                      'student-status--empty': !student.studentStatus
                     }">
                       {{ student.studentStatus || 'N/A' }}
                     </span>
@@ -283,27 +605,60 @@
                   <td>
                     <div class="credentials-sent-info">
                       <small class="text-muted">
+                        <span class="cred-meta-label">Credentials:</span>
                         {{ formatDate(student.lastCredentialsEmailSent) }}
+                      </small>
+                      <small class="text-muted">
+                        <span class="cred-meta-label">Last login:</span>
+                        {{ formatLastLogin(student.lastLogin) }}
                       </small>
                     </div>
                   </td>
-                  <td class="text-center">
+                  <td *ngIf="isFullAdmin" class="text-center pw-cell">
+                    <span class="pw-value" *ngIf="student.displayPassword; else noPw">{{ student.displayPassword }}</span>
+                    <ng-template #noPw>
+                      <span
+                        class="pw-status-badge pw-status-badge--missing"
+                        title="No recoverable password on file. Use Resend credentials to generate and email a new one.">
+                        —
+                      </span>
+                    </ng-template>
+                  </td>
+                  <td class="text-center actions-col">
                     <div class="action-buttons">
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-info"
+                        (click)="viewStudentDetails(student)"
+                        title="View student details"
+                      >
+                        <i class="fas fa-eye"></i>
+                      </button>
                       <button 
-                        class="btn btn-sm btn-outline-primary me-1"
+                        class="btn btn-sm btn-outline-primary"
                         [routerLink]="['/signup', student._id]"
                         title="Edit Student"
                       >
                         <i class="fas fa-edit"></i>
                       </button>
                       <button
-                        class="btn btn-sm btn-outline-success me-1"
+                        class="btn btn-sm btn-outline-success"
                         (click)="resendCredentials(student)"
                         [disabled]="resendingCredentials[student._id]"
                         title="Send Credentials Email"
                       >
                         <i class="fas fa-envelope" *ngIf="!resendingCredentials[student._id]"></i>
                         <i class="fas fa-spinner fa-spin" *ngIf="resendingCredentials[student._id]"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-warning"
+                        (click)="forcePasswordReset(student)"
+                        [disabled]="forcingPasswordReset[student._id]"
+                        title="Force password reset (logout + OTP email)"
+                      >
+                        <i class="fas fa-key" *ngIf="!forcingPasswordReset[student._id]"></i>
+                        <i class="fas fa-spinner fa-spin" *ngIf="forcingPasswordReset[student._id]"></i>
                       </button>
                       <button
                         class="btn btn-sm btn-outline-danger"
@@ -318,11 +673,34 @@
               </tbody>
             </table>
           </div>
+
+          <div class="table-pagination-bar d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-3 border-top" *ngIf="totalPages > 1">
+            <small class="text-muted">
+              Showing {{ pageStart }}-{{ pageEnd }} of {{ totalStudents }}
+            </small>
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-secondary" (click)="changePage(currentPage - 1)" [disabled]="currentPage === 1">
+                Prev
+              </button>
+              <button
+                class="btn"
+                *ngFor="let page of getPaginationPages()"
+                [ngClass]="page === currentPage ? 'btn-primary' : 'btn-outline-secondary'"
+                (click)="changePage(page)"
+              >
+                {{ page }}
+              </button>
+              <button class="btn btn-outline-secondary" (click)="changePage(currentPage + 1)" [disabled]="currentPage === totalPages">
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
     </div>
   </div>
+  </ng-container>
 </div>
 
 <!-- Bulk Edit Panel (Modal) -->
@@ -408,12 +786,59 @@
   </div>
 </div>
 
-<ng-template #loadingTpl>
-  <div style="display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 80px);">
-    <div style="text-align:center;">
-      <div class="admin-loading-spinner"></div>
-      <p class="admin-loading-text">Loading student data...</p>
+<div class="modal-backdrop fade" [class.show]="showBulkEditPanel" *ngIf="showBulkEditPanel"></div>
+
+<!-- Register invite modal -->
+<div class="modal fade" [class.show]="showInviteModal" [style.display]="showInviteModal ? 'block' : 'none'" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-envelope"></i>
+          Invite to register
+        </h5>
+        <button type="button" class="btn-close" (click)="closeInviteModal()" [disabled]="inviteSending"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Send a registration invite email. The recipient will get an <strong>Enroll</strong> button that opens the public registration page.
+        </p>
+        <div class="mb-3">
+          <label class="form-label" for="inviteEmail">Email address <span class="text-danger">*</span></label>
+          <input
+            id="inviteEmail"
+            type="email"
+            class="form-control"
+            [(ngModel)]="inviteEmail"
+            placeholder="student@example.com"
+            [disabled]="inviteSending"
+            (keyup.enter)="sendRegisterInvite()"
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="inviteName">Name (optional)</label>
+          <input
+            id="inviteName"
+            type="text"
+            class="form-control"
+            [(ngModel)]="inviteName"
+            placeholder="Student name"
+            [disabled]="inviteSending"
+          />
+        </div>
+        <div class="alert alert-danger py-2 mb-0" *ngIf="inviteError">{{ inviteError }}</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" (click)="closeInviteModal()" [disabled]="inviteSending">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" (click)="sendRegisterInvite()" [disabled]="inviteSending">
+          <i class="fas fa-spinner fa-spin" *ngIf="inviteSending"></i>
+          <i class="fas fa-paper-plane" *ngIf="!inviteSending"></i>
+          {{ inviteSending ? 'Sending…' : 'Invite' }}
+        </button>
+      </div>
     </div>
   </div>
-</ng-template>
-<div class="modal-backdrop fade" [class.show]="showBulkEditPanel" *ngIf="showBulkEditPanel"></div>
+</div>
+<div class="modal-backdrop fade" [class.show]="showInviteModal" *ngIf="showInviteModal"></div>

@@ -1,0 +1,489 @@
+<!-- =====================================================================
+     Admin Reminders page  — 60 / 40 two-column layout
+     ===================================================================== -->
+<div class="rem-page">
+
+  <!-- ── Page header ──────────────────────────────────────────────────── -->
+  <div class="rem-page-header">
+    <div class="rem-page-header__icon"><i class="fas fa-bell"></i></div>
+    <div>
+      <h1 class="rem-page-header__title">Reminders</h1>
+      <p class="rem-page-header__sub">Send WhatsApp reminders to batch students via the CRM</p>
+    </div>
+    <div class="rem-page-header__stats" *ngIf="reminders.length">
+      <span class="rem-stat-chip rem-stat-chip--active"><i class="fas fa-circle"></i> {{ activeReminderCount }} Active</span>
+      <span class="rem-stat-chip rem-stat-chip--inactive"><i class="fas fa-circle"></i> {{ inactiveReminderCount }} Inactive</span>
+    </div>
+  </div>
+
+  <!-- ── Main two-column layout ─────────────────────────────────────── -->
+  <div class="rem-layout">
+
+    <!-- ================================================================
+         LEFT 60 % — Create Reminder + All Reminders
+         ================================================================ -->
+    <div class="rem-layout__left">
+
+      <!-- ── CARD: Create Reminder ────────────────────────────────── -->
+      <div class="rem-card">
+        <div class="rem-card__header">
+          <div class="rem-card__header-left">
+            <i class="fas fa-paper-plane rem-card__icon"></i>
+            <span class="rem-card__title">Create Reminder</span>
+          </div>
+        </div>
+
+        <!-- Title -->
+        <label class="rem-label">Title</label>
+        <input type="text" class="rem-input" [(ngModel)]="adHocTitle" placeholder="Reminder title" maxlength="150" />
+
+        <!-- Message body -->
+        <label class="rem-label">
+          Message body
+          <span class="rem-label__hint">— click a token to insert</span>
+        </label>
+        <div class="rem-token-row">
+          <button *ngFor="let tok of TOKENS" class="btn-rem btn-rem--token" type="button"
+            (click)="adHocBody = adHocBody + tok">{{ tok }}</button>
+        </div>
+        <textarea
+          class="rem-textarea"
+          [(ngModel)]="adHocBody"
+          [attr.placeholder]="adHocBodyPlaceholder"
+          rows="4"
+          maxlength="5000"
+        ></textarea>
+
+        <!-- Selected batch display -->
+        <div class="rem-send-batch">
+          <span class="rem-label">Target batch:</span>
+          <span *ngIf="selectedBatch" class="rem-batch-badge">{{ selectedBatch }}</span>
+          <span *ngIf="!selectedBatch" class="text-muted rem-label__hint">— select from the right panel</span>
+        </div>
+
+        <!-- Warnings -->
+        <div *ngIf="sendWarnings.length" class="rem-warnings">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div>
+            <strong>{{ sendWarnings.length }} student(s) have no phone number and will be skipped:</strong>
+            <ul class="rem-warnings__list">
+              <li *ngFor="let w of sendWarnings">{{ w }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Schedule: minutes before next class (presets or custom number) -->
+        <div *ngIf="showSchedulePicker" class="rem-schedule-picker">
+          <label class="rem-label">
+            <i class="fas fa-clock"></i> When to send
+          </label>
+          <p class="rem-schedule-picker__hint">
+            All options use the <strong>next upcoming class</strong> for this batch (same as the list on the right). Example: class at 7:00 PM with <strong>60 minutes</strong> before → sends at 6:00 PM. Under <strong>Custom</strong>, type any number of minutes (e.g. 23).
+          </p>
+          <div class="rem-schedule-chips" role="group" aria-label="Time before class">
+            <button
+              type="button"
+              *ngFor="let opt of relativeOptions"
+              class="rem-schedule-chip"
+              [class.rem-schedule-chip--active]="scheduleTiming === 'relative' && relativeMinutes === opt.minutes"
+              (click)="setScheduleRelative(opt.minutes)"
+            >
+              {{ opt.label }}
+            </button>
+            <button
+              type="button"
+              class="rem-schedule-chip rem-schedule-chip--manual"
+              [class.rem-schedule-chip--active]="scheduleTiming === 'manual'"
+              (click)="setScheduleManual()"
+            >
+              Custom (type minutes)
+            </button>
+          </div>
+          <div *ngIf="scheduleTiming === 'manual'" class="rem-schedule-manual">
+            <label class="rem-label rem-label--sub" for="rem-custom-minutes">
+              <i class="fas fa-keyboard"></i> Minutes before class
+            </label>
+            <div class="rem-schedule-manual__row">
+              <input
+                id="rem-custom-minutes"
+                type="number"
+                class="rem-input rem-input--minutes"
+                [(ngModel)]="customMinutesBefore"
+                min="1"
+                max="20160"
+                step="1"
+                inputmode="numeric"
+                placeholder="e.g. 23"
+                autocomplete="off"
+              />
+              <span class="rem-schedule-manual__suffix">minutes before the next class</span>
+            </div>
+          </div>
+          <div *ngIf="schedulePreviewText" class="rem-schedule-picker__preview">
+            <i class="fas fa-info-circle"></i>
+            <span>{{ schedulePreviewText }}</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="rem-send-footer">
+          <span class="rem-send-recipients" *ngIf="previewStudents.length">
+            <i class="fas fa-users"></i> {{ previewStudents.length }} student{{ previewStudents.length !== 1 ? 's' : '' }} in batch
+          </span>
+          <div class="rem-send-actions">
+            <button
+              type="button"
+              class="btn-rem btn-rem--send"
+              (click)="sendInstant()"
+              [disabled]="sendingReminder || !canSendInstant()"
+            >
+              <i class="fas fa-spinner fa-spin" *ngIf="sendingReminder"></i>
+              <i class="fas fa-bolt" *ngIf="!sendingReminder"></i>
+              Send instant
+            </button>
+            <button
+              type="button"
+              class="btn-rem btn-rem--send btn-rem--schedule"
+              (click)="toggleSchedulePicker()"
+              [class.btn-rem--schedule-active]="showSchedulePicker"
+            >
+              <i class="fas fa-calendar-alt"></i>
+              {{ showSchedulePicker ? 'Cancel schedule' : 'Schedule' }}
+            </button>
+            <button
+              *ngIf="showSchedulePicker"
+              type="button"
+              class="btn-rem btn-rem--send btn-rem--confirm-schedule"
+              (click)="scheduleReminder()"
+              [disabled]="sendingReminder || !canSchedule()"
+            >
+              <i class="fas fa-spinner fa-spin" *ngIf="sendingReminder"></i>
+              <i class="fas fa-check" *ngIf="!sendingReminder"></i>
+              Confirm schedule
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CARD: All Reminders ──────────────────────────────────── -->
+      <div class="rem-card rem-card--flush">
+        <div class="rem-card__header">
+          <div class="rem-card__header-left">
+            <i class="fas fa-history rem-card__icon"></i>
+            <span class="rem-card__title">All Reminders</span>
+          </div>
+          <button class="btn-rem btn-rem--ghost btn-rem--sm" (click)="loadReminders()" title="Refresh reminders">
+            <i class="fas fa-sync-alt" [class.fa-spin]="loadingReminders"></i> Refresh
+          </button>
+        </div>
+
+        <!-- Search -->
+        <div class="rem-card__search">
+          <i class="fas fa-search rem-card__search-icon"></i>
+          <input type="text" class="rem-input rem-input--search" [(ngModel)]="historySearch" placeholder="Search by title or batch…" />
+        </div>
+
+        <div *ngIf="loadingReminders" class="rem-spinner-wrap"><div class="rem-spinner"></div></div>
+
+        <div *ngIf="!loadingReminders && filteredReminders.length === 0" class="rem-empty">
+          <i class="fas fa-inbox rem-empty__icon"></i>
+          <p>No reminders yet.</p>
+        </div>
+
+        <div *ngIf="!loadingReminders && filteredReminders.length > 0" class="rem-table-wrap">
+          <table class="rem-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Batch</th>
+                <th>Status</th>
+                <th>Created Date</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of filteredReminders; trackBy: trackById" [class.rem-table__row--inactive]="!isReminderActive(r)">
+                <td class="rem-table__title">
+                  <span class="rem-table__title-text">{{ r.title }}</span>
+                  <span *ngIf="r.deliveryMode === 'scheduled'" class="rem-table__tpl-tag">scheduled</span>
+                </td>
+                <td><span class="rem-batch-badge rem-batch-badge--sm">{{ r.targetBatch }}</span></td>
+                <td>
+                  <span class="badge-status" [ngClass]="activityBadgeClass(r)">
+                    {{ activityLabel(r) }}
+                  </span>
+                </td>
+                <td class="rem-table__date">{{ formatDate(r.createdAt) }}</td>
+                <td class="text-center">
+                  <div class="rem-table__actions">
+                    <button class="btn-rem btn-rem--icon" title="View recipients" (click)="openDrawer(r._id)">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn-rem btn-rem--icon btn-rem--edit" title="Edit" (click)="openEditReminder(r, $event)">
+                      <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <button
+                      class="btn-rem btn-rem--icon btn-rem--status-toggle"
+                      [title]="isReminderActive(r) ? 'Set Inactive' : 'Set Active'"
+                      (click)="toggleReminderActivity(r)"
+                      [disabled]="togglingActivityId === r._id"
+                    >
+                      <i class="fas fa-spinner fa-spin" *ngIf="togglingActivityId === r._id"></i>
+                      <i class="fas" [ngClass]="isReminderActive(r) ? 'fa-toggle-on' : 'fa-toggle-off'" *ngIf="togglingActivityId !== r._id"></i>
+                    </button>
+                    <button
+                      class="btn-rem btn-rem--icon btn-rem--danger"
+                      title="Delete"
+                      (click)="deleteReminder(r)"
+                      [disabled]="deletingId === r._id"
+                    >
+                      <i class="fas fa-spinner fa-spin" *ngIf="deletingId === r._id"></i>
+                      <i class="fas fa-trash" *ngIf="deletingId !== r._id"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================================================================
+         RIGHT 40 % — Batch + Scheduled Classes + Students
+         ================================================================ -->
+    <div class="rem-layout__right">
+
+      <!-- ── CARD: Batch dropdown ─────────────────────────────────── -->
+      <div class="rem-card">
+        <div class="rem-card__header">
+          <div class="rem-card__header-left">
+            <i class="fas fa-users-class rem-card__icon"></i>
+            <span class="rem-card__title">Batch</span>
+          </div>
+        </div>
+
+        <label class="rem-label rem-label--inline" for="rem-batch-select">Choose a batch</label>
+        <select
+          id="rem-batch-select"
+          class="rem-batch-select"
+          [(ngModel)]="selectedBatch"
+          (ngModelChange)="onBatchSelectChange($event)"
+          [disabled]="loadingBatches"
+        >
+          <option value="">{{ loadingBatches ? 'Loading batches…' : 'Select a batch…' }}</option>
+          <option *ngFor="let b of batches" [value]="b.batchName">
+            {{ b.batchName }}<ng-container *ngIf="b.studentCount != null && b.studentCount > 0"> ({{ b.studentCount }} students)</ng-container>
+          </option>
+        </select>
+      </div>
+
+      <!-- ── CARD: Scheduled classes (info only — no checkboxes) ─── -->
+      <div class="rem-card">
+        <div class="rem-card__header">
+          <div class="rem-card__header-left">
+            <i class="fas fa-calendar-alt rem-card__icon"></i>
+            <span class="rem-card__title">Scheduled classes</span>
+            <span *ngIf="previewMeetings.length" class="rem-card__count">{{ previewMeetings.length }}</span>
+          </div>
+        </div>
+
+        <div *ngIf="loadingPreview" class="rem-spinner-wrap"><div class="rem-spinner"></div></div>
+
+        <div *ngIf="!loadingPreview && !selectedBatch" class="rem-empty rem-empty--small">
+          <p>Select a batch to see classes.</p>
+        </div>
+
+        <div *ngIf="!loadingPreview && selectedBatch && previewMeetings.length === 0" class="rem-empty rem-empty--small">
+          <p>No scheduled classes for <strong>{{ selectedBatch }}</strong>.</p>
+        </div>
+
+        <div *ngIf="!loadingPreview && previewMeetings.length > 0" class="rem-meeting-list">
+          <div *ngFor="let m of previewMeetings" class="rem-meeting-item">
+            <div class="rem-meeting-item__topic">
+              <i class="fas fa-video rem-meeting-item__icon"></i>
+              {{ m.topic || 'Class' }}
+            </div>
+            <div class="rem-meeting-item__meta">
+              <span><i class="fas fa-clock"></i> {{ formatDateTime(m.startTime) }}</span>
+              <span *ngIf="m.duration"><i class="fas fa-hourglass-half"></i> {{ m.duration }} min</span>
+              <span *ngIf="m.courseDay" class="rem-day-badge">Day {{ m.courseDay }}</span>
+              <span class="rem-plan-badge rem-plan-badge--{{ planBadgeClass(m.plan) }}">{{ m.plan }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CARD: Batch students ────────────────────────────────── -->
+      <div class="rem-card rem-card--flush">
+        <div class="rem-card__header">
+          <div class="rem-card__header-left">
+            <i class="fas fa-user-graduate rem-card__icon"></i>
+            <span class="rem-card__title">Batch students</span>
+            <span *ngIf="previewStudents.length" class="rem-card__count">{{ previewStudents.length }}</span>
+          </div>
+        </div>
+
+        <div *ngIf="loadingPreview" class="rem-spinner-wrap"><div class="rem-spinner"></div></div>
+
+        <div *ngIf="!loadingPreview && !selectedBatch" class="rem-empty rem-empty--small">
+          <p>Select a batch to see students.</p>
+        </div>
+
+        <div *ngIf="!loadingPreview && selectedBatch && previewStudents.length === 0" class="rem-empty rem-empty--small">
+          <p>No students in <strong>{{ selectedBatch }}</strong>.</p>
+        </div>
+
+        <div *ngIf="!loadingPreview && previewStudents.length > 0" class="rem-student-list">
+          <div *ngFor="let s of previewStudents" class="rem-student-item">
+            <div class="rem-student-item__avatar">
+              {{ (s.name || '?').charAt(0).toUpperCase() }}
+            </div>
+            <div class="rem-student-item__info">
+              <div class="rem-student-item__name">{{ s.name }}<app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge></div>
+              <div class="rem-student-item__meta">
+                <span class="rem-student-item__reg">{{ s.regNo }}</span>
+                <span class="rem-student-item__level">{{ s.level }}</span>
+              </div>
+            </div>
+            <div class="rem-student-item__phone" [class.rem-student-item__phone--missing]="!s.phone">
+              <i class="fab fa-whatsapp" *ngIf="s.phone"></i>
+              <i class="fas fa-exclamation-circle" *ngIf="!s.phone" title="No phone number"></i>
+              {{ s.phone || 'No number' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- ======================================================================
+     Edit Reminder Modal
+     ====================================================================== -->
+<div class="rem-drawer-backdrop" *ngIf="editingReminder" (click)="cancelEditReminder()"></div>
+
+<div class="rem-modal" [class.rem-modal--open]="editingReminder">
+  <div class="rem-modal__header">
+    <div class="rem-modal__header-left">
+      <i class="fas fa-pencil-alt"></i>
+      <span>Edit Reminder</span>
+    </div>
+    <button class="btn-rem btn-rem--icon" (click)="cancelEditReminder()"><i class="fas fa-times"></i></button>
+  </div>
+
+  <ng-container *ngIf="editingReminder">
+    <div class="rem-modal__body">
+      <label class="rem-label">Title</label>
+      <input type="text" class="rem-input" [(ngModel)]="editTitle" placeholder="Reminder title" maxlength="150" />
+
+      <label class="rem-label">Message body</label>
+      <textarea class="rem-textarea" [(ngModel)]="editBody" rows="5" maxlength="5000"></textarea>
+
+      <label class="rem-label" *ngIf="editingReminder.deliveryMode === 'scheduled'">
+        <i class="fas fa-calendar-alt"></i> Scheduled date &amp; time
+      </label>
+      <input
+        *ngIf="editingReminder.deliveryMode === 'scheduled'"
+        type="datetime-local"
+        class="rem-input rem-input--datetime"
+        [(ngModel)]="editScheduledFor"
+        [min]="minScheduleDateTime"
+      />
+    </div>
+
+    <div class="rem-modal__footer">
+      <button class="btn-rem btn-rem--ghost btn-rem--sm" (click)="cancelEditReminder()">Cancel</button>
+      <button class="btn-rem btn-rem--primary btn-rem--sm" (click)="saveEditReminder()" [disabled]="savingEdit">
+        <i class="fas fa-spinner fa-spin" *ngIf="savingEdit"></i>
+        <i class="fas fa-save" *ngIf="!savingEdit"></i>
+        Save changes
+      </button>
+    </div>
+  </ng-container>
+</div>
+
+<!-- ======================================================================
+     Recipient Drawer Modal
+     ====================================================================== -->
+<div class="rem-drawer-backdrop" *ngIf="drawerOpen" (click)="closeDrawer()"></div>
+
+<div class="rem-drawer" [class.rem-drawer--open]="drawerOpen">
+  <div class="rem-drawer__header">
+    <div class="rem-drawer__header-left">
+      <i class="fas fa-list-ul"></i>
+      <span>Recipients — {{ drawerReminder?.title }}</span>
+    </div>
+    <button class="btn-rem btn-rem--icon" (click)="closeDrawer()"><i class="fas fa-times"></i></button>
+  </div>
+
+  <div *ngIf="drawerLoading" class="rem-spinner-wrap rem-spinner-wrap--pad"><div class="rem-spinner"></div></div>
+
+  <ng-container *ngIf="!drawerLoading && drawerReminder">
+    <!-- Summary bar -->
+    <div class="rem-drawer__summary">
+      <div class="rem-drawer__stat">
+        <span class="rem-drawer__stat-num">{{ drawerReminder.totalRecipients }}</span>
+        <span class="rem-drawer__stat-label">Total</span>
+      </div>
+      <div class="rem-drawer__stat rem-drawer__stat--sent">
+        <span class="rem-drawer__stat-num">{{ drawerReminder.sentCount }}</span>
+        <span class="rem-drawer__stat-label">Sent</span>
+      </div>
+      <div class="rem-drawer__stat rem-drawer__stat--failed">
+        <span class="rem-drawer__stat-num">{{ drawerReminder.failedCount }}</span>
+        <span class="rem-drawer__stat-label">Failed</span>
+      </div>
+      <div class="rem-drawer__stat rem-drawer__stat--pending">
+        <span class="rem-drawer__stat-num">{{ drawerReminder.pendingCount }}</span>
+        <span class="rem-drawer__stat-label">Pending</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="rem-drawer__controls">
+      <input type="text" class="rem-input" [(ngModel)]="drawerSearch" placeholder="Search name or phone…" />
+      <select class="rem-select" [(ngModel)]="drawerFilter">
+        <option value="all">All</option>
+        <option value="queued">Queued</option>
+        <option value="in_progress">Sending</option>
+        <option value="sent">Sent</option>
+        <option value="failed">Failed</option>
+      </select>
+      <button
+        class="btn-rem btn-rem--warning btn-rem--sm"
+        (click)="resendFailed(drawerReminder)"
+        [disabled]="drawerReminder.failedCount === 0 || resendingId === drawerReminder._id"
+      >
+        <i class="fas fa-redo"></i> Resend failed
+      </button>
+    </div>
+
+    <!-- List -->
+    <div class="rem-drawer__list">
+      <div *ngIf="drawerRecipients.length === 0" class="rem-empty rem-empty--small">
+        <p>No recipients match filters.</p>
+      </div>
+      <div *ngFor="let rc of drawerRecipients" class="rem-drawer__row">
+        <div class="rem-drawer__row-avatar">
+          {{ (rc.name || '?').charAt(0).toUpperCase() }}
+        </div>
+        <div class="rem-drawer__row-info">
+          <div class="rem-drawer__row-name">{{ rc.name }}<app-test-account-badge [show]="!!rc.isTestAccount"></app-test-account-badge></div>
+          <div class="rem-drawer__row-phone">
+            <i class="fab fa-whatsapp" *ngIf="rc.phone"></i>
+            {{ rc.phone || '—' }}
+          </div>
+          <div *ngIf="rc.error" class="rem-drawer__row-error">{{ rc.error }}</div>
+          <div *ngIf="rc.sentAt" class="rem-drawer__row-sent">Sent {{ formatDateTime(rc.sentAt) }}</div>
+        </div>
+        <div>
+          <span class="badge-status" [ngClass]="statusBadgeClass(rc.status)">{{ statusLabel(rc.status) }}</span>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</div>

@@ -1,162 +1,378 @@
-<!-- manage-recordings.component.html -->
-<div class="cr" *ngIf="!loading; else loadingTpl">
+<div class="cr">
 
-  <!-- ── Page Header ── -->
-  <div class="cr-header">
-    <div>
-      <h2 class="cr-header__title">Class Recordings</h2>
-      <p class="cr-header__sub">{{ filteredRecordings.length }} of {{ recordings.length }} recordings</p>
+  <ng-container *ngIf="!loading; else pageSkeleton">
+
+    <!-- ── Page Header ── -->
+    <div class="cr-header">
+      <div class="cr-header__text">
+        <h2 class="cr-header__title">Class Recordings</h2>
+        <p class="cr-header__sub">
+          {{ totalCount }} ready recording{{ totalCount !== 1 ? 's' : '' }}
+          <span *ngIf="backfillStatusMessage" class="cr-header__status"> · {{ backfillStatusMessage }}</span>
+        </p>
+      </div>
+      <div class="cr-header__actions">
+        <button class="cr-btn cr-btn--success" (click)="publishSelectedForStudents()"
+                [disabled]="publishLoading || selectedPublishCount() === 0">
+          <i class="fa fa-upload"></i>
+          {{ publishLoading ? 'Publishing…' : ('Publish (' + selectedPublishCount() + ')') }}
+        </button>
+        <button
+          class="cr-btn cr-btn--req-approval"
+          [class.cr-btn--req-approval--pending]="pendingCount > 0"
+          type="button"
+          (click)="openApprovalInNewTab()">
+          <i class="fa fa-inbox"></i>
+          Req approval<span *ngIf="pendingCount > 0" class="cr-req-approval-count"> ({{ pendingCount }})</span>
+        </button>
+        <button
+          class="cr-btn cr-btn--access-recording"
+          type="button"
+          (click)="openAccessRecordingTab()">
+          <i class="fa fa-share-nodes"></i>
+          Self Pace
+        </button>
+        <button class="cr-btn cr-btn--ghost" (click)="openWebhookAudit()">
+          <i class="fa fa-wave-square"></i> Webhook Audit
+        </button>
+        <input
+          class="cr-input cr-input--meeting-ids"
+          type="text"
+          [(ngModel)]="backfillMeetingIdsInput"
+          placeholder="Meeting IDs (comma separated)"
+          [disabled]="backfillLoading" />
+        <button class="cr-btn cr-btn--dark" type="button" (click)="runZoomBackfill()" [disabled]="backfillLoading">
+          <i class="fa fa-rotate" [class.fa-spin]="backfillLoading"></i>
+          {{ backfillLoading ? 'Backfilling…' : 'Backfill' }}
+        </button>
+        <button class="cr-btn cr-btn--primary" (click)="openForm()">
+          <i class="fa fa-plus"></i> Add Recording
+        </button>
+      </div>
     </div>
-    <button class="cr-btn cr-btn--primary" (click)="openForm()">
-      <i class="fa fa-plus"></i> Add Recording
-    </button>
+
+    <!-- ── Stats ── -->
+    <div class="cr-stats">
+      <div class="cr-stat cr-stat--blue">
+        <div class="cr-stat__val">{{ recordingsWithMediaCount }}</div>
+        <div class="cr-stat__lbl">Ready</div>
+      </div>
+      <div class="cr-stat cr-stat--green">
+        <div class="cr-stat__val">{{ getTotalViews() }}</div>
+        <div class="cr-stat__lbl">Total Views</div>
+      </div>
+      <div class="cr-stat cr-stat--purple">
+        <div class="cr-stat__val">{{ getTotalStudents() }}</div>
+        <div class="cr-stat__lbl">Unique Students</div>
+      </div>
+      <div class="cr-stat cr-stat--orange">
+        <div class="cr-stat__val">{{ readyToPlayCount }}</div>
+        <div class="cr-stat__lbl">Playable</div>
+      </div>
+    </div>
+
+    <!-- ── Filters ── -->
+    <div class="cr-filters-wrap">
+      <div class="cr-filters-head">
+        <span class="cr-filters-title">Filters</span>
+        <button class="cr-btn-clear" type="button" (click)="clearFilters()">Clear all</button>
+      </div>
+      <div class="cr-filters">
+        <div class="cr-search-wrap">
+          <i class="fa fa-search cr-search-icon"></i>
+          <input class="cr-input cr-input--search" type="text"
+                 placeholder="Search title, description, or meeting ID…"
+                 [(ngModel)]="searchQuery" (input)="onSearchInput()">
+        </div>
+        <select class="cr-select" [(ngModel)]="filterLevel" (change)="applyFilters()">
+          <option value="ALL">All Levels</option>
+          <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+        </select>
+        <select class="cr-select" [(ngModel)]="filterBatch" (change)="applyFilters()">
+          <option value="ALL">All Batches</option>
+          <option *ngFor="let b of availableBatches" [value]="b">{{ b }}</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- ── Table ── -->
+    <div class="cr-table-wrap" [class.cr-table-wrap--loading]="tableLoading">
+
+      <div *ngIf="tableLoading" class="cr-table-loading" aria-hidden="true">
+        <div class="cr-spinner"></div>
+      </div>
+
+      <div *ngIf="!tableLoading && !totalCount" class="cr-empty">
+        <i class="fa fa-video cr-empty__icon"></i>
+        <h3>No ready recordings</h3>
+        <p *ngIf="!searchQuery">Only fully processed recordings with media appear here.</p>
+        <p *ngIf="searchQuery">
+          No <strong>ready</strong> recording matches this search. If a meeting is stuck in processing or failed,
+          run <strong>Backfill</strong> with the meeting ID (force retry is enabled for targeted IDs).
+        </p>
+      </div>
+
+      <table *ngIf="totalCount" class="cr-table" [class.cr-table--dimmed]="tableLoading">
+        <thead>
+          <tr>
+            <th class="cr-th--check"></th>
+            <th>Type</th>
+            <th>Meeting ID</th>
+            <th>Title</th>
+            <th>Duration</th>
+            <th>Plan</th>
+            <th>Batches</th>
+            <th>Access</th>
+            <th>Uploaded</th>
+            <th>By</th>
+            <th class="cr-th--actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of recordings; trackBy: trackByRecording" class="cr-row">
+            <td>
+              <input type="checkbox" class="cr-publish-checkbox"
+                     [checked]="isPublishRowSelected(r)"
+                     [disabled]="!isReadyUnpublished(r)"
+                     (change)="togglePublishRowSelection(r)" />
+            </td>
+            <td>
+              <span class="cr-type-chip" [class.cr-type-chip--zoom]="isZoomRecording(r)">
+                {{ isZoomRecording(r) ? 'Zoom' : 'Manual' }}
+              </span>
+            </td>
+            <td>
+              <span class="cr-meeting-id" [class.cr-meeting-id--empty]="getMeetingIdDisplay(r) === '—'">
+                {{ getMeetingIdDisplay(r) }}
+              </span>
+            </td>
+            <td class="cr-td--title">
+              <span class="cr-cell-main">{{ r.title }}</span>
+              <span class="cr-cell-sub" *ngIf="r.description">{{ r.description }}</span>
+              <span class="cr-status-chip cr-status-chip--processing" *ngIf="isProcessingRecording(r)">
+                {{ getProcessingElapsedText(r) }} · {{ getProcessingEtaText(r) }}
+              </span>
+              <span class="cr-status-chip cr-status-chip--failed" *ngIf="r.status === 'failed'">
+                Processing failed — use Backfill to retry
+              </span>
+            </td>
+            <td>
+              <span class="cr-duration">{{ getRecordingDurationDisplay(r) }}</span>
+            </td>
+            <td>
+              <span class="cr-plan-chip"
+                    [class.cr-plan-chip--silver]="r.plan === 'SILVER'"
+                    [class.cr-plan-chip--platinum]="r.plan === 'PLATINUM'"
+                    [class.cr-plan-chip--all]="r.plan === 'ALL'">
+                {{ r.plan }}
+              </span>
+            </td>
+            <td>
+              <div class="cr-batches">
+                <span class="cr-batch-tag" *ngFor="let b of r.batches">{{ b }}</span>
+              </div>
+            </td>
+            <td>
+              <span class="cr-published-chip"
+                    [class.cr-published-chip--yes]="r.isPublished !== false"
+                    [class.cr-published-chip--no]="r.isPublished === false">
+                {{ r.isPublished !== false ? 'Visible' : 'Hidden' }}
+              </span>
+            </td>
+            <td>
+              <span class="cr-cell-sub">{{ formatDate((r.classDate || r.createdAt)!) }}</span>
+            </td>
+            <td>
+              <div class="cr-teacher" *ngIf="r.uploadedBy">
+                <div class="cr-avatar">{{ r.uploadedBy.name.charAt(0).toUpperCase() }}</div>
+                <span class="cr-cell-sub">{{ r.uploadedBy.name }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="cr-actions">
+                <button type="button" class="cr-icon-btn"
+                        [class.cr-icon-btn--amber]="r.isPublished !== false"
+                        [class.cr-icon-btn--blue]="r.isPublished === false"
+                        [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === visibilityActionKey(r)"
+                        (click)="toggleStudentVisibility(r); $event.stopPropagation()"
+                        [title]="canToggleStudentVisibility(r) ? (r.isPublished !== false ? 'Hide from students' : 'Show to students') : 'Available when recording is ready'">
+                  <i class="fa" [class.fa-eye-slash]="r.isPublished !== false" [class.fa-eye]="r.isPublished === false"></i>
+                </button>
+                <button type="button" class="cr-icon-btn cr-icon-btn--blue"
+                        (click)="viewRecordingAction(r); $event.stopPropagation()"
+                        title="Analytics">
+                  <i class="fa fa-chart-bar"></i>
+                </button>
+                <button type="button" class="cr-icon-btn cr-icon-btn--violet"
+                        [disabled]="!canPlayRecording(r)"
+                        (click)="playRecordingAction(r); $event.stopPropagation()"
+                        [title]="canPlayRecording(r) ? 'Play in new tab' : 'Recording not ready'">
+                  <i class="fa fa-play"></i>
+                </button>
+                <button type="button" class="cr-icon-btn cr-icon-btn--green"
+                        (click)="editRecordingAction(r); $event.stopPropagation()" title="Edit">
+                  <i class="fa fa-pen"></i>
+                </button>
+                <button type="button" class="cr-icon-btn cr-icon-btn--red"
+                        (click)="deleteRecordingAction(r); $event.stopPropagation()" title="Delete">
+                  <i class="fa fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div *ngIf="totalCount" class="cr-footer">
+        <span class="cr-footer__range">
+          Showing <strong>{{ paginationStart }}–{{ paginationEnd }}</strong> of <strong>{{ totalCount }}</strong>
+        </span>
+        <mat-paginator
+          class="cr-paginator"
+          [length]="totalCount"
+          [pageSize]="pageSize"
+          [pageIndex]="pageIndex"
+          [pageSizeOptions]="pageSizeOptions"
+          (page)="onPageChange($event)"
+          showFirstLastButtons
+          aria-label="Recordings pagination">
+        </mat-paginator>
+      </div>
+    </div>
+
+  </ng-container>
+</div>
+
+<!-- ── Skeleton loading ── -->
+<ng-template #pageSkeleton>
+  <div class="cr-skeleton">
+    <div class="cr-skeleton__header">
+      <div class="cr-skel cr-skel--title"></div>
+      <div class="cr-skeleton__header-actions">
+        <div class="cr-skel cr-skel--btn" *ngFor="let _ of [1,2,3,4]"></div>
+      </div>
+    </div>
+    <div class="cr-skeleton__stats">
+      <div class="cr-skel cr-skel--stat" *ngFor="let _ of [1,2,3,4]"></div>
+    </div>
+    <div class="cr-skel cr-skel--filters"></div>
+    <div class="cr-skeleton__table">
+      <div class="cr-skel cr-skel--thead"></div>
+      <div class="cr-skel cr-skel--row" *ngFor="let _ of skeletonRows"></div>
+    </div>
   </div>
+</ng-template>
 
-  <!-- ── Stats ── -->
-  <div class="cr-stats">
-    <div class="cr-stat cr-stat--blue">
-      <div class="cr-stat__val">{{ recordings.length }}</div>
-      <div class="cr-stat__lbl">Total Recordings</div>
+<!-- ── Webhook Audit Modal ── -->
+<div class="cr-overlay" *ngIf="showWebhookAuditModal" (click)="closeWebhookAudit()">
+  <div class="cr-modal cr-modal--wide cr-modal--audit" (click)="$event.stopPropagation()">
+    <div class="cr-modal__head">
+      <h3><i class="fa fa-wave-square"></i> Zoom Webhook Audit</h3>
+      <button class="cr-modal__close" type="button" (click)="closeWebhookAudit()">✕</button>
     </div>
-    <div class="cr-stat cr-stat--green">
-      <div class="cr-stat__val">{{ getTotalViews() }}</div>
-      <div class="cr-stat__lbl">Total Views</div>
-    </div>
-    <div class="cr-stat cr-stat--purple">
-      <div class="cr-stat__val">{{ getTotalStudents() }}</div>
-      <div class="cr-stat__lbl">Unique Students</div>
-    </div>
-    <div class="cr-stat cr-stat--orange">
-      <div class="cr-stat__val">{{ levels.length }}</div>
-      <div class="cr-stat__lbl">Levels Covered</div>
+    <div class="cr-modal__body">
+      <div *ngIf="webhookAuditLoading" class="cr-modal-loading">
+        <div class="cr-spinner"></div>
+      </div>
+
+      <div *ngIf="!webhookAuditLoading" class="cr-audit-summary">
+        <span class="cr-audit-pill" *ngFor="let kv of webhookAuditSummary | keyvalue">
+          {{ kv.key }}: {{ kv.value }}
+        </span>
+      </div>
+
+      <div *ngIf="!webhookAuditLoading && !webhookAuditRows.length" class="cr-empty cr-empty--sm">
+        <i class="fa fa-inbox cr-empty__icon cr-empty__icon--sm"></i>
+        <p>No webhook audit logs found.</p>
+      </div>
+
+      <table class="cr-table" *ngIf="!webhookAuditLoading && webhookAuditRows.length">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Event</th>
+            <th>Meeting ID</th>
+            <th>Files</th>
+            <th>Type</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let a of webhookAuditRows" class="cr-row">
+            <td><span class="cr-cell-sub">{{ formatDateTime(a.createdAt) }}</span></td>
+            <td><span class="cr-level-chip">{{ a.status }}</span></td>
+            <td><span class="cr-cell-main">{{ a.eventType }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.meetingId || '—' }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.recordingFilesCount || 0 }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.selectedRecordingType || '—' }}</span></td>
+            <td><span class="cr-cell-sub">{{ a.errorMessage || '—' }}</span></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
-
-  <!-- ── Filters ── -->
-  <div class="cr-filters-wrap">
-    <div class="cr-filters-head">
-      <span class="cr-filters-title">Filters</span>
-      <button class="cr-btn-clear" (click)="clearFilters()">Clear</button>
-    </div>
-    <div class="cr-filters">
-      <input class="cr-input cr-input--search" type="text" placeholder="Search title or description…"
-             [(ngModel)]="searchQuery" (input)="applyFilters()">
-      <select class="cr-select" [(ngModel)]="filterLevel" (change)="applyFilters()">
-        <option value="ALL">All Levels</option>
-        <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
-      </select>
-      <select class="cr-select" [(ngModel)]="filterBatch" (change)="applyFilters()">
-        <option value="ALL">All Batches</option>
-        <option *ngFor="let b of availableBatches" [value]="b">{{ b }}</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- ── Table ── -->
-  <div class="cr-table-wrap">
-
-    <div *ngIf="!filteredRecordings.length" class="cr-empty">
-      <i class="fa fa-video cr-empty__icon"></i>
-      <h3>No recordings found</h3>
-      <p>Click "Add Recording" to upload one.</p>
-    </div>
-
-    <table *ngIf="filteredRecordings.length" class="cr-table">
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>Level</th>
-          <th>Plan</th>
-          <th>Batches</th>
-          <th>Views</th>
-          <th>Students</th>
-          <th>Avg Watch</th>
-          <th>Uploaded</th>
-          <th>By</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let r of filteredRecordings" class="cr-row">
-          <td>
-            <span class="cr-cell-main">{{ r.title }}</span>
-            <span class="cr-cell-sub" *ngIf="r.description">{{ r.description }}</span>
-          </td>
-          <td><span class="cr-level-chip">{{ r.level }}</span></td>
-          <td>
-            <span class="cr-plan-chip"
-                  [class.cr-plan-chip--silver]="r.plan === 'SILVER'"
-                  [class.cr-plan-chip--platinum]="r.plan === 'PLATINUM'"
-                  [class.cr-plan-chip--all]="r.plan === 'ALL'">
-              {{ r.plan }}
-            </span>
-          </td>
-          <td>
-            <div class="cr-batches">
-              <span class="cr-batch-tag" *ngFor="let b of r.batches">{{ b }}</span>
-            </div>
-          </td>
-          <td>
-            <span class="cr-cell-main">{{ getStats(r._id).views }}</span>
-          </td>
-          <td>
-            <span class="cr-cell-main">{{ getStats(r._id).students }}</span>
-          </td>
-          <td>
-            <span class="cr-cell-sub">{{ getStats(r._id).avgTime }}</span>
-          </td>
-          <td>
-            <span class="cr-cell-sub">{{ formatDate(r.createdAt) }}</span>
-          </td>
-          <td>
-            <div class="cr-teacher" *ngIf="r.uploadedBy">
-              <div class="cr-avatar">{{ r.uploadedBy.name.charAt(0).toUpperCase() }}</div>
-              <span class="cr-cell-sub">{{ r.uploadedBy.name }}</span>
-            </div>
-          </td>
-          <td>
-            <div class="cr-actions">
-              <button class="cr-icon-btn cr-icon-btn--blue" (click)="openViews(r); $event.stopPropagation()" title="View Analytics">
-                <i class="fa fa-chart-bar"></i>
-              </button>
-              <button class="cr-icon-btn cr-icon-btn--green" (click)="openForm(r)" title="Edit">
-                <i class="fa fa-pen"></i>
-              </button>
-              <button class="cr-icon-btn cr-icon-btn--red" (click)="deleteRecording(r)" title="Delete">
-                <i class="fa fa-trash"></i>
-              </button>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div *ngIf="filteredRecordings.length" class="cr-footer">
-      Showing <strong>{{ filteredRecordings.length }}</strong> recording{{ filteredRecordings.length !== 1 ? 's' : '' }}
-    </div>
-  </div>
-
 </div>
 
 <!-- ── Add / Edit Modal ── -->
-<div class="cr-overlay" *ngIf="showForm" (click)="closeForm()">
+<div class="cr-overlay" *ngIf="showForm" (click)="uploadPhase !== 'uploading' && closeForm()">
   <div class="cr-modal" (click)="$event.stopPropagation()">
     <div class="cr-modal__head">
       <h3>{{ editing ? 'Edit Recording' : 'Add Recording' }}</h3>
-      <button class="cr-modal__close" (click)="closeForm()">✕</button>
+      <button class="cr-modal__close" type="button"
+              [disabled]="uploadPhase === 'uploading'"
+              [title]="uploadPhase === 'converting' ? 'Send conversion to background' : 'Close'"
+              (click)="closeForm()">✕</button>
     </div>
-    <div class="cr-modal__body">
+
+    <!-- Upload progress panel -->
+    <div class="cr-upload-progress" *ngIf="uploadInProgress">
+      <div class="cr-upload-progress__head">
+        <span class="cr-upload-progress__phase">{{ getUploadPhaseLabel() }}</span>
+        <span class="cr-upload-progress__pct">{{ uploadPercent }}%</span>
+      </div>
+      <div class="cr-upload-progress__track" role="progressbar"
+           [attr.aria-valuenow]="uploadPercent" aria-valuemin="0" aria-valuemax="100">
+        <div class="cr-upload-progress__fill" [style.width.%]="uploadPercent"></div>
+      </div>
+      <p class="cr-upload-progress__status">{{ uploadStatusLine }}</p>
+      <p class="cr-upload-progress__eta" *ngIf="uploadEtaText">{{ uploadEtaText }}</p>
+
+      <!-- Cancel button during upload phase -->
+      <div class="cr-upload-progress__actions" *ngIf="uploadPhase === 'uploading'">
+        <button class="cr-btn cr-btn--ghost cr-btn--sm" type="button" (click)="cancelUpload()">
+          Cancel Upload
+        </button>
+      </div>
+
+      <!-- Background button during conversion phase -->
+      <div class="cr-upload-progress__actions" *ngIf="uploadPhase === 'converting'">
+        <button class="cr-btn cr-btn--ghost cr-btn--sm" type="button" (click)="sendToBackground()">
+          <i class="fa fa-arrow-circle-down"></i> Continue in Background
+        </button>
+        <p class="cr-upload-progress__bg-hint">Close this panel and keep working — you'll get a notification when the video is ready.</p>
+      </div>
+    </div>
+
+    <div class="cr-modal__body" [class.cr-modal__body--dimmed]="uploadInProgress">
       <div class="cr-field">
         <label>Title *</label>
-        <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3">
+        <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3" [disabled]="uploadInProgress">
       </div>
       <div class="cr-field">
-        <label>Video URL * <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
-        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=...">
+        <label>Upload Video <span class="cr-hint-inline">(MP4/MOV/M4V/WEBM/OGG)</span></label>
+        <input class="cr-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.ogg" (change)="onVideoFileSelected($event)" [disabled]="!!editing || uploadInProgress">
+        <p class="cr-hint" *ngIf="selectedVideoFile">Selected: {{ selectedVideoFile.name }}</p>
+        <p class="cr-hint" *ngIf="editing">Video file upload is available while creating new recordings.</p>
+      </div>
+      <div class="cr-field" *ngIf="!editing || editing.sourceType !== 'HLS_UPLOAD'">
+        <label>Video URL <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
+        <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=..." [disabled]="!!selectedVideoFile || uploadInProgress">
+        <p class="cr-hint" *ngIf="selectedVideoFile">Video URL is ignored because a file upload is selected.</p>
       </div>
       <div class="cr-field">
         <label>Description</label>
-        <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Optional description"></textarea>
+        <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Optional description" [disabled]="uploadInProgress"></textarea>
       </div>
       <div class="cr-field-row">
         <div class="cr-field">
@@ -173,6 +389,12 @@
         </div>
       </div>
       <div class="cr-field">
+        <label>Journey Day</label>
+        <input class="cr-input" type="number" min="1" max="200" step="1"
+               [(ngModel)]="form.courseDay" placeholder="Leave empty for no day lock" />
+        <p class="cr-hint">Students can access this recording only when their current journey day reaches this value.</p>
+      </div>
+      <div class="cr-field">
         <label>Batches * <span class="cr-hint-inline">(select one or more)</span></label>
         <div class="cr-batch-grid">
           <label class="cr-batch-chip" *ngFor="let b of availableBatches"
@@ -185,9 +407,18 @@
       </div>
     </div>
     <div class="cr-modal__foot">
-      <button class="cr-btn cr-btn--outline" (click)="closeForm()">Cancel</button>
-      <button class="cr-btn cr-btn--primary" (click)="save()">
-        {{ editing ? 'Update' : 'Create' }}
+      <button class="cr-btn cr-btn--ghost" type="button"
+              [disabled]="uploadPhase === 'uploading'"
+              (click)="uploadPhase === 'converting' ? sendToBackground() : closeForm()">
+        {{ uploadPhase === 'converting' ? 'Background' : 'Cancel' }}
+      </button>
+      <button class="cr-btn cr-btn--primary" type="button" (click)="save()" [disabled]="saving">
+        <i class="fa fa-spinner fa-spin" *ngIf="uploadInProgress"></i>
+        {{
+          uploadInProgress
+            ? (uploadPhase === 'converting' ? 'Converting…' : 'Uploading…')
+            : (saving ? 'Saving…' : (editing ? 'Update' : 'Create'))
+        }}
       </button>
     </div>
   </div>
@@ -197,11 +428,18 @@
 <div class="cr-overlay" *ngIf="showViewsModal" (click)="closeViews()">
   <div class="cr-modal cr-modal--wide" (click)="$event.stopPropagation()">
     <div class="cr-modal__head">
-      <h3><i class="fa fa-chart-bar" style="color:#1d4ed8;margin-right:6px;"></i>{{ viewsRecording?.title }}</h3>
-      <button class="cr-modal__close" (click)="closeViews()">✕</button>
+      <h3><i class="fa fa-chart-bar"></i> {{ viewsRecording?.title }}</h3>
+      <button class="cr-modal__close" type="button" (click)="closeViews()">✕</button>
     </div>
     <div class="cr-modal__body">
-      <div *ngIf="loadingViews" style="text-align:center;padding:30px;">
+      <div class="cr-audit-summary" *ngIf="viewsMeta.totalStudents">
+        <span class="cr-audit-pill">Total Students: {{ viewsMeta.totalStudents }}</span>
+        <span class="cr-audit-pill">Watched: {{ viewsMeta.watchedCount || 0 }}</span>
+        <span class="cr-audit-pill">Not Watched: {{ viewsMeta.notWatchedCount || 0 }}</span>
+        <span class="cr-audit-pill">Total Watch: {{ formatDuration(viewsMeta.totalWatchSeconds || 0) }}</span>
+        <span class="cr-audit-pill">Video Size: {{ formatBytes(viewsMeta.videoSizeBytes) }}</span>
+      </div>
+      <div *ngIf="loadingViews" class="cr-modal-loading">
         <div class="cr-spinner"></div>
       </div>
       <div *ngIf="!loadingViews && !viewsList.length" class="cr-empty cr-empty--sm">
@@ -215,6 +453,7 @@
             <th>Email</th>
             <th>Batch</th>
             <th>Level</th>
+            <th>Viewed</th>
             <th>Started At</th>
             <th>Watch Duration</th>
             <th>Last Active</th>
@@ -231,6 +470,7 @@
             <td><span class="cr-cell-sub">{{ v.student?.email || '—' }}</span></td>
             <td><span class="cr-level-chip">{{ v.student?.batch || '—' }}</span></td>
             <td><span class="cr-level-chip">{{ v.student?.level || '—' }}</span></td>
+            <td><span class="cr-level-chip">{{ (v.viewed === false || !v.watchDuration) ? 'No' : 'Yes' }}</span></td>
             <td><span class="cr-cell-sub">{{ formatDateTime(v.startedAt) }}</span></td>
             <td><span class="cr-duration">{{ formatDuration(v.watchDuration) }}</span></td>
             <td><span class="cr-cell-sub">{{ formatDateTime(v.lastUpdatedAt) }}</span></td>
@@ -241,9 +481,58 @@
   </div>
 </div>
 
-<ng-template #loadingTpl>
-  <div class="cr cr--loading">
-    <div class="cr-spinner"></div>
-    <p>Loading recordings…</p>
+<!-- ── Zoom Edit Modal ── -->
+<div class="cr-overlay" *ngIf="showZoomEditModal" (click)="closeZoomEdit()">
+  <div class="cr-modal" (click)="$event.stopPropagation()">
+    <div class="cr-modal__head">
+      <h3>Edit Zoom Recording</h3>
+      <button class="cr-modal__close" type="button" (click)="closeZoomEdit()">✕</button>
+    </div>
+    <div class="cr-modal__body">
+      <div class="cr-field">
+        <label>Title *</label>
+        <input class="cr-input" type="text" [(ngModel)]="zoomEditForm.title" placeholder="Recording title">
+      </div>
+      <div class="cr-field">
+        <label>Level</label>
+        <select class="cr-select" [(ngModel)]="zoomEditForm.level">
+          <option value="">All Levels</option>
+          <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+        </select>
+      </div>
+      <div class="cr-field">
+        <label>Plan</label>
+        <select class="cr-select" [(ngModel)]="zoomEditForm.plan">
+          <option *ngFor="let p of plans" [value]="p.value">{{ p.label }}</option>
+        </select>
+      </div>
+      <div class="cr-field">
+        <label>Journey Day</label>
+        <input class="cr-input" type="number" min="1" max="200" step="1"
+               [(ngModel)]="zoomEditForm.courseDay" placeholder="Leave empty for no day lock" />
+        <p class="cr-hint">Students can access this recording only when their current journey day reaches this value.</p>
+      </div>
+      <div class="cr-field">
+        <label>Batches * <span class="cr-hint-inline">(select one or more)</span></label>
+        <div class="cr-batch-grid">
+          <label class="cr-batch-chip" *ngFor="let b of availableBatches"
+                 [class.cr-batch-chip--active]="zoomEditForm.batches.includes(b)">
+            <input type="checkbox" [checked]="zoomEditForm.batches.includes(b)" (change)="toggleZoomEditBatch(b)" hidden>
+            {{ b }}
+          </label>
+        </div>
+      </div>
+      <div class="cr-field">
+        <label>Teacher</label>
+        <select class="cr-select" [(ngModel)]="zoomEditForm.teacherId">
+          <option value="">Keep existing teacher</option>
+          <option *ngFor="let t of zoomTeachers" [value]="t._id">{{ t.name }} ({{ t.email }})</option>
+        </select>
+      </div>
+    </div>
+    <div class="cr-modal__foot">
+      <button class="cr-btn cr-btn--ghost" type="button" (click)="closeZoomEdit()">Cancel</button>
+      <button class="cr-btn cr-btn--primary" type="button" (click)="saveZoomEdit()">Save</button>
+    </div>
   </div>
-</ng-template>
+</div>

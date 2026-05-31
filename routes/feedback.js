@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const Feedback = require('../models/Feedback');
 const { checkRole } = require('../middleware/auth');
+const { scheduleDispatchEvent, sanitizeFeedbackDoc } = require('../services/studentPortalCrmWebhook');
 
 // Add feedback (STUDENT only)
 router.post('/', async (req, res) => {
@@ -14,6 +15,13 @@ router.post('/', async (req, res) => {
     });
 
     const saved = await feedback.save();
+
+    scheduleDispatchEvent({
+      event: 'FEEDBACK_CREATED',
+      entity: { ...sanitizeFeedbackDoc(saved), type: 'Feedback' },
+      metaOverrides: { syncMode: 'live' }
+    });
+
     res.status(201).json({ success: true, data: saved });
   } catch (err) {
     console.error('Error adding feedback:', err.message);
@@ -29,7 +37,7 @@ router.get('/student/:id', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const feedbackList = await Feedback.find({ studentId: req.params.id }).sort({ createdAt: -1 });
+    const feedbackList = await Feedback.find({ studentId: req.params.id }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, data: feedbackList });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to fetch feedback' });
@@ -41,7 +49,8 @@ router.get('/', async (req, res) => {
   try {
     const allFeedback = await Feedback.find()
       .sort({ createdAt: -1 })
-      .populate('studentId', 'name batch subscription regNo'); 
+      .populate('studentId', 'name batch subscription regNo')
+      .lean(); 
      
 
     res.json({ success: true, data: allFeedback });
@@ -69,7 +78,8 @@ router.get('/', async (req, res) => {
       .sort({ timestamp: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit))
-      .populate("studentId", "name email");
+      .populate("studentId", "name email")
+      .lean();
 
     const total = await Feedback.countDocuments(filter);
 
@@ -93,7 +103,8 @@ router.get('/student/:id', checkRole("student"), async (req, res) => {
     const feedbacks = await Feedback.find({ studentId: req.params.id })
       .sort({ timestamp: -1 })
       .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     const total = await Feedback.countDocuments({ studentId: req.params.id });
 

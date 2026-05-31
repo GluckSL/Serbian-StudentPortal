@@ -1,0 +1,52 @@
+<div class="pa-table-wrap">
+  @if (loading) {
+    <div class="pa-center"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="text-danger">{{ error }}</p>
+  } @else {
+    <div class="sw-head">
+      <div>
+        <h3>Device Analytics</h3>
+        <p>See whether each student mostly uses mobile or laptop.</p>
+      </div>
+    </div>
+    <div class="device-summary">
+      <span class="summary-chip">Mobile: {{ mobileCount }}</span>
+      <span class="summary-chip">Laptop: {{ laptopCount }}</span>
+      <span class="summary-chip">Tablet: {{ tabletCount }}</span>
+    </div>
+    <div class="pa-pager">
+      <span class="text-muted small">{{ rows.length }} students · page {{ currentPage }} / {{ totalPages }}</span>
+      <div class="pa-pager-nav">
+        <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+        <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+      </div>
+    </div>
+    <div class="table-responsive pa-table-card">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Using</th>
+            <th class="text-end">Sessions</th>
+            <th class="text-end">Watch time</th>
+            <th>Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of pagedRows; track r.studentId) {
+            <tr>
+              <td class="fw-medium">{{ r.studentName }}</td>
+              <td><span class="device-chip">{{ r.deviceType || 'Unknown' }}</span></td>
+              <td class="text-end">{{ r.sessionsCount }}</td>
+              <td class="text-end">{{ formatDuration(r.totalSeconds) }}</td>
+              <td>{{ r.lastSeenAt ? (r.lastSeenAt | date : 'medium') : '—' }}</td>
+            </tr>
+          } @empty {
+            <tr><td colspan="5" class="text-muted py-4 text-center">No device data in this range.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

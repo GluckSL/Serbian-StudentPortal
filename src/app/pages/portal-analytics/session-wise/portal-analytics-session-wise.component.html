@@ -1,0 +1,64 @@
+<div class="pa-sessions">
+  @if (loading) {
+    <div class="pa-center"><mat-spinner diameter="40" /></div>
+  } @else if (error) {
+    <p class="text-danger">{{ error }}</p>
+  } @else {
+    <div class="sw-head">
+      <div>
+        <h3>Session Analytics</h3>
+        <p>Live and completed sessions with per-page breakdown.</p>
+      </div>
+    </div>
+    <div class="pa-pager">
+      <span class="text-muted small">{{ sessions.length }} sessions · page {{ currentPage }} / {{ totalPages }}</span>
+      <div class="pa-pager-nav">
+        <button mat-stroked-button type="button" [disabled]="currentPage === 1" (click)="prevPage()">Previous</button>
+        <button mat-stroked-button type="button" [disabled]="currentPage >= totalPages" (click)="nextPage()">Next</button>
+      </div>
+    </div>
+    @for (s of pagedSessions; track s.sessionId) {
+      <div class="card mb-3">
+        <div class="card-header d-flex flex-wrap justify-content-between gap-2">
+          <div>
+            <strong>{{ s.studentName }}</strong>
+            <span class="text-muted small ms-2" [title]="s.sessionId">{{ sessionLabel(s.sessionId) }}</span>
+          </div>
+          <div>
+            <span class="badge" [class.bg-success]="s.isActive" [class.bg-secondary]="!s.isActive">
+              {{ s.isActive ? 'Active' : 'Ended' }}
+            </span>
+            <span class="ms-2 fw-semibold">{{ formatDuration(s.totalActiveSeconds) }}</span>
+          </div>
+        </div>
+        <div class="card-body py-2">
+          <div class="small text-muted mb-2">
+            {{ s.startTime | date : 'medium' }} — {{ s.endTime ? (s.endTime | date : 'medium') : '—' }}
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Page</th>
+                  <th>Time on page</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of s.pages; track p.page + p.startTime) {
+                  <tr>
+                    <td class="text-break">{{ p.page }}</td>
+                    <td>{{ formatDuration(p.activeSeconds) }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="2" class="text-muted">No page segments.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    } @empty {
+      <p class="text-muted">No sessions in this range.</p>
+    }
+  }
+</div>

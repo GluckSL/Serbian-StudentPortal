@@ -1,0 +1,264 @@
+<div class="dg-analytics admin-modules">
+  <div class="admin-header">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <button type="button" class="btn btn-link dg-analytics__back p-0 mb-1" (click)="back()">
+            <i class="fas fa-arrow-left me-1"></i>
+            DG Bot modules
+          </button>
+          <h1 class="admin-title mb-0">
+            <i class="fas fa-chart-line"></i>
+            Session analytics
+          </h1>
+          <p class="admin-subtitle mb-0" *ngIf="!loading && data?.module?.title">
+            {{ data!.module.title }}
+          </p>
+          <div class="dg-analytics__skel dg-analytics__skel--title mt-2" *ngIf="loading"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-content">
+    <div class="container-fluid">
+      <!-- Loading: skeleton stats + table -->
+      <ng-container *ngIf="loading">
+        <div class="stats-section mb-3">
+          <div class="row g-2">
+            <div class="col-6 col-md-3" *ngFor="let _ of [0, 1, 2, 3]">
+              <div class="dg-analytics__skel-stat-card rounded-3">
+                <div class="dg-analytics__skel dg-analytics__skel--circle"></div>
+                <div class="flex-grow-1">
+                  <div class="dg-analytics__skel dg-analytics__skel--line-lg mb-2"></div>
+                  <div class="dg-analytics__skel dg-analytics__skel--line-sm"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden dg-analytics__table-wrap">
+          <div class="dg-analytics__skel-thead"></div>
+          <div class="table-responsive">
+            <table class="table mb-0 dg-analytics__table">
+              <tbody>
+                <tr *ngFor="let _ of skeletonRows" class="dg-analytics__skel-row">
+                  <td><div class="dg-analytics__skel dg-analytics__skel--line-lg"></div></td>
+                  <td><div class="dg-analytics__skel dg-analytics__skel--line-md"></div></td>
+                  <td><div class="dg-analytics__skel dg-analytics__skel--line-md"></div></td>
+                  <td class="text-end"><div class="dg-analytics__skel dg-analytics__skel--line-xs ms-auto"></div></td>
+                  <td class="text-end"><div class="dg-analytics__skel dg-analytics__skel--pill ms-auto"></div></td>
+                  <td><div class="dg-analytics__skel dg-analytics__skel--pill"></div></td>
+                  <td class="text-center"><div class="dg-analytics__skel dg-analytics__skel--btn ms-auto me-auto"></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </ng-container>
+
+      <div class="alert alert-danger rounded-3" *ngIf="!loading && error">{{ error }}</div>
+
+      <ng-container *ngIf="!loading && data && !error">
+        <div class="stats-section mb-3">
+          <div class="row g-2">
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-primary text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.sessionCount }}</h3>
+                  <p>Sessions</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-success text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.completedCount }}</h3>
+                  <p>Completed</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-info text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-percentage"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.avgScore }}%</h3>
+                  <p>Avg score</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-card bg-secondary text-white dg-analytics__card">
+                <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                <div class="stat-content">
+                  <h3>{{ data.summary.avgMinutes }}</h3>
+                  <p>Avg minutes</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-muted small mb-2" *ngIf="data.sessions.length === 0">
+          No student sessions yet. Chat and speaking turns are stored when learners use the DG Bot player (newer
+          builds log full role-play dialogue).
+        </p>
+
+        <div class="dg-analytics__table-wrap" *ngIf="data.sessions.length > 0">
+          <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 dg-analytics__table">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Student</th>
+                    <th>Reg / Level</th>
+                    <th>Started</th>
+                    <th class="text-end">Minutes</th>
+                    <th class="text-end">Score</th>
+                    <th>Status</th>
+                    <th class="text-center">Chat log</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <ng-container *ngFor="let s of pagedSessions; trackBy: trackBySession">
+                    <tr class="dg-analytics__row">
+                      <td>
+                        <div class="fw-semibold">{{ s.student?.name || 'Unknown' }}</div>
+                        <div class="small text-muted text-truncate" style="max-width: 220px">
+                          {{ s.student?.email || '—' }}
+                        </div>
+                      </td>
+                      <td>
+                        <span class="small">{{ s.student?.regNo || '—' }}</span>
+                        <div class="small text-muted">{{ s.student?.level || '' }}</div>
+                      </td>
+                      <td class="small">{{ formatDt(s.createdAt) }}</td>
+                      <td class="text-end small">{{ s.timeMinutes || '—' }}</td>
+                      <td class="text-end">
+                        <span class="badge rounded-pill" [class.bg-success]="s.completed" [class.bg-secondary]="!s.completed">
+                          {{ s.score }}%
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          class="badge rounded-pill"
+                          [class.mm-badge-live]="s.completed"
+                          [class.mm-badge-draft]="!s.completed"
+                        >
+                          {{ statusLabel(s.completed) }}
+                        </span>
+                        <div class="small text-muted mt-1" *ngIf="s.attempts || s.successCount || s.failureCount">
+                          tries {{ s.attempts }} · OK {{ s.successCount }} / miss {{ s.failureCount }}
+                        </div>
+                      </td>
+                      <td class="text-center">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                          (click)="toggleExpand(s._id)"
+                          [attr.aria-expanded]="expandedId === s._id"
+                        >
+                          <i class="fas" [class.fa-chevron-down]="expandedId !== s._id" [class.fa-chevron-up]="expandedId === s._id"></i>
+                          {{ expandedId === s._id ? 'Hide' : 'View' }}
+                          <span class="ms-1 text-muted">({{ s.chatTurns.length }})</span>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr class="dg-analytics__expand" *ngIf="expandedId === s._id">
+                      <td colspan="7" class="p-0 border-0">
+                        <div class="dg-chat-view">
+                          <header class="dg-chat-view__toolbar">
+                            <div class="dg-chat-view__toolbar-main">
+                              <div class="dg-chat-view__avatar dg-chat-view__avatar--student" aria-hidden="true">
+                                {{ initials(s.student?.name) }}
+                              </div>
+                              <div class="dg-chat-view__who">
+                                <div class="dg-chat-view__name">{{ s.student?.name || 'Unknown' }}</div>
+                                <div class="dg-chat-view__email text-truncate">{{ s.student?.email || '—' }}</div>
+                                <div class="dg-chat-view__ids">
+                                  <span>{{ s.student?.regNo || '—' }}</span>
+                                  <span class="dg-chat-view__dot">·</span>
+                                  <span>{{ s.student?.level || '—' }}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="dg-chat-view__toolbar-meta">
+                              <span class="dg-chat-view__chip dg-chat-view__chip--muted">
+                                <i class="far fa-clock me-1"></i>{{ formatDt(s.createdAt) }}
+                              </span>
+                              <span class="dg-chat-view__chip">{{ s.timeMinutes || '—' }} min</span>
+                              <span class="dg-chat-view__chip dg-chat-view__chip--score">{{ s.score }}%</span>
+                              <span
+                                class="dg-chat-view__chip dg-chat-view__chip--status"
+                                [class.dg-chat-view__chip--done]="s.completed"
+                                [class.dg-chat-view__chip--live]="!s.completed"
+                              >
+                                {{ statusLabel(s.completed) }}
+                              </span>
+                            </div>
+                          </header>
+
+                          <div class="dg-chat-view__stream" *ngIf="s.chatTurns.length > 0; else noChat">
+                            <div
+                              *ngFor="let t of s.chatTurns; let i = index"
+                              class="dg-chat-msg"
+                              [class.dg-chat-msg--out]="isOutgoingTurn(t)"
+                              [class.dg-chat-msg--in]="t.speaker === 'ai'"
+                              [class.dg-chat-msg--hint]="t.speaker === 'hint'"
+                            >
+                              <div class="dg-chat-msg__avatar" aria-hidden="true">
+                                <span *ngIf="t.speaker === 'student'" class="dg-chat-msg__avatar-inner dg-chat-msg__avatar-inner--student">
+                                  {{ initials(s.student?.name) }}
+                                </span>
+                                <span *ngIf="t.speaker === 'ai'" class="dg-chat-msg__avatar-inner dg-chat-msg__avatar-inner--ai">
+                                  <i class="fas fa-robot"></i>
+                                </span>
+                                <span *ngIf="t.speaker === 'hint'" class="dg-chat-msg__avatar-inner dg-chat-msg__avatar-inner--hint">
+                                  <i class="fas fa-lightbulb"></i>
+                                </span>
+                              </div>
+                              <div class="dg-chat-msg__column">
+                                <div class="dg-chat-msg__row-label">
+                                  <span class="dg-chat-msg__label">{{ speakerLabel(t) }}</span>
+                                  <span class="dg-chat-msg__time">{{ formatDt(t.at) }}</span>
+                                  <span class="dg-chat-msg__score" *ngIf="t.score != null && t.speaker === 'student'">
+                                    Score {{ t.score | number : '1.0-1' }}
+                                  </span>
+                                </div>
+                                <div class="dg-chat-msg__bubble">{{ t.text }}</div>
+                                <div class="dg-chat-msg__hint-en small" *ngIf="t.speaker === 'hint' && t.instructionEn">
+                                  {{ t.instructionEn }}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <ng-template #noChat>
+                            <p class="text-muted small mb-0 py-3 px-3 dg-chat-view__empty">
+                              No stored dialogue for this session. Older runs may only show practice transcripts; new
+                              sessions log each student line and bot reply automatically.
+                            </p>
+                          </ng-template>
+                        </div>
+                      </td>
+                    </tr>
+                  </ng-container>
+                </tbody>
+              </table>
+            </div>
+            <mat-paginator
+              class="dg-analytics__paginator"
+              [length]="data.sessions.length"
+              [pageIndex]="pageIndex"
+              [pageSize]="pageSize"
+              [pageSizeOptions]="pageSizeOptions"
+              [showFirstLastButtons]="true"
+              (page)="onPageChange($event)"
+            />
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>

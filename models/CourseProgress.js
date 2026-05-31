@@ -9,4 +9,6 @@ const courseProgressSchema = new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now },
 });
 
+courseProgressSchema.index({ studentId: 1, lastUpdated: -1 });
+
 module.exports = mongoose.model('CourseProgress', courseProgressSchema);

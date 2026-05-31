@@ -1,0 +1,30 @@
+<div class="pcv-wrap">
+  <div class="pcv-row">
+    <div class="pcv-label">Expected:</div>
+    <div class="pcv-line">
+      <span
+        *ngFor="let t of expectedTokens; let i = index"
+        class="pcv-word"
+        [class.pcv-word--matched]="t.kind === 'matched'"
+        [class.pcv-word--missing]="t.kind === 'missing'"
+      >
+        {{ t.text }}<span *ngIf="i < expectedTokens.length - 1"> </span>
+      </span>
+    </div>
+  </div>
+
+  <div class="pcv-row">
+    <div class="pcv-label">You said:</div>
+    <div class="pcv-line">
+      <span
+        *ngFor="let t of transcriptTokens; let i = index"
+        class="pcv-word"
+        [class.pcv-word--matched]="t.kind === 'matched'"
+        [class.pcv-word--extra]="t.kind === 'extra'"
+      >
+        {{ t.text }}<span *ngIf="i < transcriptTokens.length - 1"> </span>
+      </span>
+      <span *ngIf="!transcriptTokens.length" class="pcv-empty">—</span>
+    </div>
+  </div>
+</div>

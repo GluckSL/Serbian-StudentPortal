@@ -9,9 +9,9 @@
 /* Photo Card */
 .pf-photo-card {
   background: #fff; border-radius: 16px; padding: 28px 24px; text-align: center;
-  border: 1px solid #e8ecf4; box-shadow: 0 2px 12px rgba(15,23,42,0.06);
+  border: 1px solid #e8ecf4; box-shadow: 0 2px 12px rgba(15,23,42,0.06); width: 100%;
 }
-.pf-photo-wrap { margin-bottom: 16px; }
+.pf-photo-wrap { margin-bottom: 16px; display: flex; justify-content: center; align-items: center; }
 .pf-photo {
   width: 130px; height: 130px; border-radius: 50%; object-fit: cover;
   border: 4px solid #03396c; box-shadow: 0 4px 16px rgba(3,57,108,0.15);
@@ -109,6 +109,90 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .pf-layout { grid-template-columns: 1fr; }
-  .pf-photo-card { max-width: 360px; margin: 0 auto; }
+  .pf { padding: 12px; }
+  .pf-layout { grid-template-columns: 1fr; gap: 12px; }
+  .pf-photo-card { max-width: 420px; margin: 0 auto; }
+  .pf-field { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .pf-field__value { text-align: left; }
 }
+
+@media (max-width: 480px) {
+  .pf { padding: 8px; }
+  .pf-page-title { font-size: 17px; }
+  .pf-photo-card { max-width: 100%; margin: 0 auto; }
+  .pf-photo { width: 100px; height: 100px; }
+  .pf-photo--initials { font-size: 30px; }
+  .pf-name { font-size: 17px; }
+  .pf-card { padding: 14px 16px; }
+  .pf-stats { gap: 0; }
+  .pf-stat__val { font-size: 16px; }
+}
+
+/* Change Password */
+.pf-btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #f0ebff; color: #6c3fc5; border: 1.5px solid #c4b5fd;
+  border-radius: 10px; padding: 9px 18px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.pf-btn-secondary:hover { background: #e6d9ff; }
+
+.pf-btn-primary {
+  background: linear-gradient(135deg, #7b61ff 0%, #5b4cdb 100%);
+  color: #fff; border: none; border-radius: 10px;
+  padding: 10px 20px; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: opacity .2s;
+}
+.pf-btn-primary:disabled { opacity: .65; cursor: not-allowed; }
+
+.pf-btn-ghost {
+  background: none; border: 1.5px solid #d1d5db; border-radius: 10px;
+  color: #6b7280; padding: 10px 18px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.pf-btn-ghost:hover { background: #f9fafb; }
+
+.pf-pw-form { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+
+.pf-pw-field { display: flex; flex-direction: column; gap: 5px; }
+
+.pf-pw-input-row {
+  display: flex; align-items: center;
+  border: 1.5px solid #e5e7eb; border-radius: 10px;
+  background: #f9fafb; transition: border-color .2s, box-shadow .2s;
+}
+.pf-pw-input-row:focus-within {
+  border-color: #7b61ff; box-shadow: 0 0 0 3px rgba(123,97,255,.1);
+}
+.pf-pw-input {
+  flex: 1; padding: 10px 14px; background: transparent;
+  border: none; outline: none; font-size: 14px; color: #1f2937; border-radius: 10px;
+}
+.pf-pw-toggle {
+  background: none; border: none; padding: 0 12px;
+  color: #9ca3af; cursor: pointer; font-size: 13px;
+}
+
+.pf-pw-banner {
+  border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.5;
+}
+.pf-pw-banner--error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+.pf-pw-banner--success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; }
+
+.pf-pw-actions { display: flex; gap: 10px; margin-top: 4px; }
+
+/* Skeleton Loading */
+.pf-skeleton-wrap { animation: pf-pulse 1.5s ease-in-out infinite; }
+@keyframes pf-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.pf-skeleton-title { height: 24px; width: 140px; background: #e2e8f0; border-radius: 6px; margin: 0 0 18px; }
+.pf-skeleton-card { background: #fff; border-radius: 16px; padding: 28px 24px; border: 1px solid #e8ecf4; }
+.pf-skeleton-photo { width: 130px; height: 130px; border-radius: 50%; background: #e2e8f0; margin: 0 auto 16px; }
+.pf-skeleton-name { height: 24px; width: 160px; background: #e2e8f0; border-radius: 6px; margin: 0 auto 10px; }
+.pf-skeleton-badge { height: 26px; width: 80px; background: #e2e8f0; border-radius: 999px; margin: 0 auto 10px; }
+.pf-skeleton-reg { height: 14px; width: 140px; background: #e2e8f0; border-radius: 4px; margin: 0 auto; }
+.pf-skeleton-stats { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
+.pf-skeleton-stat { height: 40px; width: 60px; background: #e2e8f0; border-radius: 6px; }
+.pf-skeleton-edit { height: 40px; width: 100%; background: #e2e8f0; border-radius: 10px; margin-top: 16px; }
+.pf-skeleton-card-title { height: 18px; width: 160px; background: #e2e8f0; border-radius: 4px; margin-bottom: 16px; }
+.pf-skeleton-field { height: 20px; width: 100%; background: #f1f5f9; border-radius: 4px; margin-bottom: 12px; }
+.pf-skeleton-bar { height: 40px; width: 100%; background: #f1f5f9; border-radius: 6px; margin-bottom: 16px; }

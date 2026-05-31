@@ -10,29 +10,34 @@ const { requirePlatinum } = require('../middleware/subscriptionCheck');
 const { v4: uuidv4 } = require('uuid');
 const OpenAIService = require('../services/openaiService');
 
-// Initialize OpenAI service
-const openaiService = new OpenAIService();
+// Initialize OpenAI service with DG bot key
+const openaiService = new OpenAIService(process.env.DG_OPENAI_API_KEY);
 
 // Helper function to generate language-specific role-play welcome messages
-function generateRolePlayWelcome(targetLanguage, scenario) {
-  const messages = {
+async function generateRolePlayWelcome(targetLanguage, scenario) {
+  let studentRole = scenario.studentRole;
+  let aiRole = scenario.aiRole;
+
+  // Welcome message is always in German
+  const welcome = `Willkommen zur Rollenspiel-Sitzung! Du bist ${studentRole}, ich bin ${aiRole}. Sage "Los geht's" oder "Beginnen wir", um zu starten, oder "Stopp", um die Sitzung zu beenden.`;
+
+  // Trigger words include both English and target language variants
+  const triggersByLang = {
     'German': {
-      welcome: `Willkommen zur Rollenspiel-Sitzung! Du wirst der/die ${scenario.studentRole} sein, ich werde der/die ${scenario.aiRole} sein. Sage "Los geht's" um zu beginnen oder "Stopp" um die Sitzung zu beenden.`,
-      triggers: {
-        start: ["Los geht's", "Beginnen wir", "Anfangen", "Start"],
-        stop: ["Stopp", "Ende", "Aufhören", "Beenden"]
-      }
-    },
-    'English': {
-      welcome: `Welcome to the Role-Play Session! You will be the ${scenario.studentRole}, I will be the ${scenario.aiRole}. Say "Let's start" to begin or "stop" to end the session.`,
-      triggers: {
-        start: ["Let's start", "Start", "Begin", "Go"],
-        stop: ["Stop", "End", "Quit", "Finish"]
-      }
+      start: ["Let's start", "Start", "Begin", "Go", "Los geht's", "Beginnen wir", "Anfangen"],
+      stop: ["Stop", "End", "Quit", "Finish", "Stopp", "Ende", "Aufhören", "Beenden"]
     }
   };
-  
-  return messages[targetLanguage] || messages['English'];
+
+  const defaultTriggers = {
+    start: ["Let's start", "Start", "Begin", "Go", "Los geht's", "Beginnen wir", "Anfangen"],
+    stop: ["Stop", "End", "Quit", "Finish"]
+  };
+
+  return {
+    welcome,
+    triggers: triggersByLang[targetLanguage] || defaultTriggers
+  };
 }
 
 // Enhanced AI Tutor Service using ChatGPT-4o
@@ -164,9 +169,9 @@ class AiTutorService {
   
   static generateConversationResponse(message, module) {
     const conversationStarters = [
-      `Hello! Let's practice ${module.targetLanguage} conversation. How are you today?`,
-      `Great to see you! Let's have a conversation in ${module.targetLanguage}. What would you like to talk about?`,
-      `Welcome! I'm here to help you practice ${module.targetLanguage}. Let's start a conversation!`
+      `Hallo! Lass uns ein Gespraech auf ${module.targetLanguage} ueben. Wie geht es dir heute?`,
+      `Schoen, dich zu sehen! Lass uns auf ${module.targetLanguage} sprechen. Worueber moechtest du reden?`,
+      `Willkommen! Ich helfe dir, ${module.targetLanguage} zu ueben. Lass uns mit einem Gespraech starten!`
     ];
     
     return {
@@ -348,7 +353,7 @@ router.post('/start-teacher-test', verifyToken, checkRole(['TEACHER', 'ADMIN']),
     }
     
     // Validate module exists
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     if (!module || !module.isActive) {
       console.log('❌ Module not found:', { moduleId, found: !!module, active: module?.isActive });
       return res.status(404).json({ message: 'Module not found or inactive' });
@@ -403,7 +408,7 @@ router.post('/start-teacher-test', verifyToken, checkRole(['TEACHER', 'ADMIN']),
       const scenario = module.content.rolePlayScenario;
       
       // Generate language-specific welcome message
-      const welcomeData = generateRolePlayWelcome(module.targetLanguage, scenario);
+      const welcomeData = await generateRolePlayWelcome(module.targetLanguage, scenario);
       
       welcomeResponse = {
         content: welcomeData.welcome,
@@ -490,7 +495,7 @@ router.post('/start-session', verifyToken, requirePlatinum, async (req, res) => 
     }
     
     // Validate module exists
-    const module = await LearningModule.findById(moduleId);
+    const module = await LearningModule.findById(moduleId).lean();
     if (!module || !module.isActive) {
       console.log('❌ Module not found:', { moduleId, found: !!module, active: module?.isActive });
       return res.status(404).json({ message: 'Module not found or inactive' });
@@ -506,7 +511,7 @@ router.post('/start-session', verifyToken, requirePlatinum, async (req, res) => 
     let studentProgress = await StudentProgress.findOne({
       studentId,
       moduleId
-    });
+    }).lean();
     
     // Create new session
     const sessionId = uuidv4();
@@ -543,7 +548,7 @@ router.post('/start-session', verifyToken, requirePlatinum, async (req, res) => 
       const scenario = module.content.rolePlayScenario;
       
       // Generate language-specific welcome message
-      const welcomeData = generateRolePlayWelcome(module.targetLanguage, scenario);
+      const welcomeData = await generateRolePlayWelcome(module.targetLanguage, scenario);
       
       welcomeResponse = {
         content: welcomeData.welcome,
@@ -1283,7 +1288,7 @@ router.post('/end-session', verifyToken, async (req, res) => {
       const SessionRecord = require('../models/SessionRecord');
       const User = require('../models/User');
       
-      const student = await User.findById(userId).select('name email');
+      const student = await User.findById(userId).select('name email').lean();
       
       let sessionRecord = await SessionRecord.findOne({ sessionId });
       

@@ -1,0 +1,307 @@
+.sd-root {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+// ── Page header ───────────────────────────────────────────────────────────────
+.sd-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.sd-back-btn {
+  color: #1565c0;
+  font-size: 14px;
+}
+
+.sd-page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #212121;
+  margin: 0;
+}
+
+// ── Cards ─────────────────────────────────────────────────────────────────────
+.sd-student-card,
+.sd-history-card,
+.sd-submissions-card {
+  border-radius: 10px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+// ── Student header ────────────────────────────────────────────────────────────
+.sd-student-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.sd-avatar mat-icon {
+  font-size: 56px;
+  height: 56px;
+  width: 56px;
+  color: #1565c0;
+}
+
+.sd-student-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #212121;
+  margin: 0 0 6px;
+}
+
+.sd-student-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: #616161;
+
+    mat-icon {
+      font-size: 15px;
+      height: 15px;
+      width: 15px;
+    }
+  }
+}
+
+.sd-overall-status {
+  margin-left: auto;
+}
+
+// ── Summary row ───────────────────────────────────────────────────────────────
+.sd-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 12px 0;
+}
+
+.sd-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.sd-summary-label {
+  font-size: 12px;
+  color: #757575;
+  margin-bottom: 2px;
+}
+
+.sd-summary-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: #212121;
+}
+
+.sd-summary-div {
+  width: 1px;
+  height: 40px;
+  background: #e0e0e0;
+}
+
+// ── Card title ─────────────────────────────────────────────────────────────────
+.sd-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #212121;
+  margin-bottom: 16px;
+
+  mat-icon {
+    color: #1565c0;
+  }
+}
+
+// ── History table ──────────────────────────────────────────────────────────────
+.sd-table-wrap {
+  overflow-x: auto;
+}
+
+.sd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th {
+    background: #f5f7fa;
+    padding: 9px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #424242;
+    border-bottom: 2px solid #e0e0e0;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    color: #424242;
+    vertical-align: middle;
+  }
+
+  tr:hover td {
+    background: #fafafa;
+  }
+
+  .sd-num {
+    text-align: right;
+  }
+}
+
+.sd-custom-type {
+  font-weight: 400;
+  font-size: 12px;
+  color: #757575;
+}
+
+.sd-legacy-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #f3e5f5;
+  color: #6a1b9a;
+  vertical-align: middle;
+}
+
+.sd-remarks {
+  font-size: 12px;
+  color: #757575;
+  max-width: 180px;
+}
+
+// ── Submissions ────────────────────────────────────────────────────────────────
+.sd-req-block {
+  margin-bottom: 20px;
+  border-left: 3px solid #1565c0;
+  padding-left: 16px;
+}
+
+.sd-req-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #424242;
+  margin-bottom: 8px;
+}
+
+.sd-submission-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.sd-sub-index {
+  font-size: 13px;
+  font-weight: 700;
+  color: #9e9e9e;
+  min-width: 24px;
+  padding-top: 2px;
+}
+
+.sd-sub-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  flex: 1;
+}
+
+.sd-sub-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sd-sub-label {
+  font-size: 11px;
+  color: #9e9e9e;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.sd-sub-actions {
+  display: flex;
+  align-items: center;
+}
+
+// ── Pills ──────────────────────────────────────────────────────────────────────
+.sd-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pill-blue   { background: #e3f2fd; color: #1565c0; }
+.pill-amber  { background: #fff8e1; color: #f57f17; }
+.pill-green  { background: #e8f5e9; color: #2e7d32; }
+.pill-red    { background: #ffebee; color: #c62828; }
+.pill-grey   { background: #f5f5f5; color: #616161; }
+
+// ── Value colors ───────────────────────────────────────────────────────────────
+.sd-val-green { color: #2e7d32; font-weight: 600; }
+.sd-val-amber { color: #e65100; font-weight: 600; }
+.sd-val-red   { color: #c62828; font-weight: 600; }
+
+// ── States ─────────────────────────────────────────────────────────────────────
+.sd-spinner-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+.sd-empty {
+  text-align: center;
+  padding: 30px 0;
+  color: #9e9e9e;
+  font-size: 14px;
+}
+
+.sd-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 0;
+  color: #c62828;
+
+  mat-icon {
+    font-size: 48px;
+    height: 48px;
+    width: 48px;
+  }
+}

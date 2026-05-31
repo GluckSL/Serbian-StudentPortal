@@ -1,0 +1,249 @@
+<div class="page-wrapper">
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-center">
+    <mat-spinner diameter="48"></mat-spinner>
+  </div>
+
+  <ng-container *ngIf="!loading && history">
+
+    <!-- Student Header -->
+    <div class="student-header">
+      <div class="header-left">
+        <div class="avatar">{{ (history.student.name || '?')[0] | uppercase }}</div>
+        <div class="student-info">
+          <h2>{{ history.student.name }}</h2>
+          <div class="student-meta">
+            <span>{{ history.student.email }}</span>
+            <span *ngIf="history.student.batch" class="chip">{{ history.student.batch }}</span>
+            <span *ngIf="history.student.level" class="chip chip-level">{{ history.student.level }}</span>
+            <span *ngIf="history.student['subscription']" class="chip chip-plan">{{ history.student['subscription'] }}</span>
+          </div>
+        </div>
+      </div>
+      <button mat-flat-button color="primary" class="req-btn" (click)="openReqDialog()">
+        <mat-icon>send</mat-icon>
+        Req for Payment
+      </button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="cards-row">
+
+      <mat-card class="summary-card">
+        <mat-card-content>
+          <div class="card-icon card-icon-green">
+            <mat-icon>paid</mat-icon>
+          </div>
+          <div class="card-body">
+            <div class="card-label">Total received</div>
+            <div class="card-value green card-value--currency">
+              <app-payment-currency-totals
+                [lkr]="history.profile?.totalPaidLKR ?? 0"
+                [inr]="history.profile?.totalPaidINR ?? 0"
+                [usd]="history.profile?.totalPaidUSD ?? 0"
+                [compact]="true"
+              ></app-payment-currency-totals>
+            </div>
+            <div class="card-sub" *ngIf="history.profile?.lastPaymentDate">
+              Last: {{ fmtDate(history.profile?.lastPaymentDate) }}
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="summary-card">
+        <mat-card-content>
+          <div class="card-icon card-icon-blue">
+            <mat-icon>event</mat-icon>
+          </div>
+          <div class="card-body">
+            <div class="card-label">Next Payment</div>
+            <ng-container *ngIf="nextPayment; else noNext">
+              <div class="card-value blue">
+                <app-payment-currency-amount [currency]="nextPayment.currency" [amount]="nextPayment.amount"></app-payment-currency-amount>
+              </div>
+              <div class="card-sub">Due: {{ fmtDate(nextPayment.dueDate) }}</div>
+            </ng-container>
+            <ng-template #noNext>
+              <div class="card-value grey">—</div>
+              <div class="card-sub">No open requests</div>
+            </ng-template>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="summary-card" [class.card-overdue]="balanceDue > 0">
+        <mat-card-content>
+          <div class="card-icon" [class.card-icon-red]="balanceDue > 0" [class.card-icon-grey]="balanceDue === 0">
+            <mat-icon>account_balance_wallet</mat-icon>
+          </div>
+          <div class="card-body">
+            <div class="card-label">Balance / Due</div>
+            <div class="card-value" [class.red]="balanceDue > 0" [class.grey]="balanceDue === 0">
+              {{ fmt(balanceDue) }}
+            </div>
+            <div class="card-sub" *ngIf="history.profile?.overdueCount">
+              {{ history.profile?.overdueCount }} overdue request(s)
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+    </div>
+
+    <!-- Payment History Table -->
+    <div class="history-section">
+      <div class="section-header">
+        <h3>Payment History <span class="total-badge">{{ history.total }}</span></h3>
+      </div>
+
+      <div *ngIf="!history.requests.length" class="empty-state">
+        <mat-icon>receipt_long</mat-icon>
+        <p>No payment requests yet.</p>
+      </div>
+
+      <div *ngIf="history.requests.length" class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Purpose</th>
+              <th class="col-num">Amount</th>
+              <th class="col-num">Remaining</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Submissions &amp; proof</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let req of history.requests">
+              <!-- Instalment plan: summary row + one row per scheduled part -->
+              <ng-container *ngIf="hasInstallmentBreakdown(req)">
+                <tr class="row-plan-summary">
+                  <td>
+                    {{ formatPaymentType(req.paymentType, req.customType) }}
+                    <span class="inst-badge">{{ sortedInst(req).length }} parts</span>
+                  </td>
+                  <td>
+                    <span *ngIf="req.remarks" class="remarks-text" matTooltip="{{ req.remarks }}">
+                      {{ req.remarks | slice:0:60 }}{{ req.remarks.length > 60 ? '…' : '' }}
+                    </span>
+                    <span *ngIf="!req.remarks" class="no-remarks">—</span>
+                  </td>
+                  <td class="col-num">
+                    <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+                  </td>
+                  <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">
+                    <app-payment-currency-amount [currency]="req.currency" [amount]="req.amountRemaining"></app-payment-currency-amount>
+                  </td>
+                  <td>{{ fmtDate(req.dueDate) }}</td>
+                  <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
+                  <td class="col-submissions">
+                    <span class="sub-hint">Proofs are listed per part below.</span>
+                  </td>
+                  <td class="col-actions">
+                    <button *ngIf="canEditInstallments(req)" mat-stroked-button type="button" color="primary"
+                      (click)="openEditInstallments(req)" matTooltip="Change amounts and due dates (no proofs in review)">
+                      <mat-icon>edit_calendar</mat-icon>
+                      Edit schedule
+                    </button>
+                    <span *ngIf="!canEditInstallments(req)" class="no-sub" matTooltip="Cannot edit while a proof is submitted or approved">—</span>
+                  </td>
+                </tr>
+                <tr *ngFor="let inst of sortedInst(req)" class="row-inst-part">
+                  <td class="cell-part">
+                    <span class="part-indent"></span>
+                    Part {{ inst.installmentNumber }}
+                  </td>
+                  <td><span class="no-remarks">—</span></td>
+                  <td class="col-num">
+                    <app-payment-currency-amount [currency]="inst.currency" [amount]="inst.requestedAmount"></app-payment-currency-amount>
+                  </td>
+                  <td class="col-num" [class.overdue-num]="inst.status === 'OVERDUE'">
+                    <app-payment-currency-amount [currency]="inst.currency" [amount]="inst.remainingAmount"></app-payment-currency-amount>
+                  </td>
+                  <td>{{ fmtDate(inst.dueDate) }}</td>
+                  <td><span class="pill pill-sm" [ngClass]="statusClass(inst.status)">{{ inst.status }}</span></td>
+                  <td class="col-submissions">
+                    <ng-container *ngIf="submissionsForInstallment(req, inst).length">
+                      <div *ngFor="let sub of submissionsForInstallment(req, inst)" class="submission-row">
+                        <span class="pill pill-sm" [ngClass]="statusClass(sub.status)">
+                          <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
+                        </span>
+                        <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
+                          (click)="viewSubmissionProof(sub)"
+                          [disabled]="proofLoadingId === sub._id"
+                          matTooltip="Open proof for this instalment">
+                          <mat-spinner *ngIf="proofLoadingId === sub._id" diameter="16" class="proof-spinner"></mat-spinner>
+                          <ng-container *ngIf="proofLoadingId !== sub._id">
+                            <mat-icon>image</mat-icon>
+                            View proof
+                          </ng-container>
+                        </button>
+                      </div>
+                    </ng-container>
+                    <span *ngIf="!submissionsForInstallment(req, inst).length" class="no-sub">—</span>
+                  </td>
+                  <td class="col-actions"><span class="no-sub">—</span></td>
+                </tr>
+              </ng-container>
+              <tr *ngIf="!hasInstallmentBreakdown(req)">
+                <td>{{ formatPaymentType(req.paymentType, req.customType) }}</td>
+                <td>
+                  <span *ngIf="req.remarks" class="remarks-text" matTooltip="{{ req.remarks }}">
+                    {{ req.remarks | slice:0:60 }}{{ req.remarks.length > 60 ? '…' : '' }}
+                  </span>
+                  <span *ngIf="!req.remarks" class="no-remarks">—</span>
+                </td>
+                <td class="col-num">
+                  <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+                </td>
+                <td class="col-num" [class.overdue-num]="req.status === 'OVERDUE'">
+                  <app-payment-currency-amount [currency]="req.currency" [amount]="req.amountRemaining"></app-payment-currency-amount>
+                </td>
+                <td>{{ fmtDate(req.dueDate) }}</td>
+                <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
+                <td class="col-submissions">
+                  <ng-container *ngIf="hasSubmissions(req)">
+                    <div *ngFor="let sub of req.submissions" class="submission-row">
+                      <span class="pill pill-sm" [ngClass]="statusClass(sub.status)">
+                        <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
+                      </span>
+                      <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
+                        (click)="viewSubmissionProof(sub)"
+                        [disabled]="proofLoadingId === sub._id"
+                        matTooltip="Open the payment screenshot or PDF the student uploaded">
+                        <mat-spinner *ngIf="proofLoadingId === sub._id" diameter="16" class="proof-spinner"></mat-spinner>
+                        <ng-container *ngIf="proofLoadingId !== sub._id">
+                          <mat-icon>image</mat-icon>
+                          View proof
+                        </ng-container>
+                      </button>
+                    </div>
+                  </ng-container>
+                  <span *ngIf="!hasSubmissions(req)" class="no-sub">—</span>
+                </td>
+                <td class="col-actions"><span class="no-sub">—</span></td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination-row" *ngIf="history.totalPages > 1">
+          <button mat-icon-button [disabled]="historyPage === 1" (click)="prevPage()">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <span class="page-label">{{ paginationLabel }}</span>
+          <button mat-icon-button [disabled]="historyPage >= history.totalPages" (click)="nextPage()">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </ng-container>
+
+</div>

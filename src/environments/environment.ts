@@ -2,5 +2,12 @@
 
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:4000/api'  // ✅ Fixed: Changed from 5000 to 4000
+  /** Verbose DG Bot client logs (dev only). */
+  dgDevLogging: true,
+  /**
+   * Same-origin `/api` so `ng serve` (any port) proxies to Express.
+   * Avoids `localhost:4000` vs `localhost:4700` cross-origin auth header issues.
+   * Requires `proxy.conf.json` target to match your API (default port 4000).
+   */
+  apiUrl: '/api'
 };
