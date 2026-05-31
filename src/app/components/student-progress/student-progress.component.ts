@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { StudentProgressService } from '../../services/student-progress.service';
+import { TourService } from '../../services/tour.service';
 
 @Component({
   selector: 'app-student-progress',
@@ -15,11 +16,20 @@ export class StudentProgressComponent implements OnInit {
   data: any = null;
   alerts: string[] = [];
 
-  constructor(private progressService: StudentProgressService) {}
+  constructor(
+    private progressService: StudentProgressService,
+    private tourService: TourService
+  ) {}
 
   ngOnInit(): void {
     this.progressService.getStudentJourney().subscribe({
-      next: (res) => { this.data = res; this.buildAlerts(); this.isLoading = false; },
+      next: (res) => {
+        this.data = res; this.buildAlerts(); this.isLoading = false;
+        // Start tour for first-time students after page renders
+        if (!this.tourService.hasCompletedTour()) {
+          setTimeout(() => this.tourService.startStudentTour(), 500);
+        }
+      },
       error: () => { this.isLoading = false; }
     });
   }
@@ -43,10 +53,25 @@ export class StudentProgressComponent implements OnInit {
   get visa() { return this.data?.visa || { steps: [], stages: [], currentStep: 0, totalSteps: 0, route: '', finalOutcome: '', finalOutcomeNote: '', history: [], dates: {} }; }
   get attendance() { return this.data?.attendance || { attended: 0, total: 0 }; }
   get botUsage() { return this.data?.botUsage || { todayMinutes: 0, weekMinutes: 0, targetMinutesPerWeek: 180 }; }
+  get exercisesThisWeek() { return this.data?.exercisesThisWeek || 0; }
+  get exercisesToday() { return this.data?.exercisesToday || 0; }
+  get exercisesTotal() { return this.data?.exercisesTotal || 0; }
   get documents() { return this.data?.documents || []; }
   get docsSummary() { return this.data?.docsSummary || { total: 0, verified: 0, pending: 0, rejected: 0, notUploaded: 0 }; }
   get history() { return this.data?.history || []; }
   get feedbackByLevel() { return this.data?.feedbackByLevel || {}; }
+
+  get isVisaDocOnly(): boolean {
+    return (this.profile.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
+  }
+
+  get isLanguageOnly(): boolean {
+    return (this.profile.servicesOpted || '').toLowerCase().trim() === 'german language only';
+  }
+
+  get showLearning(): boolean { return !this.isVisaDocOnly; }
+  get showDocsVisa(): boolean { return !this.isLanguageOnly; }
+
 
   get levelPath(): string {
     if (!this.levelProgression.length) return '';
@@ -128,6 +153,12 @@ export class StudentProgressComponent implements OnInit {
     if (this.attendanceRate < 70 && this.attendance.total > 0) {
       this.alerts.push('Attendance dropped below 70% (' + this.attendanceRate + '%).');
     }
+  }
+
+  calcDays(start: string | Date, end?: string | Date): number {
+    const s = new Date(start);
+    const e = end ? new Date(end) : new Date();
+    return Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
   }
 
   formatDate(d: string | Date): string {

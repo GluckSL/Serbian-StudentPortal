@@ -4,7 +4,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { ZoomService, Student } from '../../services/zoom.service';
+import { ZoomService, Student, Teacher, ZoomAccount } from '../../services/zoom.service';
 
 @Component({
   selector: 'app-create-zoom-meeting',
@@ -21,16 +21,18 @@ export class CreateZoomMeetingComponent implements OnInit {
   filteredStudents: Student[] = [];
   selectedStudents: Student[] = [];
   
+  // Teacher & Zoom account selection
+  teachers: Teacher[] = [];
+  zoomAccounts: ZoomAccount[] = [];
+
   // UI state
   isLoading = false;
   isCreatingMeeting = false;
-  showStudentSelector = false;
   successMessage = '';
   errorMessage = '';
   
   // Filter options
   batches: string[] = [];
-  plan: 'SILVER' | 'PLATINUM' | '' = '';
   levels: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   
   // Search
@@ -45,10 +47,11 @@ export class CreateZoomMeetingComponent implements OnInit {
   ngOnInit(): void {
     this.initializeForm();
     this.loadStudents();
+    this.loadTeachers();
+    this.loadZoomAccounts();
   }
 
   private initializeForm(): void {
-    // Set default start time to tomorrow at 10:00 AM
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(10, 0, 0, 0);
@@ -60,7 +63,10 @@ export class CreateZoomMeetingComponent implements OnInit {
       startTime: [this.formatDateTimeLocal(tomorrow), Validators.required],
       duration: [60, [Validators.required, Validators.min(15), Validators.max(300)]],
       timezone: ['Asia/Colombo', Validators.required],
-      agenda: ['']
+      agenda: [''],
+      teacherId: ['', Validators.required],
+      zoomHostEmail: ['', Validators.required],
+      courseDay: [null, [Validators.min(1), Validators.max(200)]]
     });
   }
 
@@ -80,28 +86,57 @@ export class CreateZoomMeetingComponent implements OnInit {
         if (response.success) {
           this.allStudents = response.data;
           this.filteredStudents = [...this.allStudents];
-          
-          // Extract unique batches
           this.batches = [...new Set(this.allStudents.map(s => s.batch))].sort();
-          
-          console.log(`✅ Loaded ${this.allStudents.length} students`);
         }
         this.isLoading = false;
       },
-      error: (error) => {
-        console.error('❌ Error loading students:', error);
+      error: () => {
         this.errorMessage = 'Failed to load students';
         this.isLoading = false;
       }
     });
   }
 
+  loadTeachers(): void {
+    this.zoomService.getTeachers().subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.teachers = response.data;
+        }
+      },
+      error: () => console.error('Failed to load teachers')
+    });
+  }
+
+  loadZoomAccounts(): void {
+    this.zoomService.getZoomHosts().subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.zoomAccounts = response.hosts;
+        }
+      },
+      error: () => console.error('Failed to load zoom accounts')
+    });
+  }
+
+  /** Re-check zoom account availability when time/duration changes */
+  onTimeChange(): void {
+    const startTime = this.meetingForm.get('startTime')?.value;
+    const duration = this.meetingForm.get('duration')?.value;
+    if (startTime && duration) {
+      this.zoomService.getAvailableZoomHosts(new Date(startTime).toISOString(), duration).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.zoomAccounts = response.data;
+          }
+        }
+      });
+    }
+  }
+
   onFilterChange(): void {
-    // const selectedBatch = this.meetingForm.get('batch')?.value;
-    // if (selectedBatch) {
     this.selectedStudents = [];
     this.filterStudents();
-    //}
   }
 
   filterStudents(): void {
@@ -111,12 +146,10 @@ export class CreateZoomMeetingComponent implements OnInit {
     this.filteredStudents = this.allStudents.filter(student => {
       const matchesBatch = !batch || student.batch === batch;
       const matchesPlan = !plan || student.subscription === plan;
-      const matchesStatus = student.studentStatus === 'ONGOING'; // ✅ filter only ongoing students
-
+      const matchesStatus = student.studentStatus === 'ONGOING';
       const matchesSearch = !this.searchTerm ||
         student.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
         student.email.toLowerCase().includes(this.searchTerm.toLowerCase());
-
       return matchesBatch && matchesPlan && matchesStatus && matchesSearch;
     });
   }
@@ -128,12 +161,9 @@ export class CreateZoomMeetingComponent implements OnInit {
 
   toggleStudentSelection(student: Student): void {
     const index = this.selectedStudents.findIndex(s => s._id === student._id);
-    
     if (index > -1) {
-      // Remove student
       this.selectedStudents.splice(index, 1);
     } else {
-      // Add student
       this.selectedStudents.push(student);
     }
   }
@@ -178,56 +208,40 @@ export class CreateZoomMeetingComponent implements OnInit {
     this.errorMessage = '';
 
     const formValue = this.meetingForm.value;
-    
-    // Convert datetime-local to ISO string
     const startTime = new Date(formValue.startTime).toISOString();
 
     const meetingData = {
       batch: formValue.batch,
       plan: formValue.plan,
       topic: formValue.topic,
-      startTime: startTime,
+      startTime,
       duration: formValue.duration,
       timezone: formValue.timezone,
       agenda: formValue.agenda || `German Language Class - Batch ${formValue.batch}`,
-      studentIds: this.selectedStudents.map(s => s._id)
+      studentIds: this.selectedStudents.map(s => s._id),
+      teacherId: formValue.teacherId,
+      zoomHostEmail: formValue.zoomHostEmail,
+      courseDay: formValue.courseDay || null
     };
-
-    console.log('📤 Creating Zoom meeting:', meetingData);
 
     this.zoomService.createMeeting(meetingData).subscribe({
       next: (response) => {
         if (response.success) {
           this.isCreatingMeeting = false;
-          
-          // Check email status
           const emailStatus = response.emailStatus;
           
           if (emailStatus.allSent) {
-            // All emails sent successfully
             this.successMessage = `✅ Zoom meeting created successfully with ${response.data.attendeesCount} students! All invitation emails sent.`;
           } else if (emailStatus.totalFailure) {
-            // All emails failed
-            this.errorMessage = `⚠️ Meeting created but NO invitation emails were sent to students. Please check your email configuration.`;
+            this.errorMessage = `⚠️ Meeting created but NO invitation emails were sent.`;
             this.successMessage = `Meeting created successfully but emails failed. Meeting ID: ${response.data.zoomMeetingId}`;
           } else if (emailStatus.partialFailure) {
-            // Some emails failed
-            this.errorMessage = `⚠️ Meeting created but ${emailStatus.failed} out of ${emailStatus.attempted} invitation emails failed to send.`;
-            this.successMessage = `Meeting created. ${emailStatus.successful} emails sent successfully, ${emailStatus.failed} failed.`;
+            this.errorMessage = `⚠️ Meeting created but ${emailStatus.failed} out of ${emailStatus.attempted} invitation emails failed.`;
+            this.successMessage = `Meeting created. ${emailStatus.successful} emails sent, ${emailStatus.failed} failed.`;
           } else {
-            // Default success
             this.successMessage = `✅ Zoom meeting created successfully with ${response.data.attendeesCount} students!`;
           }
           
-          console.log('✅ Meeting created:', response.data);
-          console.log('📧 Email Status:', emailStatus);
-          
-          // Show failed students if any
-          if (emailStatus.failedStudents && emailStatus.failedStudents.length > 0) {
-            console.error('❌ Failed to send emails to:', emailStatus.failedStudents);
-          }
-          
-          // Redirect after 4 seconds (longer to read error message)
           setTimeout(() => {
             this.router.navigate(['/teacher/meetings']);
           }, 4000);
@@ -237,8 +251,7 @@ export class CreateZoomMeetingComponent implements OnInit {
         }
       },
       error: (error) => {
-        console.error('❌ Error creating meeting:', error);
-        this.errorMessage = error.error?.message || 'Failed to create Zoom meeting. Please check your Zoom API credentials.';
+        this.errorMessage = error.error?.message || 'Failed to create Zoom meeting.';
         this.isCreatingMeeting = false;
       }
     });

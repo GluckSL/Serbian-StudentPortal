@@ -23,7 +23,7 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, enum: ["STUDENT", "TEACHER", "ADMIN", "TEACHER_ADMIN"], required: true },
-  subscription: { type: String, enum: ["SILVER", "PLATINUM"], required: function() { return this.role === "STUDENT"; } },
+  subscription: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: function() { return this.role === "STUDENT"; } },
   level: { type: String, enum: ["A1", "A2", "B1", "B2", "C1", "C2"], required: function() { return this.role === "STUDENT"; }},
   batch: { type: String, required: function() { return this.role === "STUDENT"; }},
   medium: { type: [String], required: function() { return this.role === "STUDENT" || this.role === "TEACHER"; }},
@@ -68,6 +68,9 @@ const UserSchema = new mongoose.Schema({
   },
   examRemark: { type: String, default: "", function() { return this.role === "STUDENT"; } },
   candidateStatus: { type: String, default: "", function() { return this.role === "STUDENT"; } },
+
+  /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
+  currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
 
   // ✅ move these inside schema
   courseProgress: [{

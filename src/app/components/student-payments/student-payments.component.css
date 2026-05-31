@@ -6,6 +6,8 @@
   flex-direction: column;
   gap: 12px;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 /* Card */
@@ -117,9 +119,12 @@
 
 /* Responsive */
 @media (max-width: 600px) {
+  .sp { padding: 10px; }
+  .sp-card { padding: 14px; }
   .sp-summary-grid { grid-template-columns: 1fr; }
   .sp-table-full { font-size: 11px; }
   .sp-table-full th, .sp-table-full td { padding: 6px 6px; }
+  .sp-pay-category__head { font-size: 12px; }
 }
 
 /* Empty message */

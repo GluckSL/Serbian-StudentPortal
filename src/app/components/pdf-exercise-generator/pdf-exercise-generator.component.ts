@@ -4,7 +4,7 @@ import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/co
 import { environment } from '../../../environments/environment';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
@@ -73,20 +73,26 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   currentStep: WizardStep = 1;
 
   // ── Step 1: Upload ──────────────────────────────────────────────────────────
+  inputMode: 'pdf' | 'text' = 'pdf';
   selectedFile: File | null = null;
   isDragging = false;
   uploading = false;
   uploadResult: any = null;
 
+  selectedText = '';
+  textInputResult: any = null;
+
   // ── Step 2: Configure ───────────────────────────────────────────────────────
   // typeCounts drives everything: selected = count > 0
   typeCounts: Record<string, number> = {
-    mcq: 5,
+    mcq: 0,
     matching: 0,
     'fill-blank': 0,
     pronunciation: 0,
     'question-answer': 0
   };
+  /** True when type counts were auto-detected from uploaded PDF. */
+  pdfDetectedTypes = false;
 
   targetLanguage = 'German';
   nativeLanguage = 'English';
@@ -108,6 +114,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   // Exercise metadata
   exerciseTitle = '';
   exerciseDescription = '';
+  /** Optional journey day 1–200; empty = general pool */
+  courseDayStr = '';
   visibleToStudents = false;
   saving = false;
 
@@ -130,10 +138,40 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   constructor(
     private exerciseService: DigitalExerciseService,
     private router: Router,
+    private route: ActivatedRoute,
     private snackBar: MatSnackBar
   ) {}
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    const q = this.route.snapshot.queryParamMap.get('courseDay');
+    if (q == null || q === '') return;
+    const p = parseInt(String(q).trim(), 10);
+    if (Number.isFinite(p) && p >= 1 && p <= 200) {
+      this.courseDayStr = String(p);
+    }
+  }
+
+  /** Number input binding for course day (empty = any day). */
+  get courseDayAsNumber(): number | null {
+    const t = this.courseDayStr.trim();
+    if (!t) return null;
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p)) return null;
+    return p;
+  }
+
+  onCourseDayNumberInput(v: number | string | null): void {
+    if (v === '' || v === null || v === undefined) {
+      this.courseDayStr = '';
+      return;
+    }
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) {
+      this.courseDayStr = '';
+      return;
+    }
+    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+  }
 
   ngOnDestroy(): void {
     this.clearProgressTimer();
@@ -176,6 +214,42 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.uploadResult = null;
   }
 
+  setInputMode(mode: 'pdf' | 'text'): void {
+    if (this.inputMode === mode) return;
+    this.inputMode = mode;
+
+    // Reset other mode state
+    this.selectedFile = null;
+    this.uploadResult = null;
+    this.isDragging = false;
+    this.uploading = false;
+
+    this.selectedText = '';
+    this.textInputResult = null;
+
+    if (this.fileInput?.nativeElement) this.fileInput.nativeElement.value = '';
+
+    this.pdfDetectedTypes = false;
+    // Worksheet-style documents are usually built from matching, fill-blank, and short answers.
+    if (mode === 'text') {
+      this.typeCounts = {
+        mcq: 0,
+        matching: 5,
+        'fill-blank': 5,
+        pronunciation: 0,
+        'question-answer': 5
+      };
+    } else {
+      this.typeCounts = {
+        mcq: 0,
+        matching: 0,
+        'fill-blank': 0,
+        pronunciation: 0,
+        'question-answer': 0
+      };
+    }
+  }
+
   uploadPdf(): void {
     if (!this.selectedFile) return;
     this.uploading = true;
@@ -184,6 +258,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.uploadResult = res;
         this.uploading = false;
+        this.applyDetectedTypes(res.detectedTypes);
       },
       error: (err) => {
         this.uploading = false;
@@ -195,7 +270,43 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   removeFile(): void {
     this.selectedFile = null;
     this.uploadResult = null;
+    this.pdfDetectedTypes = false;
+    this.typeCounts = { mcq: 0, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
     if (this.fileInput) this.fileInput.nativeElement.value = '';
+  }
+
+  private applyDetectedTypes(detected: Record<string, number> | undefined): void {
+    if (!detected) return;
+    const hasAny = Object.values(detected).some(v => Number(v) > 0);
+    if (!hasAny) {
+      // Fallback default when no pattern is detected in PDF.
+      this.typeCounts = { mcq: 5, matching: 0, 'fill-blank': 0, pronunciation: 0, 'question-answer': 0 };
+      this.pdfDetectedTypes = false;
+      return;
+    }
+    this.typeCounts = {
+      mcq: Number(detected['mcq']) || 0,
+      matching: Number(detected['matching']) || 0,
+      'fill-blank': Number(detected['fill-blank']) || 0,
+      pronunciation: Number(detected['pronunciation']) || 0,
+      'question-answer': Number(detected['question-answer']) || 0
+    };
+    this.pdfDetectedTypes = true;
+  }
+
+  readTextForPreview(): void {
+    const cleaned = (this.selectedText || '').trim();
+    if (cleaned.length < 20) {
+      this.showError('Please paste at least a few lines of text.');
+      return;
+    }
+    this.textInputResult = {
+      success: true,
+      totalChars: cleaned.length,
+      previewText: cleaned.substring(0, 2000),
+      hasContent: cleaned.length > 50,
+      filename: 'Pasted text'
+    };
   }
 
   formatFileSize(bytes: number): string {
@@ -225,7 +336,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         this.typeCounts[type] = 0;
       }
     } else {
-      this.typeCounts[type] = 5;
+      const detectedCount = this.uploadResult?.detectedTypes?.[type] as number | undefined;
+      this.typeCounts[type] = (detectedCount && detectedCount > 0) ? detectedCount : 5;
     }
   }
 
@@ -257,16 +369,27 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     this.currentProgressMsg = PROGRESS_MESSAGES[0];
     this.startProgressSimulation();
 
-    this.exerciseService.generateFromPdf({
-      uploadId: this.uploadResult.uploadId,
+    const payloadBase = {
       types: this.selectedTypes.length ? this.selectedTypes : ['mcq'],
-      typeCounts: { ...this.typeCounts },
       targetLanguage: this.targetLanguage,
       nativeLanguage: this.nativeLanguage,
       level: this.level,
       difficulty: this.difficulty,
       maxQuestions: this.maxQuestions
-    }).subscribe({
+    };
+
+    const gen$ = this.inputMode === 'pdf'
+      ? this.exerciseService.generateFromPdf({
+        uploadId: this.uploadResult.uploadId,
+        ...payloadBase,
+        typeCounts: { ...this.typeCounts }
+      })
+      : this.exerciseService.generateFromText({
+        text: (this.selectedText || '').trim(),
+        ...payloadBase
+      });
+
+    gen$.subscribe({
       next: (res) => {
         this.clearProgressTimer();
         this.progressPercent = 100;
@@ -475,6 +598,18 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       this.showError('Please add a title and ensure at least one valid question.');
       return;
     }
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.saving = false;
+        this.showError('Course day must be empty or a number from 1 to 200');
+        return;
+      }
+      courseDay = p;
+    }
+
     this.saving = true;
     const payload = {
       title: this.exerciseTitle.trim(),
@@ -484,6 +619,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       level: this.level as any,
       category: 'Grammar' as any,
       difficulty: this.difficulty,
+      courseDay,
       visibleToStudents: publish,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
         const { expanded, aiGenerated, ...rest } = q;
@@ -516,7 +652,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   }
 
   canProceedFrom(step: WizardStep): boolean {
-    if (step === 1) return !!this.uploadResult?.success;
+    if (step === 1) {
+      if (this.inputMode === 'pdf') return !!this.uploadResult?.success;
+      return !!this.textInputResult?.success;
+    }
     if (step === 2) return this.selectedTypes.length > 0 && this.maxQuestions > 0;
     return true;
   }

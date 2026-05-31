@@ -69,58 +69,138 @@
     </button>
   </div>
 
-  <!-- Tab: Exercise Info -->
-  <div class="tab-content" *ngIf="activeTab === 'info' && !loading">
-    <div class="info-grid">
-      <div class="field-group full">
-        <label class="field-label required">Exercise Title</label>
-        <input type="text" [(ngModel)]="title" class="field-input" placeholder="e.g. Present Tense Verb Conjugation" maxlength="120" />
-        <div class="char-count">{{ title.length }}/120</div>
-      </div>
-      <div class="field-group full">
-        <label class="field-label required">Description</label>
-        <textarea [(ngModel)]="description" class="field-input" rows="3" placeholder="What will students practice in this exercise?"></textarea>
-      </div>
-      <div class="field-group">
-        <label class="field-label required">Target Language</label>
-        <select [(ngModel)]="targetLanguage" class="field-input">
-          <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label">Native Language</label>
-        <select [(ngModel)]="nativeLanguage" class="field-input">
-          <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label required">CEFR Level</label>
-        <select [(ngModel)]="level" class="field-input">
-          <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label required">Category</label>
-        <select [(ngModel)]="category" class="field-input">
-          <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label">Difficulty</label>
-        <select [(ngModel)]="difficulty" class="field-input">
-          <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label">Estimated Duration (min)</label>
-        <input type="number" [(ngModel)]="estimatedDuration" class="field-input" min="1" max="120" />
-      </div>
-      <div class="field-group full">
-        <label class="field-label">Tags (comma-separated)</label>
-        <input type="text" [(ngModel)]="tags" class="field-input" placeholder="e.g. verbs, present-tense, beginners" />
-      </div>
+  <!-- Tab: Exercise Info — single dense sheet, full width -->
+  <div class="tab-content tab-content--info" *ngIf="activeTab === 'info' && !loading">
+    <div class="info-card info-card--full">
+      <section class="info-section info-section--sheet">
+        <div class="info-sheet-head">
+          <h2 class="info-section__title info-section__title--inline">Exercise info</h2>
+          <span class="info-sheet-head__hint">Shown to students · use journey day to schedule unlocks</span>
+        </div>
+
+        <div class="info-grid info-grid--top">
+          <div class="field-group field-group--title">
+            <label class="field-label required" for="ex-title">Title</label>
+            <div class="field-input-wrap">
+              <input
+                id="ex-title"
+                type="text"
+                [(ngModel)]="title"
+                class="field-input field-input--sm"
+                placeholder="e.g. Present tense practice"
+                maxlength="120"
+                autocomplete="off"
+              />
+            </div>
+            <div class="char-count char-count--inline">{{ title.length }}/120</div>
+          </div>
+          <div class="field-group field-group--daybox">
+            <label class="field-label field-label--day" for="ex-course-day">
+              <span class="material-icons" aria-hidden="true">event_note</span>
+              Journey day (1–200)
+            </label>
+            <div class="field-input-wrap field-input-wrap--day field-input-wrap--day--prominent">
+              <input
+                id="ex-course-day"
+                type="number"
+                class="field-input field-input--day"
+                min="1"
+                max="200"
+                step="1"
+                [ngModel]="courseDayAsNumber"
+                (ngModelChange)="onCourseDayNumberInput($event)"
+                placeholder="Any"
+                autocomplete="off"
+                title="Empty = general pool; number = visible from that day onward"
+              />
+              <span class="day-suffix" aria-hidden="true">/200</span>
+            </div>
+          </div>
+          <div class="field-group field-group--desc">
+            <label class="field-label required" for="ex-desc">Description</label>
+            <div class="field-input-wrap">
+              <textarea
+                id="ex-desc"
+                [(ngModel)]="description"
+                class="field-input field-input--desc field-input--sm"
+                rows="2"
+                placeholder="What students practice"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-grid info-grid--settings">
+          <div class="field-group">
+            <label class="field-label required" for="ex-target-lang">Target</label>
+            <select id="ex-target-lang" [(ngModel)]="targetLanguage" class="field-input field-input--select field-input--sm">
+              <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="ex-native-lang">Native</label>
+            <select id="ex-native-lang" [(ngModel)]="nativeLanguage" class="field-input field-input--select field-input--sm">
+              <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label required" for="ex-cefr">CEFR</label>
+            <select id="ex-cefr" [(ngModel)]="level" class="field-input field-input--select field-input--sm">
+              <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label required" for="ex-cat">Category</label>
+            <select id="ex-cat" [(ngModel)]="category" class="field-input field-input--select field-input--sm">
+              <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="ex-diff">Difficulty</label>
+            <select id="ex-diff" [(ngModel)]="difficulty" class="field-input field-input--select field-input--sm">
+              <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="ex-dur">Min</label>
+            <input
+              id="ex-dur"
+              type="number"
+              [(ngModel)]="estimatedDuration"
+              class="field-input field-input--number field-input--sm"
+              min="1"
+              max="120"
+            />
+          </div>
+          <div class="field-group field-group--tags">
+            <label class="field-label" for="ex-tags">Tags <span class="label-optional">opt.</span></label>
+            <input
+              id="ex-tags"
+              type="text"
+              [(ngModel)]="tags"
+              class="field-input field-input--sm"
+              placeholder="verbs, grammar, …"
+            />
+          </div>
+        </div>
+
+        <div class="info-alt-row">
+          <span class="info-alt-row__label">From files</span>
+          <button type="button" class="btn-alt btn-alt--ai" (click)="navigateToAiGenerator()">
+            <span class="material-icons">auto_awesome</span>
+            AI (PDF)
+          </button>
+          <button type="button" class="btn-alt btn-alt--audio" (click)="navigateToListeningGenerator()">
+            <span class="material-icons">headphones</span>
+            Audio + PDF
+          </button>
+          <span class="info-alt-row__pill" *ngIf="courseDayStr.trim()">Uses day {{ courseDayStr.trim() }}</span>
+          <span class="info-alt-row__pill info-alt-row__pill--muted" *ngIf="!courseDayStr.trim()">No day → wizards optional</span>
+          <span class="info-alt-row__warn" *ngIf="isEditMode">Save/cancel before leaving.</span>
+        </div>
+      </section>
     </div>
-    <div class="tab-nav-footer">
+    <div class="tab-nav-footer tab-nav-footer--info">
       <div></div>
       <button class="btn-next" (click)="activeTab = 'questions'" [disabled]="!isInfoValid()">
         Next: Add Questions <span class="material-icons">arrow_forward</span>

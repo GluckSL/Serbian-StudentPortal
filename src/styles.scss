@@ -3,6 +3,9 @@
 @use '@angular/material' as mat;
 @use 'sass:map';
 
+/* Shepherd.js tour styles */
+@import 'shepherd.js/dist/css/shepherd.css';
+
 /* ============================= */
 /* Angular Material Theme Setup  */
 /* ============================= */
@@ -183,4 +186,78 @@ button:disabled,
   font-weight: 600;
   color: #2c3e50;
   margin-bottom: 1rem;
+}
+
+/* Glück Tour Custom Styles */
+.shepherd-modal-overlay-container { z-index: 10000 !important; }
+.shepherd-element { z-index: 10001 !important; }
+
+.gluck-tour-step .shepherd-content {
+  border-radius: 14px !important;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2) !important;
+  border: 1px solid #e8ecf4 !important;
+  padding: 0 !important;
+}
+
+.gluck-tour-step .shepherd-text {
+  padding: 18px 20px !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
+.gluck-tour-step .shepherd-header {
+  display: none !important;
+}
+
+.gluck-tour-step .shepherd-footer {
+  padding: 0 20px 16px !important;
+  border-top: none !important;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.gluck-tour-step .shepherd-button {
+  background: #005b96 !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 8px 16px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+}
+
+.gluck-tour-step .shepherd-button:hover {
+  background: #03396c !important;
+}
+
+.gluck-tour-step .shepherd-button-secondary {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+}
+
+.gluck-tour-step .shepherd-button-secondary:hover {
+  background: #e2e8f0 !important;
+}
+
+.gluck-tour-step .shepherd-cancel-icon {
+  color: #94a3b8 !important;
+  font-size: 20px !important;
+}
+
+.gluck-tour-step .shepherd-cancel-icon:hover {
+  color: #334155 !important;
+}
+
+.shepherd-arrow::before {
+  background: #fff !important;
+  border: 1px solid #e8ecf4 !important;
+}
+
+@media (max-width: 768px) {
+  .shepherd-element { max-width: 90vw !important; }
+  .gluck-tour-step .shepherd-content { max-width: 90vw !important; }
+  .gluck-tour-step .shepherd-text { padding: 14px 16px !important; }
+  .gluck-tour-step .shepherd-footer { padding: 0 16px 12px !important; }
 }

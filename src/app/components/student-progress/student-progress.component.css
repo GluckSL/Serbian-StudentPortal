@@ -8,6 +8,8 @@
   flex-direction: column;
   gap: 12px;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 /* ── Card ── */
@@ -63,11 +65,72 @@
 .sp-badge--green { background: #dcfce7; color: #166534; }
 .sp-badge--gray  { background: #f1f5f9; color: #64748b; }
 
-/* ═══ ROWS ═══ */
-.sp-row--top    { display: grid; grid-template-columns: 1.7fr 1fr; gap: 12px; }
-.sp-row--mid    { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; }
-.sp-row--bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.sp-row--triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+/* ═══ SECTIONS ═══ */
+.sp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sp-section__title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  padding: 2px 0;
+}
+
+.sp-section__grid--learning {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.sp-section__grid--learning .sp-card--wide {
+  grid-column: 1 / -1;
+}
+
+.sp-section__grid--two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Inline status grid inside profile card */
+.sp-status-grid.sp-status-grid--inline {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Learning quick stats row */
+.sp-status-grid.sp-status-grid--learning-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .sp-section__grid--learning {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .sp-section__grid--learning .sp-card--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .sp-section__grid--two { grid-template-columns: 1fr; }
+  .sp-status-grid.sp-status-grid--inline { grid-template-columns: repeat(3, 1fr); }
+  .sp { padding: 10px; }
+  .sp-card { padding: 12px 14px; }
+  .sp-table td { font-size: 11px; padding: 4px 6px; }
+  .sp-table__label { font-size: 9px; width: 70px; }
+  .sp-levels { flex-wrap: wrap; }
+  .sp-level { min-width: 0; font-size: 10px; padding: 3px 0; }
+  .sp-level-detail { flex-wrap: wrap; gap: 4px; padding: 5px 8px; }
+  .sp-level-detail__info { flex-basis: 100%; }
+}
 
 /* ── Profile table ── */
 .sp-table {
@@ -199,6 +262,61 @@
 .sp-bar__fill--purple { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
 
 .sp-small-text { font-size: 10px; color: #94a3b8; margin-top: 4px; }
+
+/* ── Level completion details ── */
+.sp-level-details { display: flex; flex-direction: column; gap: 6px; }
+
+.sp-level-detail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+}
+
+.sp-level-detail__lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  min-width: 24px;
+}
+
+.sp-level-detail__info {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.sp-level-detail__dates {
+  font-size: 11px;
+  color: #475569;
+}
+
+.sp-level-detail__na {
+  font-size: 11px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.sp-level-detail__days {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  min-width: 80px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sp-level-detail__days--done {
+  color: #16a34a;
+}
+
+.sp-level-detail__days--active {
+  color: #1d4ed8;
+}
 
 /* ── Invoice table ── */
 .sp-invoice-table {
@@ -532,14 +650,13 @@
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
-  .sp-row--top,
-  .sp-row--mid,
-  .sp-row--bottom { grid-template-columns: 1fr; }
-  .sp-row--triple { grid-template-columns: 1fr; }
+  .sp-section__grid--two { grid-template-columns: 1fr; }
+  .sp-section__grid--learning { grid-template-columns: 1fr; }
+  .sp-status-grid.sp-status-grid--inline { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (min-width: 901px) and (max-width: 1100px) {
-  .sp-row--triple { grid-template-columns: 1fr 1fr; }
+  .sp-status-grid.sp-status-grid--inline { grid-template-columns: repeat(3, 1fr); }
 }
 
 .sp-visa-link {

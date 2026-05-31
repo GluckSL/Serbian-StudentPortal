@@ -40,13 +40,45 @@
   <!-- ════════════════════════════════════════════════════════════════════════ -->
   <div class="step-panel" *ngIf="currentStep === 1">
     <div class="step-header">
-      <div class="step-icon-wrap"><span class="material-icons step-icon">upload_file</span></div>
+      <div class="step-icon-wrap">
+        <span class="material-icons step-icon">{{ inputMode === 'pdf' ? 'upload_file' : 'content_paste' }}</span>
+      </div>
       <div>
-        <h2>Upload Your PDF</h2>
-        <p>Upload a PDF with exercises or learning content. We'll extract the text and convert it into interactive exercises.</p>
+        <h2>{{ inputMode === 'pdf' ? 'Upload Your PDF' : 'Paste Your Text' }}</h2>
+        <p>
+          {{
+            inputMode === 'pdf'
+              ? 'Upload a PDF with exercises or learning content. We\'ll extract the text and convert it into interactive exercises.'
+              : 'Paste a worksheet/document text. We\'ll convert it into interactive exercises using the same patterns.'
+          }}
+        </p>
       </div>
     </div>
 
+    <!-- Input mode toggle (PDF vs Copy/Paste text) -->
+    <div class="input-mode-toggle">
+      <button
+        type="button"
+        class="mode-card"
+        [class.active]="inputMode === 'pdf'"
+        (click)="setInputMode('pdf')"
+      >
+        <span class="material-icons">picture_as_pdf</span>
+        Upload PDF
+      </button>
+      <button
+        type="button"
+        class="mode-card"
+        [class.active]="inputMode === 'text'"
+        (click)="setInputMode('text')"
+      >
+        <span class="material-icons">content_paste</span>
+        Paste Text
+      </button>
+    </div>
+
+    <!-- PDF input -->
+    <div *ngIf="inputMode === 'pdf'">
     <!-- Drop Zone -->
     <div class="drop-zone"
       [class.dragging]="isDragging"
@@ -114,6 +146,53 @@
       </button>
     </div>
 
+    </div>
+
+    <!-- Text input (copy/paste) -->
+    <div *ngIf="inputMode === 'text'" class="text-input-wrap">
+      <div class="text-drop-like">
+        <textarea
+          class="text-input-area"
+          rows="12"
+          [(ngModel)]="selectedText"
+          placeholder="Paste your worksheet/document text here (include the exercises + the answer key at the end)..."
+          (input)="textInputResult = null"
+        ></textarea>
+        <div class="text-help-row">
+          <span class="text-help-muted">Tip: paste at least 1-2 paragraphs + solution key</span>
+          <span class="text-help-counter">{{ (selectedText?.length || 0) }} chars</span>
+        </div>
+      </div>
+
+      <div class="upload-action" *ngIf="selectedText.trim().length > 0 && !textInputResult">
+        <button class="btn-upload" type="button" (click)="readTextForPreview()">
+          <span class="material-icons">search</span>
+          Preview &amp; Enable Generate
+          <div class="upload-spinner" *ngIf="false"></div>
+        </button>
+      </div>
+
+      <div class="upload-result" *ngIf="textInputResult">
+        <div class="result-success">
+          <span class="material-icons">check_circle</span>
+          <strong>Text ready!</strong>
+        </div>
+        <div class="result-stats">
+          <span><span class="material-icons">format_align_left</span> ~{{ textInputResult.totalChars.toLocaleString() }} characters</span>
+          <span *ngIf="!textInputResult.hasContent" class="warn-text">
+            <span class="material-icons">warning</span> Text is short — generation may be limited
+          </span>
+        </div>
+        <div class="text-preview">
+          <div class="preview-label">Text preview:</div>
+          <pre class="preview-text">{{ textInputResult.previewText }}</pre>
+        </div>
+        <button class="btn-change-file" type="button" (click)="selectedText=''; textInputResult=null;">
+          <span class="material-icons">close</span> Clear text
+        </button>
+      </div>
+    </div>
+
     <div class="step-footer">
       <button class="btn-cancel" (click)="cancel()">Cancel</button>
       <button class="btn-primary" (click)="next()" [disabled]="!canProceedFrom(1)">
@@ -134,10 +213,29 @@
       </div>
     </div>
 
+    <!-- Detected-from-PDF banner -->
+    <div class="detected-banner" *ngIf="pdfDetectedTypes">
+      <span class="material-icons detected-banner-icon">auto_fix_high</span>
+      <div class="detected-banner-text">
+        <strong>Question types detected from your PDF!</strong>
+        <span>Counts have been pre-filled based on what was found. Adjust them below if needed.</span>
+      </div>
+    </div>
+    <div class="detected-banner detected-banner-default" *ngIf="!pdfDetectedTypes && uploadResult">
+      <span class="material-icons detected-banner-icon">info</span>
+      <div class="detected-banner-text">
+        <strong>No existing questions detected.</strong>
+        <span>AI will generate new questions from your PDF content. Toggle types and set counts below.</span>
+      </div>
+    </div>
+
     <!-- Exercise Types — table layout -->
     <div class="config-section">
       <h3 class="config-label">Exercise Types <span class="required">*</span></h3>
-      <p class="config-hint">Toggle each type and set how many questions AI should generate for it.</p>
+      <p class="config-hint" *ngIf="pdfDetectedTypes">
+        Counts were <strong>auto-detected from your PDF</strong> — toggle types on/off and adjust counts as needed.
+      </p>
+      <p class="config-hint" *ngIf="!pdfDetectedTypes">Toggle each type and set how many questions AI should generate for it.</p>
 
       <div class="type-table">
         <!-- Header -->
@@ -159,7 +257,14 @@
               <span class="material-icons">{{ qt.icon }}</span>
             </div>
             <div class="tt-info">
-              <span class="tt-name">{{ qt.label }}</span>
+              <span class="tt-name">
+                {{ qt.label }}
+                <span
+                  class="detected-badge"
+                  *ngIf="pdfDetectedTypes && (uploadResult?.detectedTypes?.[qt.value] ?? 0) > 0"
+                  title="Detected in PDF"
+                >PDF</span>
+              </span>
               <span class="tt-desc">{{ qt.desc }}</span>
             </div>
           </div>
@@ -253,7 +358,34 @@
       </div>
     </div>
 
-    <!-- Number of questions is now driven by per-type counts above — no extra section needed -->
+    <!-- When this exercise becomes visible on the student journey -->
+    <div class="config-section journey-day-section">
+      <h3 class="config-label journey-day-heading">
+        <span class="material-icons journey-day-icon">event_note</span>
+        Course day (200-day journey)
+      </h3>
+      <p class="config-hint journey-day-lead">
+        Enter the day this pack is for (for example <strong>20</strong>). When a student reaches day 20, this exercise becomes available to them (together with level and publish rules). Leave empty if it is not tied to a specific day.
+      </p>
+      <div class="journey-day-row">
+        <label class="visually-hidden" for="pdf-step2-course-day">Day number 1 to 200</label>
+        <div class="journey-day-input-wrap">
+          <input
+            id="pdf-step2-course-day"
+            type="number"
+            class="journey-day-num-input"
+            min="1"
+            max="200"
+            step="1"
+            [ngModel]="courseDayAsNumber"
+            (ngModelChange)="onCourseDayNumberInput($event)"
+            placeholder="e.g. 20"
+            autocomplete="off"
+          />
+          <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
+        </div>
+      </div>
+    </div>
 
     <div class="step-footer">
       <button class="btn-secondary" (click)="back()">
@@ -305,6 +437,9 @@
         <span *ngFor="let t of selectedTypes; let i = index">{{ getTypeInfo(t).label }}{{ i < selectedTypes.length - 1 ? ', ' : '' }}</span>
         &nbsp;·&nbsp;
         {{ level }} · {{ targetLanguage }} · {{ maxQuestions }} questions
+        <ng-container *ngIf="courseDayAsNumber !== null">
+          &nbsp;·&nbsp;<span class="config-summary-day"><span class="material-icons">event_note</span> Day {{ courseDayStr.trim() }}</span>
+        </ng-container>
       </div>
     </div>
 
@@ -363,6 +498,25 @@
           <select [(ngModel)]="targetLanguage" class="meta-select">
             <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
           </select>
+        </div>
+        <div class="meta-field meta-field--journey">
+          <label class="meta-label" for="pdf-step4-course-day">Course day (1–200)</label>
+          <div class="journey-day-input-wrap journey-day-input-wrap--meta">
+            <input
+              id="pdf-step4-course-day"
+              type="number"
+              class="journey-day-num-input"
+              min="1"
+              max="200"
+              step="1"
+              [ngModel]="courseDayAsNumber"
+              (ngModelChange)="onCourseDayNumberInput($event)"
+              placeholder="Optional"
+              autocomplete="off"
+            />
+            <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
+          </div>
+          <p class="meta-hint">Same value as in Configure. Students see this exercise from this day onward; empty = general pool.</p>
         </div>
         <div class="meta-field">
           <label class="meta-label">

@@ -214,6 +214,12 @@ const LearningModuleSchema = new mongoose.Schema({
   
   tags: [String],
   
+  /**
+   * Optional: day in the 200-day course when this module is assigned.
+   * Omit or null = general pool.
+   */
+  courseDay: { type: Number, default: null, min: 1, max: 200 },
+  
   // Update history for admin tracking
   updateHistory: [{
     updatedBy: {

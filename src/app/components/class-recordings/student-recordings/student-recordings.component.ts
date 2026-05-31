@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -13,6 +13,9 @@ import { ClassRecordingsService, ClassRecording } from '../../../services/class-
   styleUrls: ['./student-recordings.component.css']
 })
 export class StudentRecordingsComponent implements OnInit, OnDestroy {
+  /** When true, hides the page header (e.g. inside My Course). */
+  @Input() embedded = false;
+
   recordings: ClassRecording[] = [];
   filteredRecordings: ClassRecording[] = [];
   loading = false;

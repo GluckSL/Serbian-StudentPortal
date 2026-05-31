@@ -135,7 +135,6 @@ const AiTutorSessionSchema = new mongoose.Schema({
 // Indexes for performance
 AiTutorSessionSchema.index({ studentId: 1, createdAt: -1 });
 AiTutorSessionSchema.index({ moduleId: 1, status: 1 });
-AiTutorSessionSchema.index({ sessionId: 1 });
 AiTutorSessionSchema.index({ studentId: 1, moduleId: 1, status: 1 });
 
 // Update timestamps

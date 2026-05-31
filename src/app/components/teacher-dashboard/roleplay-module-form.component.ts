@@ -3,6 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import * as Papa from 'papaparse';
 import { HttpClient } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -89,6 +90,16 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                     <small class="form-text text-muted">
                       ⏱️ Minimum time required to complete this module (5-60 min)
                       <br><strong>Suggestions:</strong> Quick (5-8 min) | Standard (10-15 min) | Complex (15-20 min)
+                    </small>
+                  </div>
+
+                  <!-- Course Day -->
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Course Day (Optional)</label>
+                    <input type="number" class="form-control" formControlName="courseDay" 
+                           min="1" max="200" placeholder="e.g., 45">
+                    <small class="form-text text-muted">
+                      📅 Day in the 200-day course journey (1–200). Leave empty for general pool.
                     </small>
                   </div>
                 </div>
@@ -425,6 +436,16 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
                   <div class="col-12">
                     <h5 class="border-bottom pb-2">💬 Conversation Flow (Optional)</h5>
                     <p class="text-muted">Define the expected flow of the conversation</p>
+                    <div class="mb-2 d-flex gap-2">
+                      <input type="file" accept=".csv" #flowCsvInput hidden (change)="onConversationFlowCsvUpload($event)">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="flowCsvInput.click()">
+                        <i class="fas fa-file-csv me-1"></i> Import from CSV
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="downloadConversationFlowTemplate()">
+                        <i class="fas fa-download me-1"></i> CSV Template
+                      </button>
+                      <small class="text-muted align-self-center">Format: stage, aiPrompts, expectedResponses, helpfulPhrases (semicolon-separated within columns)</small>
+                    </div>
                   </div>
                   
                   <div class="col-12 mb-3">
@@ -509,13 +530,49 @@ import { ModuleDataTransferService } from '../../services/module-data-transfer.s
     </div>
   `,
   styles: [`
-    .vocabulary-list, .grammar-list, .flow-list {
-      max-height: 300px;
-      overflow-y: auto;
+    :host { display: block; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .container-fluid { max-width: 1100px; }
+
+    .card { border: 1px solid #e8ecf4; border-radius: 14px; box-shadow: 0 2px 12px rgba(15,23,42,0.07); overflow: hidden; }
+    .card:hover { transform: none; box-shadow: 0 2px 12px rgba(15,23,42,0.07); }
+    .card-header { background: #b3cde0; border-bottom: none; padding: 14px 18px; }
+    .card-header h4 { font-size: 15px; font-weight: 700; color: #011f4b; }
+    .card-body { padding: 18px; }
+
+    h5 { font-size: 13px; font-weight: 700; color: #011f4b; }
+    .form-label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+    .form-control, .form-select {
+      border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px;
+      font-size: 13px; background: #f8fafc; color: #1e293b; transition: border 0.15s;
     }
-    .border {
-      border-color: #dee2e6 !important;
-    }
+    .form-control:focus, .form-select:focus { border-color: #005b96; box-shadow: 0 0 0 2px rgba(0,91,150,0.08); background: #fff; }
+    textarea.form-control { font-size: 13px; }
+
+    .btn { font-size: 11px; font-weight: 600; border-radius: 8px; padding: 7px 14px; }
+    .btn-primary { background: #005b96; border-color: #005b96; }
+    .btn-primary:hover { background: #03396c; border-color: #03396c; }
+    .btn-secondary { background: #6497b1; border-color: #6497b1; color: #fff; }
+    .btn-secondary:hover { background: #005b96; border-color: #005b96; }
+    .btn-success { background: #28a745; border-color: #28a745; }
+    .btn-success:hover { background: #1e7e34; }
+    .btn-outline-primary { color: #005b96; border-color: #005b96; }
+    .btn-outline-primary:hover { background: #005b96; color: #fff; }
+    .btn-outline-danger { color: #e11d48; border-color: #e11d48; }
+    .btn-outline-danger:hover { background: #ffe0e6; color: #e11d48; }
+    .btn-outline-secondary { color: #64748b; border-color: #e2e8f0; }
+    .btn-outline-secondary:hover { background: #f1f5f9; }
+
+    .badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; }
+    .text-muted { color: #94a3b8 !important; font-size: 11px; }
+    .border { border-color: #e8ecf4 !important; }
+    .border-bottom { border-color: #f1f5f9 !important; }
+    .rounded { border-radius: 10px !important; }
+    .p-3 { padding: 14px !important; }
+
+    .vocabulary-list, .grammar-list, .flow-list { max-height: 300px; overflow-y: auto; }
+
+    h6 { font-size: 12px; font-weight: 600; color: #011f4b; }
+    small { font-size: 11px; }
   `]
 })
 export class RoleplayModuleFormComponent implements OnInit {
@@ -604,7 +661,8 @@ export class RoleplayModuleFormComponent implements OnInit {
         aiRole: ['', Validators.required],
         setting: [''],
         objective: ['']
-      })
+      }),
+      courseDay: [null, [Validators.min(1), Validators.max(200)]]
     });
   }
 
@@ -725,6 +783,45 @@ export class RoleplayModuleFormComponent implements OnInit {
 
   removeConversationFlow(index: number): void {
     this.conversationFlow.splice(index, 1);
+  }
+
+  onConversationFlowCsvUpload(event: any): void {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result: any) => {
+        const rows = result.data || [];
+        let added = 0;
+        rows.forEach((row: any) => {
+          const stage = (row['stage'] || row['Stage'] || '').trim();
+          if (!stage) return;
+          const split = (val: string) => val ? val.split(';').map((s: string) => s.trim()).filter((s: string) => s) : [];
+          this.conversationFlow.push({
+            stage,
+            aiPrompts: split(row['aiPrompts'] || row['AI Prompts'] || ''),
+            expectedResponses: split(row['expectedResponses'] || row['Expected Responses'] || ''),
+            helpfulPhrases: split(row['helpfulPhrases'] || row['Helpful Phrases'] || '')
+          });
+          added++;
+        });
+        alert(`Imported ${added} conversation flow stages from CSV.`);
+      },
+      error: () => alert('Failed to parse CSV file')
+    });
+    event.target.value = '';
+  }
+
+  downloadConversationFlowTemplate(): void {
+    const headers = ['stage', 'aiPrompts', 'expectedResponses', 'helpfulPhrases'];
+    const sample = ['greeting', 'Guten Tag! Was möchten Sie?; Willkommen!', 'Ich möchte bitte...; Ein Bier bitte', 'Guten Tag; Bitte; Danke'];
+    const csv = [headers, sample].map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'conversation-flow-template.csv'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   addAiOpeningLine(): void {
@@ -895,6 +992,7 @@ export class RoleplayModuleFormComponent implements OnInit {
       category: module.category || 'Conversation',
       difficulty: module.difficulty || 'Beginner',
       minimumCompletionTime: Math.min(60, Math.max(5, module.minimumCompletionTime || 10)), // ✅ Clamp to valid range
+      courseDay: module.courseDay || null,
       rolePlayScenario: {
         situation: module.content?.rolePlayScenario?.situation || '',
         studentRole: module.content?.rolePlayScenario?.studentRole || '',

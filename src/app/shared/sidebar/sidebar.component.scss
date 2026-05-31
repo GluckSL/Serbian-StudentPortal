@@ -18,11 +18,10 @@
   padding: 14px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
-.sidebar-logo {
-  width: 32px; height: 32px;
+.sidebar-logo-img {
+  width: 36px; height: 36px;
   border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 16px; color: #fff;
+  object-fit: contain;
   flex-shrink: 0;
 }
 .brand-name { font-size: 14px; font-weight: 700; color: #fff; }
@@ -86,6 +85,14 @@
 .profile-info { flex: 1; }
 .profile-name { font-size: 12px; font-weight: 500; color: #fff; }
 .profile-role { font-size: 10px; color: rgba(255,255,255,0.45); text-transform: capitalize; }
+
+.tour-btn {
+  width: 100%; margin-top: 6px; padding: 8px; border-radius: 8px;
+  border: none; background: rgba(59,130,246,0.12); color: #3b82f6;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+}
+.tour-btn:hover { background: rgba(59,130,246,0.22); }
 
 .logout-btn {
   width: 100%; margin-top: 6px; padding: 8px; border-radius: 8px;

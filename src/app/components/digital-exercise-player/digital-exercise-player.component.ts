@@ -11,6 +11,8 @@ import {
 import { environment } from '../../../environments/environment';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
+import { AuthService } from '../../services/auth.service';
+import { take } from 'rxjs/operators';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
@@ -56,6 +58,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   playerQuestions: PlayerQuestion[] = [];
   currentIndex = 0;
   submitting = false;
+  showFinishSummary = false;
+  finishingAll = false;
 
   startTime = 0;
   elapsedSeconds = 0;
@@ -63,8 +67,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   result: SubmitResult | null = null;
 
-  /** Synced with state so template can use it inside *ngIf="state === 'playing'" without type overlap error. */
-  isSubmittedState = false;
+  /** True when current question has been submitted (for per-question feedback). */
+  get hasCurrentSubmitted(): boolean {
+    const pq = this.currentQuestion;
+    return pq ? (pq.isCorrect === true || pq.isCorrect === false) : false;
+  }
 
   // Speech recognition
   private recognition: any = null;
@@ -75,7 +82,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     public exerciseService: DigitalExerciseService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -101,8 +109,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       next: (exercise) => {
         this.exercise = exercise;
         this.initPlayerQuestions();
-        this.isSubmittedState = false;
-        this.state = 'intro';
+        // Start immediately when user clicks "Start" from the list page.
+        this.startExercise();
       },
       error: () => { this.state = 'error'; }
     });
@@ -147,11 +155,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.currentIndex = 0;
         this.startTime = Date.now();
         this.startTimer();
-        this.isSubmittedState = false;
         this.state = 'playing';
       },
       error: (err) => {
         this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });
+        this.state = 'error';
       }
     });
   }
@@ -164,8 +172,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   get isFirstQuestion(): boolean { return this.currentIndex === 0; }
   get isLastQuestion(): boolean { return this.currentIndex === this.playerQuestions.length - 1; }
-  get answeredCount(): number { return this.playerQuestions.filter(q => this.isQuestionAnswered(q)).length; }
+  get answeredCount(): number { return this.playerQuestions.filter(q => q.isAnswered === true).length; }
   get totalPoints(): number { return this.playerQuestions.reduce((s, q) => s + (q.data.points || 1), 0); }
+  get unattemptedCount(): number { return this.playerQuestions.length - this.answeredCount; }
+
+  get correctCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true).length; }
+  get wrongCount(): number { return this.playerQuestions.filter(q => q.isCorrect === false).length; }
+  get unansweredCount(): number { return this.playerQuestions.filter(q => q.isCorrect !== true && q.isCorrect !== false).length; }
+  get submittedCount(): number { return this.playerQuestions.filter(q => q.isCorrect === true || q.isCorrect === false).length; }
+  get pendingCount(): number { return this.playerQuestions.length - this.submittedCount; }
+  /** Backward-compatible alias used by older template fragments. */
+  get isSubmittedState(): boolean { return this.state === 'submitted'; }
 
   prevQuestion(): void { if (this.currentIndex > 0) this.currentIndex--; }
 
@@ -193,6 +210,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   selectOption(pq: PlayerQuestion, index: number): void {
     if (this.state === 'submitted') return;
     pq.selectedOption = index;
+    this.markAttempted(pq);
   }
 
   // ─── Matching Interaction ─────────────────────────────────────────────────────
@@ -204,6 +222,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     pq.selectedLeftIndex = index;
+    this.markAttempted(pq);
   }
 
   selectRight(pq: PlayerQuestion, rightIndex: number): void {
@@ -217,6 +236,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.matchingLeft![leftIndex].matchedRightIndex = rightIndex;
     pq.matchingRight![rightIndex].matchedLeftIndex = leftIndex;
     pq.selectedLeftIndex = null;
+    this.markAttempted(pq);
   }
 
   unmatchLeft(pq: PlayerQuestion, leftIndex: number): void {
@@ -238,6 +258,23 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   getMatchedRightValue(pq: PlayerQuestion, leftIndex: number): string {
     const ri = pq.matchingLeft![leftIndex].matchedRightIndex;
     return ri !== null && ri !== undefined ? pq.matchingRight![ri].value : '';
+  }
+
+  getLeftMatchClass(pq: PlayerQuestion, leftIndex: number): string {
+    const rightIndex = pq.matchingLeft?.[leftIndex]?.matchedRightIndex;
+    if (rightIndex === null || rightIndex === undefined || rightIndex < 0) return '';
+    return this.getMatchColorClass(leftIndex);
+  }
+
+  getRightMatchClass(pq: PlayerQuestion, rightIndex: number): string {
+    const leftIndex = pq.matchingRight?.[rightIndex]?.matchedLeftIndex;
+    if (leftIndex === null || leftIndex === undefined || leftIndex < 0) return '';
+    return this.getMatchColorClass(leftIndex);
+  }
+
+  private getMatchColorClass(leftIndex: number): string {
+    const palette = ['pair-1', 'pair-2', 'pair-3', 'pair-4', 'pair-5', 'pair-6', 'pair-7', 'pair-8'];
+    return palette[leftIndex % palette.length];
   }
 
   // ─── Pronunciation Interaction ────────────────────────────────────────────────
@@ -288,6 +325,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.pronunciationScore = score;
       pq.hasRecorded = true;
       pq.isRecording = false;
+      this.markAttempted(pq);
     };
 
     this.recognition.onerror = (event: any) => {
@@ -360,53 +398,181 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return dp[a.length][b.length];
   }
 
-  // ─── Submit ───────────────────────────────────────────────────────────────────
+  // ─── Submit (per-question) ──────────────────────────────────────────────────────
 
-  submitExercise(): void {
+  submitCurrentQuestion(): void {
     if (this.submitting) return;
 
-    const unanswered = this.playerQuestions.filter(q => !this.isQuestionAnswered(q));
-    if (unanswered.length > 0) {
-      const confirmed = confirm(`You have ${unanswered.length} unanswered question(s). Submit anyway?`);
-      if (!confirmed) return;
+    const pq = this.currentQuestion;
+    if (!this.isQuestionAnswered(pq)) {
+      this.snackBar.open('Please answer the question before submitting.', 'Close', { duration: 3000 });
+      return;
     }
 
     this.submitting = true;
-    this.stopTimer();
+    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
 
-    const responses: QuestionResponse[] = this.playerQuestions.map((pq, i) => {
+    const resp: QuestionResponse = { questionIndex: this.currentIndex };
+    if (pq.data.type === 'mcq') {
+      resp.selectedOptionIndex = pq.selectedOption;
+    } else if (pq.data.type === 'matching') {
+      resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
+        leftIndex: li,
+        rightIndex: l.matchedRightIndex ?? -1
+      }));
+    } else if (pq.data.type === 'fill-blank') {
+      resp.fillBlankResponses = pq.fillAnswers || [];
+    } else if (pq.data.type === 'pronunciation') {
+      resp.spokenText = pq.spokenText || '';
+      resp.pronunciationScore = pq.pronunciationScore || 0;
+    } else if (pq.data.type === 'question-answer') {
+      resp.qaResponse = pq.qaResponse || '';
+    } else if (pq.data.type === 'listening') {
+      resp.listeningText = pq.listeningText || '';
+    }
+
+    this.exerciseService.submitQuestion(
+      this.exerciseId,
+      this.attemptId,
+      this.currentIndex,
+      resp,
+      this.elapsedSeconds
+    ).subscribe({
+      next: (res) => {
+        pq.isCorrect = res.isCorrect;
+        pq.feedback = this.buildFeedbackFromCorrectAnswer(pq.data, res.correctAnswer, pq);
+        if (pq.data.type === 'fill-blank' && res.correctAnswer?.answers) {
+          pq.data._correctAnswers = res.correctAnswer.answers;
+        }
+        if (pq.data.type === 'mcq' && res.correctAnswer?.correctAnswerIndex !== undefined) {
+          pq.data.correctAnswerIndex = res.correctAnswer.correctAnswerIndex;
+        }
+        if (pq.data.type === 'matching' && res.correctAnswer?.pairs) {
+          pq.data._correctPairs = res.correctAnswer.pairs;
+        }
+        this.submitting = false;
+
+        if (res.allSubmitted) {
+          this.result = {
+            scorePercentage: res.scorePercentage,
+            earnedPoints: res.earnedPoints,
+            totalPoints: res.totalPoints,
+            passed: res.passed,
+            answerDetails: this.playerQuestions.map((p, i) => ({
+              questionIndex: i,
+              type: p.data.type,
+              isCorrect: p.isCorrect ?? false,
+              pointsEarned: p.isCorrect ? (p.data.points || 1) : 0,
+              correctAnswer: null
+            }))
+          };
+          this.stopTimer();
+          this.state = 'submitted';
+        }
+      },
+      error: (err) => {
+        this.submitting = false;
+        const msg = err?.error?.error || err?.message || 'Failed to submit. Please try again.';
+        this.snackBar.open(msg, 'Close', { duration: 5000 });
+        if (err?.status === 404 || err?.status === 500) {
+          this.fallbackToFullSubmit();
+        }
+      }
+    });
+  }
+
+  /** Backward-compatible alias used by older template fragments. */
+  submitExercise(): void {
+    this.submitCurrentQuestion();
+  }
+
+  openFinishSummary(): void {
+    this.showFinishSummary = true;
+  }
+
+  cancelFinishSummary(): void {
+    this.showFinishSummary = false;
+  }
+
+  confirmFinishSubmit(): void {
+    if (this.finishingAll) return;
+    this.finishingAll = true;
+    this.showFinishSummary = false;
+    this.stopTimer();
+    this.elapsedSeconds = Math.floor((Date.now() - this.startTime) / 1000);
+
+    const responses = this.buildAllResponses();
+    this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
+      next: (result) => {
+        this.result = result;
+        this.finishingAll = false;
+        this.applyResultFeedback(result);
+        this.state = 'submitted';
+      },
+      error: (e) => {
+        this.finishingAll = false;
+        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
+      }
+    });
+  }
+
+  private buildAllResponses(): QuestionResponse[] {
+    return this.playerQuestions.map((pq, i) => {
       const resp: QuestionResponse = { questionIndex: i };
-      if (pq.data.type === 'mcq') {
-        resp.selectedOptionIndex = pq.selectedOption;
-      } else if (pq.data.type === 'matching') {
+      if (pq.data.type === 'mcq') resp.selectedOptionIndex = pq.selectedOption;
+      else if (pq.data.type === 'matching') {
         resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
           leftIndex: li,
           rightIndex: l.matchedRightIndex ?? -1
         }));
-      } else if (pq.data.type === 'fill-blank') {
-        resp.fillBlankResponses = pq.fillAnswers || [];
-      } else if (pq.data.type === 'pronunciation') {
+      } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
+      else if (pq.data.type === 'pronunciation') {
         resp.spokenText = pq.spokenText || '';
         resp.pronunciationScore = pq.pronunciationScore || 0;
-      } else if (pq.data.type === 'question-answer') {
-        resp.qaResponse = pq.qaResponse || '';
-      } else if (pq.data.type === 'listening') {
-        resp.listeningText = pq.listeningText || '';
-      }
+      } else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
+      else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
       return resp;
     });
+  }
 
+  private buildFeedbackFromCorrectAnswer(q: any, correctAnswer: any, pq: PlayerQuestion): string {
+    if (!correctAnswer) return '';
+    if (q.type === 'mcq' && correctAnswer.explanation) return correctAnswer.explanation;
+    if (q.type === 'fill-blank' && correctAnswer.answers) {
+      return 'Correct answers: ' + correctAnswer.answers.join(', ');
+    }
+    return '';
+  }
+
+  private fallbackToFullSubmit(): void {
+    const responses: QuestionResponse[] = this.playerQuestions.map((pq, i) => {
+      const resp: QuestionResponse = { questionIndex: i };
+      if (pq.data.type === 'mcq') resp.selectedOptionIndex = pq.selectedOption;
+      else if (pq.data.type === 'matching') {
+        resp.matchingResponse = (pq.matchingLeft || []).map((l, li) => ({
+          leftIndex: li,
+          rightIndex: l.matchedRightIndex ?? -1
+        }));
+      } else if (pq.data.type === 'fill-blank') resp.fillBlankResponses = pq.fillAnswers || [];
+      else if (pq.data.type === 'pronunciation') {
+        resp.spokenText = pq.spokenText || '';
+        resp.pronunciationScore = pq.pronunciationScore || 0;
+      } else if (pq.data.type === 'question-answer') resp.qaResponse = pq.qaResponse || '';
+      else if (pq.data.type === 'listening') resp.listeningText = pq.listeningText || '';
+      return resp;
+    });
+    this.submitting = true;
+    this.stopTimer();
     this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
       next: (result) => {
         this.result = result;
         this.submitting = false;
-        this.isSubmittedState = true;
-        this.state = 'submitted';
         this.applyResultFeedback(result);
+        this.state = 'submitted';
       },
-      error: (err) => {
+      error: (e) => {
         this.submitting = false;
-        this.snackBar.open(err.error?.error || 'Failed to submit. Please try again.', 'Close', { duration: 5000 });
+        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
       }
     });
   }
@@ -463,12 +629,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   // ─── Navigation ──────────────────────────────────────────────────────────────
 
   backToExercises(): void {
-    this.router.navigate(['/digital-exercises']);
+    this.authService.currentUser$.pipe(take(1)).subscribe((user) => {
+      if (user?.role === 'STUDENT') {
+        this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
+      } else {
+        this.router.navigate(['/digital-exercises']);
+      }
+    });
   }
 
   tryAgain(): void {
     this.result = null;
-    this.isSubmittedState = false;
     this.initPlayerQuestions();
     this.currentIndex = 0;
     this.startExercise();
@@ -479,7 +650,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   backToResult(): void {
-    this.isSubmittedState = true;
     this.state = 'submitted';
   }
 
@@ -556,12 +726,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return sentence.split('___');
   }
 
-  getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string }> {
-    const counts: Record<string, number> = {};
+  getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string; indices: number[] }> {
+    const byType: Record<string, number[]> = {};
     const labels: Record<string, string> = { mcq: 'Multiple Choice', matching: 'Matching', 'fill-blank': 'Fill Blanks', pronunciation: 'Pronunciation', 'question-answer': 'Question / Answer', listening: 'Listening' };
     const icons: Record<string, string> = { mcq: 'quiz', matching: 'compare_arrows', 'fill-blank': 'text_fields', pronunciation: 'record_voice_over', 'question-answer': 'short_text', listening: 'headphones' };
-    this.playerQuestions.forEach(pq => { counts[pq.data.type] = (counts[pq.data.type] || 0) + 1; });
-    return Object.entries(counts).map(([type, count]) => ({ type, count, label: labels[type] || type, icon: icons[type] || 'help' }));
+    this.playerQuestions.forEach((pq, i) => {
+      const t = pq.data.type;
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(i + 1);
+    });
+    return Object.entries(byType).map(([type, indices]) => ({
+      type,
+      count: indices.length,
+      label: labels[type] || type,
+      icon: icons[type] || 'help',
+      indices
+    }));
+  }
+
+  getQuestionTypeClass(pq: PlayerQuestion): string {
+    return 'type-' + (pq.data.type || 'mcq');
   }
 
   getTypeIcon(type: string): string {
@@ -596,6 +780,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       let full = '';
       for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript;
       pq.listeningText = full;
+      this.markAttempted(pq);
     };
     rec.onend = () => { pq.isRecording = false; this.listeningRecognition = null; };
     rec.start();
@@ -609,14 +794,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.isRecording = false;
   }
 
+  markAttempted(pq: PlayerQuestion): void {
+    pq.isAnswered = true;
+  }
+
   isMatchCorrect(pq: PlayerQuestion, leftIndex: number): boolean {
     const matchedRightIndex = pq.matchingLeft![leftIndex].matchedRightIndex;
     if (matchedRightIndex === null || matchedRightIndex === undefined) return false;
-    const leftValue = pq.matchingLeft![leftIndex].value;
     const matchedRightValue = pq.matchingRight![matchedRightIndex].value;
-    const originalPairs = pq.data.pairs || [];
-    const originalPair = originalPairs.find((p: any) => p.left === leftValue);
-    return originalPair ? originalPair.right === matchedRightValue : false;
+    const correctPairs = pq.data._correctPairs || [];
+    const correctForLeft = correctPairs.find((p: any) => p.leftIndex === leftIndex);
+    return correctForLeft ? correctForLeft.rightValue === matchedRightValue : false;
   }
 
   isFillCorrect(pq: PlayerQuestion, blankIndex: number): boolean {

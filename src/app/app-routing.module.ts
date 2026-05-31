@@ -147,11 +147,32 @@ export const routes: Routes = [
   { path: 'teacher/meetings/:id/attendance/review', loadComponent: () => import('./components/meeting-link/attendance-review.component').then(m => m.AttendanceReviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'teacher/meetings/:id/engagement', loadComponent: () => import('./components/meeting-link/meeting-engagement.component').then(m => m.MeetingEngagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 
-  // Student Zoom Meetings
-  { path: 'student/meetings', loadComponent: () => import('./components/meeting-link/student-meetings.component').then(m => m.StudentMeetingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  // Student course hub (classes, exercises, modules)
+  {
+    path: 'student/my-course',
+    loadComponent: () => import('./components/my-course/my-course.component').then(m => m.MyCourseComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: 'STUDENT' }
+  },
+
+  // Common typos / old links → same hub (avoids ** → home and stale UI confusion)
+  { path: 'student/my_course', redirectTo: '/student/my-course', pathMatch: 'full' },
+  { path: 'student/mycourse', redirectTo: '/student/my-course', pathMatch: 'full' },
+
+  // Student Zoom Meetings & recordings — consolidated into My Course
+  { path: 'student/meetings', redirectTo: '/student/my-course', pathMatch: 'full' },
 
   // Admin Zoom Reports
   { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+
+  // Import External Zoom Meetings
+  { path: 'admin/external-meetings', loadComponent: () => import('./components/admin-dashboard/external-meetings/external-meetings.component').then(m => m.ExternalMeetingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Class Recordings — Teacher/Admin manage
+  { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+
+  // Class Recordings — Student view (hub)
+  { path: 'student/class-recordings', redirectTo: '/student/my-course', pathMatch: 'full' },
 
   { path: 'course-materials', loadComponent: () => import('./components/course-material/course-material-upload.component').then(m => m.UploadCourseMaterialComponent), canActivate: [AuthGuard, RoleGuard], data: {role: ['ADMIN', 'TEACHER_ADMIN']} },
 
@@ -187,6 +208,9 @@ export const routes: Routes = [
 
   // Admin Payments
   { path: 'admin/payments', loadComponent: () => import('./components/admin-dashboard/admin-payments/admin-payments.component').then(m => m.AdminPaymentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Invoice Management
+  { path: 'admin/invoices', loadComponent: () => import('./components/admin-dashboard/invoice-management/invoice-management.component').then(m => m.InvoiceManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Admin Student Progress Overview
   { path: 'admin/student-progress', loadComponent: () => import('./components/admin-dashboard/admin-progress/admin-progress.component').then(m => m.AdminProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
@@ -241,6 +265,13 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
+  // Admin/Teacher: Exercise completion analytics (details page)
+  {
+    path: 'admin/digital-exercises/:id/completions',
+    loadComponent: () => import('./components/admin-dashboard/exercise-completion-details/exercise-completion-details.component').then(m => m.ExerciseCompletionDetailsComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
   // Admin/Teacher: Audio + PDF listening worksheet import
   {
     path: 'admin/digital-exercises/generate-listening-manual',
@@ -248,12 +279,15 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
+<<<<<<<<< Temporary merge branch 1
+=========
 
   // Class Recordings — Teacher/Admin manage
   { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
   // Class Recordings — Student view
   { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+>>>>>>>>> Temporary merge branch 2
 
   // Wildcard route to handle invalid paths
   { path: '**', redirectTo: 'home' }

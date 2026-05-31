@@ -68,7 +68,7 @@ app.set('trust proxy', true); // trust first proxy (if behind a proxy like Nginx
 
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.use(cors({
   origin: allowedOrigins,
@@ -147,6 +147,9 @@ app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
+
+const invoiceManagementRoutes = require('./routes/invoiceManagement');
+app.use('/api/invoices', invoiceManagementRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);

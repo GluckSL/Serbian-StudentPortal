@@ -21,7 +21,8 @@ export class ManageRecordingsComponent implements OnInit {
   plans = [
     { value: 'ALL', label: 'All Plans' },
     { value: 'SILVER', label: 'Silver' },
-    { value: 'PLATINUM', label: 'Platinum' }
+    { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'VISA_DOC_ONLY', label: 'Visa & Doc Only' }
   ];
 
   loading = false;

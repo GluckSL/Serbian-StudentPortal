@@ -1,311 +1,216 @@
 <!-- src/app/components/meeting-link/create-zoom-meeting.component.html -->
 
-<div class="container-fluid py-4">
-  <!-- Header -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="card shadow-sm border-0" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <div class="card-body text-white py-4">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h2 class="mb-2">
-                <i class="fas fa-video me-2"></i>
-                Create Zoom Meeting
-              </h2>
-              <p class="mb-0 opacity-75">Schedule a Zoom meeting and invite students</p>
-            </div>
-            <button class="btn btn-light" (click)="cancel()">
-              <i class="fas fa-arrow-left me-2"></i>Back
-            </button>
-          </div>
-        </div>
-      </div>
+<!-- Header -->
+<div class="page-header">
+  <div class="page-header-left">
+    <h2><i class="fas fa-video"></i> Create Zoom Meeting</h2>
+    <p>Schedule a Zoom meeting and invite students</p>
+  </div>
+  <button class="btn btn-light" (click)="cancel()">
+    <i class="fas fa-arrow-left me-1"></i>Back
+  </button>
+</div>
+
+<div class="page-content">
+  <!-- Alerts -->
+  <div *ngIf="successMessage && !errorMessage">
+    <div class="alert alert-success">
+      <i class="fas fa-check-circle me-1"></i>{{ successMessage }}
+      <button type="button" class="btn-close float-end" (click)="successMessage = ''"></button>
     </div>
   </div>
-
-  <!-- Success/Error Messages -->
-  <div class="row mb-3" *ngIf="successMessage || errorMessage">
-    <div class="col-12">
-      <!-- Success Message -->
-      <div class="alert alert-success alert-dismissible fade show" *ngIf="successMessage && !errorMessage">
-        <i class="fas fa-check-circle me-2"></i>{{ successMessage }}
-        <button type="button" class="btn-close" (click)="successMessage = ''"></button>
-      </div>
-      
-      <!-- Error/Warning Message (Email Issues) -->
-      <div class="alert alert-warning alert-dismissible fade show" *ngIf="errorMessage && successMessage">
-        <div class="d-flex align-items-start">
-          <i class="fas fa-exclamation-triangle me-3 fs-4" style="color: #dc3545;"></i>
-          <div class="flex-grow-1">
-            <h5 class="alert-heading mb-2">
-              <strong>⚠️ Email Notification Issue</strong>
-            </h5>
-            <p class="mb-2"><strong>{{ errorMessage }}</strong></p>
-            <p class="mb-2">{{ successMessage }}</p>
-            <hr>
-            <div class="mt-2">
-              <p class="mb-1"><strong>What this means:</strong></p>
-              <ul class="mb-2">
-                <li>✅ Your Zoom meeting was created successfully</li>
-                <li>✅ Meeting is saved and linked to timetable</li>
-                <li>❌ Students did NOT receive email invitations</li>
-              </ul>
-              <p class="mb-1"><strong>What to do:</strong></p>
-              <ul class="mb-0">
-                <li>Check your email configuration in .env file (EMAIL_USER and EMAIL_PASS)</li>
-                <li>Manually share the meeting link with students</li>
-                <li>Contact system administrator to fix email settings</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <button type="button" class="btn-close" (click)="errorMessage = ''; successMessage = ''"></button>
-      </div>
-      
-      <!-- Pure Error Message (Meeting Creation Failed) -->
-      <div class="alert alert-danger alert-dismissible fade show" *ngIf="errorMessage && !successMessage">
-        <i class="fas fa-exclamation-circle me-2"></i>{{ errorMessage }}
-        <button type="button" class="btn-close" (click)="errorMessage = ''"></button>
-      </div>
+  <div *ngIf="errorMessage && successMessage">
+    <div class="alert alert-warning">
+      <strong>⚠️ {{ errorMessage }}</strong><br>
+      <span>{{ successMessage }}</span>
+      <button type="button" class="btn-close float-end" (click)="errorMessage = ''; successMessage = ''"></button>
+    </div>
+  </div>
+  <div *ngIf="errorMessage && !successMessage">
+    <div class="alert alert-danger">
+      <i class="fas fa-exclamation-circle me-1"></i>{{ errorMessage }}
+      <button type="button" class="btn-close float-end" (click)="errorMessage = ''"></button>
     </div>
   </div>
 
   <form [formGroup]="meetingForm" (ngSubmit)="onSubmit()">
     <div class="row">
-      <!-- Left Column: Meeting Details -->
-      <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
-          <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">
-              <i class="fas fa-info-circle me-2"></i>Meeting Details
-            </h5>
+      <!-- Left: Meeting Details -->
+      <div class="col-lg-6 mb-3">
+        <div class="form-card">
+          <div class="form-card-header">
+            <i class="fas fa-info-circle"></i> Meeting Details
           </div>
-          <div class="card-body">
-            <!-- Topic -->
+          <div class="form-card-body">
             <div class="mb-3">
-              <label class="form-label fw-bold">
-                Meeting Topic <span class="text-danger">*</span>
-              </label>
-              <input 
-                type="text" 
-                class="form-control" 
-                formControlName="topic"
+              <label class="form-label">Topic *</label>
+              <input type="text" class="form-control" formControlName="topic"
                 placeholder="e.g., German A2 - Grammar Session"
                 [class.is-invalid]="meetingForm.get('topic')?.invalid && meetingForm.get('topic')?.touched">
-              <div class="invalid-feedback">
-                Topic is required (minimum 3 characters)
+              <div class="invalid-feedback">Topic is required (min 3 characters)</div>
+            </div>
+
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Batch *</label>
+                <select class="form-select" formControlName="batch" (change)="onFilterChange()"
+                  [class.is-invalid]="meetingForm.get('batch')?.invalid && meetingForm.get('batch')?.touched">
+                  <option value="">Select Batch</option>
+                  <option *ngFor="let batch of batches" [value]="batch">{{ batch }}</option>
+                </select>
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">Plan *</label>
+                <select class="form-select" formControlName="plan" (change)="onFilterChange()"
+                  [class.is-invalid]="meetingForm.get('plan')?.invalid && meetingForm.get('plan')?.touched">
+                  <option value="">Select Plan</option>
+                  <option value="SILVER">SILVER</option>
+                  <option value="PLATINUM">PLATINUM</option>
+                  <option value="VISA_DOC_ONLY">VISA & DOC ONLY</option>
+                </select>
               </div>
             </div>
 
-            <!-- Batch -->
             <div class="mb-3">
-              <label class="form-label fw-bold">
-                Batch <span class="text-danger">*</span>
-              </label>
-              <select 
-                class="form-select" 
-                formControlName="batch"
-                (change)="onFilterChange()"
-                [class.is-invalid]="meetingForm.get('batch')?.invalid && meetingForm.get('batch')?.touched">
-                <option value="">Select Batch</option>
-                <option *ngFor="let batch of batches" [value]="batch">{{ batch }}</option>
-              </select>
-              <div class="invalid-feedback">
-                Batch is required
-              </div>
-            </div>
-
-            <!-- Plan -->
-            <div class="mb-3">
-              <label class="form-label fw-bold">
-                Plan <span class="text-danger">*</span>
-              </label>
-              <select 
-                class="form-select" 
-                formControlName="plan"
-                (change)="onFilterChange()"
-                [class.is-invalid]="meetingForm.get('plan')?.invalid && meetingForm.get('plan')?.touched">
-                <option value="">Select Plan</option>
-                <option value="SILVER">SILVER</option>
-                <option value="PLATINUM">PLATINUM</option>
-              </select>
-              <div class="invalid-feedback">
-                Plan is required
-              </div>
-            </div>
-
-            <!-- Start Time -->
-            <div class="mb-3">
-              <label class="form-label fw-bold">
-                Start Time <span class="text-danger">*</span>
-              </label>
-              <input 
-                type="datetime-local" 
-                class="form-control" 
-                formControlName="startTime"
-                [class.is-invalid]="meetingForm.get('startTime')?.invalid && meetingForm.get('startTime')?.touched">
-              <div class="invalid-feedback">
-                Start time is required
-              </div>
-            </div>
-
-            <!-- Duration -->
-            <div class="mb-3">
-              <label class="form-label fw-bold">
-                Duration (minutes) <span class="text-danger">*</span>
-              </label>
-              <input 
-                type="number" 
-                class="form-control" 
-                formControlName="duration"
-                min="15"
-                max="300"
-                placeholder="60"
-                [class.is-invalid]="meetingForm.get('duration')?.invalid && meetingForm.get('duration')?.touched">
-              <small class="text-muted">Between 15 and 300 minutes</small>
-              <div class="invalid-feedback">
-                Duration must be between 15 and 300 minutes
-              </div>
-            </div>
-
-            <!-- Timezone -->
-            <div class="mb-3">
-              <label class="form-label fw-bold">
-                Timezone <span class="text-danger">*</span>
-              </label>
-              <select class="form-select" formControlName="timezone">
-                <option value="Asia/Colombo">Asia/Colombo (Sri Lanka)</option>
-                <option value="Asia/Kolkata">Asia/Kolkata (India)</option>
-                <option value="Europe/Berlin">Europe/Berlin (Germany)</option>
-                <option value="UTC">UTC</option>
+              <label class="form-label">Assigned Teacher *</label>
+              <select class="form-select" formControlName="teacherId"
+                [class.is-invalid]="meetingForm.get('teacherId')?.invalid && meetingForm.get('teacherId')?.touched">
+                <option value="">Select Teacher</option>
+                <option *ngFor="let t of teachers" [value]="t._id">{{ t.name }} ({{ t.email }})</option>
               </select>
             </div>
 
-            <!-- Agenda -->
             <div class="mb-3">
-              <label class="form-label fw-bold">Agenda (Optional)</label>
-              <textarea 
-                class="form-control" 
-                formControlName="agenda"
-                rows="3"
+              <label class="form-label">Zoom Account *</label>
+              <select class="form-select" formControlName="zoomHostEmail"
+                [class.is-invalid]="meetingForm.get('zoomHostEmail')?.invalid && meetingForm.get('zoomHostEmail')?.touched">
+                <option value="">Select Zoom Account</option>
+                <option *ngFor="let acc of zoomAccounts" [value]="acc.email" [disabled]="acc.isBusy">
+                  {{ acc.name }} ({{ acc.email }}){{ acc.isBusy ? ' — BUSY' : '' }}
+                </option>
+              </select>
+              <small class="text-muted">Accounts marked BUSY have a meeting at the selected time</small>
+            </div>
+
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Start Time *</label>
+                <input type="datetime-local" class="form-control" formControlName="startTime" (change)="onTimeChange()">
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">Duration (min) *</label>
+                <input type="number" class="form-control" formControlName="duration"
+                  min="15" max="300" placeholder="60" (change)="onTimeChange()">
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-6 mb-3">
+                <label class="form-label">Timezone *</label>
+                <select class="form-select" formControlName="timezone">
+                  <option value="Asia/Colombo">Asia/Colombo</option>
+                  <option value="Asia/Kolkata">Asia/Kolkata</option>
+                  <option value="Europe/Berlin">Europe/Berlin</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">Course Day</label>
+                <input type="number" class="form-control" formControlName="courseDay"
+                  min="1" max="200" placeholder="e.g., 45"
+                  [class.is-invalid]="meetingForm.get('courseDay')?.invalid && meetingForm.get('courseDay')?.touched">
+                <div class="invalid-feedback">Must be 1–200</div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Agenda (Optional)</label>
+              <textarea class="form-control" formControlName="agenda" rows="2"
                 placeholder="Meeting agenda or description"></textarea>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Right Column: Student Selection -->
-      <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
-          <div class="card-header bg-success text-white">
-            <h5 class="mb-0">
-              <i class="fas fa-users me-2"></i>Select Students
-            </h5>
+      <!-- Right: Student Selection -->
+      <div class="col-lg-6 mb-3">
+        <div class="form-card">
+          <div class="form-card-header" style="background: #28a745;">
+            <i class="fas fa-users"></i> Select Students
           </div>
-          <div class="card-body">
-            <!-- Search -->
+          <div class="form-card-body">
             <div class="mb-3">
               <div class="input-group">
-                <span class="input-group-text">
-                  <i class="fas fa-search"></i>
+                <span class="input-group-text" style="font-size:11px; padding:5px 8px; background:#f8fafc; border-color:#e2e8f0;">
+                  <i class="fas fa-search" style="font-size:10px; color:#94a3b8;"></i>
                 </span>
-                <input 
-                  type="text" 
-                  class="form-control" 
-                  placeholder="Search by name or email..."
+                <input type="text" class="form-control" placeholder="Search by name or email..."
                   (input)="onSearchChange($event)">
               </div>
             </div>
 
-            <!-- Bulk Actions -->
             <div class="mb-3 d-flex gap-2">
-              <button 
-                type="button" 
-                class="btn btn-sm btn-outline-primary"
-                (click)="selectAllFiltered()"
-                [disabled]="filteredStudents.length === 0">
-                <i class="fas fa-check-double me-1"></i>Select All Filtered
+              <button type="button" class="btn btn-sm btn-outline-primary"
+                (click)="selectAllFiltered()" [disabled]="filteredStudents.length === 0">
+                Select All
               </button>
-              <button 
-                type="button" 
-                class="btn btn-sm btn-outline-secondary"
-                (click)="deselectAll()"
-                [disabled]="selectedStudents.length === 0">
-                <i class="fas fa-times me-1"></i>Deselect All
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                (click)="deselectAll()" [disabled]="selectedStudents.length === 0">
+                Deselect All
               </button>
+              <span class="badge bg-primary ms-auto d-flex align-items-center" *ngIf="selectedStudents.length > 0">
+                {{ selectedStudents.length }} selected
+              </span>
             </div>
 
-            <!-- Selected Students Count -->
-            <div class="alert alert-info mb-3" *ngIf="selectedStudents.length > 0">
-              <i class="fas fa-info-circle me-2"></i>
-              <strong>{{ selectedStudents.length }}</strong> student(s) selected
-            </div>
-
-            <!-- Loading -->
-            <div class="text-center py-4" *ngIf="isLoading">
-              <div class="spinner-border text-primary" role="status">
+            <div class="text-center py-3" *ngIf="isLoading">
+              <div class="spinner-border" role="status" style="width:24px;height:24px;border-width:2px;">
                 <span class="visually-hidden">Loading...</span>
               </div>
-              <p class="mt-2 text-muted">Loading students...</p>
+              <p class="text-muted mt-1" style="font-size:11px;">Loading students...</p>
             </div>
 
-            <!-- Student List -->
-            <div class="student-list" *ngIf="!isLoading" style="max-height: 400px; overflow-y: auto;">
-              <div 
-                *ngFor="let student of filteredStudents" 
-                class="student-item p-3 mb-2 border rounded cursor-pointer"
+            <div class="student-list" *ngIf="!isLoading" style="max-height: 340px; overflow-y: auto;">
+              <div *ngFor="let student of filteredStudents"
+                class="student-item"
                 [class.selected]="isStudentSelected(student)"
-                (click)="toggleStudentSelection(student)"
-                style="cursor: pointer; transition: all 0.2s;">
+                (click)="toggleStudentSelection(student)" style="cursor:pointer;">
                 <div class="d-flex align-items-center">
-                  <div class="form-check me-3">
-                    <input 
-                      class="form-check-input" 
-                      type="checkbox" 
-                      [checked]="isStudentSelected(student)"
-                      (click)="$event.stopPropagation()">
+                  <div class="form-check me-2">
+                    <input class="form-check-input" type="checkbox"
+                      [checked]="isStudentSelected(student)" (click)="$event.stopPropagation()">
                   </div>
                   <div class="flex-grow-1">
                     <div class="fw-bold">{{ student.name }}</div>
-                    <small class="text-muted">
-                      <i class="fas fa-envelope me-1"></i>{{ student.email }}
-                    </small>
+                    <small class="text-muted">{{ student.email }}</small>
                     <div class="mt-1">
                       <span class="badge bg-primary me-1">{{ student.batch }}</span>
                       <span class="badge bg-info me-1">{{ student.level }}</span>
-                      <span class="badge bg-warning text-dark">{{ student.subscription }}</span>
+                      <span class="badge bg-warning">{{ student.subscription }}</span>
                     </div>
                   </div>
-                  <div *ngIf="isStudentSelected(student)">
-                    <i class="fas fa-check-circle text-success fs-4"></i>
-                  </div>
+                  <i *ngIf="isStudentSelected(student)" class="fas fa-check-circle" style="color:#28a745; font-size:14px;"></i>
                 </div>
               </div>
 
-              <!-- No Students -->
-              <div class="text-center py-4 text-muted" *ngIf="filteredStudents.length === 0">
-                <i class="fas fa-users-slash fs-1 mb-3"></i>
-                <p>No students found</p>
+              <div class="text-center py-3 text-muted" *ngIf="filteredStudents.length === 0" style="font-size:11px;">
+                <i class="fas fa-users-slash" style="font-size:20px; display:block; margin-bottom:6px; opacity:0.4;"></i>
+                No students found
               </div>
             </div>
 
-            <!-- Selected Students Summary -->
-            <div class="mt-3" *ngIf="selectedStudents.length > 0">
-              <h6 class="fw-bold mb-2">Selected Students:</h6>
-              <div class="selected-students-list" style="max-height: 150px; overflow-y: auto;">
-                <div 
-                  *ngFor="let student of selectedStudents" 
-                  class="d-flex align-items-center justify-content-between p-2 mb-1 bg-light rounded">
+            <div class="mt-2" *ngIf="selectedStudents.length > 0">
+              <label class="form-label">Selected Students</label>
+              <div class="selected-students-list" style="max-height: 120px; overflow-y: auto;">
+                <div *ngFor="let student of selectedStudents"
+                  class="d-flex align-items-center justify-content-between bg-light mb-1">
                   <div>
                     <small class="fw-bold">{{ student.name }}</small>
-                    <br>
-                    <small class="text-muted">{{ student.email }}</small>
+                    <small class="text-muted d-block">{{ student.email }}</small>
                   </div>
-                  <button 
-                    type="button" 
-                    class="btn btn-sm btn-outline-danger"
-                    (click)="removeSelectedStudent(student)">
-                    <i class="fas fa-times"></i>
+                  <button type="button" class="btn btn-sm btn-outline-danger"
+                    (click)="removeSelectedStudent(student)" style="padding:2px 6px;">
+                    <i class="fas fa-times" style="font-size:9px;"></i>
                   </button>
                 </div>
               </div>
@@ -315,63 +220,26 @@
       </div>
     </div>
 
-    <!-- Submit Button -->
-    <div class="row">
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <p class="mb-0 text-muted">
-                  <i class="fas fa-info-circle me-2"></i>
-                  Meeting will be created in Zoom and invitations will be sent to selected students
-                </p>
-              </div>
-              <div class="d-flex gap-2">
-                <button 
-                  type="button" 
-                  class="btn btn-secondary"
-                  (click)="cancel()"
-                  [disabled]="isCreatingMeeting">
-                  <i class="fas fa-times me-2"></i>Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  class="btn btn-primary"
-                  [disabled]="meetingForm.invalid || selectedStudents.length === 0 || isCreatingMeeting">
-                  <span *ngIf="!isCreatingMeeting">
-                    <i class="fas fa-video me-2"></i>Create Zoom Meeting
-                  </span>
-                  <span *ngIf="isCreatingMeeting">
-                    <span class="spinner-border spinner-border-sm me-2"></span>
-                    Creating Meeting...
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
+    <!-- Footer -->
+    <div class="footer-card">
+      <div class="d-flex justify-content-between align-items-center">
+        <p class="mb-0">
+          <i class="fas fa-info-circle me-1"></i>
+          Meeting will be created in Zoom and invitations sent to selected students
+        </p>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-secondary" (click)="cancel()" [disabled]="isCreatingMeeting">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary"
+            [disabled]="meetingForm.invalid || selectedStudents.length === 0 || isCreatingMeeting">
+            <span *ngIf="!isCreatingMeeting"><i class="fas fa-video me-1"></i>Create Meeting</span>
+            <span *ngIf="isCreatingMeeting">
+              <span class="spinner-border spinner-border-sm me-1"></span>Creating...
+            </span>
+          </button>
         </div>
       </div>
     </div>
   </form>
 </div>
-
-<style>
-  .student-item {
-    transition: all 0.2s;
-  }
-
-  .student-item:hover {
-    background-color: #f8f9fa;
-    border-color: #007bff !important;
-  }
-
-  .student-item.selected {
-    background-color: #e7f3ff;
-    border-color: #007bff !important;
-  }
-
-  .cursor-pointer {
-    cursor: pointer;
-  }
-</style>

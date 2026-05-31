@@ -92,6 +92,8 @@ export interface DigitalExercise {
   averageScore?: number;
   createdAt?: Date;
   updatedAt?: Date;
+  /** 1–200: assigned course day; omit/null = general exercise for any unlocked day */
+  courseDay?: number | null;
   stats?: { completions: number; avgScore: number; uniqueStudents: number };
   studentAttempt?: ExerciseAttempt | null;
 }
@@ -135,6 +137,18 @@ export interface SubmitResult {
   }>;
 }
 
+export interface SubmitQuestionResult {
+  questionIndex: number;
+  isCorrect: boolean;
+  pointsEarned: number;
+  correctAnswer: any;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercentage: number;
+  allSubmitted: boolean;
+  passed: boolean;
+}
+
 export interface ExerciseFilters {
   level?: string;
   category?: string;
@@ -144,6 +158,10 @@ export interface ExerciseFilters {
   status?: string;
   page?: number;
   limit?: number;
+  /** Student list: only exercises tagged for this journey day */
+  todayOnly?: boolean;
+  /** Admin list: numeric day 1–200, or "unassigned" */
+  courseDay?: string | number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -157,9 +175,12 @@ export class DigitalExerciseService {
   getExercises(filters: ExerciseFilters = {}): Observable<any> {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        params = params.set(key, val.toString());
+      if (val === undefined || val === null || val === '') return;
+      if (key === 'todayOnly') {
+        if (val === true) params = params.set('todayOnly', 'true');
+        return;
       }
+      params = params.set(key, val.toString());
     });
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
   }
@@ -219,6 +240,20 @@ export class DigitalExerciseService {
     );
   }
 
+  submitQuestion(
+    exerciseId: string,
+    attemptId: string,
+    questionIndex: number,
+    response: QuestionResponse,
+    timeSpentSeconds: number
+  ): Observable<SubmitQuestionResult> {
+    return this.http.post<SubmitQuestionResult>(
+      `${this.apiUrl}/${exerciseId}/submit-question`,
+      { attemptId, questionIndex, response, timeSpentSeconds },
+      { withCredentials: true }
+    );
+  }
+
   getMyAttempts(exerciseId: string): Observable<ExerciseAttempt[]> {
     return this.http.get<ExerciseAttempt[]>(`${this.apiUrl}/${exerciseId}/my-attempts`, { withCredentials: true });
   }
@@ -267,6 +302,18 @@ export class DigitalExerciseService {
     maxQuestions: number;
   }): Observable<any> {
     return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/generate`, options, { withCredentials: true });
+  }
+
+  generateFromText(options: {
+    text: string;
+    types: string[];
+    targetLanguage: string;
+    nativeLanguage: string;
+    level: string;
+    difficulty: string;
+    maxQuestions: number;
+  }): Observable<any> {
+    return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/text-generate`, options, { withCredentials: true });
   }
 
   cleanupPdf(uploadId: string): Observable<any> {

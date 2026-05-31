@@ -51,7 +51,7 @@ export class SignupComponent {
   assignedTeacher: string = '';   // ✅ selected teacher ID
   teachers: any[] = [];           // all fetched teachers
 
-   // Teacher fields
+  // Teacher fields
   assignedCourses: string[] = []; // selected course IDs
   assignedBatches: string[] = []; // selected batches
   courses: any[] = []; // list fetched from backend

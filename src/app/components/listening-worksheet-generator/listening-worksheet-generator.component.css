@@ -83,7 +83,6 @@
   font-weight:700;
   color:#111827;
 }
-.lwg-panel{ }
 .lwg-two-col{
   display:grid;
   grid-template-columns: 1fr 1fr;

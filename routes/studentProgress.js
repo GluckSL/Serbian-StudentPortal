@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const DocumentRequirement = require('../models/DocumentRequirement');
 const StudentDocument = require('../models/StudentDocument');
+const DigitalExercise = require('../models/DigitalExercise');
 
 // Helper: build documents list cross-referencing requirements with uploads
 async function buildDocumentsList(studentId, servicesOpted) {
@@ -208,6 +209,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     const Invoice = require('../models/Invoice');
     const StudentPayment = require('../models/StudentPayment');
     const VisaTracking = require('../models/VisaTracking');
+    const ExerciseAttempt = require('../models/ExerciseAttempt');
     const studentId = req.user.id;
 
     const student = await User.findById(studentId).select('-password').populate('assignedTeacher', 'name').lean();
@@ -296,6 +298,36 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     if (student.enrollmentDate) history.push({ date: student.enrollmentDate, title: 'Enrollment confirmed', desc: 'Student enrolled in ' + (student.servicesOpted || 'program') + '.' });
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    const levelOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const curIdx = levelOrder.indexOf(student.level);
+    const accessibleLevelsForEx = curIdx === -1 ? ['A1'] : levelOrder.slice(0, curIdx + 1);
+    const rawCourseDay = student.currentCourseDay;
+    const studentCourseDay = (rawCourseDay != null && Number.isFinite(Number(rawCourseDay)))
+      ? Math.min(200, Math.max(1, Math.floor(Number(rawCourseDay))))
+      : 1;
+
+    let nextLockedDigitalExercise = null;
+    if (student.role === 'STUDENT') {
+      try {
+        const nex = await DigitalExercise.findOne({
+          isActive: true,
+          isDeleted: { $ne: true },
+          visibleToStudents: true,
+          level: { $in: accessibleLevelsForEx },
+          courseDay: { $gt: studentCourseDay, $lte: 200 }
+        }).sort({ courseDay: 1 }).select('title courseDay').lean();
+        if (nex && nex.courseDay != null) {
+          nextLockedDigitalExercise = {
+            title: nex.title,
+            courseDay: nex.courseDay,
+            daysUntilUnlock: nex.courseDay - studentCourseDay
+          };
+        }
+      } catch (e) {
+        console.warn('nextLockedDigitalExercise:', e.message);
+      }
+    }
+
     res.json({
       profile: {
         regNo: student.regNo, name: student.name, batch: student.batch,
@@ -303,11 +335,18 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         servicesOpted: student.servicesOpted || '', languageLevelOpted: student.languageLevelOpted || '',
         currentLevel: student.level, studentStatus: student.studentStatus,
         enrollmentDate: student.enrollmentDate || student.createdAt,
-        examScores: student.examScores || {}, languageExamStatus: student.languageExamStatus || ''
+        examScores: student.examScores || {}, languageExamStatus: student.languageExamStatus || '',
+        profilePic: student.profilePic || '',
+        currentCourseDay: studentCourseDay,
+        subscription: student.subscription || ''
       },
+      nextLockedDigitalExercise,
       levelProgression, lessonsByLevel,
       totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
+      exercisesThisWeek: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed', completedAt: { $gte: weekStart } }),
+      exercisesToday: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed', completedAt: { $gte: todayStart } }),
+      exercisesTotal: await ExerciseAttempt.countDocuments({ studentId: new mongoose.Types.ObjectId(studentId), status: 'completed' }),
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
       documents, docsSummary,
       feedbackByLevel, history: history.slice(0, 20),

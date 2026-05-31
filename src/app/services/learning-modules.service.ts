@@ -93,6 +93,7 @@ export interface LearningModule {
   visibleToStudents?: boolean;  // ✅ Controls if students can see this module
   publishedAt?: Date;           // ✅ When module was made visible to students
   tags: string[];
+  courseDay?: number | null;
   totalEnrollments: number;
   averageCompletionTime: number;
   averageScore: number;

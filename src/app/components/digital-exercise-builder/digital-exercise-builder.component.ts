@@ -68,6 +68,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
   estimatedDuration = 15;
   tags = '';
+  /** Empty = not tied to a journey day (visible whenever published + student filters). */
+  courseDayStr = '';
   visibleToStudents = false;
 
   questions: BuilderQuestion[] = [];
@@ -121,6 +123,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         this.difficulty = exercise.difficulty || 'Beginner';
         this.estimatedDuration = exercise.estimatedDuration || 15;
         this.tags = (exercise.tags || []).join(', ');
+        this.courseDayStr =
+          exercise.courseDay != null && exercise.courseDay !== undefined
+            ? String(exercise.courseDay)
+            : '';
         this.visibleToStudents = exercise.visibleToStudents || false;
         this.questions = (exercise.questions || []).map(q => this.mapQuestionFromApi(q));
         this.loading = false;
@@ -397,6 +403,18 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (!this.isInfoValid()) { this.showError('Please fill in all required exercise info'); this.activeTab = 'info'; return; }
     if (!this.isQuestionsValid()) { this.showError('Please complete all questions'); this.activeTab = 'questions'; return; }
 
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.showError('Course day must be empty or a number from 1 to 200');
+        this.activeTab = 'info';
+        return;
+      }
+      courseDay = p;
+    }
+
     this.saving = true;
     const payload: Partial<DigitalExercise> = {
       title: this.title.trim(),
@@ -408,6 +426,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       difficulty: this.difficulty,
       estimatedDuration: this.estimatedDuration,
       tags: this.tags.split(',').map(t => t.trim()).filter(Boolean),
+      courseDay,
       visibleToStudents: this.visibleToStudents,
       questions: this.questions as any
     };
@@ -433,8 +452,47 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     this.router.navigate(['/admin/digital-exercises']);
   }
 
+  /** For query params when opening AI / Audio wizards (1–200 only). */
+  private courseDayQueryParams(): Record<string, string> {
+    const t = this.courseDayStr.trim();
+    if (!t) return {};
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p) || p < 1 || p > 200) return {};
+    return { courseDay: String(p) };
+  }
+
+  /** Bound to course day number input (empty = any day). */
+  get courseDayAsNumber(): number | null {
+    const t = this.courseDayStr.trim();
+    if (!t) return null;
+    const p = parseInt(t, 10);
+    if (!Number.isFinite(p)) return null;
+    return p;
+  }
+
+  onCourseDayNumberInput(v: number | string | null): void {
+    if (v === '' || v === null || v === undefined) {
+      this.courseDayStr = '';
+      return;
+    }
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (!Number.isFinite(n)) {
+      this.courseDayStr = '';
+      return;
+    }
+    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+  }
+
   navigateToAiGenerator(): void {
-    this.router.navigate(['/admin/digital-exercises/generate-ai']);
+    this.router.navigate(['/admin/digital-exercises/generate-ai'], {
+      queryParams: this.courseDayQueryParams()
+    });
+  }
+
+  navigateToListeningGenerator(): void {
+    this.router.navigate(['/admin/digital-exercises/generate-listening-manual'], {
+      queryParams: this.courseDayQueryParams()
+    });
   }
 
   getTotalPoints(): number {

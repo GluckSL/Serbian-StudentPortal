@@ -1,6 +1,6 @@
 // src/app/components/learning-modules/learning-modules.component.ts
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -19,6 +19,9 @@ import { environment } from '../../../environments/environment';
   styleUrls: ['./learning-modules.component.css']
 })
 export class LearningModulesComponent implements OnInit {
+  /** When true with a student user, trims the top header (e.g. inside My Course). */
+  @Input() embedded = false;
+
   modules: LearningModule[] = [];
   filteredModules: LearningModule[] = [];
   isLoading: boolean = false;

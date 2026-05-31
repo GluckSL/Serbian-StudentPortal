@@ -21,21 +21,9 @@
       </li>
 
       <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
-        <a (click)="navigateTo('/student/meetings'); closeMenu()" 
-           [class.active]="isCurrentRoute('/student/meetings')">
-          <i class="fas fa-video"></i> My Classes
-        </a>
-      </li>
-
-      <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
-        <a (click)="navigateTo('/learning-modules'); closeMenu()">Learning Modules</a>
-      </li>
-
-      <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
-      <li *ngIf="isLoggedIn() && userRole === 'STUDENT'">
-        <a (click)="navigateTo('/digital-exercises'); closeMenu()"
-           [class.active]="isCurrentRoute('/digital-exercises')">
-          <i class="fas fa-tasks"></i> Digital Exercises
+        <a (click)="navigateTo('/student/my-course'); closeMenu()"
+           [class.active]="isCurrentRoute('/student/my-course')">
+          <i class="fas fa-graduation-cap"></i> My Course
         </a>
       </li>
 
