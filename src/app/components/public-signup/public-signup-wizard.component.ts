@@ -62,6 +62,7 @@ export class PublicSignupWizardComponent implements OnInit {
   loading = false;
   error = '';
   success = '';
+  resendCooldown = 0;
 
   readonly SUBSCRIPTIONS = [
     { value: 'SILVER', label: 'Silver' },
@@ -262,6 +263,7 @@ export class PublicSignupWizardComponent implements OnInit {
           this.emailVerified = false;
           this.otpSubStep = 'otp';
           this.success = res.msg || `Verification code sent to ${this.email}.`;
+          this.startResendCooldown();
         }
       },
       error: (err: any) => {
@@ -287,6 +289,7 @@ export class PublicSignupWizardComponent implements OnInit {
         } else {
           this.otpSubStep = 'otp';
           this.success = res.msg || `Verification code sent to ${this.email}.`;
+          this.startResendCooldown();
         }
       },
       error: (err: any) => {
@@ -294,6 +297,33 @@ export class PublicSignupWizardComponent implements OnInit {
         this.error = err?.error?.msg || 'Could not send verification code. Please try again.';
       },
     });
+  }
+
+  resendOtp(): void {
+    if (this.resendCooldown > 0 || this.loading) return;
+    this.error = '';
+    this.loading = true;
+    this.svc.start(this.buildStartPayload()).subscribe({
+      next: (res: any) => {
+        this.loading = false;
+        this.success = res.msg || `Verification code resent to ${this.email}.`;
+        this.startResendCooldown();
+      },
+      error: (err: any) => {
+        this.loading = false;
+        this.error = err?.error?.msg || 'Could not resend code. Please try again.';
+      },
+    });
+  }
+
+  private startResendCooldown(): void {
+    this.resendCooldown = 30;
+    const interval = setInterval(() => {
+      this.resendCooldown--;
+      if (this.resendCooldown <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
   }
 
   verifyOtp(): void {

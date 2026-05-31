@@ -102,6 +102,13 @@
       <div class="sw-field">
         <label class="sw-label" for="sw-otp">Verification code <span class="sw-required">*</span></label>
         <input id="sw-otp" type="text" class="sw-input sw-input--otp" [(ngModel)]="otp" maxlength="6" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" />
+        <p class="sw-hint sw-hint--resend">
+          Didn't get a code?
+          <button type="button" class="sw-resend-btn" [disabled]="resendCooldown > 0 || loading" (click)="resendOtp()">
+            <ng-container *ngIf="resendCooldown <= 0">Send a new code</ng-container>
+            <ng-container *ngIf="resendCooldown > 0">Resend in {{ resendCooldown }}s</ng-container>
+          </button>
+        </p>
       </div>
       <div class="sw-field">
         <label class="sw-label" for="sw-pwd">Choose a password <span class="sw-required">*</span></label>
