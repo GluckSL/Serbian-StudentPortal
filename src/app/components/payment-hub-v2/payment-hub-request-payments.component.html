@@ -1,9 +1,28 @@
 <div class="ph-request-tabs">
-<mat-tab-group class="ph-tab-group" animationDuration="200ms">
+  <div class="ph-view-tabs" role="tablist" aria-label="Req Payment views">
+    <button
+      type="button"
+      role="tab"
+      class="ph-view-tab"
+      [class.ph-view-tab--active]="activeView === 'send'"
+      [attr.aria-selected]="activeView === 'send'"
+      (click)="setActiveView('send')">
+      Send Request
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="ph-view-tab"
+      [class.ph-view-tab--active]="activeView === 'approvals'"
+      [attr.aria-selected]="activeView === 'approvals'"
+      (click)="setActiveView('approvals')">
+      Pending Approvals
+      <span class="badge-count" *ngIf="pendingQueueTotal > 0">{{ pendingQueueTotal }}</span>
+    </button>
+  </div>
 
-  <!-- ══════════════════════════════════════════════════════ SEND REQUEST TAB -->
-  <mat-tab label="Send Request">
-    <div class="tab-content">
+  <!-- ══════════════════════════════════════════════════════ SEND REQUEST -->
+  <div class="tab-content" *ngIf="activeView === 'send'">
 
       <!-- Filter Bar -->
       <div class="filter-bar">
@@ -215,33 +234,33 @@
         </div>
       </div>
 
-    </div>
-  </mat-tab>
+  </div>
 
-  <!-- ══════════════════════════════════════════════════════ APPROVALS TAB -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      Pending Approvals
-      <span class="badge-count" *ngIf="approvalTotal > 0">{{ approvalTotal }}</span>
-    </ng-template>
+  <!-- ══════════════════════════════════════════════════════ PENDING APPROVALS -->
+  <div class="tab-content" *ngIf="activeView === 'approvals'">
+    <div class="ap-queue">
 
-    <div class="tab-content">
-
-      <!-- Filter toolbar -->
-      <div class="approval-toolbar">
-        <div class="approval-toolbar-title">
-          <mat-icon>inbox</mat-icon>
-          <span>Queue</span>
+      <header class="ap-queue-bar">
+        <div class="ap-queue-bar__intro">
+          <h3 class="ap-queue-title">Approval queue</h3>
+          <p class="ap-queue-sub" *ngIf="pendingQueueTotal > 0">
+            <span class="ap-queue-pending">{{ pendingQueueTotal }}</span> awaiting review — approve credits the declared amount only.
+          </p>
+          <p class="ap-queue-sub" *ngIf="pendingQueueTotal === 0">No submissions waiting for review right now.</p>
         </div>
-        <mat-form-field appearance="outline" class="approval-status-field" subscriptSizing="dynamic">
-          <mat-label>Status</mat-label>
-          <mat-select [(ngModel)]="approvalStatusFilter" (ngModelChange)="onStatusFilterChange()">
-            <mat-option *ngFor="let s of approvalStatuses" [value]="s.value">{{ s.label }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <button mat-stroked-button type="button" class="approval-refresh-btn" (click)="loadApprovals()" matTooltip="Refresh list">
+        <button type="button" class="ap-refresh-btn" (click)="loadApprovals()" matTooltip="Refresh list" aria-label="Refresh list">
           <mat-icon>refresh</mat-icon>
-          Refresh
+        </button>
+      </header>
+
+      <div class="ap-filter-row" role="group" aria-label="Filter by status">
+        <button
+          *ngFor="let s of approvalStatuses"
+          type="button"
+          class="ap-filter-chip"
+          [class.ap-filter-chip--active]="approvalStatusFilter === s.value"
+          (click)="setApprovalFilter(s.value)">
+          {{ s.label }}
         </button>
       </div>
 
@@ -249,168 +268,230 @@
         <mat-spinner diameter="40"></mat-spinner>
       </div>
 
-      <div *ngIf="!loadingApprovals && approvalRows.length === 0" class="empty-state">
+      <div *ngIf="!loadingApprovals && approvalRows.length === 0" class="empty-state ap-empty">
         <mat-icon>inbox</mat-icon>
         <p>No submissions in this category.</p>
       </div>
 
-      <div *ngIf="!loadingApprovals && approvalRows.length > 0">
-        <div *ngFor="let sub of approvalRows" class="approval-card" [class.approval-card--open]="activeActionId === sub._id">
-          <div class="approval-header" (click)="toggleActionPanel(sub._id)">
-            <div class="approval-primary">
-              <div class="approval-avatar" aria-hidden="true">{{ initialLetter(sub.studentId.name) }}</div>
-              <div class="approval-info">
-                <span class="student-name-lg">{{ sub.studentId.name }}</span>
-                <span class="student-meta">{{ sub.studentId.email }}</span>
-                <span class="student-meta student-meta-row" *ngIf="sub.studentId.batch || sub.studentId.level">
-                  <span *ngIf="sub.studentId.batch">Batch {{ sub.studentId.batch }}</span>
-                  <span *ngIf="sub.studentId.batch && sub.studentId.level"> · </span>
-                  <span *ngIf="sub.studentId.level">Level {{ sub.studentId.level }}</span>
-                </span>
+      <div *ngIf="!loadingApprovals && approvalRows.length > 0" class="ap-table-shell">
+        <p class="ap-table-hint">Use <strong>Approve</strong> or <strong>Reject</strong> in the Actions column, or click a row for proof, re-upload, and notes.</p>
+        <div class="ap-table-scroll">
+          <table class="ap-table">
+            <thead>
+              <tr>
+                <th class="ap-col-expand" aria-hidden="true"></th>
+                <th>Student</th>
+                <th>Payment type</th>
+                <th>Batch</th>
+                <th>Level</th>
+                <th class="ap-num">Declared</th>
+                <th class="ap-num">Request total</th>
+                <th class="ap-num">Balance</th>
+                <th>Payment date</th>
+                <th>Account holder</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th>Proof</th>
+                <th class="ap-col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <ng-container *ngFor="let sub of approvalRows">
+                <tr
+                  class="ap-table-row"
+                  [class.ap-table-row--pending]="isPendingStatus(sub.status)"
+                  [class.ap-table-row--open]="activeActionId === sub._id"
+                  (click)="toggleActionPanel(sub._id)"
+                  [attr.aria-expanded]="activeActionId === sub._id"
+                  tabindex="0"
+                  (keydown.enter)="toggleActionPanel(sub._id)"
+                  (keydown.space)="$event.preventDefault(); toggleActionPanel(sub._id)">
+                  <td class="ap-col-expand">
+                    <mat-icon class="ap-row-chevron" [class.ap-row-chevron--open]="activeActionId === sub._id">expand_more</mat-icon>
+                  </td>
+                  <td class="ap-cell-student">
+                    <div class="ap-student-name">{{ sub.studentId.name }}</div>
+                    <div class="ap-student-meta">{{ sub.studentId.email }}</div>
+                  </td>
+                  <td>
+                    <div class="ap-type-line">{{ requestTypeLine(sub) }}</div>
+                    <span *ngIf="installmentBadge(sub) as ib" class="inst-chip inst-chip--sm">{{ ib }}</span>
+                    <div class="ap-purpose" *ngIf="sub.paymentRequestId.remarks" [matTooltip]="sub.paymentRequestId.remarks">{{ sub.paymentRequestId.remarks }}</div>
+                  </td>
+                  <td>{{ sub.studentId.batch || '—' }}</td>
+                  <td>{{ sub.studentId.level || '—' }}</td>
+                  <td class="ap-num ap-amount-declared">{{ sub.currency }} {{ fmt(sub.paidAmount) }}</td>
+                  <td class="ap-num ap-muted">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amount) }}</td>
+                  <td class="ap-num ap-muted">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amountRemaining ?? sub.paymentRequestId.amount) }}</td>
+                  <td>{{ formatPaymentDateTime(sub) }}</td>
+                  <td>{{ sub.accountHolderName || '—' }}</td>
+                  <td>{{ sub.paymentMethod || '—' }}</td>
+                  <td><span class="pill" [ngClass]="statusClass(sub.status)">{{ sub.status }}</span></td>
+                  <td class="ap-muted">{{ sub.submittedAt | date:'dd MMM y, HH:mm' }}</td>
+                  <td>
+                    <button type="button" class="ap-link-btn" (click)="viewScreenshot(sub); $event.stopPropagation()">
+                      View proof
+                    </button>
+                  </td>
+                  <td class="ap-col-actions">
+                    <div class="ap-action-btns" *ngIf="isPendingStatus(sub.status)">
+                      <button
+                        type="button"
+                        class="ap-action-btn ap-action-btn--approve"
+                        [disabled]="loadingActionId === sub._id"
+                        (click)="quickApprove(sub, $event)">
+                        <mat-spinner *ngIf="loadingActionId === sub._id" diameter="14" class="ap-action-spinner"></mat-spinner>
+                        <mat-icon *ngIf="loadingActionId !== sub._id">check</mat-icon>
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        class="ap-action-btn ap-action-btn--reject"
+                        [disabled]="loadingActionId === sub._id"
+                        (click)="quickReject(sub, $event)">
+                        <mat-icon>close</mat-icon>
+                        Reject
+                      </button>
+                    </div>
+                    <span *ngIf="!isPendingStatus(sub.status)" class="ap-muted">—</span>
+                  </td>
+                </tr>
+                <tr *ngIf="activeActionId === sub._id" class="ap-detail-row">
+                  <td colspan="15">
+                    <div class="action-panel" (click)="$event.stopPropagation()">
+              <div class="ap-summary-card">
+                <div class="ap-summary-head">
+                  <mat-icon>receipt_long</mat-icon>
+                  <span>Submission details</span>
+                  <button mat-stroked-button type="button" class="ap-link-student" (click)="openStudentPaymentPage(sub, $event)">
+                    <mat-icon>open_in_new</mat-icon>
+                    Student payment page
+                  </button>
+                </div>
+                <div class="ap-summary-grid">
+                  <div class="ap-sum-cell">
+                    <span class="ap-sum-label">Will credit on approve</span>
+                    <span class="ap-sum-value ap-sum-highlight">{{ sub.currency }} {{ fmt(sub.paidAmount) }}</span>
+                  </div>
+                  <div class="ap-sum-cell">
+                    <span class="ap-sum-label">Request total</span>
+                    <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amount) }}</span>
+                  </div>
+                  <div class="ap-sum-cell">
+                    <span class="ap-sum-label">Balance on request</span>
+                    <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amountRemaining ?? sub.paymentRequestId.amount) }}</span>
+                  </div>
+                  <div class="ap-sum-cell">
+                    <span class="ap-sum-label">Account holder</span>
+                    <span class="ap-sum-value">{{ sub.accountHolderName || '—' }}</span>
+                  </div>
+                  <div class="ap-sum-cell">
+                    <span class="ap-sum-label">Payment date</span>
+                    <span class="ap-sum-value">{{ formatPaymentDateTime(sub) }}</span>
+                  </div>
+                  <div class="ap-sum-cell">
+                    <span class="ap-sum-label">Method</span>
+                    <span class="ap-sum-value">{{ sub.paymentMethod || '—' }}</span>
+                  </div>
+                </div>
+                <p *ngIf="installmentBadge(sub) as ib" class="ap-inst-line">
+                  <span class="inst-chip">{{ ib }}</span>
+                </p>
+                <p *ngIf="sub.paymentRequestId.remarks" class="ap-remarks-line">
+                  <strong>Purpose:</strong> {{ sub.paymentRequestId.remarks }}
+                </p>
+                <p *ngIf="sub.status === 'APPROVED' && sub.approvedAt" class="ap-outcome ap-outcome--ok">
+                  Approved on {{ sub.approvedAt | date:'dd MMM y, HH:mm' }} — {{ sub.currency }} {{ fmt(sub.paidAmount) }} credited.
+                </p>
+                <p *ngIf="sub.status === 'REJECTED'" class="ap-outcome ap-outcome--bad">
+                  Rejected<ng-container *ngIf="sub.rejectionReason">: {{ sub.rejectionReason }}</ng-container>
+                </p>
+                <p *ngIf="isInstallmentRequest(sub)" class="ap-summary-foot">
+                  Instalment plan — declared amount applies to
+                  <ng-container *ngIf="sub.installmentNumber != null">part {{ sub.installmentNumber }}</ng-container>
+                  <ng-container *ngIf="sub.installmentNumber == null">the active instalment</ng-container>.
+                </p>
               </div>
-            </div>
-            <div class="approval-mid">
-              <div class="approval-mid-title">{{ requestTypeLine(sub) }}</div>
-              <div class="approval-amount-row">
-                <span class="approval-amount-pill">{{ sub.currency }} {{ fmt(sub.paidAmount) }}</span>
-                <span class="approval-amount-caption">in this upload</span>
-              </div>
-              <span *ngIf="installmentBadge(sub) as ib" class="inst-chip">{{ ib }}</span>
-              <div class="req-purpose" *ngIf="sub.paymentRequestId.remarks">
-                <span class="req-purpose-label">Purpose</span>
-                <span class="req-purpose-text">{{ sub.paymentRequestId.remarks }}</span>
-              </div>
-            </div>
-            <div class="approval-right">
-              <span class="pill" [ngClass]="statusClass(sub.status)">{{ sub.status }}</span>
-              <span class="submitted-date">{{ sub.submittedAt | date:'dd MMM y, HH:mm' }}</span>
-              <mat-icon class="approval-chevron">{{ activeActionId === sub._id ? 'expand_less' : 'expand_more' }}</mat-icon>
-            </div>
-          </div>
 
-          <!-- Action panel -->
-          <div *ngIf="activeActionId === sub._id" class="action-panel" (click)="$event.stopPropagation()">
-            <div class="ap-summary-card">
-              <div class="ap-summary-head">
-                <mat-icon>receipt_long</mat-icon>
-                <span>Request context</span>
-                <button mat-stroked-button type="button" class="ap-link-student" (click)="openStudentPaymentPage(sub, $event)">
+              <div class="ap-proof-block">
+                <div class="ap-proof-copy">
+                  <span class="ap-proof-title">Payment screenshot</span>
+                  <span class="ap-proof-sub">Verify amount and account name match the proof.</span>
+                </div>
+                <button mat-flat-button color="primary" type="button" (click)="viewScreenshot(sub)">
                   <mat-icon>open_in_new</mat-icon>
-                  Student payment page
+                  Open proof
                 </button>
               </div>
-              <div class="ap-summary-grid">
-                <div class="ap-sum-cell">
-                  <span class="ap-sum-label">Total on request</span>
-                  <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amount) }}</span>
-                </div>
-                <div class="ap-sum-cell">
-                  <span class="ap-sum-label">Still due (whole request)</span>
-                  <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amountRemaining ?? sub.paymentRequestId.amount) }}</span>
-                </div>
-                <div class="ap-sum-cell">
-                  <span class="ap-sum-label">This upload</span>
-                  <span class="ap-sum-value ap-sum-highlight">{{ sub.currency }} {{ fmt(sub.paidAmount) }}</span>
-                </div>
-                <div class="ap-sum-cell">
-                  <span class="ap-sum-label">Due date</span>
-                  <span class="ap-sum-value">{{ sub.paymentRequestId.dueDate | date:'dd MMM y' }}</span>
-                </div>
-              </div>
-              <p *ngIf="isInstallmentRequest(sub)" class="ap-summary-foot">
-                This payment is part of an <strong>instalment plan</strong>. The amount above is what the student declared for
-                <ng-container *ngIf="sub.installmentNumber != null">part {{ sub.installmentNumber }}</ng-container>
-                <ng-container *ngIf="sub.installmentNumber == null">one instalment</ng-container>
-                ; open the student page to see the full schedule.
-              </p>
-            </div>
 
-            <div class="ap-proof-block">
-              <div class="ap-proof-copy">
-                <span class="ap-proof-title">Payment proof</span>
-                <span class="ap-proof-sub">Screenshot or PDF from the student — verify before you approve.</span>
-              </div>
-              <button mat-flat-button color="primary" type="button" (click)="viewScreenshot(sub)">
-                <mat-icon>open_in_new</mat-icon>
-                Open proof
-              </button>
-            </div>
+              <ng-container *ngIf="isPendingStatus(sub.status)">
+                <mat-form-field appearance="outline" class="ap-admin-remarks" subscriptSizing="dynamic">
+                  <mat-label>Admin remarks (optional)</mat-label>
+                  <input matInput [(ngModel)]="adminRemarks" placeholder="Internal note — not shown to student" />
+                </mat-form-field>
 
-            <mat-form-field appearance="outline" class="ap-admin-remarks" subscriptSizing="dynamic">
-              <mat-label>Admin remarks (optional)</mat-label>
-              <input matInput [(ngModel)]="adminRemarks" placeholder="Stored with the approval — students do not see this" />
-            </mat-form-field>
-
-            <div class="ap-review-section">
-              <h4 class="ap-review-heading">Decision</h4>
-
-              <div class="ap-approve-block">
-                <button mat-flat-button color="primary" class="ap-approve-btn" type="button" (click)="approve(sub)"
-                  [disabled]="loadingActionId === sub._id">
-                  <mat-spinner *ngIf="loadingActionId === sub._id" diameter="18" class="btn-spinner"></mat-spinner>
-                  <mat-icon *ngIf="loadingActionId !== sub._id">check_circle</mat-icon>
-                  Approve this payment
-                </button>
-                <p class="ap-approve-hint">Use when the proof matches the declared amount. Partial instalments are applied to the plan automatically.</p>
-              </div>
-
-              <div class="ap-secondary-row">
-                <div class="ap-mini-card ap-mini-reject">
-                  <div class="ap-mini-title">
-                    <mat-icon>cancel</mat-icon>
-                    Reject
-                    <button type="button" mat-icon-button class="ap-help-icon" matTooltip="The student sees this reason. They may be able to submit again depending on your policy." aria-label="Help: reject">
-                      <mat-icon>help_outline</mat-icon>
+                <div class="ap-review-section">
+                  <h4 class="ap-review-heading">Decision</h4>
+                  <div class="ap-approve-block">
+                    <button mat-flat-button color="primary" class="ap-approve-btn" type="button" (click)="approve(sub)"
+                      [disabled]="loadingActionId === sub._id">
+                      <mat-spinner *ngIf="loadingActionId === sub._id" diameter="18" class="btn-spinner"></mat-spinner>
+                      <mat-icon *ngIf="loadingActionId !== sub._id">check_circle</mat-icon>
+                      Approve {{ sub.currency }} {{ fmt(sub.paidAmount) }}
                     </button>
+                    <p class="ap-approve-hint">Credits exactly the declared amount above (supports partial payments).</p>
                   </div>
-                  <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
-                    <mat-label>Reason (required)</mat-label>
-                    <input matInput [(ngModel)]="rejectReason" />
-                  </mat-form-field>
-                  <button mat-stroked-button color="warn" class="ap-mini-btn" type="button" (click)="reject(sub)"
-                    [disabled]="loadingActionId === sub._id">
-                    <mat-icon>block</mat-icon>
-                    Reject submission
-                  </button>
-                </div>
-
-                <div class="ap-mini-card ap-mini-reupload">
-                  <div class="ap-mini-title">
-                    <mat-icon>upload</mat-icon>
-                    Ask for new proof
-                    <button type="button" mat-icon-button class="ap-help-icon" matTooltip="Request stays open. Student uploads again without losing the payment request." aria-label="Help: re-upload">
-                      <mat-icon>help_outline</mat-icon>
-                    </button>
+                  <div class="ap-secondary-row">
+                    <div class="ap-mini-card ap-mini-reject">
+                      <div class="ap-mini-title"><mat-icon>cancel</mat-icon> Reject</div>
+                      <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
+                        <mat-label>Reason (required)</mat-label>
+                        <input matInput [(ngModel)]="rejectReason" />
+                      </mat-form-field>
+                      <button mat-stroked-button color="warn" class="ap-mini-btn" type="button" (click)="reject(sub)"
+                        [disabled]="loadingActionId === sub._id">
+                        <mat-icon>block</mat-icon> Reject
+                      </button>
+                    </div>
+                    <div class="ap-mini-card ap-mini-reupload">
+                      <div class="ap-mini-title"><mat-icon>upload</mat-icon> Ask for new proof</div>
+                      <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
+                        <mat-label>Message to student</mat-label>
+                        <input matInput [(ngModel)]="reuploadNote" placeholder="e.g. Amount not visible" />
+                      </mat-form-field>
+                      <button mat-stroked-button class="ap-mini-btn btn-amber-outline" type="button" (click)="reupload(sub)"
+                        [disabled]="loadingActionId === sub._id">
+                        <mat-icon>refresh</mat-icon> Request re-upload
+                      </button>
+                    </div>
                   </div>
-                  <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
-                    <mat-label>Message to student</mat-label>
-                    <input matInput [(ngModel)]="reuploadNote" placeholder="e.g. Amount not visible" />
-                  </mat-form-field>
-                  <button mat-stroked-button class="ap-mini-btn btn-amber-outline" type="button" (click)="reupload(sub)"
-                    [disabled]="loadingActionId === sub._id">
-                    <mat-icon>refresh</mat-icon>
-                    Request re-upload
-                  </button>
                 </div>
-              </div>
-            </div>
-          </div>
+              </ng-container>
+                    </div>
+                  </td>
+                </tr>
+              </ng-container>
+            </tbody>
+          </table>
         </div>
 
-        <!-- Pagination -->
-        <div class="pagination-row">
-          <button mat-icon-button [disabled]="approvalPage === 1" (click)="prevApproval()">
-            <mat-icon>chevron_left</mat-icon>
+        <footer class="ap-pager" *ngIf="approvalTotal > approvalPageSize">
+          <button type="button" class="ap-pager-btn" [disabled]="approvalPage === 1" (click)="prevApproval()">
+            <mat-icon>arrow_back</mat-icon>
+            Previous
           </button>
-          <span class="page-label">{{ approvalPaginationLabel }}</span>
-          <button mat-icon-button [disabled]="approvalPage * approvalPageSize >= approvalTotal" (click)="nextApproval()">
-            <mat-icon>chevron_right</mat-icon>
+          <span class="ap-pager-info">{{ approvalPaginationLabel }}</span>
+          <button type="button" class="ap-pager-btn" [disabled]="approvalPage * approvalPageSize >= approvalTotal" (click)="nextApproval()">
+            Next
+            <mat-icon>arrow_forward</mat-icon>
           </button>
-        </div>
+        </footer>
+        <p class="ap-pager-static" *ngIf="approvalTotal > 0 && approvalTotal <= approvalPageSize">
+          Showing {{ approvalPaginationLabel }}
+        </p>
       </div>
 
     </div>
-  </mat-tab>
-
-</mat-tab-group>
+  </div>
 </div>

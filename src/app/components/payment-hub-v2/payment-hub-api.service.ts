@@ -178,9 +178,13 @@ export interface ApprovalQueueItem {
   paidAmount: number;
   currency: string;
   paymentMethod: string;
+  paymentDateTime?: string;
+  accountHolderName?: string;
   transactionId?: string;
   status: string;
   submittedAt: string;
+  approvedAt?: string;
+  reviewedAt?: string;
   screenshotViewUrl?: string;
   rejectionReason?: string;
   reuploadNote?: string;

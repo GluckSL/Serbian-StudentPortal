@@ -49,6 +49,11 @@ export class PublicSignupService {
     return this.http.post(`${this.base}/start`, data);
   }
 
+  /** Resend OTP for an in-progress application */
+  resendOtp(applicationToken: string): Observable<any> {
+    return this.http.post(`${this.base}/resend-otp`, { applicationToken });
+  }
+
   /** Step 1b: verify OTP + save password */
   verifyEmail(data: {
     applicationToken: string;
@@ -98,10 +103,17 @@ export class PublicSignupService {
   }
 
   /** Step 3b option 2: upload payment proof */
-  uploadPaymentProof(applicationToken: string, file: File): Observable<any> {
+  uploadPaymentProof(
+    applicationToken: string,
+    file: File,
+    fields: { paidAmount: number; paymentDateTime: string; accountHolderName: string },
+  ): Observable<any> {
     const fd = new FormData();
     fd.append('applicationToken', applicationToken);
     fd.append('screenshot', file);
+    fd.append('paidAmount', String(fields.paidAmount));
+    fd.append('paymentDateTime', fields.paymentDateTime);
+    fd.append('accountHolderName', fields.accountHolderName);
     return this.http.post(`${this.base}/payment-proof`, fd);
   }
 

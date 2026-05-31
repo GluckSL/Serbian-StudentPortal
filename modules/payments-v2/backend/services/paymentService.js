@@ -27,9 +27,10 @@ const getUser = (userId) =>
 // ─── Rebuild StudentPaymentProfile ───────────────────────────────────────────
 
 const recalculateStudentProfile = async (studentId) => {
-  const [requests, approvedSubmissions] = await Promise.all([
+  const [requests, approvedSubmissions, pendingSubmissions] = await Promise.all([
     PaymentRequest.find({ studentId, isArchived: false }).lean(),
     PaymentFlowSubmission.find({ studentId, status: 'APPROVED', isArchived: false }).lean(),
+    PaymentFlowSubmission.find({ studentId, status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false }).lean(),
   ]);
 
   const currencyMap = {};
@@ -37,25 +38,26 @@ const recalculateStudentProfile = async (studentId) => {
     if (!currencyMap[s.currency]) currencyMap[s.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
     currencyMap[s.currency].totalPaid += s.paidAmount;
   }
+  for (const s of pendingSubmissions) {
+    if (!currencyMap[s.currency]) currencyMap[s.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
+    currencyMap[s.currency].pendingApprovalAmount += s.paidAmount;
+  }
   for (const r of requests) {
-    if (!currencyMap[r.currency]) currencyMap[r.currency] = { currency: r.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
-    if (['SUBMITTED', 'UNDER_REVIEW'].includes(r.status)) currencyMap[r.currency].pendingApprovalAmount += r.amountRemaining || r.amount;
+    if (!currencyMap[r.currency]) currencyMap[r.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
     if (r.status === 'OVERDUE') currencyMap[r.currency].overdueAmount += r.amountRemaining || r.amount;
     if (['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'PARTIALLY_PAID'].includes(r.status)) currencyMap[r.currency].expectedAmount += r.amountRemaining || r.amount;
   }
 
   const totalPaid = approvedSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
   const totalRequested = requests.reduce((s, r) => s + r.amount, 0);
-  const pendingApprovalAmount = requests
-    .filter((r) => ['SUBMITTED', 'UNDER_REVIEW'].includes(r.status))
-    .reduce((s, r) => s + (r.amountRemaining ?? r.amount), 0);
+  const pendingApprovalAmount = pendingSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
   const overdueAmount = requests.filter((r) => r.status === 'OVERDUE').reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
   const expectedAmount = requests.filter((r) => !['APPROVED', 'FULLY_PAID', 'REJECTED', 'OVERDUE'].includes(r.status)).reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
 
   const overdueCount = requests.filter((r) => r.status === 'OVERDUE').length;
   const activeRequestCount = requests.filter((r) => ['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'REUPLOAD_REQUIRED'].includes(r.status)).length;
   const completedRequestCount = requests.filter((r) => ['APPROVED', 'FULLY_PAID'].includes(r.status)).length;
-  const pendingApprovalCount = requests.filter((r) => ['SUBMITTED', 'UNDER_REVIEW'].includes(r.status)).length;
+  const pendingApprovalCount = pendingSubmissions.length;
   const rejectedCount = requests.filter((r) => r.status === 'REJECTED').length;
 
   const sorted = [...approvedSubmissions].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
@@ -128,7 +130,7 @@ const createPaymentRequests = async ({ studentIds, adminId, adminRole, adminName
 
 // ─── SUBMIT PAYMENT ──────────────────────────────────────────────────────────
 
-const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency, transactionId, screenshotKey, screenshotOriginalName, screenshotMimeType, screenshotSize, paymentMethod, installmentNumber }) => {
+const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency, transactionId, screenshotKey, screenshotOriginalName, screenshotMimeType, screenshotSize, paymentMethod, installmentNumber, paymentDateTime, accountHolderName }) => {
   const request = await PaymentRequest.findOne({ _id: paymentRequestId, studentId });
   if (!request) throw new Error('Payment request not found or does not belong to this student');
   if (['FULLY_PAID', 'APPROVED'].includes(request.status)) throw new Error('This payment is already fully paid');
@@ -141,7 +143,24 @@ const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency
     if (inst) { installmentId = inst._id; inst.status = 'SUBMITTED'; await inst.save(); }
   }
 
-  const submission = await PaymentFlowSubmission.create({ paymentRequestId, studentId, paidAmount, currency, transactionId, screenshotKey, screenshotOriginalName, screenshotMimeType, screenshotSize, paymentMethod: paymentMethod || 'Bank Transfer', installmentId, installmentNumber, status: 'SUBMITTED', submittedAt: new Date() });
+  const submission = await PaymentFlowSubmission.create({
+    paymentRequestId,
+    studentId,
+    paidAmount,
+    currency,
+    transactionId,
+    screenshotKey,
+    screenshotOriginalName,
+    screenshotMimeType,
+    screenshotSize,
+    paymentMethod: paymentMethod || 'Bank Transfer',
+    paymentDateTime: paymentDateTime || null,
+    accountHolderName: accountHolderName ? String(accountHolderName).trim() : '',
+    installmentId,
+    installmentNumber,
+    status: 'SUBMITTED',
+    submittedAt: new Date(),
+  });
   request.status = 'SUBMITTED';
   await request.save();
 

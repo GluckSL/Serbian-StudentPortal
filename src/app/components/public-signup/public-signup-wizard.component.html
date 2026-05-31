@@ -1,13 +1,13 @@
 <div class="sw-container" [class.sw-container--payment]="currentStep === 2">
 
-  <!-- Step indicator — only on personal-info step (static: step 1 active, step 2 pending) -->
-  <div class="sw-steps" *ngIf="currentStep === 1">
-    <div class="sw-step sw-step--active">
+  <!-- Step indicator -->
+  <div class="sw-steps" *ngIf="currentStep === 1 || (currentStep === 2 && paymentSubStep === 'choose-method')">
+    <div class="sw-step" [class.sw-step--active]="currentStep === 1" [class.sw-step--done]="currentStep > 1">
       <span class="sw-step__num">1</span>
       <span class="sw-step__label">Personal Info</span>
     </div>
     <div class="sw-step__line"></div>
-    <div class="sw-step">
+    <div class="sw-step" [class.sw-step--active]="currentStep === 2">
       <span class="sw-step__num">2</span>
       <span class="sw-step__label">Payment</span>
     </div>
@@ -28,6 +28,11 @@
         <div class="sw-field">
           <label class="sw-label" for="sw-email">Email <span class="sw-required">*</span></label>
           <input id="sw-email" type="email" class="sw-input" [(ngModel)]="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <div class="sw-field">
+          <label class="sw-label" for="sw-email-confirm">Confirm email <span class="sw-required">*</span></label>
+          <input id="sw-email-confirm" type="email" class="sw-input" [(ngModel)]="emailConfirm" placeholder="Re-enter your email" autocomplete="email" />
+          <p class="sw-hint">Must match exactly — one wrong letter sends the code to a different inbox.</p>
         </div>
         <div class="sw-field">
           <label class="sw-label" for="sw-phone">Phone number</label>
@@ -56,12 +61,6 @@
           </select>
         </div>
       </div>
-
-      <p class="sw-hint sw-hint--currency" *ngIf="languageLevelOpted && selectedSubscription && previewAmount">
-        <i class="fas fa-info-circle"></i>
-        Estimated fee: <strong>{{ formattedPreviewAmount }}</strong>
-        ({{ selectedCurrency }} — based on your phone number)
-      </p>
 
       <div class="sw-field">
         <label class="sw-label">Learn German from this language <span class="sw-required">*</span></label>
@@ -99,9 +98,30 @@
       <h3 class="sw-title">Verify your email</h3>
       <p class="sw-subtitle">Enter the 6-digit code sent to <strong>{{ email }}</strong> and choose a password.</p>
 
+      <div class="sw-inbox-tips" role="note">
+        <p class="sw-inbox-tips__title"><i class="fas fa-inbox"></i> Not seeing the email?</p>
+        <ul>
+          <li>Sign in to Gmail as <strong>{{ email }}</strong> (profile icon → account email).</li>
+          <li>Check <strong>Promotions</strong>, <strong>Spam</strong>, and <strong>All Mail</strong>; search <code>from:gluckglobal.com verification</code>.</li>
+          <li>Wait 1–2 minutes, then use Resend code.</li>
+        </ul>
+      </div>
+
       <div class="sw-field">
         <label class="sw-label" for="sw-otp">Verification code <span class="sw-required">*</span></label>
         <input id="sw-otp" type="text" class="sw-input sw-input--otp" [(ngModel)]="otp" maxlength="6" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" />
+        <p class="sw-otp-resend">
+          Didn't receive the code?
+          <button
+            type="button"
+            class="sw-otp-resend__link"
+            [disabled]="otpResendCooldown > 0 || resendOtpLoading || loading || !applicationToken"
+            (click)="resendOtp()">
+            <ng-container *ngIf="resendOtpLoading">Sending…</ng-container>
+            <ng-container *ngIf="!resendOtpLoading && otpResendCooldown > 0">Resend in {{ otpResendCooldown }}s</ng-container>
+            <ng-container *ngIf="!resendOtpLoading && otpResendCooldown === 0">Resend code</ng-container>
+          </button>
+        </p>
       </div>
       <div class="sw-field">
         <label class="sw-label" for="sw-pwd">Choose a password <span class="sw-required">*</span></label>
@@ -132,35 +152,67 @@
       </div>
     </ng-container>
 
-    <ng-container *ngIf="otpSubStep === 'done'">
-      <h3 class="sw-title">Email verified!</h3>
-      <p class="sw-subtitle">Your email <strong>{{ email }}</strong> has been verified. Proceed to payment.</p>
-      <div *ngIf="success" class="sw-info" role="status"><i class="fas fa-check-circle"></i> {{ success }}</div>
-      <div *ngIf="error" class="sw-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
-      <div class="sw-actions sw-actions--stacked">
-        <button type="button" class="sw-btn sw-btn--primary" [disabled]="loading" (click)="goToPayment()">
-          <ng-container *ngIf="!loading">Continue to payment <i class="fas fa-arrow-right"></i></ng-container>
-          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Preparing…</ng-container>
-        </button>
-        <button type="button" class="sw-btn sw-btn--ghost" (click)="editDetails()">
-          <i class="fas fa-pen"></i> Edit details (level, plan, phone…)
-        </button>
-        <button type="button" class="sw-link-btn" (click)="backToLogin.emit()">Back to login</button>
-      </div>
-    </ng-container>
-
   </ng-container>
 
-  <!-- ── STEP 2 — payment (full-width layout) ─────────────────────────────── -->
-  <ng-container *ngIf="currentStep === 2 && paymentSubStep === 'ready'">
+  <!-- ── STEP 2a — choose payment method ─────────────────────────────────── -->
+  <ng-container *ngIf="currentStep === 2 && paymentSubStep === 'choose-method'">
+    <header class="sw-pay-header sw-pay-header--compact">
+      <button type="button" class="sw-pay-back" (click)="backFromPayment()">
+        <i class="fas fa-arrow-left"></i> Edit details
+      </button>
+      <div class="sw-pay-header__text">
+        <h3 class="sw-pay-header__title">Choose how you paid</h3>
+        <p class="sw-pay-header__sub">Select one option to continue your registration.</p>
+      </div>
+    </header>
+
+    <div class="sw-pay-method-grid">
+      <button
+        *ngIf="canPayWithRazorpay"
+        type="button"
+        class="sw-pay-method-card sw-pay-method-card--online"
+        [disabled]="loading"
+        (click)="selectPaymentMethod('razorpay')">
+        <span class="sw-pay-method-card__icon"><i class="fas fa-credit-card"></i></span>
+        <span class="sw-pay-method-card__title">Online payment</span>
+        <span class="sw-pay-method-card__desc">Pay now with card, UPI, or net banking — instant activation.</span>
+      </button>
+
+      <button
+        type="button"
+        class="sw-pay-method-card sw-pay-method-card--paid"
+        [disabled]="loading"
+        (click)="selectPaymentMethod('manual')">
+        <span class="sw-pay-method-card__icon"><i class="fas fa-receipt"></i></span>
+        <span class="sw-pay-method-card__title">Already paid</span>
+        <span class="sw-pay-method-card__desc">I transferred to the {{ activeBankTitle }} account — upload payment screenshot.</span>
+      </button>
+    </div>
+
+    <footer class="sw-pay-footer sw-pay-footer--compact">
+      <div class="sw-pay-footer__meta">
+        <div class="sw-pay-chip"><span>Level</span><strong>{{ languageLevelOpted }}</strong></div>
+        <div class="sw-pay-chip"><span>Plan</span><strong>{{ planLabel }}</strong></div>
+        <div class="sw-pay-chip sw-pay-chip--last"><span>Total</span><strong>{{ formattedAmount }}</strong></div>
+      </div>
+    </footer>
+
+    <div class="sw-loading-row" *ngIf="loading">
+      <span class="sw-spinner sw-spinner--dark"></span> Preparing your payment…
+    </div>
+    <div *ngIf="error" class="sw-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
+  </ng-container>
+
+  <!-- ── STEP 2b — manual bank transfer + proof ───────────────────────────── -->
+  <ng-container *ngIf="currentStep === 2 && paymentSubStep === 'ready' && paymentMethodChoice === 'manual'">
 
     <header class="sw-pay-header">
       <button type="button" class="sw-pay-back" (click)="backFromPayment()">
         <i class="fas fa-arrow-left"></i> Back
       </button>
       <div class="sw-pay-header__text">
-        <h3 class="sw-pay-header__title">Complete your payment</h3>
-        <p class="sw-pay-header__sub">Pay online with Razorpay, or transfer to our bank and upload proof.</p>
+        <h3 class="sw-pay-header__title">Bank transfer &amp; payment proof</h3>
+        <p class="sw-pay-header__sub">Transfer to our account, then enter details and upload your screenshot.</p>
       </div>
     </header>
 
@@ -183,7 +235,35 @@
 
       <div class="sw-pay-layout__proof">
         <h4 class="sw-pay-proof__title"><i class="fas fa-receipt"></i> Upload payment proof</h4>
-        <p class="sw-pay-proof__hint">After paying to the {{ activeBankTitle }} account above, upload your screenshot or PDF here.</p>
+        <p class="sw-pay-proof__hint">After paying to the {{ activeBankTitle }} account above, enter payment details and upload your screenshot or PDF. Partial payments are OK — enter the amount you actually transferred.</p>
+
+        <div class="sw-proof-fields">
+          <label class="sw-field">
+            <span class="sw-label">Total paid amount <span class="sw-required">*</span></span>
+            <input
+              type="number"
+              class="sw-input"
+              [(ngModel)]="proofPaidAmount"
+              [placeholder]="'e.g. ' + (computedAmount || '')"
+              min="1"
+              required />
+            <span class="sw-field-hint">{{ selectedCurrency }} — course total: {{ formattedAmount }}</span>
+          </label>
+          <label class="sw-field">
+            <span class="sw-label">Date &amp; time of payment <span class="sw-required">*</span></span>
+            <input type="datetime-local" class="sw-input" [(ngModel)]="proofPaymentDateTime" required />
+          </label>
+          <label class="sw-field">
+            <span class="sw-label">Account holder name <span class="sw-required">*</span></span>
+            <input
+              type="text"
+              class="sw-input"
+              [(ngModel)]="proofAccountHolderName"
+              placeholder="Name on bank / UPI account"
+              required />
+          </label>
+        </div>
+
         <label class="sw-upload-box" (click)="proofInput.click()">
           <i class="fas fa-cloud-upload-alt sw-upload-box__icon"></i>
           <span class="sw-upload-box__text">{{ proofFileName || 'Click to select file' }}</span>
@@ -192,14 +272,48 @@
         </label>
         <button
           type="button"
-          class="sw-btn sw-btn--outline"
-          [disabled]="!proofFile || loading"
+          class="sw-btn sw-btn--submit-proof"
+          [disabled]="!proofFile || !proofPaidAmount || !proofPaymentDateTime || !proofAccountHolderName.trim() || loading"
           (click)="submitProof()"
         >
           <ng-container *ngIf="!loading">Submit payment proof <i class="fas fa-paper-plane"></i></ng-container>
-          <ng-container *ngIf="loading"><span class="sw-spinner sw-spinner--dark"></span> Submitting…</ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Submitting…</ng-container>
         </button>
       </div>
+    </div>
+
+    <footer class="sw-pay-footer sw-pay-footer--compact">
+      <div class="sw-pay-footer__meta">
+        <div class="sw-pay-chip"><span>Level</span><strong>{{ languageLevelOpted }}</strong></div>
+        <div class="sw-pay-chip"><span>Plan</span><strong>{{ planLabel }}</strong></div>
+        <div class="sw-pay-chip sw-pay-chip--last"><span>Course total</span><strong>{{ formattedAmount }}</strong></div>
+      </div>
+      <div *ngIf="error" class="sw-error sw-error--footer" role="alert">
+        <i class="fas fa-exclamation-circle"></i> {{ error }}
+      </div>
+    </footer>
+
+  </ng-container>
+
+  <!-- ── STEP 2c — Razorpay online payment ────────────────────────────────── -->
+  <ng-container *ngIf="currentStep === 2 && paymentSubStep === 'ready' && paymentMethodChoice === 'razorpay'">
+
+    <header class="sw-pay-header">
+      <button type="button" class="sw-pay-back" (click)="backFromPayment()">
+        <i class="fas fa-arrow-left"></i> Back
+      </button>
+      <div class="sw-pay-header__text">
+        <h3 class="sw-pay-header__title">Pay online</h3>
+        <p class="sw-pay-header__sub">Secure checkout with Razorpay — card, UPI, or net banking.</p>
+      </div>
+    </header>
+
+    <div class="sw-pay-online-panel">
+      <div class="sw-pay-online-panel__amount">
+        <span class="sw-pay-total-label">Amount due</span>
+        <strong class="sw-pay-total">{{ formattedAmount }}</strong>
+      </div>
+      <p class="sw-pay-online-panel__hint">You will be redirected to Razorpay to complete payment. Your account is activated after successful payment.</p>
     </div>
 
     <footer class="sw-pay-footer">

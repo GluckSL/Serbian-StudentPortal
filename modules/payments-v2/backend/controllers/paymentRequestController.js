@@ -454,6 +454,15 @@ const studentSubmitPayment = async (req, res) => {
     const transactionId = req.body.transactionId || undefined;
     const paymentMethod = req.body.paymentMethod || 'Bank Transfer';
     const installmentNumber = req.body.installmentNumber ? Number(req.body.installmentNumber) : undefined;
+    const accountHolderName = String(req.body.accountHolderName || '').trim();
+    const paymentDateTimeRaw = req.body.paymentDateTime;
+    let paymentDateTime = null;
+    if (paymentDateTimeRaw) {
+      paymentDateTime = new Date(paymentDateTimeRaw);
+      if (Number.isNaN(paymentDateTime.getTime())) {
+        return res.status(400).json({ success: false, message: 'paymentDateTime is invalid' });
+      }
+    }
 
     if (!paymentRequestId) {
       return res.status(400).json({ success: false, message: 'paymentRequestId is required' });
@@ -466,6 +475,12 @@ const studentSubmitPayment = async (req, res) => {
     }
     if (!['LKR', 'INR', 'USD'].includes(currency)) {
       return res.status(400).json({ success: false, message: 'currency must be LKR, INR, or USD' });
+    }
+    if (!accountHolderName || accountHolderName.length < 2) {
+      return res.status(400).json({ success: false, message: 'accountHolderName is required' });
+    }
+    if (!paymentDateTime) {
+      return res.status(400).json({ success: false, message: 'paymentDateTime is required' });
     }
 
     let screenshotKey;
@@ -497,6 +512,8 @@ const studentSubmitPayment = async (req, res) => {
       screenshotSize,
       paymentMethod,
       installmentNumber,
+      paymentDateTime,
+      accountHolderName,
     });
 
     res.status(201).json({ success: true, data: submission });

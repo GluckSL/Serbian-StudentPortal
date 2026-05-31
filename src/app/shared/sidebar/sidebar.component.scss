@@ -233,6 +233,34 @@
   text-overflow: ellipsis;
 }
 
+.nav-pending-badge {
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #e53935;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.35);
+}
+
+.nav-item--pending:not(.active) {
+  background: rgba(229, 57, 53, 0.12);
+  color: #ffcdd2;
+
+  .nav-icon {
+    color: #ef9a9a;
+  }
+}
+
+.nav-item--pending.active {
+  box-shadow: inset 3px 0 0 #ef5350;
+}
+
 /* ── Footer ── */
 .sidebar-footer {
   position: relative;

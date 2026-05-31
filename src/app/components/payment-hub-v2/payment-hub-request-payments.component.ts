@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -18,6 +17,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PaymentHubApiService, StudentBrowseRow, ApprovalQueueItem } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
+import { PaymentRequestNavService } from './payment-request-nav.service';
 
 @Component({
   selector: 'app-payment-hub-request-payments',
@@ -25,7 +25,6 @@ import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.compon
   imports: [
     CommonModule,
     FormsModule,
-    MatTabsModule,
     MatCardModule,
     MatButtonModule,
     MatProgressSpinnerModule,
@@ -92,7 +91,11 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   approvalTotal = 0;
   approvalPage = 1;
   readonly approvalPageSize = 20;
-  approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
+  approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW,APPROVED,REJECTED';
+  /** Count of items awaiting decision (badge on tab + sidebar). */
+  pendingQueueTotal = 0;
+
+  activeView: 'send' | 'approvals' = 'send';
 
   activeActionId: string | null = null;
   rejectReason = '';
@@ -101,7 +104,8 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   loadingActionId: string | null = null;
 
   readonly approvalStatuses = [
-    { value: 'SUBMITTED,UNDER_REVIEW', label: 'Pending' },
+    { value: 'SUBMITTED,UNDER_REVIEW,APPROVED,REJECTED', label: 'Recent (pending + history)' },
+    { value: 'SUBMITTED,UNDER_REVIEW', label: 'Pending only' },
     { value: 'SUBMITTED', label: 'Submitted' },
     { value: 'UNDER_REVIEW', label: 'Under Review' },
     { value: 'APPROVED', label: 'Approved' },
@@ -112,11 +116,22 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   constructor(
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
+    private readonly paymentRequestNav: PaymentRequestNavService,
   ) {}
 
   ngOnInit(): void {
     this.applyFilters();
     this.loadApprovals();
+    this.refreshPendingQueueCount();
+  }
+
+  setActiveView(view: 'send' | 'approvals'): void {
+    this.activeView = view;
+    if (view === 'approvals' && this.approvalStatusFilter !== 'SUBMITTED,UNDER_REVIEW') {
+      this.approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
+      this.approvalPage = 1;
+      this.loadApprovals();
+    }
   }
 
   // ── Filter / Browse methods ───────────────────────────────────────────────
@@ -298,6 +313,9 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.approvalRows = res.data || [];
         this.approvalTotal = res.total || 0;
         this.loadingApprovals = false;
+        if (this.approvalStatusFilter === 'SUBMITTED,UNDER_REVIEW') {
+          this.pendingQueueTotal = this.approvalTotal;
+        }
       },
       error: () => {
         this.loadingApprovals = false;
@@ -306,7 +324,30 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     });
   }
 
-  onStatusFilterChange(): void { this.approvalPage = 1; this.loadApprovals(); }
+  refreshPendingQueueCount(): void {
+    this.api.getApprovalQueue({ page: 1, limit: 1, status: 'SUBMITTED,UNDER_REVIEW' }).subscribe({
+      next: (res) => {
+        this.pendingQueueTotal = res.total || 0;
+        this.paymentRequestNav.setPendingCount(this.pendingQueueTotal);
+      },
+      error: () => { /* ignore */ },
+    });
+  }
+
+  setApprovalFilter(value: string): void {
+    if (this.approvalStatusFilter === value) return;
+    this.approvalStatusFilter = value;
+    this.onStatusFilterChange();
+  }
+
+  onStatusFilterChange(): void {
+    this.approvalPage = 1;
+    this.activeActionId = null;
+    this.loadApprovals();
+    if (this.approvalStatusFilter === 'SUBMITTED,UNDER_REVIEW') {
+      this.refreshPendingQueueCount();
+    }
+  }
   prevApproval(): void { if (this.approvalPage > 1) { this.approvalPage--; this.loadApprovals(); } }
   nextApproval(): void { if (this.approvalPage * this.approvalPageSize < this.approvalTotal) { this.approvalPage++; this.loadApprovals(); } }
 
@@ -339,6 +380,26 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     });
   }
 
+  quickApprove(sub: ApprovalQueueItem, ev: Event): void {
+    ev.stopPropagation();
+    if (!this.isPendingStatus(sub.status) || this.loadingActionId) return;
+    const label = `${sub.currency} ${this.fmt(sub.paidAmount)} for ${sub.studentId.name}`;
+    if (!confirm(`Approve ${label}?`)) return;
+    this.approve(sub);
+  }
+
+  quickReject(sub: ApprovalQueueItem, ev: Event): void {
+    ev.stopPropagation();
+    if (!this.isPendingStatus(sub.status) || this.loadingActionId) return;
+    const reason = prompt(`Rejection reason for ${sub.studentId.name}:`);
+    if (reason === null) return;
+    if (!reason.trim()) {
+      this.snack.open('Enter a rejection reason', 'OK', { duration: 3000 });
+      return;
+    }
+    this.reject(sub, reason.trim());
+  }
+
   approve(sub: ApprovalQueueItem): void {
     this.loadingActionId = sub._id;
     this.api.approveSubmission(sub._id, { adminRemarks: this.adminRemarks || undefined }).subscribe({
@@ -348,6 +409,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.snack.open('Approved.' + msg + (res.isFullyPaid ? ' Fully paid!' : ''), 'OK', { duration: 5000 });
         this.activeActionId = null;
         this.loadApprovals();
+        this.refreshPendingQueueCount();
       },
       error: (e) => {
         this.loadingActionId = null;
@@ -356,16 +418,18 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     });
   }
 
-  reject(sub: ApprovalQueueItem): void {
-    if (!this.rejectReason.trim()) { this.snack.open('Enter a rejection reason', 'OK', { duration: 3000 }); return; }
+  reject(sub: ApprovalQueueItem, reason?: string): void {
+    const rejectionReason = (reason ?? this.rejectReason).trim();
+    if (!rejectionReason) { this.snack.open('Enter a rejection reason', 'OK', { duration: 3000 }); return; }
     this.loadingActionId = sub._id;
-    this.api.rejectSubmission(sub._id, { rejectionReason: this.rejectReason }).subscribe({
+    this.api.rejectSubmission(sub._id, { rejectionReason }).subscribe({
       next: () => {
         this.loadingActionId = null;
         this.snack.open('Rejected.', 'OK', { duration: 3000 });
         this.activeActionId = null;
         this.rejectReason = '';
         this.loadApprovals();
+        this.refreshPendingQueueCount();
       },
       error: (e) => {
         this.loadingActionId = null;
@@ -383,12 +447,23 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.activeActionId = null;
         this.reuploadNote = '';
         this.loadApprovals();
+        this.refreshPendingQueueCount();
       },
       error: (e) => {
         this.loadingActionId = null;
         this.snack.open(e?.error?.message || 'Request failed', 'Dismiss', { duration: 5000 });
       },
     });
+  }
+
+  isPendingStatus(status: string): boolean {
+    return status === 'SUBMITTED' || status === 'UNDER_REVIEW';
+  }
+
+  formatPaymentDateTime(sub: ApprovalQueueItem): string {
+    const raw = sub.paymentDateTime || sub.submittedAt;
+    if (!raw) return '—';
+    return new Date(raw).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
