@@ -64,8 +64,9 @@ export class LoginComponent implements OnInit {
   setupError = '';
   setupSuccess = '';
   setupLoading = false;
-  /** 'start' | 'otp' | 'change-email' | 'change-email-sent' */
-  setupStep: 'start' | 'otp' | 'change-email' | 'change-email-sent' = 'start';
+  setupVerificationCode = '';
+  /** 'start' | 'otp-verify' | 'password-set' | 'change-email' | 'change-email-sent' */
+  setupStep: 'start' | 'otp-verify' | 'password-set' | 'change-email' | 'change-email-sent' = 'start';
   setupChangeNewEmail = '';
   setupChangeNewPassword = '';
   setupChangeConfirmPassword = '';
@@ -232,10 +233,7 @@ export class LoginComponent implements OnInit {
           this.setupChangeConfirmPassword = '';
           this.setupError = '';
           this.setupSuccess = '';
-          this.setupStep = response.otpPreSent ? 'otp' : 'start';
-          this.setupSuccess = response.otpPreSent
-            ? 'Enter the verification code from your email. You can request a new code if needed.'
-            : '';
+          this.setupStep = 'start';
           this.showPasswordSetupModal = true;
           return;
         }
@@ -337,7 +335,7 @@ export class LoginComponent implements OnInit {
     this.authService.sendSetupOtp(this.setupToken).subscribe({
       next: (res: any) => {
         this.setupLoading = false;
-        this.setupStep = 'otp';
+        this.setupStep = 'otp-verify';
         this.setupSuccess = res.msg || `A verification code was sent to ${this.setupEmail}.`;
       },
       error: (err: any) => {
@@ -347,14 +345,38 @@ export class LoginComponent implements OnInit {
     });
   }
 
-  /** Flow B step 2: verify OTP + set password → log in */
-  completePasswordSetup(): void {
+  /** Flow B step 2a: verify OTP only → get verificationCode */
+  verifyOtp(): void {
     this.setupError = '';
-    this.setupSuccess = '';
     if (!this.setupOtp.trim()) {
       this.setupError = 'Enter the verification code sent to your email.';
       return;
     }
+    this.setupLoading = true;
+    this.authService.verifySetupOtp({
+      setupToken: this.setupToken,
+      otp: this.setupOtp.trim(),
+    }).subscribe({
+      next: (res: any) => {
+        this.setupLoading = false;
+        this.setupVerificationCode = res.verificationCode;
+        this.setupOtp = '';
+        this.setupNewPassword = '';
+        this.setupConfirmPassword = '';
+        this.setupError = '';
+        this.setupStep = 'password-set';
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not verify code. Please try again.';
+      },
+    });
+  }
+
+  /** Flow B step 2b: set password after OTP verification → log in */
+  setPassword(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
     if (this.setupNewPassword.length < 8) {
       this.setupError = 'Password must be at least 8 characters.';
       return;
@@ -364,9 +386,9 @@ export class LoginComponent implements OnInit {
       return;
     }
     this.setupLoading = true;
-    this.authService.completePasswordSetup({
+    this.authService.setSetupPassword({
       setupToken: this.setupToken,
-      otp: this.setupOtp.trim(),
+      verificationCode: this.setupVerificationCode,
       newPassword: this.setupNewPassword,
       confirmPassword: this.setupConfirmPassword,
       keepSessionActive: this.keepSessionActive,
@@ -379,7 +401,7 @@ export class LoginComponent implements OnInit {
       },
       error: (err: any) => {
         this.setupLoading = false;
-        this.setupError = err?.error?.msg || 'Could not complete setup. Please try again.';
+        this.setupError = err?.error?.msg || 'Could not set password. Please try again.';
       },
     });
   }

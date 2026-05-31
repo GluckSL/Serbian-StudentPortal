@@ -58,11 +58,7 @@
       </div>
     </header>
     <div class="wd-modal__body">
-      <p class="wd-modal__greeting" *ngIf="setupStudentInfo">
-        Hello <strong>{{ setupStudentInfo.studentName }}</strong>,
-        please set a permanent password to continue. You can sign in later with your
-        <strong>email</strong> or <strong>Web App ID ({{ setupStudentInfo.regNo }})</strong>.
-      </p>
+
 
       <!-- ── STEP: start — show email + two choices ── -->
       <ng-container *ngIf="setupStep === 'start'">
@@ -77,13 +73,24 @@
         <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
       </ng-container>
 
-      <!-- ── STEP: otp — OTP sent to current email ── -->
-      <ng-container *ngIf="setupStep === 'otp'">
-        <p class="setup-hint setup-hint--info"><i class="fas fa-envelope"></i> A 6-digit code was sent to <strong>{{ setupEmail }}</strong>. Enter it below to verify and set your password.</p>
+      <!-- ── STEP: otp-verify — OTP sent to current email ── -->
+      <ng-container *ngIf="setupStep === 'otp-verify'">
+        <p class="setup-hint setup-hint--info"><i class="fas fa-envelope"></i> A 6-digit code was sent to <strong>{{ setupEmail }}</strong>. Enter it below to verify your email address.</p>
         <div class="setup-field">
           <label class="setup-label" for="setup-otp">Verification code</label>
           <input type="text" id="setup-otp" class="setup-input setup-input--otp" [(ngModel)]="setupOtp" name="setupOtp" maxlength="6" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" />
         </div>
+        <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
+        <div *ngIf="setupSuccess" class="setup-success" role="status"><i class="fas fa-check-circle"></i> {{ setupSuccess }}</div>
+        <p class="setup-hint" style="margin-top: 0.75rem;">
+          Didn't get a code?
+          <button type="button" class="setup-change-email-btn" [disabled]="setupLoading" (click)="sendSetupOtp()">Send a new code</button>
+        </p>
+      </ng-container>
+
+      <!-- ── STEP: password-set — set new password after OTP verified ── -->
+      <ng-container *ngIf="setupStep === 'password-set'">
+        <p class="setup-hint setup-hint--info"><i class="fas fa-check-circle"></i> Code verified! Now set your new password.</p>
         <div class="setup-field">
           <label class="setup-label" for="setup-new-pw">New password</label>
           <div class="setup-pw-row">
@@ -99,11 +106,6 @@
           </div>
         </div>
         <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
-        <div *ngIf="setupSuccess" class="setup-success" role="status"><i class="fas fa-check-circle"></i> {{ setupSuccess }}</div>
-        <p class="setup-hint" style="margin-top: 0.75rem;">
-          Didn’t get a code?
-          <button type="button" class="setup-change-email-btn" [disabled]="setupLoading" (click)="sendSetupOtp()">Send a new code</button>
-        </p>
       </ng-container>
 
       <!-- ── STEP: change-email — student wants a different email ── -->
@@ -151,10 +153,18 @@
           <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Sending code…</ng-container>
         </button>
       </ng-container>
-      <!-- otp step -->
-      <ng-container *ngIf="setupStep === 'otp'">
-        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'start'; setupError = ''">Back</button>
-        <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="completePasswordSetup()">
+      <!-- otp-verify step -->
+      <ng-container *ngIf="setupStep === 'otp-verify'">
+        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'start'; setupError = ''; setupSuccess = ''">Back</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="verifyOtp()">
+          <ng-container *ngIf="!setupLoading">Verify <i class="fas fa-check"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Verifying…</ng-container>
+        </button>
+      </ng-container>
+      <!-- password-set step -->
+      <ng-container *ngIf="setupStep === 'password-set'">
+        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'otp-verify'; setupError = ''; setupOtp = ''; setupVerificationCode = ''">Back</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="setPassword()">
           <ng-container *ngIf="!setupLoading">Save &amp; continue <i class="fas fa-arrow-right"></i></ng-container>
           <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Please wait…</ng-container>
         </button>

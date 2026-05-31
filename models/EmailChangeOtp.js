@@ -25,6 +25,8 @@ const EmailChangeOtpSchema = new mongoose.Schema({
     required: true,
     index: { expireAfterSeconds: 0 },
   },
+  verified: { type: Boolean, default: false },
+  verificationCode: { type: String },
   attempts: { type: Number, default: 0 },
   used: { type: Boolean, default: false },
 }, { timestamps: false });

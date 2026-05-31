@@ -194,15 +194,20 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/auth/setup/send-otp`, { setupToken });
   }
 
-  /** Flow B step 2: verify OTP and set password, then log in */
-  completePasswordSetup(data: {
+  /** Flow B step 2a: verify OTP only — returns verificationCode */
+  verifySetupOtp(data: { setupToken: string; otp: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/setup/verify-otp`, data);
+  }
+
+  /** Flow B step 2b: set password after OTP verification, then log in */
+  setSetupPassword(data: {
     setupToken: string;
-    otp: string;
+    verificationCode: string;
     newPassword: string;
     confirmPassword: string;
     keepSessionActive?: boolean;
   }): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/setup/complete`, data).pipe(
+    return this.http.post<any>(`${this.apiUrl}/auth/setup/set-password`, data).pipe(
       tap((response: any) => {
         if (response?.token) {
           try {

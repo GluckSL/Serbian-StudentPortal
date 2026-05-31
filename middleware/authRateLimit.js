@@ -76,10 +76,30 @@ const setupCompleteLimiter = rateLimit({
   },
 });
 
+const setupVerifyOtpLimiter = rateLimit({
+  ...sharedOptions,
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    msg: 'Too many verification attempts. Please try again in 15 minutes.',
+  },
+});
+
+const setupSetPasswordLimiter = rateLimit({
+  ...sharedOptions,
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    msg: 'Too many attempts. Please try again in 15 minutes.',
+  },
+});
+
 module.exports = {
   forgotPasswordRequestLimiter,
   forgotPasswordResetLimiter,
   loginLimiter,
   setupEmailOtpLimiter,
   setupCompleteLimiter,
+  setupVerifyOtpLimiter,
+  setupSetPasswordLimiter,
 };
