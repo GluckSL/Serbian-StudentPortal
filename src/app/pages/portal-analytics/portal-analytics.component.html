@@ -85,7 +85,20 @@
           }
         </select>
       </label>
-      <div class="pa-cohort-filter">
+      <div class="pa-field pa-field--checkbox" matTooltip="Test accounts are excluded by default. Enable to include their portal time in analytics.">
+        <span>Test accounts</span>
+        <label class="pa-checkbox-control">
+          <input
+            type="checkbox"
+            [(ngModel)]="includeTestAccounts"
+            name="includeTestAccounts"
+            (ngModelChange)="onIncludeTestAccountsChange()" />
+          <span>Include in analytics</span>
+        </label>
+      </div>
+      <div class="pa-field pa-field--cohort">
+        <span>Cohort</span>
+        <div class="pa-cohort-filter">
         <button
           type="button"
           class="pa-cohort-btn"
@@ -107,6 +120,7 @@
           (click)="setCohort('go')">
           Go
         </button>
+        </div>
       </div>
     </div>
   </div>

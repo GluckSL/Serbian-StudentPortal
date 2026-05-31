@@ -883,6 +883,32 @@
   background: #e0f2fe !important;
 }
 
+.table-expire-sessions-btn {
+  color: #b45309 !important;
+  background: #fffbeb !important;
+}
+
+.table-expire-sessions-btn:hover:not([disabled]) {
+  background: #fef3c7 !important;
+}
+
+.table-expire-sessions-btn[disabled] {
+  opacity: 0.45;
+}
+
+.table-expire-sessions-btn mat-icon {
+  font-size: 20px;
+}
+
+.table-expire-spin {
+  animation: table-expire-spin 1s linear infinite;
+}
+
+@keyframes table-expire-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .crm-cell {
   font-size: 11px;
   max-width: 200px;
@@ -1070,7 +1096,12 @@
 .teacher-info { font-weight: 500; color: #475569; font-size: 11px; }
 
 .credentials-sent-info { font-size: 10px; }
-.credentials-sent-info small { display: block; line-height: 1.35; white-space: nowrap; }
+.credentials-sent-info small { display: block; line-height: 1.4; white-space: nowrap; }
+.credentials-sent-info .cred-meta-label {
+  font-weight: 600;
+  color: #64748b;
+  margin-right: 0.2rem;
+}
 
 /* Password cell */
 .pw-cell { white-space: nowrap; }

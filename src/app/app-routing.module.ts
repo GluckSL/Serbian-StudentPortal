@@ -1,6 +1,6 @@
 // src/app/app-routing.module.ts
 
-import { NgModule } from '@angular/core';
+import { NgMdule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { LoginComponent } from './components/login/login.component';
 import { SignupComponent } from './components/signup/signup.component';
@@ -83,15 +83,6 @@ export const routes: Routes = [
       .then(m => m.UserRolesComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
-  },
-
-  // Admin module management route
-  {
-    path: 'admin-modules',
-    loadComponent: () => import('./components/admin-dashboard/module-management.component')
-      .then(m => m.ModuleManagementComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
 
   // Admin analytics route
@@ -224,8 +215,6 @@ export const routes: Routes = [
   { path: 'teacher/resources', loadComponent: () => import('./components/teacher-dashboard/teacher-resources.component').then(m => m.TeacherResourcesComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // New AI Tutoring System Routes
-  { path: 'learning-modules', loadComponent: () => import('./components/learning-modules/learning-modules.component').then(m => m.LearningModulesComponent), canActivate: [AuthGuard] },
-
   // Module creation/editing routes (Teachers and Admins)
   { path: 'module-creation-choice', loadComponent: () => import('./components/teacher-dashboard/module-creation-choice.component').then(m => m.ModuleCreationChoiceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'create-module', loadComponent: () => import('./components/teacher-dashboard/module-form.component').then(m => m.ModuleFormComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
@@ -509,6 +498,15 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
+<<<<<<<<< Temporary merge branch 1
+=========
+
+  // Class Recordings — Teacher/Admin manage
+  { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+
+  // Class Recordings — Student view
+  { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+>>>>>>>>> Temporary merge branch 2
 
   // ── GlückArena — Student routes ──────────────────────────────────────────
   {

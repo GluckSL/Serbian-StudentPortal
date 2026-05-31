@@ -517,10 +517,10 @@ export class ModuleFormComponent implements OnInit {
     if (!this.moduleId) return;
 
     this.learningModulesService.getModule(this.moduleId).subscribe({
-      next: (module) => {
+      next: (module: LearningModule) => {
         this.populateForm(module);
       },
-      error: (error) => {
+      error: (error: unknown) => {
         console.error('Error loading module:', error);
         this.notify.error('Failed to load module');
         this.goBack();
@@ -742,12 +742,12 @@ export class ModuleFormComponent implements OnInit {
       : this.learningModulesService.createModule(moduleData);
 
     operation.subscribe({
-      next: (response) => {
+      next: (_response: unknown) => {
         const action = this.isEditMode ? 'updated' : 'created';
         this.notify.success(`Module ${action} successfully!`);
         this.goBack();
       },
-      error: (error) => {
+      error: (error: unknown) => {
         console.error('Error saving module:', error);
         const action = this.isEditMode ? 'updating' : 'creating';
         this.notify.error(`Failed to ${action} module. Please try again.`);

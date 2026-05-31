@@ -4,7 +4,7 @@ const PortalSession = require('../models/portalSession.model');
 const PageActivity = require('../models/pageActivity.model');
 const DigitalExercise = require('../models/DigitalExercise');
 const User = require('../models/User');
-const { batchMatchFilter } = require('../utils/analyticsFilters');
+const { batchMatchFilter, EXCLUDE_TEST } = require('../utils/analyticsFilters');
 const UserActivityLog = require('../models/UserActivityLog');
 const StudentLogs = require('../models/StudentLogs');
 const RecordingView = require('../models/RecordingView');
@@ -123,16 +123,20 @@ async function getCohortStudentIds(cohort) {
  * Resolves student ObjectIds for portal analytics filters (cohort, batch, level).
  * Returns null when no filters are active (show all students).
  */
-async function resolveAnalyticsStudentIds({ cohort, batch, level } = {}) {
+async function resolveAnalyticsStudentIds({ cohort, batch, level, includeTestAccounts } = {}) {
+  const includeTest = includeTestAccounts === true || includeTestAccounts === 'true';
   const hasCohort = cohort === 'platinum' || cohort === 'go';
   const batchVal = String(batch || '').trim();
   const levelVal = VALID_STUDENT_LEVELS.has(String(level || '').trim().toUpperCase())
     ? String(level).trim().toUpperCase()
     : null;
+  const hasAnyFilter = hasCohort || batchVal || levelVal;
 
-  if (!hasCohort && !batchVal && !levelVal) return null;
+  // When including test accounts and no cohort/batch/level filter, analytics queries use no studentId clause.
+  if (!hasAnyFilter && includeTest) return null;
 
   const userFilter = { role: 'STUDENT' };
+  if (!includeTest) Object.assign(userFilter, EXCLUDE_TEST);
   if (cohort === 'platinum') {
     userFilter.subscription = 'PLATINUM';
     userFilter.goStatus = { $ne: 'GO' };

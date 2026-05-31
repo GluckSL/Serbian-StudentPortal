@@ -80,10 +80,13 @@
         <input type="text" class="lt-search-input" [(ngModel)]="searchRaw" (ngModelChange)="onSearchChange()" placeholder="Name, email, reg no, batch…" />
       </div>
 
-      <label class="lt-filter-pill lt-filter-pill--check" matTooltip="Uncheck to hide students marked as test accounts">
-        <input type="checkbox" [(ngModel)]="includeTestAccounts" (ngModelChange)="onIncludeTestAccountsChange()" />
-        <span>Show test accounts</span>
-      </label>
+      <div class="lt-filter-pill lt-filter-pill--check" matTooltip="Test accounts are excluded by default. Enable to include their learning time in totals.">
+        <span class="lt-filter-pill__label">Test</span>
+        <label class="lt-check-control">
+          <input type="checkbox" [(ngModel)]="includeTestAccounts" (ngModelChange)="onIncludeTestAccountsChange()" />
+          <span>Include</span>
+        </label>
+      </div>
 
       <div class="lt-filter-pill lt-filter-pill--sort">
         <span class="lt-filter-pill__label">Sort</span>
@@ -346,7 +349,7 @@
               <td colspan="9" class="lt-empty">
                 <mat-icon>school</mat-icon>
                 <p>No students match your filters.</p>
-                <p class="lt-empty__hint">Clear the search box, widen the date range (e.g. 30 Days), or turn on “Show test accounts” if someone is marked as a test account.</p>
+                <p class="lt-empty__hint">Clear the search box, widen the date range (e.g. 30 Days), or check “Include test accounts” if you need test student data.</p>
               </td>
             </tr>
           </tbody>
@@ -372,9 +375,12 @@
 
   </ng-container>
 
-  <!-- inline loading overlay while refreshing with existing data -->
-  <div *ngIf="loading && kpis" class="lt-overlay-spinner">
-    <mat-spinner diameter="36"></mat-spinner>
+  <!-- Centered overlay while filters refresh (page stays visible underneath) -->
+  <div *ngIf="loading && hasLoadedOnce" class="lt-loading-overlay" aria-live="polite" aria-busy="true">
+    <div class="lt-loading-overlay__panel">
+      <mat-spinner diameter="48"></mat-spinner>
+      <p class="lt-loading-overlay__text">Loading language data…</p>
+    </div>
   </div>
 
 </div>

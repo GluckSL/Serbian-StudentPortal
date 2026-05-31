@@ -251,7 +251,6 @@ export class LanguageTrackingStudentDetailComponent implements OnInit, OnDestroy
   taskIcon(task: LtIncompleteTask): string {
     const map: Record<string, string> = {
       exercise: 'fitness_center',
-      module: 'school',
       'dg-bot': 'smart_toy',
       class: 'videocam',
       recording: 'play_circle',
@@ -262,7 +261,6 @@ export class LanguageTrackingStudentDetailComponent implements OnInit, OnDestroy
   taskKindLabel(kind: string): string {
     const map: Record<string, string> = {
       exercise: 'Digital Exercise',
-      module: 'Learning Module',
       'dg-bot': 'DG Bot',
       class: 'Live Class',
       recording: 'Recording',

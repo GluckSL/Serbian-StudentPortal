@@ -9,6 +9,7 @@ const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3Client = require('./s3');
 const { isExerciseR2Url, presignExerciseMediaUrl, getExerciseR2Config } = require('../services/exerciseMediaR2');
+const { resolveContentType } = require('../utils/fileMime');
 
 const USE_SIGNED = process.env.S3_USE_SIGNED_URLS === 'true';
 const EXPIRES_IN = parseInt(process.env.S3_SIGNED_URL_EXPIRY || '3600', 10);
@@ -202,8 +203,13 @@ function attachmentContentDisposition(filename) {
  * Presigned URL that includes ResponseContentDisposition=attachment so the browser saves the file
  * instead of opening it (avoids relying on cross-origin fetch + blob, which S3 often blocks via CORS).
  */
-async function presignS3DownloadUrl(fileName, fileUrl, originalName) {
+async function presignS3DownloadUrl(fileName, fileUrl, originalName, mimeType) {
   const disp = attachmentContentDisposition(originalName);
+  const contentType = resolveContentType(originalName, mimeType);
+  const responseOverrides = {
+    ResponseContentDisposition: disp,
+    ResponseContentType: contentType,
+  };
   if (!USE_SIGNED) {
     return fileUrl || null;
   }
@@ -213,7 +219,7 @@ async function presignS3DownloadUrl(fileName, fileUrl, originalName) {
       const command = new GetObjectCommand({
         Bucket: process.env.S3_BUCKET,
         Key: clean,
-        ResponseContentDisposition: disp
+        ...responseOverrides,
       });
       return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
     } catch (err) {
@@ -227,7 +233,7 @@ async function presignS3DownloadUrl(fileName, fileUrl, originalName) {
     const command = new GetObjectCommand({
       Bucket: process.env.S3_BUCKET,
       Key: key,
-      ResponseContentDisposition: disp
+      ...responseOverrides,
     });
     return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
   } catch (err) {
@@ -240,10 +246,15 @@ async function presignS3DownloadUrl(fileName, fileUrl, originalName) {
  * Presigned URL with inline disposition for browser preview/iframe usage.
  * This helps avoid forced downloads when object metadata contains attachment disposition.
  */
-async function presignS3InlineUrl(fileName, fileUrl, originalName) {
+async function presignS3InlineUrl(fileName, fileUrl, originalName, mimeType) {
   const base = String(originalName || 'preview').replace(/["\r\n]/g, '_');
   const star = encodeURIComponent(base);
   const disp = `inline; filename="${base}"; filename*=UTF-8''${star}`;
+  const contentType = resolveContentType(originalName, mimeType);
+  const responseOverrides = {
+    ResponseContentDisposition: disp,
+    ResponseContentType: contentType,
+  };
 
   if (!USE_SIGNED) {
     return fileUrl || null;
@@ -255,7 +266,7 @@ async function presignS3InlineUrl(fileName, fileUrl, originalName) {
       const command = new GetObjectCommand({
         Bucket: process.env.S3_BUCKET,
         Key: clean,
-        ResponseContentDisposition: disp
+        ...responseOverrides,
       });
       return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
     } catch (err) {
@@ -270,7 +281,7 @@ async function presignS3InlineUrl(fileName, fileUrl, originalName) {
     const command = new GetObjectCommand({
       Bucket: process.env.S3_BUCKET,
       Key: key,
-      ResponseContentDisposition: disp
+      ...responseOverrides,
     });
     return await getSignedUrl(s3Client, command, { expiresIn: EXPIRES_IN });
   } catch (err) {

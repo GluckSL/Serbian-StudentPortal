@@ -13,13 +13,10 @@ import { NotificationService } from '../../services/notification.service';
 import { StudentMeetingsComponent } from '../meeting-link/student-meetings.component';
 import { StudentRecordingsComponent } from '../class-recordings/student-recordings/student-recordings.component';
 import { DigitalExercisesComponent } from '../digital-exercises/digital-exercises.component';
-// Digital learning modules (Modules tab) removed from student My Course — use Gluck Buddy for DG speaking practice.
-// import { LearningModulesComponent } from '../learning-modules/learning-modules.component';
 import { GluckBuddyHubComponent } from '../../sprechen-exam/gluck-buddy-hub/gluck-buddy-hub.component';
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
-import { LearningModule, LearningModulesService } from '../../services/learning-modules.service';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { GameSet } from '../../features/glueck-arena/glueck-arena.types';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
@@ -51,12 +48,6 @@ type ProgressRange = 'weekly' | 'overall';
   styleUrls: ['./my-course.component.scss']
 })
 export class MyCourseComponent implements OnInit {
-  /**
-   * When false, digital learning modules are hidden everywhere in My Course
-   * (journey day lists, progress donuts). Gluck Buddy (DG) remains available.
-   */
-  readonly showLearningModulesInJourney = false;
-
   /** Row placeholders for the loading skeleton (My class tab). */
   readonly skeletonMeetingRows = [0, 1, 2, 3, 4];
   readonly skeletonSideLines = [0, 1, 2];
@@ -77,7 +68,6 @@ export class MyCourseComponent implements OnInit {
   progressRange: ProgressRange = 'weekly';
 
   private journeyDayExercises: DigitalExercise[] = [];
-  private journeyDayModules: LearningModule[] = [];
   private journeyDayGameSets: GameSet[] = [];
   private journeyMeetings: any[] = [];
   /** Fallback when journey.profile.profilePic is empty (login/profile API often has photo). */
@@ -173,7 +163,6 @@ export class MyCourseComponent implements OnInit {
     private authService: AuthService,
     private zoomService: ZoomService,
     private exerciseService: DigitalExerciseService,
-    private learningModulesService: LearningModulesService,
     private interactiveGameService: InteractiveGameService,
     private dialog: MatDialog,
     private announcementService: AnnouncementService,
@@ -340,21 +329,6 @@ export class MyCourseComponent implements OnInit {
           this.nextNewDigitalExercise = unlocked[0] || null;
         }
       });
-
-    if (studentLevel && this.showLearningModulesInJourney) {
-      this.learningModulesService
-        .getAccessibleModules(studentLevel, { page: 1, limit: 500 })
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: (res) => {
-            const modules: LearningModule[] = Array.isArray(res?.modules) ? res.modules : [];
-            this.journeyDayModules = modules;
-          },
-          error: () => {}
-        });
-    } else {
-      this.journeyDayModules = [];
-    }
 
     this.interactiveGameService
       .getCatalog({ page: 1, limit: 500 })
@@ -711,11 +685,6 @@ export class MyCourseComponent implements OnInit {
     return !!ex?.studentAttempt;
   }
 
-  private moduleDone(mod: LearningModule): boolean {
-    const st = mod?.studentProgress?.status;
-    return st === 'completed';
-  }
-
   gameSetDone(set: GameSet): boolean {
     return (set.studentProgress?.timesPlayed ?? 0) > 0;
   }
@@ -727,12 +696,8 @@ export class MyCourseComponent implements OnInit {
     return list;
   }
 
-  get selectedDayModules(): LearningModule[] {
-    if (!this.showLearningModulesInJourney) return [];
-    let list = this.journeyDayModules.filter((m) => Number((m as any).courseDay || 0) === this.selectedJourneyDay);
-    if (this.journeyFilter === 'completed') list = list.filter((x) => this.moduleDone(x));
-    if (this.journeyFilter === 'pending') list = list.filter((x) => !this.moduleDone(x));
-    return list;
+  get selectedDayModules(): any[] {
+    return [];
   }
 
   get selectedDayGameSets(): GameSet[] {
@@ -755,7 +720,6 @@ export class MyCourseComponent implements OnInit {
   get selectedDayCompletedCount(): number {
     return (
       this.selectedDayExercises.filter((x) => this.exerciseDone(x)).length +
-      this.selectedDayModules.filter((x) => this.moduleDone(x)).length +
       this.selectedDayGameSets.filter((x) => this.gameSetDone(x)).length
     );
   }
@@ -763,7 +727,6 @@ export class MyCourseComponent implements OnInit {
   get selectedDayTotalCount(): number {
     return (
       this.selectedDayExercises.length +
-      this.selectedDayModules.length +
       this.selectedDayGameSets.length
     );
   }
@@ -840,14 +803,14 @@ export class MyCourseComponent implements OnInit {
     this.router.navigate(['/digital-exercises', ex._id, 'play']);
   }
 
-  openModule(mod: LearningModule): void {
+  openModule(mod: { _id?: string }): void {
     if (!mod?._id) return;
-    this.router.navigate(['/ai-tutor-chat'], {
-      queryParams: {
-        moduleId: mod._id,
-        returnUrl: this.router.url   // return to current journey/day page
-      }
-    });
+    this.router.navigate(['/ai-tutor', mod._id]);
+  }
+
+  getModuleHoverDetails(mod: { title?: string; level?: string; category?: string; studentProgress?: { status?: string } }): string {
+    const status = mod.studentProgress?.status === 'completed' ? 'Completed' : 'Not completed';
+    return `${mod.title || 'Module'} · ${mod.level || 'Level N/A'} · ${mod.category || 'General'} · ${status}`;
   }
 
   openGameSet(set: GameSet): void {
@@ -865,12 +828,6 @@ export class MyCourseComponent implements OnInit {
     const status = this.exerciseDone(ex) ? 'Completed' : 'Not completed';
     const day = Number.isFinite(Number(ex?.courseDay)) ? `Day ${ex.courseDay}` : 'No fixed day';
     return `${day} | ${ex?.level || 'Level N/A'} | ${ex?.category || 'General'} | ${status}`;
-  }
-
-  getModuleHoverDetails(mod: LearningModule): string {
-    const status = this.moduleDone(mod) ? 'Completed' : 'Not completed';
-    const day = Number.isFinite(Number((mod as any)?.courseDay)) ? `Day ${(mod as any).courseDay}` : 'No fixed day';
-    return `${day} | ${mod?.level || 'Level N/A'} | ${mod?.category || 'General'} | ${status}`;
   }
 
   ordinalSuffix(n: number): string {
@@ -993,10 +950,8 @@ export class MyCourseComponent implements OnInit {
     return this.journeyDayExercises.filter((ex) => this.isInWeeklyJourneyWindow(ex.courseDay));
   }
 
-  private get progressModulesList(): LearningModule[] {
-    if (!this.showLearningModulesInJourney) return [];
-    if (this.progressRange === 'overall') return this.journeyDayModules;
-    return this.journeyDayModules.filter((m: any) => this.isInWeeklyJourneyWindow(m?.courseDay));
+  private get progressModulesList(): any[] {
+    return [];
   }
 
   private get progressClassesList(): any[] {
@@ -1010,14 +965,6 @@ export class MyCourseComponent implements OnInit {
 
   get progressExercisesDone(): number {
     return this.progressExercisesList.filter((x) => this.exerciseDone(x)).length;
-  }
-
-  get progressModulesTotal(): number {
-    return this.progressModulesList.length;
-  }
-
-  get progressModulesDone(): number {
-    return this.progressModulesList.filter((x) => this.moduleDone(x)).length;
   }
 
   get progressClassesTotal(): number {
@@ -1037,20 +984,16 @@ export class MyCourseComponent implements OnInit {
     return this.ratioPct(this.progressExercisesDone, this.progressExercisesTotal);
   }
 
-  get progressModulesPct(): number {
-    return this.ratioPct(this.progressModulesDone, this.progressModulesTotal);
-  }
-
   get progressClassesPct(): number {
     return this.ratioPct(this.progressClassesDone, this.progressClassesTotal);
   }
 
   get progressOverallDone(): number {
-    return this.progressExercisesDone + this.progressModulesDone + this.progressClassesDone;
+    return this.progressExercisesDone + this.progressClassesDone;
   }
 
   get progressOverallTotal(): number {
-    return this.progressExercisesTotal + this.progressModulesTotal + this.progressClassesTotal;
+    return this.progressExercisesTotal + this.progressClassesTotal;
   }
 
   get progressOverallPct(): number {
@@ -1062,7 +1005,7 @@ export class MyCourseComponent implements OnInit {
     return this.progressClassesList;
   }
 
-  get progressReportModules(): LearningModule[] {
+  get progressReportModules(): any[] {
     return this.progressModulesList;
   }
 

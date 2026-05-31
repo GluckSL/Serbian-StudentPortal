@@ -11,7 +11,8 @@ const MeetingLink = require('../models/MeetingLink');
 const ZoomRecording = require('../models/ZoomRecording');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { presignStoredS3Url, presignS3DownloadUrl } = require('../config/presign');
+const { presignStoredS3Url, presignS3DownloadUrl, presignS3InlineUrl } = require('../config/presign');
+const { resolveContentType, isBrowserPreviewable } = require('../utils/fileMime');
 const {
   canUserAccessManualRecording,
   canUserAccessZoomRecording,
@@ -26,7 +27,9 @@ const upload = multer({
   storage: multerS3({
     s3: s3Client,
     bucket: process.env.S3_BUCKET,
-    contentType: multerS3.AUTO_CONTENT_TYPE,
+    contentType: (_req, file, cb) => {
+      cb(null, resolveContentType(file.originalname, file.mimetype));
+    },
     key: (_req, file, cb) => {
       const prefix = process.env.S3_PREFIX || 'uploads';
       cb(null, `${prefix}/go-recording-resources/${Date.now()}_${file.originalname}`);
@@ -220,7 +223,12 @@ router.get('/download/:resourceId', verifyToken, async (req, res) => {
       return res.status(access.status || 403).json({ success: false, message: access.message });
     }
 
-    const url = await presignS3DownloadUrl(resource.fileName, resource.fileUrl, resource.originalName);
+    const url = await presignS3DownloadUrl(
+      resource.fileName,
+      resource.fileUrl,
+      resource.originalName,
+      resource.mimeType
+    );
     if (!url) {
       return res.status(500).json({ success: false, message: 'Could not build download URL' });
     }
@@ -228,6 +236,52 @@ router.get('/download/:resourceId', verifyToken, async (req, res) => {
   } catch (err) {
     console.error('goRecordingResources download error:', err);
     res.status(500).json({ success: false, message: 'Download link failed', error: err.message });
+  }
+});
+
+// GET /view/:resourceId — inline preview for PDF/images, download for ZIP/Office archives
+router.get('/view/:resourceId', verifyToken, async (req, res) => {
+  try {
+    const { resourceId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(resourceId)) {
+      return res.status(400).json({ success: false, message: 'Invalid resource id' });
+    }
+
+    const resource = await GoRecordingResource.findById(resourceId).lean();
+    if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    const student = await loadStudent(req);
+    const staff = isStaff(req.user?.role);
+    const parentId = resource.recordingType === 'manual'
+      ? String(resource.classRecordingId)
+      : String(resource.meetingLinkId);
+    const access = await assertRecordingAccess(resource.recordingType, parentId, student, staff);
+    if (!access.ok) {
+      return res.status(access.status || 403).json({ success: false, message: access.message });
+    }
+
+    const previewable = isBrowserPreviewable(resource.originalName, resource.mimeType);
+    const url = previewable
+      ? await presignS3InlineUrl(
+          resource.fileName,
+          resource.fileUrl,
+          resource.originalName,
+          resource.mimeType
+        )
+      : await presignS3DownloadUrl(
+          resource.fileName,
+          resource.fileUrl,
+          resource.originalName,
+          resource.mimeType
+        );
+
+    if (!url) {
+      return res.status(500).json({ success: false, message: 'Could not build view URL' });
+    }
+    res.json({ success: true, url, mode: previewable ? 'inline' : 'download' });
+  } catch (err) {
+    console.error('goRecordingResources view error:', err);
+    res.status(500).json({ success: false, message: 'View link failed', error: err.message });
   }
 });
 

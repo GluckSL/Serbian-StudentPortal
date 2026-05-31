@@ -30,6 +30,61 @@ export class GoRecordingResourceService {
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   }
 
+  viewResource(r: { _id?: string; fileUrl?: string; originalName?: string; mimeType?: string }): void {
+    const id = r._id != null ? String(r._id) : '';
+    const fallbackUrl = r.fileUrl || '';
+    if (id) {
+      this.http
+        .get<{ success?: boolean; url?: string; mode?: 'inline' | 'download' }>(
+          `${this.base}/view/${id}`,
+          { withCredentials: true }
+        )
+        .subscribe({
+          next: (res) => {
+            if (!res?.url) {
+              this.viewFallback(fallbackUrl, r.originalName, r.mimeType);
+              return;
+            }
+            if (res.mode === 'download') {
+              this.triggerAttachmentDownload(res.url);
+              return;
+            }
+            this.openInBrowser(res.url);
+          },
+          error: () => this.viewFallback(fallbackUrl, r.originalName, r.mimeType)
+        });
+      return;
+    }
+    this.viewFallback(fallbackUrl, r.originalName, r.mimeType);
+  }
+
+  private viewFallback(fileUrl: string, originalName?: string, mimeType?: string): void {
+    if (!fileUrl) return;
+    if (this.shouldDownloadInsteadOfView(originalName, mimeType)) {
+      this.downloadViaFetchOrOpen(fileUrl, originalName || 'download');
+      return;
+    }
+    this.openInBrowser(fileUrl);
+  }
+
+  private shouldDownloadInsteadOfView(originalName?: string, mimeType?: string): boolean {
+    const name = (originalName || '').toLowerCase();
+    const type = (mimeType || '').toLowerCase();
+    if (/\.(zip|docx?|pptx?|xlsx?|rar|7z)$/i.test(name)) return true;
+    if (
+      type.includes('zip') ||
+      type.includes('wordprocessingml') ||
+      type.includes('spreadsheetml') ||
+      type.includes('presentationml') ||
+      type === 'application/msword' ||
+      type === 'application/xml' ||
+      type === 'text/xml'
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   downloadResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
     const name = (r.originalName || 'download').trim() || 'download';
     const id = r._id != null ? String(r._id) : '';

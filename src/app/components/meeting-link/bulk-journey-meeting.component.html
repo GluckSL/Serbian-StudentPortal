@@ -120,13 +120,14 @@
 
     <!-- Step 2: Journey scheduler -->
     <mat-step label="Journey schedule" [completed]="selectedWeekdaysSun0.length > 0">
-      <div class="mt-2" *ngIf="scheduleType === 'journey'">
+      <div class="mt-2" *ngIf="scheduleType === 'journey'" [formGroup]="basicForm">
         <div class="alert alert-light border small py-2 mb-3 journey-today-banner">
           <div><strong>Today (IST):</strong> {{ istTodayDisplay() }}</div>
           <div class="text-muted mt-1 mb-0">
             Classes run only on the weekdays you tick. Each row’s <strong>journey day</strong> grows by the
             <strong>IST calendar days</strong> since the previous class (Mon→Wed +2, Fri→Mon +3 so Saturday and Sunday count).
-            The first class uses your starting journey day. If <em>today</em> is a selected weekday and start time is still ahead, the first slot can be today.
+            The first class uses your starting journey day. By default the first slot is the next selected weekday from today (including today if start time is still ahead).
+            Use <strong>First class on</strong> below to start on a specific weekday instead (e.g. Thursday even when today is Saturday).
           </div>
         </div>
         <div class="row g-3">
@@ -135,7 +136,7 @@
               <div class="form-card-header"><i class="fas fa-calendar-week"></i> Weekdays (IST)</div>
               <div class="form-card-body" [formGroup]="weekForm">
                 <div class="d-flex flex-wrap gap-3">
-                  <mat-checkbox *ngFor="let d of weekdayOptions" [formControlName]="d.key" (change)="refreshZoomBusyHint()">
+                  <mat-checkbox *ngFor="let d of weekdayOptions" [formControlName]="d.key" (change)="onWeekdayChange()">
                     {{ d.label }}
                   </mat-checkbox>
                 </div>
@@ -145,7 +146,7 @@
           <div class="col-lg-6">
             <div class="form-card h-100">
               <div class="form-card-header"><i class="fas fa-clock"></i> Start time (IST)</div>
-              <div class="form-card-body" [formGroup]="basicForm">
+              <div class="form-card-body">
                 <label class="form-label">Class start</label>
                 <input type="time" class="form-control" formControlName="startClock" (change)="refreshZoomBusyHint()" />
                 <p class="small text-muted mt-2 mb-0">End time follows from duration.</p>
@@ -153,18 +154,35 @@
             </div>
           </div>
         </div>
-        <div class="form-card mt-3" [formGroup]="basicForm">
+        <div class="form-card mt-3">
           <div class="form-card-header"><i class="fas fa-route"></i> Journey range</div>
           <div class="form-card-body row">
-            <div class="col-md-6 mb-2">
+            <div class="col-md-4 mb-2">
+              <label class="form-label">First class on (IST weekday)</label>
+              <select
+                class="form-select"
+                formControlName="firstClassWeekday"
+                [compareWith]="compareFirstClassWeekday"
+                (change)="onFirstClassWeekdayChange($event)">
+                <option
+                  *ngFor="let o of firstClassWeekdayOptionsList; trackBy: trackByWeekdayOption"
+                  [ngValue]="o.value">
+                  {{ o.label }}
+                </option>
+              </select>
+              <small class="text-muted d-block">
+                Selected: <strong>{{ firstClassWeekdayLabel() }}</strong>
+              </small>
+            </div>
+            <div class="col-md-4 mb-2">
               <label class="form-label">Starting journey day *</label>
               <input type="number" class="form-control" formControlName="startingJourneyDay" min="1" max="200" />
-              <small class="text-muted">Journey day for the <em>first</em> class in this run.</small>
+              <small class="text-muted">Journey day number for that first class.</small>
             </div>
-            <div class="col-md-6 mb-2">
+            <div class="col-md-4 mb-2">
               <label class="form-label">Target journey day *</label>
               <input type="number" class="form-control" formControlName="targetJourneyDay" min="1" max="200" />
-              <small class="text-muted">Stop adding classes once the next journey day would go above this (weekends count in the gap).</small>
+              <small class="text-muted">Stop once the next journey day would go above this (weekends count in the gap).</small>
             </div>
           </div>
         </div>
@@ -219,7 +237,11 @@
 
       <ng-container *ngIf="!isPreviewing">
         <p class="small text-muted mb-2">
-          Review every meeting below, then confirm. Create runs a final server check (Zoom host, teacher, students, duplicates).
+          Review every meeting below. Use <strong>Edit</strong> on a row to change journey day, date, or start time, then <strong>Save</strong> to refresh warnings.
+          Confirm bulk create uses this saved preview.
+        </p>
+        <p *ngIf="previewSavedAt" class="small text-success mb-2">
+          <i class="fas fa-check-circle me-1"></i>Preview last updated (IST): {{ previewSavedAt }}
         </p>
 
         <div class="form-card mb-3">
@@ -227,6 +249,7 @@
           <div class="form-card-body">
             <ul class="list-unstyled small mb-0">
               <li><strong>Today (IST):</strong> {{ istTodayDisplay() }}</li>
+              <li><strong>First class on:</strong> {{ firstClassWeekdayLabel() }}</li>
               <li><strong>Journey day range:</strong> {{ basicForm.value.startingJourneyDay }} → {{ basicForm.value.targetJourneyDay }} (each step + calendar days since last class, IST)</li>
               <li><strong>Total meetings:</strong> {{ schedules.length }}</li>
               <li><strong>Approx. teaching hours:</strong> {{ totalTeachingHours }}</li>
@@ -245,13 +268,23 @@
         </div>
 
         <div class="form-card" *ngIf="schedules.length">
-          <div class="form-card-header"><i class="fas fa-table"></i> Meeting schedule (confirmation)</div>
+          <div class="form-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="fas fa-table"></i> Meeting schedule (confirmation)</span>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-light"
+              (click)="runPreview()"
+              [disabled]="isPreviewing || isBulkCreating || editingRowIndex != null">
+              <i class="fas fa-sync-alt me-1"></i>Regenerate from settings
+            </button>
+          </div>
           <div class="form-card-body p-0">
             <div class="table-responsive preview-table-wrap">
               <table class="table table-sm table-bordered mb-0 preview-table">
                 <thead>
                   <tr>
                     <th>#</th>
+                    <th>Actions</th>
                     <th>Day</th>
                     <th>Date</th>
                     <th>Start (IST)</th>
@@ -268,13 +301,71 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr *ngFor="let row of schedules; let idx = index">
+                  <tr
+                    *ngFor="let row of schedules; let idx = index"
+                    [class.preview-row-editing]="isEditingRow(idx)">
                     <td>{{ idx + 1 }}</td>
-                    <td>{{ rowWeekday(row) }}</td>
-                    <td>{{ rowDate(row) }}</td>
-                    <td>{{ rowStartTime(row) }}</td>
+                    <td class="preview-actions-cell">
+                      <ng-container *ngIf="!isEditingRow(idx)">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-primary"
+                          (click)="startEditRow(idx)"
+                          [disabled]="isPreviewing || isBulkCreating || isSavingRowEdit || editingRowIndex != null">
+                          Edit
+                        </button>
+                      </ng-container>
+                      <ng-container *ngIf="isEditingRow(idx) && editDraft">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-primary me-1"
+                          (click)="saveEditRow(idx)"
+                          [disabled]="isSavingRowEdit || isPreviewing">
+                          {{ isSavingRowEdit ? 'Saving…' : 'Save' }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          (click)="cancelEditRow()"
+                          [disabled]="isSavingRowEdit">
+                          Cancel
+                        </button>
+                      </ng-container>
+                    </td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ rowWeekday(row) }}</ng-container>
+                      <span *ngIf="isEditingRow(idx)" class="text-muted small">—</span>
+                    </td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ rowDate(row) }}</ng-container>
+                      <input
+                        *ngIf="isEditingRow(idx) && editDraft"
+                        type="date"
+                        class="form-control form-control-sm preview-edit-input"
+                        [(ngModel)]="editDraft.startDate"
+                        [ngModelOptions]="{ standalone: true }" />
+                    </td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ rowStartTime(row) }}</ng-container>
+                      <input
+                        *ngIf="isEditingRow(idx) && editDraft"
+                        type="time"
+                        class="form-control form-control-sm preview-edit-input"
+                        [(ngModel)]="editDraft.startClock"
+                        [ngModelOptions]="{ standalone: true }" />
+                    </td>
                     <td>{{ rowEndTime(row) }}</td>
-                    <td>{{ row.journeyDay }}</td>
+                    <td>
+                      <ng-container *ngIf="!isEditingRow(idx)">{{ row.journeyDay }}</ng-container>
+                      <input
+                        *ngIf="isEditingRow(idx) && editDraft"
+                        type="number"
+                        class="form-control form-control-sm preview-edit-input preview-edit-journey"
+                        min="1"
+                        max="200"
+                        [(ngModel)]="editDraft.journeyDay"
+                        [ngModelOptions]="{ standalone: true }" />
+                    </td>
                     <td>{{ basicForm.value.batch }}</td>
                     <td>{{ basicForm.value.topic }}</td>
                     <td>{{ basicForm.value.duration }} min</td>
@@ -287,6 +378,9 @@
                 </tbody>
               </table>
             </div>
+            <p *ngIf="editingRowIndex != null" class="small text-muted px-3 py-2 mb-0 border-top">
+              End time is recalculated from duration ({{ basicForm.value.duration }} min) when you save.
+            </p>
           </div>
         </div>
       </ng-container>
@@ -300,7 +394,11 @@
 
       <div class="step-actions">
         <button mat-button matStepperPrevious [disabled]="isBulkCreating">Back</button>
-        <button mat-raised-button color="primary" (click)="submitBulkCreate()" [disabled]="isBulkCreating || isPreviewing || !schedules.length">
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="submitBulkCreate()"
+          [disabled]="isBulkCreating || isPreviewing || isSavingRowEdit || editingRowIndex != null || !schedules.length">
           Confirm bulk create
         </button>
       </div>

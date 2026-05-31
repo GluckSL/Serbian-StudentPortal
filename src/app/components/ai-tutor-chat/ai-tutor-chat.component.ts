@@ -3281,7 +3281,7 @@ You can now move on to the next challenge or review your progress in the perform
       next: (response) => {
         console.log('✅ Module marked as completed successfully (auto-completion):', response);
       },
-      error: (error) => {
+      error: (error: unknown) => {
         console.error('❌ Error marking module as completed (auto-completion):', error);
       }
     });

@@ -279,6 +279,7 @@ const {
   generateJourneySchedules,
   validateSchedulePayload,
   previewJourneyWithConflicts,
+  previewCustomJourneySchedules,
   collectSlotConflicts
 } = require('../services/journeyMeetingGenerator.service');
 
@@ -302,7 +303,8 @@ router.post('/preview-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', '
       weekdaysSun0,
       startClock,
       startingJourneyDay,
-      targetJourneyDay
+      targetJourneyDay,
+      firstClassWeekdaySun0
     } = body;
 
     const v = validateSchedulePayload(
@@ -323,21 +325,39 @@ router.post('/preview-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', '
       return res.status(400).json({ success: false, message: v.errors.join('; ') });
     }
 
-    const preview = await previewJourneyWithConflicts({
-      batch,
-      plan,
-      topic,
-      teacherId,
-      zoomHostEmail,
-      studentIds,
-      durationMinutes: Number(duration) || 120,
-      weekdaysSun0,
-      startClock,
-      startingJourneyDay,
-      targetJourneyDay
-    });
+    const durationMinutes = Number(duration) || 120;
+    const customRows = Array.isArray(body.schedules) ? body.schedules : null;
 
-    const teachingHours = (preview.schedules.length * (Number(duration) || 120)) / 60;
+    const preview =
+      customRows && customRows.length
+        ? await previewCustomJourneySchedules({
+            batch,
+            plan,
+            topic,
+            teacherId,
+            zoomHostEmail,
+            studentIds,
+            durationMinutes,
+            schedules: customRows,
+            startingJourneyDay,
+            targetJourneyDay
+          })
+        : await previewJourneyWithConflicts({
+            batch,
+            plan,
+            topic,
+            teacherId,
+            zoomHostEmail,
+            studentIds,
+            durationMinutes,
+            weekdaysSun0,
+            startClock,
+            startingJourneyDay,
+            targetJourneyDay,
+            firstClassWeekdaySun0
+          });
+
+    const teachingHours = (preview.schedules.length * durationMinutes) / 60;
 
     return res.json({
       success: true,
@@ -407,6 +427,7 @@ router.post('/create-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', 'T
         startClock,
         startingJourneyDay,
         targetJourneyDay,
+        firstClassWeekdaySun0: body.firstClassWeekdaySun0,
         durationMinutes: Number(duration) || 120
       });
       rows = gen.schedules;
