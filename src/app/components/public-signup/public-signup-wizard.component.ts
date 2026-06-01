@@ -70,6 +70,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   loading = false;
   error = '';
   success = '';
+  resendCooldown = 0;
 
   readonly SUBSCRIPTIONS = [
     { value: 'SILVER', label: 'Silver' },
@@ -289,7 +290,26 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
           // #region agent log
           const em = (this.email || '').trim().toLowerCase();
           const at = em.indexOf('@');
-          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'24071c'},body:JSON.stringify({sessionId:'24071c',location:'public-signup-wizard:saveDetails',message:'client OTP step shown',data:{domain:at>0?em.slice(at+1):'',localLen:at>0?em.slice(0,at).length:0,alreadyVerified:!!res.alreadyVerified},timestamp:Date.now(),hypothesisId:'A,E',runId:'pre-fix'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Session-Id': '24071c'
+            },
+            body: JSON.stringify({
+              sessionId: '24071c',
+              location: 'public-signup-wizard:saveDetails',
+              message: 'client OTP step shown',
+              data: {
+                domain: at > 0 ? em.slice(at + 1) : '',
+                localLen: at > 0 ? em.slice(0, at).length : 0,
+                alreadyVerified: !!res.alreadyVerified
+              },
+              timestamp: Date.now(),
+              hypothesisId: 'A,E',
+              runId: 'pre-fix'
+            })
+          }).catch(() => {});
           // #endregion
         }
       },
@@ -320,7 +340,26 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
           // #region agent log
           const em = (this.email || '').trim().toLowerCase();
           const at = em.indexOf('@');
-          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'24071c'},body:JSON.stringify({sessionId:'24071c',location:'public-signup-wizard:sendOtp',message:'client OTP step shown',data:{domain:at>0?em.slice(at+1):'',localLen:at>0?em.slice(0,at).length:0,alreadyVerified:!!res.alreadyVerified},timestamp:Date.now(),hypothesisId:'A,E',runId:'pre-fix'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Session-Id': '24071c'
+            },
+            body: JSON.stringify({
+              sessionId: '24071c',
+              location: 'public-signup-wizard:sendOtp',
+              message: 'client OTP step shown',
+              data: {
+                domain: at > 0 ? em.slice(at + 1) : '',
+                localLen: at > 0 ? em.slice(0, at).length : 0,
+                alreadyVerified: !!res.alreadyVerified
+              },
+              timestamp: Date.now(),
+              hypothesisId: 'A,E',
+              runId: 'pre-fix'
+            })
+          }).catch(() => {});
           // #endregion
         }
       },
@@ -349,27 +388,32 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
         this.error = err?.error?.msg || 'Could not resend code. Please try again.';
       },
     });
-  }
-
-  private startResendCooldown(seconds: number): void {
-    this.clearResendCooldownTimer();
-    this.otpResendCooldown = seconds;
-    this.resendCooldownTimer = setInterval(() => {
-      this.otpResendCooldown--;
-      if (this.otpResendCooldown <= 0) {
-        this.clearResendCooldownTimer();
-      }
-    }, 1000);
-  }
-
-  private clearResendCooldownTimer(): void {
-    if (this.resendCooldownTimer) {
-      clearInterval(this.resendCooldownTimer);
-      this.resendCooldownTimer = null;
+        this.error = err?.error?.msg || 'Could not resend code. Please try again.';
+      },
     }
-    this.otpResendCooldown = 0;
-  }
 
+private startResendCooldown(seconds: number = 30): void {
+  this.clearResendCooldownTimer();
+  this.resendCooldown = seconds;
+  this.otpResendCooldown = seconds;
+  this.resendCooldownTimer = setInterval(() => {
+    this.resendCooldown--;
+    this.otpResendCooldown--;
+    if (this.resendCooldown <= 0 || this.otpResendCooldown <= 0) {
+      this.clearResendCooldownTimer();
+    }
+  }, 1000);
+}
+   
+
+private clearResendCooldownTimer(): void {
+  if (this.resendCooldownTimer) {
+    clearInterval(this.resendCooldownTimer);
+    this.resendCooldownTimer = null;
+  }
+  this.otpResendCooldown = 0;
+  this.resendCooldown = 0;
+}
   verifyOtp(): void {
     this.error = '';
     if (!this.otp.trim()) {

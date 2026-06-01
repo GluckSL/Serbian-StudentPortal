@@ -157,10 +157,40 @@
 }
 
 .sw-input--otp {
-  letter-spacing: 8px;
-  font-size: 22px;
-  font-weight: 700;
+  letter-spacing: 0.4em;
+  font-size: 1.3rem;
   text-align: center;
+  width: 100%;
+}
+
+.sw-hint--resend {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.sw-resend-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.sw-resend-btn:hover {
+  text-decoration: underline;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.sw-resend-btn:disabled {
+  color: #9ca3af;
+  cursor: default;
 }
 
 .sw-otp-resend {
