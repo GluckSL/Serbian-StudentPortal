@@ -173,7 +173,7 @@ const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency
 
 // ─── APPROVE PAYMENT ─────────────────────────────────────────────────────────
 
-const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, adminRemarks }) => {
+const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, adminRemarks, paidAmount: paidAmountOverride }) => {
   const submission = await PaymentFlowSubmission.findById(submissionId).populate('paymentRequestId').populate('studentId', 'name email batch level');
   if (!submission) throw new Error('Submission not found');
   if (submission.status === 'APPROVED') throw new Error('Already approved');
@@ -181,6 +181,22 @@ const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, 
   const request = submission.paymentRequestId;
   const student = submission.studentId;
   const previousStatus = submission.status;
+
+  if (paidAmountOverride !== undefined && paidAmountOverride !== null && paidAmountOverride !== '') {
+    const amount = Number(paidAmountOverride);
+    if (!amount || amount <= 0 || Number.isNaN(amount)) throw new Error('Credited amount must be a positive number');
+    const otherApproved = await PaymentFlowSubmission.find({
+      paymentRequestId: request._id,
+      status: 'APPROVED',
+      isArchived: false,
+      _id: { $ne: submission._id },
+    }).lean();
+    const otherTotal = otherApproved.reduce((s, sub) => s + sub.paidAmount, 0);
+    if (otherTotal + amount > request.amount + 0.01) {
+      throw new Error(`Credited amount cannot exceed request total (${request.currency} ${request.amount})`);
+    }
+    submission.paidAmount = amount;
+  }
 
   submission.status = 'APPROVED';
   submission.approvedBy = adminId;

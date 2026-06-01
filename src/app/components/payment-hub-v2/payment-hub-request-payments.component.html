@@ -434,7 +434,7 @@
                 <div class="ap-review-section">
                   <h4 class="ap-review-heading">Decision</h4>
                   <div class="ap-approve-block">
-                    <button mat-flat-button color="primary" class="ap-approve-btn" type="button" (click)="approve(sub)"
+                    <button mat-flat-button color="primary" class="ap-approve-btn" type="button" (click)="openApprovalDecision(sub, 'approve', $event)"
                       [disabled]="loadingActionId === sub._id">
                       <mat-spinner *ngIf="loadingActionId === sub._id" diameter="18" class="btn-spinner"></mat-spinner>
                       <mat-icon *ngIf="loadingActionId !== sub._id">check_circle</mat-icon>
@@ -449,7 +449,7 @@
                         <mat-label>Reason (required)</mat-label>
                         <input matInput [(ngModel)]="rejectReason" />
                       </mat-form-field>
-                      <button mat-stroked-button color="warn" class="ap-mini-btn" type="button" (click)="reject(sub)"
+                      <button mat-stroked-button color="warn" class="ap-mini-btn" type="button" (click)="openApprovalDecision(sub, 'reject', $event)"
                         [disabled]="loadingActionId === sub._id">
                         <mat-icon>block</mat-icon> Reject
                       </button>

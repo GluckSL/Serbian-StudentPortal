@@ -234,13 +234,19 @@ async function relocateTemplateR2Keys(template, tempId, r2Key, docxR2Key) {
 
 // ─── Template routes (ADMIN) ───────────────────────────────────────────────
 
-// GET /api/agreements/templates — list active templates
+// GET /api/agreements/templates — list active templates (?summary=1 for lean card list)
 router.get('/templates', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
-    const templates = await AgreementTemplate.find({ isActive: true })
-      .select('-aiSuggestions')
-      .sort({ name: 1 })
-      .lean();
+    const summary = req.query.summary === '1' || req.query.summary === 'true';
+    let query = AgreementTemplate.find({ isActive: true }).sort({ name: 1 });
+    if (summary) {
+      query = query.select(
+        'name slug description fillMode docxR2Key pageCount dynamicFields.id dynamicFields.label isActive createdAt'
+      );
+    } else {
+      query = query.select('-aiSuggestions');
+    }
+    const templates = await query.lean();
     res.json({ success: true, templates });
   } catch (err) {
     console.error('❌ agreements/templates GET:', err);

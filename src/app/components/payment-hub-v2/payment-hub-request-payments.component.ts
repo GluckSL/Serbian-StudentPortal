@@ -15,9 +15,14 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { PaymentHubApiService, StudentBrowseRow, ApprovalQueueItem } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentRequestNavService } from './payment-request-nav.service';
+import {
+  PaymentApprovalDecisionDialogComponent,
+  PaymentApprovalDecisionMode,
+} from './payment-approval-decision-dialog.component';
 
 @Component({
   selector: 'app-payment-hub-request-payments',
@@ -39,6 +44,7 @@ import { PaymentRequestNavService } from './payment-request-nav.service';
     MatIconModule,
     MatChipsModule,
     MatTooltipModule,
+    MatDialogModule,
     PaymentCurrencyTotalsComponent,
   ],
   templateUrl: './payment-hub-request-payments.component.html',
@@ -117,6 +123,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
     private readonly paymentRequestNav: PaymentRequestNavService,
+    private readonly dialog: MatDialog,
   ) {}
 
   ngOnInit(): void {
@@ -382,27 +389,54 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   quickApprove(sub: ApprovalQueueItem, ev: Event): void {
     ev.stopPropagation();
-    if (!this.isPendingStatus(sub.status) || this.loadingActionId) return;
-    const label = `${sub.currency} ${this.fmt(sub.paidAmount)} for ${sub.studentId.name}`;
-    if (!confirm(`Approve ${label}?`)) return;
-    this.approve(sub);
+    this.openApprovalDecision(sub, 'approve');
   }
 
   quickReject(sub: ApprovalQueueItem, ev: Event): void {
     ev.stopPropagation();
-    if (!this.isPendingStatus(sub.status) || this.loadingActionId) return;
-    const reason = prompt(`Rejection reason for ${sub.studentId.name}:`);
-    if (reason === null) return;
-    if (!reason.trim()) {
-      this.snack.open('Enter a rejection reason', 'OK', { duration: 3000 });
-      return;
-    }
-    this.reject(sub, reason.trim());
+    this.openApprovalDecision(sub, 'reject');
   }
 
-  approve(sub: ApprovalQueueItem): void {
+  openApprovalDecision(sub: ApprovalQueueItem, mode: PaymentApprovalDecisionMode, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!this.isPendingStatus(sub.status) || this.loadingActionId) return;
+
+    const ref = this.dialog.open(PaymentApprovalDecisionDialogComponent, {
+      width: '520px',
+      maxWidth: '100vw',
+      panelClass: 'lm-dialog-panel',
+      autoFocus: mode === 'reject',
+      data: {
+        mode,
+        studentName: sub.studentId.name,
+        studentEmail: sub.studentId.email,
+        accountHolderName: sub.accountHolderName || '',
+        paymentDateLabel: this.formatPaymentDateTime(sub),
+        currency: sub.currency,
+        amount: sub.paidAmount,
+        adminRemarks: this.adminRemarks,
+      },
+    });
+
+    ref.afterClosed().subscribe((result) => {
+      if (!result) return;
+      if (result.action === 'approve') {
+        this.approve(sub, result.paidAmount, result.adminRemarks);
+      } else {
+        this.reject(sub, result.rejectionReason);
+      }
+    });
+  }
+
+  approve(sub: ApprovalQueueItem, paidAmount?: number, adminRemarks?: string): void {
     this.loadingActionId = sub._id;
-    this.api.approveSubmission(sub._id, { adminRemarks: this.adminRemarks || undefined }).subscribe({
+    const body: { adminRemarks?: string; paidAmount?: number } = {
+      adminRemarks: (adminRemarks ?? this.adminRemarks) || undefined,
+    };
+    if (paidAmount != null) {
+      body.paidAmount = paidAmount;
+    }
+    this.api.approveSubmission(sub._id, body).subscribe({
       next: (res) => {
         this.loadingActionId = null;
         const msg = res.receiptNumber ? ` Receipt: ${res.receiptNumber}` : '';

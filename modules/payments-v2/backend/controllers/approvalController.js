@@ -79,7 +79,14 @@ const approvePayment = async (req, res) => {
   try {
     const adminId = getAuthUserId(req);
     const adminName = await getAdminName(adminId);
-    const result = await paymentService.approveSubmission({ submissionId: req.params.submissionId, adminId, adminRole: req.user.role, adminName, adminRemarks: req.body.adminRemarks });
+    const result = await paymentService.approveSubmission({
+      submissionId: req.params.submissionId,
+      adminId,
+      adminRole: req.user.role,
+      adminName,
+      adminRemarks: req.body.adminRemarks,
+      paidAmount: req.body.paidAmount,
+    });
     res.json({ success: true, data: result.submission, receiptNumber: result.receiptNumber, isFullyPaid: result.isFullyPaid, message: result.isFullyPaid ? 'Payment fully paid and approved.' : 'Payment approved (partial).' });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });

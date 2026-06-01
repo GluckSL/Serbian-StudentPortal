@@ -441,7 +441,7 @@ export class PaymentHubApiService {
     return this.http.get<{ success: boolean; data: ApprovalQueueItem }>(`${this.base}/approvals/${submissionId}`);
   }
 
-  approveSubmission(submissionId: string, body: { adminRemarks?: string }): Observable<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }> {
+  approveSubmission(submissionId: string, body: { adminRemarks?: string; paidAmount?: number }): Observable<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }> {
     return this.http.patch<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }>(`${this.base}/approvals/${submissionId}/approve`, body);
   }
 
