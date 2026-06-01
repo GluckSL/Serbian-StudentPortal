@@ -1,5 +1,5 @@
 <div class="pad-root">
-  <div class="pad-header" [class.pad-header--reject]="!isApproveIntent">
+  <div class="pad-header">
     <div>
       <h2 class="pad-title">{{ title }}</h2>
       <p class="pad-sub" *ngIf="studentName">
@@ -55,7 +55,7 @@
 
     <p class="pad-hint">
       The student declared <strong>{{ currency }} {{ fmt(declaredAmount) }}</strong>.
-      You may edit the credited amount if the proof shows a different value.
+      Approve to credit the amount (confirmation email sent). Reject only after entering a reason below (rejection email sent).
     </p>
 
     <mat-form-field appearance="outline" class="pad-field" subscriptSizing="dynamic">
@@ -63,23 +63,34 @@
       <input matInput [(ngModel)]="adminRemarks" placeholder="Internal note — not shown to student" />
     </mat-form-field>
 
-    <mat-form-field appearance="outline" class="pad-field" subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" class="pad-field pad-field--required" subscriptSizing="dynamic">
       <mat-label>Rejection reason (required to reject)</mat-label>
-      <textarea matInput rows="2" [(ngModel)]="rejectionReason" placeholder="e.g. Amount does not match proof"></textarea>
+      <textarea
+        #rejectionReasonInput
+        matInput
+        rows="2"
+        [(ngModel)]="rejectionReason"
+        placeholder="e.g. Amount does not match proof — included in the email to the student"></textarea>
+      <mat-hint *ngIf="!canReject">Enter a rejection reason to enable the Reject button.</mat-hint>
     </mat-form-field>
   </div>
 
   <div class="pad-footer">
     <button mat-stroked-button type="button" (click)="cancel()">Cancel</button>
-    <button
-      mat-stroked-button
-      type="button"
-      class="pad-btn pad-btn--reject"
-      (click)="confirmReject()"
-      [disabled]="!rejectionReason.trim()">
-      <mat-icon>block</mat-icon>
-      Reject
-    </button>
+    <span
+      class="pad-reject-wrap"
+      [matTooltip]="canReject ? '' : 'Enter a rejection reason first'"
+      [matTooltipDisabled]="canReject">
+      <button
+        mat-stroked-button
+        type="button"
+        class="pad-btn pad-btn--reject"
+        (click)="confirmReject()"
+        [disabled]="!canReject">
+        <mat-icon>block</mat-icon>
+        Reject
+      </button>
+    </span>
     <button
       mat-stroked-button
       type="button"

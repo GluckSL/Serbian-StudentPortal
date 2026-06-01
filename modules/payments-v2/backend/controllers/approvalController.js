@@ -100,7 +100,13 @@ const rejectPayment = async (req, res) => {
     if (!rejectionReason?.trim()) return res.status(400).json({ success: false, message: 'Rejection reason is required' });
     const adminId = getAuthUserId(req);
     const adminName = await getAdminName(adminId);
-    const result = await paymentService.rejectSubmission({ submissionId: req.params.submissionId, adminId, adminRole: req.user.role, adminName, rejectionReason });
+    const result = await paymentService.rejectSubmission({
+      submissionId: req.params.submissionId,
+      adminId,
+      adminRole: req.user.role,
+      adminName,
+      rejectionReason: rejectionReason.trim(),
+    });
     res.json({ success: true, data: result, message: 'Payment rejected.' });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });

@@ -43,7 +43,7 @@ const recalculateStudentProfile = async (studentId) => {
     currencyMap[s.currency].pendingApprovalAmount += s.paidAmount;
   }
   for (const r of requests) {
-    if (!currencyMap[r.currency]) currencyMap[r.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
+    if (!currencyMap[r.currency]) currencyMap[r.currency] = { currency: r.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
     if (r.status === 'OVERDUE') currencyMap[r.currency].overdueAmount += r.amountRemaining || r.amount;
     if (['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'PARTIALLY_PAID'].includes(r.status)) currencyMap[r.currency].expectedAmount += r.amountRemaining || r.amount;
   }
@@ -71,11 +71,18 @@ const recalculateStudentProfile = async (studentId) => {
 
   const paymentHealthScore = Math.max(0, 100 - overdueCount * 20 - rejectedCount * 5);
 
-  return StudentPaymentProfile.findOneAndUpdate(
+  const profile = await StudentPaymentProfile.findOneAndUpdate(
     { studentId },
     { studentId, totalPaid, pendingApprovalAmount, overdueAmount, expectedAmount, totalRequested, currencyBreakdown: Object.values(currencyMap), totalRequestCount: requests.length, activeRequestCount, completedRequestCount, overdueCount, pendingApprovalCount, fullyPaidCount: completedRequestCount, rejectedCount, lastPaymentDate: lastSub?.approvedAt, lastPaymentAmount: lastSub?.paidAmount, lastPaymentCurrency: lastSub?.currency, overallStatus, paymentHealthScore, lastRebuiltAt: new Date() },
     { upsert: true, new: true }
   );
+
+  try {
+    const journeyDue = require('./journeyLanguageFeeDueService');
+    journeyDue.syncForStudent(studentId).catch((e) => console.error('[JourneyDue]', e.message));
+  } catch (_) { /* optional */ }
+
+  return profile;
 };
 
 // ─── CREATE PAYMENT REQUEST(S) ───────────────────────────────────────────────
@@ -271,12 +278,18 @@ const rejectSubmission = async ({ submissionId, adminId, adminRole, adminName, r
   if (request) { request.status = 'REJECTED'; await request.save(); }
 
   const student = submission.studentId;
-  await logAudit({ entityType: 'PaymentFlowSubmission', entityId: submission._id, action: 'REJECTED', performedBy: adminId, performedByRole: adminRole, previousState: { status: previousStatus }, newState: { status: 'REJECTED', rejectionReason }, studentId: student._id || student });
-  await timelineService.onPaymentRejected(submission, adminId, adminRole, adminName, rejectionReason);
-  await recalculateStudentProfile(student._id || student);
+  const studentId = student?._id || student;
+  if (!studentId) throw new Error('Student not found for this submission');
 
-  notificationService.notifyPaymentRejected(student._id || student, { ...submission.toObject(), rejectionReason }).catch(() => {});
-  if (student.email) getEmailService().sendPaymentRejectedEmail(student, { ...submission.toObject(), rejectionReason }).catch(() => {});
+  await logAudit({ entityType: 'PaymentFlowSubmission', entityId: submission._id, action: 'REJECTED', performedBy: adminId, performedByRole: adminRole, previousState: { status: previousStatus }, newState: { status: 'REJECTED', rejectionReason }, studentId });
+  await timelineService.onPaymentRejected(submission, adminId, adminRole, adminName, rejectionReason);
+  await recalculateStudentProfile(studentId);
+
+  const submissionPayload = { ...submission.toObject(), rejectionReason };
+  notificationService.notifyPaymentRejected(studentId, submissionPayload).catch(() => {});
+  if (student?.email) {
+    getEmailService().sendPaymentRejectedEmail(student, submissionPayload).catch((e) => console.error('[Email]', e.message));
+  }
 
   return submission;
 };

@@ -46,7 +46,6 @@ import {
     MatTooltipModule,
     MatDialogModule,
     PaymentCurrencyTotalsComponent,
-    PaymentApprovalDecisionDialogComponent,
   ],
   templateUrl: './payment-hub-request-payments.component.html',
   styleUrls: ['./payment-hub-request-payments.component.scss'],
@@ -407,7 +406,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         width: '520px',
         maxWidth: '100vw',
         panelClass: 'lm-dialog-panel',
-        autoFocus: mode === 'reject',
+        autoFocus: false,
         data: {
           mode,
           submission: item,
@@ -456,7 +455,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       next: (res) => {
         this.loadingActionId = null;
         const msg = res.receiptNumber ? ` Receipt: ${res.receiptNumber}` : '';
-        this.snack.open('Approved.' + msg + (res.isFullyPaid ? ' Fully paid!' : ''), 'OK', { duration: 5000 });
+        this.snack.open('Approved. Confirmation email sent to the student.' + msg + (res.isFullyPaid ? ' Fully paid!' : ''), 'OK', { duration: 5000 });
         this.activeActionId = null;
         this.loadApprovals();
         this.refreshPendingQueueCount();
@@ -475,7 +474,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     this.api.rejectSubmission(sub._id, { rejectionReason }).subscribe({
       next: () => {
         this.loadingActionId = null;
-        this.snack.open('Rejected.', 'OK', { duration: 3000 });
+        this.snack.open('Rejected. The student has been emailed with your reason.', 'OK', { duration: 5000 });
         this.activeActionId = null;
         this.rejectReason = '';
         this.loadApprovals();

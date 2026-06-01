@@ -10,6 +10,16 @@
       <div class="brand-name">Glück Global</div>
       <div class="role-badge" [style.background]="badgeColor">{{ userRole }}</div>
     </div>
+    <a
+      *ngIf="showPaymentDueNotifications"
+      routerLink="/admin/payment-notifications"
+      class="sidebar-notif-btn"
+      routerLinkActive="sidebar-notif-btn--active"
+      [attr.aria-label]="paymentDueNotificationCount > 0 ? paymentDueNotificationCount + ' payment alerts' : 'Payment notifications'"
+      (click)="closeSidebar.emit()">
+      <span class="material-icons" aria-hidden="true">notifications</span>
+      <span class="sidebar-notif-badge" *ngIf="paymentDueNotificationCount > 0">{{ paymentDueNotificationCount }}</span>
+    </a>
     <button
       type="button"
       class="sidebar-close-btn"

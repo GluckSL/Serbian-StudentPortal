@@ -4,6 +4,7 @@
  */
 const router = require('./routes/index');
 const overdueCron = require('./helpers/overdueCron');
+const journeyDueCron = require('./helpers/journeyDueCron');
 const errorHandler = require('./middlewares/errorHandler');
 
 const registerPaymentModule = (app, { authMiddleware, prefix = '/api/new-payments', enableCron = false } = {}) => {
@@ -17,6 +18,7 @@ const registerPaymentModule = (app, { authMiddleware, prefix = '/api/new-payment
 
   if (enableCron) {
     overdueCron.start();
+    journeyDueCron.start();
   }
 
   console.log(`[PaymentHub v2] Registered at ${prefix}`);

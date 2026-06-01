@@ -8,6 +8,7 @@ import { TourService } from '../../services/tour.service';
 import { PortalTrackingService } from '../../services/portal-tracking.service';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { PaymentRequestNavService } from '../../components/payment-hub-v2/payment-request-nav.service';
+import { PaymentNotificationNavService } from '../../components/payment-hub-v2/payment-notification-nav.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -26,6 +27,7 @@ export class SidebarComponent implements OnInit {
   userEmail: string = '';
   sidebarPermissions: string[] = [];
   paymentRequestPendingCount = 0;
+  paymentDueNotificationCount = 0;
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -37,6 +39,7 @@ export class SidebarComponent implements OnInit {
     private portalTracking: PortalTrackingService,
     private arenaService: InteractiveGameService,
     private paymentRequestNav: PaymentRequestNavService,
+    private paymentNotificationNav: PaymentNotificationNavService,
   ) {}
 
   ngOnInit(): void {
@@ -83,8 +86,13 @@ export class SidebarComponent implements OnInit {
         }
         this.navGroups = groups;
         this.bindPaymentRequestNavBadge();
+        this.bindPaymentDueNotificationBadge();
       }
     });
+  }
+
+  get showPaymentDueNotifications(): boolean {
+    return ['ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'].includes(this.userRole);
   }
 
   private bindPaymentRequestNavBadge(): void {
@@ -96,6 +104,17 @@ export class SidebarComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((count) => { this.paymentRequestPendingCount = count; });
     this.paymentRequestNav.refresh();
+  }
+
+  private bindPaymentDueNotificationBadge(): void {
+    if (!this.showPaymentDueNotifications) {
+      this.paymentDueNotificationCount = 0;
+      return;
+    }
+    this.paymentNotificationNav.unreadCount$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((count) => { this.paymentDueNotificationCount = count; });
+    this.paymentNotificationNav.refresh();
   }
 
   getRoute(item: any): string {

@@ -1,4 +1,4 @@
-import { Component, Inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, Inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -40,7 +40,9 @@ export type PaymentApprovalDecisionResult =
   templateUrl: './payment-approval-decision-dialog.component.html',
   styleUrls: ['./payment-approval-decision-dialog.component.scss'],
 })
-export class PaymentApprovalDecisionDialogComponent {
+export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
+  @ViewChild('rejectionReasonInput') rejectionReasonInput?: ElementRef<HTMLTextAreaElement>;
+
   creditedAmount: number;
   amountEditing = false;
   rejectionReason = '';
@@ -63,7 +65,7 @@ export class PaymentApprovalDecisionDialogComponent {
   }
 
   get title(): string {
-    return this.isApproveIntent ? 'Approve payment' : 'Reject payment';
+    return 'Review payment';
   }
 
   get studentName(): string {
@@ -100,6 +102,15 @@ export class PaymentApprovalDecisionDialogComponent {
   get canApprove(): boolean {
     const n = Number(this.creditedAmount);
     return Number.isFinite(n) && n > 0;
+  }
+
+  get canReject(): boolean {
+    return !!this.rejectionReason.trim();
+  }
+
+  ngAfterViewInit(): void {
+    if (this.isApproveIntent) return;
+    setTimeout(() => this.rejectionReasonInput?.nativeElement?.focus(), 0);
   }
 
   cancel(): void {

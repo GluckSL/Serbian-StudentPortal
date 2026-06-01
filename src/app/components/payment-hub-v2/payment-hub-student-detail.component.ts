@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
@@ -12,6 +11,13 @@ import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.compon
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
 import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
 import { PaymentCurrencyAmountComponent } from './payment-currency-amount.component';
+import {
+  LANGUAGE_FEE_STATUS_LABELS,
+  LanguageFeeStatus,
+  languageFeeStatusClass,
+  computeLanguageFeeStatus,
+} from './payment-language-fee-status.util';
+import { currentJourneyDayFromStudent } from './payment-journey-metrics.util';
 
 @Component({
   selector: 'app-payment-hub-student-detail',
@@ -21,7 +27,6 @@ import { PaymentCurrencyAmountComponent } from './payment-currency-amount.compon
     RouterModule,
     MatCardModule,
     MatButtonModule,
-    MatProgressSpinnerModule,
     MatSnackBarModule,
     MatIconModule,
     MatChipsModule,
@@ -37,6 +42,10 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   loading = true;
   studentId = '';
   history: StudentHistory | null = null;
+
+  readonly skeletonChips = [0, 1, 2, 3, 4, 5];
+  readonly skeletonTableRows = [0, 1, 2, 3, 4];
+  readonly skeletonSubBlocks = [0, 1];
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -121,21 +130,64 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return map[status] || 'pill-grey';
   }
 
-  overallStatusClass(status: string): string {
+  languageFeeStatusKey(): LanguageFeeStatus {
+    const fromApi = this.history?.languageFeeStatus || this.history?.profile?.languageFeeStatus;
+    if (fromApi === 'FULL_PAID' || fromApi === 'BALANCE' || fromApi === 'DUE') return fromApi;
+    const bal = this.history?.languageFeeBalance ?? this.history?.profile?.languageFeeBalance ?? 0;
+    const day = currentJourneyDayFromStudent(this.history?.student ?? null);
+    return computeLanguageFeeStatus(bal, day);
+  }
+
+  languageFeeStatusClass(): string {
+    return languageFeeStatusClass(this.languageFeeStatusKey());
+  }
+
+  languageFeeStatusLabel(): string {
+    return LANGUAGE_FEE_STATUS_LABELS[this.languageFeeStatusKey()];
+  }
+
+  requestStatusLabel(status: string): string {
     const map: Record<string, string> = {
-      GOOD_STANDING: 'pill-green',
-      FULLY_PAID: 'pill-green',
-      PENDING: 'pill-amber',
-      OVERDUE: 'pill-red',
-      NO_REQUESTS: 'pill-grey',
+      REQUESTED: 'Requested',
+      SUBMITTED: 'Submitted',
+      UNDER_REVIEW: 'Under review',
+      APPROVED: 'Approved',
+      REJECTED: 'Rejected',
+      OVERDUE: 'Overdue',
+      FULLY_PAID: 'Fully paid',
     };
-    return map[status] || 'pill-grey';
+    return map[status] || status || '—';
   }
 
   dateJoined(): string {
     const s = this.history?.student;
-    const d = (s as Record<string, string | undefined>)?.['dateJoined'] || s?.createdAt;
+    const d = s?.enrollmentDate || s?.createdAt;
     return d ? this.fmtDate(d) : '—';
+  }
+
+  get journeyDay(): number | null {
+    const d = this.history?.student?.currentCourseDay;
+    if (d == null || !Number.isFinite(Number(d))) return null;
+    return Math.min(200, Math.max(1, Math.floor(Number(d))));
+  }
+
+  get journeyDayLabel(): string {
+    const d = this.journeyDay;
+    return d != null ? `Day ${d} / 200` : '—';
+  }
+
+  get batchLabel(): string {
+    const b = (this.history?.student?.batch || '').trim();
+    return b || '—';
+  }
+
+  get studentStatusLabel(): string {
+    const s = (this.history?.student?.studentStatus || '').trim();
+    return s || '—';
+  }
+
+  balanceDue(req: PaymentRequest): number {
+    return Math.max(0, req.amountRemaining ?? 0);
   }
 
   getSubmissions(req: PaymentRequest): ApprovalQueueItem[] {

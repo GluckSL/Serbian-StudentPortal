@@ -1,0 +1,104 @@
+<section class="ph-notif ph-surface" aria-label="Payment notifications">
+  <div class="ph-notif__toolbar">
+    <div class="ph-notif__filters">
+      <button
+        type="button"
+        mat-stroked-button
+        class="ph-pill-btn"
+        [class.ph-notif__filter--on]="filter === 'all'"
+        (click)="setFilter('all')">
+        All
+      </button>
+      <button
+        type="button"
+        mat-stroked-button
+        class="ph-pill-btn"
+        [class.ph-notif__filter--on]="filter === 'unread'"
+        (click)="setFilter('unread')">
+        Unread
+        <span class="ph-notif__badge" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
+      </button>
+    </div>
+    <div class="ph-notif__actions">
+      <button
+        type="button"
+        mat-stroked-button
+        class="ph-pill-btn"
+        (click)="markAllRead()"
+        [disabled]="!unreadCount">
+        Mark all read
+      </button>
+      <button
+        type="button"
+        mat-flat-button
+        color="primary"
+        class="ph-pill-btn ph-pill-btn-primary"
+        (click)="runSync()"
+        [disabled]="syncing">
+        <mat-icon>sync</mat-icon>
+        {{ syncing ? 'Refreshing…' : 'Refresh alerts' }}
+      </button>
+    </div>
+  </div>
+
+  <p class="ph-notif__hint">
+    Students on <strong>journey day 12+</strong> with an open <strong>language fee</strong> balance appear here. Alerts refresh hourly and after payment updates.
+  </p>
+
+  <div *ngIf="loading" class="ph-notif__loading">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <ul *ngIf="!loading && items.length" class="ph-notif__list">
+    <li
+      *ngFor="let n of items"
+      class="ph-notif__item"
+      [class.ph-notif__item--unread]="!n.isRead">
+      <div class="ph-notif__item-main">
+        <span class="material-icons ph-notif__icon" aria-hidden="true">warning_amber</span>
+        <div class="ph-notif__copy">
+          <p class="ph-notif__title">{{ n.title }}</p>
+          <p class="ph-notif__msg">{{ n.message }}</p>
+          <p class="ph-notif__meta" *ngIf="n.metadata">
+            <span *ngIf="journeyDay(n) as jd">Journey day {{ jd }}</span>
+            <span *ngIf="n.metadata.batch"> · Batch {{ n.metadata.batch }}</span>
+            <span *ngIf="n.metadata.level"> · {{ n.metadata.level }}</span>
+          </p>
+        </div>
+        <div class="ph-notif__due">
+          <span class="ph-notif__due-label">Due</span>
+          <strong class="ph-notif__due-amt">{{ dueLabel(n) }}</strong>
+        </div>
+      </div>
+      <div class="ph-notif__item-actions">
+        <a mat-stroked-button [routerLink]="studentLink(n)" class="ph-pill-btn">View student</a>
+        <button
+          type="button"
+          mat-button
+          *ngIf="!n.isRead"
+          (click)="markRead(n)">
+          Mark read
+        </button>
+      </div>
+    </li>
+  </ul>
+
+  <div *ngIf="!loading && !items.length" class="ph-notif__empty">
+    <mat-icon>notifications_none</mat-icon>
+    <p>No journey payment alerts right now.</p>
+  </div>
+
+  <div *ngIf="!loading && total > 0" class="ph-pager">
+    <button mat-button type="button" class="ph-pager-btn" (click)="prevPage()" [disabled]="page <= 1">
+      <mat-icon>chevron_left</mat-icon> Previous
+    </button>
+    <span class="ph-pager-info">
+      Showing {{ showingFrom }}–{{ showingTo }} of {{ total }}
+      <span class="ph-pager-info__sep">·</span>
+      Page {{ page }} of {{ totalPages }}
+    </span>
+    <button mat-button type="button" class="ph-pager-btn" (click)="nextPage()" [disabled]="page >= totalPages">
+      Next <mat-icon>chevron_right</mat-icon>
+    </button>
+  </div>
+</section>

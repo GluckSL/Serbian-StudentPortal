@@ -743,6 +743,15 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       { $set: updateData }
     );
 
+    if (updates.currentCourseDay !== undefined) {
+      try {
+        const journeyDue = require('../modules/payments-v2/backend/services/journeyLanguageFeeDueService');
+        for (const sid of studentIds) {
+          journeyDue.syncForStudent(sid).catch(() => {});
+        }
+      } catch (_) { /* payment module optional */ }
+    }
+
     res.json({ 
       success: true, 
       message: `Successfully updated ${result.modifiedCount} student(s)`,

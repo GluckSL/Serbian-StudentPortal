@@ -127,6 +127,10 @@ export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTota
   pendingApprovalAmount: number;
   overdueAmount: number;
   overallStatus: string;
+  /** Open LANGUAGE_FEE amount remaining (0 = full paid for language course). */
+  languageFeeBalance?: number;
+  /** FULL_PAID | BALANCE (journey under 10) | DUE (journey 10+). */
+  languageFeeStatus?: string;
   lastRebuiltAt?: string;
   /** LKR / INR / USD from phone prefix (server-side). */
   inferredCurrency?: string;
@@ -212,6 +216,28 @@ export interface StudentInstallmentView {
   allPaid: boolean;
   /** True when this slice is visible but calendar date has not arrived yet (no upload). */
   scheduleLocked?: boolean;
+}
+
+export interface PaymentHubNotification {
+  _id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  priority?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  metadata?: {
+    studentId?: string;
+    studentName?: string;
+    studentEmail?: string;
+    batch?: string;
+    level?: string;
+    journeyDay?: number;
+    dueAmount?: number;
+    currency?: string;
+  };
+  createdAt: string;
 }
 
 export interface PaymentRequestItem {
@@ -312,7 +338,19 @@ export interface BatchPaymentSummary {
 }
 
 export interface StudentHistory {
-  student: { _id: string; name: string; email: string; batch?: string; level?: string; subscription?: string; enrollmentDate?: string; createdAt?: string; };
+  student: {
+    _id: string;
+    name: string;
+    email: string;
+    batch?: string;
+    level?: string;
+    subscription?: string;
+    enrollmentDate?: string;
+    createdAt?: string;
+    currentCourseDay?: number | null;
+    studentStatus?: string;
+    regNo?: string;
+  };
   profile: ({
     totalPaid: number;
     totalPaidLKR?: number;
@@ -329,10 +367,14 @@ export interface StudentHistory {
     expectedAmount?: number;
     overdueCount: number;
     overallStatus: string;
+    languageFeeBalance?: number;
+    languageFeeStatus?: string;
     lastPaymentDate?: string;
     lastPaymentAmount?: number;
     lastPaymentCurrency?: string;
   }) | null;
+  languageFeeBalance?: number;
+  languageFeeStatus?: string;
   requests: PaymentRequestItem[];
   total: number;
   page: number;
@@ -530,5 +572,51 @@ export class PaymentHubApiService {
       `${this.base}/approvals/${submissionId}/correct-amount`,
       body,
     );
+  }
+
+  // ── Admin notifications (Payment Hub) ───────────────────────────────────
+
+  getPaymentNotifications(params?: {
+    page?: number;
+    limit?: number;
+    unreadOnly?: boolean;
+    type?: string;
+  }): Observable<{
+    success: boolean;
+    data: PaymentHubNotification[];
+    total: number;
+    unreadCount: number;
+    page: number;
+    totalPages: number;
+  }> {
+    return this.http.get<{
+      success: boolean;
+      data: PaymentHubNotification[];
+      total: number;
+      unreadCount: number;
+      page: number;
+      totalPages: number;
+    }>(`${this.base}/notifications`, { params: this.toParams(params || {}) });
+  }
+
+  getPaymentNotificationUnreadCount(params?: { type?: string }): Observable<{ success: boolean; data: { count: number } }> {
+    return this.http.get<{ success: boolean; data: { count: number } }>(`${this.base}/notifications/unread-count`, {
+      params: this.toParams(params || {}),
+    });
+  }
+
+  markPaymentNotificationRead(id: string): Observable<{ success: boolean; data: PaymentHubNotification }> {
+    return this.http.patch<{ success: boolean; data: PaymentHubNotification }>(
+      `${this.base}/notifications/${id}/read`,
+      {},
+    );
+  }
+
+  markAllPaymentNotificationsRead(): Observable<{ success: boolean }> {
+    return this.http.patch<{ success: boolean }>(`${this.base}/notifications/mark-all/read`, {});
+  }
+
+  syncJourneyDueNotifications(): Observable<{ success: boolean; data: unknown }> {
+    return this.http.post<{ success: boolean; data: unknown }>(`${this.base}/notifications/journey-due/sync`, {});
   }
 }

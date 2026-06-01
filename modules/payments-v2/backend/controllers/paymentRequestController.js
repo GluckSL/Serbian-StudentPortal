@@ -25,6 +25,7 @@ const {
   emptyCurrencyBucket,
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
+const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
 
 // ─── Helper to get admin name from user model ──────────────────────────────
 const getAdminName = async (userId) => {
@@ -183,12 +184,28 @@ const getDashboardStats = async (req, res) => {
 // without a profile still appear (zeros / NO_REQUESTS). Total count respects filters.
 const getStudentTable = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search, batch, level, overallStatus, sort = 'name' } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      batch,
+      level,
+      languageFeeStatus: languageFeeStatusFilter,
+      studentStatus,
+      subscription,
+      sort = 'name',
+    } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const userMatch = { role: 'STUDENT' };
     if (batch) userMatch.batch = batch;
     if (level) userMatch.level = level;
+    if (studentStatus && String(studentStatus).trim()) {
+      userMatch.studentStatus = String(studentStatus).trim();
+    }
+    if (subscription && String(subscription).trim()) {
+      userMatch.subscription = String(subscription).trim();
+    }
     if (search && String(search).trim()) {
       const q = String(search).trim();
       userMatch.$or = [
@@ -218,17 +235,79 @@ const getStudentTable = async (req, res) => {
       },
       { $addFields: { profile: { $arrayElemAt: ['$profileArr', 0] } } },
       {
+        $lookup: {
+          from: 'paymentrequests',
+          let: { studentId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$studentId', '$$studentId'] },
+                paymentType: 'LANGUAGE_FEE',
+                isArchived: false,
+                amountRemaining: { $gt: 0 },
+                status: { $nin: ['REJECTED', 'FULLY_PAID'] },
+              },
+            },
+            { $group: { _id: null, balance: { $sum: '$amountRemaining' } } },
+          ],
+          as: 'langFeeAgg',
+        },
+      },
+      {
         $addFields: {
           effectiveStatus: { $ifNull: ['$profile.overallStatus', 'NO_REQUESTS'] },
           sortDate: { $ifNull: ['$profile.lastRebuiltAt', '$createdAt'] },
           totalPaidSort: { $ifNull: ['$profile.totalPaid', 0] },
           overdueSort: { $ifNull: ['$profile.overdueCount', 0] },
+          languageFeeBalance: {
+            $ifNull: [{ $arrayElemAt: ['$langFeeAgg.balance', 0] }, 0],
+          },
+          journeyDay: {
+            $min: [
+              200,
+              {
+                $max: [
+                  1,
+                  {
+                    $cond: [
+                      {
+                        $and: [
+                          { $ne: ['$currentCourseDay', null] },
+                          { $gte: ['$currentCourseDay', 1] },
+                        ],
+                      },
+                      { $floor: '$currentCourseDay' },
+                      1,
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          languageFeeStatus: {
+            $cond: {
+              if: { $lte: ['$languageFeeBalance', 0] },
+              then: 'FULL_PAID',
+              else: {
+                $cond: {
+                  if: { $lt: ['$journeyDay', JOURNEY_DUE_FROM_DAY] },
+                  then: 'BALANCE',
+                  else: 'DUE',
+                },
+              },
+            },
+          },
         },
       },
     ];
 
-    if (overallStatus) {
-      pipeline.push({ $match: { effectiveStatus: String(overallStatus) } });
+    const feeStatus = String(languageFeeStatusFilter || '').trim().toUpperCase();
+    if (feeStatus && ['FULL_PAID', 'BALANCE', 'DUE'].includes(feeStatus)) {
+      pipeline.push({ $match: { languageFeeStatus: feeStatus } });
     }
 
     pipeline.push({ $sort: sortStage });
@@ -261,6 +340,8 @@ const getStudentTable = async (req, res) => {
               pendingApprovalAmount: { $ifNull: ['$profile.pendingApprovalAmount', 0] },
               overdueAmount: { $ifNull: ['$profile.overdueAmount', 0] },
               overallStatus: '$effectiveStatus',
+              languageFeeBalance: 1,
+              languageFeeStatus: 1,
               lastRebuiltAt: '$profile.lastRebuiltAt',
             },
           },
@@ -326,19 +407,43 @@ const getStudentPaymentHistory = async (req, res) => {
       })
     );
 
-    const studentDoc = await mongoose.model('User').findById(studentId).select('name email batch level enrollmentDate createdAt').lean();
+    const studentDoc = await mongoose.model('User')
+      .findById(studentId)
+      .select('name email batch level enrollmentDate createdAt currentCourseDay studentStatus subscription regNo')
+      .lean();
+
+    const langFeeRows = await PaymentRequest.find({
+      studentId,
+      paymentType: 'LANGUAGE_FEE',
+      isArchived: false,
+      amountRemaining: { $gt: 0 },
+      status: { $nin: ['REJECTED', 'FULLY_PAID'] },
+    })
+      .select('amountRemaining')
+      .lean();
+    const languageFeeBalance = langFeeRows.reduce((s, r) => s + (Number(r.amountRemaining) || 0), 0);
+    const journeyDay = studentDoc?.currentCourseDay;
+    const languageFeeStatus = computeLanguageFeeStatus(languageFeeBalance, journeyDay);
+
+    const enrichedProfile = enrichProfileCurrencyTotals(
+      profile
+        ? typeof profile.toObject === 'function'
+          ? profile.toObject()
+          : profile
+        : null,
+    );
+    if (enrichedProfile) {
+      enrichedProfile.languageFeeBalance = languageFeeBalance;
+      enrichedProfile.languageFeeStatus = languageFeeStatus;
+    }
 
     res.json({
       success: true,
       data: {
         student: studentDoc || profile?.studentId || null,
-        profile: enrichProfileCurrencyTotals(
-          profile
-            ? typeof profile.toObject === 'function'
-              ? profile.toObject()
-              : profile
-            : null,
-        ),
+        profile: enrichedProfile,
+        languageFeeBalance,
+        languageFeeStatus,
         requests: combined,
         total,
         page: Number(page),
