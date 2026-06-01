@@ -388,32 +388,30 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
         this.error = err?.error?.msg || 'Could not resend code. Please try again.';
       },
     });
-        this.error = err?.error?.msg || 'Could not resend code. Please try again.';
-      },
-    }
-
-private startResendCooldown(seconds: number = 30): void {
-  this.clearResendCooldownTimer();
-  this.resendCooldown = seconds;
-  this.otpResendCooldown = seconds;
-  this.resendCooldownTimer = setInterval(() => {
-    this.resendCooldown--;
-    this.otpResendCooldown--;
-    if (this.resendCooldown <= 0 || this.otpResendCooldown <= 0) {
-      this.clearResendCooldownTimer();
-    }
-  }, 1000);
-}
-   
-
-private clearResendCooldownTimer(): void {
-  if (this.resendCooldownTimer) {
-    clearInterval(this.resendCooldownTimer);
-    this.resendCooldownTimer = null;
   }
-  this.otpResendCooldown = 0;
-  this.resendCooldown = 0;
-}
+
+  private startResendCooldown(seconds: number = 30): void {
+    this.clearResendCooldownTimer();
+    this.resendCooldown = seconds;
+    this.otpResendCooldown = seconds;
+    this.resendCooldownTimer = setInterval(() => {
+      this.resendCooldown--;
+      this.otpResendCooldown--;
+      if (this.resendCooldown <= 0 || this.otpResendCooldown <= 0) {
+        this.clearResendCooldownTimer();
+      }
+    }, 1000);
+  }
+
+  private clearResendCooldownTimer(): void {
+    if (this.resendCooldownTimer) {
+      clearInterval(this.resendCooldownTimer);
+      this.resendCooldownTimer = null;
+    }
+    this.otpResendCooldown = 0;
+    this.resendCooldown = 0;
+  }
+
   verifyOtp(): void {
     this.error = '';
     if (!this.otp.trim()) {
