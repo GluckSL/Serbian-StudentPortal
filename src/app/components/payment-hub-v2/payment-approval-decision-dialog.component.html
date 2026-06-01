@@ -1,8 +1,11 @@
 <div class="pad-root">
-  <div class="pad-header" [class.pad-header--reject]="!isApprove">
+  <div class="pad-header" [class.pad-header--reject]="!isApproveIntent">
     <div>
       <h2 class="pad-title">{{ title }}</h2>
-      <p class="pad-sub">Review details for <strong>{{ data.studentName }}</strong> before confirming.</p>
+      <p class="pad-sub" *ngIf="studentName">
+        Review details for <strong>{{ studentName }}</strong> before confirming.
+      </p>
+      <p class="pad-sub" *ngIf="!studentName">Review payment details before confirming.</p>
     </div>
     <button mat-icon-button type="button" (click)="cancel()" aria-label="Close">
       <mat-icon>close</mat-icon>
@@ -15,7 +18,7 @@
     <dl class="pad-details">
       <div class="pad-detail-row">
         <dt>Student email</dt>
-        <dd>{{ data.studentEmail }}</dd>
+        <dd>{{ studentEmail || '—' }}</dd>
       </div>
       <div class="pad-detail-row">
         <dt>Account holder name</dt>
@@ -23,26 +26,25 @@
       </div>
       <div class="pad-detail-row">
         <dt>Payment date</dt>
-        <dd>{{ data.paymentDateLabel }}</dd>
+        <dd>{{ data.paymentDateLabel || '—' }}</dd>
       </div>
       <div class="pad-detail-row pad-detail-row--amount">
-        <dt>Amount</dt>
+        <dt>Declared amount</dt>
         <dd class="pad-amount-cell">
-          <ng-container *ngIf="!amountEditing || !isApprove">
-            <span class="pad-amount-value">{{ data.currency }} {{ fmt(creditedAmount) }}</span>
+          <ng-container *ngIf="!amountEditing">
+            <span class="pad-amount-value">{{ currency }} {{ fmt(creditedAmount) }}</span>
             <button
-              *ngIf="isApprove"
               type="button"
               class="pad-edit-btn"
               (click)="toggleAmountEdit()"
-              matTooltip="Change amount to credit">
+              matTooltip="Change amount to credit on approval">
               <mat-icon>edit</mat-icon>
               Edit
             </button>
           </ng-container>
-          <div *ngIf="amountEditing && isApprove" class="pad-amount-edit">
+          <div *ngIf="amountEditing" class="pad-amount-edit">
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-amount-field">
-              <mat-label>Credit amount ({{ data.currency }})</mat-label>
+              <mat-label>Credit amount ({{ currency }})</mat-label>
               <input matInput type="number" min="1" [(ngModel)]="creditedAmount" />
             </mat-form-field>
             <button type="button" mat-stroked-button (click)="toggleAmountEdit()">Done</button>
@@ -51,42 +53,41 @@
       </div>
     </dl>
 
-    <p *ngIf="isApprove" class="pad-hint">
-      The credited amount may differ from what the student declared if the proof shows a different value.
+    <p class="pad-hint">
+      The student declared <strong>{{ currency }} {{ fmt(declaredAmount) }}</strong>.
+      You may edit the credited amount if the proof shows a different value.
     </p>
 
-    <mat-form-field *ngIf="isApprove" appearance="outline" class="pad-field" subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" class="pad-field" subscriptSizing="dynamic">
       <mat-label>Admin remarks (optional)</mat-label>
       <input matInput [(ngModel)]="adminRemarks" placeholder="Internal note — not shown to student" />
     </mat-form-field>
 
-    <mat-form-field *ngIf="!isApprove" appearance="outline" class="pad-field" subscriptSizing="dynamic">
-      <mat-label>Rejection reason (required)</mat-label>
-      <textarea matInput rows="3" [(ngModel)]="rejectionReason" placeholder="e.g. Amount does not match proof"></textarea>
+    <mat-form-field appearance="outline" class="pad-field" subscriptSizing="dynamic">
+      <mat-label>Rejection reason (required to reject)</mat-label>
+      <textarea matInput rows="2" [(ngModel)]="rejectionReason" placeholder="e.g. Amount does not match proof"></textarea>
     </mat-form-field>
   </div>
 
   <div class="pad-footer">
     <button mat-stroked-button type="button" (click)="cancel()">Cancel</button>
     <button
-      *ngIf="isApprove"
-      mat-flat-button
-      color="primary"
+      mat-stroked-button
       type="button"
-      (click)="confirm()"
-      [disabled]="!creditedAmount || creditedAmount <= 0">
-      <mat-icon>check_circle</mat-icon>
-      Approve {{ data.currency }} {{ fmt(creditedAmount) }}
-    </button>
-    <button
-      *ngIf="!isApprove"
-      mat-flat-button
-      color="warn"
-      type="button"
-      (click)="confirm()"
+      class="pad-btn pad-btn--reject"
+      (click)="confirmReject()"
       [disabled]="!rejectionReason.trim()">
       <mat-icon>block</mat-icon>
-      Reject payment
+      Reject
+    </button>
+    <button
+      mat-stroked-button
+      type="button"
+      class="pad-btn pad-btn--approve"
+      (click)="confirmApprove()"
+      [disabled]="!canApprove">
+      <mat-icon>check_circle</mat-icon>
+      Approve {{ currency }} {{ fmt(creditedAmount) }}
     </button>
   </div>
 </div>

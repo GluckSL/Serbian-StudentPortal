@@ -153,3 +153,32 @@
     vertical-align: middle;
   }
 }
+
+.pad-btn {
+  font-weight: 600;
+
+  &--approve {
+    border-color: #059669 !important;
+    color: #047857 !important;
+    background: #ecfdf5 !important;
+
+    &:hover:not([disabled]) {
+      background: #d1fae5 !important;
+    }
+  }
+
+  &--reject {
+    border-color: #dc2626 !important;
+    color: #b91c1c !important;
+    background: #fef2f2 !important;
+
+    &:hover:not([disabled]) {
+      background: #fee2e2 !important;
+    }
+  }
+
+  &[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}

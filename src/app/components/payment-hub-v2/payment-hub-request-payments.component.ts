@@ -46,6 +46,7 @@ import {
     MatTooltipModule,
     MatDialogModule,
     PaymentCurrencyTotalsComponent,
+    PaymentApprovalDecisionDialogComponent,
   ],
   templateUrl: './payment-hub-request-payments.component.html',
   styleUrls: ['./payment-hub-request-payments.component.scss'],
@@ -401,30 +402,45 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     ev?.stopPropagation();
     if (!this.isPendingStatus(sub.status) || this.loadingActionId) return;
 
-    const ref = this.dialog.open(PaymentApprovalDecisionDialogComponent, {
-      width: '520px',
-      maxWidth: '100vw',
-      panelClass: 'lm-dialog-panel',
-      autoFocus: mode === 'reject',
-      data: {
-        mode,
-        studentName: sub.studentId.name,
-        studentEmail: sub.studentId.email,
-        accountHolderName: sub.accountHolderName || '',
-        paymentDateLabel: this.formatPaymentDateTime(sub),
-        currency: sub.currency,
-        amount: sub.paidAmount,
-        adminRemarks: this.adminRemarks,
-      },
-    });
+    const openDialog = (item: ApprovalQueueItem) => {
+      const ref = this.dialog.open(PaymentApprovalDecisionDialogComponent, {
+        width: '520px',
+        maxWidth: '100vw',
+        panelClass: 'lm-dialog-panel',
+        autoFocus: mode === 'reject',
+        data: {
+          mode,
+          submission: item,
+          paymentDateLabel: this.formatPaymentDateTime(item),
+          adminRemarks: this.adminRemarks,
+        },
+      });
 
-    ref.afterClosed().subscribe((result) => {
-      if (!result) return;
-      if (result.action === 'approve') {
-        this.approve(sub, result.paidAmount, result.adminRemarks);
-      } else {
-        this.reject(sub, result.rejectionReason);
-      }
+      ref.afterClosed().subscribe((result) => {
+        if (!result) return;
+        if (result.action === 'approve') {
+          this.approve(item, result.paidAmount, result.adminRemarks);
+        } else {
+          this.reject(item, result.rejectionReason);
+        }
+      });
+    };
+
+    const student = sub.studentId;
+    const hasStudent =
+      student &&
+      typeof student === 'object' &&
+      Boolean((student.name || '').trim() || (student.email || '').trim());
+    const hasAmount = Number(sub.paidAmount) > 0;
+
+    if (hasStudent && hasAmount) {
+      openDialog(sub);
+      return;
+    }
+
+    this.api.getSubmissionDetail(sub._id).subscribe({
+      next: (res) => openDialog(res.data || sub),
+      error: () => openDialog(sub),
     });
   }
 

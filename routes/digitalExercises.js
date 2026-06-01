@@ -242,6 +242,20 @@ function parseTrueFalse(raw) {
   return null;
 }
 
+function isTrueFalseQuestionShape(q) {
+  if (!q || q.type !== 'question-answer') return false;
+  if (q.worksheetKind === 'true-false') return true;
+  const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+  return samples.some((s) => parseTrueFalse(s) !== null);
+}
+
+function formatTrueFalseLabel(raw) {
+  const parsed = parseTrueFalse(raw);
+  if (parsed === true) return 'Richtig';
+  if (parsed === false) return 'Falsch';
+  return null;
+}
+
 function clipText(s, max = 120) {
   const t = String(s ?? '').replace(/\s+/g, ' ').trim();
   if (t.length <= max) return t;
@@ -480,6 +494,28 @@ function gradeSubQuestionPart(sq, subResp) {
       rawScore,
       correctAnswer: { correctAnswerIndex: correctIdx, explanation: sq.explanation }
     };
+  }
+  if (sq.type === 'question-answer') {
+    const studentAns = String(sub.textAnswer ?? sub.qaResponse ?? '').trim();
+    const samples = Array.isArray(sq.sampleAnswers) ? sq.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = sq.worksheetKind === 'true-false' || expectedRaw !== null;
+    if (isTrueFalse) {
+      const expected = parseTrueFalse(expectedRaw);
+      const given = parseTrueFalse(studentAns);
+      const rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
+      return { rawScore, correctAnswer: { sampleAnswers: samples } };
+    }
+    const filtered = samples.filter(Boolean);
+    const normalizedStudent = normalizeTextForExactCompare(studentAns);
+    const exact = filtered.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+    return { rawScore: exact ? 100 : 0, correctAnswer: { sampleAnswers: filtered } };
+  }
+  if (sq.type === 'listening') {
+    const studentText = normalizeListeningAnswer(sub.textAnswer ?? sub.listeningText ?? '');
+    const expected = normalizeListeningAnswer(sq.expectedTranscript || '');
+    const rawScore = expected && studentText && studentText === expected ? 100 : 0;
+    return { rawScore, correctAnswer: { expectedTranscript: sq.expectedTranscript } };
   }
   return { rawScore: 0, correctAnswer: null };
 }
@@ -917,7 +953,12 @@ function formatStudentAnswerForReview(q, r) {
     return (t || '—') + tail;
   }
   if (q.type === 'question-answer') {
-    return (r.qaResponse && String(r.qaResponse).trim()) ? String(r.qaResponse).trim() : '—';
+    const raw = r.qaResponse && String(r.qaResponse).trim() ? String(r.qaResponse).trim() : '';
+    if (!raw) return '—';
+    if (isTrueFalseQuestionShape(q)) {
+      return formatTrueFalseLabel(raw) || raw;
+    }
+    return raw;
   }
   if (q.type === 'listening') {
     const t = r.listeningText || r.qaResponse || '';

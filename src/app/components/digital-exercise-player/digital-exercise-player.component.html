@@ -501,6 +501,10 @@
                     <span class="review-label">Correct:</span>
                     <span class="review-value correct">{{ sq.options?.[sq.correctAnswerIndex] || '-' }}</span>
                   </div>
+                  <div class="review-sub-q-correct" *ngIf="sq.type === 'question-answer' && isTrueFalseQuestion(sq)">
+                    <span class="review-label">Correct answer:</span>
+                    <span class="review-value correct">{{ getSubCorrectAnswerText(pq, sqIndex) }}</span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -2114,7 +2114,8 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     const { id } = req.params;
 
-    const meeting = await MeetingLink.findById(id).lean();
+    // Must be a Mongoose document (not .lean()) — attendance is persisted with meeting.save()
+    const meeting = await MeetingLink.findById(id);
     
     if (!meeting) {
       return res.status(404).json({

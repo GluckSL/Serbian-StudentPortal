@@ -8,17 +8,14 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { ApprovalQueueItem } from './payment-hub-api.service';
 
 export type PaymentApprovalDecisionMode = 'approve' | 'reject';
 
 export interface PaymentApprovalDecisionDialogData {
   mode: PaymentApprovalDecisionMode;
-  studentName: string;
-  studentEmail: string;
-  accountHolderName: string;
+  submission: ApprovalQueueItem;
   paymentDateLabel: string;
-  currency: string;
-  amount: number;
   adminRemarks?: string;
 }
 
@@ -53,21 +50,56 @@ export class PaymentApprovalDecisionDialogComponent {
     private readonly dialogRef: MatDialogRef<PaymentApprovalDecisionDialogComponent, PaymentApprovalDecisionResult | undefined>,
     @Inject(MAT_DIALOG_DATA) public readonly data: PaymentApprovalDecisionDialogData,
   ) {
-    this.creditedAmount = data.amount;
+    this.creditedAmount = this.declaredAmount;
     this.adminRemarks = data.adminRemarks ?? '';
   }
 
-  get isApprove(): boolean {
+  get submission(): ApprovalQueueItem {
+    return this.data.submission;
+  }
+
+  get isApproveIntent(): boolean {
     return this.data.mode === 'approve';
   }
 
   get title(): string {
-    return this.isApprove ? 'Approve payment' : 'Reject payment';
+    return this.isApproveIntent ? 'Approve payment' : 'Reject payment';
+  }
+
+  get studentName(): string {
+    const sid = this.submission.studentId;
+    if (sid && typeof sid === 'object') {
+      return (sid.name || '').trim();
+    }
+    return '';
+  }
+
+  get studentEmail(): string {
+    const sid = this.submission.studentId;
+    if (sid && typeof sid === 'object') {
+      return (sid.email || '').trim();
+    }
+    return '';
   }
 
   get accountHolderDisplay(): string {
-    const n = (this.data.accountHolderName || '').trim();
+    const n = (this.submission.accountHolderName || '').trim();
     return n || '—';
+  }
+
+  get currency(): string {
+    return this.submission.currency || this.submission.paymentRequestId?.currency || 'INR';
+  }
+
+  /** Amount the student declared on this submission. */
+  get declaredAmount(): number {
+    const n = Number(this.submission.paidAmount);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  get canApprove(): boolean {
+    const n = Number(this.creditedAmount);
+    return Number.isFinite(n) && n > 0;
   }
 
   cancel(): void {
@@ -79,24 +111,24 @@ export class PaymentApprovalDecisionDialogComponent {
     if (!this.amountEditing) {
       const n = Number(this.creditedAmount);
       if (!n || n <= 0 || Number.isNaN(n)) {
-        this.creditedAmount = this.data.amount;
+        this.creditedAmount = this.declaredAmount;
       }
     }
   }
 
-  confirm(): void {
-    if (this.isApprove) {
-      const paidAmount = Number(this.creditedAmount);
-      if (!paidAmount || paidAmount <= 0 || Number.isNaN(paidAmount)) {
-        return;
-      }
-      this.dialogRef.close({
-        action: 'approve',
-        paidAmount,
-        adminRemarks: this.adminRemarks.trim() || undefined,
-      });
+  confirmApprove(): void {
+    const paidAmount = Number(this.creditedAmount);
+    if (!paidAmount || paidAmount <= 0 || Number.isNaN(paidAmount)) {
       return;
     }
+    this.dialogRef.close({
+      action: 'approve',
+      paidAmount,
+      adminRemarks: this.adminRemarks.trim() || undefined,
+    });
+  }
+
+  confirmReject(): void {
     const rejectionReason = this.rejectionReason.trim();
     if (!rejectionReason) return;
     this.dialogRef.close({ action: 'reject', rejectionReason });

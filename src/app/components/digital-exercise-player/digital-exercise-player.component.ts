@@ -2003,6 +2003,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (sq.type === 'mcq') {
       return sq.options?.[sq.correctAnswerIndex] || '—';
     }
+    if (sq.type === 'question-answer' && this.isTrueFalseQuestion(sq)) {
+      const samples: string[] = sq.sampleAnswers || [];
+      const parsed = samples.map(s => this.parseTrueFalseStrictSample(s)).find(v => v === true || v === false);
+      if (parsed === true) return 'Richtig';
+      if (parsed === false) return 'Falsch';
+      return samples.length ? samples.join('; ') : '—';
+    }
     return '—';
   }
 
@@ -3533,6 +3540,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         return sq.options[answer] || String(answer);
       }
       return String(answer);
+    }
+    if (sq?.type === 'question-answer' && this.isTrueFalseQuestion(sq)) {
+      const parsed = this.parseTrueFalse(answer);
+      return parsed === true ? 'Richtig' : parsed === false ? 'Falsch' : String(answer);
     }
     return String(answer);
   }
