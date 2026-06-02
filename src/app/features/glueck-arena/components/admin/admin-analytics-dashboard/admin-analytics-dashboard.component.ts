@@ -71,6 +71,7 @@ interface BatchSummary { batchName: string; }
             <mat-option value="gender_stack">Gender Stack</mat-option>
             <mat-option value="flapjugation">Flapjugation</mat-option>
             <mat-option value="whackawort">Whack-a-Wort</mat-option>
+            <mat-option value="memory">Memory Game</mat-option>
           </mat-select>
         </mat-form-field>
       </div>

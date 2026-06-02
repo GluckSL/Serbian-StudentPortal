@@ -1,7 +1,7 @@
 // GlückArena shared TypeScript types
 
 export type ArticleGender = 'der' | 'die' | 'das';
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -122,7 +122,31 @@ export interface WhackawortQuestion {
   category: string;
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion;
+export interface MemoryGamePair {
+  word: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export interface MemoryGameQuestion {
+  _id: string;
+  gameType: 'memory';
+  order: number;
+  pairs: MemoryGamePair[];
+}
+
+export interface JumbledWordsQuestion {
+  _id: string;
+  gameType: 'jumbled_words';
+  order: number;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+  jumbledLetters: string[];
+  letterCount: number;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -149,7 +173,19 @@ export interface AdminFlapjugationQuestion extends FlapjugationQuestion {
 }
 export interface AdminWhackawortQuestion extends WhackawortQuestion {
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion;
+export interface AdminMemoryMatchPair {
+  word: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export interface AdminMemoryGameQuestion extends MemoryGameQuestion {
+  pairs: AdminMemoryMatchPair[];
+}
+export interface AdminJumbledWordsQuestion extends JumbledWordsQuestion {
+  word: string;
+}
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion | AdminMemoryGameQuestion | AdminJumbledWordsQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -254,10 +290,14 @@ export interface StudentGameStats {
   byGameType: {
     scramble_rush: { gamesCompleted: number; bestScore: number; totalXp: number };
     sentence_builder: { gamesCompleted: number; bestScore: number; totalXp: number };
+    matching: { gamesCompleted: number; bestScore: number; totalXp: number };
+    flashcards: { gamesCompleted: number; bestScore: number; totalXp: number };
     image_matching: { gamesCompleted: number; bestScore: number; totalXp: number };
     gender_stack: { gamesCompleted: number; bestScore: number; totalXp: number };
     flapjugation: { gamesCompleted: number; bestScore: number; totalXp: number };
     whackawort: { gamesCompleted: number; bestScore: number; totalXp: number };
+    memory: { gamesCompleted: number; bestScore: number; totalXp: number };
+    jumbled_words: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 
@@ -433,7 +473,7 @@ export interface ArenaBattleSentenceQuestion {
 export interface ArenaBattleRound {
   roundIndex: number;
   totalRounds: number;
-  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion | ArenaBattleWhackawortQuestion;
+  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion | ArenaBattleWhackawortQuestion | ArenaBattleJumbledWordsQuestion;
   roundStartedAt?: string;
   roundEndsAt?: string;
   serverTime: number;
@@ -641,4 +681,14 @@ export interface ArenaBattleWhackawortQuestion {
   targetCategory: string;
   words: Array<{ word: string; translation: string; category: string }>;
   duration: number;
+}
+
+export interface ArenaBattleJumbledWordsQuestion {
+  questionId: string;
+  index: number;
+  jumbledLetters: string[];
+  hint?: string;
+  imageUrl?: string | null;
+  audioUrl?: string | null;
+  letterCount: number;
 }

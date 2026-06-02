@@ -78,6 +78,7 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
           <p *ngIf="set.gameType === 'whackawort'">
             Whack the German words that match the target category — hit the wrong ones and lose a life!
           </p>
+          <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word!</p>
         </div>
 
         <button mat-raised-button color="primary" class="gd__play-btn" (click)="play()">
@@ -172,6 +173,7 @@ export class GameDetailComponent implements OnInit {
       gender_stack: 'linear-gradient(135deg,#0284c7,#38bdf8)',
       flapjugation: 'linear-gradient(135deg,#be185d,#ec4899)',
       whackawort: 'linear-gradient(135deg,#d97706,#f59e0b)',
+      memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
@@ -181,6 +183,7 @@ export class GameDetailComponent implements OnInit {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder', matching: 'Matching',
       flashcards: 'Flashcards', image_matching: 'Image Matching', gender_stack: 'Gender Stack',
       flapjugation: 'Flapjugation', whackawort: 'Whack-a-Wort',
+      memory: 'Memory Game',
     };
     return map[t] ?? t;
   }

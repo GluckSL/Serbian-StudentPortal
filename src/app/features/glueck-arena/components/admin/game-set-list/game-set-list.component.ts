@@ -365,6 +365,7 @@ export class GameSetListComponent implements OnInit {
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
       whackawort: 'Whack-a-Wort',
+      memory: 'Memory Game',
     };
     return map[t] ?? t;
   }

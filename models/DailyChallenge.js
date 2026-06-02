@@ -15,7 +15,7 @@ const DailyChallengeSchema = new mongoose.Schema({
   xpReward: { type: Number, default: 25, min: 0 },
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', null],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', null],
     default: null,
   },
   isActive: { type: Boolean, default: true },

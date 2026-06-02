@@ -16,10 +16,12 @@ const scrambleRushService = require('../services/interactiveGames/scrambleRush')
 const sentenceBuilderService = require('../services/interactiveGames/sentenceBuilder');
 const imageMatchingService = require('../services/interactiveGames/imageMatching');
 const genderStackService = require('../services/interactiveGames/genderStack');
+const memoryService = require('../services/interactiveGames/memory');
+const jumbledWordsService = require('../services/interactiveGames/jumbledWords');
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
 const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
-const { presignMediaUrl, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
+const { presignMediaUrl, presignS3Url, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
 const analyticsService = require('../services/interactiveGames/analytics');
 const securityService = require('../services/interactiveGames/security');
 const dailyChallengesService = require('../services/interactiveGames/dailyChallenges');
@@ -31,7 +33,7 @@ const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -210,7 +212,7 @@ exports.startAttempt = async (req, res) => {
     // Determine attempt number
     const prevCount = await GameAttempt.countDocuments({ studentId: req.user.id, gameSetId: set._id });
 
-    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' ? 5 : 3;
+    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' || set.gameType === 'memory' ? 5 : set.gameType === 'jumbled_words' ? 99 : 3;
     const attempt = await GameAttempt.create({
       studentId: req.user.id,
       gameSetId: set._id,
@@ -267,6 +269,17 @@ exports.startAttempt = async (req, res) => {
         const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, pairs: _p, tokens: _tk, __v: _v, ...safe } = q;
         return safe;
       }
+      if (set.gameType === 'memory') {
+        // Word is needed for display on word cards — include it
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, __v: _v, ...safe } = q;
+        return safe;
+      }
+      if (set.gameType === 'jumbled_words') {
+        // Expose jumbled letters + word for per-slot validation; hide rest
+        const jumbled = jumbledWordsService.attachJumbled([q])[0];
+        const { articleGender: _ag, hint: _h, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = jumbled;
+        return safe;
+      }
       const { __v: _v, ...safe } = q;
       return safe;
     });
@@ -277,9 +290,9 @@ exports.startAttempt = async (req, res) => {
       levels = await GameLevel.find({ gameSetId: set._id }).sort({ levelNumber: 1 }).lean();
     }
 
-    // For image_matching, send shuffled words for drag-drop UI
+    // For image_matching and memory, send shuffled words for drag-drop/card UI
     let shuffledWords = [];
-    if (set.gameType === 'image_matching') {
+    if (set.gameType === 'image_matching' || set.gameType === 'memory') {
       const allWords = [];
       questions.forEach(q => {
         if (q.pairs) {
@@ -290,13 +303,6 @@ exports.startAttempt = async (req, res) => {
       });
       shuffledWords = imageMatchingService.shuffleWords(allWords);
     }
-
-    // Presign any S3 media URLs in both the set and the sanitized questions
-    // (pairs[].imageUrl, etc.) so the browser can load them even if the bucket is private.
-    await Promise.all([
-      resignMediaInObject(set),
-      resignMediaInObject(sanitized),
-    ]);
 
     res.json({
       success: true,
@@ -421,8 +427,6 @@ exports.submitImageMatchSlot = async (req, res) => {
       return badRequest(res, 'questionId, pairIndex and word required');
     }
 
-    // Validate attempt is active (skip full validateAnswerSubmission which blocks
-    // multiple answers per question — image_matching needs one answer per pair)
     const active = securityService.validateAttemptActive(attempt);
     if (!active.ok) {
       return res.status(400).json({ success: false, message: active.message });
@@ -457,7 +461,6 @@ exports.submitImageMatchSlot = async (req, res) => {
     pointsEarned = result.points;
 
     if (!staffPreview) {
-      // Check if this pair was already matched
       const existingAnswer = await GameAnswer.findOne({
         attemptId: attempt._id,
         questionId: question._id,
@@ -478,8 +481,6 @@ exports.submitImageMatchSlot = async (req, res) => {
         });
       }
 
-      // Record the answer — use pairIndex as slotIndex so the unique compound index
-      // (attemptId + questionId + slotIndex) supports multiple pairs per question
       await GameAnswer.create({
         attemptId: attempt._id,
         questionId: question._id,
@@ -523,6 +524,110 @@ exports.submitImageMatchSlot = async (req, res) => {
       questionComplete: false,
       correctMatches: 0,
       totalMatches: totalPairs,
+      preview: true,
+    });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
+// ── STUDENT — Memory game match (per-pair instant feedback) ────────────────────
+
+exports.submitMemoryMatch = async (req, res) => {
+  try {
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
+    if (!attempt) return notFound(res, 'Attempt not found');
+    if (!ownsAttempt(attempt, req)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (attempt.gameType !== 'memory') {
+      return badRequest(res, 'Invalid game type for memory match');
+    }
+
+    const { questionId, pairIndex, word, responseTimeMs } = req.body;
+    if (!questionId || pairIndex === undefined || pairIndex === null || !word) {
+      return badRequest(res, 'questionId, pairIndex and word required');
+    }
+
+    const active = securityService.validateAttemptActive(attempt);
+    if (!active.ok) {
+      return res.status(400).json({ success: false, message: active.message });
+    }
+
+    const question = await GameQuestion.findOne({
+      _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
+    }).lean();
+    if (!question) return notFound(res, 'Question not found');
+
+    const result = memoryService.evaluateMatch(question, pairIndex, word);
+    const staffPreview = isArenaStaff(req.user.role);
+
+    if (!result.isCorrect) {
+      return res.json({
+        success: true,
+        isCorrect: false,
+        pointsEarned: 0,
+      });
+    }
+
+    const pointsEarned = result.points;
+
+    if (!staffPreview) {
+      const existingAnswer = await GameAnswer.findOne({
+        attemptId: attempt._id,
+        questionId: question._id,
+        slotIndex: pairIndex,
+      }).lean();
+      if (existingAnswer) {
+        return res.json({
+          success: true,
+          isCorrect: true,
+          alreadyMatched: true,
+          pointsEarned: 0,
+        });
+      }
+
+      await GameAnswer.create({
+        attemptId: attempt._id,
+        questionId: question._id,
+        studentId: req.user.id,
+        typedWord: String(word).trim(),
+        slotIndex: pairIndex,
+        responseTimeMs: responseTimeMs || 0,
+        isCorrect: true,
+        pointsEarned,
+      });
+
+      const totalPairs = question.pairs ? question.pairs.length : 0;
+      const correctMatches = await GameAnswer.countDocuments({
+        attemptId: attempt._id, isCorrect: true,
+      });
+      const questionComplete = correctMatches >= totalPairs;
+
+      if (questionComplete) {
+        await GameAttempt.findByIdAndUpdate(attempt._id, {
+          $inc: { score: pointsEarned, correctAnswers: 1, wordsCompleted: 1 },
+        });
+        const xpAmount = scoringService.perAnswerXp('memory');
+        await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
+      } else {
+        await GameAttempt.findByIdAndUpdate(attempt._id, { $inc: { score: pointsEarned } });
+      }
+
+      return res.json({
+        success: true,
+        isCorrect: true,
+        pointsEarned,
+        questionComplete,
+        correctMatches,
+        totalPairs,
+      });
+    }
+
+    res.json({
+      success: true,
+      isCorrect: true,
+      pointsEarned,
       preview: true,
     });
   } catch (err) {
@@ -594,6 +699,13 @@ exports.submitAnswer = async (req, res) => {
       if (result.pairIndex >= 0 && question.pairs && question.pairs[result.pairIndex]) {
         correctAnswer.word = question.pairs[result.pairIndex].word;
       }
+    } else if (attempt.gameType === 'jumbled_words') {
+      // Student typed word formed by arranging jumbled letters
+      const letters = Array.isArray(orderedTokens) ? orderedTokens.join('') : (typedWord || '');
+      const result = jumbledWordsService.evaluateAnswer(question, letters);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      correctAnswer.word = question.word;
     } else if (attempt.gameType === 'gender_stack') {
       if (!articleGender) return badRequest(res, 'articleGender required');
       const result = genderStackService.evaluateAnswer(question, articleGender);
@@ -991,6 +1103,32 @@ exports.adminUpsertQuestions = async (req, res) => {
       }
     }
 
+    if (set.gameType === 'jumbled_words') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: German word required`);
+        if (!String(q.hint || '').trim() && !String(q.imageUrl || '').trim()) {
+          return badRequest(res, `Question ${i + 1}: hint or imageUrl required`);
+        }
+      }
+    }
+
+    if (set.gameType === 'memory') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!Array.isArray(q.pairs) || q.pairs.length === 0) {
+          return badRequest(res, `Question ${i + 1}: at least one pair required`);
+        }
+        if (q.pairs.length > 8) {
+          return badRequest(res, `Question ${i + 1}: maximum 8 pairs per board (4x4)`);
+        }
+        for (let j = 0; j < q.pairs.length; j++) {
+          const p = q.pairs[j];
+          if (!trimGermanWord(p.word)) return badRequest(res, `Question ${i + 1}, pair ${j + 1}: German word required`);
+        }
+      }
+    }
+
     const ops = questions.map((q, i) => {
       const doc = {
         gameSetId: set._id,
@@ -1013,6 +1151,11 @@ exports.adminUpsertQuestions = async (req, res) => {
           imageUrl: p.imageUrl || null,
           audioUrl: p.audioUrl || null,
         }));
+      } else if (set.gameType === 'memory') {
+        doc.pairs = (q.pairs || []).map(p => ({
+          word: trimGermanWord(p.word),
+          imageUrl: p.imageUrl || null,
+        }));
       } else if (set.gameType === 'gender_stack') {
         doc.word = trimGermanWord(q.word);
         doc.translation = String(q.translation || q.hint || '').trim();
@@ -1026,6 +1169,11 @@ exports.adminUpsertQuestions = async (req, res) => {
         doc.word = trimGermanWord(q.word);
         doc.translation = String(q.translation || '').trim();
         doc.category = String(q.category || '').trim();
+      } else if (set.gameType === 'jumbled_words') {
+        doc.word = germanUppercase(q.word);
+        doc.hint = q.hint || '';
+        doc.imageUrl = q.imageUrl || null;
+        doc.audioUrl = q.audioUrl || null;
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';

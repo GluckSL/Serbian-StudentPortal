@@ -153,6 +153,7 @@ router.post('/:id/attempts', verifyToken, checkRole(arenaPlayRoles), interactive
 // Submit a single answer during play
 router.post('/attempts/:attemptId/slots', verifyToken, checkRole(['STUDENT']), interactiveGamesController.submitSentenceSlot);
 router.post('/attempts/:attemptId/image-match', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitImageMatchSlot);
+router.post('/attempts/:attemptId/memory-match', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitMemoryMatch);
 router.post('/attempts/:attemptId/answers', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitAnswer);
 
 // Finalize / complete the session
