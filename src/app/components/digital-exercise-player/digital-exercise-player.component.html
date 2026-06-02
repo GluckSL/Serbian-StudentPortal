@@ -897,6 +897,12 @@
               </svg>
               <span class="vp-ring-label">{{ vpRingPercent }}%</span>
             </div>
+
+            <!-- Watch Only Mode indicator (set by admin) -->
+            <div class="watch-only-indicator" *ngIf="watchOnlyMode">
+              <span class="material-icons">mic_off</span>
+              <span>Watch Only Mode</span>
+            </div>
           </div>
           <div class="vp-detail-card vp-detail-card--clips">
             <span class="vp-detail-card-label"
@@ -1017,9 +1023,53 @@
                       </button>
                     </div>
 
+                    <!-- Watch Only: Replay + Next/Submit (no speaking required) -->
+                    <div
+                      class="vp-stage-watch-only-block"
+                      *ngIf="
+                        watchOnlyMode &&
+                        !showVpFinalSubmit &&
+                        currentQuestion.vpPlaybackEnded &&
+                        (currentQuestion.vpResult === 'idle' ||
+                          !currentQuestion.vpResult) &&
+                        !currentQuestion.isRecording &&
+                        !hasCurrentSubmitted
+                      "
+                    >
+                      <button
+                        type="button"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--subtle"
+                        (click)="replayVpVideo()"
+                      >
+                        <span class="material-icons">replay</span>
+                        Replay
+                      </button>
+                      <button
+                        *ngIf="!isLastQuestion"
+                        type="button"
+                        class="vp-stage-foot-pill"
+                        (click)="skipWatchOnlyClip()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">skip_next</span>
+                        Next Clip
+                      </button>
+                      <button
+                        *ngIf="isLastQuestion"
+                        type="button"
+                        class="vp-stage-foot-pill"
+                        (click)="skipWatchOnlyClip()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">flag</span>
+                        {{ finishingAll ? "Submitting…" : "Finish" }}
+                      </button>
+                    </div>
+
                     <div
                       class="vp-stage-mic-block"
                       *ngIf="
+                        !watchOnlyMode &&
                         !showVpFinalSubmit &&
                         currentQuestion.vpPlaybackEnded &&
                         (currentQuestion.vpResult === 'idle' ||
@@ -1439,6 +1489,7 @@
                   <div
                     class="vp-stage-ui-foot"
                     *ngIf="
+                      !watchOnlyMode &&
                       !showVpFinalSubmit &&
                       currentQuestion.vpPlaybackEnded &&
                       (currentQuestion.vpResult === 'idle' ||
@@ -3305,10 +3356,53 @@
                     Watch the clip — buttons appear when it finishes
                   </p>
 
-                  <!-- After video ends: Replay + Speak -->
+                  <!-- After video ends: Watch Only Mode — Replay + Next/Finish (no speaking) -->
                   <div
                     class="vp-mob-btn-row"
                     *ngIf="
+                      watchOnlyMode &&
+                      (currentQuestion.vpResult === 'idle' ||
+                        !currentQuestion.vpResult) &&
+                      currentQuestion.vpPlaybackEnded &&
+                      !currentQuestion.isRecording &&
+                      currentQuestion.pronUiState !== 'processing'
+                    "
+                  >
+                    <button
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--secondary"
+                      (click)="replayVpVideo()"
+                    >
+                      <span class="material-icons">replay</span>
+                      <span>Replay</span>
+                    </button>
+                    <button
+                      *ngIf="!isLastQuestion"
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--primary"
+                      (click)="skipWatchOnlyClip()"
+                      [disabled]="finishingAll || submitting"
+                    >
+                      <span class="material-icons">skip_next</span>
+                      <span>Next Clip</span>
+                    </button>
+                    <button
+                      *ngIf="isLastQuestion"
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--finish"
+                      (click)="skipWatchOnlyClip()"
+                      [disabled]="finishingAll || submitting"
+                    >
+                      <span class="material-icons">flag</span>
+                      <span>{{ finishingAll ? "Submitting…" : "Finish" }}</span>
+                    </button>
+                  </div>
+
+                  <!-- After video ends: Normal Mode — Replay + Speak -->
+                  <div
+                    class="vp-mob-btn-row"
+                    *ngIf="
+                      !watchOnlyMode &&
                       (currentQuestion.vpResult === 'idle' ||
                         !currentQuestion.vpResult) &&
                       currentQuestion.vpPlaybackEnded &&

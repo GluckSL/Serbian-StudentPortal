@@ -363,6 +363,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Controls the "Chrome works best" banner. */
   showBrowserGuidance = false;
   browserGuidanceDismissed = false;
+
+  /** When true, pronunciation step is skipped — student just watches the video and taps Next.
+   *  Derived from the exercise data set by admin; not editable by students. */
+  get watchOnlyMode(): boolean {
+    return !!(this.exercise as any)?.watchOnlyMode;
+  }
   /** Cached device/browser info (set in checkSpeechSupport). */
   deviceInfo: DeviceInfo | null = null;
   /** Last adaptive threshold pack used — surfaced in the debug panel. */
@@ -538,6 +544,33 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   dismissBrowserGuidance(): void {
     this.browserGuidanceDismissed = true;
     this.showBrowserGuidance = false;
+  }
+
+  /**
+   * In Watch Only Mode: mark the current clip as "watched" (score 0) and advance,
+   * without requiring the student to speak.
+   */
+  skipWatchOnlyClip(): void {
+    if (this.submitting || this.finishingAll) return;
+    const pq = this.currentQuestion;
+    if (!pq) return;
+
+    pq.vpSpokenText = '';
+    pq.pronunciationScore = 0;
+    pq.vpResult = 'idle';
+    pq.hasRecorded = true;
+    pq.isAnswered = true;
+    pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
+    this.clearVpFeedbackUi();
+    this.markAttempted(pq);
+
+    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
+    if (isLastClip) {
+      this.finishVideoExercise();
+    } else {
+      this.submitCurrentQuestion();
+      setTimeout(() => this.nextQuestion(), 300);
+    }
   }
 
   /** Copy the user can read while a silent recording is being rejected. */
@@ -1818,7 +1851,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (!labels.length) return false;
       return labels.every((l: any) => conns.some((c) => c.labelId === l.id && !!c.pinId));
     }
-    if (q.type === 'video-pronunciation') return pq.hasRecorded === true;
+    if (q.type === 'video-pronunciation') {
+      if (this.watchOnlyMode && pq.isAnswered) return true;
+      return pq.hasRecorded === true;
+    }
     return false;
   }
 

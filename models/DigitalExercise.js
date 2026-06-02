@@ -314,6 +314,12 @@ const DigitalExerciseSchema = new mongoose.Schema({
   visibleToStudents: { type: Boolean, default: false },
   publishedAt: { type: Date, default: null },
 
+  /**
+   * When true, students skip the pronunciation step — they just watch each
+   * video clip and tap "Next". Controlled by admin only (default: false).
+   */
+  watchOnlyMode: { type: Boolean, default: false },
+
   // Metadata
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
