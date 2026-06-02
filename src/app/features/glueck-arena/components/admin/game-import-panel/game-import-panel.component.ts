@@ -10,7 +10,13 @@ import * as XLSX from 'xlsx';
   standalone: true,
   imports: [CommonModule, MaterialModule],
   template: `
-    <div class="gip" *ngIf="gameSetId">
+    <div class="gip">
+      <div class="gip__notice" *ngIf="!hasGameSetId">
+        <mat-icon>info</mat-icon>
+        <p>Save <strong>Game Details</strong> first. Import (CSV template and upload) is available after the game set is created.</p>
+      </div>
+
+      <ng-container *ngIf="hasGameSetId">
       <h3>Bulk import (CSV)</h3>
       <p class="gip__hint">Download template, fill rows, upload for preview, then commit.</p>
       <div class="gip__actions">
@@ -29,10 +35,18 @@ import * as XLSX from 'xlsx';
         <p>Preview (first {{ previewRows.length }} valid rows)</p>
         <pre>{{ previewRows | json }}</pre>
       </div>
+      </ng-container>
     </div>
   `,
   styles: [`
     .gip { padding: 16px 0; }
+    .gip__notice {
+      display: flex; gap: 12px; align-items: flex-start;
+      background: #e8f4fd; border: 1px solid #90caf9; border-radius: 10px;
+      padding: 14px 16px; color: #1565c0;
+    }
+    .gip__notice mat-icon { flex-shrink: 0; }
+    .gip__notice p { margin: 0; font-size: 14px; line-height: 1.45; }
     .gip__hint { color: #666; font-size: 14px; }
     .gip__actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
     .gip__errors { background: #fce4ec; padding: 12px; border-radius: 8px; font-size: 13px; color: #b71c1c; max-height: 120px; overflow: auto; }
@@ -49,6 +63,10 @@ export class GameImportPanelComponent implements OnChanges {
   previewOk = false;
   importing = false;
 
+  get hasGameSetId(): boolean {
+    return !!String(this.gameSetId || '').trim();
+  }
+
   constructor(private svc: InteractiveGameService, private notify: NotificationService) {}
 
   ngOnChanges(changes: SimpleChanges) {
@@ -61,6 +79,10 @@ export class GameImportPanelComponent implements OnChanges {
   }
 
   downloadTemplate() {
+    if (!this.hasGameSetId) {
+      this.notify.error('Save Game Details first.');
+      return;
+    }
     this.svc.adminImportTemplate(this.gameSetId, this.gameType).subscribe({
       next: (r) => {
         const ws = XLSX.utils.json_to_sheet(r.template || []);

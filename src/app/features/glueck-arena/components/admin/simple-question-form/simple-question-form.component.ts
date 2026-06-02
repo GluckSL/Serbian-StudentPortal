@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormArray, FormGroup, Validators } from '@angular/forms';
 import { MaterialModule } from '../../../../../shared/material.module';
@@ -11,7 +11,12 @@ import { NotificationService } from '../../../../../services/notification.servic
   imports: [CommonModule, ReactiveFormsModule, MaterialModule],
   template: `
     <div class="sqf">
-      <div class="sqf__toolbar">
+      <div class="sqf__notice" *ngIf="!hasGameSetId">
+        <mat-icon>info</mat-icon>
+        <p>Save <strong>Game Details</strong> first (title, game type, difficulty). Then you can add matching pairs and use Import.</p>
+      </div>
+
+      <div class="sqf__toolbar" *ngIf="hasGameSetId">
         <h3>{{ title }}</h3>
         <button mat-raised-button color="primary" (click)="addItem()">
           <mat-icon>add</mat-icon> Add Pair
@@ -20,7 +25,7 @@ import { NotificationService } from '../../../../../services/notification.servic
 
       <mat-progress-bar *ngIf="loading || saving" mode="indeterminate"></mat-progress-bar>
 
-      <form [formGroup]="form" (ngSubmit)="save()">
+      <form *ngIf="hasGameSetId" [formGroup]="form" (ngSubmit)="save()">
         <div formArrayName="items" class="sqf__list">
           <mat-card class="sqf__card" *ngFor="let ctrl of items.controls; let i = index" [formGroupName]="i">
             <mat-card-header>
@@ -70,6 +75,13 @@ import { NotificationService } from '../../../../../services/notification.servic
   `,
   styles: [`
     .sqf { padding: 24px 0; }
+    .sqf__notice {
+      display: flex; gap: 12px; align-items: flex-start;
+      background: #e8f4fd; border: 1px solid #90caf9; border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 16px; color: #1565c0;
+    }
+    .sqf__notice mat-icon { flex-shrink: 0; }
+    .sqf__notice p { margin: 0; font-size: 14px; line-height: 1.45; }
     .sqf__toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .sqf__toolbar h3 { margin: 0; font-size: 18px; color: #405980; }
     .sqf__list { display: flex; flex-direction: column; gap: 12px; }
@@ -83,13 +95,17 @@ import { NotificationService } from '../../../../../services/notification.servic
     .sqf__audio-ok { font-size: 13px; color: #2e7d32; display: flex; align-items: center; gap: 4px; }
   `]
 })
-export class SimpleQuestionFormComponent implements OnInit {
+export class SimpleQuestionFormComponent implements OnInit, OnChanges {
   @Input() gameSetId!: string;
   @Input() gameType!: string;
 
   form!: FormGroup;
   loading = false;
   saving = false;
+
+  get hasGameSetId(): boolean {
+    return !!String(this.gameSetId || '').trim();
+  }
 
   get title(): string { return this.gameType === 'matching' ? 'Matching Pairs' : 'Flashcards'; }
   get leftLabel(): string { return this.gameType === 'matching' ? 'Left Item' : 'Front Side'; }
@@ -110,8 +126,14 @@ export class SimpleQuestionFormComponent implements OnInit {
     this.load();
   }
 
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['gameSetId'] && this.form && this.hasGameSetId) {
+      this.load();
+    }
+  }
+
   load() {
-    if (!this.gameSetId) return;
+    if (!this.hasGameSetId) return;
     this.loading = true;
     this.svc.adminGetQuestions(this.gameSetId).subscribe({
       next: (r) => {
@@ -156,16 +178,29 @@ export class SimpleQuestionFormComponent implements OnInit {
   removeItem(i: number) { this.items.removeAt(i); }
 
   save() {
+    if (!this.hasGameSetId) {
+      this.notify.error('Save Game Details first, then add questions.');
+      return;
+    }
     if (this.form.invalid) return;
     this.saving = true;
     const qs = this.items.value.map((item: any, i: number) => ({ ...item, order: i }));
     this.svc.adminUpsertQuestions(this.gameSetId, qs).subscribe({
-      next: () => {
+      next: (res) => {
         this.saving = false;
         this.notify.success('Items saved!');
-        this.load();
+        if (res?.questions?.length) {
+          this.items.clear();
+          res.questions.forEach((q: any) => this.items.push(this.makeControl(q)));
+        } else {
+          this.load();
+        }
       },
-      error: (err) => { this.saving = false; this.notify.error(err?.error?.message || 'Save failed'); }
+      error: (err) => {
+        this.saving = false;
+        const msg = err?.error?.message || err?.error?.error || 'Save failed';
+        this.notify.error(msg);
+      }
     });
   }
 }

@@ -956,6 +956,9 @@ exports.adminGetQuestions = async (req, res) => {
 
 exports.adminUpsertQuestions = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(String(req.params.id || ''))) {
+      return badRequest(res, 'Save the game set in Game Details first, then add questions.');
+    }
     const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
     if (!set) return notFound(res);
 
@@ -1060,7 +1063,10 @@ exports.adminUpsertQuestions = async (req, res) => {
 
     // Soft-delete questions the client removed from the array
     const incomingIds = questions.filter(q => q._id).map(q => String(q._id));
-    const newIds = Object.values(result.insertedIds || {}).map(id => String(id));
+    const inserted = result.insertedIds;
+    const newIds = inserted instanceof Map
+      ? [...inserted.values()].map((id) => String(id))
+      : Object.values(inserted || {}).map((id) => String(id));
     const keepIds = [...incomingIds, ...newIds].filter(Boolean);
     if (keepIds.length > 0) {
       const keepObjectIds = keepIds.map(id => new mongoose.Types.ObjectId(id));
