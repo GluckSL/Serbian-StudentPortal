@@ -150,6 +150,7 @@ export class FlashCardsComponent implements OnInit, OnDestroy {
       this.score += 10;
       this.xpBurst = 10;
       this.xpTrigger++;
+      this.audio.playXpGain();
       this.audio.playCorrect();
     } else {
       this.audio.playWrong();

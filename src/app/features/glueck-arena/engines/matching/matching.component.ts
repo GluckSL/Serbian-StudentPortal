@@ -181,6 +181,7 @@ export class MatchingComponent implements OnInit, OnDestroy {
     this.score = correct * 10;
     this.xpBurst = correct * 10;
     this.xpTrigger++;
+    this.audio.playXpGain();
     if (correct === this.pairs.length) {
       this.audio.playCorrect();
       this.showConfetti = true;

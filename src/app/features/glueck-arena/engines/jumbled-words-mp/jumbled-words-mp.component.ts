@@ -275,6 +275,7 @@ export class JumbledWordsMpComponent implements OnChanges, OnDestroy {
       this.lastPoints = result.points;
       this.lastFastest = !!result.fastest;
       this.xpTrigger++;
+      this.audio.playXpGain();
       this.audio.playCorrect();
     } else {
       this.feedback = 'wrong';

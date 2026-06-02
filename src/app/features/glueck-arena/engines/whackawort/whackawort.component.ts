@@ -244,6 +244,7 @@ export class WhackawortComponent implements OnInit, OnDestroy {
           this.xpEarned += this.XP_PER_CORRECT;
           this.xpAmount = this.XP_PER_CORRECT;
           this.xpTrigger++;
+          this.audio.playXpGain();
           this.triggerConfetti(x, y);
           this.audio.playCorrect();
           setTimeout(() => this.nextRound(), 600);

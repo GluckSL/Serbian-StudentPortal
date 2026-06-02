@@ -502,6 +502,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
         if (r.isCorrect) {
           this.score += r.pointsEarned ?? 0;
           this.xpTrigger++;
+          this.audio.playXpGain();
           if (r.questionComplete) {
             this.correctCount++;
           }

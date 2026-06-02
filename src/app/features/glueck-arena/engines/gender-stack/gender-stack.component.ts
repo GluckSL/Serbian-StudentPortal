@@ -6,6 +6,7 @@ import { MaterialModule } from '../../../../shared/material.module';
 import { XpFloatComponent } from '../../shared/xp-float/xp-float.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
 import { InteractiveGameService } from '../../services/interactive-game.service';
+import { GameAudioService } from '../../services/game-audio.service';
 import {
   GenderStackQuestion, GameAttempt, ArticleGender, GameSet, GenderStackSettings,
 } from '../../glueck-arena.types';
@@ -375,6 +376,7 @@ export class GenderStackComponent implements OnInit, OnDestroy {
   constructor(
     private svc: InteractiveGameService,
     private cdr: ChangeDetectorRef,
+    readonly audio: GameAudioService,
   ) {}
 
   get totalBlocks(): number {
@@ -382,6 +384,7 @@ export class GenderStackComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.audio.unlock();
     this.settings = this.resolveSettings();
     this.queue = this.shuffle([...this.questions]);
     this.spawnOne();
@@ -573,6 +576,7 @@ export class GenderStackComponent implements OnInit, OnDestroy {
   }
 
   pick(block: StackBlock, gender: ArticleGender) {
+    this.audio.unlock();
     const live = this.findBlock(block.uid) ?? block;
     if (this.busy || this.phase !== 'playing' || !this.canDragBlock(live)) return;
     this.busy = true;
@@ -586,14 +590,17 @@ export class GenderStackComponent implements OnInit, OnDestroy {
       next: (r) => {
         this.answered++;
         if (r.isCorrect) {
+          this.audio.playCorrect();
           this.correctCount++;
           this.score += r.pointsEarned || 10;
           this.xpBurst = r.pointsEarned || 10;
           this.xpTrigger++;
+          this.audio.playXpGain();
           this.removeBlock(live.uid);
           this.showFeedback(true, 'Correct!');
           this.checkWin();
         } else {
+          this.audio.playWrong();
           this.lives--;
           this.wrongFlashUid = live.uid;
           const art = r.correctAnswer?.articleGender || '?';
@@ -603,7 +610,10 @@ export class GenderStackComponent implements OnInit, OnDestroy {
             this.cdr.markForCheck();
           }, 500);
           this.removeBlock(live.uid);
-          if (this.lives <= 0) this.endGame(false);
+          if (this.lives <= 0) {
+            this.audio.playLost();
+            this.endGame(false);
+          }
         }
         this.busy = false;
         this.relayoutLanded();

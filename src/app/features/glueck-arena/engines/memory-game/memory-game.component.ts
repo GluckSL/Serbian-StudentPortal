@@ -4,6 +4,7 @@ import { MaterialModule } from '../../../../shared/material.module';
 import { XpFloatComponent } from '../../shared/xp-float/xp-float.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
 import { InteractiveGameService } from '../../services/interactive-game.service';
+import { GameAudioService } from '../../services/game-audio.service';
 import { MemoryGameQuestion, GameAttempt, GameSet } from '../../glueck-arena.types';
 
 export interface MemoryResult {
@@ -270,9 +271,11 @@ export class MemoryGameComponent implements OnInit, OnDestroy {
   constructor(
     private svc: InteractiveGameService,
     private cdr: ChangeDetectorRef,
+    readonly audio: GameAudioService,
   ) {}
 
   ngOnInit() {
+    this.audio.unlock();
     this.sessionStartedAt = Date.now();
     this.loadBoard(0);
     this.startSessionTimer();
@@ -341,6 +344,7 @@ export class MemoryGameComponent implements OnInit, OnDestroy {
   }
 
   onCardClick(card: MemoryCard) {
+    this.audio.unlock();
     if (this.isProcessing || card.matched || card.flipped) return;
     card.flipped = true;
     this.cdr.detectChanges();
@@ -377,6 +381,7 @@ export class MemoryGameComponent implements OnInit, OnDestroy {
       next: (r) => {
         this.isProcessing = false;
         if (r.isCorrect) {
+          this.audio.playCorrect();
           imgCard.matched = true;
           wordCard.matched = true;
           imgCard.wrongFlash = false;
@@ -385,11 +390,13 @@ export class MemoryGameComponent implements OnInit, OnDestroy {
           this.correctCount++;
           this.xpPerMatch = r.pointsEarned || 5;
           this.xpTrigger = Date.now();
+          this.audio.playXpGain();
 
           if (this.matchedCount === this.totalPairsInBoard) {
             setTimeout(() => this.loadBoard(this.currentQuestionIndex + 1), 600);
           }
         } else {
+          this.audio.playWrong();
           imgCard.flipped = false;
           wordCard.flipped = false;
           imgCard.wrongFlash = true;

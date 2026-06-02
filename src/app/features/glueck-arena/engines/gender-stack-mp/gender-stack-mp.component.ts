@@ -149,6 +149,7 @@ export class GenderStackMpComponent implements OnChanges {
     if (r.isCorrect) {
       this.audio.playCorrect();
       this.xpTrigger++;
+      this.audio.playXpGain();
       this.showConfetti = true;
       setTimeout(() => this.showConfetti = false, 1500);
     } else {

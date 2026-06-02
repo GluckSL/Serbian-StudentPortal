@@ -6,6 +6,7 @@ import { MaterialModule } from '../../../../shared/material.module';
 import { XpFloatComponent } from '../../shared/xp-float/xp-float.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
 import { InteractiveGameService } from '../../services/interactive-game.service';
+import { GameAudioService } from '../../services/game-audio.service';
 import { JumbledWordsQuestion, GameAttempt, GameSet } from '../../glueck-arena.types';
 
 export interface JWResult {
@@ -227,7 +228,8 @@ export class JumbledWordsComponent implements OnInit, OnDestroy {
 
   constructor(
     private svc: InteractiveGameService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    readonly audio: GameAudioService,
   ) {}
 
   get currentQuestion(): JumbledWordsQuestion | null {
@@ -243,6 +245,7 @@ export class JumbledWordsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.audio.unlock();
     this.startTime = Date.now();
     this.startSessionTimer();
     this.loadQuestion();
@@ -328,6 +331,7 @@ export class JumbledWordsComponent implements OnInit, OnDestroy {
   }
 
   onTileClick(tile: LetterTile) {
+    this.audio.unlock();
     if (this.slotWrong !== null) return;
     const emptySlot = this.slots.find(s => s.letter === null && !s.locked);
     if (emptySlot) {
@@ -336,6 +340,7 @@ export class JumbledWordsComponent implements OnInit, OnDestroy {
   }
 
   onSlotClick(slotIndex: number) {
+    this.audio.unlock();
     if (this.slotWrong !== null) return;
     const slot = this.slots[slotIndex];
     if (!slot || slot.locked || !slot.letter) return;
@@ -356,6 +361,7 @@ export class JumbledWordsComponent implements OnInit, OnDestroy {
   }
 
   private placeAndLockTile(tile: LetterTile, slotIndex: number) {
+    this.audio.playCorrect();
     const slot = this.slots[slotIndex];
     if (tile.slotIndex !== null) {
       const oldSlot = this.slots[tile.slotIndex];
@@ -375,6 +381,7 @@ export class JumbledWordsComponent implements OnInit, OnDestroy {
   }
 
   private showWrong(slotIndex: number) {
+    this.audio.playWrong();
     this.slotWrong = slotIndex;
     this.feedbackTimer = setTimeout(() => {
       this.slotWrong = null;
@@ -411,6 +418,7 @@ export class JumbledWordsComponent implements OnInit, OnDestroy {
         this.lastPoints = r.pointsEarned;
         this.lastXp = r.pointsEarned ? 4 : 0;
         this.xpTrigger++;
+        if (r.pointsEarned > 0) this.audio.playXpGain();
         this.score += r.pointsEarned;
         this.correctCount++;
         this.wordsCompleted++;

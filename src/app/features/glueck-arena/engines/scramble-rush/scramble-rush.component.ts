@@ -1840,6 +1840,7 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
     this.wordsAnswered++;
 
     this.xpTrigger++;
+    this.audio.playXpGain();
 
     this.audio.playCorrect();
 
