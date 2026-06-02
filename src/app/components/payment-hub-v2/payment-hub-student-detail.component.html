@@ -135,6 +135,98 @@
             </div>
           </div>
         </div>
+
+        <div class="sd-slot-section">
+          <div class="sd-slot-section__head">
+            <span class="sd-slot-section__title">Payment mapping</span>
+            <span class="sd-slot-section__sub">A1, A2, B1, B2, Docs, Visa</span>
+          </div>
+          <div class="sd-slot-grid">
+            <div
+              class="sd-slot-card"
+              *ngFor="let slot of paymentSlots"
+              [ngClass]="slotCardThemeClass(slot.key)"
+              [class.sd-slot-card--active]="activeMapSlot === slot.key"
+            >
+              <div class="sd-slot-card__top">
+                <h3 class="sd-slot-card__title">{{ slot.label }}</h3>
+                <span class="sd-pill pill-grey">{{ slotSummary(slot.key).requestCount }} requests</span>
+              </div>
+              <div class="sd-slot-card__meta">
+                Settled {{ slotSummary(slot.key).settledCount }}/{{ slotSummary(slot.key).requestCount }}
+              </div>
+              <div class="sd-slot-card__line">
+                <span class="sd-slot-card__label">Paid</span>
+                <app-payment-currency-totals
+                  [lkr]="slotSummary(slot.key).paid.LKR"
+                  [inr]="slotSummary(slot.key).paid.INR"
+                  [usd]="slotSummary(slot.key).paid.USD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+              </div>
+              <div class="sd-slot-card__line">
+                <span class="sd-slot-card__label">Balance</span>
+                <app-payment-currency-overdue-totals
+                  [lkr]="slotSummary(slot.key).balance.LKR"
+                  [inr]="slotSummary(slot.key).balance.INR"
+                  [usd]="slotSummary(slot.key).balance.USD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-overdue-totals>
+              </div>
+              <p class="sd-slot-card__empty" *ngIf="slotSummary(slot.key).requestCount === 0">
+                No mapped payments yet.
+              </p>
+              <button mat-stroked-button type="button" class="sd-slot-card__map-btn" (click)="beginMap(slot.key)">
+                <mat-icon>add_card</mat-icon>
+                Map payment to {{ slot.label }}
+              </button>
+
+              <div class="sd-slot-map-form" *ngIf="activeMapSlot === slot.key">
+                <div class="sd-slot-map-grid">
+                  <label>
+                    <span>Total / Quoted</span>
+                    <input type="number" min="0" [(ngModel)]="mappingTotal" (ngModelChange)="onMapTotalChange()" />
+                  </label>
+                  <label>
+                    <span>Amount</span>
+                    <input type="number" min="0" [(ngModel)]="mappingAmount" (ngModelChange)="onMapPaidChange()" />
+                  </label>
+                  <label>
+                    <span>Currency</span>
+                    <select [(ngModel)]="mappingCurrency" (ngModelChange)="onMappingCurrencyChange(slot.key)">
+                      <option value="LKR">LKR</option>
+                      <option value="INR">INR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Balance</span>
+                    <input type="number" min="0" [(ngModel)]="mappingBalance" (ngModelChange)="onMapBalanceChange()" />
+                  </label>
+                  <label>
+                    <span>Payment date</span>
+                    <input type="date" [(ngModel)]="mappingDate" />
+                  </label>
+                  <label class="sd-slot-map-grid__full">
+                    <span>Remarks (optional)</span>
+                    <input type="text" [(ngModel)]="mappingRemarks" placeholder="Optional note" />
+                  </label>
+                </div>
+                <p class="sd-slot-map-note" *ngIf="slot.key === 'A1' || slot.key === 'A2' || slot.key === 'B1' || slot.key === 'B2'">
+                  This saves as a mapped level payment, so it stays visible under {{ slot.label }} even if paid in advance.
+                </p>
+                <div class="sd-slot-map-actions">
+                  <button mat-button type="button" (click)="cancelMap()" [disabled]="mappingSaving">Cancel</button>
+                  <button mat-flat-button color="primary" type="button" (click)="saveMappedPayment(slot.key)" [disabled]="mappingSaving">
+                    Save mapping
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </mat-card>
 
       <mat-card class="sd-history-card">

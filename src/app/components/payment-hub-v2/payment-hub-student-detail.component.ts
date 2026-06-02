@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -24,6 +25,7 @@ import { currentJourneyDayFromStudent } from './payment-journey-metrics.util';
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterModule,
     MatCardModule,
     MatButtonModule,
@@ -46,6 +48,22 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   readonly skeletonChips = [0, 1, 2, 3, 4, 5];
   readonly skeletonTableRows = [0, 1, 2, 3, 4];
   readonly skeletonSubBlocks = [0, 1];
+  readonly paymentSlots: Array<{ key: PaymentSlotKey; label: string }> = [
+    { key: 'A1', label: 'A1' },
+    { key: 'A2', label: 'A2' },
+    { key: 'B1', label: 'B1' },
+    { key: 'B2', label: 'B2' },
+    { key: 'DOCS', label: 'Docs' },
+    { key: 'VISA', label: 'Visa' },
+  ];
+  activeMapSlot: PaymentSlotKey | null = null;
+  mappingAmount: number | null = null;
+  mappingTotal: number | null = null;
+  mappingBalance: number | null = null;
+  mappingCurrency: CurrencyKey = 'LKR';
+  mappingDate = new Date().toISOString().slice(0, 10);
+  mappingRemarks = '';
+  mappingSaving = false;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -219,4 +237,237 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   isLegacy(req: PaymentRequest): boolean {
     return !!req.isImported;
   }
+
+  slotSummary(slotKey: PaymentSlotKey): PaymentSlotSummary {
+    const rows = (this.history?.requests || []).filter((req) => this.slotForRequest(req) === slotKey);
+    const summary: PaymentSlotSummary = {
+      requestCount: rows.length,
+      settledCount: 0,
+      requested: { LKR: 0, INR: 0, USD: 0 },
+      paid: { LKR: 0, INR: 0, USD: 0 },
+      balance: { LKR: 0, INR: 0, USD: 0 },
+    };
+    for (const req of rows) {
+      const currency = this.normCurrency(req.currency);
+      const requested = Math.max(0, req.amount ?? 0);
+      // Trust approved/full-paid status over stale amountRemaining values.
+      const isSettled = req.status === 'FULLY_PAID' || req.status === 'APPROVED';
+      const balance = isSettled ? 0 : Math.max(0, req.amountRemaining ?? 0);
+      const paid = Math.max(0, requested - balance);
+      summary.requested[currency] += requested;
+      summary.paid[currency] += paid;
+      summary.balance[currency] += balance;
+      if (balance === 0 || isSettled) {
+        summary.settledCount += 1;
+      }
+    }
+    return summary;
+  }
+
+  hasAnySlotPayments(): boolean {
+    return this.paymentSlots.some((slot) => this.slotSummary(slot.key).requestCount > 0);
+  }
+
+  beginMap(slotKey: PaymentSlotKey): void {
+    const seeded = this.slotAmountsForCurrency(slotKey, 'LKR');
+    const initialCurrency = seeded.hasValue ? 'LKR' : this.firstCurrencyWithValues(slotKey);
+    const initial = this.slotAmountsForCurrency(slotKey, initialCurrency);
+    this.activeMapSlot = slotKey;
+    this.mappingCurrency = initialCurrency;
+    this.mappingAmount = initial.paid > 0 ? initial.paid : null;
+    this.mappingTotal = initial.requested > 0 ? initial.requested : null;
+    this.mappingBalance = initial.balance > 0 ? initial.balance : null;
+    this.mappingDate = new Date().toISOString().slice(0, 10);
+    this.mappingRemarks = '';
+  }
+
+  cancelMap(): void {
+    this.activeMapSlot = null;
+    this.mappingSaving = false;
+  }
+
+  saveMappedPayment(slotKey: PaymentSlotKey): void {
+    if (!this.history?.student?._id) return;
+    const amount = Number(this.mappingAmount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.snack.open('Enter a valid amount', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    if (!this.mappingDate) {
+      this.snack.open('Select a payment date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+
+    const paymentDate = new Date(this.mappingDate);
+    if (Number.isNaN(paymentDate.getTime())) {
+      this.snack.open('Invalid payment date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+
+    const remarks = this.buildMappingRemarks();
+    const body: {
+      studentId: string;
+      languagePayment?: {
+        totalCourseFee: number;
+        amountPaid: number;
+        currency: CurrencyKey;
+        paymentDate: string;
+        remarks?: string;
+        markFullyPaid?: boolean;
+      };
+      docsPayments?: Array<{ amount: number; currency: CurrencyKey; paymentDate: string; remarks?: string }>;
+      visaPayments?: Array<{ amount: number; currency: CurrencyKey; paymentDate: string; remarks?: string }>;
+      customPayments?: Array<{ paymentType: string; amount: number; currency: CurrencyKey; paymentDate: string; remarks?: string }>;
+    } = {
+      studentId: this.history.student._id,
+    };
+
+    if (slotKey === 'DOCS') {
+      body.docsPayments = [{ amount, currency: this.mappingCurrency, paymentDate: paymentDate.toISOString(), remarks }];
+    } else if (slotKey === 'VISA') {
+      body.visaPayments = [{ amount, currency: this.mappingCurrency, paymentDate: paymentDate.toISOString(), remarks }];
+    } else {
+      body.customPayments = [{
+        paymentType: slotKey,
+        amount,
+        currency: this.mappingCurrency,
+        paymentDate: paymentDate.toISOString(),
+        remarks: remarks || `Mapped as ${slotKey} advance payment`,
+      }];
+    }
+
+    this.mappingSaving = true;
+    this.api.mapLegacyPayments(body).subscribe({
+      next: () => {
+        this.mappingSaving = false;
+        this.snack.open(`${slotKey} payment mapped successfully`, 'OK', { duration: 3500 });
+        this.cancelMap();
+        this.load();
+      },
+      error: (e) => {
+        this.mappingSaving = false;
+        this.snack.open(e?.error?.message || 'Could not map payment', 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  onMapPaidChange(): void {
+    const paid = Number(this.mappingAmount ?? 0);
+    const total = Number(this.mappingTotal ?? 0);
+    if (total > 0) {
+      this.mappingBalance = Math.max(0, total - paid);
+      return;
+    }
+    const bal = Number(this.mappingBalance ?? 0);
+    if (paid > 0 || bal > 0) this.mappingTotal = paid + bal;
+  }
+
+  onMapTotalChange(): void {
+    const total = Number(this.mappingTotal ?? 0);
+    const paid = Number(this.mappingAmount ?? 0);
+    if (total > 0) {
+      this.mappingBalance = Math.max(0, total - paid);
+    } else {
+      this.mappingBalance = null;
+    }
+  }
+
+  onMapBalanceChange(): void {
+    const bal = Number(this.mappingBalance ?? 0);
+    const total = Number(this.mappingTotal ?? 0);
+    if (total > 0) {
+      this.mappingAmount = Math.max(0, total - bal);
+      return;
+    }
+    const paid = Number(this.mappingAmount ?? 0);
+    if (paid > 0 || bal > 0) this.mappingTotal = paid + bal;
+  }
+
+  onMappingCurrencyChange(slotKey: PaymentSlotKey): void {
+    const seeded = this.slotAmountsForCurrency(slotKey, this.mappingCurrency);
+    this.mappingAmount = seeded.paid > 0 ? seeded.paid : null;
+    this.mappingTotal = seeded.requested > 0 ? seeded.requested : null;
+    this.mappingBalance = seeded.balance > 0 ? seeded.balance : null;
+  }
+
+  slotCardThemeClass(slotKey: PaymentSlotKey): string {
+    const map: Record<PaymentSlotKey, string> = {
+      A1: 'sd-slot-card--a1',
+      A2: 'sd-slot-card--a2',
+      B1: 'sd-slot-card--b1',
+      B2: 'sd-slot-card--b2',
+      DOCS: 'sd-slot-card--docs',
+      VISA: 'sd-slot-card--visa',
+    };
+    return map[slotKey];
+  }
+
+  private firstCurrencyWithValues(slotKey: PaymentSlotKey): CurrencyKey {
+    const all: CurrencyKey[] = ['LKR', 'INR', 'USD'];
+    for (const c of all) {
+      const v = this.slotAmountsForCurrency(slotKey, c);
+      if (v.hasValue) return c;
+    }
+    return 'LKR';
+  }
+
+  private slotAmountsForCurrency(slotKey: PaymentSlotKey, currency: CurrencyKey): {
+    requested: number;
+    paid: number;
+    balance: number;
+    hasValue: boolean;
+  } {
+    const summary = this.slotSummary(slotKey);
+    const requested = summary.requested[currency] ?? 0;
+    const paid = summary.paid[currency] ?? 0;
+    const balance = summary.balance[currency] ?? 0;
+    return { requested, paid, balance, hasValue: requested > 0 || paid > 0 || balance > 0 };
+  }
+
+  private buildMappingRemarks(): string {
+    const userText = (this.mappingRemarks || '').trim();
+    const parts: string[] = [];
+    if (this.mappingTotal != null && this.mappingTotal > 0) {
+      parts.push(`Quoted: ${this.mappingCurrency} ${this.fmt(this.mappingTotal)}`);
+    }
+    if (this.mappingBalance != null && this.mappingBalance >= 0) {
+      parts.push(`Balance: ${this.mappingCurrency} ${this.fmt(this.mappingBalance)}`);
+    }
+    if (userText) parts.push(userText);
+    return parts.join(' · ');
+  }
+
+  private slotForRequest(req: PaymentRequest): PaymentSlotKey | null {
+    if (req.paymentType === 'DOCS_PAYMENT') return 'DOCS';
+    if (req.paymentType === 'VISA_PAYMENT') return 'VISA';
+    if (req.paymentType === 'CUSTOM_PAYMENT') return this.normalizeLevel(req.customType);
+    if (req.paymentType !== 'LANGUAGE_FEE') return null;
+    const fallbackLevel = this.normalizeLevel(this.history?.student?.level);
+    const mappedLevel = this.normalizeLevel(req.customType) || fallbackLevel;
+    return mappedLevel;
+  }
+
+  private normalizeLevel(level: string | undefined | null): LanguageLevelSlot | null {
+    const val = String(level || '').trim().toUpperCase();
+    if (val === 'A1' || val === 'A2' || val === 'B1' || val === 'B2') return val;
+    return null;
+  }
+
+  private normCurrency(currency: string | undefined | null): CurrencyKey {
+    const c = String(currency || '').trim().toUpperCase();
+    if (c === 'INR' || c === 'USD') return c;
+    return 'LKR';
+  }
+}
+
+type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
+type PaymentSlotKey = LanguageLevelSlot | 'DOCS' | 'VISA';
+type CurrencyKey = 'LKR' | 'INR' | 'USD';
+
+interface PaymentSlotSummary {
+  requestCount: number;
+  settledCount: number;
+  requested: Record<CurrencyKey, number>;
+  paid: Record<CurrencyKey, number>;
+  balance: Record<CurrencyKey, number>;
 }

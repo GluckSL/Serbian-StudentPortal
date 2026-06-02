@@ -205,8 +205,9 @@
 }
 
 .ph-paid-cell {
-  min-width: 140px;
-  vertical-align: top;
+  min-width: 0;
+  width: 1%;
+  vertical-align: middle;
   white-space: normal !important;
 }
 

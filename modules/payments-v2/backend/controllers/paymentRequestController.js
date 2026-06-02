@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const PaymentRequest = require('../models/PaymentRequest');
 const PaymentInstallment = require('../models/PaymentInstallment');
 const StudentPaymentProfile = require('../models/StudentPaymentProfile');
+const PaymentHubCatalog = require('../models/PaymentHubCatalog');
 const paymentService = require('../services/paymentService');
 const installmentService = require('../services/installmentService');
 const timelineService = require('../services/timelineService');
@@ -26,6 +27,7 @@ const {
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 // ─── Helper to get admin name from user model ──────────────────────────────
 const getAdminName = async (userId) => {
@@ -349,13 +351,98 @@ const getStudentTable = async (req, res) => {
       },
     });
 
-    const [result] = await mongoose.model('User').aggregate(pipeline);
+    const [aggregateResult, catalog] = await Promise.all([
+      mongoose.model('User').aggregate(pipeline),
+      PaymentHubCatalog.getOrCreate(),
+    ]);
+    const [result] = aggregateResult;
     const total = result.total[0]?.count || 0;
     const rawRows = result.rows || [];
-    const data = rawRows.map((row) => ({
-      ...row,
-      inferredCurrency: inferCurrencyFromPhone(row?.studentId?.phoneNumber),
-    }));
+    const levelPriceMap = new Map();
+    for (const r of catalog?.cefrRows || []) {
+      const code = String(r?.code || '').trim().toUpperCase();
+      if (!CEFR_ORDER.includes(code)) continue;
+      levelPriceMap.set(code, {
+        LKR: Number(r?.lkr) || 0,
+        INR: Number(r?.inr) || 0,
+        USD: 0,
+      });
+    }
+
+    const amountForCurrency = (currency, row) => {
+      if (currency === 'INR') return Number(row?.totalPaidINR) || 0;
+      if (currency === 'LKR') return Number(row?.totalPaidLKR) || 0;
+      return Number(row?.totalPaidUSD) || 0;
+    };
+
+    const currencyFieldsForBalance = (currency, amount) => {
+      const balance = Math.max(0, Number(amount) || 0);
+      return {
+        pendingApprovalAmountLKR: currency === 'LKR' ? balance : 0,
+        pendingApprovalAmountINR: currency === 'INR' ? balance : 0,
+        pendingApprovalAmountUSD: currency === 'USD' ? balance : 0,
+        overdueAmountLKR: 0,
+        overdueAmountINR: 0,
+        overdueAmountUSD: 0,
+      };
+    };
+
+    const data = rawRows.map((row) => {
+      const inferredCurrency = inferCurrencyFromPhone(row?.studentId?.phoneNumber);
+      const level = String(row?.studentId?.level || '').trim().toUpperCase();
+      const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
+      const targetFee = Number(levelPrice[inferredCurrency] || 0);
+      const paidForTargetCurrency = amountForCurrency(inferredCurrency, row);
+      const balance = Math.max(0, targetFee - paidForTargetCurrency);
+      const journeyDayRaw = Number(row?.studentId?.currentCourseDay);
+      const journeyDay = Number.isFinite(journeyDayRaw)
+        ? Math.min(200, Math.max(1, Math.floor(journeyDayRaw)))
+        : 1;
+
+      const isDue = balance > 0 && journeyDay >= JOURNEY_DUE_FROM_DAY;
+      const base = {
+        ...row,
+        inferredCurrency,
+        languageFeeBalance: balance,
+        languageFeeStatus: computeLanguageFeeStatus(balance, journeyDay),
+      };
+
+      if (balance <= 0) {
+        return {
+          ...base,
+          pendingApprovalAmount: 0,
+          overdueAmount: 0,
+          pendingApprovalAmountLKR: 0,
+          pendingApprovalAmountINR: 0,
+          pendingApprovalAmountUSD: 0,
+          overdueAmountLKR: 0,
+          overdueAmountINR: 0,
+          overdueAmountUSD: 0,
+        };
+      }
+
+      if (!isDue) {
+        const pendingFields = currencyFieldsForBalance(inferredCurrency, balance);
+        return {
+          ...base,
+          pendingApprovalAmount: balance,
+          overdueAmount: 0,
+          ...pendingFields,
+        };
+      }
+
+      return {
+        ...base,
+        pendingApprovalAmount: 0,
+        overdueAmount: balance,
+        pendingApprovalAmountLKR: 0,
+        pendingApprovalAmountINR: 0,
+        pendingApprovalAmountUSD: 0,
+        overdueAmountLKR: inferredCurrency === 'LKR' ? balance : 0,
+        overdueAmountINR: inferredCurrency === 'INR' ? balance : 0,
+        overdueAmountUSD: inferredCurrency === 'USD' ? balance : 0,
+      };
+    });
 
     res.json({
       success: true,

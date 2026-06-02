@@ -264,14 +264,196 @@
   }
 }
 
+.sd-slot-section {
+  margin-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 16px;
+}
+
+.sd-slot-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sd-slot-section__title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155;
+}
+
+.sd-slot-section__sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sd-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sd-slot-card {
+  border: 1px solid #dbeafe;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.sd-slot-card--a1 {
+  border-color: #86efac;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.sd-slot-card--a2 {
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+}
+
+.sd-slot-card--b1 {
+  border-color: #f9a8d4;
+  background: linear-gradient(180deg, #fdf2f8 0%, #ffffff 100%);
+}
+
+.sd-slot-card--b2 {
+  border-color: #c4b5fd;
+  background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 100%);
+}
+
+.sd-slot-card--docs {
+  border-color: #fdba74;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+}
+
+.sd-slot-card--visa {
+  border-color: #67e8f9;
+  background: linear-gradient(180deg, #ecfeff 0%, #ffffff 100%);
+}
+
+.sd-slot-card--active {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.sd-slot-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.sd-slot-card__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sd-slot-card__meta {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.sd-slot-card__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sd-slot-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.sd-slot-card__empty {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.sd-slot-card__map-btn {
+  margin-top: 6px;
+  width: 100%;
+  border-radius: 10px !important;
+}
+
+.sd-slot-map-form {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.sd-slot-map-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+  }
+
+  input,
+  select {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: #0f172a;
+    background: #fff;
+  }
+}
+
+.sd-slot-map-grid__full {
+  grid-column: 1 / -1;
+}
+
+.sd-slot-map-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #475569;
+}
+
+.sd-slot-map-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 @media (max-width: 960px) {
   .sd-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sd-slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sd-slot-map-grid {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 520px) {
   .sd-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sd-slot-grid {
     grid-template-columns: 1fr;
   }
 }

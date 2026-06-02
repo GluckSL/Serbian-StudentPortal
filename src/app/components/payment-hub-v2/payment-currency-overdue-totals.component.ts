@@ -8,15 +8,14 @@ import { fmtPaymentAmount, PAYMENT_CURRENCIES } from './payment-currency.util';
   imports: [CommonModule],
   template: `
     <ng-container *ngIf="visibleRows.length; else empty">
-      <div class="ph-currency-row" *ngFor="let row of visibleRows">
+      <div class="ph-currency-row" [class.ph-currency-row--compact]="compact" *ngFor="let row of visibleRows">
         <span class="ph-ccy-badge" [ngClass]="row.badgeClass" [attr.title]="row.label">
-          <span class="ph-ccy-badge-symbol">{{ row.symbol }}</span>
           <span class="ph-ccy-badge-code">{{ row.label }}</span>
         </span>
         <span class="ph-currency-value ph-currency-value--red" [class.ph-currency-value--compact]="compact">{{ fmt(row.amount) }}</span>
       </div>
     </ng-container>
-    <ng-template #empty><span class="ph-ccy-empty">—</span></ng-template>
+    <ng-template #empty><span class="ph-ccy-empty">0</span></ng-template>
   `,
   styleUrls: ['./payment-currency-shared.scss'],
 })
