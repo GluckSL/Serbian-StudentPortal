@@ -374,3 +374,35 @@
   font-weight:900;
 }
 
+/* Duplicate day warning banner */
+.lwg-duplicate-warning{
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+  background:#fffbeb;
+  border:1.5px solid #f59e0b;
+  border-radius:10px;
+  padding:16px 18px;
+  margin-bottom:16px;
+}
+.lwg-dup-icon .material-icons{
+  color:#d97706;
+  font-size:28px;
+}
+.lwg-dup-body{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.lwg-dup-body strong{
+  color:#92400e;
+  font-size:14px;
+}
+.lwg-dup-actions{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  flex-shrink:0;
+}
+

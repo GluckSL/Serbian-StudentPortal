@@ -157,6 +157,11 @@
             <option value="Advanced">Advanced</option>
           </select>
         </div>
+        <div class="lwg-field">
+          <label>Course Day (optional)</label>
+          <input type="number" class="lwg-input" [(ngModel)]="courseDayStr" min="1" max="200" placeholder="e.g. 6" />
+          <div class="lwg-muted">Links this exercise to a course day (1–200).</div>
+        </div>
         <div class="lwg-field full">
           <label>Max Questions</label>
           <input type="number" class="lwg-input" [(ngModel)]="maxQuestions" min="1" max="50" />
@@ -405,6 +410,26 @@
         <div class="lwg-addbar-btns">
           <button class="btn-secondary" type="button" *ngFor="let qt of questionTypes" (click)="addBlankQuestion(qt.value)">
             <span class="material-icons">{{ qt.icon }}</span> {{ qt.label }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Duplicate Day Warning -->
+      <div *ngIf="existingExerciseForDay" class="lwg-duplicate-warning">
+        <div class="lwg-dup-icon"><span class="material-icons">warning</span></div>
+        <div class="lwg-dup-body">
+          <strong>A Listening exercise for Day {{ existingExerciseForDay.courseDay }} already exists</strong>
+          <div class="lwg-muted">"{{ existingExerciseForDay.title }}" — updating it will keep existing audio and question data safe (audio URLs are preserved). Creating a new exercise leaves the old one untouched but its audio must be re-linked manually.</div>
+        </div>
+        <div class="lwg-dup-actions">
+          <button class="btn-primary" type="button" (click)="updateExistingExercise(true)" [disabled]="saving">
+            <span class="material-icons">sync</span> Update Existing (recommended)
+          </button>
+          <button class="btn-secondary" type="button" (click)="createNewAnyway(true)" [disabled]="saving">
+            <span class="material-icons">add_circle_outline</span> Create New Anyway
+          </button>
+          <button class="btn-icon" type="button" (click)="cancelDuplicateWarning()">
+            <span class="material-icons">close</span>
           </button>
         </div>
       </div>
