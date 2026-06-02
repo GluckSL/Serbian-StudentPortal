@@ -75,6 +75,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   readonly SUBSCRIPTIONS = [
     { value: 'SILVER', label: 'Silver' },
     { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'VISA_DOC_ONLY', label: 'Visa and Docs' },
   ];
 
   readonly LEARN_FROM_LANGUAGE_OPTIONS = ['English', 'Hindi', 'Tamil', 'Telugu', 'Malayalam', 'Other'];
