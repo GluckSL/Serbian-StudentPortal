@@ -13,6 +13,7 @@ const deleteFromS3 = require('../config/s3Delete');
 const s3Client = require('../config/s3');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { processSingleDocument } = require('../services/ocrService');
 
 // Services that don't require any documents
 const NO_DOCS_SERVICES = ['German Language Only', 'Language only', 'Only for language', 'None', ''];
@@ -189,7 +190,11 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
     });
     
     await document.save();
-    
+
+    processSingleDocument(document.toObject()).catch(err =>
+      console.error(`[OCR] Background processing failed for ${document._id}:`, err.message)
+    );
+
     console.log(`✅ Document uploaded: ${documentName} by ${student.name}`);
     
     res.json({
@@ -568,6 +573,10 @@ router.post('/admin/replace/:documentId', verifyToken, checkRole(['ADMIN', 'TEAC
       isCurrent: true
     });
 
+    processSingleDocument(replacement.toObject()).catch(err =>
+      console.error(`[OCR] Background processing failed for replacement ${replacement._id}:`, err.message)
+    );
+
     await StudentDocument.updateOne(
       { _id: targetDocument._id },
       {
@@ -673,6 +682,10 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
     });
     
     await document.save();
+
+    processSingleDocument(document.toObject()).catch(err =>
+      console.error(`[OCR] Background processing failed for ${document._id}:`, err.message)
+    );
 
     let emailSent = false;
     try {
