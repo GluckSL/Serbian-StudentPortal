@@ -10,6 +10,8 @@ const {
  * Journey + batch access for DG Bot student routes (aligned with digital exercises).
  */
 async function getStudentDgJourneyAccess(userId) {
+  const { reconcileSilverGoCourseDay } = require('./silverGoSequentialUnlock');
+  await reconcileSilverGoCourseDay(userId);
   const u = await User.findById(userId)
     .select('currentCourseDay role level batch goStatus subscription')
     .lean();

@@ -1,6 +1,8 @@
 const BatchConfig = require('../models/BatchConfig');
 const { allStudentBatchStringsForContent, normalizeBatch } = require('./effectiveStudentBatch');
 const { BATCH_TYPE_NEW, normalizeBatchType, isLearningEnabled, isOldBatchType } = require('./batchType');
+const { isSilverGoStudent } = require('./goSilverTrack');
+const { resolveSilverGoContentUnlock } = require('./silverGoSequentialUnlock');
 
 function normalizeJourneyDay(rawDay) {
   if (rawDay != null && Number.isFinite(Number(rawDay))) {
@@ -28,17 +30,24 @@ async function getJourneyAccessForStudent(student) {
     };
   }
 
-  const courseDay = normalizeJourneyDay(student.currentCourseDay);
+  let courseDay = normalizeJourneyDay(student.currentCourseDay);
   const isGoStudent = String(student.goStatus || '').toUpperCase() === 'GO';
   const batchKeys = allStudentBatchStringsForContent(student);
 
   if (isGoStudent) {
+    let maxUnlockedContentDay = courseDay;
+    if (isSilverGoStudent(student)) {
+      const unlock = await resolveSilverGoContentUnlock(student);
+      maxUnlockedContentDay = unlock.maxUnlockedContentDay;
+      courseDay = maxUnlockedContentDay;
+    }
     return {
       enabled: true,
       learningEnabled: true,
       dgBotEnabled: true,
       dgUnlockMode: 'daily',
       courseDay,
+      maxUnlockedContentDay,
       batchKeys,
       batchType: BATCH_TYPE_NEW,
       reason: 'GO_STUDENT',

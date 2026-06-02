@@ -65,6 +65,17 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   mappingRemarks = '';
   mappingSaving = false;
 
+  editingRequestId: string | null = null;
+  editSaving = false;
+  editForm: {
+    amount: number;
+    paidAmount: number;
+    balance: number;
+    currency: CurrencyKey;
+    dueDate: string;
+    remarks: string;
+  } | null = null;
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly api: PaymentHubApiService,
@@ -78,7 +89,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.api.getStudentHistory(this.studentId).subscribe({
+    this.api.getStudentHistory(this.studentId, { limit: 100, page: 1 }).subscribe({
       next: (res) => {
         this.history = res.data;
         this.loading = false;
@@ -250,6 +261,102 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   isLegacy(req: PaymentRequest): boolean {
     return !!req.isImported;
+  }
+
+  canManageRequest(req: PaymentRequest): boolean {
+    return !!(req.isImported || req.source === 'LEGACY_MANUAL_MAPPING');
+  }
+
+  paidAmountForRequest(req: PaymentRequest): number {
+    const approved = this.getSubmissions(req).filter((s) => s.status === 'APPROVED');
+    if (approved.length) {
+      return approved.reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
+    }
+    return Math.max(0, (req.amount || 0) - (req.amountRemaining ?? 0));
+  }
+
+  beginEditRequest(req: PaymentRequest): void {
+    this.editingRequestId = req._id;
+    const paid = this.paidAmountForRequest(req);
+    this.editForm = {
+      amount: req.amount ?? 0,
+      paidAmount: paid,
+      balance: req.amountRemaining ?? Math.max(0, (req.amount ?? 0) - paid),
+      currency: this.normCurrency(req.currency),
+      dueDate: req.dueDate ? new Date(req.dueDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      remarks: req.remarks || '',
+    };
+  }
+
+  cancelEditRequest(): void {
+    this.editingRequestId = null;
+    this.editForm = null;
+    this.editSaving = false;
+  }
+
+  onEditPaidChange(): void {
+    if (!this.editForm) return;
+    this.editForm.balance = Math.max(0, Number(this.editForm.amount) - Number(this.editForm.paidAmount));
+  }
+
+  onEditAmountChange(): void {
+    this.onEditPaidChange();
+  }
+
+  saveEditRequest(req: PaymentRequest): void {
+    if (!this.editForm || !req._id) return;
+    const amount = Number(this.editForm.amount);
+    const paidAmount = Number(this.editForm.paidAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.snack.open('Enter a valid requested amount', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    if (!this.editForm.dueDate) {
+      this.snack.open('Select a due date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    const dueDate = new Date(this.editForm.dueDate);
+    if (Number.isNaN(dueDate.getTime())) {
+      this.snack.open('Invalid due date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+
+    this.editSaving = true;
+    this.api.updateLegacyPaymentRequest(req._id, {
+      amount,
+      paidAmount,
+      currency: this.editForm.currency,
+      dueDate: dueDate.toISOString(),
+      remarks: this.editForm.remarks.trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.editSaving = false;
+        this.snack.open('Payment record updated', 'OK', { duration: 3500 });
+        this.cancelEditRequest();
+        this.load();
+      },
+      error: (e) => {
+        this.editSaving = false;
+        this.snack.open(e?.error?.message || 'Could not update payment', 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  deleteRequest(req: PaymentRequest): void {
+    if (!req._id || !this.canManageRequest(req)) return;
+    const label = this.formatPaymentType(req.paymentType, req.customType);
+    if (!window.confirm(`Remove this payment record (${label})? This cannot be undone.`)) return;
+
+    this.api.archiveRequest(req._id, 'Removed from payment hub by admin').subscribe({
+      next: () => {
+        this.snack.open('Payment record removed', 'OK', { duration: 3500 });
+        if (this.editingRequestId === req._id) this.cancelEditRequest();
+        this.load();
+      },
+      error: (e) => {
+        this.snack.open(e?.error?.message || 'Could not remove payment', 'Dismiss', { duration: 5000 });
+      },
+    });
   }
 
   slotSummary(slotKey: PaymentSlotKey): PaymentSlotSummary {

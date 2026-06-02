@@ -5,7 +5,11 @@
  */
 const mongoose = require('mongoose');
 const { getAuthUserId } = require('../helpers/authUserId');
-const { mapLegacyPayments, bulkMapLegacyLanguageFees } = require('../services/legacyMapService');
+const {
+  mapLegacyPayments,
+  bulkMapLegacyLanguageFees,
+  updateLegacyPaymentRequest,
+} = require('../services/legacyMapService');
 
 const mapLegacyPaymentsHandler = async (req, res) => {
   try {
@@ -196,4 +200,46 @@ const bulkMapLegacyLanguageFeesHandler = async (req, res) => {
   }
 };
 
-module.exports = { mapLegacyPaymentsHandler, bulkMapLegacyLanguageFeesHandler };
+const updateLegacyPaymentRequestHandler = async (req, res) => {
+  try {
+    const adminId = getAuthUserId(req);
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const { requestId } = req.params;
+    if (!requestId || !mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({ success: false, message: 'Valid requestId is required' });
+    }
+
+    const { amount, paidAmount, amountRemaining, currency, dueDate, remarks, status } = req.body;
+    const hasField =
+      amount != null
+      || paidAmount != null
+      || amountRemaining != null
+      || currency
+      || dueDate
+      || remarks !== undefined
+      || status;
+    if (!hasField) {
+      return res.status(400).json({ success: false, message: 'At least one field to update is required' });
+    }
+
+    const data = await updateLegacyPaymentRequest({
+      requestId,
+      adminId,
+      updates: { amount, paidAmount, amountRemaining, currency, dueDate, remarks, status },
+    });
+
+    return res.json({ success: true, message: 'Payment record updated', data });
+  } catch (err) {
+    console.error('[LegacyUpdate]', err);
+    return res.status(400).json({ success: false, message: err.message || 'Failed to update payment' });
+  }
+};
+
+module.exports = {
+  mapLegacyPaymentsHandler,
+  bulkMapLegacyLanguageFeesHandler,
+  updateLegacyPaymentRequestHandler,
+};

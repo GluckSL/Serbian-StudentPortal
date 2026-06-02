@@ -267,6 +267,10 @@ exports.startAttempt = async (req, res) => {
         const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, pairs: _p, tokens: _tk, __v: _v, ...safe } = q;
         return safe;
       }
+      if (set.gameType === 'matching' || set.gameType === 'flashcards') {
+        const { hint: _h, __v: _v, ...safe } = q;
+        return safe;
+      }
       const { __v: _v, ...safe } = q;
       return safe;
     });
@@ -277,7 +281,7 @@ exports.startAttempt = async (req, res) => {
       levels = await GameLevel.find({ gameSetId: set._id }).sort({ levelNumber: 1 }).lean();
     }
 
-    // For image_matching, send shuffled words for drag-drop UI
+    // For image_matching / matching, send shuffled answer options for the UI
     let shuffledWords = [];
     if (set.gameType === 'image_matching') {
       const allWords = [];
@@ -289,6 +293,9 @@ exports.startAttempt = async (req, res) => {
         }
       });
       shuffledWords = imageMatchingService.shuffleWords(allWords);
+    } else if (set.gameType === 'matching' || set.gameType === 'flashcards') {
+      const hints = questions.map(q => q.hint).filter(Boolean);
+      shuffledWords = imageMatchingService.shuffleWords(hints);
     }
 
     // Presign any S3 media URLs in both the set and the sanitized questions
@@ -612,6 +619,18 @@ exports.submitAnswer = async (req, res) => {
           preview: true,
         });
       }
+    } else if (attempt.gameType === 'matching') {
+      const selected = String(typedWord || '').trim().toLowerCase();
+      const expected = String(question.hint || '').trim().toLowerCase();
+      isCorrect = !!expected && selected === expected;
+      pointsEarned = isCorrect ? scoringService.basePoints('matching') : 0;
+      correctAnswer.hint = question.hint;
+    } else if (attempt.gameType === 'flashcards') {
+      const selected = String(typedWord || '').trim().toLowerCase();
+      const expected = String(question.word || '').trim().toLowerCase();
+      isCorrect = !!expected && selected === expected;
+      pointsEarned = isCorrect ? scoringService.basePoints('flashcards') : 0;
+      correctAnswer.word = question.word;
     }
 
     // Save answer record - update existing if wrong answer exists, else create new
@@ -994,6 +1013,20 @@ exports.adminUpsertQuestions = async (req, res) => {
       }
     }
 
+    if (set.gameType === 'image_matching') {
+      for (let i = 0; i < questions.length; i++) {
+        const pairs = questions[i].pairs || [];
+        if (pairs.length === 0) {
+          return badRequest(res, `Question ${i + 1}: at least one image-word pair is required`);
+        }
+        for (let j = 0; j < pairs.length; j++) {
+          if (!trimGermanWord(pairs[j].word)) {
+            return badRequest(res, `Question ${i + 1}, pair ${j + 1}: German word required`);
+          }
+        }
+      }
+    }
+
     const ops = questions.map((q, i) => {
       const doc = {
         gameSetId: set._id,
@@ -1320,16 +1353,26 @@ exports.adminUploadPairImage = async (req, res) => {
       return badRequest(res, 'Invalid pair index');
     }
 
-    const question = await GameQuestion.findById(req.params.qid).lean();
-    if (!question) return notFound(res, 'Question not found');
-    if (!question.pairs || pairIndex >= question.pairs.length) {
-      return badRequest(res, 'Pair index out of range');
+    let question = await GameQuestion.findById(req.params.qid);
+    if (!question || question.isDeleted) return notFound(res, 'Question not found');
+
+    // Legacy rows stored word/image on the question root with an empty pairs[].
+    if ((!question.pairs || question.pairs.length === 0) && pairIndex === 0) {
+      question.pairs = [{
+        word: question.word || '',
+        hint: question.hint || '',
+        imageUrl: question.imageUrl || null,
+        audioUrl: question.audioUrl || null,
+      }];
+      await question.save();
     }
 
-    const setPath = `pairs.${pairIndex}.imageUrl`;
-    await GameQuestion.findByIdAndUpdate(req.params.qid, {
-      $set: { [setPath]: canonicalUrl },
-    });
+    if (!question.pairs || pairIndex >= question.pairs.length) {
+      return badRequest(res, `Pair index out of range (question has ${question.pairs?.length || 0} pair(s); save questions first)`);
+    }
+
+    question.pairs[pairIndex].imageUrl = canonicalUrl;
+    await question.save();
 
     const url = await presignS3Url(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, pairIndex });

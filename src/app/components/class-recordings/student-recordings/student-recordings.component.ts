@@ -801,7 +801,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     const rawWatchedSec = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
     // Cap to total duration so wall-clock over-runs never inflate the display
     const watchedSec = totalSec > 0 ? Math.min(rawWatchedSec, totalSec) : rawWatchedSec;
-    if (totalSec > 0 && watchedSec >= Math.ceil(totalSec * 0.75)) {
+    const watchRatio = this.resolveIsSilverStudent() ? 0.9 : 0.75;
+    if (totalSec > 0 && watchedSec >= Math.ceil(totalSec * watchRatio)) {
       return 'Watched';
     }
     const watched = Math.floor(watchedSec / 60);
@@ -847,7 +848,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   private resolveIsSilverStudent(): boolean {
     const user = this.authService.getSnapshotUser();
-    return String(user?.subscription || '').toUpperCase() === 'SILVER';
+    const goOk = String(user?.goStatus || '').toUpperCase() === 'GO';
+    return goOk && String(user?.subscription || '').toUpperCase() === 'SILVER';
   }
 
   private normalizeBatch(value: string): string {

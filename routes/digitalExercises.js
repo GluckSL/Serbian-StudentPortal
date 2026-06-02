@@ -1290,6 +1290,8 @@ const {
 } = require('../utils/journeyContentBlock');
 
 async function getStudentExerciseAccess(userId) {
+  const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
+  await reconcileSilverGoCourseDay(userId);
   const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription blockedJourneyLevels').lean();
   if (!u || u.role !== 'STUDENT') {
     return {

@@ -23,8 +23,14 @@ const {
   getTrackConfig,
   normalizeTrack,
   goStudentQuery,
-  silverPoolQuery
+  silverPoolQuery,
+  isSilverGoStudent
 } = require('../utils/goSilverTrack');
+const {
+  reconcileSilverGoCourseDay,
+  resolveSilverGoContentUnlock
+} = require('../utils/silverGoSequentialUnlock');
+const { recordingWatchCountsAsComplete } = require('../utils/recordingWatchCompletion');
 
 function createGoStudentsRouter(trackKey) {
   const track = normalizeTrack(trackKey);
@@ -116,8 +122,21 @@ function createGoStudentsRouter(trackKey) {
       const students = await User.find(goStudentQuery(track))
         .select('name regNo email subscription goStatus goLanguage goJoiningDate currentCourseDay level batch studentStatus medium')
         .lean();
-  
-      res.json({ students });
+
+      const enriched = await Promise.all(
+        students.map(async (s) => {
+          const row = toGoStudentRow(s);
+          if (!isSilverGoStudent(s)) return row;
+          const unlock = await resolveSilverGoContentUnlock(s);
+          const stored = s.currentCourseDay || 1;
+          row.currentCourseDay = unlock.maxUnlockedContentDay;
+          row.storedCourseDay = stored;
+          row.needsJourneySync = unlock.maxUnlockedContentDay < stored;
+          return row;
+        })
+      );
+
+      res.json({ students: enriched });
     } catch (err) {
       console.error('go-students GET /', err);
       res.status(500).json({ message: 'Failed to fetch GO students.', error: err.message });
@@ -461,16 +480,28 @@ function createGoStudentsRouter(trackKey) {
     try {
       const { studentId } = req.params;
   
-      const student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
+      let student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
         .select('name regNo email level batch subscription goStatus goLanguage goJoiningDate currentCourseDay medium')
         .lean();
       if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
-  
+
+      let reconcileMeta = { adjusted: false };
+      if (isSilverGoStudent(student)) {
+        reconcileMeta = await reconcileSilverGoCourseDay(studentId);
+        student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
+          .select('name regNo email level batch subscription goStatus goLanguage goJoiningDate currentCourseDay medium')
+          .lean();
+      }
+
       const goBatchCfg = await BatchConfig.findOne({ batchName: GO_BATCH_NAME }).select('journeyLength').lean();
       const journeyLength =
         goBatchCfg?.journeyLength >= 1 ? Math.min(Math.floor(goBatchCfg.journeyLength), 200) : 200;
-  
-      const currentDay = student.currentCourseDay || 1;
+
+      const storedCourseDay = student.currentCourseDay || 1;
+      const unlock = isSilverGoStudent(student)
+        ? await resolveSilverGoContentUnlock(student)
+        : { maxUnlockedContentDay: storedCourseDay, currentCourseDay: storedCourseDay };
+      const accessDay = unlock.maxUnlockedContentDay || storedCourseDay;
   
       // ── Class Recordings (manual uploads) ────────────────────────────────────
       const batchKeys = allStudentBatchStringsForContent(student);
@@ -487,7 +518,7 @@ function createGoStudentsRouter(trackKey) {
         isPublished: true,
         ...batchRecFilter,
         $or: [{ plan: 'ALL' }, { plan: 'SILVER' }, { plan: 'PLATINUM' }]
-      }).select('title description courseDay plan level batches uploadedBy createdAt').lean();
+      }).select('title description courseDay plan level batches uploadedBy createdAt duration').lean();
   
       // Get view counts for this student
       const recViews = await RecordingView.find({ student: studentId })
@@ -499,8 +530,11 @@ function createGoStudentsRouter(trackKey) {
       }
   
       const recordings = classRecordings.map(r => {
-        const locked = r.courseDay != null && r.courseDay > currentDay;
+        const locked = r.courseDay != null && r.courseDay > accessDay;
         const viewData = recViewMap[String(r._id)];
+        const watchSec = viewData?.watchDuration || 0;
+        const durationSec = Number(r.duration || 0);
+        const watched = recordingWatchCountsAsComplete(watchSec, durationSec);
         return {
           _id: r._id,
           title: r.title,
@@ -508,9 +542,9 @@ function createGoStudentsRouter(trackKey) {
           plan: r.plan,
           level: r.level,
           locked,
-          watchDuration: viewData?.watchDuration || 0,
+          watchDuration: watchSec,
           lastWatchedAt: viewData?.lastUpdatedAt || null,
-          watched: !!viewData,
+          watched,
           uploadedAt: r.createdAt
         };
       });
@@ -542,8 +576,16 @@ function createGoStudentsRouter(trackKey) {
   
       const zoomRecordings = zoomRecs.map(zr => {
         const meeting = goMeetings.find(m => String(m._id) === String(zr.meetingLinkId));
-        const locked = meeting?.courseDay != null && meeting.courseDay > currentDay;
+        const locked = meeting?.courseDay != null && meeting.courseDay > accessDay;
         const viewData = zoomViewMap[String(zr.meetingLinkId)];
+        const watchSec = viewData?.watchDuration || 0;
+        const durationSec =
+          Number(zr.duration) > 0
+            ? Number(zr.duration)
+            : meeting?.duration != null && Number(meeting.duration) > 0
+              ? Math.round(Number(meeting.duration) * 60)
+              : 0;
+        const watched = recordingWatchCountsAsComplete(watchSec, durationSec);
         return {
           _id: zr._id,
           meetingLinkId: zr.meetingLinkId,
@@ -552,9 +594,9 @@ function createGoStudentsRouter(trackKey) {
           startTime: meeting?.startTime || null,
           duration: zr.duration,
           locked,
-          watchDuration: viewData?.watchDuration || 0,
+          watchDuration: watchSec,
           lastWatchedAt: viewData?.lastUpdatedAt || null,
-          watched: !!viewData
+          watched
         };
       });
   
@@ -574,7 +616,7 @@ function createGoStudentsRouter(trackKey) {
       }
   
       const modules = allModules.map(m => {
-        const locked = m.courseDay > currentDay;
+        const locked = m.courseDay > accessDay;
         const progress = modProgressMap[String(m._id)];
         return {
           _id: m._id,
@@ -609,7 +651,7 @@ function createGoStudentsRouter(trackKey) {
       }
   
       const exercises = allExercises.map(e => {
-        const locked = e.courseDay > currentDay;
+        const locked = e.courseDay > accessDay;
         const attempt = attemptMap[String(e._id)];
         return {
           _id: e._id,
@@ -630,7 +672,7 @@ function createGoStudentsRouter(trackKey) {
   
       // ── Progress Summary ──────────────────────────────────────────────────────
       const dayBreakdown = [];
-      for (let d = 1; d <= currentDay; d++) {
+      for (let d = 1; d <= accessDay; d++) {
         const dayExercises = exercises.filter(e => e.courseDay === d);
         const dayModules = modules.filter(m => m.courseDay === d);
         const attempted = dayExercises.filter(e => e.attempted).length;
@@ -698,6 +740,12 @@ function createGoStudentsRouter(trackKey) {
   
       res.json({
         journeyLength,
+        journeySync: {
+          effectiveAccessDay: accessDay,
+          storedCourseDayBeforeSync: reconcileMeta.previousCourseDay ?? storedCourseDay,
+          reconciled: !!reconcileMeta.adjusted,
+          sequentialUnlock: isSilverGoStudent(student)
+        },
         student: {
           _id: student._id,
           name: student.name,
@@ -707,7 +755,8 @@ function createGoStudentsRouter(trackKey) {
           subscription: student.subscription,
           goStatus: student.goStatus,
           goJoiningDate: student.goJoiningDate,
-          currentDay
+          currentDay: accessDay,
+          storedCourseDay: student.currentCourseDay || 1
         },
         recordings,
         zoomRecordings,
@@ -715,7 +764,7 @@ function createGoStudentsRouter(trackKey) {
         exercises,
         dgModules,
         progress: {
-          currentDay,
+          currentDay: accessDay,
           totalExercises,
           attemptedExercises,
           totalModules,

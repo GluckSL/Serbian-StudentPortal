@@ -61,7 +61,7 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
             Check your answer and earn XP for each correct sentence!
           </p>
           <p *ngIf="set.gameType === 'matching'">
-            Match each item to its correct pair. Coming soon!
+            Match each item on the left with the correct item on the right.
           </p>
           <p *ngIf="set.gameType === 'flashcards'">
             Flip through cards to test your vocabulary. Coming soon!

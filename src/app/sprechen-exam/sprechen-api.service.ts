@@ -15,6 +15,7 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class SprechenApiService {
   private readonly base = `${environment.apiUrl}/sprechen`;
+  private readonly httpOpts = { withCredentials: true as const };
 
   constructor(private http: HttpClient) {}
 
@@ -23,46 +24,62 @@ export class SprechenApiService {
   listStudentModules(): Observable<{ modules: SprechenExamModuleSummary[]; studentCourseDay?: number }> {
     return this.http.get<{ modules: SprechenExamModuleSummary[]; studentCourseDay?: number }>(
       `${this.base}/modules/student`,
+      this.httpOpts,
     );
   }
 
   listAdminModules(): Observable<{ modules: SprechenExamModuleSummary[] }> {
-    return this.http.get<{ modules: SprechenExamModuleSummary[] }>(`${this.base}/modules`);
+    return this.http.get<{ modules: SprechenExamModuleSummary[] }>(`${this.base}/modules`, this.httpOpts);
   }
 
   getAdminModule(id: string): Observable<SprechenExamModuleSummary> {
-    return this.http.get<SprechenExamModuleSummary>(`${this.base}/modules/${id}`);
+    return this.http.get<SprechenExamModuleSummary>(`${this.base}/modules/${id}`, this.httpOpts);
   }
 
   createModule(payload: Partial<SprechenExamModuleSummary>): Observable<SprechenExamModuleSummary> {
-    return this.http.post<SprechenExamModuleSummary>(`${this.base}/modules`, payload);
+    return this.http.post<SprechenExamModuleSummary>(`${this.base}/modules`, payload, this.httpOpts);
   }
 
   updateModule(id: string, payload: Partial<SprechenExamModuleSummary>): Observable<SprechenExamModuleSummary> {
-    return this.http.put<SprechenExamModuleSummary>(`${this.base}/modules/${id}`, payload);
+    return this.http.put<SprechenExamModuleSummary>(`${this.base}/modules/${id}`, payload, this.httpOpts);
+  }
+
+  /** Updates basic fields only (no Teil 1–3) — use for journey day / description saves. */
+  patchModuleMetadata(
+    id: string,
+    payload: Partial<SprechenExamModuleSummary>,
+  ): Observable<Partial<SprechenExamModuleSummary>> {
+    return this.http.patch<Partial<SprechenExamModuleSummary>>(
+      `${this.base}/modules/${id}/metadata`,
+      payload,
+      this.httpOpts,
+    );
   }
 
   patchVisibility(id: string, visible: boolean): Observable<{ visibleToStudents: boolean }> {
     return this.http.patch<{ visibleToStudents: boolean }>(
       `${this.base}/modules/${id}/visibility`,
       { visibleToStudents: visible },
+      this.httpOpts,
     );
   }
 
   deleteModule(id: string): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`${this.base}/modules/${id}`);
+    return this.http.delete<{ ok: boolean }>(`${this.base}/modules/${id}`, this.httpOpts);
   }
 
   seedPlaceholder(): Observable<SprechenExamModuleSummary> {
-    return this.http.post<SprechenExamModuleSummary>(`${this.base}/modules/seed-placeholder`, {});
+    return this.http.post<SprechenExamModuleSummary>(
+      `${this.base}/modules/seed-placeholder`,
+      {},
+      this.httpOpts,
+    );
   }
 
   uploadCardImage(file: File): Observable<{ url: string; canonicalUrl?: string }> {
     const fd = new FormData();
     fd.append('image', file);
-    return this.http.post<{ url: string }>(`${this.base}/upload-card-image`, fd, {
-      withCredentials: true,
-    });
+    return this.http.post<{ url: string }>(`${this.base}/upload-card-image`, fd, this.httpOpts);
   }
 
   getPlay(moduleId: string): Observable<SprechenPlayPayload> {

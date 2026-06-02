@@ -561,6 +561,24 @@ export class PaymentHubApiService {
     return this.http.post<{ success: boolean; message: string; data: MapLegacyPaymentsResult }>(`${this.base}/legacy/map-payment`, body);
   }
 
+  updateLegacyPaymentRequest(
+    requestId: string,
+    body: {
+      amount?: number;
+      paidAmount?: number;
+      amountRemaining?: number;
+      currency?: string;
+      dueDate?: string;
+      remarks?: string;
+      status?: string;
+    },
+  ): Observable<{ success: boolean; message: string; data: { request: PaymentRequestItem } }> {
+    return this.http.patch<{ success: boolean; message: string; data: { request: PaymentRequestItem } }>(
+      `${this.base}/legacy/requests/${requestId}`,
+      body,
+    );
+  }
+
   mapLegacyBulkLanguagePaid(body: { rows: BulkLegacyLanguageRow[] }): Observable<{
     success: boolean;
     message: string;

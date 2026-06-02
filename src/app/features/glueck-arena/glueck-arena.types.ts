@@ -122,7 +122,17 @@ export interface WhackawortQuestion {
   category: string;
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion;
+/** Matching / vocabulary pair (client receives word only; hints come via shuffledWords). */
+export interface MatchingQuestion {
+  _id: string;
+  gameType: 'matching';
+  order: number;
+  word: string;
+  imageUrl?: string | null;
+  audioUrl?: string | null;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MatchingQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {

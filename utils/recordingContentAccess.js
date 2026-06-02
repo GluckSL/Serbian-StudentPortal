@@ -19,8 +19,16 @@ function normalizedStudentCourseDay(student) {
   return 1;
 }
 
-function journeyCourseDayUnlockedForStudent(doc, student) {
-  const studentDay = normalizedStudentCourseDay(student);
+/**
+ * @param {object} doc - ClassRecording or MeetingLink
+ * @param {object} student
+ * @param {number} [maxUnlockedDay] - Silver GO sequential cap (from resolveSilverGoContentUnlock)
+ */
+function journeyCourseDayUnlockedForStudent(doc, student, maxUnlockedDay) {
+  const studentDay =
+    maxUnlockedDay != null && Number.isFinite(Number(maxUnlockedDay))
+      ? Math.min(200, Math.max(1, Math.floor(Number(maxUnlockedDay))))
+      : normalizedStudentCourseDay(student);
   const raw = doc && doc.courseDay;
   if (raw == null || raw === undefined) return true;
   const cd = Number(raw);

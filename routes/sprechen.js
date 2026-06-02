@@ -35,6 +35,7 @@ router.post(
 );
 router.post('/modules', verifyToken, checkRole(staffRoles), moduleCtrl.create);
 router.put('/modules/:id', verifyToken, checkRole(staffRoles), moduleCtrl.update);
+router.patch('/modules/:id/metadata', verifyToken, checkRole(staffRoles), moduleCtrl.patchMetadata);
 router.patch('/modules/:id/visibility', verifyToken, checkRole(staffRoles), moduleCtrl.patchVisibility);
 router.delete('/modules/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), moduleCtrl.remove);
 router.post(
