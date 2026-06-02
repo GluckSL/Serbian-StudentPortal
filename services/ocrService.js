@@ -13,6 +13,17 @@ const BUCKET = process.env.S3_BUCKET;
 const TEMP_DIR = path.join(__dirname, '..', 'temp');
 fs.mkdirSync(TEMP_DIR, { recursive: true });
 
+try {
+  const entries = fs.readdirSync(TEMP_DIR);
+  for (const e of entries) {
+    if (e.startsWith('ocr-') || e.startsWith('pdftotext-')) {
+      fs.rmSync(path.join(TEMP_DIR, e), { recursive: true, force: true });
+    }
+  }
+} catch (e) {
+  console.error('[OCR] Failed to clean stale temp dirs:', e.message);
+}
+
 function log(...args) {
   console.log(`[OCR]`, ...args);
 }
@@ -178,6 +189,7 @@ async function processDocWithVision(buffer, mimeType, documentType) {
     log(`Vision OCR for ${docLabel}...`);
     const { tmpDir, files } = convertPdfToImages(buffer);
     if (!tmpDir || files.length === 0) {
+      if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
       log(`No images generated for ${docLabel}`);
       return null;
     }
@@ -185,9 +197,7 @@ async function processDocWithVision(buffer, mimeType, documentType) {
       const imageBuffer = fs.readFileSync(files[0]);
       return await visionOcrService.extractTextWithVision(imageBuffer, 'image/png', documentType);
     } finally {
-      if (!process.env.KEEP_TEMP_FILES) {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   }
 
