@@ -19,6 +19,7 @@ export interface MatchResult {
 interface MatchPair {
   questionId: string;
   left: string;
+  right: string;
   selectedRight: string | null;
   isCorrect: boolean | null;
 }
@@ -159,12 +160,13 @@ export class MatchingComponent implements OnInit, OnDestroy {
     this.pairs = pool.map(q => ({
       questionId: q._id,
       left: q.word,
+      right: q.translation,
       selectedRight: null,
       isCorrect: null,
     }));
     this.rightOptions = this.shuffledRightOptions.length
       ? [...this.shuffledRightOptions]
-      : this.shuffle(pool.map(q => q.word));
+      : this.shuffle(pool.map(q => q.translation));
   }
 
   selectMatch(index: number, event: Event) {

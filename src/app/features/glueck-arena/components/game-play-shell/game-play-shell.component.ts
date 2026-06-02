@@ -8,11 +8,12 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
   GameAttempt, GameQuestion, GameLevel, GameSet,
-  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, AchievementDto, LeaderboardEntry,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, MatchingQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
 import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
 import { ImageMatchingComponent } from '../../engines/image-matching/image-matching.component';
+import { MatchingComponent, MatchResult } from '../../engines/matching/matching.component';
 import { GenderStackComponent, GSResult } from '../../engines/gender-stack/gender-stack.component';
 import { FlapjugationComponent, FJResult } from '../../engines/flapjugation/flapjugation.component';
 import { WhackawortComponent, WWResult } from '../../engines/whackawort/whackawort.component';
@@ -31,7 +32,7 @@ export interface IMResult {
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent
   ],
   template: `
     <div class="shell">
@@ -207,6 +208,14 @@ export interface IMResult {
             [questions]="asMemoryQuestions()"
             (onComplete)="handleMemoryComplete($event)"
           ></app-memory-game>
+
+          <app-matching
+            *ngIf="phase === 'playing' && set?.gameType === 'matching' && attempt"
+            [attempt]="attempt!"
+            [questions]="asMatchingQuestions()"
+            [shuffledRightOptions]="shuffledWords"
+            (onComplete)="handleMatchingComplete($event)"
+          ></app-matching>
 
           <!-- Placeholder -->
           <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
@@ -952,6 +961,7 @@ export class GamePlayShellComponent implements OnInit {
   asWhackawortQuestions(): WhackawortQuestion[] { return this.questions as WhackawortQuestion[]; }
   asJumbledWordsQuestions(): JumbledWordsQuestion[] { return this.questions as JumbledWordsQuestion[]; }
   asMemoryQuestions(): MemoryGameQuestion[] { return this.questions as MemoryGameQuestion[]; }
+  asMatchingQuestions(): MatchingQuestion[] { return this.questions as MatchingQuestion[]; }
 
   isPlaceholderType(): boolean {
     return ['flashcards'].includes(this.set?.gameType ?? '');
@@ -1191,6 +1201,7 @@ export class GamePlayShellComponent implements OnInit {
       whackawort: 'linear-gradient(135deg,#d97706,#f59e0b)',
       memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
       jumbled_words: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+      matching: 'linear-gradient(135deg,#15803d,#4ade80)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
