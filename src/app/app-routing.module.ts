@@ -237,6 +237,9 @@ export const routes: Routes = [
   { path: 'admin/document-verification', loadComponent: () => import('./components/admin-dashboard/document-verification/document-verification.component').then(m => m.DocumentVerificationComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
   { path: 'admin/document-verification/student/:studentId', loadComponent: () => import('./components/admin-dashboard/document-verification/student-document-profile.component').then(m => m.StudentDocumentProfileComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
 
+  // Google Sheet Sync route
+  { path: 'admin/google-sheet-sync', loadComponent: () => import('./components/admin-dashboard/google-sheet-sync/google-sheet-sync.component').then(m => m.GoogleSheetSyncComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
   // Admin Agreement Templates & Student Workspaces
   { path: 'admin/agreements/templates', loadComponent: () => import('./components/admin-dashboard/agreements/agreement-templates.component').then(m => m.AgreementTemplatesComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
   { path: 'admin/agreements/student/:studentId', loadComponent: () => import('./components/admin-dashboard/agreements/student-agreements.component').then(m => m.StudentAgreementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },

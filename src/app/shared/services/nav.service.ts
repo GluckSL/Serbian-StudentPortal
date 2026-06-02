@@ -112,7 +112,8 @@ export class NavService {
     {
       group: 'Documents',
       items: [
-        { id: 'documents', label: 'Documents', icon: 'description', route: '/admin/document-verification', subGroup: null }
+        { id: 'documents', label: 'Documents', icon: 'description', route: '/admin/document-verification', subGroup: null },
+        { id: 'google-sheet-sync', label: 'Sheet Sync', icon: 'table_chart', route: '/admin/google-sheet-sync', subGroup: null }
       ]
     },
     {
