@@ -258,6 +258,11 @@ export interface DigitalExercise {
   /** Admin list optimization: { [type]: count } summary sent by backend. */
   questionTypeSummary?: Record<string, number>;
   studentAttempt?: ExerciseAttempt | null;
+  /**
+   * When true, students skip the pronunciation step — they just watch each
+   * video clip and tap "Next". Controlled by admin only (default: false).
+   */
+  watchOnlyMode?: boolean;
 }
 
 export interface ExerciseAttempt {
@@ -472,6 +477,10 @@ export class DigitalExerciseService {
 
   toggleVisibility(id: string, visibleToStudents: boolean): Observable<any> {
     return this.http.patch(`${this.apiUrl}/${id}/visibility`, { visibleToStudents }, { withCredentials: true });
+  }
+
+  toggleWatchOnlyMode(id: string, watchOnlyMode: boolean): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/${id}/watch-only`, { watchOnlyMode }, { withCredentials: true });
   }
 
   toggleActive(id: string): Observable<any> {

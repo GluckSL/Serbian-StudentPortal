@@ -17,6 +17,18 @@ import type { SprechenScores } from '../sprechen-exam.types';
       </div>
 
       <div class="exam-sum__scores" *ngIf="scores">
+        <div class="exam-sum__hero">
+          <div
+            class="exam-sum__ring"
+            [style.--p]="scores.total"
+            [class.exam-sum__ring--pass]="scores.passed"
+            [class.exam-sum__ring--fail]="!scores.passed"
+          >
+            <div class="exam-sum__ring-score">{{ scores.total | number:'1.0-1' }}</div>
+            <div class="exam-sum__ring-sub">von 15 Punkten</div>
+          </div>
+        </div>
+
         <div class="exam-sum__row">
           <span class="exam-sum__row-label">Teil 1 — Sich vorstellen</span>
           <span class="exam-sum__row-score">{{ scores.teil1 | number:'1.0-1' }} / 3</span>
@@ -109,6 +121,44 @@ import type { SprechenScores } from '../sprechen-exam.types';
       display: flex;
       flex-direction: column;
       gap: 14px;
+    }
+
+    .exam-sum__hero {
+      display: flex;
+      justify-content: center;
+      padding: 6px 0 4px;
+    }
+
+    .exam-sum__ring {
+      width: 142px;
+      height: 142px;
+      border-radius: 999px;
+      display: grid;
+      place-content: center;
+      text-align: center;
+      background: radial-gradient(circle at 50% 40%, #fff 0%, #fff 48%, transparent 49%),
+        conic-gradient(#3949ab calc((var(--p, 0) / 15) * 1turn), #e8eaf6 0);
+      border: 10px solid #e8eaf6;
+      box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .exam-sum__ring--pass { border-color: rgba(67, 160, 71, 0.18); }
+    .exam-sum__ring--fail { border-color: rgba(251, 140, 0, 0.18); }
+
+    .exam-sum__ring-score {
+      font-size: 34px;
+      font-weight: 900;
+      color: #1a237e;
+      line-height: 1;
+    }
+
+    .exam-sum__ring-sub {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #607d8b;
+      font-weight: 600;
     }
 
     .exam-sum__row {

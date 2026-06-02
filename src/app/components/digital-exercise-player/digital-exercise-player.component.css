@@ -7557,3 +7557,40 @@
 .review-sub-q-correct .review-value.correct {
   color: #059669;
 }
+
+/* ── Watch Only Mode (admin-controlled) ──────────────────────────────────── */
+
+/* Read-only indicator pill shown in the sidebar when watchOnlyMode is on */
+.watch-only-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(251,191,36,0.18);
+  border: 1px solid rgba(251,191,36,0.4);
+  color: #fde68a;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.watch-only-indicator .material-icons {
+  font-size: 0.95rem;
+}
+
+/* Watch Only desktop action block (Replay + Next/Finish) */
+.vp-stage-watch-only-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  animation: fadeSlideUp 0.25s ease;
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

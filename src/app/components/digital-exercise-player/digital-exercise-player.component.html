@@ -898,26 +898,10 @@
               <span class="vp-ring-label">{{ vpRingPercent }}%</span>
             </div>
 
-            <!-- Watch Only Mode toggle -->
-            <div class="watch-only-toggle-row">
-              <label class="watch-only-toggle" [class.watch-only-toggle--on]="watchOnlyMode">
-                <input
-                  type="checkbox"
-                  [checked]="watchOnlyMode"
-                  (change)="toggleWatchOnlyMode()"
-                  aria-label="Watch Only Mode — skip speaking"
-                />
-                <span class="watch-only-toggle-track">
-                  <span class="watch-only-toggle-thumb"></span>
-                </span>
-                <span class="watch-only-toggle-label">
-                  <span class="material-icons">{{ watchOnlyMode ? 'visibility' : 'mic_off' }}</span>
-                  Watch Only
-                </span>
-              </label>
-              <p class="watch-only-toggle-hint" *ngIf="watchOnlyMode">
-                Speaking is off — just watch each clip and tap Next.
-              </p>
+            <!-- Watch Only Mode indicator (set by admin) -->
+            <div class="watch-only-indicator" *ngIf="watchOnlyMode">
+              <span class="material-icons">mic_off</span>
+              <span>Watch Only Mode</span>
             </div>
           </div>
           <div class="vp-detail-card vp-detail-card--clips">

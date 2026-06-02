@@ -1940,7 +1940,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .select(
-        'title description targetLanguage difficulty level category courseDay visibleToStudents isActive createdBy createdAt updatedAt questions.type'
+        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode isActive createdBy createdAt updatedAt questions.type'
       )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
@@ -2129,6 +2129,23 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
   } catch (err) {
     console.error('PATCH /digital-exercises/:id/visibility error:', err);
     res.status(500).json({ error: err.message || 'Failed to update visibility' });
+  }
+});
+
+// PATCH /api/digital-exercises/:id/watch-only  — Set admin-controlled Watch Only mode
+router.patch('/:id/watch-only', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const watchOnlyMode = req.body.watchOnlyMode === true || String(req.body.watchOnlyMode) === 'true';
+    const exercise = await DigitalExercise.findByIdAndUpdate(
+      req.params.id,
+      { $set: { watchOnlyMode, updatedAt: new Date() } },
+      { new: true, runValidators: false }
+    );
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    res.json({ success: true, watchOnlyMode: exercise.watchOnlyMode });
+  } catch (err) {
+    console.error('PATCH /digital-exercises/:id/watch-only error:', err);
+    res.status(500).json({ error: err.message || 'Failed to update watch-only mode' });
   }
 });
 
