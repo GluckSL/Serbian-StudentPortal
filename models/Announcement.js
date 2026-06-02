@@ -32,10 +32,12 @@ const announcementSchema = new mongoose.Schema(
       }
     },
     title: { type: String, required: true, trim: true, maxlength: 150 },
-    body: { type: String, required: true, trim: true, maxlength: 5000 },
+    // Stored as sanitized HTML (rich text).
+    body: { type: String, required: true, trim: true, maxlength: 20000 },
     attachments: { type: [attachmentSchema], default: [] },
     emailSubject: { type: String, default: '', trim: true, maxlength: 200 },
-    emailBody: { type: String, default: '', trim: true, maxlength: 5000 },
+    // Stored as sanitized HTML (rich text).
+    emailBody: { type: String, default: '', trim: true, maxlength: 20000 },
     emailDispatch: {
       totalRecipients: { type: Number, default: 0 },
       sentCount: { type: Number, default: 0 },
