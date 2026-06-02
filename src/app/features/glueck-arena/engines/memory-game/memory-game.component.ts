@@ -131,6 +131,7 @@ interface MemoryCard {
       min-height: 72px;
       border: none;
       background: transparent;
+      border-radius: 12px;
       padding: 0;
       cursor: pointer;
       perspective: 600px;
@@ -361,12 +362,17 @@ export class MemoryGameComponent implements OnInit, OnDestroy {
     if (first.pairIndex === card.pairIndex && first.type !== card.type) {
       this.validateMatch(first, card);
     } else {
+      this.audio.playWrong();
+      first.wrongFlash = true;
+      card.wrongFlash = true;
       this.flipTimeoutHandle = setTimeout(() => {
+        first.wrongFlash = false;
+        card.wrongFlash = false;
         first.flipped = false;
         card.flipped = false;
         this.isProcessing = false;
         this.cdr.detectChanges();
-      }, 800);
+      }, 1000);
     }
   }
 
@@ -397,15 +403,15 @@ export class MemoryGameComponent implements OnInit, OnDestroy {
           }
         } else {
           this.audio.playWrong();
-          imgCard.flipped = false;
-          wordCard.flipped = false;
           imgCard.wrongFlash = true;
           wordCard.wrongFlash = true;
           setTimeout(() => {
             imgCard.wrongFlash = false;
             wordCard.wrongFlash = false;
+            imgCard.flipped = false;
+            wordCard.flipped = false;
             this.cdr.detectChanges();
-          }, 450);
+          }, 1000);
         }
         this.cdr.detectChanges();
       },
