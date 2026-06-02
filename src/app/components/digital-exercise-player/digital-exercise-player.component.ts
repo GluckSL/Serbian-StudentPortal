@@ -363,6 +363,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Controls the "Chrome works best" banner. */
   showBrowserGuidance = false;
   browserGuidanceDismissed = false;
+
+  /** When true, pronunciation step is skipped — student just watches the video and taps Next. */
+  watchOnlyMode = false;
   /** Cached device/browser info (set in checkSpeechSupport). */
   deviceInfo: DeviceInfo | null = null;
   /** Last adaptive threshold pack used — surfaced in the debug panel. */
@@ -459,6 +462,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
+    try {
+      this.watchOnlyMode = localStorage.getItem('gluck:watchOnlyMode') === '1';
+    } catch { /* storage blocked */ }
     this.loadExercise();
   }
 
@@ -538,6 +544,38 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   dismissBrowserGuidance(): void {
     this.browserGuidanceDismissed = true;
     this.showBrowserGuidance = false;
+  }
+
+  toggleWatchOnlyMode(): void {
+    this.watchOnlyMode = !this.watchOnlyMode;
+    try {
+      localStorage.setItem('gluck:watchOnlyMode', this.watchOnlyMode ? '1' : '0');
+    } catch { /* storage blocked */ }
+  }
+
+  /**
+   * In Watch Only Mode: mark the current clip as "watched" (score 0) and advance,
+   * without requiring the student to speak.
+   */
+  skipWatchOnlyClip(): void {
+    if (this.submitting || this.finishingAll) return;
+    const pq = this.currentQuestion;
+    if (!pq) return;
+
+    pq.vpSpokenText = '';
+    pq.pronunciationScore = 0;
+    pq.vpResult = 'idle';
+    pq.isAnswered = true;
+    pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
+    this.clearVpFeedbackUi();
+
+    const isLastClip = this.currentIndex >= this.playerQuestions.length - 1;
+    if (isLastClip) {
+      this.finishVideoExercise();
+    } else {
+      this.submitCurrentQuestion();
+      setTimeout(() => this.nextQuestion(), 300);
+    }
   }
 
   /** Copy the user can read while a silent recording is being rejected. */
