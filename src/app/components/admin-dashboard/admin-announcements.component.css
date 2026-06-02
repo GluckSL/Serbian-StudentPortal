@@ -38,8 +38,8 @@
 
 .ann-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.9fr) minmax(210px, 260px);
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 16px;
   align-items: start;
   background:
     radial-gradient(1000px 260px at 0% 0%, rgba(79, 70, 229, 0.06), transparent 65%),
@@ -149,13 +149,15 @@
   border: 1px solid #d7dbeb;
   border-radius: 0 0 10px 10px;
   background: #ffffff;
-  min-height: 160px;
+  height: 320px;
+  max-height: 420px;
 }
 
 .ann-editor ::ng-deep .ql-editor {
   font-family: inherit;
   font-size: 14px;
   color: #0f172a;
+  min-height: 280px;
 }
 
 .ann-richtext {
@@ -760,6 +762,16 @@
 }
 
 @media (max-width: 1400px) {
+  .ann-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ann-block--side {
+    position: static;
+  }
+}
+
+@media (max-width: 1100px) {
   .ann-layout {
     grid-template-columns: 1fr;
   }
