@@ -152,6 +152,10 @@
   min-height: 160px;
 }
 
+.ann-title-editor ::ng-deep .ql-container.ql-snow {
+  min-height: 74px;
+}
+
 .ann-editor ::ng-deep .ql-editor {
   font-family: inherit;
   font-size: 14px;
