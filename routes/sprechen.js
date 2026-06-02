@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
 
 const moduleCtrl = require('../controllers/sprechenModuleController');
 const sessionCtrl = require('../controllers/sprechenSessionController');
@@ -13,8 +14,8 @@ const staffRoles = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
 // ─── Module routes ────────────────────────────────────────────────────────────
 
 // Student
-router.get('/modules/student', verifyToken, checkRole(['STUDENT']), moduleCtrl.listStudent);
-router.get('/modules/:id/play', verifyToken, moduleCtrl.getPlay);
+router.get('/modules/student', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), moduleCtrl.listStudent);
+router.get('/modules/:id/play', verifyToken, blockVisaDocsOnly, moduleCtrl.getPlay);
 
 // Admin CRUD
 router.get('/modules', verifyToken, checkRole(staffRoles), moduleCtrl.listAdmin);
@@ -49,12 +50,12 @@ router.get('/modules/:id/export.csv', verifyToken, checkRole(staffRoles), module
 
 // ─── Session routes ───────────────────────────────────────────────────────────
 
-router.post('/session/start', verifyToken, sessionCtrl.start);
-router.get('/session/:id/state', verifyToken, sessionCtrl.getState);
-router.post('/session/:id/advance', verifyToken, sessionCtrl.advance);
-router.post('/session/:id/turn', verifyToken, sessionCtrl.turn);
-router.post('/session/:id/complete', verifyToken, sessionCtrl.complete);
-router.post('/session/tts', verifyToken, sessionCtrl.tts);
+router.post('/session/start', verifyToken, blockVisaDocsOnly, sessionCtrl.start);
+router.get('/session/:id/state', verifyToken, blockVisaDocsOnly, sessionCtrl.getState);
+router.post('/session/:id/advance', verifyToken, blockVisaDocsOnly, sessionCtrl.advance);
+router.post('/session/:id/turn', verifyToken, blockVisaDocsOnly, sessionCtrl.turn);
+router.post('/session/:id/complete', verifyToken, blockVisaDocsOnly, sessionCtrl.complete);
+router.post('/session/tts', verifyToken, blockVisaDocsOnly, sessionCtrl.tts);
 
 // Staff: replay + score override
 router.get('/session/:id/replay', verifyToken, checkRole(staffRoles), sessionCtrl.getReplay);

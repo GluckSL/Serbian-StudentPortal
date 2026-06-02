@@ -51,7 +51,11 @@ const SignupApplicationSchema = new mongoose.Schema({
 
   // ── step 3: payment ──────────────────────────────────────────────────────────
   level:        { type: String, enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'], default: null },
-  subscription: { type: String, enum: ['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'], default: null },
+  subscription: {
+    type: String,
+    enum: ['SILVER', 'PLATINUM', 'DOCS_RECOGNITION', 'VISA_DOC', 'POST_LANDING', 'VISA_DOC_ONLY'],
+    default: null,
+  },
   currency:     { type: String, enum: ['INR', 'LKR', 'USD'], default: 'INR' },
   amount:       { type: Number, default: null },
   paymentMethod: {

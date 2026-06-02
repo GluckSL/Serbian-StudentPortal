@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CanActivate, ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { isCoursePlan } from '../utils/student-subscription-plans.util';
 import { NavService } from '../shared/services/nav.service';
 import { Observable, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
@@ -89,8 +90,8 @@ export class RoleGuard implements CanActivate {
 
     // Wrong role — redirect to correct dashboard
     if (user?.role === 'STUDENT') {
-      const isVisaDocOnly = (user?.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
-      this.router.navigate([isVisaDocOnly ? '/student-progress' : '/student/my-course']);
+      const path = isCoursePlan(user?.subscription) ? '/student/my-course' : '/student-documents';
+      this.router.navigate([path]);
     } else if (user?.role === 'TEACHER' || user?.role === 'TEACHER_ADMIN') {
       this.router.navigate(['/teacher-dashboard']);
     } else if (user?.role === 'ADMIN') {

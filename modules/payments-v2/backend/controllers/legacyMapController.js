@@ -75,10 +75,24 @@ const mapLegacyPaymentsHandler = async (req, res) => {
       if (hasDocs) validateItems(docsPayments, 'docsPayments');
       if (hasVisa) validateItems(visaPayments, 'visaPayments');
       if (hasCustom) {
-        validateItems(customPayments, 'customPayments');
         for (let i = 0; i < customPayments.length; i++) {
-          if (!customPayments[i].paymentType || !String(customPayments[i].paymentType).trim()) {
-            return res.status(400).json({ success: false, message: `customPayments[${i}].paymentType is required` });
+          const item = customPayments[i];
+          if (!item.paymentType || !String(item.paymentType).trim()) {
+            throw new Error(`customPayments[${i}].paymentType is required`);
+          }
+          const hasQuote = Number(item.quotedTotal) > 0;
+          const amt = Number(item.amount);
+          if ((!amt || amt <= 0) && !hasQuote) {
+            throw new Error(`customPayments[${i}].amount or quotedTotal is required`);
+          }
+          if (item.quotedTotal != null && item.quotedTotal !== '' && !hasQuote) {
+            throw new Error(`customPayments[${i}].quotedTotal must be a positive number`);
+          }
+          if (!['LKR', 'INR', 'USD'].includes(item.currency)) {
+            throw new Error(`customPayments[${i}].currency must be LKR, INR, or USD`);
+          }
+          if (!item.paymentDate || isNaN(Date.parse(item.paymentDate))) {
+            throw new Error(`customPayments[${i}].paymentDate must be a valid date`);
           }
         }
       }

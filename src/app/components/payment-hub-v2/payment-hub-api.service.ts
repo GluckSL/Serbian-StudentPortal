@@ -279,6 +279,8 @@ export interface LegacyLineItem {
 
 export interface LegacyCustomPayment extends LegacyLineItem {
   paymentType: string;
+  /** Corrects the slot quoted total (A1–B2) before optional payment recording */
+  quotedTotal?: number;
 }
 
 export interface MapLegacyPaymentsBody {
@@ -293,7 +295,18 @@ export interface MapLegacyPaymentsResult {
   language: { requestId: string; submissionId: string } | null;
   docs: { requestId: string; submissionId: string }[];
   visa: { requestId: string; submissionId: string }[];
-  custom: { requestId: string; submissionId: string }[];
+  custom: Array<{
+    requestId?: string;
+    submissionId?: string;
+    reconciled?: {
+      updated?: boolean;
+      quotedTotal?: number;
+      totalPaid?: number;
+      amountRemaining?: number;
+      archivedCount?: number;
+    };
+    alreadyMapped?: boolean;
+  }>;
 }
 
 export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {

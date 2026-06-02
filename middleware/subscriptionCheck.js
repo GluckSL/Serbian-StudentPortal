@@ -2,6 +2,11 @@
 // Middleware to check user subscription levels
 
 const User = require('../models/User');
+const { isServicePlan, isCoursePlan } = require('../utils/studentSubscriptionPlans');
+
+function isVisaDocsOnly(user) {
+  return isServicePlan(user?.subscription);
+}
 
 // Middleware to check if user has required subscription level
 const checkSubscription = (requiredSubscription) => {
@@ -37,6 +42,7 @@ const checkSubscription = (requiredSubscription) => {
       
       // Check subscription level
       const subscriptionLevels = {
+        'VISA_DOC_ONLY': 0,
         'SILVER': 1,
         'PLATINUM': 2
       };
@@ -81,6 +87,32 @@ const checkSubscription = (requiredSubscription) => {
   };
 };
 
+/**
+ * Block Visa+Docs-only students from course features.
+ * Use this on routes that don't otherwise have a subscription requirement.
+ */
+const blockVisaDocsOnly = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return next();
+    const user = await User.findById(userId).select('subscription role').lean();
+    if (!user) return next();
+    if (user.role !== 'STUDENT') return next();
+    if (!isVisaDocsOnly(user)) return next();
+    return res.status(403).json({
+      message: 'This feature is not available on your selected service plan.',
+      code: 'SERVICE_PLAN_RESTRICTED',
+      currentSubscription: user.subscription,
+    });
+  } catch (error) {
+    console.error('Visa+Docs restriction check error:', error);
+    return res.status(500).json({
+      message: 'Error checking subscription status',
+      code: 'SUBSCRIPTION_CHECK_ERROR',
+    });
+  }
+};
+
 // Specific middleware for PLATINUM subscription
 const requirePlatinum = checkSubscription('PLATINUM');
 
@@ -90,5 +122,7 @@ const requireSilver = checkSubscription('SILVER');
 module.exports = {
   checkSubscription,
   requirePlatinum,
-  requireSilver
+  requireSilver,
+  blockVisaDocsOnly,
+  isVisaDocsOnly,
 };

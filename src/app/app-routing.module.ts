@@ -8,6 +8,7 @@ import { AdminDashboardComponent } from './components/admin-dashboard/admin-dash
 import { HomeComponent } from './components/home/home.component';
 import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
+import { VisaDocsOnlyGuard } from './guards/visa-docs-only.guard';
 import { ProfileComponent } from './components/profile/profile.component';
 import { CreateCourseComponent } from './components/courses/course-create.component';
 import { RemindersComponent } from './components/admin-dashboard/reminders/reminders.component';
@@ -181,7 +182,7 @@ export const routes: Routes = [
   {
     path: 'student/my-course',
     loadComponent: () => import('./components/my-course/my-course.component').then(m => m.MyCourseComponent),
-    canActivate: [AuthGuard, RoleGuard],
+    canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard],
     data: { role: 'STUDENT' }
   },
 
@@ -300,7 +301,7 @@ export const routes: Routes = [
   { path: 'admin/journey', loadComponent: () => import('./components/admin-dashboard/journey-management/journey-management.component').then(m => m.JourneyManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/go-students', loadComponent: () => import('./components/admin-dashboard/go-students/go-students-journey.component').then(m => m.GoStudentsJourneyComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
-  { path: 'ai-tutor-chat', loadComponent: () => import('./components/ai-tutor-chat/ai-tutor-chat.component').then(m => m.AiTutorChatComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'ai-tutor-chat', loadComponent: () => import('./components/ai-tutor-chat/ai-tutor-chat.component').then(m => m.AiTutorChatComponent), canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 
   // Audio Test Route (for students and teachers to test microphone and speakers)
   { path: 'audio-test', loadComponent: () => import('./components/audio-test/audio-test.component').then(m => m.AudioTestComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'TEACHER_ADMIN'] } },
@@ -325,7 +326,7 @@ export const routes: Routes = [
   {
     path: 'dg-bot',
     loadComponent: () => import('./dg-bot/dg-bot-hub/dg-bot-hub.component').then((m) => m.DgBotHubComponent),
-    canActivate: [AuthGuard, RoleGuard],
+    canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard],
     data: { role: 'STUDENT' },
   },
   {
@@ -376,7 +377,7 @@ export const routes: Routes = [
       import('./sprechen-exam/sprechen-exam-hub/sprechen-exam-hub.component').then(
         (m) => m.SprechenExamHubComponent,
       ),
-    canActivate: [AuthGuard, RoleGuard],
+    canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard],
     data: { role: 'STUDENT' },
   },
   {
@@ -429,7 +430,7 @@ export const routes: Routes = [
   {
     path: 'digital-exercises',
     loadComponent: () => import('./components/digital-exercises/digital-exercises.component').then(m => m.DigitalExercisesComponent),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
     path: 'digital-exercises/analytics',
@@ -437,17 +438,17 @@ export const routes: Routes = [
       import('./components/student-digital-exercises-analytics/student-digital-exercises-analytics.component').then(
         (m) => m.StudentDigitalExercisesAnalyticsComponent
       ),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
     path: 'digital-exercises/:id/play',
     loadComponent: () => import('./components/digital-exercise-player/digital-exercise-player.component').then(m => m.DigitalExercisePlayerComponent),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
     path: 'digital-exercises/:id/review',
     loadComponent: () => import('./components/digital-exercise-review/digital-exercise-review.component').then(m => m.DigitalExerciseReviewComponent),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   // Admin/Teacher: manage exercises
   {
@@ -509,13 +510,13 @@ export const routes: Routes = [
   { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
   // Class Recordings — Student view
-  { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard], data: { role: 'STUDENT' } },
 
   // ── GlückArena — Student routes ──────────────────────────────────────────
   {
     path: 'glueck-arena',
     loadComponent: () => import('./features/glueck-arena/components/arena-layout/arena-layout.component').then(m => m.ArenaLayoutComponent),
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, VisaDocsOnlyGuard],
     children: [
       {
         path: '',
@@ -629,7 +630,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./components/class-recordings/zoom-recording-player/zoom-recording-player.component')
         .then(m => m.ZoomRecordingPlayerComponent),
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, VisaDocsOnlyGuard],
   },
 
   // Wildcard route to handle invalid paths

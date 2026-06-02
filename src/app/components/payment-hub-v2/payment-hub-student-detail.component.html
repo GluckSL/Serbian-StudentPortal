@@ -76,7 +76,7 @@
           </div>
           <div class="sd-chip" *ngIf="history.student.subscription">
             <span class="sd-chip__label">Plan</span>
-            <strong class="sd-chip__value">{{ history.student.subscription }}</strong>
+            <strong class="sd-chip__value">{{ planLabel(history.student.subscription) }}</strong>
           </div>
           <div class="sd-chip">
             <span class="sd-chip__label">Student status</span>
@@ -215,7 +215,8 @@
                   </label>
                 </div>
                 <p class="sd-slot-map-note" *ngIf="slot.key === 'A1' || slot.key === 'A2' || slot.key === 'B1' || slot.key === 'B2'">
-                  This saves as a mapped level payment, so it stays visible under {{ slot.label }} even if paid in advance.
+                  <strong>Total / Quoted</strong> sets the correct fee for {{ slot.label }} (e.g. LKR 75,000) and merges duplicate rows.
+                  <strong>Amount</strong> records an additional payment only when there is still a balance. LKR and INR are tracked separately.
                 </p>
                 <div class="sd-slot-map-actions">
                   <button mat-button type="button" (click)="cancelMap()" [disabled]="mappingSaving">Cancel</button>
