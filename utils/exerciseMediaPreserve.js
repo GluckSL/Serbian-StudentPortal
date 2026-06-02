@@ -92,6 +92,11 @@ function preserveTopLevelMedia(existingExercise, incomingExercise, mediaClears) 
 
 /**
  * Merge incoming questions with existing DB media when saves would accidentally wipe URLs.
+ *
+ * Matching strategy (in priority order):
+ *   1. Match by Mongoose _id (string comparison) — survives reordering and insertions.
+ *   2. Fall back to positional (array index) match when _id is absent (new questions).
+ *
  * @param {Array} existingQuestions
  * @param {Array} incomingQuestions
  * @param {Array<{qIndex:number, subIndex?:number|null, field:string}>} mediaClears
@@ -102,18 +107,43 @@ function preserveExistingQuestionMedia(existingQuestions, incomingQuestions, med
 
   const clears = normalizeClears(mediaClears);
 
+  // Build a map of existing questions by their string _id for O(1) lookup.
+  const existingById = new Map();
+  existingQuestions.forEach((q) => {
+    const id = q?._id ? String(q._id) : null;
+    if (id) existingById.set(id, q);
+  });
+
   return incomingQuestions.map((incomingQ, qi) => {
-    const existingQ = existingQuestions[qi];
-    if (!existingQ || !incomingQ) return incomingQ;
+    if (!incomingQ) return incomingQ;
+
+    // Prefer _id-based match to survive question reordering / insertion.
+    const incomingId = incomingQ._id ? String(incomingQ._id) : null;
+    const existingQ = (incomingId && existingById.has(incomingId))
+      ? existingById.get(incomingId)
+      : existingQuestions[qi]; // positional fallback for brand-new questions
+
+    if (!existingQ) return incomingQ;
 
     preserveQuestionPair(existingQ, incomingQ, qi, clears, null);
 
     const incSubs = incomingQ.subQuestions;
     const exSubs = existingQ.subQuestions;
     if (Array.isArray(incSubs) && Array.isArray(exSubs)) {
+      // Build sub-question id map for the same reason.
+      const exSubsById = new Map();
+      exSubs.forEach((sq) => {
+        const sid = sq?._id ? String(sq._id) : null;
+        if (sid) exSubsById.set(sid, sq);
+      });
+
       incomingQ.subQuestions = incSubs.map((incSq, si) => {
-        const exSq = exSubs[si];
-        if (!exSq || !incSq) return incSq;
+        if (!incSq) return incSq;
+        const incSqId = incSq._id ? String(incSq._id) : null;
+        const exSq = (incSqId && exSubsById.has(incSqId))
+          ? exSubsById.get(incSqId)
+          : exSubs[si];
+        if (!exSq) return incSq;
         return preserveQuestionPair(exSq, incSq, qi, clears, si);
       });
     }
