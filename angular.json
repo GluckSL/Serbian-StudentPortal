@@ -40,6 +40,7 @@
               "core-js",
               "html2canvas",
               "papaparse",
+              "quill-delta",
               "raf",
               "rgbcolor"
             ]
