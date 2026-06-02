@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { QuillModule } from 'ngx-quill';
 import {
   AnnouncementTargetStudent,
   AnnouncementDeliveryType,
@@ -19,7 +20,7 @@ interface BatchSummary {
 @Component({
   selector: 'app-admin-announcements',
   standalone: true,
-  imports: [CommonModule, FormsModule, TestAccountBadgeComponent],
+  imports: [CommonModule, FormsModule, QuillModule, TestAccountBadgeComponent],
   templateUrl: './admin-announcements.component.html',
   styleUrls: ['./admin-announcements.component.css']
 })
@@ -31,6 +32,16 @@ export class AdminAnnouncementsComponent implements OnInit {
   sendMode: 'instant' | 'schedule' = 'instant';
   title = '';
   body = '';
+  readonly quillModules = {
+    toolbar: [
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      [{ header: [1, 2, 3, false] }],
+      [{ color: [] }, { background: [] }],
+      ['blockquote', 'link'],
+      ['clean']
+    ]
+  };
   scheduleAt = '';
   batches: BatchSummary[] = [];
   selectedBatches: string[] = [];
@@ -188,9 +199,22 @@ export class AdminAnnouncementsComponent implements OnInit {
   }
 
   get previewBody(): string {
-    const text = this.body.trim();
+    const text = this.getPlainText(this.body).trim();
     if (!text) return 'Your message preview appears here.';
     return text.length > 70 ? `${text.slice(0, 70)}...` : text;
+  }
+
+  getPlainText(value: string): string {
+    const html = String(value || '').trim();
+    if (!html) return '';
+    // If user pasted plain text, return it as-is.
+    if (!/[<>]/.test(html)) return html;
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return String(doc?.body?.textContent || '').replace(/\s+\n/g, '\n');
+    } catch {
+      return html.replace(/<[^>]*>/g, ' ');
+    }
   }
 
   formatBytes(size: number | undefined): string {
@@ -251,7 +275,7 @@ export class AdminAnnouncementsComponent implements OnInit {
       this.notify.info('WhatsApp announcements will be added next.');
       return;
     }
-    if (!this.title.trim() || !this.body.trim()) {
+    if (!this.title.trim() || !this.getPlainText(this.body).trim()) {
       this.notify.warning('Title and body are required.');
       return;
     }
@@ -339,6 +363,10 @@ export class AdminAnnouncementsComponent implements OnInit {
 
     if (!payload.title || !payload.body) {
       this.notify.warning('Title and body are required.');
+      return;
+    }
+    if (!this.getPlainText(payload.body).trim()) {
+      this.notify.warning('Body cannot be empty.');
       return;
     }
 

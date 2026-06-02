@@ -22,7 +22,12 @@
 
         <div class="ann-field">
           <label>Announcement Body</label>
-          <textarea [(ngModel)]="body" rows="8" maxlength="5000" placeholder="Type your announcement here..."></textarea>
+          <quill-editor
+            class="ann-editor"
+            [(ngModel)]="body"
+            [modules]="quillModules"
+            placeholder="Type your announcement here..."
+          ></quill-editor>
         </div>
 
         <div class="ann-email-box">
@@ -162,7 +167,7 @@
         <h3>{{ item.title }}</h3>
         <span>{{ item.createdAt | date: 'medium' }}</span>
       </div>
-      <p class="ann-item-body">{{ item.body }}</p>
+      <div class="ann-item-body ann-richtext" [innerHTML]="item.body"></div>
       <div class="ann-meta">
         <span>Type: {{ item.deliveryType === 'website_email' ? 'Website + Email' : 'Website' }}</span>
         <span *ngIf="item.scheduledPublishAt && item.isActive === false" class="ann-meta__pill">
@@ -230,7 +235,12 @@
 
       <div class="ann-field">
         <label>Body</label>
-        <textarea rows="7" maxlength="5000" [(ngModel)]="editForm.body"></textarea>
+        <quill-editor
+          class="ann-editor"
+          [(ngModel)]="editForm.body"
+          [modules]="quillModules"
+          placeholder="Update announcement body..."
+        ></quill-editor>
       </div>
 
       <div class="ann-field">
