@@ -130,6 +130,7 @@ const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiv
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
 const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
+const { scheduleGoogleSheetSync } = require('./jobs/googleSheetSyncJob');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
@@ -372,6 +373,9 @@ app.use('/api/class-submissions', classSubmissionRoutes);
 const teacherResourceRoutes = require('./routes/teacherResources');
 app.use('/api/teacher-resources', teacherResourceRoutes);
 
+const googleSheetSyncRoutes = require('./routes/googleSheetSync');
+app.use('/api/google-sheet', googleSheetSyncRoutes);
+
 // Payment Hub v2
 const registerPaymentModule = require('./modules/payments-v2/backend/register');
 registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: true });
@@ -471,6 +475,7 @@ connectMongoDb()
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
+      scheduleGoogleSheetSync();
     });
   })
   .catch((err) => {

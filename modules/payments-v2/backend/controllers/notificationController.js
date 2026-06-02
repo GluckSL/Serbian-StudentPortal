@@ -10,14 +10,18 @@ const listMine = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Admin access required' });
     }
 
-    const { page = 1, limit = 50, unreadOnly, type } = req.query;
+    const { page = 1, limit = 50, unreadOnly, type, batchLevel, studentStatus } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
     const filter = { recipientId: req.user.id };
     if (String(unreadOnly) === 'true') filter.isRead = false;
     if (type && String(type).trim()) filter.type = String(type).trim();
+    if (batchLevel && String(batchLevel).trim()) filter['metadata.level'] = String(batchLevel).trim();
+    if (studentStatus && String(studentStatus).trim()) filter['metadata.studentStatus'] = String(studentStatus).trim().toUpperCase();
 
     const unreadFilter = { recipientId: req.user.id, isRead: false };
     if (type && String(type).trim()) unreadFilter.type = String(type).trim();
+    if (batchLevel && String(batchLevel).trim()) unreadFilter['metadata.level'] = String(batchLevel).trim();
+    if (studentStatus && String(studentStatus).trim()) unreadFilter['metadata.studentStatus'] = String(studentStatus).trim().toUpperCase();
 
     const [items, total, unreadCount] = await Promise.all([
       PaymentNotification.find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
@@ -45,8 +49,10 @@ const unreadCount = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Admin access required' });
     }
     const filter = { recipientId: req.user.id, isRead: false };
-    if (req.query.type && String(req.query.type).trim()) {
-      filter.type = String(req.query.type).trim();
+    if (req.query.type && String(req.query.type).trim()) filter.type = String(req.query.type).trim();
+    if (req.query.batchLevel && String(req.query.batchLevel).trim()) filter['metadata.level'] = String(req.query.batchLevel).trim();
+    if (req.query.studentStatus && String(req.query.studentStatus).trim()) {
+      filter['metadata.studentStatus'] = String(req.query.studentStatus).trim().toUpperCase();
     }
     const count = await PaymentNotification.countDocuments(filter);
     res.json({ success: true, data: { count } });

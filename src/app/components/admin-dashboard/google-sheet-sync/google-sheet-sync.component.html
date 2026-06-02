@@ -1,0 +1,239 @@
+<div class="sync-container">
+  <h2>Google Sheet Sync</h2>
+
+  <!-- Status Banner -->
+  @if (!status?.sheetConfigured) {
+    <div class="alert alert-warning">
+      ⚠️ Google Sheets not configured. Set <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code>,
+      <code>GOOGLE_PRIVATE_KEY</code>, and <code>GOOGLE_SPREADSHEET_ID</code> in .env
+    </div>
+  }
+
+  <!-- Message -->
+  @if (message) {
+    <div class="alert" [class.alert-success]="messageType === 'success'"
+         [class.alert-error]="messageType === 'error'"
+         [class.alert-info]="messageType === 'info'">
+      {{ message }}
+    </div>
+  }
+
+  <!-- Status Cards -->
+  <div class="status-grid">
+    <div class="status-card">
+      <div class="card-label">Total Students</div>
+      <div class="card-value">{{ status?.totalStudents ?? '...' }}</div>
+    </div>
+    <div class="status-card">
+      <div class="card-label">OCR Completed</div>
+      <div class="card-value">{{ status?.ocrCompleted ?? '...' }}</div>
+    </div>
+    <div class="status-card">
+      <div class="card-label">OCR Pending</div>
+      <div class="card-value">{{ status?.ocrPending ?? '...' }}</div>
+    </div>
+    <div class="status-card">
+      <div class="card-label">Synced to Sheet</div>
+      <div class="card-value">{{ status?.syncedToSheet ?? '...' }}</div>
+    </div>
+  </div>
+
+  @if (status?.lastSyncTime) {
+    <p class="last-sync">Last sync: {{ status!.lastSyncTime | date:'medium' }}</p>
+  }
+
+  <!-- Action Buttons -->
+  <div class="actions">
+    <button class="btn btn-primary" (click)="triggerSync()" [disabled]="syncLoading || !status?.sheetConfigured">
+      {{ syncLoading ? 'Syncing...' : 'Sync to Google Sheets' }}
+    </button>
+    <button class="btn btn-secondary" (click)="runOcrAll()" [disabled]="ocrLoading">
+      {{ ocrLoading ? 'Processing...' : 'Run OCR for All Students' }}
+    </button>
+    <button class="btn btn-secondary" (click)="openStudentPicker()" [disabled]="ocrLoading">
+      Run OCR for Selected
+    </button>
+    <button class="btn btn-outline" (click)="loadStatus()" [disabled]="loading">
+      Refresh Status
+    </button>
+  </div>
+
+  <!-- Last Sync Result -->
+  @if (lastResult) {
+    <div class="result-box" [class.has-errors]="lastResult.errors.length">
+      <h3>Sync Result</h3>
+      <p>{{ lastResult.synced }} / {{ lastResult.totalStudents }} students synced</p>
+      @if (lastResult.errors.length) {
+        <div class="errors-list">
+          <h4>Errors ({{ lastResult.errors.length }})</h4>
+          <ul>
+            @for (e of lastResult.errors; track e.studentId) {
+              <li>{{ e.regNo }}: {{ e.error }}</li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Last OCR Result -->
+  @if (lastOcrResult) {
+    <div class="result-box" [class.has-errors]="lastOcrResult.errors">
+      <h3>OCR Batch Result</h3>
+      <p>{{ lastOcrResult.ok }} / {{ lastOcrResult.total }} processed successfully</p>
+      @if (lastOcrResult.errors) {
+        <span class="error-count">{{ lastOcrResult.errors }} failed</span>
+      }
+    </div>
+  }
+
+  <!-- Test OCR -->
+  <div class="test-section">
+    <h3>Test OCR Extraction</h3>
+    <p class="test-desc">Upload a file to test OCR without saving to database or S3.</p>
+    <div class="test-controls">
+      <input type="file" (change)="onTestFileSelected($event)" accept=".pdf,.jpg,.jpeg,.png" class="file-input" />
+      <select [(ngModel)]="testDocType" class="doc-type-select">
+        @for (t of testDocTypes; track t) {
+          <option [value]="t">{{ t || 'Auto-detect document type' }}</option>
+        }
+      </select>
+      <button class="btn btn-primary" (click)="runOcrTest()" [disabled]="!testFile || testLoading">
+        {{ testLoading ? 'Processing...' : 'Test OCR' }}
+      </button>
+    </div>
+
+    @if (testResult) {
+      <div class="test-result">
+        <div class="test-meta">
+          <strong>{{ testResult.fileName }}</strong> ({{ (testResult.fileSize / 1024).toFixed(1) }} KB) — {{ testResult.mimeType }}
+        </div>
+        <div class="test-columns">
+          <div class="test-col">
+            <h4>Raw Extracted Text</h4>
+            <pre class="test-text">{{ testResult.text || '(no text extracted)' }}</pre>
+          </div>
+          @if (getParsedEntries(testResult.parsed).length > 0) {
+            <div class="test-col">
+              <h4>Parsed Fields</h4>
+              <table class="parsed-table">
+                <tbody>
+                  @for (e of getParsedEntries(testResult.parsed); track e.key) {
+                    <tr><td class="parsed-key">{{ e.key }}</td><td>{{ e.value }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Recent Extractions -->
+  <div class="extractions-section">
+    <h3>Recent OCR Extractions</h3>
+    <div class="extractions-toolbar">
+      <input type="text" class="search-input" placeholder="Search by name, email or reg no..."
+             [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" />
+    </div>
+    @if (extractionsLoading) {
+      <p>Loading...</p>
+    } @else if (extractions.length === 0) {
+      <p class="empty">No extractions yet. Run OCR first.</p>
+    } @else {
+      <table class="extractions-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Reg No</th>
+            <th>Email</th>
+            <th>OCR Status</th>
+            <th>Documents Used</th>
+            <th>Last Synced</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (ext of extractions; track ext._id) {
+            <tr>
+              <td>{{ getCandidateName(ext) }}</td>
+              <td>{{ ext.studentId?.regNo || ext.regNo }}</td>
+              <td>{{ ext.studentId?.email || '-' }}</td>
+              <td>
+                <span class="badge" [class.badge-ok]="ext.ocrStatus === 'COMPLETED'"
+                      [class.badge-pending]="ext.ocrStatus === 'PENDING'"
+                      [class.badge-failed]="ext.ocrStatus === 'FAILED'">
+                  {{ ext.ocrStatus }}
+                </span>
+              </td>
+              <td>{{ ext.documentsUsed.length || 0 }}</td>
+              <td>{{ ext.lastSyncedToSheet ? (ext.lastSyncedToSheet | date:'short') : '-' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="pagination">
+        <span class="pagination-info">{{ totalItems }} total — Page {{ currentPage }} of {{ totalPages }}</span>
+        <div class="pagination-controls">
+          <button class="btn btn-sm" (click)="goToPage(1)" [disabled]="currentPage <= 1">&laquo;</button>
+          <button class="btn btn-sm" (click)="goToPage(currentPage - 1)" [disabled]="currentPage <= 1">&lsaquo;</button>
+          @for (p of pages; track $index) {
+            @if (p === -1) {
+              <span class="pagination-ellipsis">&hellip;</span>
+            } @else {
+              <button class="btn btn-sm" [class.btn-active]="p === currentPage" (click)="goToPage(p)">{{ p }}</button>
+            }
+          }
+          <button class="btn btn-sm" (click)="goToPage(currentPage + 1)" [disabled]="currentPage >= totalPages">&rsaquo;</button>
+          <button class="btn btn-sm" (click)="goToPage(totalPages)" [disabled]="currentPage >= totalPages">&raquo;</button>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Student Picker Modal -->
+@if (showStudentPicker) {
+  <div class="modal-overlay" (click)="closeStudentPicker()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <h3>Select Students for OCR</h3>
+
+      <input type="text" class="modal-search" placeholder="Search by name, email or reg no..."
+             [(ngModel)]="studentSearchQuery" (ngModelChange)="onStudentSearch()" autofocus />
+
+      <div class="modal-results">
+        @if (studentSearchLoading) {
+          <p class="modal-loading">Searching...</p>
+        } @else if (studentSearchResults.length === 0) {
+          <p class="modal-empty">{{ studentSearchQuery ? 'No students found.' : 'Type to search for students.' }}</p>
+        } @else {
+          <label class="modal-select-all">
+            <input type="checkbox" [checked]="isAllSelected()"
+                   (change)="toggleAllStudentsInResults()" />
+            <strong>{{ selectedOcrIds.size }} selected</strong> — Select all {{ studentSearchResults.length }}
+          </label>
+          <div class="modal-list">
+            @for (s of studentSearchResults; track s._id) {
+              <label class="modal-item">
+                <input type="checkbox" [checked]="isSelected(s._id)" (change)="toggleOcrStudent(s._id)" />
+                <span class="modal-item-name">{{ s.name }}</span>
+                <span class="modal-item-reg">{{ s.regNo }}</span>
+                <span class="modal-item-email">{{ s.email }}</span>
+              </label>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <span class="modal-count">{{ selectedOcrIds.size }} student{{ selectedOcrIds.size !== 1 ? 's' : '' }} selected</span>
+        <div class="modal-actions">
+          <button class="btn btn-outline" (click)="closeStudentPicker()">Cancel</button>
+          <button class="btn btn-primary" (click)="runOcrForSelected()" [disabled]="selectedOcrIds.size === 0">
+            Run OCR ({{ selectedOcrIds.size }})
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

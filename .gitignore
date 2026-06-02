@@ -95,3 +95,8 @@ scripts/
 
 # Batch files
 *.bat
+
+# OCR debug & temp artifacts
+ocr-debug/
+temp/
+eng.traineddata

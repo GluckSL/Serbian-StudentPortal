@@ -32,6 +32,12 @@ export class AdminAnnouncementsComponent implements OnInit {
   sendMode: 'instant' | 'schedule' = 'instant';
   title = '';
   body = '';
+  readonly titleQuillModules = {
+    toolbar: [
+      ['bold', 'italic', 'underline'],
+      ['clean']
+    ]
+  };
   readonly quillModules = {
     toolbar: [
       ['bold', 'italic', 'underline', 'strike'],
@@ -195,7 +201,7 @@ export class AdminAnnouncementsComponent implements OnInit {
   }
 
   get previewTitle(): string {
-    return this.title.trim() || 'Portal Notification';
+    return this.getPlainText(this.title).trim() || 'Portal Notification';
   }
 
   get previewBody(): string {
@@ -275,7 +281,8 @@ export class AdminAnnouncementsComponent implements OnInit {
       this.notify.info('WhatsApp announcements will be added next.');
       return;
     }
-    if (!this.title.trim() || !this.getPlainText(this.body).trim()) {
+    const titleText = this.getPlainText(this.title).trim();
+    if (!titleText || !this.getPlainText(this.body).trim()) {
       this.notify.warning('Title and body are required.');
       return;
     }
@@ -298,11 +305,11 @@ export class AdminAnnouncementsComponent implements OnInit {
       .create({
         channel: 'website',
         deliveryType: 'website_email',
-        title: this.title.trim(),
+        title: titleText,
         body: this.body.trim(),
         targetBatches: this.selectedBatches,
         // Website + Email is now the only supported send type.
-        emailSubject: this.title.trim(),
+        emailSubject: titleText,
         emailBody: this.body.trim(),
         scheduleAt: scheduleAtPayload,
         attachments: this.selectedFiles
@@ -352,12 +359,13 @@ export class AdminAnnouncementsComponent implements OnInit {
       return;
     }
 
+    const titleText = this.getPlainText(this.editForm.title).trim();
     const payload = {
       deliveryType: this.editForm.deliveryType,
-      title: String(this.editForm.title || '').trim(),
+      title: titleText,
       body: String(this.editForm.body || '').trim(),
       targetBatches,
-      emailSubject: this.editForm.deliveryType === 'website_email' ? String(this.editForm.title || '').trim() : '',
+      emailSubject: this.editForm.deliveryType === 'website_email' ? titleText : '',
       emailBody: this.editForm.deliveryType === 'website_email' ? String(this.editForm.body || '').trim() : ''
     };
 

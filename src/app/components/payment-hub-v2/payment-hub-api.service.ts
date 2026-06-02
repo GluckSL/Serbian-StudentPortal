@@ -236,6 +236,11 @@ export interface PaymentHubNotification {
     journeyDay?: number;
     dueAmount?: number;
     currency?: string;
+    studentStatus?: 'UNCERTAIN' | 'ONGOING' | 'COMPLETED' | 'WITHDREW' | string;
+    missedCount?: number;
+    missedItems?: string[];
+    absentCount?: number;
+    absentItems?: string[];
   };
   createdAt: string;
 }
@@ -594,6 +599,8 @@ export class PaymentHubApiService {
     limit?: number;
     unreadOnly?: boolean;
     type?: string;
+    batchLevel?: string;
+    studentStatus?: string;
   }): Observable<{
     success: boolean;
     data: PaymentHubNotification[];
