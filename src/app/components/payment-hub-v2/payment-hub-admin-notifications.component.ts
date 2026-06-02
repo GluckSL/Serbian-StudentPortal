@@ -1,5 +1,6 @@
 import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,6 +14,7 @@ import { PaymentNotificationNavService } from './payment-notification-nav.servic
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     RouterModule,
     MatButtonModule,
     MatIconModule,
@@ -34,6 +36,11 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
   page = 1;
   readonly pageSize = 10;
   filter: 'all' | 'unread' = 'all';
+  category: 'language' | 'exercises' | 'classes' = 'language';
+  batchLevel = '';
+  studentStatus = '';
+  readonly levelOptions = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  readonly studentStatusOptions = ['', 'ONGOING', 'COMPLETED', 'WITHDREW', 'UNCERTAIN'];
 
   constructor(
     private readonly api: PaymentHubApiService,
@@ -52,7 +59,9 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
         page: this.page,
         limit: this.pageSize,
         unreadOnly: this.filter === 'unread',
-        type: 'JOURNEY_LANGUAGE_FEE_DUE',
+        type: this.selectedType,
+        batchLevel: this.batchLevel || undefined,
+        studentStatus: this.studentStatus || undefined,
       })
       .subscribe({
         next: (res) => {
@@ -73,6 +82,17 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
 
   setFilter(mode: 'all' | 'unread'): void {
     this.filter = mode;
+    this.page = 1;
+    this.load();
+  }
+
+  setCategory(category: 'language' | 'exercises' | 'classes'): void {
+    this.category = category;
+    this.page = 1;
+    this.load();
+  }
+
+  onFilterChange(): void {
     this.page = 1;
     this.load();
   }
@@ -105,7 +125,7 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
     this.api.syncJourneyDueNotifications().subscribe({
       next: () => {
         this.syncing = false;
-        this.snack.open('Journey due alerts refreshed', 'OK', { duration: 3000 });
+        this.snack.open('Notifications refreshed', 'OK', { duration: 3000 });
         this.load();
       },
       error: (e) => {
@@ -140,6 +160,14 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
 
   dueLabel(n: PaymentHubNotification): string {
     const m = n.metadata;
+    if (n.type === 'JOURNEY_EXERCISE_MISSED_TODAY') {
+      const count = Number(m?.missedCount || m?.missedItems?.length || 0);
+      return count > 0 ? `${count} missed` : '—';
+    }
+    if (n.type === 'JOURNEY_CLASS_ABSENT_TODAY') {
+      const count = Number(m?.absentCount || m?.absentItems?.length || 0);
+      return count > 0 ? `${count} absent` : '—';
+    }
     if (m?.currency != null && m?.dueAmount != null) {
       return `${m.currency} ${Math.round(m.dueAmount).toLocaleString()}`;
     }
@@ -149,5 +177,11 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
   journeyDay(n: PaymentHubNotification): number | null {
     const d = n.metadata?.journeyDay;
     return d != null && Number.isFinite(Number(d)) ? Number(d) : null;
+  }
+
+  get selectedType(): string {
+    if (this.category === 'exercises') return 'JOURNEY_EXERCISE_MISSED_TODAY';
+    if (this.category === 'classes') return 'JOURNEY_CLASS_ABSENT_TODAY';
+    return 'JOURNEY_LANGUAGE_FEE_DUE';
   }
 }

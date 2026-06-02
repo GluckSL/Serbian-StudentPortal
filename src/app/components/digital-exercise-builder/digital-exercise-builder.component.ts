@@ -13,7 +13,6 @@ import {
 import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { map, switchMap } from 'rxjs';
 import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
@@ -2111,39 +2110,28 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
 
     const sorted = [...this.selectedIndices].sort((a, b) => a - b);
-    const movedQuestions = sorted.map((i) => structuredClone(this.questions[i]) as BuilderQuestion);
+    const movedCount = sorted.length;
     const remainingQuestions = this.questions.filter((_, i) => !this.selectedIndices.has(i));
-
-    const newExercisePayload: Partial<DigitalExercise> = {
-      title: this.splitTitle.trim(),
-      description: this.splitDescription.trim(),
-      targetLanguage: this.splitTargetLanguage,
-      nativeLanguage: this.splitNativeLanguage,
-      level: this.splitLevel as any,
-      category: this.splitCategory,
-      difficulty: this.splitDifficulty,
-      estimatedDuration: this.splitEstimatedDuration,
-      tags: this.splitTags.split(',').map((t) => t.trim()).filter(Boolean),
-      courseDay,
-      sequenceLetter,
-      visibleToStudents: this.splitVisibleToStudents,
-      questions: this.normalizeQuestionsForApi(movedQuestions) as any
-    };
-
-    const updatePayload: Partial<DigitalExercise> = {
-      questions: this.normalizeQuestionsForApi(remainingQuestions) as any
-    };
 
     this.splitSaving = true;
     this.exerciseService
-      .createExercise(newExercisePayload)
-      .pipe(
-        switchMap((created) =>
-          this.exerciseService.updateExercise(this.exerciseId!, updatePayload).pipe(map(() => created))
-        )
-      )
+      .splitQuestionsToNewExercise(this.exerciseId!, {
+        questionIndices: sorted,
+        title: this.splitTitle.trim(),
+        description: this.splitDescription.trim(),
+        targetLanguage: this.splitTargetLanguage,
+        nativeLanguage: this.splitNativeLanguage,
+        level: this.splitLevel,
+        category: this.splitCategory,
+        difficulty: this.splitDifficulty,
+        estimatedDuration: this.splitEstimatedDuration,
+        tags: this.splitTags.split(',').map((t) => t.trim()).filter(Boolean),
+        courseDay,
+        sequenceLetter,
+        visibleToStudents: this.splitVisibleToStudents
+      })
       .subscribe({
-        next: (created) => {
+        next: (res) => {
           this.splitSaving = false;
           this.questions = remainingQuestions;
           this.clearSelection();
@@ -2151,11 +2139,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           if (this.expandedQuestion >= this.questions.length) {
             this.expandedQuestion = Math.max(0, this.questions.length - 1);
           }
-          const newId = created._id;
+          const newId = res.exercise?._id;
           this.showSuccess(
             newId
-              ? `Created new exercise with ${movedQuestions.length} question(s). This exercise was updated.`
-              : `Moved ${movedQuestions.length} question(s) to a new exercise.`
+              ? `Created new exercise with ${movedCount} question(s). This exercise was updated.`
+              : `Moved ${movedCount} question(s) to a new exercise.`
           );
         },
         error: (err) => {

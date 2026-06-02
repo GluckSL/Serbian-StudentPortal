@@ -33,6 +33,11 @@ const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const {
+  attachInheritedAttemptsForStudent,
+  resolveInheritedAttempt,
+  isInheritedPassing
+} = require('../services/exerciseSplitInheritance.service');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
 const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
@@ -1339,7 +1344,7 @@ async function checkSequenceLock(studentId, exercise) {
     sequenceLetter: { $lt: sl, $ne: null, $exists: true },
     visibleToStudents: true,
     isDeleted: { $ne: true }
-  }).select('_id sequenceLetter title').lean();
+  }).select('_id sequenceLetter title splitLineage questions').lean();
 
   if (!priorExercises.length) return { locked: false, previousLetter: null, previousTitle: null };
 
@@ -1353,6 +1358,14 @@ async function checkSequenceLock(studentId, exercise) {
   }).select('exerciseId').lean();
 
   const passedIds = new Set(completedAttempts.map((a) => a.exerciseId.toString()));
+  for (const prior of priorExercises) {
+    if (passedIds.has(prior._id.toString())) continue;
+    if (!prior.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, prior);
+    if (isInheritedPassing(inherited)) {
+      passedIds.add(prior._id.toString());
+    }
+  }
   const unpassedPriors = priorExercises.filter((e) => !passedIds.has(e._id.toString()));
 
   if (!unpassedPriors.length) return { locked: false, previousLetter: null, previousTitle: null };
@@ -1395,7 +1408,7 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     isActive: true,
     isDeleted: { $ne: true }
   })
-    .select('_id courseDay sequenceLetter title')
+    .select('_id courseDay sequenceLetter title splitLineage questions')
     .lean();
 
   if (!dayExercises.length) {
@@ -1416,6 +1429,14 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     .select('exerciseId')
     .lean();
   const passedIds = new Set(completedAttempts.map((a) => String(a.exerciseId)));
+  for (const d of dayExercises) {
+    if (passedIds.has(String(d._id))) continue;
+    if (!d.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, d);
+    if (isInheritedPassing(inherited)) {
+      passedIds.add(String(d._id));
+    }
+  }
 
   const byDay = {};
   dayExercises.forEach((item) => {
@@ -1553,9 +1574,13 @@ router.get('/', verifyToken, async (req, res) => {
           'averageScore',
           'courseDay',
           'sequenceLetter',
+          'splitLineage',
           'createdAt',
           'updatedAt',
-          'questions.type'
+          'questions.type',
+          'questions.points',
+          'questions.subQuestions.type',
+          'questions.subQuestions.points'
         ].join(' ')
       )
       .sort({ createdAt: -1 })
@@ -1645,6 +1670,8 @@ router.get('/', verifyToken, async (req, res) => {
       exercises.forEach(ex => {
         ex.studentAttempt = attemptMap[ex._id.toString()] || null;
       });
+
+      await attachInheritedAttemptsForStudent(req.user.id, exercises);
 
       // Attach sequence lock status in one batched pass.
       await attachSequenceLockStatusForList(req.user.id, exercises);
@@ -1860,7 +1887,7 @@ router.get('/:id', verifyToken, async (req, res) => {
       });
     }
 
-    // Attach student's best attempt if student
+    // Attach student's best attempt if student (or inherited completion from split source)
     if (req.user.role === 'STUDENT') {
       const bestAttempt = await ExerciseAttempt.findOne({
         studentId: req.user.id,
@@ -1868,6 +1895,10 @@ router.get('/:id', verifyToken, async (req, res) => {
         status: 'completed'
       }).sort({ scorePercentage: -1 }).lean();
       exercise.studentAttempt = bestAttempt;
+      if (!exercise.studentAttempt) {
+        const inherited = await resolveInheritedAttempt(req.user.id, exercise);
+        if (inherited) exercise.studentAttempt = inherited;
+      }
     }
 
     // Repair legacy rows that stored presigned S3 URLs (they expire and break images).
@@ -2085,6 +2116,127 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
     res.status(500).json({ error: err.message });
   }
 });
+
+// POST /api/digital-exercises/:id/split-questions — Move selected questions into a new exercise (atomic)
+router.post(
+  '/:id/split-questions',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const source = await DigitalExercise.findById(req.params.id);
+      if (!source || source.isDeleted) {
+        return res.status(404).json({ error: 'Exercise not found' });
+      }
+
+      if (req.user.role === 'TEACHER' && source.createdBy.toString() !== req.user.id) {
+        return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+      }
+
+      const rawIndices = Array.isArray(req.body.questionIndices) ? req.body.questionIndices : [];
+      const indexSet = new Set();
+      for (const raw of rawIndices) {
+        const n = parseInt(raw, 10);
+        if (Number.isInteger(n) && n >= 0) indexSet.add(n);
+      }
+      const sortedIndices = [...indexSet].sort((a, b) => a - b);
+      const totalQ = source.questions?.length || 0;
+
+      if (!sortedIndices.length) {
+        return res.status(400).json({ error: 'Select at least one question to move' });
+      }
+      if (sortedIndices.some((i) => i >= totalQ)) {
+        return res.status(400).json({ error: 'Invalid question index' });
+      }
+      if (sortedIndices.length >= totalQ) {
+        return res.status(400).json({ error: 'Leave at least one question in the source exercise' });
+      }
+
+      const title = String(req.body.title || '').trim();
+      const description = String(req.body.description || '').trim();
+      if (!title || !description) {
+        return res.status(400).json({ error: 'Title and description are required for the new exercise' });
+      }
+
+      let courseDay = null;
+      if (req.body.courseDay != null && req.body.courseDay !== '') {
+        const cd = parseInt(req.body.courseDay, 10);
+        if (!Number.isFinite(cd) || cd < 1 || cd > 200) {
+          return res.status(400).json({ error: 'Journey day must be empty or a number from 1 to 200' });
+        }
+        courseDay = cd;
+      }
+
+      const rawLetter = String(req.body.sequenceLetter || '').trim().toLowerCase();
+      const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
+
+      const movedPlain = sortedIndices.map((i) => {
+        const q = source.questions[i];
+        return q && typeof q.toObject === 'function' ? q.toObject() : { ...q };
+      });
+
+      const remainingPlain = source.questions
+        .map((q, i) => ({ q, i }))
+        .filter(({ i }) => !indexSet.has(i))
+        .map(({ q }) => (q && typeof q.toObject === 'function' ? q.toObject() : { ...q }));
+
+      const questionSources = sortedIndices.map((i) => {
+        const q = source.questions[i];
+        const id = q && q._id ? q._id : undefined;
+        return {
+          sourceQuestionIndex: i,
+          ...(id ? { sourceQuestionId: id } : {})
+        };
+      });
+
+      const visibleToStudents = req.body.visibleToStudents === true
+        || String(req.body.visibleToStudents) === 'true';
+
+      const newExerciseData = canonicalizeExerciseForStorage({
+        title,
+        description,
+        targetLanguage: req.body.targetLanguage || source.targetLanguage,
+        nativeLanguage: req.body.nativeLanguage || source.nativeLanguage,
+        level: req.body.level || source.level,
+        category: req.body.category || source.category,
+        difficulty: req.body.difficulty || source.difficulty,
+        estimatedDuration: req.body.estimatedDuration != null
+          ? req.body.estimatedDuration
+          : source.estimatedDuration,
+        tags: Array.isArray(req.body.tags) ? req.body.tags : [],
+        courseDay,
+        sequenceLetter,
+        visibleToStudents,
+        questions: normalizeQuestionContexts(movedPlain),
+        splitLineage: {
+          sourceExerciseId: source._id,
+          questionSources
+        },
+        createdBy: req.user.id,
+        ...(visibleToStudents ? { publishedAt: new Date() } : {})
+      });
+
+      const newExercise = new DigitalExercise(newExerciseData);
+      await newExercise.save();
+
+      source.questions = normalizeQuestionContexts(remainingPlain);
+      source.lastUpdatedBy = req.user.id;
+      source.updatedAt = new Date();
+      canonicalizeExerciseForStorage(source);
+      source.markModified('questions');
+      await source.save();
+
+      const created = await DigitalExercise.findById(newExercise._id).lean();
+      res.status(201).json({
+        exercise: created,
+        sourceExerciseId: source._id
+      });
+    } catch (err) {
+      console.error('POST /digital-exercises/:id/split-questions error:', err);
+      res.status(400).json({ error: err.message || 'Failed to split questions' });
+    }
+  }
+);
 
 // POST /api/digital-exercises  — Create exercise
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {

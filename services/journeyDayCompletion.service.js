@@ -15,6 +15,10 @@ const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { batchesAlign } = require('../utils/effectiveStudentBatch');
+const {
+  resolveInheritedAttempt,
+  isInheritedPassing
+} = require('./exerciseSplitInheritance.service');
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -48,7 +52,7 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     isActive: true,
     courseDay: day
   })
-    .select('_id title')
+    .select('_id title splitLineage questions')
     .lean();
 
   const exerciseIds = exercises.map((e) => e._id);
@@ -61,6 +65,14 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     : [];
 
   const completedExerciseIdSet = new Set(completedAttempts.map((id) => String(id)));
+  for (const ex of exercises) {
+    if (completedExerciseIdSet.has(String(ex._id))) continue;
+    if (!ex.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, ex);
+    if (isInheritedPassing(inherited)) {
+      completedExerciseIdSet.add(String(ex._id));
+    }
+  }
   const exerciseDone = completedExerciseIdSet.size;
   const exerciseTotal = exerciseIds.length;
   const incompleteExercises = exercises

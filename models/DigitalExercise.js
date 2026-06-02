@@ -320,6 +320,18 @@ const DigitalExerciseSchema = new mongoose.Schema({
    */
   watchOnlyMode: { type: Boolean, default: false },
 
+  /**
+   * Set when this exercise was created by splitting questions from another exercise.
+   * Used to inherit completion from the student's completed attempt on the source.
+   */
+  splitLineage: {
+    sourceExerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'DigitalExercise' },
+    questionSources: [{
+      sourceQuestionIndex: { type: Number, required: true },
+      sourceQuestionId: { type: mongoose.Schema.Types.ObjectId }
+    }]
+  },
+
   // Metadata
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

@@ -12,7 +12,8 @@
     "build:dev": "ng build --configuration development",
     "build:watch": "ng build --watch --configuration development",
     "deploy:prepare": "node scripts/prepare-production-deploy.js",
-    "test": "ng test"
+    "test": "ng test",
+    "test:split-inheritance": "node --test tests/exerciseSplitInheritance.test.js"
   },
   "private": true,
   "dependencies": {

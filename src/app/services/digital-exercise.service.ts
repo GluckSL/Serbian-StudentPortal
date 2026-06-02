@@ -263,6 +263,11 @@ export interface DigitalExercise {
    * video clip and tap "Next". Controlled by admin only (default: false).
    */
   watchOnlyMode?: boolean;
+  /** Present when created by splitting questions from another exercise. */
+  splitLineage?: {
+    sourceExerciseId?: string;
+    questionSources?: Array<{ sourceQuestionIndex: number; sourceQuestionId?: string }>;
+  };
 }
 
 export interface ExerciseAttempt {
@@ -280,6 +285,10 @@ export interface ExerciseAttempt {
   wrongCount?: number;
   correctCount?: number;
   totalQuestions?: number;
+  /** True when completion is derived from a completed attempt on the split source exercise */
+  inheritedFromSource?: boolean;
+  sourceExerciseId?: string;
+  sourceAttemptId?: string;
 }
 
 /** Per-question row from my-review / staff attempt detail APIs */
@@ -469,6 +478,32 @@ export class DigitalExerciseService {
 
   createExercise(exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {
     return this.http.post<DigitalExercise>(this.apiUrl, exercise, { withCredentials: true });
+  }
+
+  /** Move selected questions into a new exercise (atomic; records split lineage). */
+  splitQuestionsToNewExercise(
+    sourceExerciseId: string,
+    payload: {
+      questionIndices: number[];
+      title: string;
+      description: string;
+      targetLanguage?: string;
+      nativeLanguage?: string;
+      level?: string;
+      category?: string;
+      difficulty?: string;
+      estimatedDuration?: number;
+      tags?: string[];
+      courseDay?: number | null;
+      sequenceLetter?: string | null;
+      visibleToStudents?: boolean;
+    }
+  ): Observable<{ exercise: DigitalExercise; sourceExerciseId: string }> {
+    return this.http.post<{ exercise: DigitalExercise; sourceExerciseId: string }>(
+      `${this.apiUrl}/${sourceExerciseId}/split-questions`,
+      payload,
+      { withCredentials: true }
+    );
   }
 
   updateExercise(id: string, exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {
