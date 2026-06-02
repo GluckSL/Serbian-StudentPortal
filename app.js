@@ -45,13 +45,11 @@ const allowedOrigins = [
   'https://www.gluckstudentsportal.com'
 ]; // frontend origins
 
-const isProduction = process.env.NODE_ENV === 'production';
-
-/** In dev, allow any localhost / 127.0.0.1 port so ng serve --port works. */
+/** Allow any localhost / 127.0.0.1 port (ng serve, Karma :9876, etc.). Safe: browsers only send these origins from pages on the same machine. */
 function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
-  if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
     return true;
   }
   return false;
