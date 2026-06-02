@@ -3,6 +3,7 @@
 const SprechenExamSession = require('../models/SprechenExamSession');
 const { presignS3Url } = require('../config/presign');
 const { scoreTurn } = require('./sprechenEvaluatorService');
+const { resolveModuleRubric } = require('./sprechenRubricDefaults');
 const {
   answerStudentQuestion,
   askStudentQuestion,
@@ -532,7 +533,8 @@ async function processTurn(session, module, transcript, durationMs) {
   });
 
   // ── 2. Evaluate silently (async, non-blocking session flow) ───────────────
-  const rubricTeil = module.rubric && module.rubric[currentPhaseDef.evalTeil];
+  const rubric = resolveModuleRubric(module);
+  const rubricTeil = rubric && rubric[currentPhaseDef.evalTeil];
   const criteria = (rubricTeil && rubricTeil.criteria) || [];
 
   const evalResult = await scoreTurn({
@@ -731,7 +733,8 @@ function _getCurrentState(session, module) {
  * Finalize session — compile scores, mark completed.
  */
 async function completeSession(session, module) {
-  const scores = compileTeilScores(session.turns, module.rubric, module.passThreshold);
+  const rubric = resolveModuleRubric(module);
+  const scores = compileTeilScores(session.turns, rubric, module.passThreshold);
   session.scores = scores;
   session.completed = true;
   session.completedAt = new Date();

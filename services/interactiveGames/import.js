@@ -4,6 +4,7 @@ const GameQuestion = require('../../models/GameQuestion');
 const GameLevel = require('../../models/GameLevel');
 const GameSet = require('../../models/GameSet');
 const { germanUppercase, trimGermanWord } = require('../../utils/germanText');
+const genderStackService = require('./genderStack');
 
 function normalizeKey(key) {
   return String(key || '')
@@ -135,6 +136,98 @@ function validateLevelRow(row, index) {
   };
 }
 
+function validateGenderStackRow(row, index) {
+  const errors = [];
+  const word = trimGermanWord(row.word);
+  const translation = String(row.translation || row.hint || '').trim();
+  const articleGender = genderStackService.normalizeGender(
+    row.article_gender || row.articlegender || row.gender
+  );
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Gender Stack`);
+  if (!translation) errors.push(`Row ${index + 1}: "translation" column is required for Gender Stack`);
+  if (!articleGender) {
+    errors.push(`Row ${index + 1}: "article_gender" must be der, die, or das`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      translation,
+      articleGender,
+      audioUrl: String(row.audio_url || row.audiourl || '').trim() || null,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function flapjugationTokenColumns() {
+  return ['ich', 'du', 'er_sie_es', 'wir', 'ihr', 'sie_formal'];
+}
+
+function readFlapjugationTokens(row) {
+  const cols = flapjugationTokenColumns();
+  const legacy = [
+    row.conjugation_1, row.conjugation_2, row.conjugation_3,
+    row.conjugation_4, row.conjugation_5, row.conjugation_6,
+  ];
+  return cols.map((col, i) => {
+    const alt = col === 'er_sie_es' ? row['er/sie/es'] : null;
+    return String(row[col] ?? alt ?? legacy[i] ?? '').trim();
+  });
+}
+
+function validateFlapjugationRow(row, index) {
+  const errors = [];
+  const word = trimGermanWord(row.word || row.infinitive);
+  const translation = String(row.translation || '').trim();
+  const tokens = readFlapjugationTokens(row);
+
+  if (!word) errors.push(`Row ${index + 1}: "word" (infinitive) is required for Flapjugation`);
+  if (!translation) errors.push(`Row ${index + 1}: "translation" is required for Flapjugation`);
+  tokens.forEach((t, i) => {
+    if (!t) {
+      const label = flapjugationTokenColumns()[i];
+      errors.push(`Row ${index + 1}: "${label}" conjugation is required`);
+    }
+  });
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      translation,
+      tokens,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function validateWhackawortRow(row, index) {
+  const errors = [];
+  const word = trimGermanWord(row.word);
+  const translation = String(row.translation || '').trim();
+  const category = String(row.category || '').trim();
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Whack-a-Wort`);
+  if (!translation) errors.push(`Row ${index + 1}: "translation" column is required for Whack-a-Wort`);
+  if (!category) errors.push(`Row ${index + 1}: "category" column is required for Whack-a-Wort`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      translation,
+      category,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
 function parseRows(rows, gameType, importType) {
   const normalized = rows.map(r => normalizeRow(r));
   const results = [];
@@ -181,6 +274,27 @@ function parseRows(rows, gameType, importType) {
             if (seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word "${key}"`);
             else seen.add(key);
           }
+        }
+      } else if (gameType === 'gender_stack') {
+        parsed = validateGenderStackRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'flapjugation') {
+        parsed = validateFlapjugationRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate infinitive`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'whackawort') {
+        parsed = validateWhackawortRow(row, i);
+        if (parsed.valid) {
+          const key = `${parsed.doc?.word}|${parsed.doc?.category}`.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word in category`);
+          else if (key) seen.add(key);
         }
       } else {
         parsed = { valid: false, errors: [`Row ${i + 1}: unsupported game type "${gameType}"`], doc: null };
@@ -295,6 +409,46 @@ function getImportTemplate(gameType) {
     return [
       { front: 'Apfel', back: 'Apple', image_url: '', audio_url: '', order: 0 },
       { front: 'Banane', back: 'Banana', image_url: '', audio_url: '', order: 1 },
+    ];
+  }
+  if (gameType === 'gender_stack') {
+    return [
+      { word: 'Tisch', translation: 'table', article_gender: 'der', audio_url: '', order: 0 },
+      { word: 'Lampe', translation: 'lamp', article_gender: 'die', audio_url: '', order: 1 },
+      { word: 'Buch', translation: 'book', article_gender: 'das', audio_url: '', order: 2 },
+    ];
+  }
+  if (gameType === 'flapjugation') {
+    return [
+      {
+        word: 'spielen',
+        translation: 'to play',
+        ich: 'spiele',
+        du: 'spielst',
+        er_sie_es: 'spielt',
+        wir: 'spielen',
+        ihr: 'spielt',
+        sie_formal: 'spielen',
+        order: 0,
+      },
+      {
+        word: 'sein',
+        translation: 'to be',
+        ich: 'bin',
+        du: 'bist',
+        er_sie_es: 'ist',
+        wir: 'sind',
+        ihr: 'seid',
+        sie_formal: 'sind',
+        order: 1,
+      },
+    ];
+  }
+  if (gameType === 'whackawort') {
+    return [
+      { word: 'Apfel', translation: 'apple', category: 'Food', order: 0 },
+      { word: 'Hund', translation: 'dog', category: 'Animals', order: 1 },
+      { word: 'Auto', translation: 'car', category: 'Transport', order: 2 },
     ];
   }
   return [];

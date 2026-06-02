@@ -1,40 +1,36 @@
 .ph-ccy-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 7px;
-  border-radius: 6px;
+  gap: 0;
+  padding: 0;
+  border-radius: 0;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.2;
   vertical-align: middle;
   flex-shrink: 0;
+  background: transparent;
+  color: #64748b;
 }
 
 .ph-ccy-badge-symbol {
-  font-size: 11px;
-  font-weight: 800;
+  display: none;
 }
 
 .ph-ccy-badge-code {
-  font-size: 9px;
+  font-size: 10px;
   opacity: 0.95;
 }
 
 .ph-ccy-badge--lkr {
-  background: #dbeafe;
-  color: #1e40af;
+  background: transparent;
+  color: #64748b;
 }
 
 .ph-ccy-badge--inr {
-  background: #ffedd5;
-  color: #c2410c;
-}
-
-.ph-ccy-badge--eur {
-  background: #ede9fe;
-  color: #5b21b6;
+  background: transparent;
+  color: #64748b;
 }
 
 .ph-ccy-inline {
@@ -56,7 +52,7 @@
 
 .ph-currency-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   gap: 8px;
   padding: 5px 0;
@@ -65,6 +61,13 @@
   &:last-child {
     border-bottom: none;
   }
+}
+
+/* Table cells: keep badge + amount together (no wide space-between gap). */
+.ph-currency-row--compact {
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 2px 0;
 }
 
 .ph-currency-value {

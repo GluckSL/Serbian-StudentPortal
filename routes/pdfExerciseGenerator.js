@@ -651,7 +651,7 @@ CRITICAL RULES (MANDATORY)
 
 4. INSTRUCTION + BLOCK TEXT
    Each exercise MUST include:
-   - instruction_de (German, copied verbatim from source)
+   - instruction_de (German instruction text — copied verbatim from the source; if the block starts with an "Instruction:" or "Anweisung:" label, extract the text AFTER that label as instruction_de)
    - instruction_en (English, copied verbatim if present in source; otherwise "")
    - content: the FULL raw text of this exercise block from the document (every content line for this Übung), verbatim — never summarize or omit (required for downstream deterministic parsing)
 
@@ -659,6 +659,9 @@ CRITICAL RULES (MANDATORY)
    In each question's "question" field put ONLY the sentence with underscore blanks — no leading item numbers ("1.", "2)").
    If a line ends with "→ ____" or "-> ____" where ONLY underscores follow the arrow, omit that arrow and gap unless the answer key gives a separate translation answer for it (layout scaffold, not a second graded blank).
    Optional Beispiel / Example lines for the exercise → put verbatim in an "example" field on the first question row of that exercise.
+
+5b. EXAMPLE FIELD (ALL TYPES)
+   If the exercise block contains a worked example line labelled "Beispiel:", "Example:", "z.B.", or similar, copy it verbatim into the "example" field on the FIRST question row of that exercise block (regardless of exercise type — applies to mcq, true_false, short_answer, fill_in_blank, etc.). Leave "example" as "" on all subsequent rows.
 
 6. ANSWER MAPPING (VERY IMPORTANT)
    If a LÖSUNGSSCHLÜSSEL / Answer Key section exists:
@@ -1187,7 +1190,8 @@ function flattenExtractionResult(parsed) {
             question: String(q.question || ''),
             options,
             correctAnswerIndex: isNaN(cai) ? 0 : cai,
-            explanation: ''
+            explanation: '',
+            example: String(q.example || '').trim()
           }));
         } else if (mappedType === 'matching') {
           if (matchingDetPairs && matchingDetPairs.length > 0) {
@@ -1263,7 +1267,8 @@ function flattenExtractionResult(parsed) {
             sampleAnswers: rawAnswers.map(String).filter(Boolean),
             similarityThreshold: threshold,
             scoringMode,
-            aiGradingEnabled: true
+            aiGradingEnabled: true,
+            example: String(q.example || '').trim()
           }));
         }
       }
@@ -2119,7 +2124,7 @@ CORE RULES (STRICT)
    If unsure → leave type as empty string.
 
 3. INSTRUCTION MAPPING
-   - instruction_de = EXACT German instruction from INSTRUCTION_DE above
+   - instruction_de = EXACT German instruction from INSTRUCTION_DE above (strip any leading "Instruction:" or "Anweisung:" label if present)
    - instruction_en = EXACT English instruction (if present)
    - DO NOT merge or rewrite
 
@@ -2167,7 +2172,7 @@ CORE RULES (STRICT)
    - Put ONLY the clause students fill in inside "question": underscore blanks (_) as in the PDF.
    - Do NOT prefix with worksheet item numbers (no leading "1." / "2)" — those are layout only).
    - If a line ends with a translation scaffold like "→ ____" or "-> ____" where ONLY underscores follow the arrow (no words), OMIT that arrow and second gap — it is not a separate graded blank unless the answer key lists a distinct translation answer for it.
-   - If the worksheet shows a worked example ("Beispiel:", "Example:", "z.B.") that belongs to this exercise block, copy it verbatim into "example" on the FIRST question row only (leave "" on other rows unless an example is tied to one specific item).
+   - If the worksheet shows a worked example ("Beispiel:", "Example:", "z.B.") that belongs to this exercise block, copy it verbatim into "example" on the FIRST question row only (leave "" on other rows unless an example is tied to one specific item). This applies to ALL exercise types (mcq, true_false, short_answer, fill_in_blank, etc.).
 
 7. instruction_en — copy verbatim from INSTRUCTION_EN above when provided; otherwise extract English from bilingual headings in CONTENT (text after " / " or after "Hinweis / Note") into instruction_en.
 
@@ -2424,7 +2429,7 @@ function splitWorksheetIntoExercises(text) {
   console.log('PDF normalized preview:', normalized.slice(0, 500));
 
   let exerciseText = normalized;
-  const solutionRegex = /\n\s*(LÖSUNGSSCHLÜSSEL|Lösungen|Answer Key)\s*\n/i;
+  const solutionRegex = /\n\s*(LÖSUNGSSCHLÜSSEL|Lösungsschlüssel|Lösungen|Lösung|Answer Key|Lösungen:)\s*\n/i;
   const solutionMatch = solutionRegex.exec(exerciseText);
   let solutionIndex = -1;
   if (solutionMatch && solutionMatch.index > exerciseText.length * 0.5) {
@@ -2432,9 +2437,19 @@ function splitWorksheetIntoExercises(text) {
     exerciseText = exerciseText.slice(0, solutionIndex);
   }
 
+  // ─── Pass 0: "Instruction:" / "Anweisung:" markers ──────────────────────────
+  // Handles PDFs that use an explicit "Instruction: ..." label to start each exercise block.
+  const instructionMarkerRegex = /(?:^|\n)[ \t]*(Instruction|Anweisung)\s*:/gi;
+  const instructionMatches = [...exerciseText.matchAll(instructionMarkerRegex)];
+  let matches = [];
+  if (instructionMatches.length >= 2) {
+    console.log('Pass 0: Instruction: markers found', instructionMatches.length);
+    matches = instructionMatches.map(m => ({ 0: m[0].trim(), index: m.index }));
+  }
+
   // ─── Pass 1: classic Übung markers ──────────────────────────────────────────
   const ubungRegex = /(?:Ü\s*b\s*u\s*n\s*g|Übung|Ubung)\s*[A-Z]?\d+(?:\.\d+)?/gi;
-  let matches = [...exerciseText.matchAll(ubungRegex)];
+  if (!matches.length) matches = [...exerciseText.matchAll(ubungRegex)];
 
   // ─── Pass 2: dotted numeric IDs  1.1, 2.3  ──────────────────────────────────
   if (!matches.length) {
@@ -2520,6 +2535,8 @@ function splitWorksheetIntoExercises(text) {
     } else {
       instruction_de = firstLines.replace(/^\d+\.\s*|^[A-Z]\.\s*/g, '').trim();
     }
+    // Strip explicit "Instruction:" / "Anweisung:" label prefix if present
+    instruction_de = instruction_de.replace(/^(?:Instruction|Anweisung)\s*:\s*/i, '').trim();
 
     exercises.push({
       id: exerciseId,
@@ -3002,7 +3019,7 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
         ? q.options.map(String).filter(Boolean)
         : [];
       const cai = parseInt(q.correctAnswerIndex);
-      return sanitizeQuestion({ ...base, question: String(q.question || ''), options, correctAnswerIndex: isNaN(cai) ? 0 : cai, explanation: '' });
+      return sanitizeQuestion({ ...base, question: String(q.question || ''), options, correctAnswerIndex: isNaN(cai) ? 0 : cai, explanation: '', example: String(q.example || '').trim() });
     }
     if (mappedType === 'matching') {
       const directL = String(q.left != null ? q.left : '').trim();
@@ -3060,7 +3077,7 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
       : (q.correctedText ? [q.correctedText] : []);
     const threshold = result.type === 'true_false' ? 75 : result.type === 'open_writing' ? 60 : 70;
     const scoringMode = (result.type === 'open_writing' || result.type === 'short_answer') ? 'proportional' : 'full';
-    return sanitizeQuestion({ ...base, prompt: String(q.question || ''), sampleAnswers: rawAnswers.map(String).filter(Boolean), similarityThreshold: threshold, scoringMode, aiGradingEnabled: true });
+    return sanitizeQuestion({ ...base, prompt: String(q.question || ''), sampleAnswers: rawAnswers.map(String).filter(Boolean), similarityThreshold: threshold, scoringMode, aiGradingEnabled: true, example: String(q.example || '').trim() });
   }).filter(Boolean);
 }
 
@@ -3230,7 +3247,7 @@ function sanitizeQuestion(q) {
     const maxIdx = Math.max(0, options.length - 1);
     const rawOptionImages = Array.isArray(q.optionImageUrls) ? q.optionImageUrls.map((u) => String(u || '').trim()) : [];
     const optionImageUrls = options.slice(0, 6).map((_, i) => rawOptionImages[i] || '');
-    return {
+    const out = {
       ...base,
       question: String(q.question || ''),
       imageUrl: q.imageUrl || null,
@@ -3239,6 +3256,9 @@ function sanitizeQuestion(q) {
       correctAnswerIndex: options.length === 0 || isNaN(cai) || cai < 0 ? 0 : Math.min(cai, maxIdx),
       explanation: String(q.explanation || '')
     };
+    const ex = String(q.example || '').trim();
+    if (ex) out.example = ex;
+    return out;
   }
 
   if (q.type === 'matching') {
@@ -3327,7 +3347,7 @@ function sanitizeQuestion(q) {
   if (q.type === 'question-answer') {
     const threshold = parseInt(q.similarityThreshold);
     const scoringMode = ['full', 'proportional'].includes(q.scoringMode) ? q.scoringMode : 'proportional';
-    return {
+    const out = {
       ...base,
       prompt: String(q.prompt || ''),
       sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers.map(String).filter(Boolean) : [],
@@ -3335,6 +3355,9 @@ function sanitizeQuestion(q) {
       scoringMode,
       aiGradingEnabled: q.aiGradingEnabled !== false
     };
+    const ex = String(q.example || '').trim();
+    if (ex) out.example = ex;
+    return out;
   }
 
   if (q.type === 'jumble-word') {

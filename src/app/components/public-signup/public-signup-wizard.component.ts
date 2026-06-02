@@ -1,6 +1,6 @@
 // src/app/components/public-signup/public-signup-wizard.component.ts
 
-import { Component, OnInit, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, OnDestroy, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, ActivatedRoute } from '@angular/router';
@@ -11,6 +11,13 @@ import {
   detectCurrencyFromPhone,
   formatMoney,
 } from '../../utils/bank-details.util';
+import {
+  CatalogReferenceRow,
+  formatPlanLabel,
+  getServicePlanAmount,
+  isCoursePlan,
+  isServicePlan,
+} from '../../utils/student-subscription-plans.util';
 
 interface CatalogRow {
   code: string;
@@ -25,7 +32,7 @@ interface CatalogRow {
   templateUrl: './public-signup-wizard.component.html',
   styleUrls: ['./public-signup-wizard.component.css'],
 })
-export class PublicSignupWizardComponent implements OnInit {
+export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   @Output() backToLogin = new EventEmitter<void>();
 
   currentStep = 1;
@@ -33,6 +40,7 @@ export class PublicSignupWizardComponent implements OnInit {
 
   name = '';
   email = '';
+  emailConfirm = '';
   phoneNumber = '';
   whatsappNumber = '';
   address = '';
@@ -45,19 +53,27 @@ export class PublicSignupWizardComponent implements OnInit {
   /** Set after OTP verification — editing details won't require a new code unless email changes */
   emailVerified = false;
   otp = '';
+  otpResendCooldown = 0;
+  resendOtpLoading = false;
+  private resendCooldownTimer: ReturnType<typeof setInterval> | null = null;
   password = '';
   confirmPassword = '';
   showPwd = false;
   showConfirmPwd = false;
 
   cefrRows: CatalogRow[] = [];
+  referenceRows: CatalogReferenceRow[] = [];
   computedAmount = 0;
   paymentFinalized = false;
   catalogLoading = false;
 
-  paymentSubStep: 'ready' | 'proof-done' | 'payment-done' = 'ready';
+  paymentSubStep: 'choose-method' | 'ready' | 'proof-done' | 'payment-done' = 'choose-method';
+  paymentMethodChoice: 'manual' | 'razorpay' | null = null;
   proofFile: File | null = null;
   proofFileName = '';
+  proofPaidAmount: number | null = null;
+  proofPaymentDateTime = '';
+  proofAccountHolderName = '';
 
   loading = false;
   error = '';
@@ -67,6 +83,9 @@ export class PublicSignupWizardComponent implements OnInit {
   readonly SUBSCRIPTIONS = [
     { value: 'SILVER', label: 'Silver' },
     { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'DOCS_RECOGNITION', label: 'Docs recognition' },
+    { value: 'VISA_DOC', label: 'Visa doc' },
+    { value: 'POST_LANDING', label: 'Post landing' },
   ];
 
   readonly LEARN_FROM_LANGUAGE_OPTIONS = ['English', 'Hindi', 'Tamil', 'Telugu', 'Malayalam', 'Other'];
@@ -92,6 +111,7 @@ export class PublicSignupWizardComponent implements OnInit {
           if (!d) return;
           this.name = d.name || '';
           this.email = d.email || '';
+          this.emailConfirm = d.email || '';
           this.phoneNumber = d.phoneNumber || '';
           this.whatsappNumber = d.whatsappNumber || '';
           this.address = d.address || '';
@@ -101,17 +121,18 @@ export class PublicSignupWizardComponent implements OnInit {
           this.leadSource = d.leadSource || '';
           if (d.emailVerifiedAt) {
             this.emailVerified = true;
-            this.otpSubStep = 'done';
+            this.otpSubStep = 'info';
           }
           this.selectedSubscription = d.subscription || this.selectedSubscription;
           if (d.status === 'documents_done' || d.status === 'payment_pending') {
             this.currentStep = 2;
             this.computedAmount = d.amount || 0;
             this.paymentFinalized = !!d.amount;
+            this.paymentMethodChoice = 'manual';
+            this.paymentSubStep = 'ready';
             this.loadCatalog();
           } else if (d.emailVerifiedAt) {
-            this.currentStep = 1;
-            this.otpSubStep = 'done';
+            this.enterPaymentStep();
           }
         },
         error: () => { /* start fresh */ },
@@ -120,11 +141,16 @@ export class PublicSignupWizardComponent implements OnInit {
     this.loadCatalog();
   }
 
+  ngOnDestroy(): void {
+    this.clearResendCooldownTimer();
+  }
+
   loadCatalog(): void {
     this.catalogLoading = true;
     this.svc.getCatalog().subscribe({
       next: (res: any) => {
         this.cefrRows = res?.cefr || [];
+        this.referenceRows = res?.reference || [];
         this.catalogLoading = false;
       },
       error: () => {
@@ -137,7 +163,20 @@ export class PublicSignupWizardComponent implements OnInit {
     return detectCurrencyFromPhone(this.phoneNumber, this.whatsappNumber);
   }
 
+  /** Razorpay: INR course plans only; service plans use bank transfer + proof upload. */
+  get canPayWithRazorpay(): boolean {
+    if (isServicePlan(this.selectedSubscription)) return false;
+    return isCoursePlan(this.selectedSubscription) && this.selectedCurrency === 'INR';
+  }
+
   get previewAmount(): number {
+    if (isServicePlan(this.selectedSubscription)) {
+      return getServicePlanAmount(
+        this.selectedSubscription,
+        this.selectedCurrency,
+        this.referenceRows,
+      );
+    }
     if (!this.languageLevelOpted) return 0;
     const row = this.cefrRows.find((r) => r.code === this.languageLevelOpted);
     if (!row) return 0;
@@ -157,7 +196,7 @@ export class PublicSignupWizardComponent implements OnInit {
   }
 
   get planLabel(): string {
-    return this.SUBSCRIPTIONS.find((s) => s.value === this.selectedSubscription)?.label || this.selectedSubscription || '—';
+    return formatPlanLabel(this.selectedSubscription);
   }
 
   get isLkrPayment(): boolean {
@@ -182,17 +221,10 @@ export class PublicSignupWizardComponent implements OnInit {
     this.selectedLearnLanguage = lang;
   }
 
-  editDetails(): void {
-    this.error = '';
-    this.success = '';
-    this.otpSubStep = 'info';
-    this.currentStep = 1;
-  }
-
   backFromPersonalInfo(): void {
     if (this.emailVerified) {
-      this.otpSubStep = 'done';
       this.error = '';
+      this.enterPaymentStep(false);
     } else {
       this.backToLogin.emit();
     }
@@ -203,10 +235,22 @@ export class PublicSignupWizardComponent implements OnInit {
       this.error = 'Full name is required.';
       return false;
     }
-    if (!this.email.includes('@')) {
+    const normalizedEmail = this.email.trim().toLowerCase();
+    if (!normalizedEmail.includes('@')) {
       this.error = 'Enter a valid email address.';
       return false;
     }
+    const normalizedConfirm = this.emailConfirm.trim().toLowerCase();
+    if (!normalizedConfirm.includes('@')) {
+      this.error = 'Confirm your email address.';
+      return false;
+    }
+    if (normalizedEmail !== normalizedConfirm) {
+      this.error = 'Email addresses do not match. Check for typos before sending the code.';
+      return false;
+    }
+    this.email = normalizedEmail;
+    this.emailConfirm = normalizedConfirm;
     if (!this.selectedLearnLanguage) {
       this.error = 'Please select the language you want to learn German from.';
       return false;
@@ -257,13 +301,36 @@ export class PublicSignupWizardComponent implements OnInit {
         this.svc.saveToken(res.applicationToken);
         if (res.alreadyVerified) {
           this.emailVerified = true;
-          this.otpSubStep = 'done';
-          this.success = res.msg || 'Details saved.';
+          this.enterPaymentStep();
         } else {
           this.emailVerified = false;
           this.otpSubStep = 'otp';
           this.success = res.msg || `Verification code sent to ${this.email}.`;
-          this.startResendCooldown();
+          this.startResendCooldown(45);
+          // #region agent log
+          const em = (this.email || '').trim().toLowerCase();
+          const at = em.indexOf('@');
+          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Session-Id': '24071c'
+            },
+            body: JSON.stringify({
+              sessionId: '24071c',
+              location: 'public-signup-wizard:saveDetails',
+              message: 'client OTP step shown',
+              data: {
+                domain: at > 0 ? em.slice(at + 1) : '',
+                localLen: at > 0 ? em.slice(0, at).length : 0,
+                alreadyVerified: !!res.alreadyVerified
+              },
+              timestamp: Date.now(),
+              hypothesisId: 'A,E',
+              runId: 'pre-fix'
+            })
+          }).catch(() => {});
+          // #endregion
         }
       },
       error: (err: any) => {
@@ -285,11 +352,35 @@ export class PublicSignupWizardComponent implements OnInit {
         this.svc.saveToken(res.applicationToken);
         if (res.alreadyVerified) {
           this.emailVerified = true;
-          this.otpSubStep = 'done';
+          this.enterPaymentStep();
         } else {
           this.otpSubStep = 'otp';
           this.success = res.msg || `Verification code sent to ${this.email}.`;
-          this.startResendCooldown();
+          this.startResendCooldown(45);
+          // #region agent log
+          const em = (this.email || '').trim().toLowerCase();
+          const at = em.indexOf('@');
+          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Session-Id': '24071c'
+            },
+            body: JSON.stringify({
+              sessionId: '24071c',
+              location: 'public-signup-wizard:sendOtp',
+              message: 'client OTP step shown',
+              data: {
+                domain: at > 0 ? em.slice(at + 1) : '',
+                localLen: at > 0 ? em.slice(0, at).length : 0,
+                alreadyVerified: !!res.alreadyVerified
+              },
+              timestamp: Date.now(),
+              hypothesisId: 'A,E',
+              runId: 'pre-fix'
+            })
+          }).catch(() => {});
+          // #endregion
         }
       },
       error: (err: any) => {
@@ -300,30 +391,45 @@ export class PublicSignupWizardComponent implements OnInit {
   }
 
   resendOtp(): void {
-    if (this.resendCooldown > 0 || this.loading) return;
+    if (!this.applicationToken || this.otpResendCooldown > 0 || this.resendOtpLoading || this.loading) {
+      return;
+    }
     this.error = '';
-    this.loading = true;
-    this.svc.start(this.buildStartPayload()).subscribe({
+    this.resendOtpLoading = true;
+    this.svc.resendOtp(this.applicationToken).subscribe({
       next: (res: any) => {
-        this.loading = false;
-        this.success = res.msg || `Verification code resent to ${this.email}.`;
-        this.startResendCooldown();
+        this.resendOtpLoading = false;
+        this.otp = '';
+        this.success = res.msg || `A new code was sent to ${this.email}.`;
+        this.startResendCooldown(45);
       },
       error: (err: any) => {
-        this.loading = false;
+        this.resendOtpLoading = false;
         this.error = err?.error?.msg || 'Could not resend code. Please try again.';
       },
     });
   }
 
-  private startResendCooldown(): void {
-    this.resendCooldown = 30;
-    const interval = setInterval(() => {
+  private startResendCooldown(seconds: number = 30): void {
+    this.clearResendCooldownTimer();
+    this.resendCooldown = seconds;
+    this.otpResendCooldown = seconds;
+    this.resendCooldownTimer = setInterval(() => {
       this.resendCooldown--;
-      if (this.resendCooldown <= 0) {
-        clearInterval(interval);
+      this.otpResendCooldown--;
+      if (this.resendCooldown <= 0 || this.otpResendCooldown <= 0) {
+        this.clearResendCooldownTimer();
       }
     }, 1000);
+  }
+
+  private clearResendCooldownTimer(): void {
+    if (this.resendCooldownTimer) {
+      clearInterval(this.resendCooldownTimer);
+      this.resendCooldownTimer = null;
+    }
+    this.otpResendCooldown = 0;
+    this.resendCooldown = 0;
   }
 
   verifyOtp(): void {
@@ -353,9 +459,9 @@ export class PublicSignupWizardComponent implements OnInit {
         next: () => {
           this.loading = false;
           this.emailVerified = true;
-          this.otpSubStep = 'done';
           this.success = '';
           this.error = '';
+          this.enterPaymentStep();
         },
         error: (err: any) => {
           this.loading = false;
@@ -364,29 +470,56 @@ export class PublicSignupWizardComponent implements OnInit {
       });
   }
 
-  goToPayment(): void {
-    if (this.otpSubStep !== 'done') {
+  /** After email verification — go straight to payment method cards. */
+  enterPaymentStep(prepare = true): void {
+    if (!this.emailVerified) {
       this.error = 'Please verify your email first.';
       return;
     }
     if (!this.languageLevelOpted || !this.selectedSubscription) {
-      this.error = 'Please complete German level and plan on the previous step.';
+      this.error = 'Please complete German level and plan first.';
+      this.currentStep = 1;
+      this.otpSubStep = 'info';
       return;
     }
     this.error = '';
     this.success = '';
     this.currentStep = 2;
-    this.preparePaymentStep();
+    this.paymentSubStep = 'choose-method';
+    this.paymentMethodChoice = null;
+    if (prepare) {
+      this.preparePaymentStep();
+    }
   }
 
   backFromPayment(): void {
-    this.currentStep = 1;
-    this.otpSubStep = 'done';
     this.error = '';
+    if (this.paymentSubStep === 'ready' && this.paymentMethodChoice) {
+      this.paymentMethodChoice = null;
+      this.paymentSubStep = 'choose-method';
+      return;
+    }
+    this.currentStep = 1;
+    this.otpSubStep = 'info';
+    this.paymentMethodChoice = null;
+    this.paymentSubStep = 'choose-method';
+  }
+
+  selectPaymentMethod(method: 'manual' | 'razorpay'): void {
+    if (method === 'razorpay' && !this.canPayWithRazorpay) {
+      return;
+    }
+    this.paymentMethodChoice = method;
+    this.paymentSubStep = 'ready';
+    this.error = '';
+    this.success = '';
   }
 
   private preparePaymentStep(): void {
     if (this.paymentFinalized && this.computedAmount > 0) {
+      if (!this.paymentMethodChoice) {
+        this.paymentSubStep = 'choose-method';
+      }
       return;
     }
     this.loading = true;
@@ -402,7 +535,8 @@ export class PublicSignupWizardComponent implements OnInit {
           this.loading = false;
           this.computedAmount = res.amount;
           this.paymentFinalized = true;
-          this.paymentSubStep = 'ready';
+          this.paymentMethodChoice = null;
+          this.paymentSubStep = 'choose-method';
         },
         error: (err: any) => {
           this.loading = false;
@@ -535,10 +669,33 @@ export class PublicSignupWizardComponent implements OnInit {
       this.error = 'Please select a payment screenshot or PDF.';
       return;
     }
+    const paidAmount = Number(this.proofPaidAmount);
+    if (!paidAmount || paidAmount <= 0) {
+      this.error = 'Please enter the total amount you paid.';
+      return;
+    }
+    if (!this.proofPaymentDateTime) {
+      this.error = 'Please enter the date and time of payment.';
+      return;
+    }
+    const holder = this.proofAccountHolderName.trim();
+    if (!holder || holder.length < 2) {
+      this.error = 'Please enter the account holder name used for payment.';
+      return;
+    }
+    const paymentDateTime = new Date(this.proofPaymentDateTime);
+    if (Number.isNaN(paymentDateTime.getTime())) {
+      this.error = 'Date and time of payment is invalid.';
+      return;
+    }
     const doUpload = () => {
       this.error = '';
       this.loading = true;
-      this.svc.uploadPaymentProof(this.applicationToken!, this.proofFile!).subscribe({
+      this.svc.uploadPaymentProof(this.applicationToken!, this.proofFile!, {
+        paidAmount,
+        paymentDateTime: paymentDateTime.toISOString(),
+        accountHolderName: holder,
+      }).subscribe({
         next: () => {
           this.loading = false;
           this.paymentSubStep = 'proof-done';

@@ -1,5 +1,7 @@
 <!-- Filters -->
 <section class="ph-surface ph-filters-panel">
+  <p class="ph-filters-heading">Filter students</p>
+
   <div class="ph-filters-row">
     <mat-form-field appearance="outline" class="ph-filter-field">
       <mat-label>Batch</mat-label>
@@ -10,30 +12,54 @@
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
-      <mat-label>Level</mat-label>
+      <mat-label>CEFR level</mat-label>
       <mat-select [(ngModel)]="filterLevel">
-        <mat-option value="">All Levels</mat-option>
+        <mat-option value="">All levels</mat-option>
         <mat-option *ngFor="let l of levels" [value]="l">{{ l }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Plan</mat-label>
+      <mat-select [(ngModel)]="filterSubscription">
+        <mat-option *ngFor="let o of subscriptionOptions" [value]="o.value">{{ o.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Student status</mat-label>
+      <mat-select [(ngModel)]="filterStudentStatus">
+        <mat-option *ngFor="let o of studentStatusOptions" [value]="o.value">{{ o.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <div class="ph-filters-row ph-filters-row--secondary">
+    <mat-form-field appearance="outline" class="ph-filter-field ph-filter-field--wide">
+      <mat-label>Language fee status</mat-label>
+      <mat-select [(ngModel)]="filterLanguageFeeStatus">
+        <mat-option *ngFor="let o of languageFeeStatusOptions" [value]="o.value">{{ o.label }}</mat-option>
+      </mat-select>
+      <mat-hint>Full paid = no language fee balance · Balance if journey day &lt; 10 · Due from day 10</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field">
       <mat-label>Currency</mat-label>
       <mat-select [(ngModel)]="filterCurrency">
-        <mat-option value="">All Currencies</mat-option>
+        <mat-option value="">All currencies</mat-option>
         <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
-      <mat-label>From Date</mat-label>
+      <mat-label>From date</mat-label>
       <input matInput [matDatepicker]="pickerFrom" [(ngModel)]="filterDateFrom" />
       <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
       <mat-datepicker #pickerFrom></mat-datepicker>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
-      <mat-label>To Date</mat-label>
+      <mat-label>To date</mat-label>
       <input matInput [matDatepicker]="pickerTo" [(ngModel)]="filterDateTo" />
       <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
       <mat-datepicker #pickerTo></mat-datepicker>
@@ -189,7 +215,7 @@
           <th class="ph-num">Total received</th>
           <th class="ph-num">Pending</th>
           <th class="ph-num">Overdue</th>
-          <th>Status</th>
+          <th>Language fee</th>
           <th class="ph-col-actions">Actions</th>
         </tr>
       </thead>
@@ -230,7 +256,9 @@
               [compact]="true"
             ></app-payment-currency-overdue-totals>
           </td>
-          <td><span class="ph-pill" [ngClass]="statusClass(row.overallStatus)">{{ row.overallStatus || '—' }}</span></td>
+          <td>
+            <span class="ph-pill" [ngClass]="languageFeePillClass(row)">{{ languageFeeStatusLabel(row) }}</span>
+          </td>
           <td class="ph-col-actions">
             <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(row)">
               <mat-icon>open_in_new</mat-icon> Payments

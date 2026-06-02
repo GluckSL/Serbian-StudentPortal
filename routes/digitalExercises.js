@@ -12,6 +12,7 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const { sanitizeReportedTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
 const OpenAI = require('openai');
 const s3Client = require('../config/s3');
 const {
@@ -33,6 +34,11 @@ const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const {
+  attachInheritedAttemptsForStudent,
+  resolveInheritedAttempt,
+  isInheritedPassing
+} = require('../services/exerciseSplitInheritance.service');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
 const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
@@ -239,6 +245,20 @@ function parseTrueFalse(raw) {
   // Accept values from UI, admin selection, and worksheet generator.
   if (/\b(true|richtig|wahr|ja|yes)\b/.test(s)) return true;
   if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
+  return null;
+}
+
+function isTrueFalseQuestionShape(q) {
+  if (!q || q.type !== 'question-answer') return false;
+  if (q.worksheetKind === 'true-false') return true;
+  const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+  return samples.some((s) => parseTrueFalse(s) !== null);
+}
+
+function formatTrueFalseLabel(raw) {
+  const parsed = parseTrueFalse(raw);
+  if (parsed === true) return 'Richtig';
+  if (parsed === false) return 'Falsch';
   return null;
 }
 
@@ -480,6 +500,28 @@ function gradeSubQuestionPart(sq, subResp) {
       rawScore,
       correctAnswer: { correctAnswerIndex: correctIdx, explanation: sq.explanation }
     };
+  }
+  if (sq.type === 'question-answer') {
+    const studentAns = String(sub.textAnswer ?? sub.qaResponse ?? '').trim();
+    const samples = Array.isArray(sq.sampleAnswers) ? sq.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = sq.worksheetKind === 'true-false' || expectedRaw !== null;
+    if (isTrueFalse) {
+      const expected = parseTrueFalse(expectedRaw);
+      const given = parseTrueFalse(studentAns);
+      const rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
+      return { rawScore, correctAnswer: { sampleAnswers: samples } };
+    }
+    const filtered = samples.filter(Boolean);
+    const normalizedStudent = normalizeTextForExactCompare(studentAns);
+    const exact = filtered.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+    return { rawScore: exact ? 100 : 0, correctAnswer: { sampleAnswers: filtered } };
+  }
+  if (sq.type === 'listening') {
+    const studentText = normalizeListeningAnswer(sub.textAnswer ?? sub.listeningText ?? '');
+    const expected = normalizeListeningAnswer(sq.expectedTranscript || '');
+    const rawScore = expected && studentText && studentText === expected ? 100 : 0;
+    return { rawScore, correctAnswer: { expectedTranscript: sq.expectedTranscript } };
   }
   return { rawScore: 0, correctAnswer: null };
 }
@@ -917,7 +959,12 @@ function formatStudentAnswerForReview(q, r) {
     return (t || '—') + tail;
   }
   if (q.type === 'question-answer') {
-    return (r.qaResponse && String(r.qaResponse).trim()) ? String(r.qaResponse).trim() : '—';
+    const raw = r.qaResponse && String(r.qaResponse).trim() ? String(r.qaResponse).trim() : '';
+    if (!raw) return '—';
+    if (isTrueFalseQuestionShape(q)) {
+      return formatTrueFalseLabel(raw) || raw;
+    }
+    return raw;
   }
   if (q.type === 'listening') {
     const t = r.listeningText || r.qaResponse || '';
@@ -1243,6 +1290,8 @@ const {
 } = require('../utils/journeyContentBlock');
 
 async function getStudentExerciseAccess(userId) {
+  const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
+  await reconcileSilverGoCourseDay(userId);
   const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription blockedJourneyLevels').lean();
   if (!u || u.role !== 'STUDENT') {
     return {
@@ -1298,7 +1347,7 @@ async function checkSequenceLock(studentId, exercise) {
     sequenceLetter: { $lt: sl, $ne: null, $exists: true },
     visibleToStudents: true,
     isDeleted: { $ne: true }
-  }).select('_id sequenceLetter title').lean();
+  }).select('_id sequenceLetter title splitLineage questions').lean();
 
   if (!priorExercises.length) return { locked: false, previousLetter: null, previousTitle: null };
 
@@ -1312,6 +1361,14 @@ async function checkSequenceLock(studentId, exercise) {
   }).select('exerciseId').lean();
 
   const passedIds = new Set(completedAttempts.map((a) => a.exerciseId.toString()));
+  for (const prior of priorExercises) {
+    if (passedIds.has(prior._id.toString())) continue;
+    if (!prior.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, prior);
+    if (isInheritedPassing(inherited)) {
+      passedIds.add(prior._id.toString());
+    }
+  }
   const unpassedPriors = priorExercises.filter((e) => !passedIds.has(e._id.toString()));
 
   if (!unpassedPriors.length) return { locked: false, previousLetter: null, previousTitle: null };
@@ -1354,7 +1411,7 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     isActive: true,
     isDeleted: { $ne: true }
   })
-    .select('_id courseDay sequenceLetter title')
+    .select('_id courseDay sequenceLetter title splitLineage questions')
     .lean();
 
   if (!dayExercises.length) {
@@ -1375,6 +1432,14 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     .select('exerciseId')
     .lean();
   const passedIds = new Set(completedAttempts.map((a) => String(a.exerciseId)));
+  for (const d of dayExercises) {
+    if (passedIds.has(String(d._id))) continue;
+    if (!d.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, d);
+    if (isInheritedPassing(inherited)) {
+      passedIds.add(String(d._id));
+    }
+  }
 
   const byDay = {};
   dayExercises.forEach((item) => {
@@ -1400,7 +1465,7 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
 // ─── PUBLIC (STUDENT/TEACHER/ADMIN) ROUTES ───────────────────────────────────
 
 // GET /api/digital-exercises  — Browse exercises
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
     const {
       level, category, difficulty, targetLanguage, search,
@@ -1512,9 +1577,13 @@ router.get('/', verifyToken, async (req, res) => {
           'averageScore',
           'courseDay',
           'sequenceLetter',
+          'splitLineage',
           'createdAt',
           'updatedAt',
-          'questions.type'
+          'questions.type',
+          'questions.points',
+          'questions.subQuestions.type',
+          'questions.subQuestions.points'
         ].join(' ')
       )
       .sort({ createdAt: -1 })
@@ -1605,6 +1674,8 @@ router.get('/', verifyToken, async (req, res) => {
         ex.studentAttempt = attemptMap[ex._id.toString()] || null;
       });
 
+      await attachInheritedAttemptsForStudent(req.user.id, exercises);
+
       // Attach sequence lock status in one batched pass.
       await attachSequenceLockStatusForList(req.user.id, exercises);
     }
@@ -1630,7 +1701,7 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
-router.get('/:id', verifyToken, async (req, res) => {
+router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
     const exercise = await DigitalExercise.findOne({
       _id: req.params.id,
@@ -1819,7 +1890,7 @@ router.get('/:id', verifyToken, async (req, res) => {
       });
     }
 
-    // Attach student's best attempt if student
+    // Attach student's best attempt if student (or inherited completion from split source)
     if (req.user.role === 'STUDENT') {
       const bestAttempt = await ExerciseAttempt.findOne({
         studentId: req.user.id,
@@ -1827,6 +1898,10 @@ router.get('/:id', verifyToken, async (req, res) => {
         status: 'completed'
       }).sort({ scorePercentage: -1 }).lean();
       exercise.studentAttempt = bestAttempt;
+      if (!exercise.studentAttempt) {
+        const inherited = await resolveInheritedAttempt(req.user.id, exercise);
+        if (inherited) exercise.studentAttempt = inherited;
+      }
     }
 
     // Repair legacy rows that stored presigned S3 URLs (they expire and break images).
@@ -1899,7 +1974,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .select(
-        'title description targetLanguage difficulty level category courseDay visibleToStudents isActive createdBy createdAt updatedAt questions.type'
+        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode isActive createdBy createdAt updatedAt questions.type'
       )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
@@ -2045,6 +2120,127 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
   }
 });
 
+// POST /api/digital-exercises/:id/split-questions — Move selected questions into a new exercise (atomic)
+router.post(
+  '/:id/split-questions',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const source = await DigitalExercise.findById(req.params.id);
+      if (!source || source.isDeleted) {
+        return res.status(404).json({ error: 'Exercise not found' });
+      }
+
+      if (req.user.role === 'TEACHER' && source.createdBy.toString() !== req.user.id) {
+        return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+      }
+
+      const rawIndices = Array.isArray(req.body.questionIndices) ? req.body.questionIndices : [];
+      const indexSet = new Set();
+      for (const raw of rawIndices) {
+        const n = parseInt(raw, 10);
+        if (Number.isInteger(n) && n >= 0) indexSet.add(n);
+      }
+      const sortedIndices = [...indexSet].sort((a, b) => a - b);
+      const totalQ = source.questions?.length || 0;
+
+      if (!sortedIndices.length) {
+        return res.status(400).json({ error: 'Select at least one question to move' });
+      }
+      if (sortedIndices.some((i) => i >= totalQ)) {
+        return res.status(400).json({ error: 'Invalid question index' });
+      }
+      if (sortedIndices.length >= totalQ) {
+        return res.status(400).json({ error: 'Leave at least one question in the source exercise' });
+      }
+
+      const title = String(req.body.title || '').trim();
+      const description = String(req.body.description || '').trim();
+      if (!title || !description) {
+        return res.status(400).json({ error: 'Title and description are required for the new exercise' });
+      }
+
+      let courseDay = null;
+      if (req.body.courseDay != null && req.body.courseDay !== '') {
+        const cd = parseInt(req.body.courseDay, 10);
+        if (!Number.isFinite(cd) || cd < 1 || cd > 200) {
+          return res.status(400).json({ error: 'Journey day must be empty or a number from 1 to 200' });
+        }
+        courseDay = cd;
+      }
+
+      const rawLetter = String(req.body.sequenceLetter || '').trim().toLowerCase();
+      const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
+
+      const movedPlain = sortedIndices.map((i) => {
+        const q = source.questions[i];
+        return q && typeof q.toObject === 'function' ? q.toObject() : { ...q };
+      });
+
+      const remainingPlain = source.questions
+        .map((q, i) => ({ q, i }))
+        .filter(({ i }) => !indexSet.has(i))
+        .map(({ q }) => (q && typeof q.toObject === 'function' ? q.toObject() : { ...q }));
+
+      const questionSources = sortedIndices.map((i) => {
+        const q = source.questions[i];
+        const id = q && q._id ? q._id : undefined;
+        return {
+          sourceQuestionIndex: i,
+          ...(id ? { sourceQuestionId: id } : {})
+        };
+      });
+
+      const visibleToStudents = req.body.visibleToStudents === true
+        || String(req.body.visibleToStudents) === 'true';
+
+      const newExerciseData = canonicalizeExerciseForStorage({
+        title,
+        description,
+        targetLanguage: req.body.targetLanguage || source.targetLanguage,
+        nativeLanguage: req.body.nativeLanguage || source.nativeLanguage,
+        level: req.body.level || source.level,
+        category: req.body.category || source.category,
+        difficulty: req.body.difficulty || source.difficulty,
+        estimatedDuration: req.body.estimatedDuration != null
+          ? req.body.estimatedDuration
+          : source.estimatedDuration,
+        tags: Array.isArray(req.body.tags) ? req.body.tags : [],
+        courseDay,
+        sequenceLetter,
+        visibleToStudents,
+        questions: normalizeQuestionContexts(movedPlain),
+        splitLineage: {
+          sourceExerciseId: source._id,
+          questionSources
+        },
+        createdBy: req.user.id,
+        ...(visibleToStudents ? { publishedAt: new Date() } : {})
+      });
+
+      const newExercise = new DigitalExercise(newExerciseData);
+      await newExercise.save();
+
+      source.questions = normalizeQuestionContexts(remainingPlain);
+      source.lastUpdatedBy = req.user.id;
+      source.updatedAt = new Date();
+      canonicalizeExerciseForStorage(source);
+      source.markModified('questions');
+      await source.save();
+
+      const created = await DigitalExercise.findById(newExercise._id).lean();
+      res.status(201).json({
+        exercise: created,
+        sourceExerciseId: source._id
+      });
+    } catch (err) {
+      console.error('POST /digital-exercises/:id/split-questions error:', err);
+      res.status(400).json({ error: err.message || 'Failed to split questions' });
+    }
+  }
+);
+
 // POST /api/digital-exercises  — Create exercise
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
@@ -2088,6 +2284,23 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
   } catch (err) {
     console.error('PATCH /digital-exercises/:id/visibility error:', err);
     res.status(500).json({ error: err.message || 'Failed to update visibility' });
+  }
+});
+
+// PATCH /api/digital-exercises/:id/watch-only  — Set admin-controlled Watch Only mode
+router.patch('/:id/watch-only', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const watchOnlyMode = req.body.watchOnlyMode === true || String(req.body.watchOnlyMode) === 'true';
+    const exercise = await DigitalExercise.findByIdAndUpdate(
+      req.params.id,
+      { $set: { watchOnlyMode, updatedAt: new Date() } },
+      { new: true, runValidators: false }
+    );
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    res.json({ success: true, watchOnlyMode: exercise.watchOnlyMode });
+  } catch (err) {
+    console.error('PATCH /digital-exercises/:id/watch-only error:', err);
+    res.status(500).json({ error: err.message || 'Failed to update watch-only mode' });
   }
 });
 
@@ -2210,7 +2423,7 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
 // ─── STUDENT ATTEMPT ROUTES ───────────────────────────────────────────────────
 
 // POST /api/digital-exercises/:id/start  — Start a new attempt (students + admin/teacher for testing)
-router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const isStaff = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'].includes(req.user.role);
     const exercise = await DigitalExercise.findOne({
@@ -2289,7 +2502,7 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
 });
 
 // POST /api/digital-exercises/:id/submit-question  — Submit a single question (per-question feedback)
-router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, questionIndex, response, timeSpentSeconds } = req.body;
 
@@ -2606,7 +2819,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
 });
 
 // POST /api/digital-exercises/:id/submit  — Final submit (all questions)
-router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, responses, timeSpentSeconds } = req.body;
 

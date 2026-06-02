@@ -1,7 +1,56 @@
 const User = require('../models/User');
 const transporter = require('../config/emailConfig');
+const sanitizeHtml = require('sanitize-html');
 
 const GO_STUDENTS_TARGET_NORMALIZED = 'gostudents';
+
+const ANNOUNCEMENT_HTML_SANITIZE_OPTIONS = {
+  allowedTags: [
+    'p',
+    'br',
+    'strong',
+    'b',
+    'em',
+    'i',
+    'u',
+    's',
+    'mark',
+    'blockquote',
+    'ul',
+    'ol',
+    'li',
+    'h1',
+    'h2',
+    'h3',
+    'a',
+    'span'
+  ],
+  allowedAttributes: {
+    a: ['href', 'target', 'rel'],
+    span: ['style']
+  },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowProtocolRelative: false,
+  allowedStyles: {
+    span: {
+      'background-color': [/^#[0-9a-fA-F]{3,8}$/, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/, /^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0(\.\d+)?|1(\.0+)?)\s*\)$/],
+      color: [/^#[0-9a-fA-F]{3,8}$/, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/, /^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0(\.\d+)?|1(\.0+)?)\s*\)$/]
+    }
+  },
+  transformTags: {
+    a: (tagName, attribs) => {
+      const href = String(attribs.href || '').trim();
+      return {
+        tagName,
+        attribs: {
+          href,
+          target: '_blank',
+          rel: 'noreferrer noopener'
+        }
+      };
+    }
+  }
+};
 
 function normalizeBatchKey(value) {
   return String(value || '')
@@ -38,11 +87,18 @@ function textToHtml(value) {
   return escapeHtml(String(value ?? '')).replace(/\r?\n/g, '<br/>');
 }
 
+function sanitizeAnnouncementHtml(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return '';
+  const normalized = /[<>]/.test(value) ? value : textToHtml(value);
+  return sanitizeHtml(normalized, ANNOUNCEMENT_HTML_SANITIZE_OPTIONS);
+}
+
 async function sendAnnouncementEmails({ recipients, subject, body, title }) {
   if (!recipients.length) return { sent: 0, failed: 0 };
 
   const escapedTitle = escapeHtml(title);
-  const bodyHtml = textToHtml(body);
+  const bodyHtml = sanitizeAnnouncementHtml(body);
 
   const results = await Promise.allSettled(
     recipients.map(({ email, studentName }) => {
@@ -60,7 +116,7 @@ async function sendAnnouncementEmails({ recipients, subject, body, title }) {
             <strong>${escapedTitle}</strong>
           </p>
 
-          <p style="margin:0 0 16px 0;">${bodyHtml}</p>
+          <div style="margin:0 0 16px 0;">${bodyHtml}</div>
 
           <p style="margin:0;">
             Thanks,<br/>

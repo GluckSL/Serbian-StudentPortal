@@ -29,14 +29,12 @@ export interface CurrencyOverdueTotals {
 export interface CurrencyDisplayMeta {
   code: PaymentCurrencyCode;
   label: string;
-  symbol: string;
   badgeClass: string;
 }
 
 export const PAYMENT_CURRENCIES: CurrencyDisplayMeta[] = [
-  { code: 'LKR', label: 'LKR', symbol: 'Rs', badgeClass: 'ph-ccy-badge--lkr' },
-  { code: 'INR', label: 'INR', symbol: '₹', badgeClass: 'ph-ccy-badge--inr' },
-  { code: 'USD', label: 'Euro', symbol: '€', badgeClass: 'ph-ccy-badge--eur' },
+  { code: 'LKR', label: 'LKR', badgeClass: 'ph-ccy-badge--lkr' },
+  { code: 'INR', label: 'INR', badgeClass: 'ph-ccy-badge--inr' },
 ];
 
 export function normalizePaymentCurrency(code: string | null | undefined): PaymentCurrencyCode {

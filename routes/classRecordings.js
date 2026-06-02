@@ -39,6 +39,11 @@ const {
   canAccessManualViaCrossBatch,
   canAccessZoomViaCrossBatch,
 } = require('../services/journeyCrossBatchRecordingAccess.service');
+const {
+  resolveSilverGoContentUnlock,
+  reconcileSilverGoCourseDay,
+  silverGoCompletionOptions
+} = require('../utils/silverGoSequentialUnlock');
 
 /** Returns true when a student has an APPROVED recording-access grant for a class. */
 async function hasApprovedGrant(studentId, meetingLinkId) {
@@ -166,14 +171,24 @@ function normalizedStudentCourseDay(student) {
   return 1;
 }
 
-/** ClassRecording or MeetingLink: available when courseDay is unset or <= student's journey day. */
+/** ClassRecording or MeetingLink: available when courseDay is unset or <= student's unlocked journey day. */
 function journeyCourseDayUnlockedForStudent(doc, student) {
-  const studentDay = normalizedStudentCourseDay(student);
+  const studentDay =
+    student?._maxUnlockedContentDay != null && Number.isFinite(Number(student._maxUnlockedContentDay))
+      ? Math.min(200, Math.max(1, Math.floor(Number(student._maxUnlockedContentDay))))
+      : normalizedStudentCourseDay(student);
   const raw = doc && doc.courseDay;
   if (raw == null || raw === undefined) return true;
   const cd = Number(raw);
   if (!Number.isFinite(cd)) return true;
   return cd <= studentDay;
+}
+
+async function applySilverGoContentUnlockToStudent(student) {
+  if (!student) return student;
+  const unlock = await resolveSilverGoContentUnlock(student);
+  student._maxUnlockedContentDay = unlock.maxUnlockedContentDay;
+  return student;
 }
 
 function canUserAccessManualRecording(recording, student) {
@@ -244,9 +259,11 @@ router.get('/', verifyToken, async (req, res) => {
     }
 
     // STUDENT — filter by their batch, level, plan, journey day
+    await reconcileSilverGoCourseDay(req.user.id);
     const student = await User.findById(req.user.id)
       .select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    await applySilverGoContentUnlockToStudent(student);
     const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
     if (!journeyAccess.enabled) {
       return res.json({ success: true, recordings: [] });
@@ -360,9 +377,11 @@ router.get('/student-feed', verifyToken, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Students only.' });
     }
 
+    await reconcileSilverGoCourseDay(userId);
     const student = await User.findById(userId)
       .select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    await applySilverGoContentUnlockToStudent(student);
 
     const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
     if (!journeyAccess.enabled) {
@@ -1830,16 +1849,15 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
 
         let allowInstantAdvance = true;
         if (isSilverGo) {
-          const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
-            creditMeetings: meeting?._id ? [meeting._id] : [],
-            includeRecordings: true,
-            includeDg: true,
-            includeLearningModules: false,
-            studentLevel: studentLean?.level,
-            studentPlan: studentLean?.subscription,
-            goStatus: studentLean?.goStatus,
-            subscription: studentLean?.subscription
-          });
+          const comp = await computeJourneyDayCompletion(
+            view.student,
+            batchKeys,
+            dayInt,
+            {
+              ...silverGoCompletionOptions(studentLean),
+              creditMeetings: meeting?._id ? [meeting._id] : []
+            }
+          );
           allowInstantAdvance = !!comp.complete;
         } else if (cfgDoc && cfgDoc.strictJourneyRule) {
           const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {

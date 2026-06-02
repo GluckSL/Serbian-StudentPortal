@@ -12,12 +12,27 @@
   padding: 20px 22px 18px;
 }
 
+.ph-filters-heading {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
 .ph-filters-row {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   align-items: flex-start;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+.ph-filters-row--secondary {
+  padding-bottom: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px dashed rgba(226, 232, 240, 0.95);
 }
 
 .ph-filter-field {
@@ -190,8 +205,9 @@
 }
 
 .ph-paid-cell {
-  min-width: 140px;
-  vertical-align: top;
+  min-width: 0;
+  width: 1%;
+  vertical-align: middle;
   white-space: normal !important;
 }
 

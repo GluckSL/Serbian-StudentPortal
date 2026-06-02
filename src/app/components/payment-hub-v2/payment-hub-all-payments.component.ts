@@ -27,6 +27,12 @@ import {
   currentJourneyDayFromStudent,
   totalJourneyDaysForLevel,
 } from './payment-journey-metrics.util';
+import {
+  LANGUAGE_FEE_STATUS_LABELS,
+  LANGUAGE_FEE_STATUS_OPTIONS,
+  languageFeeStatusClass,
+  computeLanguageFeeStatus,
+} from './payment-language-fee-status.util';
 
 @Component({
   selector: 'app-payment-hub-all-payments',
@@ -69,12 +75,29 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   filterBatch = '';
   filterLevel = '';
   filterCurrency = '';
+  filterLanguageFeeStatus = '';
+  filterStudentStatus = '';
+  filterSubscription = '';
   filterDateFrom: Date | null = null;
   filterDateTo: Date | null = null;
   searchQuery = '';
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly currencies = ['LKR', 'INR', 'USD'];
+  readonly languageFeeStatusOptions = LANGUAGE_FEE_STATUS_OPTIONS;
+  readonly studentStatusOptions = [
+    { value: '', label: 'All student statuses' },
+    { value: 'ONGOING', label: 'Ongoing' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'WITHDREW', label: 'Withdrew' },
+    { value: 'UNCERTAIN', label: 'Uncertain' },
+  ];
+  readonly subscriptionOptions = [
+    { value: '', label: 'All plans' },
+    { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'SILVER', label: 'Silver' },
+    { value: 'VISA_DOC_ONLY', label: 'Visa doc only' },
+  ];
   /** Distinct student `batch` values from `/api/studentLog/batch-options` */
   batchOptions: string[] = [];
 
@@ -140,6 +163,9 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       batch: this.filterBatch || undefined,
       level: this.filterLevel || undefined,
       currency: this.filterCurrency || undefined,
+      languageFeeStatus: this.filterLanguageFeeStatus || undefined,
+      studentStatus: this.filterStudentStatus || undefined,
+      subscription: this.filterSubscription || undefined,
       dateFrom: this.filterDateFrom ? this.filterDateFrom.toISOString() : undefined,
       dateTo: this.filterDateTo ? this.filterDateTo.toISOString() : undefined,
     };
@@ -155,6 +181,9 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     this.filterBatch = '';
     this.filterLevel = '';
     this.filterCurrency = '';
+    this.filterLanguageFeeStatus = '';
+    this.filterStudentStatus = '';
+    this.filterSubscription = '';
     this.filterDateFrom = null;
     this.filterDateTo = null;
     this.searchQuery = '';
@@ -362,14 +391,19 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     return currentJourneyDayFromStudent(row.studentId);
   }
 
-  statusClass(status: string): string {
-    const map: Record<string, string> = {
-      GOOD_STANDING: 'pill-green',
-      FULLY_PAID: 'pill-green',
-      PENDING: 'pill-amber',
-      OVERDUE: 'pill-red',
-      NO_REQUESTS: 'pill-grey',
-    };
-    return map[status] || 'pill-grey';
+  rowLanguageFeeStatus(row: StudentTableRow): string {
+    if (row.languageFeeStatus) return row.languageFeeStatus;
+    const day = currentJourneyDayFromStudent(row.studentId);
+    const bal = row.languageFeeBalance ?? 0;
+    return computeLanguageFeeStatus(bal, day);
+  }
+
+  languageFeeStatusLabel(row: StudentTableRow): string {
+    const key = this.rowLanguageFeeStatus(row) as keyof typeof LANGUAGE_FEE_STATUS_LABELS;
+    return LANGUAGE_FEE_STATUS_LABELS[key] || key || '—';
+  }
+
+  languageFeePillClass(row: StudentTableRow): string {
+    return languageFeeStatusClass(this.rowLanguageFeeStatus(row));
   }
 }

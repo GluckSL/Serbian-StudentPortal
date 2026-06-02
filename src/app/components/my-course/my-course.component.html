@@ -28,6 +28,20 @@
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
           Subscription <strong>{{ userProfile.subscription }}</strong>
         </span>
+        <span
+          *ngIf="showLanguageFeeDueCard"
+          class="mc-hero__fee-card"
+          [class.mc-hero__fee-card--green]="languageFeeBannerTone === 'green'"
+          [class.mc-hero__fee-card--yellow]="languageFeeBannerTone === 'yellow'"
+          [class.mc-hero__fee-card--red]="languageFeeBannerTone === 'red'"
+          role="status"
+          aria-live="polite">
+          <span class="material-icons mc-hero__fee-card__icon" aria-hidden="true">payments</span>
+          <span class="mc-hero__fee-card__body">
+            <span class="mc-hero__fee-card__label">Language fee due amount</span>
+            <strong class="mc-hero__fee-card__amount">{{ formattedLanguageFeeDue }}</strong>
+          </span>
+        </span>
       </div>
     </div>
     <div class="mc-hero__photo">

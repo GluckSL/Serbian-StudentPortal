@@ -193,6 +193,40 @@
   cursor: default;
 }
 
+.sw-otp-resend {
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.sw-otp-resend__link {
+  display: inline;
+  margin: 0 0 0 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #dc2626;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.sw-otp-resend__link:hover:not(:disabled) {
+  color: #b91c1c;
+}
+
+.sw-otp-resend__link:disabled {
+  color: #94a3b8;
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
 .sw-pw-row {
   display: flex;
   align-items: center;
@@ -336,6 +370,140 @@
 
 .sw-pay-divider::before { left: 0; }
 .sw-pay-divider::after  { right: 0; }
+
+.sw-pay-method-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 640px) {
+  .sw-pay-method-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.sw-pay-method-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  padding: 18px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.sw-pay-method-card:hover {
+  border-color: #93c5fd;
+  background: #f8fafc;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.12);
+}
+
+.sw-pay-method-card--online:hover {
+  border-color: #3399cc;
+}
+
+.sw-pay-method-card--paid .sw-pay-method-card__icon {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.sw-pay-method-card--paid:hover {
+  border-color: #fbbf24;
+}
+
+.sw-pay-method-card:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sw-pay-header--compact {
+  margin-bottom: 8px;
+}
+
+.sw-pay-method-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.sw-pay-method-card--online .sw-pay-method-card__icon {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.sw-pay-method-card__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.sw-pay-method-card__desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.sw-pay-online-panel {
+  padding: 20px 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.sw-pay-online-panel__amount {
+  margin-bottom: 12px;
+}
+
+.sw-pay-online-panel__hint {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.sw-pay-footer--compact {
+  margin-top: 8px;
+}
+
+.sw-pay-footer--compact .sw-pay-footer__meta {
+  width: 100%;
+  justify-content: center;
+}
+
+.sw-btn--submit-proof {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  width: 100%;
+  justify-content: center;
+  font-size: 14px;
+  padding: 12px 20px;
+  border-radius: 8px;
+}
+
+.sw-btn--submit-proof:not(:disabled):hover {
+  background: #1d4ed8;
+}
+
+.sw-btn--submit-proof .sw-spinner {
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+}
 
 .sw-pay-methods {
   display: flex;
@@ -550,6 +718,40 @@
   gap: 8px;
 }
 
+.sw-inbox-tips {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 12px 0 16px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.sw-inbox-tips__title {
+  margin: 0 0 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sw-inbox-tips ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.sw-inbox-tips li {
+  margin-bottom: 4px;
+}
+
+.sw-inbox-tips code {
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
 /* ── Spinner ──────────────────────────────────────────────────────────────── */
 
 /* ── Payment page layout ─────────────────────────────────────────────────── */
@@ -647,6 +849,22 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
   height: 100%;
   box-sizing: border-box;
+}
+
+.sw-proof-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sw-field-hint {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.sw-required {
+  color: #dc2626;
 }
 
 .sw-pay-proof__hint {

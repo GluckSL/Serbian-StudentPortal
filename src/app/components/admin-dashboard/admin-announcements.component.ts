@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { QuillModule } from 'ngx-quill';
 import {
   AnnouncementTargetStudent,
   AnnouncementDeliveryType,
@@ -19,7 +20,7 @@ interface BatchSummary {
 @Component({
   selector: 'app-admin-announcements',
   standalone: true,
-  imports: [CommonModule, FormsModule, TestAccountBadgeComponent],
+  imports: [CommonModule, FormsModule, QuillModule, TestAccountBadgeComponent],
   templateUrl: './admin-announcements.component.html',
   styleUrls: ['./admin-announcements.component.css']
 })
@@ -31,6 +32,22 @@ export class AdminAnnouncementsComponent implements OnInit {
   sendMode: 'instant' | 'schedule' = 'instant';
   title = '';
   body = '';
+  readonly titleQuillModules = {
+    toolbar: [
+      ['bold', 'italic', 'underline'],
+      ['clean']
+    ]
+  };
+  readonly quillModules = {
+    toolbar: [
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      [{ header: [1, 2, 3, false] }],
+      [{ color: [] }, { background: [] }],
+      ['blockquote', 'link'],
+      ['clean']
+    ]
+  };
   scheduleAt = '';
   batches: BatchSummary[] = [];
   selectedBatches: string[] = [];
@@ -184,13 +201,26 @@ export class AdminAnnouncementsComponent implements OnInit {
   }
 
   get previewTitle(): string {
-    return this.title.trim() || 'Portal Notification';
+    return this.getPlainText(this.title).trim() || 'Portal Notification';
   }
 
   get previewBody(): string {
-    const text = this.body.trim();
+    const text = this.getPlainText(this.body).trim();
     if (!text) return 'Your message preview appears here.';
     return text.length > 70 ? `${text.slice(0, 70)}...` : text;
+  }
+
+  getPlainText(value: string): string {
+    const html = String(value || '').trim();
+    if (!html) return '';
+    // If user pasted plain text, return it as-is.
+    if (!/[<>]/.test(html)) return html;
+    try {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return String(doc?.body?.textContent || '').replace(/\s+\n/g, '\n');
+    } catch {
+      return html.replace(/<[^>]*>/g, ' ');
+    }
   }
 
   formatBytes(size: number | undefined): string {
@@ -251,7 +281,8 @@ export class AdminAnnouncementsComponent implements OnInit {
       this.notify.info('WhatsApp announcements will be added next.');
       return;
     }
-    if (!this.title.trim() || !this.body.trim()) {
+    const titleText = this.getPlainText(this.title).trim();
+    if (!titleText || !this.getPlainText(this.body).trim()) {
       this.notify.warning('Title and body are required.');
       return;
     }
@@ -274,11 +305,11 @@ export class AdminAnnouncementsComponent implements OnInit {
       .create({
         channel: 'website',
         deliveryType: 'website_email',
-        title: this.title.trim(),
+        title: titleText,
         body: this.body.trim(),
         targetBatches: this.selectedBatches,
         // Website + Email is now the only supported send type.
-        emailSubject: this.title.trim(),
+        emailSubject: titleText,
         emailBody: this.body.trim(),
         scheduleAt: scheduleAtPayload,
         attachments: this.selectedFiles
@@ -328,17 +359,22 @@ export class AdminAnnouncementsComponent implements OnInit {
       return;
     }
 
+    const titleText = this.getPlainText(this.editForm.title).trim();
     const payload = {
       deliveryType: this.editForm.deliveryType,
-      title: String(this.editForm.title || '').trim(),
+      title: titleText,
       body: String(this.editForm.body || '').trim(),
       targetBatches,
-      emailSubject: this.editForm.deliveryType === 'website_email' ? String(this.editForm.title || '').trim() : '',
+      emailSubject: this.editForm.deliveryType === 'website_email' ? titleText : '',
       emailBody: this.editForm.deliveryType === 'website_email' ? String(this.editForm.body || '').trim() : ''
     };
 
     if (!payload.title || !payload.body) {
       this.notify.warning('Title and body are required.');
+      return;
+    }
+    if (!this.getPlainText(payload.body).trim()) {
+      this.notify.warning('Body cannot be empty.');
       return;
     }
 

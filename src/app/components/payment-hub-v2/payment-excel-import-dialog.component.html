@@ -118,91 +118,66 @@
         </div>
       </div>
 
+      <div class="ei-preview-toolbar">
+        <p class="ei-preview-hint">
+          <mat-icon>touch_app</mat-icon>
+          Click any row to open full details
+        </p>
+        <button type="button" class="ei-btn ei-btn-secondary ei-see-full-btn" (click)="openFullPreviewTab()">
+          <mat-icon>open_in_new</mat-icon>
+          See full
+        </button>
+      </div>
+
       <div class="ei-table-card">
         <div class="ei-table-scroll">
-          <table class="ei-table">
+          <table class="ei-table ei-table-compact">
             <thead>
               <tr>
-                <th class="ei-th-expand"></th>
                 <th>Row</th>
                 <th>Status</th>
-                <th>Name</th>
-                <th>Resolved</th>
+                <th>Student</th>
                 <th>Email</th>
-                <th>Level</th>
                 <th>Type</th>
                 <th class="ei-num">Amount</th>
-                <th class="ei-num">Total</th>
-                <th class="ei-num">Balance</th>
                 <th>CCY</th>
                 <th>Date</th>
-                <th>Note</th>
-                <th class="ei-num">Doc quote</th>
-                <th class="ei-num">Doc recv</th>
-                <th class="ei-num">Visa Quo</th>
-                <th class="ei-num">Visa Re</th>
+                <th class="ei-th-action"></th>
               </tr>
             </thead>
             <tbody>
-              <ng-container *ngFor="let row of previewRows">
-                <tr
-                  (click)="toggleExpand(row)"
-                  [class.ei-tr-ok]="row.matchedStudent && !row.parseError"
-                  [class.ei-tr-bad]="!!row.parseError"
-                  [class.ei-tr-warn]="!row.matchedStudent && !row.parseError"
-                  [class.ei-tr-expandable]="rowHasExpandableIssues(row)"
-                >
-                  <td class="ei-td-expand">
-                    <button
-                      type="button"
-                      class="ei-expand-hit"
-                      *ngIf="rowHasExpandableIssues(row)"
-                      (click)="toggleExpand(row); $event.stopPropagation()"
-                      [attr.aria-expanded]="isExpanded(row)"
-                    >
-                      <mat-icon>{{ isExpanded(row) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                    </button>
-                  </td>
-                  <td>{{ row.rowIndex }}</td>
-                  <td>
-                    <div class="ei-chip-stack">
-                      <span class="ei-pill ei-pill-ok" *ngIf="row.matchedStudent && !row.parseError">Matched</span>
-                      <span class="ei-pill ei-pill-err" *ngIf="row.parseError">Invalid</span>
-                      <span class="ei-pill ei-pill-warn" *ngIf="!row.matchedStudent && !row.parseError">No match</span>
-                      <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">⚠ Possible duplicate</span>
-                      <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">CCY inferred</span>
-                    </div>
-                  </td>
-                  <td>{{ row.name || '—' }}</td>
-                  <td>{{ row.resolvedName || '—' }}</td>
-                  <td class="ei-ellipsis" [matTooltip]="row.email">{{ row.email || '—' }}</td>
-                  <td>{{ row.level || '—' }}</td>
-                  <td><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type }}</span></td>
-                  <td class="ei-num">{{ fmt(row.amount) }}</td>
-                  <td class="ei-num">{{ fmt(row.totalAmount) }}</td>
-                  <td class="ei-num">{{ fmt(row.balance) }}</td>
-                  <td>{{ row.currency || row.effectiveCurrency }}<span class="ei-ccy-hint" *ngIf="row.currencyInferred">*</span></td>
-                  <td>{{ fmtDate(row.dateOfPayment) }}</td>
-                  <td class="ei-ellipsis" [matTooltip]="row.note">{{ row.note || '—' }}</td>
-                  <td class="ei-num">{{ fmt(row.documentQuotation) }}</td>
-                  <td class="ei-num">{{ fmt(row.documentReceived) }}</td>
-                  <td class="ei-num">{{ fmt(row.visaQuotation) }}</td>
-                  <td class="ei-num">{{ fmt(row.visaReceived) }}</td>
-                </tr>
-                <tr class="ei-expand-row" *ngIf="isExpanded(row) && rowHasExpandableIssues(row)">
-                  <td [attr.colspan]="18">
-                    <div class="ei-expand-panel">
-                      <div class="ei-issue" *ngFor="let issue of issueDetails(row)">
-                        <mat-icon>lightbulb_outline</mat-icon>
-                        <div>
-                          <div class="ei-issue-reason">{{ issue.reason }}</div>
-                          <div class="ei-issue-fix"><strong>Suggested fix:</strong> {{ issue.fix }}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              </ng-container>
+              <tr
+                *ngFor="let row of previewRows"
+                class="ei-tr-clickable"
+                (click)="openRowDetail(row)"
+                [class.ei-tr-selected]="selectedRow?.rowIndex === row.rowIndex"
+                [class.ei-tr-ok]="row.matchedStudent && !row.parseError"
+                [class.ei-tr-bad]="!!row.parseError"
+                [class.ei-tr-warn]="!row.matchedStudent && !row.parseError"
+              >
+                <td>{{ row.rowIndex }}</td>
+                <td>
+                  <div class="ei-chip-stack">
+                    <span class="ei-pill" [ngClass]="rowStatusClass(row)">{{ rowStatusLabel(row) }}</span>
+                    <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">Duplicate</span>
+                    <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">CCY*</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="ei-student-name">{{ row.name || row.resolvedName || '—' }}</span>
+                  <span class="ei-student-sub" *ngIf="row.name && row.resolvedName && row.name !== row.resolvedName">
+                    Portal: {{ row.resolvedName }}
+                  </span>
+                </td>
+                <td class="ei-ellipsis" [matTooltip]="row.email">{{ row.email || '—' }}</td>
+                <td><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type || 'Language' }}</span></td>
+                <td class="ei-num">{{ fmt(row.amount) }}</td>
+                <td>{{ row.currency || row.effectiveCurrency }}</td>
+                <td>{{ fmtDate(row.dateOfPayment) }}</td>
+                <td class="ei-td-action">
+                  <mat-icon class="ei-row-open-icon">chevron_right</mat-icon>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -218,6 +193,157 @@
         </div>
       </div>
     </section>
+
+    <!-- ROW DETAIL (full panel) -->
+    <div
+      class="ei-detail-overlay"
+      *ngIf="step === 'preview' && selectedRow as row"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ei-detail-title"
+    >
+      <header class="ei-detail-header">
+        <div class="ei-detail-header-main">
+          <button type="button" class="ei-icon-btn ei-detail-close" (click)="closeRowDetail()" aria-label="Close details">
+            <mat-icon>arrow_back</mat-icon>
+          </button>
+          <div>
+            <h2 id="ei-detail-title" class="ei-detail-title">Row {{ row.rowIndex }}</h2>
+            <div class="ei-chip-stack ei-detail-pills">
+              <span class="ei-pill" [ngClass]="rowStatusClass(row)">{{ rowStatusLabel(row) }}</span>
+              <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">Possible duplicate</span>
+              <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">Currency inferred</span>
+            </div>
+          </div>
+        </div>
+        <div class="ei-detail-nav">
+          <button type="button" class="ei-icon-btn" (click)="navigateRowDetail(-1)" aria-label="Previous row">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
+          <span class="ei-detail-nav-label">
+            {{ previewRows.indexOf(row) + 1 }} / {{ previewRows.length }}
+          </span>
+          <button type="button" class="ei-icon-btn" (click)="navigateRowDetail(1)" aria-label="Next row">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </header>
+
+      <div class="ei-detail-body">
+        <section class="ei-detail-section" *ngIf="rowHasExpandableIssues(row)">
+          <h3 class="ei-detail-section-title">
+            <mat-icon>warning_amber</mat-icon> Issues &amp; warnings
+          </h3>
+          <div class="ei-detail-issues">
+            <div class="ei-issue" *ngFor="let issue of issueDetails(row)">
+              <mat-icon>lightbulb_outline</mat-icon>
+              <div>
+                <div class="ei-issue-reason">{{ issue.reason }}</div>
+                <div class="ei-issue-fix"><strong>Suggested fix:</strong> {{ issue.fix }}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="ei-detail-section">
+          <h3 class="ei-detail-section-title">
+            <mat-icon>person</mat-icon> Student
+          </h3>
+          <dl class="ei-detail-grid">
+            <div class="ei-detail-field">
+              <dt>Name (sheet)</dt>
+              <dd>{{ row.name || '—' }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Name (portal)</dt>
+              <dd>{{ row.resolvedName || '—' }}</dd>
+            </div>
+            <div class="ei-detail-field ei-detail-field-wide">
+              <dt>Email</dt>
+              <dd class="ei-detail-break">{{ row.email || '—' }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Level (sheet)</dt>
+              <dd>{{ row.level || '—' }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Level (portal)</dt>
+              <dd>{{ row.resolvedLevel || '—' }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="ei-detail-section">
+          <h3 class="ei-detail-section-title">
+            <mat-icon>payments</mat-icon> Payment
+          </h3>
+          <dl class="ei-detail-grid">
+            <div class="ei-detail-field">
+              <dt>Type</dt>
+              <dd><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type || 'Language' }}</span></dd>
+            </div>
+            <div class="ei-detail-field" *ngIf="row.customLabel">
+              <dt>Custom label</dt>
+              <dd>{{ row.customLabel }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Date</dt>
+              <dd>{{ fmtDate(row.dateOfPayment) }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Currency</dt>
+              <dd>
+                {{ row.currency || row.effectiveCurrency }}
+                <span class="ei-detail-muted" *ngIf="row.currencyInferred">(from student profile)</span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="ei-detail-section">
+          <h3 class="ei-detail-section-title">
+            <mat-icon>account_balance_wallet</mat-icon> Amounts
+          </h3>
+          <dl class="ei-detail-grid">
+            <div class="ei-detail-field">
+              <dt>Amount paid</dt>
+              <dd class="ei-detail-amount">{{ fmt(row.amount) }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Total / quoted</dt>
+              <dd class="ei-detail-amount">{{ fmt(row.totalAmount) }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Balance</dt>
+              <dd class="ei-detail-amount">{{ fmt(row.balance) }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Doc quotation</dt>
+              <dd class="ei-detail-amount">{{ fmt(row.documentQuotation) }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Doc received</dt>
+              <dd class="ei-detail-amount">{{ fmt(row.documentReceived) }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Visa quotation</dt>
+              <dd class="ei-detail-amount">{{ fmt(row.visaQuotation) }}</dd>
+            </div>
+            <div class="ei-detail-field">
+              <dt>Visa received</dt>
+              <dd class="ei-detail-amount">{{ fmt(row.visaReceived) }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="ei-detail-section" *ngIf="row.note">
+          <h3 class="ei-detail-section-title">
+            <mat-icon>notes</mat-icon> Note
+          </h3>
+          <p class="ei-detail-note">{{ row.note }}</p>
+        </section>
+      </div>
+    </div>
 
     <!-- MAPPING OVERLAY (full panel) -->
     <section class="ei-mapping-full" *ngIf="step === 'mapping'">

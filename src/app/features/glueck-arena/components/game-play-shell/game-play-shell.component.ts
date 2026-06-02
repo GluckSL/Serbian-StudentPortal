@@ -95,7 +95,8 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'scramble_rush'">Type words before letters fall. Limited lives — complete all levels to win.</p>
               <p *ngIf="set.gameType === 'image_matching'">Drag each word to the matching image. Match all pairs to complete the game.</p>
               <p *ngIf="set.gameType === 'gender_stack'">Words fall from the sky and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.</p>
-              <p *ngIf="set.gameType === 'matching' || set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
+              <p *ngIf="set.gameType === 'matching'">Match each item on the left with the correct item on the right, then check your answers.</p>
+              <p *ngIf="set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
               <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each pronoun cycles after 3 correct hits.</p>
               <p *ngIf="set.gameType === 'whackawort'">Whack the German words that match the target category — hit the wrong ones and lose a life!</p>
               <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word. Match all pairs to win!</p>
@@ -953,7 +954,7 @@ export class GamePlayShellComponent implements OnInit {
   asMemoryQuestions(): MemoryGameQuestion[] { return this.questions as MemoryGameQuestion[]; }
 
   isPlaceholderType(): boolean {
-    return ['matching', 'flashcards'].includes(this.set?.gameType ?? '');
+    return ['flashcards'].includes(this.set?.gameType ?? '');
   }
 
   handleComplete(result: SBResult) {
@@ -1055,6 +1056,29 @@ export class GamePlayShellComponent implements OnInit {
     this.svc.completeAttempt(this.attempt._id, {
       timeSpentSeconds: result.timeSpentSeconds,
       livesRemaining: result.livesRemaining,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleMatchingComplete(result: MatchResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
     }).subscribe({
       next: (r) => {
         this.finalXp = r.xpBonus ?? 0;

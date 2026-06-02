@@ -8,6 +8,10 @@ const paymentSubmissionSchema = new mongoose.Schema({
   studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   paidAmount: { type: Number, required: true, min: 0 },
   currency: { type: String, enum: ['LKR', 'INR', 'USD'], required: true },
+  /** When the student says they paid (bank/UPI transfer time). */
+  paymentDateTime: { type: Date, default: null },
+  /** Name on the bank account / UPI used for transfer. */
+  accountHolderName: { type: String, default: '' },
   transactionId: String,
   paymentMethod: { type: String, enum: ['Bank Transfer', 'UPI', 'Cash', 'Card', 'Other', 'Legacy'], default: 'Bank Transfer' },
   source: { type: String, default: null },

@@ -11,6 +11,10 @@ const notificationSchema = new mongoose.Schema({
   relatedEntityType: String,
   relatedEntityId: mongoose.Schema.Types.ObjectId,
   priority: { type: String, enum: ['LOW', 'NORMAL', 'HIGH'], default: 'NORMAL' },
+  metadata: { type: mongoose.Schema.Types.Mixed, default: null },
 }, { timestamps: true });
+
+notificationSchema.index({ recipientId: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ recipientId: 1, type: 1, relatedEntityId: 1, isRead: 1 });
 
 module.exports = mongoose.models[MODEL_NAME] || mongoose.model(MODEL_NAME, notificationSchema);

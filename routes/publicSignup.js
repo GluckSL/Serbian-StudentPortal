@@ -41,6 +41,11 @@ const {
 } = require('../utils/signupProofNotify');
 const { storeRecoverablePassword } = require('../utils/passwordRecoverable');
 const { activatePublicSignupStudent } = require('../utils/signupActivation');
+const {
+  isAllowedStudentPlan,
+  isServicePlan,
+  getServicePlanAmount,
+} = require('../utils/studentSubscriptionPlans');
 
 // Payment v2 services (require lazily to avoid circular init issues)
 const getPaymentService = () => require('../modules/payments-v2/backend/services/paymentService');
@@ -113,8 +118,12 @@ const proofUpload = multer({
   storage: proofStorage,
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const ok = /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype) || file.mimetype === 'application/pdf';
-    cb(null, ok);
+    const mimeOk =
+      /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype) ||
+      file.mimetype === 'application/pdf' ||
+      file.mimetype === 'application/x-pdf';
+    const nameOk = /\.(jpe?g|png|gif|webp|pdf)$/i.test(file.originalname || '');
+    cb(null, mimeOk || nameOk);
   },
 }).single('screenshot');
 
@@ -186,21 +195,15 @@ async function getSystemAdminId() {
 async function getCatalogAmount(level, subscription, currency) {
   const catalog = await PaymentHubCatalog.getOrCreate();
   const curr = (currency || 'INR').toUpperCase();
+  const sub = String(subscription || '').trim().toUpperCase();
 
-  // Try CEFR table first
-  const cefrRow = catalog.cefrRows?.find(r => r.code === level);
+  if (isServicePlan(sub)) {
+    return getServicePlanAmount(sub, curr, catalog.referenceRows || []);
+  }
+
+  const cefrRow = catalog.cefrRows?.find((r) => r.code === level);
   if (cefrRow) {
     return curr === 'LKR' ? cefrRow.lkr : cefrRow.inr;
-  }
-
-  // Fallback to reference rows based on subscription
-  if (subscription === 'PLATINUM') {
-    const ref = catalog.referenceRows?.find(r => (r.label || '').toLowerCase().includes('doc'));
-    if (ref) return curr === 'LKR' ? ref.lkr : ref.inr;
-  }
-  if (subscription === 'VISA_DOC_ONLY') {
-    const ref = catalog.referenceRows?.find(r => (r.label || '').toLowerCase().includes('visa'));
-    if (ref) return curr === 'LKR' ? ref.lkr : ref.inr;
   }
   return 0;
 }
@@ -312,7 +315,7 @@ router.post('/start', startLimiter, async (req, res) => {
     app.leadSource = leadSource || app.leadSource || '';
     if (subscription) {
       const sub = String(subscription).trim().toUpperCase();
-      if (['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'].includes(sub)) {
+      if (isAllowedStudentPlan(sub)) {
         app.subscription = sub;
       }
     }

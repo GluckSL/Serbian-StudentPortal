@@ -62,7 +62,8 @@ export class StudentProgressComponent implements OnInit {
   get feedbackByLevel() { return this.data?.feedbackByLevel || {}; }
 
   get isVisaDocOnly(): boolean {
-    return (this.profile.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
+    const sub = (this.profile.subscription || '').toUpperCase().trim();
+    return ['DOCS_RECOGNITION', 'VISA_DOC', 'POST_LANDING', 'VISA_DOC_ONLY'].includes(sub);
   }
 
   get isLanguageOnly(): boolean {

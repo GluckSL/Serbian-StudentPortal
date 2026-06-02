@@ -258,7 +258,9 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
           recomputePendingForStudent,
           checkAndInstantlyAdvanceSilverGoStudent
         } = require('../services/journeyDayAdvance.service');
+        const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
         const { ensureStudentLevelMatchesJourneyDay } = require('../services/journeyLevelSync.service');
+        await reconcileSilverGoCourseDay(studentId);
         await recomputePendingForStudent(studentId);
         await checkAndInstantlyAdvanceSilverGoStudent(studentId);
         await ensureStudentLevelMatchesJourneyDay(studentId);

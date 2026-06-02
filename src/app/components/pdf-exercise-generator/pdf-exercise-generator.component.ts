@@ -215,6 +215,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   visibleToStudents = false;
   saving = false;
 
+  // Duplicate detection
+  existingExerciseForDay: any = null;
+  duplicateCheckPending = false;
+
   // Inline editor state
   addingType = '';
 
@@ -2086,19 +2090,18 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     if (dayTrim) {
       const p = parseInt(dayTrim, 10);
       if (!Number.isFinite(p) || p < 1 || p > 200) {
-        this.saving = false;
         this.showError('Course day must be empty or a number from 1 to 200');
         return;
       }
       courseDay = p;
     }
 
-    this.saving = true;
     const extraTags = this.customTags
       .split(',')
       .map((t: string) => t.trim())
       .filter((t: string) => !!t);
-    const payload = {
+
+    const buildPayload = (vis: boolean) => ({
       title: this.exerciseTitle.trim(),
       description: this.exerciseDescription.trim(),
       targetLanguage: this.targetLanguage as 'German' | 'English',
@@ -2108,11 +2111,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       difficulty: this.difficulty,
       estimatedDuration: this.estimatedDuration,
       courseDay,
-      visibleToStudents: publish,
+      visibleToStudents: vis,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
         const { expanded, aiGenerated, attachmentUploading, generatingExplanation, subQuestions, ...rest } = q;
-        
-        // Transform sub-questions if present
         let transformedSubQuestions: ExerciseQuestion[] | undefined;
         if (subQuestions && subQuestions.length > 0) {
           transformedSubQuestions = subQuestions.map((sq: any) => {
@@ -2130,21 +2131,132 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
             return subRow;
           });
         }
-        
         return {
           ...rest,
-          ...(transformedSubQuestions && transformedSubQuestions.length > 0 
-            ? { subQuestions: transformedSubQuestions } 
+          ...(transformedSubQuestions && transformedSubQuestions.length > 0
+            ? { subQuestions: transformedSubQuestions }
+            : {})
+        } as ExerciseQuestion;
+      }),
+      tags: ['ai-generated', 'pdf-import', ...extraTags]
+    });
+
+    // If a duplicate was already confirmed (user chose "Create New Anyway"), skip check.
+    if (this.duplicateCheckPending) {
+      this.duplicateCheckPending = false;
+      this._doCreate(buildPayload(publish), publish);
+      return;
+    }
+
+    // If courseDay is set, check for an existing exercise on that day with the same category.
+    if (courseDay !== null && !this.existingExerciseForDay) {
+      this.saving = true;
+      this.exerciseService.getExercisesForAdmin({ courseDay, category: this.category, limit: 1 } as any).subscribe({
+        next: (res: any) => {
+          const items: any[] = Array.isArray(res) ? res : (res?.exercises ?? res?.data ?? []);
+          const match = items.find((e: any) => e.courseDay === courseDay);
+          if (match) {
+            this.existingExerciseForDay = match;
+            this.saving = false;
+          } else {
+            this._doCreate(buildPayload(publish), publish);
+          }
+        },
+        error: () => {
+          this._doCreate(buildPayload(publish), publish);
+        }
+      });
+      return;
+    }
+
+    this._doCreate(buildPayload(publish), publish);
+  }
+
+  updateExistingExercise(publish: boolean): void {
+    if (!this.existingExerciseForDay) return;
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) courseDay = parseInt(dayTrim, 10);
+
+    const extraTags = this.customTags
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter((t: string) => !!t);
+
+    const payload: any = {
+      title: this.exerciseTitle.trim(),
+      description: this.exerciseDescription.trim(),
+      targetLanguage: this.targetLanguage as 'German' | 'English',
+      nativeLanguage: this.nativeLanguage as 'English' | 'Tamil' | 'Sinhala',
+      level: this.level as any,
+      category: this.category as any,
+      difficulty: this.difficulty,
+      estimatedDuration: this.estimatedDuration,
+      courseDay,
+      visibleToStudents: publish,
+      mediaClears: [],
+      questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
+        const { expanded, aiGenerated, attachmentUploading, generatingExplanation, subQuestions, ...rest } = q;
+        let transformedSubQuestions: ExerciseQuestion[] | undefined;
+        if (subQuestions && subQuestions.length > 0) {
+          transformedSubQuestions = subQuestions.map((sq: any) => {
+            const subRow: any = { ...sq };
+            subRow.type = sq.type;
+            subRow.points = sq.points || 1;
+            subRow.context = String(sq.context || '').trim();
+            subRow.instruction = String(sq.instruction || '');
+            subRow.example = String(sq.example || '');
+            subRow.worksheetKind = sq.worksheetKind || null;
+            subRow.attachmentUrl = String(sq.attachmentUrl || '');
+            subRow.answerExplanation = String(sq.answerExplanation || '');
+            subRow.similarityThreshold = sq.similarityThreshold ?? 70;
+            subRow.scoringMode = sq.scoringMode || 'full';
+            return subRow;
+          });
+        }
+        return {
+          ...rest,
+          ...(transformedSubQuestions && transformedSubQuestions.length > 0
+            ? { subQuestions: transformedSubQuestions }
             : {})
         } as ExerciseQuestion;
       }),
       tags: ['ai-generated', 'pdf-import', ...extraTags]
     };
 
+    this.saving = true;
+    this.exerciseService.updateExercise(this.existingExerciseForDay._id, payload).subscribe({
+      next: () => {
+        this.saving = false;
+        this.existingExerciseForDay = null;
+        if (this.uploadResult?.uploadId) {
+          this.exerciseService.cleanupPdf(this.uploadResult.uploadId).subscribe();
+        }
+        this.showSuccess(publish ? 'Exercise updated and published!' : 'Exercise updated as draft!');
+        setTimeout(() => this.router.navigate(['/admin/digital-exercises']), 1200);
+      },
+      error: (err) => {
+        this.saving = false;
+        this.showError(err.error?.error || 'Failed to update exercise.');
+      }
+    });
+  }
+
+  createNewAnyway(publish: boolean): void {
+    this.existingExerciseForDay = null;
+    this.duplicateCheckPending = true;
+    this.saveExercise(publish);
+  }
+
+  cancelDuplicateWarning(): void {
+    this.existingExerciseForDay = null;
+  }
+
+  private _doCreate(payload: any, publish: boolean): void {
+    this.saving = true;
     this.exerciseService.createExercise(payload).subscribe({
       next: () => {
         this.saving = false;
-        // Cleanup PDF
         if (this.uploadResult?.uploadId) {
           this.exerciseService.cleanupPdf(this.uploadResult.uploadId).subscribe();
         }

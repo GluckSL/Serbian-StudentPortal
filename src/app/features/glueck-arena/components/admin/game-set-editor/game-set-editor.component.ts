@@ -260,7 +260,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
           <app-level-editor *ngIf="setId" [gameSetId]="setId!"></app-level-editor>
         </mat-tab>
 
-        <mat-tab label="Import">
+        <mat-tab label="Import" [disabled]="!setId">
           <app-game-import-panel
             [gameSetId]="setId || ''"
             [gameType]="form.get('gameType')?.value"
@@ -418,6 +418,7 @@ export class GameSetEditorComponent implements OnInit {
           perQuestionSeconds: s.timerSettings?.perQuestionSeconds ?? null,
           gsSpawnIntervalSeconds: s.genderStackSettings?.spawnIntervalSeconds ?? 4,
           gsFallDurationSeconds: s.genderStackSettings?.fallDurationSeconds ?? 1.2,
+          questionCount: s.questionCount ?? (r.questions?.length ?? 0),
         });
         this.thumbnailPreview = s.thumbnailUrl || null;
         this.targetBatches = Array.isArray(s.targetBatches) ? [...s.targetBatches] : [];
@@ -498,6 +499,7 @@ export class GameSetEditorComponent implements OnInit {
           this.setId = savedId;
           this.router.navigate(['/admin/glueck-arena', savedId, 'edit'], { replaceUrl: true });
         }
+        this.refreshQuestions();
       },
       error: (err) => { this.saving = false; this.notify.error(err?.error?.message || 'Save failed'); }
     });

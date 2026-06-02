@@ -14,8 +14,27 @@ const R2_THUMB_PREFIX = 'glueck-arena/game-thumbnails';
 const R2_IMAGE_PREFIX = 'glueck-arena/game-images';
 
 function imageFileFilter(_req, file, cb) {
-  if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) return cb(null, true);
+  const mt = String(file.mimetype || '').toLowerCase();
+  if (ALLOWED_IMAGE_TYPES.includes(mt) || mt === 'image/jpg' || mt === 'image/pjpeg') {
+    return cb(null, true);
+  }
+  // Browsers on Windows often send image/jpg or other image/* variants.
+  if (mt.startsWith('image/')) return cb(null, true);
   cb(new Error('Only image files allowed (jpeg, png, webp, gif)'));
+}
+
+/** multer-s3 + AWS SDK v3 may omit Location; build URL from bucket/key when needed. */
+function s3UrlFromUploadedFile(file) {
+  if (file?.location) return file.location;
+  const bucket = file?.bucket || process.env.S3_BUCKET;
+  const key = file?.key;
+  if (!bucket || !key) return '';
+  const region = process.env.AWS_REGION || 'us-east-1';
+  const encodedKey = String(key)
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+  return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`;
 }
 
 function buildMemoryImageUploader(fieldName) {
@@ -106,7 +125,7 @@ function handleImageUpload(req, res, { fieldName, r2KeyPrefix, missingMessage, s
         res.status(400).json({ success: false, message: missingMessage });
         return resolve(null);
       }
-      const rawUrl = req.file.location || '';
+      const rawUrl = s3UrlFromUploadedFile(req.file);
       if (!rawUrl) {
         res.status(500).json({ success: false, message: 'S3 upload did not return a URL' });
         return resolve(null);
@@ -188,7 +207,11 @@ function uploadThumbnail(req, res) {
         res.status(400).json({ success: false, message: 'No thumbnail file provided' });
         return resolve(null);
       }
-      const rawUrl = req.file.location || '';
+      const rawUrl = s3UrlFromUploadedFile(req.file);
+      if (!rawUrl) {
+        res.status(500).json({ success: false, message: 'S3 upload did not return a URL' });
+        return resolve(null);
+      }
       resolve(canonicalizeMediaUrl(rawUrl));
     });
   });

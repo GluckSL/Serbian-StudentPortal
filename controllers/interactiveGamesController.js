@@ -302,6 +302,9 @@ exports.startAttempt = async (req, res) => {
         }
       });
       shuffledWords = imageMatchingService.shuffleWords(allWords);
+    } else if (set.gameType === 'matching' || set.gameType === 'flashcards') {
+      const hints = questions.map(q => q.hint).filter(Boolean);
+      shuffledWords = imageMatchingService.shuffleWords(hints);
     }
 
     res.json({
@@ -724,6 +727,18 @@ exports.submitAnswer = async (req, res) => {
           preview: true,
         });
       }
+    } else if (attempt.gameType === 'matching') {
+      const selected = String(typedWord || '').trim().toLowerCase();
+      const expected = String(question.hint || '').trim().toLowerCase();
+      isCorrect = !!expected && selected === expected;
+      pointsEarned = isCorrect ? scoringService.basePoints('matching') : 0;
+      correctAnswer.hint = question.hint;
+    } else if (attempt.gameType === 'flashcards') {
+      const selected = String(typedWord || '').trim().toLowerCase();
+      const expected = String(question.word || '').trim().toLowerCase();
+      isCorrect = !!expected && selected === expected;
+      pointsEarned = isCorrect ? scoringService.basePoints('flashcards') : 0;
+      correctAnswer.word = question.word;
     }
 
     // Save answer record - update existing if wrong answer exists, else create new
@@ -1068,6 +1083,9 @@ exports.adminGetQuestions = async (req, res) => {
 
 exports.adminUpsertQuestions = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(String(req.params.id || ''))) {
+      return badRequest(res, 'Save the game set in Game Details first, then add questions.');
+    }
     const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
     if (!set) return notFound(res);
 
@@ -1208,7 +1226,10 @@ exports.adminUpsertQuestions = async (req, res) => {
 
     // Soft-delete questions the client removed from the array
     const incomingIds = questions.filter(q => q._id).map(q => String(q._id));
-    const newIds = Object.values(result.insertedIds || {}).map(id => String(id));
+    const inserted = result.insertedIds;
+    const newIds = inserted instanceof Map
+      ? [...inserted.values()].map((id) => String(id))
+      : Object.values(inserted || {}).map((id) => String(id));
     const keepIds = [...incomingIds, ...newIds].filter(Boolean);
     if (keepIds.length > 0) {
       const keepObjectIds = keepIds.map(id => new mongoose.Types.ObjectId(id));
@@ -1462,16 +1483,26 @@ exports.adminUploadPairImage = async (req, res) => {
       return badRequest(res, 'Invalid pair index');
     }
 
-    const question = await GameQuestion.findById(req.params.qid).lean();
-    if (!question) return notFound(res, 'Question not found');
-    if (!question.pairs || pairIndex >= question.pairs.length) {
-      return badRequest(res, 'Pair index out of range');
+    let question = await GameQuestion.findById(req.params.qid);
+    if (!question || question.isDeleted) return notFound(res, 'Question not found');
+
+    // Legacy rows stored word/image on the question root with an empty pairs[].
+    if ((!question.pairs || question.pairs.length === 0) && pairIndex === 0) {
+      question.pairs = [{
+        word: question.word || '',
+        hint: question.hint || '',
+        imageUrl: question.imageUrl || null,
+        audioUrl: question.audioUrl || null,
+      }];
+      await question.save();
     }
 
-    const setPath = `pairs.${pairIndex}.imageUrl`;
-    await GameQuestion.findByIdAndUpdate(req.params.qid, {
-      $set: { [setPath]: canonicalUrl },
-    });
+    if (!question.pairs || pairIndex >= question.pairs.length) {
+      return badRequest(res, `Pair index out of range (question has ${question.pairs?.length || 0} pair(s); save questions first)`);
+    }
+
+    question.pairs[pairIndex].imageUrl = canonicalUrl;
+    await question.save();
 
     const url = await presignS3Url(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, pairIndex });

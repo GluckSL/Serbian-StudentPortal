@@ -1440,6 +1440,26 @@
     </aside>
     </div>
 
+    <!-- Duplicate Day Warning -->
+    <div *ngIf="existingExerciseForDay" class="peg-duplicate-warning">
+      <div class="peg-dup-icon"><span class="material-icons">warning</span></div>
+      <div class="peg-dup-body">
+        <strong>A {{ existingExerciseForDay.category }} exercise for Day {{ existingExerciseForDay.courseDay }} already exists</strong>
+        <div class="peg-dup-muted">"{{ existingExerciseForDay.title }}" — updating it will keep existing audio and question data safe (audio URLs are preserved via server-side logic). Creating a new one leaves the old exercise untouched but its audio must be re-linked manually.</div>
+      </div>
+      <div class="peg-dup-actions">
+        <button class="btn-publish" type="button" (click)="updateExistingExercise(true)" [disabled]="saving">
+          <span class="material-icons">sync</span> Update Existing (recommended)
+        </button>
+        <button class="btn-save-draft" type="button" (click)="createNewAnyway(true)" [disabled]="saving">
+          <span class="material-icons">add_circle_outline</span> Create New Anyway
+        </button>
+        <button class="btn-icon-sm" type="button" (click)="cancelDuplicateWarning()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Save Actions -->
     <div class="save-bar">
       <button class="btn-secondary" (click)="back()">

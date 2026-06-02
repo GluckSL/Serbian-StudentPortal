@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpEvent, HttpEventType, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { filter, map, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export type TemplateUploadProgressEvent =
@@ -81,13 +81,59 @@ export interface StudentAgreement {
 @Injectable({ providedIn: 'root' })
 export class AgreementService {
   private base = `${environment.apiUrl}/agreements`;
+  private templatesListCache: AgreementTemplate[] | null = null;
+  private templatesListCachedAt = 0;
+  private readonly templatesListCacheMs = 45_000;
 
   constructor(private http: HttpClient) {}
 
+  invalidateTemplatesCache(): void {
+    this.templatesListCache = null;
+    this.templatesListCachedAt = 0;
+  }
+
+  /** Warm list for instant paint when navigating back within the cache window. */
+  peekTemplatesList(): AgreementTemplate[] | null {
+    if (
+      this.templatesListCache &&
+      Date.now() - this.templatesListCachedAt < this.templatesListCacheMs
+    ) {
+      return this.templatesListCache;
+    }
+    return null;
+  }
+
   // ─── Templates ────────────────────────────────────────────────────────────
 
-  getTemplates(): Observable<{ success: boolean; templates: AgreementTemplate[] }> {
-    return this.http.get<any>(`${this.base}/templates`);
+  /**
+   * @param options.summary — lean list payload (id/label only per field); use getTemplate() before edit.
+   * @param options.force — bypass in-memory cache.
+   */
+  getTemplates(options?: {
+    force?: boolean;
+    summary?: boolean;
+  }): Observable<{ success: boolean; templates: AgreementTemplate[] }> {
+    const summary = options?.summary !== false;
+    const cacheKey = summary ? 'summary' : 'full';
+    const now = Date.now();
+    if (
+      !options?.force &&
+      cacheKey === 'summary' &&
+      this.templatesListCache &&
+      now - this.templatesListCachedAt < this.templatesListCacheMs
+    ) {
+      return of({ success: true, templates: this.templatesListCache });
+    }
+    let params = new HttpParams();
+    if (summary) params = params.set('summary', '1');
+    return this.http.get<any>(`${this.base}/templates`, { params }).pipe(
+      tap((r) => {
+        if (summary && r?.templates) {
+          this.templatesListCache = r.templates;
+          this.templatesListCachedAt = Date.now();
+        }
+      })
+    );
   }
 
   getTemplate(id: string): Observable<{ success: boolean; template: AgreementTemplate }> {
@@ -106,7 +152,9 @@ export class AgreementService {
   }> {
     const fd = new FormData();
     fd.append('docx', file);
-    return this.http.post<any>(`${this.base}/templates/${templateId}/upload-docx`, fd);
+    return this.http.post<any>(`${this.base}/templates/${templateId}/upload-docx`, fd).pipe(
+      tap(() => this.invalidateTemplatesCache())
+    );
   }
 
   uploadTemplatePdf(file: File): Observable<{
@@ -202,7 +250,9 @@ export class AgreementService {
   }
 
   saveFields(id: string, fields: DynamicField[]): Observable<{ success: boolean; template: AgreementTemplate }> {
-    return this.http.put<any>(`${this.base}/templates/${id}/fields`, { fields });
+    return this.http.put<any>(`${this.base}/templates/${id}/fields`, { fields }).pipe(
+      tap(() => this.invalidateTemplatesCache())
+    );
   }
 
   getTemplatePreviewUrl(id: string): Observable<{ success: boolean; url: string }> {
@@ -213,7 +263,9 @@ export class AgreementService {
     let params = new HttpParams();
     if (options?.soft) params = params.set('soft', 'true');
     if (options?.cascade) params = params.set('cascade', 'true');
-    return this.http.delete<{ success: boolean; message?: string }>(`${this.base}/templates/${id}`, { params });
+    return this.http
+      .delete<{ success: boolean; message?: string }>(`${this.base}/templates/${id}`, { params })
+      .pipe(tap(() => this.invalidateTemplatesCache()));
   }
 
   // ─── Instances ────────────────────────────────────────────────────────────

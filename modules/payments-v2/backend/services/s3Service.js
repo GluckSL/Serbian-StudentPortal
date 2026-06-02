@@ -27,7 +27,15 @@ const getPresignedUrl = async (key, expiresIn = 3600) => {
   return getSignedUrl(c, new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }), { expiresIn });
 };
 
-const normalizeScreenshotKey = (key) => String(key).replace(/^uploads\/?/i, '').replace(/^\//, '');
+const normalizeScreenshotKey = (key) => {
+  // Handle legacy keys saved with Windows separators or prefixed with `uploads`.
+  const normalized = String(key || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\.\//, '')
+    .replace(/^\/+/, '');
+  return normalized.replace(/^uploads\/?/i, '');
+};
 
 const localProofFileExists = async (cleanKey) => {
   const abs = path.resolve(path.join(uploadsRoot, cleanKey));

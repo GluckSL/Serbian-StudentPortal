@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const PaymentRequest = require('../models/PaymentRequest');
 const PaymentInstallment = require('../models/PaymentInstallment');
 const StudentPaymentProfile = require('../models/StudentPaymentProfile');
+const PaymentHubCatalog = require('../models/PaymentHubCatalog');
 const paymentService = require('../services/paymentService');
 const installmentService = require('../services/installmentService');
 const timelineService = require('../services/timelineService');
@@ -25,6 +26,8 @@ const {
   emptyCurrencyBucket,
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
+const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 // ─── Helper to get admin name from user model ──────────────────────────────
 const getAdminName = async (userId) => {
@@ -183,12 +186,28 @@ const getDashboardStats = async (req, res) => {
 // without a profile still appear (zeros / NO_REQUESTS). Total count respects filters.
 const getStudentTable = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search, batch, level, overallStatus, sort = 'name' } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      batch,
+      level,
+      languageFeeStatus: languageFeeStatusFilter,
+      studentStatus,
+      subscription,
+      sort = 'name',
+    } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const userMatch = { role: 'STUDENT' };
     if (batch) userMatch.batch = batch;
     if (level) userMatch.level = level;
+    if (studentStatus && String(studentStatus).trim()) {
+      userMatch.studentStatus = String(studentStatus).trim();
+    }
+    if (subscription && String(subscription).trim()) {
+      userMatch.subscription = String(subscription).trim();
+    }
     if (search && String(search).trim()) {
       const q = String(search).trim();
       userMatch.$or = [
@@ -218,17 +237,79 @@ const getStudentTable = async (req, res) => {
       },
       { $addFields: { profile: { $arrayElemAt: ['$profileArr', 0] } } },
       {
+        $lookup: {
+          from: 'paymentrequests',
+          let: { studentId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$studentId', '$$studentId'] },
+                paymentType: 'LANGUAGE_FEE',
+                isArchived: false,
+                amountRemaining: { $gt: 0 },
+                status: { $nin: ['REJECTED', 'FULLY_PAID'] },
+              },
+            },
+            { $group: { _id: null, balance: { $sum: '$amountRemaining' } } },
+          ],
+          as: 'langFeeAgg',
+        },
+      },
+      {
         $addFields: {
           effectiveStatus: { $ifNull: ['$profile.overallStatus', 'NO_REQUESTS'] },
           sortDate: { $ifNull: ['$profile.lastRebuiltAt', '$createdAt'] },
           totalPaidSort: { $ifNull: ['$profile.totalPaid', 0] },
           overdueSort: { $ifNull: ['$profile.overdueCount', 0] },
+          languageFeeBalance: {
+            $ifNull: [{ $arrayElemAt: ['$langFeeAgg.balance', 0] }, 0],
+          },
+          journeyDay: {
+            $min: [
+              200,
+              {
+                $max: [
+                  1,
+                  {
+                    $cond: [
+                      {
+                        $and: [
+                          { $ne: ['$currentCourseDay', null] },
+                          { $gte: ['$currentCourseDay', 1] },
+                        ],
+                      },
+                      { $floor: '$currentCourseDay' },
+                      1,
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          languageFeeStatus: {
+            $cond: {
+              if: { $lte: ['$languageFeeBalance', 0] },
+              then: 'FULL_PAID',
+              else: {
+                $cond: {
+                  if: { $lt: ['$journeyDay', JOURNEY_DUE_FROM_DAY] },
+                  then: 'BALANCE',
+                  else: 'DUE',
+                },
+              },
+            },
+          },
         },
       },
     ];
 
-    if (overallStatus) {
-      pipeline.push({ $match: { effectiveStatus: String(overallStatus) } });
+    const feeStatus = String(languageFeeStatusFilter || '').trim().toUpperCase();
+    if (feeStatus && ['FULL_PAID', 'BALANCE', 'DUE'].includes(feeStatus)) {
+      pipeline.push({ $match: { languageFeeStatus: feeStatus } });
     }
 
     pipeline.push({ $sort: sortStage });
@@ -261,6 +342,8 @@ const getStudentTable = async (req, res) => {
               pendingApprovalAmount: { $ifNull: ['$profile.pendingApprovalAmount', 0] },
               overdueAmount: { $ifNull: ['$profile.overdueAmount', 0] },
               overallStatus: '$effectiveStatus',
+              languageFeeBalance: 1,
+              languageFeeStatus: 1,
               lastRebuiltAt: '$profile.lastRebuiltAt',
             },
           },
@@ -268,13 +351,98 @@ const getStudentTable = async (req, res) => {
       },
     });
 
-    const [result] = await mongoose.model('User').aggregate(pipeline);
+    const [aggregateResult, catalog] = await Promise.all([
+      mongoose.model('User').aggregate(pipeline),
+      PaymentHubCatalog.getOrCreate(),
+    ]);
+    const [result] = aggregateResult;
     const total = result.total[0]?.count || 0;
     const rawRows = result.rows || [];
-    const data = rawRows.map((row) => ({
-      ...row,
-      inferredCurrency: inferCurrencyFromPhone(row?.studentId?.phoneNumber),
-    }));
+    const levelPriceMap = new Map();
+    for (const r of catalog?.cefrRows || []) {
+      const code = String(r?.code || '').trim().toUpperCase();
+      if (!CEFR_ORDER.includes(code)) continue;
+      levelPriceMap.set(code, {
+        LKR: Number(r?.lkr) || 0,
+        INR: Number(r?.inr) || 0,
+        USD: 0,
+      });
+    }
+
+    const amountForCurrency = (currency, row) => {
+      if (currency === 'INR') return Number(row?.totalPaidINR) || 0;
+      if (currency === 'LKR') return Number(row?.totalPaidLKR) || 0;
+      return Number(row?.totalPaidUSD) || 0;
+    };
+
+    const currencyFieldsForBalance = (currency, amount) => {
+      const balance = Math.max(0, Number(amount) || 0);
+      return {
+        pendingApprovalAmountLKR: currency === 'LKR' ? balance : 0,
+        pendingApprovalAmountINR: currency === 'INR' ? balance : 0,
+        pendingApprovalAmountUSD: currency === 'USD' ? balance : 0,
+        overdueAmountLKR: 0,
+        overdueAmountINR: 0,
+        overdueAmountUSD: 0,
+      };
+    };
+
+    const data = rawRows.map((row) => {
+      const inferredCurrency = inferCurrencyFromPhone(row?.studentId?.phoneNumber);
+      const level = String(row?.studentId?.level || '').trim().toUpperCase();
+      const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
+      const targetFee = Number(levelPrice[inferredCurrency] || 0);
+      const paidForTargetCurrency = amountForCurrency(inferredCurrency, row);
+      const balance = Math.max(0, targetFee - paidForTargetCurrency);
+      const journeyDayRaw = Number(row?.studentId?.currentCourseDay);
+      const journeyDay = Number.isFinite(journeyDayRaw)
+        ? Math.min(200, Math.max(1, Math.floor(journeyDayRaw)))
+        : 1;
+
+      const isDue = balance > 0 && journeyDay >= JOURNEY_DUE_FROM_DAY;
+      const base = {
+        ...row,
+        inferredCurrency,
+        languageFeeBalance: balance,
+        languageFeeStatus: computeLanguageFeeStatus(balance, journeyDay),
+      };
+
+      if (balance <= 0) {
+        return {
+          ...base,
+          pendingApprovalAmount: 0,
+          overdueAmount: 0,
+          pendingApprovalAmountLKR: 0,
+          pendingApprovalAmountINR: 0,
+          pendingApprovalAmountUSD: 0,
+          overdueAmountLKR: 0,
+          overdueAmountINR: 0,
+          overdueAmountUSD: 0,
+        };
+      }
+
+      if (!isDue) {
+        const pendingFields = currencyFieldsForBalance(inferredCurrency, balance);
+        return {
+          ...base,
+          pendingApprovalAmount: balance,
+          overdueAmount: 0,
+          ...pendingFields,
+        };
+      }
+
+      return {
+        ...base,
+        pendingApprovalAmount: 0,
+        overdueAmount: balance,
+        pendingApprovalAmountLKR: 0,
+        pendingApprovalAmountINR: 0,
+        pendingApprovalAmountUSD: 0,
+        overdueAmountLKR: inferredCurrency === 'LKR' ? balance : 0,
+        overdueAmountINR: inferredCurrency === 'INR' ? balance : 0,
+        overdueAmountUSD: inferredCurrency === 'USD' ? balance : 0,
+      };
+    });
 
     res.json({
       success: true,
@@ -326,19 +494,43 @@ const getStudentPaymentHistory = async (req, res) => {
       })
     );
 
-    const studentDoc = await mongoose.model('User').findById(studentId).select('name email batch level enrollmentDate createdAt').lean();
+    const studentDoc = await mongoose.model('User')
+      .findById(studentId)
+      .select('name email batch level enrollmentDate createdAt currentCourseDay studentStatus subscription regNo')
+      .lean();
+
+    const langFeeRows = await PaymentRequest.find({
+      studentId,
+      paymentType: 'LANGUAGE_FEE',
+      isArchived: false,
+      amountRemaining: { $gt: 0 },
+      status: { $nin: ['REJECTED', 'FULLY_PAID'] },
+    })
+      .select('amountRemaining')
+      .lean();
+    const languageFeeBalance = langFeeRows.reduce((s, r) => s + (Number(r.amountRemaining) || 0), 0);
+    const journeyDay = studentDoc?.currentCourseDay;
+    const languageFeeStatus = computeLanguageFeeStatus(languageFeeBalance, journeyDay);
+
+    const enrichedProfile = enrichProfileCurrencyTotals(
+      profile
+        ? typeof profile.toObject === 'function'
+          ? profile.toObject()
+          : profile
+        : null,
+    );
+    if (enrichedProfile) {
+      enrichedProfile.languageFeeBalance = languageFeeBalance;
+      enrichedProfile.languageFeeStatus = languageFeeStatus;
+    }
 
     res.json({
       success: true,
       data: {
         student: studentDoc || profile?.studentId || null,
-        profile: enrichProfileCurrencyTotals(
-          profile
-            ? typeof profile.toObject === 'function'
-              ? profile.toObject()
-              : profile
-            : null,
-        ),
+        profile: enrichedProfile,
+        languageFeeBalance,
+        languageFeeStatus,
         requests: combined,
         total,
         page: Number(page),
@@ -454,6 +646,15 @@ const studentSubmitPayment = async (req, res) => {
     const transactionId = req.body.transactionId || undefined;
     const paymentMethod = req.body.paymentMethod || 'Bank Transfer';
     const installmentNumber = req.body.installmentNumber ? Number(req.body.installmentNumber) : undefined;
+    const accountHolderName = String(req.body.accountHolderName || '').trim();
+    const paymentDateTimeRaw = req.body.paymentDateTime;
+    let paymentDateTime = null;
+    if (paymentDateTimeRaw) {
+      paymentDateTime = new Date(paymentDateTimeRaw);
+      if (Number.isNaN(paymentDateTime.getTime())) {
+        return res.status(400).json({ success: false, message: 'paymentDateTime is invalid' });
+      }
+    }
 
     if (!paymentRequestId) {
       return res.status(400).json({ success: false, message: 'paymentRequestId is required' });
@@ -466,6 +667,12 @@ const studentSubmitPayment = async (req, res) => {
     }
     if (!['LKR', 'INR', 'USD'].includes(currency)) {
       return res.status(400).json({ success: false, message: 'currency must be LKR, INR, or USD' });
+    }
+    if (!accountHolderName || accountHolderName.length < 2) {
+      return res.status(400).json({ success: false, message: 'accountHolderName is required' });
+    }
+    if (!paymentDateTime) {
+      return res.status(400).json({ success: false, message: 'paymentDateTime is required' });
     }
 
     let screenshotKey;
@@ -497,6 +704,8 @@ const studentSubmitPayment = async (req, res) => {
       screenshotSize,
       paymentMethod,
       installmentNumber,
+      paymentDateTime,
+      accountHolderName,
     });
 
     res.status(201).json({ success: true, data: submission });

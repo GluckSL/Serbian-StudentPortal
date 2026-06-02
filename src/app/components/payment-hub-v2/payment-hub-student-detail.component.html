@@ -1,203 +1,444 @@
 <div class="sd-root">
 
-  <!-- Header -->
-  <div class="sd-page-header">
+  <header class="sd-hero">
     <button mat-button type="button" class="sd-back-btn" (click)="goBack()">
       <mat-icon>arrow_back</mat-icon> Back to Payment Hub
     </button>
-    <h1 class="sd-page-title">Student Payment History</h1>
-  </div>
+    <h1 class="sd-hero__title">Student Payment History</h1>
+  </header>
 
-  <div *ngIf="loading" class="sd-spinner-wrap">
-    <mat-spinner diameter="48"></mat-spinner>
-  </div>
-
-  <div *ngIf="!loading && history">
-
-    <!-- Student Header Card -->
-    <mat-card class="sd-student-card">
-      <div class="sd-student-header">
-        <div class="sd-avatar">
-          <mat-icon>account_circle</mat-icon>
-        </div>
-        <div class="sd-student-info">
-          <h2 class="sd-student-name">{{ history.student.name }}</h2>
-          <div class="sd-student-meta">
-            <span><mat-icon>email</mat-icon> {{ history.student.email }}</span>
-            <span *ngIf="history.student.batch"><mat-icon>group</mat-icon> Batch: {{ history.student.batch }}</span>
-            <span *ngIf="history.student.level"><mat-icon>school</mat-icon> Level: {{ history.student.level }}</span>
-            <span><mat-icon>calendar_today</mat-icon> Joined: {{ dateJoined() }}</span>
+  <ng-container *ngIf="loading; else sdLoaded">
+    <div class="sd-skeleton" aria-busy="true" aria-label="Loading student payment history">
+      <mat-card class="sd-student-card sd-skeleton-card">
+        <div class="sd-student-top">
+          <div class="sd-sk sd-sk--avatar"></div>
+          <div class="sd-sk-body">
+            <div class="sd-sk sd-sk--title"></div>
+            <div class="sd-sk sd-sk--line sd-sk--line-md"></div>
+            <div class="sd-sk sd-sk--line sd-sk--line-sm"></div>
           </div>
         </div>
-        <div class="sd-overall-status">
-          <span class="sd-pill" [ngClass]="overallStatusClass(history.profile?.overallStatus || '')">
-            {{ history.profile?.overallStatus || 'Unknown' }}
+        <div class="sd-chips sd-chips--skeleton">
+          <div class="sd-sk sd-sk--chip" *ngFor="let _ of skeletonChips"></div>
+        </div>
+        <div class="sd-stats-grid sd-stats-grid--skeleton">
+          <div class="sd-sk sd-sk--stat" *ngFor="let _ of [0, 1, 2, 3]"></div>
+        </div>
+      </mat-card>
+
+      <mat-card class="sd-history-card sd-skeleton-card">
+        <div class="sd-sk sd-sk--section-title"></div>
+        <div class="sd-sk sd-sk--thead"></div>
+        <div class="sd-sk-table-row" *ngFor="let _ of skeletonTableRows">
+          <div class="sd-sk sd-sk--cell" *ngFor="let __ of [0,1,2,3,4,5,6,7]"></div>
+        </div>
+      </mat-card>
+    </div>
+  </ng-container>
+
+  <ng-template #sdLoaded>
+    <div *ngIf="history; else sdError" class="sd-content sd-content--in">
+      <mat-card class="sd-student-card">
+        <div class="sd-student-top">
+          <div class="sd-avatar" aria-hidden="true">
+            <mat-icon>account_circle</mat-icon>
+          </div>
+          <div class="sd-student-identity">
+            <div class="sd-student-title-row">
+              <h2 class="sd-student-name">{{ history.student.name }}</h2>
+              <span class="sd-pill sd-pill--status" [ngClass]="languageFeeStatusClass()">
+                {{ languageFeeStatusLabel() }}
+              </span>
+            </div>
+            <p class="sd-student-email">
+              <mat-icon>email</mat-icon>
+              {{ history.student.email }}
+            </p>
+            <p class="sd-student-reg" *ngIf="history.student.regNo">
+              <mat-icon>badge</mat-icon>
+              {{ history.student.regNo }}
+            </p>
+          </div>
+        </div>
+
+        <div class="sd-chips" aria-label="Student overview">
+          <div class="sd-chip sd-chip--batch">
+            <span class="sd-chip__label">Batch</span>
+            <strong class="sd-chip__value">{{ batchLabel }}</strong>
+          </div>
+          <div class="sd-chip sd-chip--journey">
+            <span class="sd-chip__label">Current journey</span>
+            <strong class="sd-chip__value">{{ journeyDayLabel }}</strong>
+          </div>
+          <div class="sd-chip">
+            <span class="sd-chip__label">Level</span>
+            <strong class="sd-chip__value">{{ history.student.level || '—' }}</strong>
+          </div>
+          <div class="sd-chip" *ngIf="history.student.subscription">
+            <span class="sd-chip__label">Plan</span>
+            <strong class="sd-chip__value">{{ planLabel(history.student.subscription) }}</strong>
+          </div>
+          <div class="sd-chip">
+            <span class="sd-chip__label">Student status</span>
+            <strong class="sd-chip__value">{{ studentStatusLabel }}</strong>
+          </div>
+          <div class="sd-chip">
+            <span class="sd-chip__label">Joined</span>
+            <strong class="sd-chip__value">{{ dateJoined() }}</strong>
+          </div>
+        </div>
+
+        <div class="sd-stats-grid">
+          <div class="sd-stat sd-stat--received">
+            <span class="sd-stat__icon material-icons" aria-hidden="true">check_circle</span>
+            <div class="sd-stat__body">
+              <span class="sd-stat__label">Total received</span>
+              <app-payment-currency-totals
+                [lkr]="history.profile?.totalPaidLKR ?? 0"
+                [inr]="history.profile?.totalPaidINR ?? 0"
+                [usd]="history.profile?.totalPaidUSD ?? 0"
+                [compact]="true"
+              ></app-payment-currency-totals>
+            </div>
+          </div>
+          <div class="sd-stat sd-stat--pending">
+            <span class="sd-stat__icon material-icons" aria-hidden="true">hourglass_top</span>
+            <div class="sd-stat__body">
+              <span class="sd-stat__label">Pending approval</span>
+              <app-payment-currency-pending-totals
+                [lkr]="history.profile?.pendingApprovalAmountLKR ?? 0"
+                [inr]="history.profile?.pendingApprovalAmountINR ?? 0"
+                [usd]="history.profile?.pendingApprovalAmountUSD ?? 0"
+                [compact]="true"
+                [hideZero]="false"
+              ></app-payment-currency-pending-totals>
+            </div>
+          </div>
+          <div class="sd-stat sd-stat--overdue">
+            <span class="sd-stat__icon material-icons" aria-hidden="true">warning_amber</span>
+            <div class="sd-stat__body">
+              <span class="sd-stat__label">Overdue</span>
+              <app-payment-currency-overdue-totals
+                [lkr]="history.profile?.overdueAmountLKR ?? 0"
+                [inr]="history.profile?.overdueAmountINR ?? 0"
+                [usd]="history.profile?.overdueAmountUSD ?? 0"
+                [compact]="true"
+                [hideZero]="false"
+              ></app-payment-currency-overdue-totals>
+            </div>
+          </div>
+          <div class="sd-stat sd-stat--count">
+            <span class="sd-stat__icon material-icons" aria-hidden="true">receipt_long</span>
+            <div class="sd-stat__body">
+              <span class="sd-stat__label">Total requests</span>
+              <strong class="sd-stat__count-val">{{ history.total }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="sd-slot-section">
+          <div class="sd-slot-section__head">
+            <span class="sd-slot-section__title">Payment mapping</span>
+            <span class="sd-slot-section__sub">A1, A2, B1, B2, Docs, Visa</span>
+          </div>
+          <div class="sd-slot-grid">
+            <div
+              class="sd-slot-card"
+              *ngFor="let slot of paymentSlots"
+              [ngClass]="slotCardThemeClass(slot.key)"
+              [class.sd-slot-card--active]="activeMapSlot === slot.key"
+            >
+              <div class="sd-slot-card__top">
+                <h3 class="sd-slot-card__title">{{ slot.label }}</h3>
+                <span class="sd-pill pill-grey">{{ slotSummary(slot.key).requestCount }} requests</span>
+              </div>
+              <div class="sd-slot-card__meta">
+                Settled {{ slotSummary(slot.key).settledCount }}/{{ slotSummary(slot.key).requestCount }}
+              </div>
+              <div class="sd-slot-card__line">
+                <span class="sd-slot-card__label">Paid</span>
+                <app-payment-currency-totals
+                  [lkr]="slotSummary(slot.key).paid.LKR"
+                  [inr]="slotSummary(slot.key).paid.INR"
+                  [usd]="slotSummary(slot.key).paid.USD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+              </div>
+              <div class="sd-slot-card__line">
+                <span class="sd-slot-card__label">Balance</span>
+                <app-payment-currency-overdue-totals
+                  [lkr]="slotSummary(slot.key).balance.LKR"
+                  [inr]="slotSummary(slot.key).balance.INR"
+                  [usd]="slotSummary(slot.key).balance.USD"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-overdue-totals>
+              </div>
+              <p class="sd-slot-card__empty" *ngIf="slotSummary(slot.key).requestCount === 0">
+                No mapped payments yet.
+              </p>
+              <button mat-stroked-button type="button" class="sd-slot-card__map-btn" (click)="beginMap(slot.key)">
+                <mat-icon>add_card</mat-icon>
+                Map payment to {{ slot.label }}
+              </button>
+
+              <div class="sd-slot-map-form" *ngIf="activeMapSlot === slot.key">
+                <div class="sd-slot-map-grid">
+                  <label>
+                    <span>Total / Quoted</span>
+                    <input type="number" min="0" [(ngModel)]="mappingTotal" (ngModelChange)="onMapTotalChange()" />
+                  </label>
+                  <label>
+                    <span>Amount</span>
+                    <input type="number" min="0" [(ngModel)]="mappingAmount" (ngModelChange)="onMapPaidChange()" />
+                  </label>
+                  <label>
+                    <span>Currency</span>
+                    <select [(ngModel)]="mappingCurrency" (ngModelChange)="onMappingCurrencyChange(slot.key)">
+                      <option value="LKR">LKR</option>
+                      <option value="INR">INR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Balance</span>
+                    <input type="number" min="0" [(ngModel)]="mappingBalance" (ngModelChange)="onMapBalanceChange()" />
+                  </label>
+                  <label>
+                    <span>Payment date</span>
+                    <input type="date" [(ngModel)]="mappingDate" />
+                  </label>
+                  <label class="sd-slot-map-grid__full">
+                    <span>Remarks (optional)</span>
+                    <input type="text" [(ngModel)]="mappingRemarks" placeholder="Optional note" />
+                  </label>
+                </div>
+                <p class="sd-slot-map-note" *ngIf="slot.key === 'A1' || slot.key === 'A2' || slot.key === 'B1' || slot.key === 'B2'">
+                  <strong>Total / Quoted</strong> sets the correct fee for {{ slot.label }} (e.g. LKR 75,000) and merges duplicate rows.
+                  <strong>Amount</strong> records an additional payment only when there is still a balance. LKR and INR are tracked separately.
+                </p>
+                <div class="sd-slot-map-actions">
+                  <button mat-button type="button" (click)="cancelMap()" [disabled]="mappingSaving">Cancel</button>
+                  <button mat-flat-button color="primary" type="button" (click)="saveMappedPayment(slot.key)" [disabled]="mappingSaving">
+                    Save mapping
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </mat-card>
+
+      <mat-card class="sd-history-card">
+        <div class="sd-card-title">
+          <mat-icon>receipt_long</mat-icon>
+          <span>Payment history</span>
+          <span class="sd-card-title__meta" *ngIf="batchLabel !== '—' || journeyDay != null">
+            Batch <strong>{{ batchLabel }}</strong>
+            <ng-container *ngIf="journeyDay != null"> · Journey <strong>{{ journeyDayLabel }}</strong></ng-container>
           </span>
         </div>
-      </div>
 
-      <!-- Summary -->
-      <div class="sd-summary-row">
-        <div class="sd-summary-item sd-summary-item--currency">
-          <span class="sd-summary-label">Total received</span>
-          <app-payment-currency-totals
-            [lkr]="history.profile?.totalPaidLKR ?? 0"
-            [inr]="history.profile?.totalPaidINR ?? 0"
-            [usd]="history.profile?.totalPaidUSD ?? 0"
-            [compact]="true"
-          ></app-payment-currency-totals>
+        <div *ngIf="history.requests.length === 0" class="sd-empty">
+          <mat-icon>inbox</mat-icon>
+          <p>No payment requests found for this student.</p>
         </div>
-        <div class="sd-summary-div"></div>
-        <div class="sd-summary-item sd-summary-item--currency">
-          <span class="sd-summary-label">Pending approval</span>
-          <app-payment-currency-pending-totals
-            [lkr]="history.profile?.pendingApprovalAmountLKR ?? 0"
-            [inr]="history.profile?.pendingApprovalAmountINR ?? 0"
-            [usd]="history.profile?.pendingApprovalAmountUSD ?? 0"
-            [compact]="true"
-            [hideZero]="false"
-          ></app-payment-currency-pending-totals>
-        </div>
-        <div class="sd-summary-div"></div>
-        <div class="sd-summary-item sd-summary-item--currency">
-          <span class="sd-summary-label">Overdue</span>
-          <app-payment-currency-overdue-totals
-            [lkr]="history.profile?.overdueAmountLKR ?? 0"
-            [inr]="history.profile?.overdueAmountINR ?? 0"
-            [usd]="history.profile?.overdueAmountUSD ?? 0"
-            [compact]="true"
-            [hideZero]="false"
-          ></app-payment-currency-overdue-totals>
-        </div>
-        <div class="sd-summary-div"></div>
-        <div class="sd-summary-item">
-          <span class="sd-summary-label">Total Requests</span>
-          <span class="sd-summary-val">{{ history.total }}</span>
-        </div>
-      </div>
-    </mat-card>
 
-    <!-- Payment History Table -->
-    <mat-card class="sd-history-card">
-      <div class="sd-card-title">
-        <mat-icon>receipt_long</mat-icon> Payment History
-      </div>
+        <div class="sd-table-wrap" *ngIf="history.requests.length > 0">
+          <table class="sd-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Batch</th>
+                <th>Journey</th>
+                <th>Payment type</th>
+                <th class="sd-num">Requested</th>
+                <th class="sd-num">Paid</th>
+                <th class="sd-num">Balance</th>
+                <th>Status</th>
+                <th>Due</th>
+                <th>Created</th>
+                <th>Remarks</th>
+                <th class="sd-actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <ng-container *ngFor="let req of history.requests; let i = index">
+              <tr [class.sd-row-editing]="editingRequestId === req._id">
+                <td class="sd-num">{{ i + 1 }}</td>
+                <td><span class="sd-cell-batch">{{ batchLabel }}</span></td>
+                <td><span class="sd-cell-journey">{{ journeyDayLabel }}</span></td>
+                <td class="sd-type-cell">
+                  <strong>{{ formatPaymentType(req.paymentType, req.customType) }}</strong>
+                  <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
+                </td>
+                <td class="sd-num">
+                  <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+                </td>
+                <td class="sd-num sd-val-green">
+                  <app-payment-currency-amount
+                    [currency]="req.currency"
+                    [amount]="req.amount - req.amountRemaining"
+                  ></app-payment-currency-amount>
+                </td>
+                <td class="sd-num" [class.sd-val-red]="balanceDue(req) > 0">
+                  <app-payment-currency-amount [currency]="req.currency" [amount]="balanceDue(req)"></app-payment-currency-amount>
+                </td>
+                <td>
+                  <span class="sd-pill" [ngClass]="statusClass(req.status)">{{ requestStatusLabel(req.status) }}</span>
+                </td>
+                <td class="sd-date">{{ fmtDate(req.dueDate) }}</td>
+                <td class="sd-date">{{ fmtDate(req.createdAt) }}</td>
+                <td class="sd-remarks" [title]="req.remarks || ''">{{ req.remarks || '—' }}</td>
+                <td class="sd-actions-col">
+                  <ng-container *ngIf="canManageRequest(req)">
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="sd-icon-btn"
+                      title="Edit payment"
+                      (click)="beginEditRequest(req)"
+                      [disabled]="editSaving"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="sd-icon-btn sd-icon-btn--danger"
+                      title="Delete payment"
+                      (click)="deleteRequest(req)"
+                      [disabled]="editSaving"
+                    >
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </ng-container>
+                  <span *ngIf="!canManageRequest(req)" class="sd-actions-muted">—</span>
+                </td>
+              </tr>
+              <tr *ngIf="editingRequestId === req._id && editForm" class="sd-edit-row">
+                <td colspan="12">
+                  <div class="sd-edit-panel">
+                    <div class="sd-edit-panel__title">Edit imported payment</div>
+                    <div class="sd-edit-grid">
+                      <label>
+                        <span>Requested</span>
+                        <input type="number" min="0" [(ngModel)]="editForm.amount" (ngModelChange)="onEditAmountChange()" />
+                      </label>
+                      <label>
+                        <span>Paid</span>
+                        <input type="number" min="0" [(ngModel)]="editForm.paidAmount" (ngModelChange)="onEditPaidChange()" />
+                      </label>
+                      <label>
+                        <span>Balance</span>
+                        <input type="number" min="0" [(ngModel)]="editForm.balance" readonly />
+                      </label>
+                      <label>
+                        <span>Currency</span>
+                        <select [(ngModel)]="editForm.currency">
+                          <option value="LKR">LKR</option>
+                          <option value="INR">INR</option>
+                          <option value="USD">USD</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Due date</span>
+                        <input type="date" [(ngModel)]="editForm.dueDate" />
+                      </label>
+                      <label class="sd-edit-remarks">
+                        <span>Remarks</span>
+                        <input type="text" [(ngModel)]="editForm.remarks" placeholder="Optional note" />
+                      </label>
+                    </div>
+                    <div class="sd-edit-actions">
+                      <button mat-button type="button" (click)="cancelEditRequest()" [disabled]="editSaving">Cancel</button>
+                      <button mat-flat-button color="primary" type="button" (click)="saveEditRequest(req)" [disabled]="editSaving">
+                        Save changes
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              </ng-container>
+            </tbody>
+          </table>
+        </div>
+      </mat-card>
 
-      <div *ngIf="history.requests.length === 0" class="sd-empty">
-        No payment requests found for this student.
-      </div>
+      <mat-card class="sd-submissions-card" *ngIf="history.requests.length > 0">
+        <div class="sd-card-title">
+          <mat-icon>upload_file</mat-icon>
+          <span>Submission details</span>
+        </div>
 
-      <div class="sd-table-wrap" *ngIf="history.requests.length > 0">
-        <table class="sd-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Payment Type</th>
-              <th class="sd-num">Amount Requested</th>
-              <th class="sd-num">Amount Paid</th>
-              <th>Currency</th>
-              <th>Status</th>
-              <th>Due Date</th>
-              <th>Created</th>
-              <th>Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let req of history.requests; let i = index">
-              <td class="sd-num">{{ i + 1 }}</td>
-              <td>
-                <strong>{{ formatPaymentType(req.paymentType, req.customType) }}</strong>
-                <span *ngIf="isLegacy(req)" class="sd-legacy-badge" title="Legacy imported record">Imported</span>
-              </td>
-              <td class="sd-num">
+        <div *ngFor="let req of history.requests">
+          <div *ngIf="hasSubmissions(req)" class="sd-req-block">
+            <div class="sd-req-label">
+              {{ formatPaymentType(req.paymentType, req.customType) }}
+              <span class="sd-req-label__amt">
                 <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
-              </td>
-              <td class="sd-num sd-val-green">
-                <app-payment-currency-amount
-                  [currency]="req.currency"
-                  [amount]="req.amount - req.amountRemaining"
-                ></app-payment-currency-amount>
-              </td>
-              <td>{{ req.currency }}</td>
-              <td><span class="sd-pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
-              <td>{{ fmtDate(req.dueDate) }}</td>
-              <td>{{ fmtDate(req.createdAt) }}</td>
-              <td class="sd-remarks">{{ req.remarks || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </mat-card>
-
-    <!-- Submissions Detail -->
-    <mat-card class="sd-submissions-card" *ngIf="history.requests.length > 0">
-      <div class="sd-card-title">
-        <mat-icon>upload_file</mat-icon> Submission Details
-      </div>
-
-      <div *ngFor="let req of history.requests">
-        <div *ngIf="hasSubmissions(req)" class="sd-req-block">
-          <div class="sd-req-label">
-            {{ formatPaymentType(req.paymentType, req.customType) }}
-            &bull;
-            <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
-            &bull; Due {{ fmtDate(req.dueDate) }}
-            <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
-          </div>
-          <div *ngFor="let sub of getSubmissions(req); let j = index" class="sd-submission-row">
-            <div class="sd-sub-index">#{{ j + 1 }}</div>
-            <div class="sd-sub-details">
-              <div class="sd-sub-item">
-                <span class="sd-sub-label">Submitted</span>
-                <span>{{ fmtDateTime(sub.submittedAt) }}</span>
-              </div>
-              <div class="sd-sub-item">
-                <span class="sd-sub-label">Paid</span>
-                <span class="sd-val-green">
-                  <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
-                </span>
-              </div>
-              <div class="sd-sub-item">
-                <span class="sd-sub-label">Method</span>
-                <span>{{ sub.paymentMethod }}</span>
-              </div>
-              <div class="sd-sub-item" *ngIf="sub.transactionId">
-                <span class="sd-sub-label">Txn ID</span>
-                <span>{{ sub.transactionId }}</span>
-              </div>
-              <div class="sd-sub-item">
-                <span class="sd-sub-label">Status</span>
-                <span class="sd-pill" [ngClass]="statusClass(sub.status)">{{ sub.status }}</span>
-              </div>
-              <div class="sd-sub-item" *ngIf="sub.adminRemarks">
-                <span class="sd-sub-label">Admin Note</span>
-                <span>{{ sub.adminRemarks }}</span>
-              </div>
-              <div class="sd-sub-item" *ngIf="sub.rejectionReason">
-                <span class="sd-sub-label">Rejected</span>
-                <span class="sd-val-red">{{ sub.rejectionReason }}</span>
-              </div>
+              </span>
+              <span class="sd-req-label__due">Due {{ fmtDate(req.dueDate) }}</span>
+              <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
             </div>
-            <div class="sd-sub-actions">
-              <button mat-stroked-button type="button" (click)="viewScreenshot(sub)">
-                <mat-icon>image</mat-icon> Screenshot
-              </button>
+            <div *ngFor="let sub of getSubmissions(req); let j = index" class="sd-submission-row">
+              <div class="sd-sub-index">#{{ j + 1 }}</div>
+              <div class="sd-sub-details">
+                <div class="sd-sub-item">
+                  <span class="sd-sub-label">Submitted</span>
+                  <span>{{ fmtDateTime(sub.submittedAt) }}</span>
+                </div>
+                <div class="sd-sub-item">
+                  <span class="sd-sub-label">Paid</span>
+                  <span class="sd-val-green">
+                    <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
+                  </span>
+                </div>
+                <div class="sd-sub-item">
+                  <span class="sd-sub-label">Method</span>
+                  <span>{{ sub.paymentMethod }}</span>
+                </div>
+                <div class="sd-sub-item" *ngIf="sub.transactionId">
+                  <span class="sd-sub-label">Txn ID</span>
+                  <span>{{ sub.transactionId }}</span>
+                </div>
+                <div class="sd-sub-item">
+                  <span class="sd-sub-label">Status</span>
+                  <span class="sd-pill" [ngClass]="statusClass(sub.status)">{{ requestStatusLabel(sub.status) }}</span>
+                </div>
+                <div class="sd-sub-item" *ngIf="sub.adminRemarks">
+                  <span class="sd-sub-label">Admin note</span>
+                  <span>{{ sub.adminRemarks }}</span>
+                </div>
+                <div class="sd-sub-item" *ngIf="sub.rejectionReason">
+                  <span class="sd-sub-label">Rejected</span>
+                  <span class="sd-val-red">{{ sub.rejectionReason }}</span>
+                </div>
+              </div>
+              <div class="sd-sub-actions">
+                <button mat-stroked-button type="button" class="sd-btn-screenshot" (click)="viewScreenshot(sub)">
+                  <mat-icon>image</mat-icon> Screenshot
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div *ngIf="noSubmissionsYet()" class="sd-empty">
-        No submissions recorded yet.
-      </div>
-    </mat-card>
+        <div *ngIf="noSubmissionsYet()" class="sd-empty sd-empty--muted">
+          <mat-icon>description</mat-icon>
+          <p>No submissions recorded yet.</p>
+        </div>
+      </mat-card>
+    </div>
+  </ng-template>
 
-  </div>
-
-  <div *ngIf="!loading && !history" class="sd-error">
-    <mat-icon>error_outline</mat-icon>
-    <p>Could not load student history. Please try again.</p>
-    <button mat-flat-button color="primary" type="button" (click)="load()">Retry</button>
-  </div>
+  <ng-template #sdError>
+    <div class="sd-error">
+      <mat-icon>error_outline</mat-icon>
+      <p>Could not load student history. Please try again.</p>
+      <button mat-flat-button color="primary" type="button" (click)="load()">Retry</button>
+    </div>
+  </ng-template>
 
 </div>

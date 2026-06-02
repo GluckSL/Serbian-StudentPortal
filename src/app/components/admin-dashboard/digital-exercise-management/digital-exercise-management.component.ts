@@ -256,15 +256,26 @@ import { MaterialModule } from '../../../shared/material.module';
             <span *ngIf="ex.stats == null || !ex.stats.avgScore" class="text-muted">—</span>
           </td>
           <td>
-            <button
-              type="button"
-              class="visibility-btn"
-              [class.visible]="ex.visibleToStudents"
-              (click)="toggleVisibility(ex)"
-              [matTooltip]="ex.visibleToStudents ? 'Hide from students' : 'Show to students'"
-            >
-              <span class="material-icons">{{ ex.visibleToStudents ? 'visibility' : 'visibility_off' }}</span>
-            </button>
+            <div class="students-col-btns">
+              <button
+                type="button"
+                class="visibility-btn"
+                [class.visible]="ex.visibleToStudents"
+                (click)="toggleVisibility(ex)"
+                [matTooltip]="ex.visibleToStudents ? 'Hide from students' : 'Show to students'"
+              >
+                <span class="material-icons">{{ ex.visibleToStudents ? 'visibility' : 'visibility_off' }}</span>
+              </button>
+              <button
+                type="button"
+                class="watch-only-btn"
+                [class.watch-only-btn--on]="ex.watchOnlyMode"
+                (click)="toggleWatchOnly(ex)"
+                [matTooltip]="ex.watchOnlyMode ? 'Watch Only ON — click to require speaking' : 'Watch Only OFF — click to let students skip speaking'"
+              >
+                <span class="material-icons">{{ ex.watchOnlyMode ? 'mic_off' : 'mic' }}</span>
+              </button>
+            </div>
           </td>
           <td class="actions-cell">
             <button class="btn-icon btn-test" (click)="testExercise(ex)" matTooltip="Test as student">
@@ -753,7 +764,13 @@ import { MaterialModule } from '../../../shared/material.module';
     .status-badge.active { background: #dcfce7; color: #166534; }
     .status-badge.inactive { background: #ffe0e6; color: #e11d48; }
 
-    /* ── Visibility Button ── */
+    /* ── Students column: visibility + watch-only buttons ── */
+    .students-col-btns {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     .visibility-btn {
       background: #f1f5f9;
       border: none;
@@ -767,6 +784,22 @@ import { MaterialModule } from '../../../shared/material.module';
     .visibility-btn .material-icons { font-size: 18px; }
     .visibility-btn.visible { color: #005b96; background: #dbeafe; }
     .visibility-btn:hover { color: #005b96; background: #e2e8f0; }
+
+    /* Watch Only toggle button */
+    .watch-only-btn {
+      background: #f1f5f9;
+      border: none;
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 8px;
+      color: #94a3b8;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .watch-only-btn .material-icons { font-size: 18px; }
+    .watch-only-btn--on { color: #b45309; background: #fef3c7; }
+    .watch-only-btn--on:hover { color: #92400e; background: #fde68a; }
+    .watch-only-btn:not(.watch-only-btn--on):hover { color: #374151; background: #e2e8f0; }
 
     .center { text-align: center; }
     .text-muted { color: #94a3b8; }
@@ -1126,6 +1159,24 @@ export class DigitalExerciseManagementComponent implements OnInit {
       },
       error: (err) => {
         const msg = err?.error?.error || err?.error?.message || err?.message || 'Failed to update visibility';
+        this.showError(msg);
+      }
+    });
+  }
+
+  toggleWatchOnly(exercise: DigitalExercise): void {
+    const id = exercise._id ?? (exercise as any).id;
+    if (!id) { this.showError('Cannot update: exercise id missing'); return; }
+    const newValue = !exercise.watchOnlyMode;
+    this.exerciseService.toggleWatchOnlyMode(String(id), newValue).subscribe({
+      next: (res) => {
+        exercise.watchOnlyMode = res?.watchOnlyMode ?? newValue;
+        this.showSuccess(newValue
+          ? 'Watch Only ON — students will skip speaking'
+          : 'Watch Only OFF — students must speak');
+      },
+      error: (err) => {
+        const msg = err?.error?.error || err?.error?.message || err?.message || 'Failed to update watch-only mode';
         this.showError(msg);
       }
     });

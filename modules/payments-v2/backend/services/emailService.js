@@ -196,7 +196,47 @@ const sendPaymentRequestEmail = async (student, request) => {
 
 const sendPaymentRejectedEmail = async (student, submission) => {
   const { name, email } = student;
-  const html = `<p>Dear ${name},</p><p>Your payment screenshot was reviewed and unfortunately could not be approved at this time.</p><p><strong>Reason:</strong> ${submission.rejectionReason || 'Please contact support for details.'}</p><p>Please re-upload your screenshot via the student portal or contact us at info@gluckglobal.com.</p><p>Gluck Global Finance Team</p>`;
+  const { paidAmount, currency, rejectionReason } = submission;
+  const reason = rejectionReason || 'Please contact support for details.';
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f7fa; margin: 0; padding: 0; color: #212121; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #b71c1c 0%, #c62828 100%); color: white; padding: 28px 40px; text-align: center; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .body { padding: 28px 40px; }
+    .reason-box { background: #fff5f5; border-left: 4px solid #c62828; border-radius: 8px; padding: 16px 20px; margin: 18px 0; font-size: 15px; line-height: 1.5; }
+    .details-box { background: #f8fafc; border-radius: 8px; padding: 16px 20px; margin-bottom: 18px; font-size: 14px; }
+    .footer { background: #f5f7fa; padding: 16px 40px; text-align: center; font-size: 12px; color: #9e9e9e; border-top: 1px solid #e0e0e0; }
+    .footer a { color: #1a237e; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header"><h1>Payment Not Approved</h1><p>Gluck Global — Student Portal</p></div>
+    <div class="body">
+      <p style="font-size:16px;">Dear <strong>${name}</strong>,</p>
+      <p>Thank you for submitting your payment proof. After review, we were unable to approve this submission at this time.</p>
+      <div class="details-box">
+        <strong>Declared amount:</strong> ${currency || 'INR'} ${Number(paidAmount || 0).toLocaleString('en-IN')}
+      </div>
+      <div class="reason-box">
+        <strong>Reason from our finance team:</strong><br/>${reason}
+      </div>
+      <p>Please log in to the student portal to upload a corrected screenshot, or contact us at <a href="mailto:info@gluckglobal.com">info@gluckglobal.com</a> if you have questions.</p>
+      <p style="font-weight:600; color:#1a237e; margin-bottom:0;">Gluck Global Finance Team</p>
+    </div>
+    <div class="footer">
+      <p>450/73, Srimavo Bandaranayaka Mawatha, Peradeniya Road, Kandy | <a href="mailto:info@gluckglobal.com">info@gluckglobal.com</a></p>
+      <p>This is an automated email from the Gluck Global Student Portal.</p>
+    </div>
+  </div>
+</body>
+</html>`;
   await sendMail({ to: email, subject: `Payment Update Required — Gluck Global`, html });
 };
 

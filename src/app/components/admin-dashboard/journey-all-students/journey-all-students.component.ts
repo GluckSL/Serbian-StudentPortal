@@ -29,6 +29,8 @@ interface GoStudentRow {
   goStatus: string;
   goJoiningDate: string;
   currentCourseDay?: number;
+  storedCourseDay?: number;
+  needsJourneySync?: boolean;
   batch?: string;
   level?: string;
   studentStatus?: string;
@@ -159,7 +161,10 @@ interface GoStudentRow {
               <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
               <span *ngIf="!s.goJoiningDate" class="jas-muted">—</span>
             </td>
-            <td><span class="jas-day-pill">Day {{ s.currentCourseDay || 1 }}</span></td>
+            <td>
+              <span class="jas-day-pill">Day {{ s.currentCourseDay || 1 }}</span>
+              <span *ngIf="s.needsJourneySync" class="jas-sync-hint" title="Stored day was higher; effective day shown until you open their detail">*</span>
+            </td>
             <td>
               <button type="button" class="jas-btn jas-btn-outline jas-btn-sm" (click)="openGoStudentDetail(s)">
                 <i class="fas fa-external-link-alt"></i> Open
@@ -242,6 +247,7 @@ interface GoStudentRow {
       display: inline-block; padding: 2px 10px; border-radius: 999px;
       background: #eef2ff; color: #3730a3; font-weight: 700; font-size: 12px;
     }
+    .jas-sync-hint { margin-left: 4px; color: #ca8a04; font-weight: 700; cursor: help; }
     .jas-badge-go { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 11px; }
     .jas-badge-plan { background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 8px; font-weight: 700; font-size: 11px; }
     .jas-muted { color: #94a3b8; }

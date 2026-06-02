@@ -6,7 +6,7 @@ import {
   PAYMENT_CURRENCIES,
 } from './payment-currency.util';
 
-/** Single amount with currency badge (e.g. LKR 10,000). */
+/** Single amount with currency code (e.g. LKR 10,000). */
 @Component({
   selector: 'app-payment-currency-amount',
   standalone: true,
@@ -14,7 +14,6 @@ import {
   template: `
     <span class="ph-ccy-inline" *ngIf="amount > 0; else empty">
       <span class="ph-ccy-badge" [ngClass]="meta.badgeClass" [attr.title]="meta.label">
-        <span class="ph-ccy-badge-symbol">{{ meta.symbol }}</span>
         <span class="ph-ccy-badge-code">{{ meta.label }}</span>
       </span>
       <span class="ph-ccy-inline-amt">{{ fmt(amount) }}</span>

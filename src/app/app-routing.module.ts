@@ -8,6 +8,7 @@ import { AdminDashboardComponent } from './components/admin-dashboard/admin-dash
 import { HomeComponent } from './components/home/home.component';
 import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
+import { VisaDocsOnlyGuard } from './guards/visa-docs-only.guard';
 import { ProfileComponent } from './components/profile/profile.component';
 import { CreateCourseComponent } from './components/courses/course-create.component';
 import { RemindersComponent } from './components/admin-dashboard/reminders/reminders.component';
@@ -181,7 +182,7 @@ export const routes: Routes = [
   {
     path: 'student/my-course',
     loadComponent: () => import('./components/my-course/my-course.component').then(m => m.MyCourseComponent),
-    canActivate: [AuthGuard, RoleGuard],
+    canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard],
     data: { role: 'STUDENT' }
   },
 
@@ -250,17 +251,22 @@ export const routes: Routes = [
   // Student Visa Status page
   { path: 'visa-status', loadComponent: () => import('./components/visa-status/visa-status.component').then(m => m.VisaStatusComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 
-  // Admin Payments
-  { path: 'admin/payments', loadComponent: () => import('./components/admin-dashboard/admin-payments/admin-payments.component').then(m => m.AdminPaymentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-
-  // Invoice Management
-  { path: 'admin/invoices', loadComponent: () => import('./components/admin-dashboard/invoice-management/invoice-management.component').then(m => m.InvoiceManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-
-  // Payment Approvals (student payment submissions)
-  { path: 'admin/payment-approvals', loadComponent: () => import('./components/admin-dashboard/payment-approvals/payment-approvals.component').then(m => m.PaymentApprovalsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  // Legacy admin payment tabs hidden — use Payment Hub (New) instead
+  // { path: 'admin/payments', loadComponent: () => import('./components/admin-dashboard/admin-payments/admin-payments.component').then(m => m.AdminPaymentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  // { path: 'admin/invoices', loadComponent: () => import('./components/admin-dashboard/invoice-management/invoice-management.component').then(m => m.InvoiceManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  // { path: 'admin/payment-approvals', loadComponent: () => import('./components/admin-dashboard/payment-approvals/payment-approvals.component').then(m => m.PaymentApprovalsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Payment Hub v2 (under components/ so lazy paths match the rest of the app)
   { path: 'admin/payment-hub', loadComponent: () => import('./components/payment-hub-v2/payment-hub-shell.component').then(m => m.PaymentHubShellComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  {
+    path: 'admin/payment-notifications',
+    loadComponent: () =>
+      import('./components/payment-hub-v2/payment-hub-notifications-page.component').then(
+        (m) => m.PaymentHubNotificationsPageComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] },
+  },
   { path: 'admin/payment-hub/insights/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-insights.component').then(m => m.PaymentHubBatchInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches/:batch/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-students.component').then(m => m.PaymentHubBatchStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/revenue', loadComponent: () => import('./components/payment-hub-v2/payment-hub-revenue-insights.component').then(m => m.PaymentHubRevenueInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
@@ -298,7 +304,7 @@ export const routes: Routes = [
   { path: 'admin/journey', loadComponent: () => import('./components/admin-dashboard/journey-management/journey-management.component').then(m => m.JourneyManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/go-students', loadComponent: () => import('./components/admin-dashboard/go-students/go-students-journey.component').then(m => m.GoStudentsJourneyComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
-  { path: 'ai-tutor-chat', loadComponent: () => import('./components/ai-tutor-chat/ai-tutor-chat.component').then(m => m.AiTutorChatComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'ai-tutor-chat', loadComponent: () => import('./components/ai-tutor-chat/ai-tutor-chat.component').then(m => m.AiTutorChatComponent), canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 
   // Audio Test Route (for students and teachers to test microphone and speakers)
   { path: 'audio-test', loadComponent: () => import('./components/audio-test/audio-test.component').then(m => m.AudioTestComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'TEACHER_ADMIN'] } },
@@ -323,7 +329,7 @@ export const routes: Routes = [
   {
     path: 'dg-bot',
     loadComponent: () => import('./dg-bot/dg-bot-hub/dg-bot-hub.component').then((m) => m.DgBotHubComponent),
-    canActivate: [AuthGuard, RoleGuard],
+    canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard],
     data: { role: 'STUDENT' },
   },
   {
@@ -374,7 +380,7 @@ export const routes: Routes = [
       import('./sprechen-exam/sprechen-exam-hub/sprechen-exam-hub.component').then(
         (m) => m.SprechenExamHubComponent,
       ),
-    canActivate: [AuthGuard, RoleGuard],
+    canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard],
     data: { role: 'STUDENT' },
   },
   {
@@ -427,7 +433,7 @@ export const routes: Routes = [
   {
     path: 'digital-exercises',
     loadComponent: () => import('./components/digital-exercises/digital-exercises.component').then(m => m.DigitalExercisesComponent),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
     path: 'digital-exercises/analytics',
@@ -435,17 +441,17 @@ export const routes: Routes = [
       import('./components/student-digital-exercises-analytics/student-digital-exercises-analytics.component').then(
         (m) => m.StudentDigitalExercisesAnalyticsComponent
       ),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
     path: 'digital-exercises/:id/play',
     loadComponent: () => import('./components/digital-exercise-player/digital-exercise-player.component').then(m => m.DigitalExercisePlayerComponent),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
     path: 'digital-exercises/:id/review',
     loadComponent: () => import('./components/digital-exercise-review/digital-exercise-review.component').then(m => m.DigitalExerciseReviewComponent),
-    canActivate: [AuthGuard]
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   // Admin/Teacher: manage exercises
   {
@@ -507,13 +513,13 @@ export const routes: Routes = [
   { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
   // Class Recordings — Student view
-  { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  { path: 'student/class-recordings', loadComponent: () => import('./components/class-recordings/student-recordings/student-recordings.component').then(m => m.StudentRecordingsComponent), canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard], data: { role: 'STUDENT' } },
 
   // ── GlückArena — Student routes ──────────────────────────────────────────
   {
     path: 'glueck-arena',
     loadComponent: () => import('./features/glueck-arena/components/arena-layout/arena-layout.component').then(m => m.ArenaLayoutComponent),
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, VisaDocsOnlyGuard],
     children: [
       {
         path: '',
@@ -627,7 +633,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./components/class-recordings/zoom-recording-player/zoom-recording-player.component')
         .then(m => m.ZoomRecordingPlayerComponent),
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, VisaDocsOnlyGuard],
   },
 
   // Wildcard route to handle invalid paths

@@ -5,6 +5,7 @@ const ctrl = require('../controllers/paymentRequestController');
 const approvalCtrl = require('../controllers/approvalController');
 const catalogCtrl = require('../controllers/catalogSettingsController');
 const legacyCtrl = require('../controllers/legacyMapController');
+const notificationCtrl = require('../controllers/notificationController');
 const { attachFinanceRole, requireFinanceAdmin } = require('../middlewares/financeRoles');
 const { buildUploadMiddleware } = require('../middlewares/paymentScreenshotUpload');
 const uploadScreenshot = (req, res, next) => buildUploadMiddleware()(req, res, next);
@@ -55,10 +56,18 @@ router.patch('/approvals/:submissionId/correct-amount', requireFinanceAdmin, app
 // ─── Legacy manual payment mapping ───────────────────────────────────────────
 router.post('/legacy/map-payment', requireFinanceAdmin, legacyCtrl.mapLegacyPaymentsHandler);
 router.post('/legacy/bulk-language-paid', requireFinanceAdmin, legacyCtrl.bulkMapLegacyLanguageFeesHandler);
+router.patch('/legacy/requests/:requestId', requireFinanceAdmin, legacyCtrl.updateLegacyPaymentRequestHandler);
 
 // ─── Catalog / pricing settings ──────────────────────────────────────────────
 router.get('/catalog/settings', requireFinanceAdmin, catalogCtrl.getCatalogSettings);
 router.put('/catalog/settings', requireFinanceAdmin, catalogCtrl.updateCatalogSettings);
+
+// ─── Admin notifications (Payment Hub) ───────────────────────────────────────
+router.get('/notifications', notificationCtrl.listMine);
+router.get('/notifications/unread-count', notificationCtrl.unreadCount);
+router.patch('/notifications/:id/read', notificationCtrl.markRead);
+router.patch('/notifications/mark-all/read', notificationCtrl.markAllRead);
+router.post('/notifications/journey-due/sync', requireFinanceAdmin, notificationCtrl.runJourneyDueSync);
 
 // ─── Student-facing routes ───────────────────────────────────────────────────
 router.get('/my/catalog', catalogCtrl.getMyCatalog);

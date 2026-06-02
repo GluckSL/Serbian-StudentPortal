@@ -295,8 +295,9 @@ export class AuthService {
       return '/teacher-dashboard';
     }
     if (role === 'STUDENT') {
-      const isVisaDocOnly = (user.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
-      return isVisaDocOnly ? '/student-progress' : '/student/my-course';
+      const sub = (user.subscription || '').toUpperCase().trim();
+      const isCourse = sub === 'SILVER' || sub === 'PLATINUM';
+      return isCourse ? '/student/my-course' : '/student-documents';
     }
     return null;
   }

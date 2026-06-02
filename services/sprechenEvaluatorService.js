@@ -2,6 +2,57 @@
 
 const OpenAI = require('openai');
 
+function clampNumber(n, min, max) {
+  if (typeof n !== 'number' || Number.isNaN(n)) return min;
+  return Math.min(max, Math.max(min, n));
+}
+
+function normalizeText(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function heuristicScoreTurn({ turnType, transcript, criteria }) {
+  const applicable = (criteria || []).filter((c) => !c.turnType || c.turnType === turnType);
+  if (!applicable.length) return { points: 0, maxPoints: 0, criteria: [], modelVersion: 'fallback' };
+
+  const maxPoints = applicable.reduce((sum, c) => sum + (c.points || 0), 0);
+  const text = normalizeText(transcript);
+
+  const met = (c) => {
+    if (!text) return false;
+    if (c.turnType === 'teil1_spell') {
+      // Lightweight spelling detection: "s o u r a v" or "s-o-u-r-a-v"
+      return /(^| )([a-zäöüß](?:[ -]+[a-zäöüß]){2,})( |$)/i.test(transcript || '');
+    }
+    if (c.turnType === 'teil1_number') {
+      // Accept digits or common German number words.
+      return /\d/.test(text) || /\b(null|eins|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn)\b/.test(text);
+    }
+    if (c.turnType === 'teil2_student_ask') {
+      // Question attempt: ? or W-word.
+      return /\?/.test(transcript || '') || /\b(wann|was|wo|wie|warum|wer|welche|welcher|welches)\b/.test(text);
+    }
+    if (c.turnType === 'teil3_student_request') {
+      return /\b(bitte|können sie|koennen sie|darf ich|ich möchte|ich moechte)\b/.test(text);
+    }
+    // Fallback: any non-trivial attempt.
+    return text.split(' ').filter(Boolean).length >= 3;
+  };
+
+  const finalCriteria = applicable.map((c) => ({ id: c.id, label: c.label, met: met(c), note: 'fallback' }));
+  const points = finalCriteria.reduce((sum, c, i) => sum + (c.met ? (applicable[i]?.points || 0) : 0), 0);
+
+  return {
+    points: Math.min(points, maxPoints),
+    maxPoints,
+    criteria: finalCriteria,
+    modelVersion: 'fallback',
+  };
+}
+
 let _singleton;
 function getOpenAI() {
   if (!_singleton) {
@@ -22,6 +73,10 @@ function getOpenAI() {
  * @returns {Promise<{ points: number, maxPoints: number, criteria: object[], modelVersion: string }>}
  */
 async function scoreTurn({ teil, turnType, transcript, card, criteria }) {
+  if (!process.env.DG_OPENAI_API_KEY) {
+    return heuristicScoreTurn({ turnType, transcript, criteria });
+  }
+
   // Only score criteria that match this turn type
   const applicable = (criteria || []).filter(
     (c) => !c.turnType || c.turnType === turnType
@@ -79,42 +134,43 @@ Award only 0 or the maximum points per criterion (no partial unless the criterio
 
     const resultCriteria = (parsed.criteria || []).map((r) => {
       const ref = applicable.find((c) => c.id === r.id);
+      const refMax = ref?.points || 0;
+      const awarded = typeof r.points_awarded === 'number'
+        ? clampNumber(r.points_awarded, 0, refMax)
+        : (Boolean(r.met) ? refMax : 0);
       return {
         id: r.id || '',
         label: r.label || ref?.label || '',
         met: Boolean(r.met),
         note: String(r.note || '').slice(0, 120),
-        pointsAwarded: typeof r.points_awarded === 'number' ? r.points_awarded : (r.met ? (ref?.points || 0) : 0),
+        pointsAwarded: awarded,
       };
     });
 
     // Fallback: if GPT returned wrong criterion ids, use met to build result
     const finalCriteria = applicable.map((c) => {
       const found = resultCriteria.find((r) => r.id === c.id);
-      if (found) return { id: c.id, label: c.label, met: found.met, note: found.note };
+      if (found) return { id: c.id, label: c.label, met: found.met, note: found.note, pointsAwarded: found.pointsAwarded };
       return { id: c.id, label: c.label, met: false, note: '' };
     });
 
     const points = finalCriteria.reduce((sum, c, i) => {
       const ref = applicable[i];
-      return sum + (c.met ? (ref?.points || 0) : 0);
+      const refMax = ref?.points || 0;
+      if (typeof c.pointsAwarded === 'number') return sum + clampNumber(c.pointsAwarded, 0, refMax);
+      return sum + (c.met ? refMax : 0);
     }, 0);
 
     return {
       points: Math.min(points, maxPoints),
       maxPoints,
-      criteria: finalCriteria,
+      criteria: finalCriteria.map((c) => ({ id: c.id, label: c.label, met: c.met, note: c.note })),
       modelVersion: completion.model || 'gpt-4o-mini',
     };
   } catch (err) {
     console.error('[sprechenEvaluator] GPT error:', err.message);
-    // Fail open — award 0 but keep the session going
-    return {
-      points: 0,
-      maxPoints,
-      criteria: applicable.map((c) => ({ id: c.id, label: c.label, met: false, note: 'eval_error' })),
-      modelVersion: 'error',
-    };
+    // Fail open — fallback scoring so students still get a score.
+    return heuristicScoreTurn({ turnType, transcript, criteria });
   }
 }
 

@@ -1,11 +1,12 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../../../shared/material.module';
+import { forkJoin } from 'rxjs';
 import { XpFloatComponent } from '../../shared/xp-float/xp-float.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
 import { InteractiveGameService } from '../../services/interactive-game.service';
 import { GameAudioService } from '../../services/game-audio.service';
-import { ScrambleQuestion, GameAttempt } from '../../glueck-arena.types';
+import { MatchingQuestion, GameAttempt } from '../../glueck-arena.types';
 
 export interface MatchResult {
   score: number;
@@ -16,8 +17,8 @@ export interface MatchResult {
 }
 
 interface MatchPair {
+  questionId: string;
   left: string;
-  right: string;
   selectedRight: string | null;
   isCorrect: boolean | null;
 }
@@ -34,7 +35,7 @@ interface MatchPair {
       </header>
 
       <div class="mc__board" *ngIf="phase === 'playing'">
-        <p class="mc__instruction">Match each German word with its English translation</p>
+        <p class="mc__instruction">Match each item on the left with the correct item on the right</p>
 
         <div class="mc__pairs" *ngFor="let pair of pairs; let i = index">
           <div class="mc__left">{{ pair.left }}</div>
@@ -115,7 +116,8 @@ interface MatchPair {
 })
 export class MatchingComponent implements OnInit, OnDestroy {
   @Input() attempt!: GameAttempt;
-  @Input() questions: ScrambleQuestion[] = [];
+  @Input() questions: MatchingQuestion[] = [];
+  @Input() shuffledRightOptions: string[] = [];
   @Output() onComplete = new EventEmitter<MatchResult>();
 
   phase: 'playing' | 'complete' = 'playing';
@@ -153,14 +155,16 @@ export class MatchingComponent implements OnInit, OnDestroy {
   }
 
   buildPairs() {
-    const pool = [...this.questions].slice(0, 8);
+    const pool = [...this.questions];
     this.pairs = pool.map(q => ({
-      left: q.scrambledLetters?.join('') || q.word,
-      right: q.word,
+      questionId: q._id,
+      left: q.word,
       selectedRight: null,
       isCorrect: null,
     }));
-    this.rightOptions = this.shuffle(pool.map(q => q.word));
+    this.rightOptions = this.shuffledRightOptions.length
+      ? [...this.shuffledRightOptions]
+      : this.shuffle(pool.map(q => q.word));
   }
 
   selectMatch(index: number, event: Event) {

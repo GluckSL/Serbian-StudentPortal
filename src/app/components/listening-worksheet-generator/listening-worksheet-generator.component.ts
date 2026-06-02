@@ -98,8 +98,13 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
   generationMeta: any = null;
   exerciseTitle = '';
   exerciseDescription = '';
+  courseDayStr = '';
   visibleToStudents = false;
   saving = false;
+
+  // Duplicate detection
+  existingExerciseForDay: any = null;
+  duplicateCheckPending = false;
 
   questionTypes: Array<{ value: SupportedWorksheetQuestionType; label: string; icon: string }> = [
     { value: 'mcq', label: 'Multiple Choice', icon: 'quiz' },
@@ -493,7 +498,78 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
       this.showError('Please add a title and ensure at least one valid question.');
       return;
     }
-    this.saving = true;
+
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) {
+      const p = parseInt(dayTrim, 10);
+      if (!Number.isFinite(p) || p < 1 || p > 200) {
+        this.showError('Course day must be empty or a number from 1 to 200.');
+        return;
+      }
+      courseDay = p;
+    }
+
+    const buildPayload = (vis: boolean): Partial<any> => ({
+      title: this.exerciseTitle.trim(),
+      description: this.exerciseDescription.trim(),
+      targetLanguage: this.targetLanguage as 'German' | 'English',
+      nativeLanguage: this.nativeLanguage as 'English' | 'Tamil' | 'Sinhala',
+      level: this.level as any,
+      category: 'Listening',
+      difficulty: this.difficulty,
+      visibleToStudents: vis,
+      sharedAudioUrl: this.sharedAudioUrl,
+      courseDay,
+      tags: ['audio-worksheet', 'pdf-import'],
+      questions: this.reviewQuestions
+        .filter(q => this.isQuestionValid(q))
+        .map(q => {
+          const { expanded, aiGenerated, ...rest } = q;
+          if (rest.type === 'pronunciation' && !rest.audioUrl && this.sharedAudioUrl) {
+            (rest as any).audioUrl = this.sharedAudioUrl;
+          }
+          return rest as ExerciseQuestion;
+        })
+    });
+
+    // If a duplicate was already confirmed, proceed with update or create.
+    if (this.duplicateCheckPending) {
+      this.duplicateCheckPending = false;
+      this._doCreate(buildPayload(publish), publish);
+      return;
+    }
+
+    // If courseDay is set, check for an existing Listening exercise on that day.
+    if (courseDay !== null && !this.existingExerciseForDay) {
+      this.saving = true;
+      this.exerciseService.getExercisesForAdmin({ courseDay, category: 'Listening', limit: 1 } as any).subscribe({
+        next: (res: any) => {
+          const items: any[] = Array.isArray(res) ? res : (res?.exercises ?? res?.data ?? []);
+          const match = items.find((e: any) => e.courseDay === courseDay);
+          if (match) {
+            this.existingExerciseForDay = match;
+            this.saving = false;
+          } else {
+            this._doCreate(buildPayload(publish), publish);
+          }
+        },
+        error: () => {
+          // If check fails just proceed with create.
+          this._doCreate(buildPayload(publish), publish);
+        }
+      });
+      return;
+    }
+
+    this._doCreate(buildPayload(publish), publish);
+  }
+
+  updateExistingExercise(publish: boolean): void {
+    if (!this.existingExerciseForDay) return;
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) courseDay = parseInt(dayTrim, 10);
 
     const payload: Partial<any> = {
       title: this.exerciseTitle.trim(),
@@ -505,12 +581,13 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
       difficulty: this.difficulty,
       visibleToStudents: publish,
       sharedAudioUrl: this.sharedAudioUrl,
+      courseDay,
       tags: ['audio-worksheet', 'pdf-import'],
+      mediaClears: [],
       questions: this.reviewQuestions
         .filter(q => this.isQuestionValid(q))
         .map(q => {
           const { expanded, aiGenerated, ...rest } = q;
-          // For pronunciation questions, use the shared worksheet audio if no per-question audio exists.
           if (rest.type === 'pronunciation' && !rest.audioUrl && this.sharedAudioUrl) {
             (rest as any).audioUrl = this.sharedAudioUrl;
           }
@@ -518,6 +595,36 @@ export class ListeningWorksheetGeneratorComponent implements OnInit, OnDestroy {
         })
     };
 
+    this.saving = true;
+    this.exerciseService.updateExercise(this.existingExerciseForDay._id, payload).subscribe({
+      next: () => {
+        this.saving = false;
+        this.existingExerciseForDay = null;
+        if (this.uploadResult?.uploadId) {
+          this.exerciseService.cleanupPdf(this.uploadResult.uploadId).subscribe();
+        }
+        this.showSuccess(publish ? 'Exercise updated and published!' : 'Exercise updated as draft!');
+        setTimeout(() => this.router.navigate(['/admin/digital-exercises']), 1200);
+      },
+      error: (err) => {
+        this.saving = false;
+        this.showError(err?.error?.error || 'Failed to update exercise.');
+      }
+    });
+  }
+
+  createNewAnyway(publish: boolean): void {
+    this.existingExerciseForDay = null;
+    this.duplicateCheckPending = true;
+    this.saveExercise(publish);
+  }
+
+  cancelDuplicateWarning(): void {
+    this.existingExerciseForDay = null;
+  }
+
+  private _doCreate(payload: Partial<any>, publish: boolean): void {
+    this.saving = true;
     this.exerciseService.createExercise(payload).subscribe({
       next: () => {
         this.saving = false;

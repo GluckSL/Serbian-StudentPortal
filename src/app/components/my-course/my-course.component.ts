@@ -27,6 +27,10 @@ import {
   JourneyPendingCelebrationDialogComponent,
   JourneyPendingCelebrationData
 } from './journey-pending-celebration-dialog.component';
+import {
+  PaymentHubApiService,
+  PaymentRequestItem,
+} from '../payment-hub-v2/payment-hub-api.service';
 
 type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey';
 type JourneyFilter = 'all' | 'completed' | 'pending';
@@ -84,6 +88,9 @@ export class MyCourseComponent implements OnInit {
   private currentDayManualRecs: ClassRecording[] = [];
   /** Whether the day-completion modal is open. */
   showDayCompletionModal = false;
+
+  /** Open LANGUAGE_FEE balance from payment hub (legacy import / requests). */
+  languageFeeDue: { amount: number; currency: string } | null = null;
 
   latestAnnouncement: AnnouncementItem | null = null;
   announcementDismissed = false;
@@ -170,7 +177,8 @@ export class MyCourseComponent implements OnInit {
     private notify: NotificationService,
     private dgApiService: DgApiService,
     private recordingsService: ClassRecordingsService,
-    private recordingReqService: RecordingAccessRequestService
+    private recordingReqService: RecordingAccessRequestService,
+    private paymentHubApi: PaymentHubApiService,
   ) {}
 
   ngOnInit(): void {
@@ -254,6 +262,8 @@ export class MyCourseComponent implements OnInit {
         },
       });
 
+    this.loadLanguageFeeDue();
+
     this.zoomService
       .getStudentMeetings({ tab: 'upcoming', page: 1, limit: 25 })
       .pipe(
@@ -291,6 +301,41 @@ export class MyCourseComponent implements OnInit {
         this.selectedJourneyDay = Number(d);
       }
     });
+  }
+
+  private loadLanguageFeeDue(): void {
+    this.paymentHubApi
+      .getMyRequests({ page: 1, limit: 50 })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError(() => of(null)),
+      )
+      .subscribe((res) => {
+        const rows = res?.data ?? [];
+        const open = rows.filter(
+          (r) => r.paymentType === 'LANGUAGE_FEE' && this.languageFeeRemaining(r) > 0,
+        );
+        if (!open.length) {
+          this.languageFeeDue = null;
+          return;
+        }
+        const pick = open.reduce((a, b) =>
+          this.languageFeeRemaining(a) >= this.languageFeeRemaining(b) ? a : b,
+        );
+        this.languageFeeDue = {
+          amount: this.languageFeeRemaining(pick),
+          currency: (pick.currency || 'LKR').toUpperCase(),
+        };
+      });
+  }
+
+  private languageFeeRemaining(req: PaymentRequestItem): number {
+    if (req.status === 'FULLY_PAID') return 0;
+    const view = req.studentInstallmentView;
+    if (req.installmentAllowed && view && !view.allPaid) {
+      return Math.max(0, view.displayAmount ?? req.amountRemaining ?? 0);
+    }
+    return Math.max(0, req.amountRemaining ?? 0);
   }
 
   private loadQuickAccess(): void {
@@ -640,6 +685,25 @@ export class MyCourseComponent implements OnInit {
     return Math.min(200, Math.max(1, Math.floor(Number(d))));
   }
 
+  /** Green / yellow / red strip on My class — keyed to teacher-set journey day. */
+  get languageFeeBannerTone(): 'green' | 'yellow' | 'red' {
+    const day = this.journeyCourseDay;
+    if (day <= 4) return 'green';
+    if (day <= 6) return 'yellow';
+    return 'red';
+  }
+
+  get showLanguageFeeDueCard(): boolean {
+    return !!this.languageFeeDue && this.languageFeeDue.amount > 0;
+  }
+
+  get formattedLanguageFeeDue(): string {
+    const due = this.languageFeeDue;
+    if (!due) return '';
+    const n = Math.round(due.amount).toLocaleString();
+    return `${due.currency} ${n}`;
+  }
+
   get journeyDays(): number[] {
     const n = this.journeyCourseDay;
     return Array.from({ length: n }, (_, i) => i + 1);
@@ -737,7 +801,8 @@ export class MyCourseComponent implements OnInit {
     const totalSec = Number(r.duration ?? 0);
     const rawWatched = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
     const watchedSec = totalSec > 0 ? Math.min(rawWatched, totalSec) : rawWatched;
-    return totalSec > 0 && watchedSec >= Math.ceil(totalSec * 0.75);
+    const ratio = this.isSilverGoStudentFrontend ? 0.9 : 0.75;
+    return totalSec > 0 && watchedSec >= Math.ceil(totalSec * ratio);
   }
 
   /** Exercises tagged to the current journey day. */

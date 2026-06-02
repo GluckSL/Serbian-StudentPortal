@@ -58,8 +58,9 @@ export interface UploadDialogData {
 
       <div class="ud-form-row">
         <mat-form-field appearance="outline" class="ud-field">
-          <mat-label>Paid Amount</mat-label>
-          <input matInput type="number" [(ngModel)]="paidAmount" min="1" />
+          <mat-label>Total paid amount</mat-label>
+          <input matInput type="number" [(ngModel)]="paidAmount" min="1" required />
+          <mat-hint>Enter the amount you actually transferred (partial OK)</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="ud-field">
@@ -69,6 +70,18 @@ export interface UploadDialogData {
             <mat-option value="INR">INR</mat-option>
             <mat-option value="USD">USD</mat-option>
           </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="ud-form-row">
+        <mat-form-field appearance="outline" class="ud-field">
+          <mat-label>Date &amp; time of payment</mat-label>
+          <input matInput type="datetime-local" [(ngModel)]="paymentDateTimeLocal" required />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="ud-field">
+          <mat-label>Account holder name</mat-label>
+          <input matInput [(ngModel)]="accountHolderName" placeholder="Name on bank / UPI" required />
         </mat-form-field>
       </div>
 
@@ -91,7 +104,7 @@ export interface UploadDialogData {
 
       <div class="ud-actions">
         <button mat-button type="button" (click)="cancel()">Cancel</button>
-        <button mat-flat-button color="primary" type="button" (click)="submit()" [disabled]="submitting || !selectedFile">
+        <button mat-flat-button color="primary" type="button" (click)="submit()" [disabled]="submitting || !selectedFile || !canSubmit">
           {{ submitting ? 'Uploading...' : 'Submit Payment' }}
         </button>
       </div>
@@ -196,6 +209,8 @@ export class PaymentUploadDialogComponent {
   currency: string;
   paymentMethod = 'Bank Transfer';
   transactionId = '';
+  paymentDateTimeLocal = '';
+  accountHolderName = '';
   submitting = false;
 
   constructor(
@@ -219,14 +234,27 @@ export class PaymentUploadDialogComponent {
     if (file) this.selectedFile = file;
   }
 
+  get canSubmit(): boolean {
+    return Boolean(
+      this.selectedFile &&
+      this.paidAmount > 0 &&
+      this.paymentDateTimeLocal &&
+      this.accountHolderName.trim().length >= 2,
+    );
+  }
+
   submit(): void {
-    if (!this.selectedFile || !this.paidAmount) return;
+    if (!this.canSubmit) return;
+    const payDt = new Date(this.paymentDateTimeLocal);
+    if (Number.isNaN(payDt.getTime())) return;
     const fd = new FormData();
     fd.append('paymentRequestId', String(this.data.request._id));
-    fd.append('screenshot', this.selectedFile);
+    fd.append('screenshot', this.selectedFile!);
     fd.append('paidAmount', String(this.paidAmount));
     fd.append('currency', this.currency);
     fd.append('paymentMethod', this.paymentMethod);
+    fd.append('paymentDateTime', payDt.toISOString());
+    fd.append('accountHolderName', this.accountHolderName.trim());
     if (this.transactionId) fd.append('transactionId', this.transactionId);
     if (this.data.installmentNumber != null) {
       fd.append('installmentNumber', String(this.data.installmentNumber));

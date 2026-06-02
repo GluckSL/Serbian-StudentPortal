@@ -53,6 +53,14 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   userProfile: any = null;
   expandedInstallments = new Set<string>();
+  readonly paymentSlots: Array<{ key: PortalPaymentSlotKey; label: string }> = [
+    { key: 'A1', label: 'A1' },
+    { key: 'A2', label: 'A2' },
+    { key: 'B1', label: 'B1' },
+    { key: 'B2', label: 'B2' },
+    { key: 'DOCS', label: 'Docs' },
+    { key: 'VISA', label: 'Visa' },
+  ];
 
   constructor(
     private readonly api: PaymentHubApiService,
@@ -803,4 +811,63 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     if (percent >= 25) return '#f39c12';
     return '#e74c3c';
   }
+
+  slotSummary(slotKey: PortalPaymentSlotKey): PortalPaymentSlotSummary {
+    const rows = this.requests.filter((req) => this.slotForRequest(req) === slotKey);
+    const summary: PortalPaymentSlotSummary = {
+      requestCount: rows.length,
+      settledCount: 0,
+      paid: { LKR: 0, INR: 0, USD: 0 },
+      balance: { LKR: 0, INR: 0, USD: 0 },
+    };
+    for (const req of rows) {
+      const currency = this.normCurrency(req.currency);
+      const requested = Math.max(0, req.amount ?? 0);
+      const balance = Math.max(0, req.amountRemaining ?? 0);
+      const paid = Math.max(0, requested - balance);
+      summary.paid[currency] += paid;
+      summary.balance[currency] += balance;
+      if (balance === 0 || req.status === 'FULLY_PAID' || req.status === 'APPROVED') {
+        summary.settledCount += 1;
+      }
+    }
+    return summary;
+  }
+
+  hasAnySlotPayments(): boolean {
+    return this.paymentSlots.some((slot) => this.slotSummary(slot.key).requestCount > 0);
+  }
+
+  private slotForRequest(req: PaymentRequest): PortalPaymentSlotKey | null {
+    if (req.paymentType === 'DOCS_PAYMENT') return 'DOCS';
+    if (req.paymentType === 'VISA_PAYMENT') return 'VISA';
+    if (req.paymentType === 'CUSTOM_PAYMENT') return this.normalizeLevel(req.customType);
+    if (req.paymentType !== 'LANGUAGE_FEE') return null;
+    const fallbackLevel = this.normalizeLevel(this.catalog?.studentLevel);
+    const mappedLevel = this.normalizeLevel(req.customType) || fallbackLevel;
+    return mappedLevel;
+  }
+
+  private normalizeLevel(level: string | undefined | null): PortalLanguageLevelSlot | null {
+    const val = String(level || '').trim().toUpperCase();
+    if (val === 'A1' || val === 'A2' || val === 'B1' || val === 'B2') return val;
+    return null;
+  }
+
+  private normCurrency(currency: string | undefined | null): PortalCurrencyKey {
+    const c = String(currency || '').trim().toUpperCase();
+    if (c === 'INR' || c === 'USD') return c;
+    return 'LKR';
+  }
+}
+
+type PortalLanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
+type PortalPaymentSlotKey = PortalLanguageLevelSlot | 'DOCS' | 'VISA';
+type PortalCurrencyKey = 'LKR' | 'INR' | 'USD';
+
+interface PortalPaymentSlotSummary {
+  requestCount: number;
+  settledCount: number;
+  paid: Record<PortalCurrencyKey, number>;
+  balance: Record<PortalCurrencyKey, number>;
 }

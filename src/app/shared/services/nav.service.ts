@@ -135,9 +135,10 @@ export class NavService {
       items: [
         { id: 'payment-hub', label: 'Payment Hub (New)', icon: 'credit_card', route: '/admin/payment-hub', subGroup: null },
         { id: 'payment-request', label: 'Req Payment', icon: 'send', route: '/admin/payment-request', subGroup: null },
-        { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
-        { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
-        { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
+        // Legacy payment tabs hidden — use Payment Hub (New) instead
+        // { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
+        // { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
+        // { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
       ]
     },
     {
