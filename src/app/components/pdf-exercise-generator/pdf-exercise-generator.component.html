@@ -427,10 +427,11 @@
               <option value="context">Context (background text)</option>
               <option value="audio">Audio URL (listening)</option>
               <option value="attachment">Attachment URL</option>
+              <option value="attachment-upload">Attachment (upload file)</option>
             </select>
           </div>
 
-          <ng-container *ngIf="bulkEditField && bulkEditField !== 'audio'">
+          <ng-container *ngIf="bulkEditField && bulkEditField !== 'audio' && bulkEditField !== 'attachment-upload'">
             <div class="bulk-input-row">
               <textarea
                 *ngIf="bulkEditField === 'context'"
@@ -470,6 +471,18 @@
               <button class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim() || bulkAudioUploading">
                 <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }}
               </button>
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="bulkEditField === 'attachment-upload'">
+            <div class="bulk-audio-row">
+              <button class="btn-upload-audio" type="button" (click)="triggerBulkAttachmentFile()" [disabled]="bulkAttachmentUploading">
+                <span class="material-icons">upload_file</span>
+                {{ bulkAttachmentUploading ? 'Uploading…' : 'Upload file' }}
+              </button>
+              <span class="bulk-type-hint" style="margin:0">
+                Applies the same file to all {{ selectedIndices.size }} selected question(s) — image, audio, PDF, or video.
+              </span>
             </div>
           </ng-container>
         </div>

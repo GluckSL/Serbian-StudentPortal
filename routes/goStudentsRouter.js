@@ -15,6 +15,9 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
+const GameSet = require('../models/GameSet');
+const GameAttempt = require('../models/GameAttempt');
+const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { withJourneyLevelInSet, levelForJourneyDay } = require('../services/journeyLevelSync.service');
@@ -30,7 +33,11 @@ const {
   reconcileSilverGoCourseDay,
   resolveSilverGoContentUnlock
 } = require('../utils/silverGoSequentialUnlock');
-const { recordingWatchCountsAsComplete } = require('../utils/recordingWatchCompletion');
+const {
+  recordingWatchCountsAsComplete,
+  recordingWatchSecondsForComplete
+} = require('../utils/recordingWatchCompletion');
+const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 
 function createGoStudentsRouter(trackKey) {
   const track = normalizeTrack(trackKey);
@@ -474,6 +481,148 @@ function createGoStudentsRouter(trackKey) {
     }
   });
   
+  async function upsertManualRecordingView(studentId, recordingId, durationSec) {
+    const targetSec = recordingWatchSecondsForComplete(durationSec);
+    const existing = await RecordingView.findOne({ student: studentId, recording: recordingId })
+      .sort({ startedAt: -1 });
+    if (existing) {
+      existing.watchDuration = Math.max(Number(existing.watchDuration) || 0, targetSec);
+      existing.lastUpdatedAt = new Date();
+      await existing.save();
+      return existing.watchDuration;
+    }
+    const created = await RecordingView.create({
+      student: studentId,
+      recording: recordingId,
+      watchDuration: targetSec
+    });
+    return created.watchDuration;
+  }
+
+  async function upsertZoomRecordingView(studentId, meetingLinkId, durationSec) {
+    const targetSec = recordingWatchSecondsForComplete(durationSec);
+    const existing = await ZoomRecordingView.findOne({ student: studentId, meetingLinkId })
+      .sort({ startedAt: -1 });
+    if (existing) {
+      existing.watchDuration = Math.max(Number(existing.watchDuration) || 0, targetSec);
+      existing.lastUpdatedAt = new Date();
+      await existing.save();
+      return existing.watchDuration;
+    }
+    const created = await ZoomRecordingView.create({
+      student: studentId,
+      meetingLinkId,
+      watchDuration: targetSec
+    });
+    return created.watchDuration;
+  }
+
+  // ─── POST /api/go-students/:studentId/recordings/:recordingId/mark-watched ─
+  router.post(
+    '/:studentId/recordings/:recordingId/mark-watched',
+    verifyToken,
+    checkRole(['ADMIN', 'TEACHER_ADMIN']),
+    async (req, res) => {
+      try {
+        const { studentId, recordingId } = req.params;
+        const student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
+          .select('_id goStatus subscription')
+          .lean();
+        if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
+
+        const recording = await ClassRecording.findOne({
+          _id: recordingId,
+          active: true,
+          isPublished: { $ne: false }
+        })
+          .select('duration title')
+          .lean();
+        if (!recording) return res.status(404).json({ message: 'Recording not found.' });
+
+        const watchDuration = await upsertManualRecordingView(
+          studentId,
+          recordingId,
+          Number(recording.duration || 0)
+        );
+        const watched = recordingWatchCountsAsComplete(
+          watchDuration,
+          Number(recording.duration || 0)
+        );
+
+        let journeyAdvanced = false;
+        if (isSilverGoStudent(student)) {
+          const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
+          journeyAdvanced = !!adv?.advanced;
+        }
+
+        res.json({
+          success: true,
+          watched,
+          watchDuration,
+          journeyAdvanced
+        });
+      } catch (err) {
+        console.error('go-students POST mark-watched (manual)', err);
+        res.status(500).json({ message: 'Failed to mark recording as watched.', error: err.message });
+      }
+    }
+  );
+
+  // ─── POST /api/go-students/:studentId/zoom-meetings/:meetingLinkId/mark-watched
+  router.post(
+    '/:studentId/zoom-meetings/:meetingLinkId/mark-watched',
+    verifyToken,
+    checkRole(['ADMIN', 'TEACHER_ADMIN']),
+    async (req, res) => {
+      try {
+        const { studentId, meetingLinkId } = req.params;
+        const student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
+          .select('_id goStatus subscription')
+          .lean();
+        if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
+
+        const meeting = await MeetingLink.findById(meetingLinkId)
+          .select('topic duration courseDay')
+          .lean();
+        if (!meeting) return res.status(404).json({ message: 'Class meeting not found.' });
+
+        const zoomRec = await ZoomRecording.findOne({
+          meetingLinkId,
+          isPublished: { $ne: false }
+        })
+          .select('duration status')
+          .lean();
+        if (!zoomRec) return res.status(404).json({ message: 'Zoom recording not found for this class.' });
+
+        const durationSec =
+          Number(zoomRec.duration) > 0
+            ? Number(zoomRec.duration)
+            : meeting?.duration != null && Number(meeting.duration) > 0
+              ? Math.round(Number(meeting.duration) * 60)
+              : 0;
+
+        const watchDuration = await upsertZoomRecordingView(studentId, meetingLinkId, durationSec);
+        const watched = recordingWatchCountsAsComplete(watchDuration, durationSec);
+
+        let journeyAdvanced = false;
+        if (isSilverGoStudent(student)) {
+          const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
+          journeyAdvanced = !!adv?.advanced;
+        }
+
+        res.json({
+          success: true,
+          watched,
+          watchDuration,
+          journeyAdvanced
+        });
+      } catch (err) {
+        console.error('go-students POST mark-watched (zoom)', err);
+        res.status(500).json({ message: 'Failed to mark zoom recording as watched.', error: err.message });
+      }
+    }
+  );
+
   // ─── GET /api/go-students/:studentId/detail ──────────────────────────────────
   // Full detail for one GO student: recordings, modules, exercises, progress
   router.get('/:studentId/detail', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
@@ -737,6 +886,48 @@ function createGoStudentsRouter(trackKey) {
   
       const completedDgModules = dgModules.filter((d) => d.status === 'completed').length;
       const totalDgModules = dgModules.length;
+
+      // ── GlückArena (journey-day games) ───────────────────────────────────────
+      let arenaGames = [];
+      try {
+        const arenaBatchKeys = studentTargetBatchKeys(student);
+        const arenaFilter = {
+          isDeleted: { $ne: true },
+          isPublished: true,
+          visibleToStudents: true,
+          targetLanguage: 'German',
+          courseDay: { $ne: null, $gte: 1, $lte: 200 },
+          ...moduleTargetingQuery(arenaBatchKeys),
+        };
+        const arenaSets = await GameSet.find(arenaFilter)
+          .select('title level category courseDay sequenceLetter gameType difficulty')
+          .sort({ courseDay: 1, sequenceLetter: 1, title: 1 })
+          .lean();
+        const arenaIds = arenaSets.map((g) => g._id);
+        const playedArenaIds =
+          arenaIds.length > 0
+            ? await GameAttempt.find({
+                studentId,
+                gameSetId: { $in: arenaIds },
+                status: 'completed',
+              }).distinct('gameSetId')
+            : [];
+        const playedArenaSet = new Set((playedArenaIds || []).map((id) => String(id)));
+        arenaGames = arenaSets.map((g) => ({
+          _id: g._id,
+          title: g.title,
+          level: g.level,
+          category: g.category,
+          courseDay: g.courseDay,
+          sequenceLetter: g.sequenceLetter,
+          gameType: g.gameType,
+          difficulty: g.difficulty,
+          locked: Number(g.courseDay) > accessDay,
+          played: playedArenaSet.has(String(g._id)),
+        }));
+      } catch (arenaErr) {
+        console.warn('go-students detail: arena games skipped', arenaErr?.message || arenaErr);
+      }
   
       res.json({
         journeyLength,
@@ -763,6 +954,7 @@ function createGoStudentsRouter(trackKey) {
         modules,
         exercises,
         dgModules,
+        arenaGames,
         progress: {
           currentDay: accessDay,
           totalExercises,

@@ -73,6 +73,8 @@ export class MyCourseComponent implements OnInit {
 
   private journeyDayExercises: DigitalExercise[] = [];
   private journeyDayGameSets: GameSet[] = [];
+  /** True when the student's batch has at least one published arena game. */
+  hasJourneyArenaAccess = false;
   private journeyMeetings: any[] = [];
   /** Fallback when journey.profile.profilePic is empty (login/profile API often has photo). */
   private authProfilePicRaw: string | null = null;
@@ -376,16 +378,15 @@ export class MyCourseComponent implements OnInit {
       });
 
     this.interactiveGameService
-      .getCatalog({ page: 1, limit: 500 })
+      .getJourneyGames()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          const items: GameSet[] = Array.isArray(res?.items) ? res.items : [];
-          this.journeyDayGameSets = items.filter(
-            (g) => (g.targetLanguage || 'German') === 'German'
-          );
+          this.hasJourneyArenaAccess = !!res?.hasArenaAccess;
+          this.journeyDayGameSets = Array.isArray(res?.items) ? res.items : [];
         },
         error: () => {
+          this.hasJourneyArenaAccess = false;
           this.journeyDayGameSets = [];
         }
       });
@@ -764,20 +765,34 @@ export class MyCourseComponent implements OnInit {
     return [];
   }
 
+  get showJourneyArenaSection(): boolean {
+    return this.hasJourneyArenaAccess || this.journeyDayGameSets.length > 0;
+  }
+
   get selectedDayGameSets(): GameSet[] {
     let list = this.journeyDayGameSets.filter(
-      (g) => Number(g.courseDay || 0) === this.selectedJourneyDay
+      (g) => g.courseDay != null && Number(g.courseDay) === this.selectedJourneyDay
     );
+    list = [...list].sort((a, b) => this.compareJourneyGameOrder(a, b));
     if (this.journeyFilter === 'completed') list = list.filter((x) => this.gameSetDone(x));
     if (this.journeyFilter === 'pending') list = list.filter((x) => !this.gameSetDone(x));
     return list;
+  }
+
+  private compareJourneyGameOrder(a: GameSet, b: GameSet): number {
+    const seqA = (a.sequenceLetter || '').toUpperCase();
+    const seqB = (b.sequenceLetter || '').toUpperCase();
+    if (seqA !== seqB) return seqA.localeCompare(seqB);
+    return (a.title || '').localeCompare(b.title || '');
   }
 
   get selectedDayHasItems(): boolean {
     return (
       this.selectedDayExercises.length > 0 ||
       this.selectedDayModules.length > 0 ||
-      this.selectedDayGameSets.length > 0
+      this.selectedDayGameSets.length > 0 ||
+      this.showJourneyArenaSection ||
+      this.allowsTalkBuddyTab
     );
   }
 
@@ -886,7 +901,12 @@ export class MyCourseComponent implements OnInit {
   getGameSetHoverDetails(set: GameSet): string {
     const status = this.gameSetDone(set) ? 'Completed' : 'Not completed';
     const type = set.gameType ? set.gameType.replace(/_/g, ' ') : 'Game';
-    return `${set.title} · ${type} · ${status}`;
+    const day =
+      set.courseDay != null && Number.isFinite(Number(set.courseDay))
+        ? `Day ${set.courseDay}`
+        : 'No journey day';
+    const seq = set.sequenceLetter ? ` · ${set.sequenceLetter}` : '';
+    return `${day}${seq} · ${set.title} · ${type} · ${status}`;
   }
 
   getExerciseHoverDetails(ex: DigitalExercise): string {

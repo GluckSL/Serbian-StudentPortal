@@ -652,12 +652,15 @@ export class DigitalExerciseService {
 
   // ─── Analytics (Teacher/Admin) ────────────────────────────────────────────
 
-  getExerciseCompletions(exerciseId: string, filters: { date?: string; studentId?: string; page?: number; limit?: number } = {}): Observable<any> {
+  getExerciseCompletions(exerciseId: string, filters: { date?: string; studentId?: string; page?: number; limit?: number; all?: boolean } = {}): Observable<any> {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        params = params.set(key, val.toString());
+      if (val === undefined || val === null || val === '') return;
+      if (key === 'all') {
+        if (val) params = params.set('all', 'true');
+        return;
       }
+      params = params.set(key, val.toString());
     });
     return this.http.get<any>(`${this.apiUrl}/${exerciseId}/completions`, { params, withCredentials: true });
   }

@@ -20,10 +20,11 @@ const memoryService = require('../services/interactiveGames/memory');
 const jumbledWordsService = require('../services/interactiveGames/jumbledWords');
 const hangmanService = require('../services/interactiveGames/hangman');
 const wordPictureMatchService = require('../services/interactiveGames/wordPictureMatch');
+const multipleChoiceService = require('../services/interactiveGames/multipleChoice');
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
 const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
-const { presignMediaUrl, presignS3Url, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
+const { presignMediaUrl, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
 const analyticsService = require('../services/interactiveGames/analytics');
 const securityService = require('../services/interactiveGames/security');
 const dailyChallengesService = require('../services/interactiveGames/dailyChallenges');
@@ -35,11 +36,11 @@ const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
-const ARENA_STAFF_ROLES = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
+const ARENA_STAFF_ROLES = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'];
 
 function isArenaStaff(role) {
   return ARENA_STAFF_ROLES.includes(role);
@@ -98,6 +99,59 @@ exports.getArenaAccess = async (req, res) => {
   }
 };
 
+/** Attach best score + play count for a student across game sets. */
+async function attachStudentProgressToSets(studentId, sets) {
+  if (!studentId || !sets.length) return sets;
+  const setIds = sets.map((s) => s._id);
+  const studentObjId = new mongoose.Types.ObjectId(String(studentId));
+  const bestAttempts = await GameAttempt.aggregate([
+    { $match: { studentId: studentObjId, gameSetId: { $in: setIds }, status: 'completed' } },
+    { $sort: { score: -1 } },
+    { $group: { _id: '$gameSetId', bestScore: { $max: '$score' }, count: { $sum: 1 } } },
+  ]);
+  const studentStats = {};
+  bestAttempts.forEach((a) => {
+    studentStats[String(a._id)] = { bestScore: a.bestScore, timesPlayed: a.count };
+  });
+  return sets.map((s) => ({
+    ...s,
+    studentProgress: studentStats[String(s._id)] || { bestScore: null, timesPlayed: 0 },
+  }));
+}
+
+// ── STUDENT — Journey day map (My Course → Journey to Germany) ───────────────
+
+exports.getJourneyGames = async (req, res) => {
+  try {
+    if (req.user.role !== 'STUDENT') {
+      return res.status(403).json({ success: false, message: 'Students only' });
+    }
+    const access = await journeyFilterService.hasArenaAccess(req.user.id);
+    const filter = await journeyFilterService.buildStudentFilter(req.user.id);
+    Object.assign(filter, {
+      courseDay: { $ne: null, $gte: 1, $lte: 200 },
+      targetLanguage: 'German',
+    });
+
+    const sets = await GameSet.find(filter)
+      .select('-__v')
+      .sort({ courseDay: 1, sequenceLetter: 1, title: 1 })
+      .lean();
+
+    let items = await attachStudentProgressToSets(req.user.id, sets);
+    await resignMediaInObjects(items);
+
+    res.json({
+      success: true,
+      items,
+      hasArenaAccess: access.hasAccess,
+      gameCount: access.gameCount,
+    });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
 // ── STUDENT — Catalog ─────────────────────────────────────────────────────────
 
 exports.getCatalog = async (req, res) => {
@@ -137,26 +191,10 @@ exports.getCatalog = async (req, res) => {
       GameSet.countDocuments(filter),
     ]);
 
-    // Attach student's best score + completion status if authenticated student
-    let studentStats = {};
+    let items = sets;
     if (req.user.role === 'STUDENT' && sets.length) {
-      const setIds = sets.map(s => s._id);
-      const mongoose = require('mongoose');
-      const studentObjId = new mongoose.Types.ObjectId(req.user.id);
-      const bestAttempts = await GameAttempt.aggregate([
-        { $match: { studentId: studentObjId, gameSetId: { $in: setIds }, status: 'completed' } },
-        { $sort: { score: -1 } },
-        { $group: { _id: '$gameSetId', bestScore: { $max: '$score' }, count: { $sum: 1 } } },
-      ]);
-      bestAttempts.forEach(a => {
-        studentStats[String(a._id)] = { bestScore: a.bestScore, timesPlayed: a.count };
-      });
+      items = await attachStudentProgressToSets(req.user.id, sets);
     }
-
-    const items = sets.map(s => ({
-      ...s,
-      studentProgress: studentStats[String(s._id)] || { bestScore: null, timesPlayed: 0 },
-    }));
 
     await resignMediaInObjects(items);
 
@@ -291,6 +329,10 @@ exports.startAttempt = async (req, res) => {
         // Expose pairs with word + imageUrl for client-side display; word is shown to student
         const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, __v: _v, ...safe } = q;
         return safe;
+      }
+      if (set.gameType === 'multiple_choice') {
+        // Strip isCorrect from options — never expose correct answers to client
+        return multipleChoiceService.sanitizeQuestions([q])[0];
       }
       const { __v: _v, ...safe } = q;
       return safe;
@@ -750,7 +792,7 @@ exports.submitAnswer = async (req, res) => {
     }
 
     const staffPreview = isArenaStaff(req.user.role);
-    const { questionId, typedWord, orderedTokens, articleGender, responseTimeMs, questionElapsedMs } = req.body;
+    const { questionId, typedWord, orderedTokens, articleGender, selectedIndex, responseTimeMs, questionElapsedMs } = req.body;
     if (!questionId) return badRequest(res, 'questionId required');
 
     const validation = await securityService.validateAnswerSubmission(attempt, questionId, responseTimeMs);
@@ -821,6 +863,14 @@ exports.submitAnswer = async (req, res) => {
       pointsEarned = result.points;
       if (result.pairIndex >= 0 && question.pairs && question.pairs[result.pairIndex]) {
         correctAnswer.word = question.pairs[result.pairIndex].word;
+      }
+    } else if (attempt.gameType === 'multiple_choice') {
+      const result = multipleChoiceService.evaluateAnswer(question, selectedIndex);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      correctAnswer.correctIndex = result.correctIndex;
+      if (result.correctIndex >= 0 && question.options && question.options[result.correctIndex]) {
+        correctAnswer.text = question.options[result.correctIndex].text;
       }
     } else if (attempt.gameType === 'gender_stack') {
       if (!articleGender) return badRequest(res, 'articleGender required');
@@ -1284,6 +1334,28 @@ exports.adminUpsertQuestions = async (req, res) => {
       }
     }
 
+    if (set.gameType === 'multiple_choice') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!String(q.questionText || '').trim()) return badRequest(res, `Question ${i + 1}: question text required`);
+        if (!Array.isArray(q.options) || q.options.length < 2) {
+          return badRequest(res, `Question ${i + 1}: at least 2 options required`);
+        }
+        if (q.options.length > 6) {
+          return badRequest(res, `Question ${i + 1}: maximum 6 options allowed`);
+        }
+        const correctCount = q.options.filter(o => o.isCorrect).length;
+        if (correctCount !== 1) {
+          return badRequest(res, `Question ${i + 1}: exactly one option must be marked as correct`);
+        }
+        for (let j = 0; j < q.options.length; j++) {
+          if (!String(q.options[j].text || '').trim()) {
+            return badRequest(res, `Question ${i + 1}, option ${j + 1}: text required`);
+          }
+        }
+      }
+    }
+
     const ops = questions.map((q, i) => {
       const doc = {
         gameSetId: set._id,
@@ -1340,6 +1412,14 @@ exports.adminUpsertQuestions = async (req, res) => {
           hint: p.hint || '',
           imageUrl: p.imageUrl || null,
           audioUrl: p.audioUrl || null,
+        }));
+      } else if (set.gameType === 'multiple_choice') {
+        doc.questionText = String(q.questionText || '').trim();
+        doc.imageUrl = q.imageUrl || null;
+        doc.audioUrl = q.audioUrl || null;
+        doc.options = (q.options || []).map(o => ({
+          text: String(o.text || '').trim(),
+          isCorrect: !!o.isCorrect,
         }));
       } else {
         // scramble_rush, matching, flashcards all use word/hint
@@ -1597,7 +1677,7 @@ exports.adminUploadQuestionAudio = async (req, res) => {
       { new: true }
     );
     if (!question) return notFound(res, 'Question not found');
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, question });
   } catch (err) {
     serverError(res, err);
@@ -1615,7 +1695,7 @@ exports.adminUploadQuestionImage = async (req, res) => {
       { new: true }
     );
     if (!question) return notFound(res, 'Question not found');
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, question });
   } catch (err) {
     serverError(res, err);
@@ -1653,7 +1733,7 @@ exports.adminUploadPairImage = async (req, res) => {
     question.pairs[pairIndex].imageUrl = canonicalUrl;
     await question.save();
 
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, pairIndex });
   } catch (err) {
     serverError(res, err);

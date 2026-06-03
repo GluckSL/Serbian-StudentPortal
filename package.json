@@ -14,7 +14,8 @@
     "deploy:prepare": "node scripts/prepare-production-deploy.js",
     "test": "ng test",
     "test:split-inheritance": "node --test tests/exerciseSplitInheritance.test.js",
-    "test:game-import": "node --test tests/gameImport.test.js"
+    "test:game-import": "node --test tests/gameImport.test.js",
+    "upload:arena-sfx": "node tools/upload-arena-sfx-to-r2.js"
   },
   "private": true,
   "dependencies": {

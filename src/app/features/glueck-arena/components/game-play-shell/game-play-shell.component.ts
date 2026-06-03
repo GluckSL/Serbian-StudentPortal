@@ -8,8 +8,9 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
   GameAttempt, GameQuestion, GameLevel, GameSet,
-  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, HangmanQuestion, WordPictureMatchQuestion, MatchingQuestion, AchievementDto, LeaderboardEntry,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, HangmanQuestion, WordPictureMatchQuestion, MatchingQuestion, MultipleChoiceQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
+import { MultipleChoiceComponent, MCResult } from '../../engines/multiple-choice/multiple-choice.component';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
 import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
 import { ImageMatchingComponent } from '../../engines/image-matching/image-matching.component';
@@ -34,7 +35,7 @@ export interface IMResult {
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent, HangmanGameComponent, WordPictureMatchComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent, HangmanGameComponent, WordPictureMatchComponent, MultipleChoiceComponent
   ],
   template: `
     <div class="shell">
@@ -106,6 +107,7 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word. Drag each letter tile into the right slot and submit your answer.</p>
               <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer — guess all letters before the figure is complete to win!</p>
               <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
+              <p *ngIf="set.gameType === 'multiple_choice'">Read the question and choose the correct answer from the options. Each correct answer earns points — answer as many as you can before time runs out!</p>
             </section>
           </aside>
 
@@ -229,6 +231,14 @@ export interface IMResult {
             [shuffledWords]="shuffledWords"
             (onComplete)="handleWordPictureMatchComplete($event)"
           ></app-word-picture-match>
+
+          <app-multiple-choice
+            *ngIf="phase === 'playing' && set?.gameType === 'multiple_choice' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asMultipleChoiceQuestions()"
+            (onComplete)="handleMultipleChoiceComplete($event)"
+          ></app-multiple-choice>
 
           <app-matching
             *ngIf="phase === 'playing' && set?.gameType === 'matching' && attempt"
@@ -984,6 +994,7 @@ export class GamePlayShellComponent implements OnInit {
   asMemoryQuestions(): MemoryGameQuestion[] { return this.questions as MemoryGameQuestion[]; }
   asHangmanQuestions(): HangmanQuestion[] { return this.questions as HangmanQuestion[]; }
   asWordPictureMatchQuestions(): WordPictureMatchQuestion[] { return this.questions as WordPictureMatchQuestion[]; }
+  asMultipleChoiceQuestions(): MultipleChoiceQuestion[] { return this.questions as MultipleChoiceQuestion[]; }
   asMatchingQuestions(): MatchingQuestion[] { return this.questions as MatchingQuestion[]; }
 
   isPlaceholderType(): boolean {
@@ -1220,6 +1231,29 @@ export class GamePlayShellComponent implements OnInit {
     });
   }
 
+  handleMultipleChoiceComplete(result: MCResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
   handleWordPictureMatchComplete(result: WPMResult) {
     this.finalScore = result.score;
     this.finalAccuracy = result.accuracy;
@@ -1257,6 +1291,7 @@ export class GamePlayShellComponent implements OnInit {
       whackawort: 'Whack-a-Wort', memory: 'Memory Game',
       jumbled_words: 'Jumbled Words', hangman: 'Hangman',
       word_picture_match: 'Word-Picture Match',
+      multiple_choice: 'Multiple Choice',
     };
     return map[t] ?? t;
   }
@@ -1274,6 +1309,7 @@ export class GamePlayShellComponent implements OnInit {
       hangman: 'linear-gradient(135deg,#b91c1c,#ef4444)',
       matching: 'linear-gradient(135deg,#15803d,#4ade80)',
       word_picture_match: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
+      multiple_choice: 'linear-gradient(135deg,#0891b2,#22d3ee)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }

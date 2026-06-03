@@ -17,6 +17,7 @@ import { JumbledWordsQuestionFormComponent } from '../jumbled-words-question-for
 import { MemoryGameQuestionFormComponent } from '../memory-game-question-form/memory-game-question-form.component';
 import { HangmanQuestionFormComponent } from '../hangman-question-form/hangman-question-form.component';
 import { WordPictureMatchQuestionFormComponent } from '../word-picture-match-question-form/word-picture-match-question-form.component';
+import { MultipleChoiceQuestionFormComponent } from '../multiple-choice-question-form/multiple-choice-question-form.component';
 
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
@@ -36,6 +37,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     WhackawortQuestionFormComponent, JumbledWordsQuestionFormComponent, MemoryGameQuestionFormComponent,
     HangmanQuestionFormComponent,
     WordPictureMatchQuestionFormComponent,
+    MultipleChoiceQuestionFormComponent,
   ],
   template: `
     <div class="ga-editor">
@@ -74,6 +76,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
                   <mat-option value="jumbled_words">Jumbled Words</mat-option>
                   <mat-option value="hangman">Hangman</mat-option>
                   <mat-option value="word_picture_match">Word-Picture Match</mat-option>
+                  <mat-option value="multiple_choice">Multiple Choice</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -169,9 +172,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </div>
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Course Day (unlock)</mat-label>
-                <input matInput type="number" formControlName="courseDay" min="1">
-                <mat-hint>Leave empty for no gating</mat-hint>
+                <mat-label>Journey day</mat-label>
+                <input matInput type="number" formControlName="courseDay" min="1" max="200">
+                <mat-hint>Maps to Journey to Germany (My Course). Leave empty for arena-only (no day pill).</mat-hint>
               </mat-form-field>
 
               <div class="ga-toggle-group">
@@ -256,6 +259,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
             <app-memory-game-question-form *ngSwitchCase="'memory'" #memoryForm [gameSetId]="setId || ''"></app-memory-game-question-form>
             <app-hangman-question-form *ngSwitchCase="'hangman'" #hangmanForm [gameSetId]="setId || ''"></app-hangman-question-form>
             <app-word-picture-match-question-form *ngSwitchCase="'word_picture_match'" #wordPictureMatchForm [gameSetId]="setId || ''"></app-word-picture-match-question-form>
+            <app-multiple-choice-question-form *ngSwitchCase="'multiple_choice'" #multipleChoiceForm [gameSetId]="setId || ''"></app-multiple-choice-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
@@ -322,6 +326,10 @@ export class GameSetEditorComponent implements OnInit {
   @ViewChild('jumbledWordsForm') jumbledWordsForm?: JumbledWordsQuestionFormComponent;
   @ViewChild('memoryForm') memoryForm?: MemoryGameQuestionFormComponent;
   @ViewChild('hangmanForm') hangmanForm?: HangmanQuestionFormComponent;
+  @ViewChild('wordPictureMatchForm') wordPictureMatchForm?: WordPictureMatchQuestionFormComponent;
+  @ViewChild('multipleChoiceForm') multipleChoiceForm?: MultipleChoiceQuestionFormComponent;
+  @ViewChild('flapjugationForm') flapjugationForm?: FlapjugationQuestionFormComponent;
+  @ViewChild('whackawortForm') whackawortForm?: WhackawortQuestionFormComponent;
 
   form!: FormGroup;
   isEdit = false;
@@ -368,9 +376,13 @@ export class GameSetEditorComponent implements OnInit {
     this.simpleForm?.load();
     this.imageMatchForm?.load();
     this.genderStackForm?.load();
+    this.flapjugationForm?.load();
+    this.whackawortForm?.load();
     this.jumbledWordsForm?.load();
     this.memoryForm?.load();
     this.hangmanForm?.load();
+    this.wordPictureMatchForm?.load();
+    this.multipleChoiceForm?.load();
     if (this.setId) this.loadSet(this.setId);
   }
 
