@@ -18,6 +18,8 @@ const imageMatchingService = require('../services/interactiveGames/imageMatching
 const genderStackService = require('../services/interactiveGames/genderStack');
 const memoryService = require('../services/interactiveGames/memory');
 const jumbledWordsService = require('../services/interactiveGames/jumbledWords');
+const hangmanService = require('../services/interactiveGames/hangman');
+const wordPictureMatchService = require('../services/interactiveGames/wordPictureMatch');
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
 const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
@@ -33,7 +35,7 @@ const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -212,7 +214,7 @@ exports.startAttempt = async (req, res) => {
     // Determine attempt number
     const prevCount = await GameAttempt.countDocuments({ studentId: req.user.id, gameSetId: set._id });
 
-    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' || set.gameType === 'memory' ? 5 : set.gameType === 'jumbled_words' ? 99 : 3;
+    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' || set.gameType === 'memory' ? 5 : set.gameType === 'jumbled_words' || set.gameType === 'hangman' ? 99 : 3;
     const attempt = await GameAttempt.create({
       studentId: req.user.id,
       gameSetId: set._id,
@@ -280,6 +282,16 @@ exports.startAttempt = async (req, res) => {
         const { articleGender: _ag, hint: _h, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = jumbled;
         return safe;
       }
+      if (set.gameType === 'hangman') {
+        // Expose word + hint + letter count for client-side hangman game
+        const { articleGender: _ag, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = q;
+        return { ...safe, letterCount: (q.word || '').length };
+      }
+      if (set.gameType === 'word_picture_match') {
+        // Expose pairs with word + imageUrl for client-side display; word is shown to student
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, __v: _v, ...safe } = q;
+        return safe;
+      }
       const { __v: _v, ...safe } = q;
       return safe;
     });
@@ -292,7 +304,7 @@ exports.startAttempt = async (req, res) => {
 
     // For image_matching and memory, send shuffled words for drag-drop/card UI
     let shuffledWords = [];
-    if (set.gameType === 'image_matching' || set.gameType === 'memory') {
+    if (set.gameType === 'image_matching' || set.gameType === 'memory' || set.gameType === 'word_picture_match') {
       const allWords = [];
       questions.forEach(q => {
         if (q.pairs) {
@@ -534,6 +546,95 @@ exports.submitImageMatchSlot = async (req, res) => {
   }
 };
 
+// ── STUDENT — Word-Picture Match (instant per-match) ───────────────────────────
+
+exports.submitWordPictureMatchSlot = async (req, res) => {
+  try {
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
+    if (!attempt) return notFound(res, 'Attempt not found');
+    if (!ownsAttempt(attempt, req)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (attempt.gameType !== 'word_picture_match') {
+      return badRequest(res, 'Invalid game type for word-picture match');
+    }
+
+    const { questionId, pairIndex, word, responseTimeMs } = req.body;
+    if (!questionId || pairIndex === undefined || pairIndex === null || !word) {
+      return badRequest(res, 'questionId, pairIndex and word required');
+    }
+
+    const active = securityService.validateAttemptActive(attempt);
+    if (!active.ok) {
+      return res.status(400).json({ success: false, message: active.message });
+    }
+
+    const question = await GameQuestion.findOne({
+      _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
+    }).lean();
+    if (!question) return notFound(res, 'Question not found');
+
+    const result = wordPictureMatchService.evaluateMatch(question, word, pairIndex);
+    const staffPreview = isArenaStaff(req.user.role);
+
+    if (!result.isCorrect) {
+      return res.json({
+        success: true,
+        isCorrect: false,
+        pointsEarned: 0,
+      });
+    }
+
+    const pointsEarned = result.points;
+
+    if (!staffPreview) {
+      const existingAnswer = await GameAnswer.findOne({
+        attemptId: attempt._id,
+        questionId: question._id,
+        slotIndex: pairIndex,
+      }).lean();
+      if (existingAnswer) {
+        return res.json({
+          success: true,
+          isCorrect: true,
+          alreadyMatched: true,
+          pointsEarned: 0,
+        });
+      }
+
+      await GameAnswer.create({
+        attemptId: attempt._id,
+        questionId: question._id,
+        studentId: req.user.id,
+        typedWord: String(word).trim(),
+        slotIndex: pairIndex,
+        responseTimeMs: responseTimeMs || 0,
+        isCorrect: true,
+        pointsEarned,
+      });
+
+      const totalPairs = await GameAnswer.countDocuments({
+        attemptId: attempt._id, isCorrect: true,
+      });
+      const questionCount = attempt.totalQuestions || 1;
+
+      await GameAttempt.findByIdAndUpdate(attempt._id, {
+        $inc: { score: pointsEarned, correctAnswers: 1, wordsCompleted: 1 },
+      });
+      const xpAmount = scoringService.perAnswerXp('word_picture_match');
+      await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
+    }
+
+    res.json({
+      success: true,
+      isCorrect: true,
+      pointsEarned,
+    });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
 // ── STUDENT — Memory game match (per-pair instant feedback) ────────────────────
 
 exports.submitMemoryMatch = async (req, res) => {
@@ -709,6 +810,18 @@ exports.submitAnswer = async (req, res) => {
       isCorrect = result.isCorrect;
       pointsEarned = result.points;
       correctAnswer.word = question.word;
+    } else if (attempt.gameType === 'hangman') {
+      const result = hangmanService.evaluateAnswer(question, typedWord);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      correctAnswer.word = question.word;
+    } else if (attempt.gameType === 'word_picture_match') {
+      const result = wordPictureMatchService.evaluateMatch(question, typedWord);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      if (result.pairIndex >= 0 && question.pairs && question.pairs[result.pairIndex]) {
+        correctAnswer.word = question.pairs[result.pairIndex].word;
+      }
     } else if (attempt.gameType === 'gender_stack') {
       if (!articleGender) return badRequest(res, 'articleGender required');
       const result = genderStackService.evaluateAnswer(question, articleGender);
@@ -1131,6 +1244,14 @@ exports.adminUpsertQuestions = async (req, res) => {
       }
     }
 
+    if (set.gameType === 'hangman') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: German word required`);
+        if (!String(q.hint || '').trim()) return badRequest(res, `Question ${i + 1}: hint required`);
+      }
+    }
+
     if (set.gameType === 'memory') {
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
@@ -1139,6 +1260,22 @@ exports.adminUpsertQuestions = async (req, res) => {
         }
         if (q.pairs.length > 8) {
           return badRequest(res, `Question ${i + 1}: maximum 8 pairs per board (4x4)`);
+        }
+        for (let j = 0; j < q.pairs.length; j++) {
+          const p = q.pairs[j];
+          if (!trimGermanWord(p.word)) return badRequest(res, `Question ${i + 1}, pair ${j + 1}: German word required`);
+        }
+      }
+    }
+
+    if (set.gameType === 'word_picture_match') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!Array.isArray(q.pairs) || q.pairs.length === 0) {
+          return badRequest(res, `Question ${i + 1}: at least one pair required`);
+        }
+        if (q.pairs.length > 6) {
+          return badRequest(res, `Question ${i + 1}: maximum 6 pairs per board`);
         }
         for (let j = 0; j < q.pairs.length; j++) {
           const p = q.pairs[j];
@@ -1192,6 +1329,18 @@ exports.adminUpsertQuestions = async (req, res) => {
         doc.hint = q.hint || '';
         doc.imageUrl = q.imageUrl || null;
         doc.audioUrl = q.audioUrl || null;
+      } else if (set.gameType === 'hangman') {
+        doc.word = germanUppercase(q.word);
+        doc.hint = q.hint || '';
+        doc.imageUrl = q.imageUrl || null;
+        doc.audioUrl = q.audioUrl || null;
+      } else if (set.gameType === 'word_picture_match') {
+        doc.pairs = (q.pairs || []).map(p => ({
+          word: trimGermanWord(p.word),
+          hint: p.hint || '',
+          imageUrl: p.imageUrl || null,
+          audioUrl: p.audioUrl || null,
+        }));
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';
