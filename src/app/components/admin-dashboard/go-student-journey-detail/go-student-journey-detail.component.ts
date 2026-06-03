@@ -70,9 +70,9 @@ import { NotificationService } from '../../../services/notification.service';
 
     <div class="gsd-tabs">
       <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'recordings'" (click)="tab = 'recordings'">Class Recordings</button>
-      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'modules'" (click)="tab = 'modules'">Modules</button>
-      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'exercises'" (click)="tab = 'exercises'">Digital Exercises</button>
-      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'progress'" (click)="tab = 'progress'">Progress</button>
+      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'dgBot'" (click)="tab = 'dgBot'">DG Bot</button>
+      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'exercises'" (click)="tab = 'exercises'">Exercises</button>
+      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'arena'" (click)="tab = 'arena'">GlückArena</button>
     </div>
 
     <div class="gsd-body">
@@ -132,18 +132,9 @@ import { NotificationService } from '../../../services/notification.service';
         </div>
       </ng-container>
 
-      <ng-container *ngIf="tab === 'modules'">
-        <div class="gsd-stats gsd-stats--snap" *ngIf="detail?.progress">
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.currentDay }}</span><span class="gsd-stat-lbl">Current day</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.attemptedExercises }}/{{ detail.progress.totalExercises }}</span><span class="gsd-stat-lbl">Exercises</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.completedModules }}/{{ detail.progress.totalModules }}</span><span class="gsd-stat-lbl">Learning modules</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.completedDgModules ?? 0 }}/{{ detail.progress.totalDgModules ?? 0 }}</span><span class="gsd-stat-lbl">DG Bot</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.overallPercent }}%</span><span class="gsd-stat-lbl">Overall</span></div>
-        </div>
-
-        <h3 class="gsd-section-title">Glück Buddy (DG Bot)</h3>
-        <p class="gsd-section-hint">Speaking-practice modules the student sees in the portal (journey day controls locks).</p>
-        <div *ngIf="(detail.dgModules?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No DG Bot modules are published for students yet.</div>
+      <ng-container *ngIf="tab === 'dgBot'">
+        <p class="gsd-section-hint gsd-section-hint--top">Speaking-practice modules the student sees in the portal (journey day controls locks).</p>
+        <div *ngIf="(detail.dgModules?.length || 0) === 0" class="gsd-empty">No DG Bot modules are published for students yet.</div>
         <div *ngFor="let dm of (detail.dgModules || [])" class="gsd-row gsd-row-flex" [class.gsd-locked]="dm.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ dm.locked ? '🔒' : '🤖' }}</span>
@@ -164,60 +155,10 @@ import { NotificationService } from '../../../services/notification.service';
             </ng-container>
           </div>
         </div>
-
-        <h3 class="gsd-section-title">Learning modules</h3>
-        <div *ngIf="(detail.modules?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No learning modules found.</div>
-        <div *ngFor="let m of detail.modules" class="gsd-row gsd-row-flex" [class.gsd-locked]="m.locked">
-          <div class="gsd-row-inner">
-            <span class="gsd-ico">{{ m.locked ? '🔒' : '📘' }}</span>
-            <div>
-              <div class="gsd-row-title">{{ m.title }}</div>
-              <div class="gsd-row-meta">
-                <span *ngIf="m.courseDay != null">Day {{ m.courseDay }}</span>
-                <span *ngIf="m.level">· {{ m.level }}</span>
-                <span *ngIf="m.category">· {{ m.category }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="gsd-row-side">
-            <span *ngIf="m.locked" class="gsd-chip gsd-chip-lock">Locked</span>
-            <ng-container *ngIf="!m.locked">
-              <span class="gsd-status" [class.gsd-status-done]="m.status === 'completed'" [class.gsd-status-wip]="m.status === 'in-progress' || m.status === 'in_progress'" [class.gsd-status-ns]="m.status === 'not_started' || m.status === 'not-started'">
-                {{ m.status === 'not_started' || m.status === 'not-started' ? 'Not started' : m.status === 'in-progress' || m.status === 'in_progress' ? 'In progress' : 'Completed' }}
-              </span>
-              <div *ngIf="m.progressPercent > 0" class="gsd-pct">{{ m.progressPercent }}%</div>
-            </ng-container>
-          </div>
-        </div>
       </ng-container>
 
       <ng-container *ngIf="tab === 'exercises'">
-        <h3 class="gsd-section-title">GlückArena</h3>
-        <p class="gsd-section-hint">Games tagged with a journey day (set in the game editor).</p>
-        <div *ngIf="(detail.arenaGames?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No journey-day arena games for this student’s batch.</div>
-        <div *ngFor="let g of (detail.arenaGames || [])" class="gsd-row gsd-row-flex" [class.gsd-locked]="g.locked">
-          <div class="gsd-row-inner">
-            <span class="gsd-ico">{{ g.locked ? '🔒' : '🎮' }}</span>
-            <div>
-              <div class="gsd-row-title">{{ g.title }}</div>
-              <div class="gsd-row-meta">
-                <span *ngIf="g.courseDay != null">Day {{ g.courseDay }}</span>
-                <span *ngIf="g.sequenceLetter">· {{ g.sequenceLetter }}</span>
-                <span *ngIf="g.level">· {{ g.level }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="gsd-row-side">
-            <span *ngIf="g.locked" class="gsd-chip gsd-chip-lock">Locked</span>
-            <ng-container *ngIf="!g.locked">
-              <span *ngIf="!g.played" class="gsd-status gsd-status-ns">Not played</span>
-              <span *ngIf="g.played" class="gsd-status gsd-status-done">Played</span>
-            </ng-container>
-          </div>
-        </div>
-
-        <h3 class="gsd-section-title">Digital exercises</h3>
-        <div *ngIf="(detail.exercises?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No exercises found.</div>
+        <div *ngIf="(detail.exercises?.length || 0) === 0" class="gsd-empty">No exercises found.</div>
         <div *ngFor="let e of detail.exercises" class="gsd-row gsd-row-flex" [class.gsd-locked]="e.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ e.locked ? '🔒' : '🏋️' }}</span>
@@ -243,31 +184,29 @@ import { NotificationService } from '../../../services/notification.service';
         </div>
       </ng-container>
 
-      <ng-container *ngIf="tab === 'progress'">
-        <div class="gsd-stats">
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.currentDay }}</span><span class="gsd-stat-lbl">Current day</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.attemptedExercises }}/{{ detail.progress?.totalExercises }}</span><span class="gsd-stat-lbl">Exercises</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.completedModules }}/{{ detail.progress?.totalModules }}</span><span class="gsd-stat-lbl">Learning modules</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.completedDgModules ?? 0 }}/{{ detail.progress?.totalDgModules ?? 0 }}</span><span class="gsd-stat-lbl">DG Bot</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.overallPercent }}%</span><span class="gsd-stat-lbl">Overall</span></div>
+      <ng-container *ngIf="tab === 'arena'">
+        <p class="gsd-section-hint gsd-section-hint--top">Games tagged with a journey day (set in the game editor).</p>
+        <div *ngIf="(detail.arenaGames?.length || 0) === 0" class="gsd-empty">No journey-day arena games for this student’s batch.</div>
+        <div *ngFor="let g of (detail.arenaGames || [])" class="gsd-row gsd-row-flex" [class.gsd-locked]="g.locked">
+          <div class="gsd-row-inner">
+            <span class="gsd-ico">{{ g.locked ? '🔒' : '🎮' }}</span>
+            <div>
+              <div class="gsd-row-title">{{ g.title }}</div>
+              <div class="gsd-row-meta">
+                <span *ngIf="g.courseDay != null">Day {{ g.courseDay }}</span>
+                <span *ngIf="g.sequenceLetter">· {{ g.sequenceLetter }}</span>
+                <span *ngIf="g.level">· {{ g.level }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="gsd-row-side">
+            <span *ngIf="g.locked" class="gsd-chip gsd-chip-lock">Locked</span>
+            <ng-container *ngIf="!g.locked">
+              <span *ngIf="!g.played" class="gsd-status gsd-status-ns">Not played</span>
+              <span *ngIf="g.played" class="gsd-status gsd-status-done">Played</span>
+            </ng-container>
+          </div>
         </div>
-        <table class="gsd-table" *ngIf="(detail.progress?.dayBreakdown?.length || 0) > 0">
-          <thead>
-            <tr><th>Day</th><th>Exercises</th><th>Learning modules</th><th>Avg score</th></tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let d of detail.progress?.dayBreakdown">
-              <td><span class="gsd-day-pill">Day {{ d.day }}</span></td>
-              <td>{{ d.exercisesAttempted }}/{{ d.exercisesTotal }}</td>
-              <td>{{ d.modulesCompleted }}/{{ d.modulesTotal }}</td>
-              <td>
-                <span class="gsd-score" [class.gsd-score-good]="d.avgScore >= 70" [class.gsd-score-mid]="d.avgScore >= 40 && d.avgScore < 70" [class.gsd-score-low]="d.avgScore > 0 && d.avgScore < 40">
-                  {{ d.avgScore > 0 ? d.avgScore + '%' : '—' }}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </ng-container>
     </div>
   </ng-container>
@@ -335,6 +274,7 @@ import { NotificationService } from '../../../services/notification.service';
     }
     .gsd-section-title:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
     .gsd-section-hint { margin: 6px 0 12px; font-size: 12px; color: #64748b; line-height: 1.45; }
+    .gsd-section-hint--top { margin-top: 0; margin-bottom: 16px; }
     .gsd-stats--snap { margin-bottom: 8px; }
     .gsd-row { padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
     .gsd-row:last-child { border-bottom: none; }
@@ -382,7 +322,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   editDay = 1;
   maxJourneyDay = 200;
   dayOptions: number[] = [];
-  tab: 'recordings' | 'modules' | 'exercises' | 'progress' = 'recordings';
+  tab: 'recordings' | 'dgBot' | 'exercises' | 'arena' = 'recordings';
   error = '';
 
   private sub?: Subscription;
