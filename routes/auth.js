@@ -2845,6 +2845,8 @@ async function initiateStudentForcePasswordReset(user) {
   user.authTokenVersion = (user.authTokenVersion || 0) + 1;
   user.mustChangePassword = true;
   await user.save();
+  const { invalidateSessionVersionCache } = require('../middleware/auth');
+  invalidateSessionVersionCache(user._id);
 
   await EmailChangeOtp.deleteMany({ userId: user._id });
 

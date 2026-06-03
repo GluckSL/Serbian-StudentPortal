@@ -19,9 +19,35 @@ import { NotificationService } from '../../../services/notification.service';
     <a routerLink="/admin/journey" class="gsd-back">← Journey Management</a>
   </div>
 
-  <div *ngIf="loading && !detail" class="gsd-loading">
-    <div class="spinner-border text-primary" role="status"></div>
-    <p>Loading student…</p>
+  <div *ngIf="loading && !detail" class="gsd-skeleton" aria-busy="true" aria-label="Loading student journey">
+    <div class="gsd-skeleton-header">
+      <div class="gsd-skeleton-header-left">
+        <span class="gsd-sk gsd-sk--title"></span>
+        <span class="gsd-sk gsd-sk--line"></span>
+        <div class="gsd-skeleton-badges">
+          <span class="gsd-sk gsd-sk--badge"></span>
+          <span class="gsd-sk gsd-sk--badge"></span>
+        </div>
+      </div>
+      <div class="gsd-skeleton-header-right">
+        <span class="gsd-sk gsd-sk--label"></span>
+        <span class="gsd-sk gsd-sk--day-row"></span>
+        <span class="gsd-sk gsd-sk--hint"></span>
+      </div>
+    </div>
+    <div class="gsd-skeleton-tabs">
+      <span class="gsd-sk gsd-sk--tab" *ngFor="let _ of [1,2,3,4]"></span>
+    </div>
+    <div class="gsd-skeleton-body">
+      <div class="gsd-skeleton-row" *ngFor="let _ of [1,2,3,4,5,6,7]">
+        <span class="gsd-sk gsd-sk--icon"></span>
+        <div class="gsd-skeleton-row-text">
+          <span class="gsd-sk gsd-sk--row-title"></span>
+          <span class="gsd-sk gsd-sk--row-meta"></span>
+        </div>
+        <span class="gsd-sk gsd-sk--row-action"></span>
+      </div>
+    </div>
   </div>
 
   <div *ngIf="error && !detail" class="gsd-error">{{ error }}</div>
@@ -42,6 +68,10 @@ import { NotificationService } from '../../../services/notification.service';
           <div class="gsd-sync-banner" *ngIf="sync.reconciled">
             Synced from Day {{ sync.storedCourseDayBeforeSync }} → Day {{ sync.effectiveAccessDay }}
             (first day with incomplete resources).
+          </div>
+          <div class="gsd-sync-banner gsd-sync-banner--hint" *ngIf="!sync.reconciled && sync.needsSync">
+            Stored day is {{ sync.storedCourseDayBeforeSync }}; student access is Day {{ sync.effectiveAccessDay }}
+            until earlier days are complete.
           </div>
         </ng-container>
         <div class="gsd-day-row">
@@ -70,15 +100,15 @@ import { NotificationService } from '../../../services/notification.service';
 
     <div class="gsd-tabs">
       <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'recordings'" (click)="tab = 'recordings'">Class Recordings</button>
-      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'modules'" (click)="tab = 'modules'">Modules</button>
-      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'exercises'" (click)="tab = 'exercises'">Digital Exercises</button>
-      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'progress'" (click)="tab = 'progress'">Progress</button>
+      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'dgBot'" (click)="tab = 'dgBot'">DG Bot</button>
+      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'exercises'" (click)="tab = 'exercises'">Exercises</button>
+      <button type="button" class="gsd-tab" [class.gsd-tab--on]="tab === 'arena'" (click)="tab = 'arena'">GlückArena</button>
     </div>
 
     <div class="gsd-body">
       <ng-container *ngIf="tab === 'recordings'">
         <div *ngIf="(detail.recordings?.length || 0) + (detail.zoomRecordings?.length || 0) === 0" class="gsd-empty">No class recordings found.</div>
-        <div *ngFor="let r of detail.recordings" class="gsd-row" [class.gsd-locked]="r.locked">
+        <div *ngFor="let r of detail.recordings" class="gsd-row gsd-row-flex" [class.gsd-locked]="r.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ r.locked ? '🔒' : '▶' }}</span>
             <div>
@@ -91,8 +121,20 @@ import { NotificationService } from '../../../services/notification.service';
               </div>
             </div>
           </div>
+          <div class="gsd-row-side" *ngIf="!r.locked">
+            <button
+              type="button"
+              class="gsd-btn gsd-btn-outline"
+              *ngIf="!r.watched"
+              [disabled]="markingRecordingId === r._id"
+              (click)="markManualWatched(r)"
+            >
+              <span *ngIf="markingRecordingId === r._id" class="spinner-border spinner-border-sm" role="status"></span>
+              {{ markingRecordingId === r._id ? 'Saving…' : 'Mark watched' }}
+            </button>
+          </div>
         </div>
-        <div *ngFor="let zr of detail.zoomRecordings" class="gsd-row" [class.gsd-locked]="zr.locked">
+        <div *ngFor="let zr of detail.zoomRecordings" class="gsd-row gsd-row-flex" [class.gsd-locked]="zr.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ zr.locked ? '🔒' : '🎬' }}</span>
             <div>
@@ -105,21 +147,24 @@ import { NotificationService } from '../../../services/notification.service';
               </div>
             </div>
           </div>
+          <div class="gsd-row-side" *ngIf="!zr.locked">
+            <button
+              type="button"
+              class="gsd-btn gsd-btn-outline"
+              *ngIf="!zr.watched"
+              [disabled]="markingZoomId === zr.meetingLinkId"
+              (click)="markZoomWatched(zr)"
+            >
+              <span *ngIf="markingZoomId === zr.meetingLinkId" class="spinner-border spinner-border-sm" role="status"></span>
+              {{ markingZoomId === zr.meetingLinkId ? 'Saving…' : 'Mark watched' }}
+            </button>
+          </div>
         </div>
       </ng-container>
 
-      <ng-container *ngIf="tab === 'modules'">
-        <div class="gsd-stats gsd-stats--snap" *ngIf="detail?.progress">
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.currentDay }}</span><span class="gsd-stat-lbl">Current day</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.attemptedExercises }}/{{ detail.progress.totalExercises }}</span><span class="gsd-stat-lbl">Exercises</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.completedModules }}/{{ detail.progress.totalModules }}</span><span class="gsd-stat-lbl">Learning modules</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.completedDgModules ?? 0 }}/{{ detail.progress.totalDgModules ?? 0 }}</span><span class="gsd-stat-lbl">DG Bot</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress.overallPercent }}%</span><span class="gsd-stat-lbl">Overall</span></div>
-        </div>
-
-        <h3 class="gsd-section-title">Glück Buddy (DG Bot)</h3>
-        <p class="gsd-section-hint">Speaking-practice modules the student sees in the portal (journey day controls locks).</p>
-        <div *ngIf="(detail.dgModules?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No DG Bot modules are published for students yet.</div>
+      <ng-container *ngIf="tab === 'dgBot'">
+        <p class="gsd-section-hint gsd-section-hint--top">Speaking-practice modules the student sees in the portal (journey day controls locks).</p>
+        <div *ngIf="(detail.dgModules?.length || 0) === 0" class="gsd-empty">No DG Bot modules are published for students yet.</div>
         <div *ngFor="let dm of (detail.dgModules || [])" class="gsd-row gsd-row-flex" [class.gsd-locked]="dm.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ dm.locked ? '🔒' : '🤖' }}</span>
@@ -137,31 +182,6 @@ import { NotificationService } from '../../../services/notification.service';
               <span class="gsd-status" [class.gsd-status-done]="dm.status === 'completed'" [class.gsd-status-wip]="dm.status === 'in_progress'" [class.gsd-status-ns]="dm.status === 'not_started'">
                 {{ dm.status === 'not_started' ? 'Not started' : dm.status === 'in_progress' ? 'In progress' : 'Completed' }}
               </span>
-            </ng-container>
-          </div>
-        </div>
-
-        <h3 class="gsd-section-title">Learning modules</h3>
-        <div *ngIf="(detail.modules?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No learning modules found.</div>
-        <div *ngFor="let m of detail.modules" class="gsd-row gsd-row-flex" [class.gsd-locked]="m.locked">
-          <div class="gsd-row-inner">
-            <span class="gsd-ico">{{ m.locked ? '🔒' : '📘' }}</span>
-            <div>
-              <div class="gsd-row-title">{{ m.title }}</div>
-              <div class="gsd-row-meta">
-                <span *ngIf="m.courseDay != null">Day {{ m.courseDay }}</span>
-                <span *ngIf="m.level">· {{ m.level }}</span>
-                <span *ngIf="m.category">· {{ m.category }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="gsd-row-side">
-            <span *ngIf="m.locked" class="gsd-chip gsd-chip-lock">Locked</span>
-            <ng-container *ngIf="!m.locked">
-              <span class="gsd-status" [class.gsd-status-done]="m.status === 'completed'" [class.gsd-status-wip]="m.status === 'in-progress' || m.status === 'in_progress'" [class.gsd-status-ns]="m.status === 'not_started' || m.status === 'not-started'">
-                {{ m.status === 'not_started' || m.status === 'not-started' ? 'Not started' : m.status === 'in-progress' || m.status === 'in_progress' ? 'In progress' : 'Completed' }}
-              </span>
-              <div *ngIf="m.progressPercent > 0" class="gsd-pct">{{ m.progressPercent }}%</div>
             </ng-container>
           </div>
         </div>
@@ -194,31 +214,29 @@ import { NotificationService } from '../../../services/notification.service';
         </div>
       </ng-container>
 
-      <ng-container *ngIf="tab === 'progress'">
-        <div class="gsd-stats">
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.currentDay }}</span><span class="gsd-stat-lbl">Current day</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.attemptedExercises }}/{{ detail.progress?.totalExercises }}</span><span class="gsd-stat-lbl">Exercises</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.completedModules }}/{{ detail.progress?.totalModules }}</span><span class="gsd-stat-lbl">Learning modules</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.completedDgModules ?? 0 }}/{{ detail.progress?.totalDgModules ?? 0 }}</span><span class="gsd-stat-lbl">DG Bot</span></div>
-          <div class="gsd-stat"><span class="gsd-stat-val">{{ detail.progress?.overallPercent }}%</span><span class="gsd-stat-lbl">Overall</span></div>
+      <ng-container *ngIf="tab === 'arena'">
+        <p class="gsd-section-hint gsd-section-hint--top">Games tagged with a journey day (set in the game editor).</p>
+        <div *ngIf="(detail.arenaGames?.length || 0) === 0" class="gsd-empty">No journey-day arena games for this student’s batch.</div>
+        <div *ngFor="let g of (detail.arenaGames || [])" class="gsd-row gsd-row-flex" [class.gsd-locked]="g.locked">
+          <div class="gsd-row-inner">
+            <span class="gsd-ico">{{ g.locked ? '🔒' : '🎮' }}</span>
+            <div>
+              <div class="gsd-row-title">{{ g.title }}</div>
+              <div class="gsd-row-meta">
+                <span *ngIf="g.courseDay != null">Day {{ g.courseDay }}</span>
+                <span *ngIf="g.sequenceLetter">· {{ g.sequenceLetter }}</span>
+                <span *ngIf="g.level">· {{ g.level }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="gsd-row-side">
+            <span *ngIf="g.locked" class="gsd-chip gsd-chip-lock">Locked</span>
+            <ng-container *ngIf="!g.locked">
+              <span *ngIf="!g.played" class="gsd-status gsd-status-ns">Not played</span>
+              <span *ngIf="g.played" class="gsd-status gsd-status-done">Played</span>
+            </ng-container>
+          </div>
         </div>
-        <table class="gsd-table" *ngIf="(detail.progress?.dayBreakdown?.length || 0) > 0">
-          <thead>
-            <tr><th>Day</th><th>Exercises</th><th>Learning modules</th><th>Avg score</th></tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let d of detail.progress?.dayBreakdown">
-              <td><span class="gsd-day-pill">Day {{ d.day }}</span></td>
-              <td>{{ d.exercisesAttempted }}/{{ d.exercisesTotal }}</td>
-              <td>{{ d.modulesCompleted }}/{{ d.modulesTotal }}</td>
-              <td>
-                <span class="gsd-score" [class.gsd-score-good]="d.avgScore >= 70" [class.gsd-score-mid]="d.avgScore >= 40 && d.avgScore < 70" [class.gsd-score-low]="d.avgScore > 0 && d.avgScore < 40">
-                  {{ d.avgScore > 0 ? d.avgScore + '%' : '—' }}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </ng-container>
     </div>
   </ng-container>
@@ -229,8 +247,52 @@ import { NotificationService } from '../../../services/notification.service';
     .gsd-bar { margin-bottom: 16px; }
     .gsd-back { color: #005b96; font-weight: 600; font-size: 13px; text-decoration: none; }
     .gsd-back:hover { text-decoration: underline; }
-    .gsd-loading, .gsd-error { text-align: center; padding: 48px 20px; color: #64748b; }
-    .gsd-error { color: #b91c1c; }
+    .gsd-error { text-align: center; padding: 48px 20px; color: #b91c1c; }
+    .gsd-skeleton { display: flex; flex-direction: column; gap: 0; }
+    .gsd-skeleton-header {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 22px;
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px;
+      box-shadow: 0 2px 12px rgba(15,23,42,.06);
+    }
+    .gsd-skeleton-header-left { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 10px; }
+    .gsd-skeleton-header-right { min-width: 220px; display: flex; flex-direction: column; gap: 8px; }
+    .gsd-skeleton-badges { display: flex; gap: 8px; }
+    .gsd-skeleton-tabs {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px 12px 0 0; padding: 10px 12px 0;
+      border-bottom: none;
+    }
+    .gsd-skeleton-body {
+      background: #fff; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 14px 14px;
+      padding: 16px 20px 24px; box-shadow: 0 2px 12px rgba(15,23,42,.05);
+    }
+    .gsd-skeleton-row {
+      display: flex; align-items: center; gap: 12px; padding: 14px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .gsd-skeleton-row:last-child { border-bottom: none; }
+    .gsd-skeleton-row-text { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .gsd-sk {
+      display: block; border-radius: 999px;
+      background: linear-gradient(90deg, #edf2f7 20%, #e2e8f0 50%, #edf2f7 80%);
+      background-size: 200% 100%;
+      animation: gsd-shimmer 1.25s ease-in-out infinite;
+    }
+    .gsd-sk--title { width: 42%; height: 22px; border-radius: 8px; }
+    .gsd-sk--line { width: 55%; height: 12px; }
+    .gsd-sk--badge { width: 72px; height: 22px; }
+    .gsd-sk--label { width: 140px; height: 10px; }
+    .gsd-sk--day-row { width: 100%; max-width: 280px; height: 36px; border-radius: 10px; }
+    .gsd-sk--hint { width: 90%; max-width: 320px; height: 10px; }
+    .gsd-sk--tab { width: 110px; height: 32px; border-radius: 8px 8px 0 0; }
+    .gsd-sk--icon { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; }
+    .gsd-sk--row-title { width: 72%; height: 14px; border-radius: 6px; }
+    .gsd-sk--row-meta { width: 48%; height: 10px; }
+    .gsd-sk--row-action { width: 88px; height: 28px; border-radius: 8px; flex-shrink: 0; }
+    @keyframes gsd-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
     .gsd-header {
       background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 22px;
       display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 20px;
@@ -254,11 +316,17 @@ import { NotificationService } from '../../../services/notification.service';
     .gsd-btn:disabled { opacity: .55; cursor: not-allowed; }
     .gsd-btn-primary { background: #005b96; color: #fff; }
     .gsd-btn-primary:hover:not(:disabled) { background: #03396c; }
+    .gsd-btn-outline {
+      background: #fff; color: #005b96; border: 1px solid #bae6fd;
+      font-size: 12px; padding: 6px 12px;
+    }
+    .gsd-btn-outline:hover:not(:disabled) { background: #e0f2fe; border-color: #7dd3fc; }
     .gsd-hint { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.45; max-width: 360px; }
     .gsd-sync-banner {
       margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 600;
       background: #fef9c3; color: #854d0e; border: 1px solid #fde047; line-height: 1.45; max-width: 360px;
     }
+    .gsd-sync-banner--hint { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
     .gsd-tabs {
       display: flex; gap: 4px; flex-wrap: wrap; margin: 18px 0 0; border-bottom: 2px solid #e2e8f0;
       background: #f8fafc; border-radius: 12px 12px 0 0; padding: 6px 8px 0;
@@ -281,6 +349,7 @@ import { NotificationService } from '../../../services/notification.service';
     }
     .gsd-section-title:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
     .gsd-section-hint { margin: 6px 0 12px; font-size: 12px; color: #64748b; line-height: 1.45; }
+    .gsd-section-hint--top { margin-top: 0; margin-bottom: 16px; }
     .gsd-stats--snap { margin-bottom: 8px; }
     .gsd-row { padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
     .gsd-row:last-child { border-bottom: none; }
@@ -316,17 +385,20 @@ import { NotificationService } from '../../../services/notification.service';
 export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   loading = false;
   saving = false;
+  markingRecordingId: string | null = null;
+  markingZoomId: string | null = null;
   detail: any = null;
   journeySync: {
     effectiveAccessDay?: number;
     storedCourseDayBeforeSync?: number;
     reconciled?: boolean;
+    needsSync?: boolean;
     sequentialUnlock?: boolean;
   } | null = null;
   editDay = 1;
   maxJourneyDay = 200;
   dayOptions: number[] = [];
-  tab: 'recordings' | 'modules' | 'exercises' | 'progress' = 'recordings';
+  tab: 'recordings' | 'dgBot' | 'exercises' | 'arena' = 'recordings';
   error = '';
 
   private sub?: Subscription;
@@ -365,6 +437,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   load(studentId: string): void {
     this.loading = true;
     this.error = '';
+    this.detail = null;
     this.http.get<any>(`${environment.apiUrl}/${this.goApiPath}/${studentId}/detail`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.detail = r;
@@ -386,6 +459,58 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
         this.notify.error(this.error);
       }
     });
+  }
+
+  markManualWatched(recording: { _id: string; title?: string }): void {
+    if (!this.studentId || !recording?._id) return;
+    this.markingRecordingId = recording._id;
+    this.http
+      .post<{ journeyAdvanced?: boolean }>(
+        `${environment.apiUrl}/${this.goApiPath}/${this.studentId}/recordings/${recording._id}/mark-watched`,
+        {},
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (r) => {
+          this.markingRecordingId = null;
+          this.notify.success(
+            r?.journeyAdvanced
+              ? 'Marked as watched. Journey day advanced for this student.'
+              : 'Marked as watched.'
+          );
+          this.load(this.studentId);
+        },
+        error: (e) => {
+          this.markingRecordingId = null;
+          this.notify.error(e?.error?.message || 'Failed to mark recording as watched.');
+        }
+      });
+  }
+
+  markZoomWatched(zoom: { meetingLinkId: string; topic?: string }): void {
+    if (!this.studentId || !zoom?.meetingLinkId) return;
+    this.markingZoomId = zoom.meetingLinkId;
+    this.http
+      .post<{ journeyAdvanced?: boolean }>(
+        `${environment.apiUrl}/${this.goApiPath}/${this.studentId}/zoom-meetings/${zoom.meetingLinkId}/mark-watched`,
+        {},
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (r) => {
+          this.markingZoomId = null;
+          this.notify.success(
+            r?.journeyAdvanced
+              ? 'Marked as watched. Journey day advanced for this student.'
+              : 'Marked as watched.'
+          );
+          this.load(this.studentId);
+        },
+        error: (e) => {
+          this.markingZoomId = null;
+          this.notify.error(e?.error?.message || 'Failed to mark zoom recording as watched.');
+        }
+      });
   }
 
   saveJourneyDay(): void {

@@ -8,7 +8,15 @@ function recordingWatchCountsAsComplete(watchSeconds, durationSeconds, ratio = S
   return watched >= Math.ceil(total * ratio);
 }
 
+/** Seconds needed so journey / admin UI treat the recording as fully watched. */
+function recordingWatchSecondsForComplete(durationSeconds, ratio = SILVER_GO_RECORDING_WATCH_RATIO) {
+  const total = Math.max(0, Number(durationSeconds) || 0);
+  if (total <= 0) return 3600;
+  return Math.ceil(total * ratio);
+}
+
 module.exports = {
   SILVER_GO_RECORDING_WATCH_RATIO,
-  recordingWatchCountsAsComplete
+  recordingWatchCountsAsComplete,
+  recordingWatchSecondsForComplete
 };

@@ -226,9 +226,10 @@ export interface AdminMemoryMatchPair {
   audioUrl: string | null;
 }
 
-export interface AdminMemoryGameQuestion extends MemoryGameQuestion {
+/** Admin memory board — pairs include words (same shape as MemoryGamePair). */
+export type AdminMemoryGameQuestion = Omit<MemoryGameQuestion, 'pairs'> & {
   pairs: AdminMemoryMatchPair[];
-}
+};
 export interface AdminJumbledWordsQuestion extends JumbledWordsQuestion {
   word: string;
 }
@@ -317,6 +318,14 @@ export interface CatalogResponse {
   success: boolean;
   items: GameSet[];
   pagination: { page: number; limit: number; total: number; pages: number };
+}
+
+/** Games tagged to journey days (courseDay) for My Course → Journey to Germany. */
+export interface JourneyGamesResponse {
+  success: boolean;
+  items: GameSet[];
+  hasArenaAccess: boolean;
+  gameCount: number;
 }
 
 export interface LeaderboardEntry {

@@ -6,8 +6,13 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { PaymentHubApiService, PaymentHubNotification } from './payment-hub-api.service';
+import {
+  PaymentHubApiService,
+  PaymentHubClassAbsentItem,
+  PaymentHubNotification,
+} from './payment-hub-api.service';
 import { PaymentNotificationNavService } from './payment-notification-nav.service';
+import { StudentLogService } from '../../services/student-log.service';
 
 @Component({
   selector: 'app-payment-hub-admin-notifications',
@@ -37,8 +42,10 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
   readonly pageSize = 10;
   filter: 'all' | 'unread' = 'all';
   category: 'language' | 'exercises' | 'classes' = 'language';
+  batch = '';
   batchLevel = '';
   studentStatus = '';
+  batchOptions: string[] = [];
   readonly levelOptions = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly studentStatusOptions = ['', 'ONGOING', 'COMPLETED', 'WITHDREW', 'UNCERTAIN'];
 
@@ -46,9 +53,18 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
     private readonly paymentNotifNav: PaymentNotificationNavService,
+    private readonly studentLog: StudentLogService,
   ) {}
 
   ngOnInit(): void {
+    this.studentLog.getBatchOptions().subscribe({
+      next: (r) => {
+        this.batchOptions = (r.data || []).slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      },
+      error: () => {
+        this.batchOptions = [];
+      },
+    });
     this.load();
   }
 
@@ -60,6 +76,7 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
         limit: this.pageSize,
         unreadOnly: this.filter === 'unread',
         type: this.selectedType,
+        batch: this.batch || undefined,
         batchLevel: this.batchLevel || undefined,
         studentStatus: this.studentStatus || undefined,
       })
@@ -158,6 +175,65 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
     return id ? ['/admin/payment-hub/student', id] : ['/admin/payment-hub'];
   }
 
+  statusColumnLabel(n: PaymentHubNotification): string {
+    if (n.type === 'JOURNEY_EXERCISE_MISSED_TODAY' || n.type === 'JOURNEY_CLASS_ABSENT_TODAY') {
+      return 'Status';
+    }
+    return 'Due';
+  }
+
+  classAbsentItems(n: PaymentHubNotification): PaymentHubClassAbsentItem[] {
+    const raw = n.metadata?.absentItems;
+    if (!raw?.length) return [];
+    return raw.map((item) => {
+      if (typeof item === 'string') {
+        return {
+          topic: item,
+          batch: n.metadata?.batch,
+          courseDay: n.metadata?.journeyDay,
+          status: 'missed' as const,
+        };
+      }
+      return {
+        ...item,
+        topic: item.topic || 'Live class',
+        batch: item.batch || n.metadata?.batch,
+        courseDay: item.courseDay ?? n.metadata?.journeyDay,
+        status: 'missed' as const,
+      };
+    });
+  }
+
+  private parseClassStartTime(raw: unknown): Date | null {
+    if (raw == null || raw === '') return null;
+    if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
+    if (typeof raw === 'number') {
+      const d = new Date(raw);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof raw === 'string') {
+      const d = new Date(raw);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof raw === 'object') {
+      const o = raw as Record<string, unknown>;
+      if (o['$date'] != null) return this.parseClassStartTime(o['$date']);
+    }
+    return null;
+  }
+
+  formatClassTime(startTime?: unknown): string {
+    const d = this.parseClassStartTime(startTime);
+    if (!d) return '—';
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  formatClassDate(startTime?: unknown): string {
+    const d = this.parseClassStartTime(startTime);
+    if (!d) return 'Today';
+    return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
   dueLabel(n: PaymentHubNotification): string {
     const m = n.metadata;
     if (n.type === 'JOURNEY_EXERCISE_MISSED_TODAY') {
@@ -165,8 +241,9 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
       return count > 0 ? `${count} missed` : '—';
     }
     if (n.type === 'JOURNEY_CLASS_ABSENT_TODAY') {
-      const count = Number(m?.absentCount || m?.absentItems?.length || 0);
-      return count > 0 ? `${count} absent` : '—';
+      const count = this.classAbsentItems(n).length || Number(m?.absentCount || 0);
+      if (count <= 0) return '—';
+      return count === 1 ? 'Missed' : `${count} missed`;
     }
     if (m?.currency != null && m?.dueAmount != null) {
       return `${m.currency} ${Math.round(m.dueAmount).toLocaleString()}`;

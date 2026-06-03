@@ -285,9 +285,10 @@ export class AdminDashboardComponent implements OnInit {
         }
         this.isFullAdmin = user.role === 'ADMIN';
         this.initColumnVisibility();
-        this.fetchFilterOptions();
         this.fetchStudents();
-        this.fetchTeachers();
+        this.fetchFilterOptions();
+        // Teachers only power autocomplete — load after the student table request starts.
+        setTimeout(() => this.fetchTeachers(), 0);
       },
       error: () => {
         this.loading = false;
@@ -359,7 +360,7 @@ export class AdminDashboardComponent implements OnInit {
     });
     }
 
-  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0 };
+  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0, portalSignupForm: 0, portalTestAccounts: 0 };
 
   dataIssuesPanelOpen = false;
   dataIssuesLoading = false;
@@ -389,7 +390,7 @@ export class AdminDashboardComponent implements OnInit {
         languageLevelOpted?: string[];
         phoneCountries?: string[];
         loginCountries?: string[];
-        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number };
+        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number; portalSignupForm: number; portalTestAccounts: number };
       }>(`${apiUrl}/admin/students/filter-options`, { withCredentials: true })
       .subscribe({
         next: (res) => {

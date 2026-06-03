@@ -240,9 +240,18 @@ export interface PaymentHubNotification {
     missedCount?: number;
     missedItems?: string[];
     absentCount?: number;
-    absentItems?: string[];
+    absentItems?: (string | PaymentHubClassAbsentItem)[];
   };
   createdAt: string;
+}
+
+export interface PaymentHubClassAbsentItem {
+  meetingId?: string;
+  topic: string;
+  startTime?: string | null;
+  batch?: string;
+  courseDay?: number;
+  status?: 'missed';
 }
 
 export interface PaymentRequestItem {
@@ -590,12 +599,36 @@ export class PaymentHubApiService {
     );
   }
 
+  markLevelSlotFullPaid(body: {
+    studentId: string;
+    slotKey: string;
+    fullPaidAmount: number;
+    currency: string;
+    paymentDate?: string;
+    remarks?: string;
+  }): Observable<{ success: boolean; message: string; data: { requestId?: string; submissionId?: string } }> {
+    return this.http.post<{ success: boolean; message: string; data: { requestId?: string; submissionId?: string } }>(
+      `${this.base}/legacy/level-full-paid`,
+      body,
+    );
+  }
+
   correctStudentTotalPaid(
     studentId: string,
     body: { currency: string; correctedTotalPaid: number; adminRemarks: string },
   ): Observable<{ success: boolean; message: string; data: unknown }> {
     return this.http.patch<{ success: boolean; message: string; data: unknown }>(
       `${this.base}/students/${studentId}/correct-total-paid`,
+      body,
+    );
+  }
+
+  bulkResetStudentPayments(body: {
+    studentIds: string[];
+    reason?: string;
+  }): Observable<{ success: boolean; message: string; data: { studentsProcessed: number; requestsArchived: number; submissionsArchived: number } }> {
+    return this.http.post<{ success: boolean; message: string; data: { studentsProcessed: number; requestsArchived: number; submissionsArchived: number } }>(
+      `${this.base}/students/bulk-reset-payments`,
       body,
     );
   }
@@ -617,6 +650,7 @@ export class PaymentHubApiService {
     limit?: number;
     unreadOnly?: boolean;
     type?: string;
+    batch?: string;
     batchLevel?: string;
     studentStatus?: string;
   }): Observable<{

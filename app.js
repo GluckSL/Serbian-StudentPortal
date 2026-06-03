@@ -26,6 +26,7 @@ if (missingS3Vars.length > 0) {
 }
 const express = require("express");
 const app = express();
+app.set('etag', false);
 const path = require('path');
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -427,26 +428,84 @@ app.post('/api/grade-assignment', async (req, res) => {
 const PORT = process.env.PORT || 4000;
 
 let httpServer = null;
+let isShuttingDown = false;
+const SHUTDOWN_FORCE_MS = 3000;
 
-function gracefulShutdown(signal) {
-  console.log(`[shutdown] ${signal} received — closing GlückArena server`);
+function stopBackgroundWork() {
+  try {
+    const cron = require('node-cron');
+    const tasks = cron.getTasks?.();
+    if (tasks) {
+      for (const task of tasks.values()) {
+        task.stop();
+      }
+    }
+  } catch (err) {
+    console.warn('[shutdown] cron stop:', err.message);
+  }
+  try {
+    const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
+    const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
+    overdueCron.stop();
+    journeyDueCron.stop();
+  } catch { /* payment crons optional */ }
+}
+
+function closeArenaSockets() {
   try {
     const { getIo } = require('./sockets/glueckArenaMultiplayer');
     const io = getIo();
-    if (io) io.close();
+    if (!io) return;
+    if (typeof io.disconnectSockets === 'function') {
+      io.disconnectSockets(true);
+    }
+    io.close();
   } catch { /* sockets optional */ }
-  if (httpServer) {
-    httpServer.close(() => {
-      mongoose.connection.close(false).then(() => process.exit(0)).catch(() => process.exit(1));
-    });
-    setTimeout(() => process.exit(1), 10_000);
-  } else {
-    process.exit(0);
-  }
 }
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+  console.log(`[shutdown] ${signal} received — closing server`);
+
+  const forceExitTimer = setTimeout(() => {
+    console.warn(`[shutdown] forcing exit after ${SHUTDOWN_FORCE_MS}ms`);
+    process.exit(1);
+  }, SHUTDOWN_FORCE_MS);
+  if (typeof forceExitTimer.unref === 'function') {
+    forceExitTimer.unref();
+  }
+
+  stopBackgroundWork();
+  closeArenaSockets();
+
+  const finish = () => {
+    clearTimeout(forceExitTimer);
+    mongoose
+      .disconnect()
+      .then(() => process.exit(0))
+      .catch(() => process.exit(1));
+  };
+
+  if (!httpServer) {
+    finish();
+    return;
+  }
+
+  if (typeof httpServer.closeAllConnections === 'function') {
+    httpServer.closeAllConnections();
+  }
+
+  httpServer.close((err) => {
+    if (err) console.warn('[shutdown] http close:', err.message);
+    finish();
+  });
+}
+
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
 
 connectMongoDb()
   .then(() => {

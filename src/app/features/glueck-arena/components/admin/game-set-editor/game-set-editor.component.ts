@@ -172,9 +172,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </div>
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Course Day (unlock)</mat-label>
-                <input matInput type="number" formControlName="courseDay" min="1">
-                <mat-hint>Leave empty for no gating</mat-hint>
+                <mat-label>Journey day</mat-label>
+                <input matInput type="number" formControlName="courseDay" min="1" max="200">
+                <mat-hint>Maps to Journey to Germany (My Course). Leave empty for arena-only (no day pill).</mat-hint>
               </mat-form-field>
 
               <div class="ga-toggle-group">
@@ -283,9 +283,15 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     </div>
   `,
   styles: [`
-    .ga-editor { max-width: 900px; margin: 0 auto; padding: 24px; }
-    .ga-editor__header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-    .ga-editor__header h1 { margin: 0; font-size: 22px; font-weight: 600; color: #405980; }
+    .ga-editor { max-width: 1040px; margin: 0 auto; padding: 24px 28px 40px; }
+    .ga-editor__header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+      padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;
+    }
+    .ga-editor__header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #1e3a5f; }
+    ::ng-deep .ga-editor .mat-mdc-tab-group { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06); }
+    ::ng-deep .ga-editor .mat-mdc-tab-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    ::ng-deep .ga-editor .mat-mdc-tab-body-content { padding: 0 24px 24px; }
     .ga-editor__form { padding: 24px 0; }
     .ga-editor__row { display: flex; gap: 16px; flex-wrap: wrap; }
     .ga-editor__field { flex: 1; min-width: 180px; }

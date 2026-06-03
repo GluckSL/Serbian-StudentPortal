@@ -13,6 +13,7 @@ const notificationService = require('./notificationService');
 const timelineService = require('./timelineService');
 const installmentService = require('./installmentService');
 const receiptService = require('./receiptService');
+const { computeLiveTotalsFromData } = require('../utils/currencyBreakdownHelper');
 
 const getEmailService = () => require('./emailService');
 
@@ -33,47 +34,65 @@ const recalculateStudentProfile = async (studentId) => {
     PaymentFlowSubmission.find({ studentId, status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false }).lean(),
   ]);
 
-  const currencyMap = {};
-  for (const s of approvedSubmissions) {
-    if (!currencyMap[s.currency]) currencyMap[s.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
-    currencyMap[s.currency].totalPaid += s.paidAmount;
-  }
-  for (const s of pendingSubmissions) {
-    if (!currencyMap[s.currency]) currencyMap[s.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
-    currencyMap[s.currency].pendingApprovalAmount += s.paidAmount;
-  }
-  for (const r of requests) {
-    if (!currencyMap[r.currency]) currencyMap[r.currency] = { currency: r.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
-    if (r.status === 'OVERDUE') currencyMap[r.currency].overdueAmount += r.amountRemaining || r.amount;
-    if (['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'PARTIALLY_PAID'].includes(r.status)) currencyMap[r.currency].expectedAmount += r.amountRemaining || r.amount;
-  }
+  const activeRequestIds = new Set(requests.map((r) => String(r._id)));
+  const approvedForActiveRequests = approvedSubmissions.filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId)),
+  );
+  const pendingForActiveRequests = pendingSubmissions.filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId)),
+  );
 
-  const totalPaid = approvedSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
+  const live = computeLiveTotalsFromData(requests, approvedSubmissions, pendingSubmissions);
+  const {
+    totalPaid,
+    pendingApprovalAmount,
+    overdueAmount,
+    overallStatus,
+    currencyBreakdown,
+  } = live;
+
   const totalRequested = requests.reduce((s, r) => s + r.amount, 0);
-  const pendingApprovalAmount = pendingSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
-  const overdueAmount = requests.filter((r) => r.status === 'OVERDUE').reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
-  const expectedAmount = requests.filter((r) => !['APPROVED', 'FULLY_PAID', 'REJECTED', 'OVERDUE'].includes(r.status)).reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
+  const expectedAmount = requests
+    .filter((r) => !['APPROVED', 'FULLY_PAID', 'REJECTED', 'OVERDUE'].includes(r.status))
+    .reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
 
   const overdueCount = requests.filter((r) => r.status === 'OVERDUE').length;
-  const activeRequestCount = requests.filter((r) => ['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'REUPLOAD_REQUIRED'].includes(r.status)).length;
+  const activeRequestCount = requests.filter((r) =>
+    ['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'REUPLOAD_REQUIRED'].includes(r.status),
+  ).length;
   const completedRequestCount = requests.filter((r) => ['APPROVED', 'FULLY_PAID'].includes(r.status)).length;
-  const pendingApprovalCount = pendingSubmissions.length;
+  const pendingApprovalCount = pendingForActiveRequests.length;
   const rejectedCount = requests.filter((r) => r.status === 'REJECTED').length;
 
-  const sorted = [...approvedSubmissions].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
+  const sorted = [...approvedForActiveRequests].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
   const lastSub = sorted[0];
-
-  let overallStatus = 'CLEAR';
-  if (overdueCount > 0) overallStatus = 'OVERDUE';
-  else if (pendingApprovalCount > 0) overallStatus = 'PENDING_REVIEW';
-  else if (activeRequestCount > 0) overallStatus = 'REQUESTED';
-  else if (completedRequestCount > 0 && activeRequestCount === 0 && overdueCount === 0) overallStatus = 'CLEAR';
 
   const paymentHealthScore = Math.max(0, 100 - overdueCount * 20 - rejectedCount * 5);
 
   const profile = await StudentPaymentProfile.findOneAndUpdate(
     { studentId },
-    { studentId, totalPaid, pendingApprovalAmount, overdueAmount, expectedAmount, totalRequested, currencyBreakdown: Object.values(currencyMap), totalRequestCount: requests.length, activeRequestCount, completedRequestCount, overdueCount, pendingApprovalCount, fullyPaidCount: completedRequestCount, rejectedCount, lastPaymentDate: lastSub?.approvedAt, lastPaymentAmount: lastSub?.paidAmount, lastPaymentCurrency: lastSub?.currency, overallStatus, paymentHealthScore, lastRebuiltAt: new Date() },
+    {
+      studentId,
+      totalPaid,
+      pendingApprovalAmount,
+      overdueAmount,
+      expectedAmount,
+      totalRequested,
+      currencyBreakdown,
+      totalRequestCount: requests.length,
+      activeRequestCount,
+      completedRequestCount,
+      overdueCount,
+      pendingApprovalCount,
+      fullyPaidCount: completedRequestCount,
+      rejectedCount,
+      lastPaymentDate: lastSub?.approvedAt,
+      lastPaymentAmount: lastSub?.paidAmount,
+      lastPaymentCurrency: lastSub?.currency,
+      overallStatus,
+      paymentHealthScore,
+      lastRebuiltAt: new Date(),
+    },
     { upsert: true, new: true }
   );
 
@@ -334,11 +353,18 @@ const addInternalNote = async ({ requestId, adminId, adminRole, adminName, note,
 const archiveRequest = async ({ requestId, adminId, adminRole, reason }) => {
   const request = await PaymentRequest.findById(requestId);
   if (!request) throw new Error('Payment request not found');
+  const archivedAt = new Date();
   request.isArchived = true;
-  request.archivedAt = new Date();
+  request.archivedAt = archivedAt;
   request.archivedBy = adminId;
   request.archiveReason = reason;
   await request.save();
+
+  await PaymentFlowSubmission.updateMany(
+    { paymentRequestId: request._id, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+  );
+
   await logAudit({ entityType: 'PaymentRequest', entityId: request._id, action: 'DELETED', performedBy: adminId, performedByRole: adminRole, metadata: { reason, archiveType: 'SOFT_DELETE' }, studentId: request.studentId });
   await recalculateStudentProfile(request.studentId);
   return request;
@@ -536,6 +562,70 @@ const correctStudentTotalPaid = async ({ studentId, currency, correctedTotalPaid
   };
 };
 
+// ─── Bulk reset payment data (admin — before Excel re-import) ────────────────
+
+const bulkResetStudentPayments = async ({ studentIds, adminId, adminRole, reason }) => {
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    throw new Error('studentIds array is required');
+  }
+  if (studentIds.length > 500) {
+    throw new Error('Maximum 500 students per bulk reset');
+  }
+
+  const uniqueIds = [...new Set(studentIds.map(String))];
+  const User = mongoose.model('User');
+  const students = await User.find({ _id: { $in: uniqueIds }, role: 'STUDENT' }).select('_id').lean();
+  const validIds = students.map((s) => s._id);
+  if (!validIds.length) {
+    throw new Error('No valid student IDs provided');
+  }
+
+  const archivedAt = new Date();
+  const archiveReason = reason?.trim() || 'Bulk payment reset before re-import';
+
+  const activeRequests = await PaymentRequest.find({
+    studentId: { $in: validIds },
+    isArchived: false,
+  }).select('_id').lean();
+  const requestIds = activeRequests.map((r) => r._id);
+
+  const reqResult = await PaymentRequest.updateMany(
+    { studentId: { $in: validIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId, archiveReason } },
+  );
+
+  const subResult = await PaymentFlowSubmission.updateMany(
+    { studentId: { $in: validIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+  );
+
+  if (requestIds.length) {
+    await PaymentFlowSubmission.updateMany(
+      { paymentRequestId: { $in: requestIds }, isArchived: false },
+      { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+    );
+  }
+
+  for (const sid of validIds) {
+    await recalculateStudentProfile(sid);
+    await logAudit({
+      entityType: 'StudentPaymentProfile',
+      entityId: sid,
+      action: 'BULK_RESET',
+      performedBy: adminId,
+      performedByRole: adminRole,
+      studentId: sid,
+      metadata: { reason: archiveReason },
+    });
+  }
+
+  return {
+    studentsProcessed: validIds.length,
+    requestsArchived: reqResult.modifiedCount,
+    submissionsArchived: subResult.modifiedCount,
+  };
+};
+
 module.exports = {
   createPaymentRequests,
   submitPayment,
@@ -551,4 +641,5 @@ module.exports = {
   getUser,
   correctApprovedSubmissionAmount,
   correctStudentTotalPaid,
+  bulkResetStudentPayments,
 };

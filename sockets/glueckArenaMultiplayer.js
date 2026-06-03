@@ -22,6 +22,9 @@ function emitToRoom(code, event, payload) {
 }
 
 function initGlueckArenaSockets(httpServer) {
+  if (ioInstance) {
+    return ioInstance;
+  }
   if (config.features?.multiplayer === false) return null;
 
   let Server;

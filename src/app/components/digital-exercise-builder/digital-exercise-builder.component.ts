@@ -148,9 +148,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   // ── Bulk select / edit (parity with PDF extract review) ──
   selectedIndices = new Set<number>();
   selectAllChecked = false;
-  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | '' = '';
+  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | 'attachment-upload' | '' = '';
   bulkEditValue = '';
   bulkAudioUploading = false;
+  bulkAttachmentUploading = false;
   bulkTypeChangeOpen = false;
   bulkTargetType = '';
   bulkConverting = false;
@@ -1043,10 +1044,16 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   onAttachmentFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if ((this as any)._bulkAttachmentMode) {
+      (this as any)._bulkAttachmentMode = false;
+      this.onBulkAttachmentFileSelected(file);
+      return;
+    }
     const q = this.currentAttachmentQ;
     this.currentAttachmentQ = null;
-    input.value = '';
-    if (!file || !q) return;
+    if (!q) return;
     q.attachmentUploading = true;
     this.exerciseService.uploadQuestionAttachment(file).subscribe({
       next: (res) => {
@@ -2177,7 +2184,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   // ── Bulk field edit ──────────────────────────────────────────────────────────
 
   applyBulkField(): void {
-    if (!this.bulkEditField || this.selectedIndices.size === 0) return;
+    if (!this.bulkEditField || this.bulkEditField === 'attachment-upload' || this.selectedIndices.size === 0) {
+      return;
+    }
     for (const idx of this.selectedIndices) {
       const q = this.questions[idx];
       if (!q) continue;
@@ -2187,9 +2196,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         q.attachmentUrl = this.bulkEditValue;
       } else if (this.bulkEditField === 'example') {
         q.workedExample = this.bulkEditValue;
-      } else {
-        q[this.bulkEditField] = this.bulkEditValue;
+      } else if (this.bulkEditField === 'context') {
+        q.context = this.bulkEditValue;
+      } else if (this.bulkEditField === 'instruction') {
+        q.instruction = this.bulkEditValue;
       }
+      // attachment-upload is applied via onBulkAttachmentFileSelected, not here
     }
     this.showSuccess(`Applied "${this.bulkEditField}" to ${this.selectedIndices.size} question(s).`);
     this.bulkEditValue = '';
@@ -2211,6 +2223,37 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       error: (err) => {
         this.bulkAudioUploading = false;
         this.showError(err.error?.error || 'Audio upload failed');
+      }
+    });
+  }
+
+  triggerBulkAttachmentFile(): void {
+    if (this.selectedIndices.size === 0) return;
+    (this as any)._bulkAttachmentMode = true;
+    this.attachmentFileInput?.nativeElement?.click();
+  }
+
+  onBulkAttachmentFileSelected(file: File): void {
+    if (this.selectedIndices.size === 0) return;
+    this.bulkAttachmentUploading = true;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        this.bulkAttachmentUploading = false;
+        const canonicalUrl = this.canonicalizeMediaField(res.canonicalUrl || res.url);
+        const attType = this.getAttachmentType(canonicalUrl);
+        for (const idx of this.selectedIndices) {
+          const q = this.questions[idx];
+          if (!q) continue;
+          q.attachmentUrl = canonicalUrl;
+          if (attType !== 'audio') {
+            q.attachmentAudioMaxPlaysPerAttempt = undefined;
+          }
+        }
+        this.showSuccess(`Attachment applied to ${this.selectedIndices.size} question(s).`);
+      },
+      error: (err) => {
+        this.bulkAttachmentUploading = false;
+        this.showError(err.error?.error || 'Upload failed');
       }
     });
   }

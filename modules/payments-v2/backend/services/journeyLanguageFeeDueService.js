@@ -15,6 +15,137 @@ const TYPE_EXERCISE = 'JOURNEY_EXERCISE_MISSED_TODAY';
 const TYPE_CLASS = 'JOURNEY_CLASS_ABSENT_TODAY';
 const JOURNEY_DAY_THRESHOLD = 11;
 const ADMIN_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'SUPER_ADMIN', 'SUB_ADMIN'];
+/** Same grace as WhatsApp during-class absence alerts — do not mark missed before this. */
+const CLASS_ABSENCE_GRACE_MS = 30 * 60 * 1000;
+const DEFAULT_CLASS_DURATION_MIN = 60;
+
+function meetingEndTime(cls) {
+  const start = cls.startTime ? new Date(cls.startTime) : null;
+  if (!start || Number.isNaN(start.getTime())) return null;
+  const durationMin = Number(cls.duration) > 0 ? Number(cls.duration) : DEFAULT_CLASS_DURATION_MIN;
+  return new Date(start.getTime() + durationMin * 60 * 1000);
+}
+
+/**
+ * Only evaluate absence after class has started (with grace) or ended, or when attendance is finalized.
+ */
+function shouldEvaluateClassAbsence(cls, now = new Date()) {
+  if (cls.attendanceRecorded) return true;
+
+  const start = cls.startTime ? new Date(cls.startTime) : null;
+  if (!start || Number.isNaN(start.getTime())) return false;
+
+  if (now < start) return false;
+
+  const end = meetingEndTime(cls);
+  if (end && now >= end) return true;
+
+  const graceAt = new Date(start.getTime() + CLASS_ABSENCE_GRACE_MS);
+  return now >= graceAt;
+}
+
+function isStudentPresentInMeeting(record) {
+  return (
+    !!record &&
+    (record.attended === true || ['attended', 'late'].includes(String(record.status || '').toLowerCase()))
+  );
+}
+
+const meetingStartCache = new Map();
+const batchClockCache = new Map();
+
+function batchNameRegex(batchName) {
+  const name = String(batchName || '').trim();
+  if (!name) return null;
+  return new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+}
+
+function parseValidDate(value) {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toIsoOrNull(value) {
+  const d = parseValidDate(value);
+  return d ? d.toISOString() : null;
+}
+
+function getZoomService() {
+  return require('../../../../services/zoomService');
+}
+
+function clearMeetingStartCaches() {
+  meetingStartCache.clear();
+  batchClockCache.clear();
+}
+
+async function inferBatchClassClock(batchName) {
+  const key = String(batchName || '').trim().toLowerCase();
+  if (batchClockCache.has(key)) return batchClockCache.get(key);
+  const rx = batchNameRegex(batchName);
+  if (!rx) {
+    batchClockCache.set(key, null);
+    return null;
+  }
+  const sample = await MeetingLink.findOne({
+    batch: rx,
+    startTime: { $exists: true, $ne: null },
+  })
+    .sort({ startTime: -1 })
+    .select('startTime')
+    .lean();
+  const clock = parseValidDate(sample?.startTime);
+  batchClockCache.set(key, clock);
+  return clock;
+}
+
+/** Use today's calendar date with the batch's usual class clock (e.g. 19:00). */
+function todayWithBatchClock(clockDate) {
+  const clock = parseValidDate(clockDate);
+  if (!clock) return null;
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), clock.getHours(), clock.getMinutes(), 0, 0);
+}
+
+async function persistMeetingStartTime(meetingId, startTime) {
+  if (!meetingId || !startTime) return;
+  try {
+    await MeetingLink.updateOne({ _id: meetingId }, { $set: { startTime } });
+  } catch (_) {
+    /* non-fatal */
+  }
+}
+
+/** Fill missing startTime from Zoom or the batch's typical class time. */
+async function resolveMeetingStartTime(cls, batchName) {
+  const cacheKey = String(cls._id);
+  if (meetingStartCache.has(cacheKey)) return meetingStartCache.get(cacheKey);
+
+  let resolved = parseValidDate(cls.startTime);
+
+  if (!resolved && cls.zoomMeetingId) {
+    try {
+      const zm = await getZoomService().getMeeting(String(cls.zoomMeetingId));
+      resolved = parseValidDate(zm?.start_time);
+      if (resolved) {
+        cls.startTime = resolved;
+        await persistMeetingStartTime(cls._id, resolved);
+      }
+    } catch (_) {
+      /* Zoom unavailable — fall through */
+    }
+  }
+
+  if (!resolved) {
+    const batchClock = await inferBatchClassClock(batchName);
+    resolved = todayWithBatchClock(batchClock);
+    if (resolved) cls.startTime = resolved;
+  }
+
+  meetingStartCache.set(cacheKey, resolved || null);
+  return resolved;
+}
 
 function normalizeCourseDay(d) {
   const n = parseInt(String(d), 10);
@@ -78,11 +209,29 @@ function buildExerciseCopy(student, journeyDay, missedCount) {
   return { title, message };
 }
 
-function buildClassCopy(student, journeyDay, absentCount) {
+function formatClassWhen(startTime) {
+  if (!startTime) return 'today';
+  const d = new Date(startTime);
+  if (Number.isNaN(d.getTime())) return 'today';
+  const date = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${date} at ${time}`;
+}
+
+function buildClassCopy(student, journeyDay, absentItems) {
   const name = student.name || student.email || 'Student';
   const title = 'Class absent — today alert';
+  const absentCount = absentItems.length;
+  if (absentCount === 1) {
+    const c = absentItems[0];
+    const topic = c.topic || 'Live class';
+    const batch = c.batch || student.batch || '—';
+    const when = formatClassWhen(c.startTime);
+    const message = `${name} (journey day ${journeyDay}) missed "${topic}" — Batch ${batch}, ${when}.`;
+    return { title, message };
+  }
   const label = absentCount === 1 ? 'class' : 'classes';
-  const message = `${name} (journey day ${journeyDay}) is absent in ${absentCount} ${label} scheduled for today.`;
+  const message = `${name} (journey day ${journeyDay}) missed ${absentCount} ${label} scheduled for today.`;
   return { title, message };
 }
 
@@ -159,7 +308,7 @@ async function upsertAdminExerciseNotification(adminId, student, journeyDay, mis
 
 async function upsertAdminClassNotification(adminId, student, journeyDay, absentItems) {
   const absentCount = absentItems.length;
-  const { title, message } = buildClassCopy(student, journeyDay, absentCount);
+  const { title, message } = buildClassCopy(student, journeyDay, absentItems);
   const metadata = {
     studentId: String(student._id),
     studentName: student.name,
@@ -236,24 +385,74 @@ async function getAbsentClassesForCurrentDay(student, journeyDay) {
     courseDay: journeyDay,
     status: { $ne: 'cancelled' },
   })
-    .select('topic attendance')
+    .select('_id topic startTime duration batch courseDay attendance attendanceRecorded zoomMeetingId')
     .lean();
 
   if (!classes.length) return [];
   const studentId = String(student._id);
+  const now = new Date();
   const absentItems = [];
   for (const cls of classes) {
+    await resolveMeetingStartTime(cls, batchName);
+
+    if (!shouldEvaluateClassAbsence(cls, now)) continue;
+
     const record = (cls.attendance || []).find((a) => String(a.studentId) === studentId);
-    const isPresent = !!record && (record.attended === true || ['attended', 'late'].includes(String(record.status || '').toLowerCase()));
-    if (!isPresent) absentItems.push(cls.topic && String(cls.topic).trim() ? cls.topic : 'Live class');
+    if (!isStudentPresentInMeeting(record)) {
+      absentItems.push({
+        meetingId: String(cls._id),
+        topic: cls.topic && String(cls.topic).trim() ? cls.topic : 'Live class',
+        startTime: toIsoOrNull(cls.startTime),
+        batch: cls.batch || batchName,
+        courseDay: cls.courseDay ?? journeyDay,
+        status: 'missed',
+      });
+    }
   }
   return absentItems;
+}
+
+/** Patch stored notification rows so class alerts include a resolvable startTime. */
+async function hydrateClassAbsentItemsInNotifications(notifications) {
+  if (!Array.isArray(notifications) || !notifications.length) return notifications;
+
+  const meetingIds = [];
+  for (const n of notifications) {
+    if (n.type !== TYPE_CLASS || !Array.isArray(n.metadata?.absentItems)) continue;
+    for (const item of n.metadata.absentItems) {
+      if (item && typeof item === 'object' && item.meetingId) {
+        meetingIds.push(item.meetingId);
+      }
+    }
+  }
+  if (!meetingIds.length) return notifications;
+
+  const meetings = await MeetingLink.find({ _id: { $in: meetingIds } })
+    .select('_id topic startTime batch zoomMeetingId duration courseDay attendanceRecorded')
+    .lean();
+  const byId = new Map(meetings.map((m) => [String(m._id), m]));
+
+  for (const n of notifications) {
+    if (n.type !== TYPE_CLASS || !Array.isArray(n.metadata?.absentItems)) continue;
+    const batchName = n.metadata?.batch;
+    for (const item of n.metadata.absentItems) {
+      if (!item || typeof item !== 'object') continue;
+      const m = byId.get(String(item.meetingId));
+      if (!m) continue;
+      await resolveMeetingStartTime(m, item.batch || batchName);
+      const iso = toIsoOrNull(m.startTime);
+      if (iso) item.startTime = iso;
+      if (!item.topic && m.topic) item.topic = m.topic;
+    }
+  }
+  return notifications;
 }
 
 /**
  * Create or refresh admin alerts for one student; clear when no longer applicable.
  */
 async function syncForStudent(studentId) {
+  clearMeetingStartCaches();
   const student = await User.findById(studentId)
     .select('name email batch level role studentStatus currentCourseDay')
     .lean();
@@ -307,6 +506,7 @@ async function syncForStudent(studentId) {
  * Scan all students past the journey threshold with open language fee balance.
  */
 async function syncAllEligibleStudents() {
+  clearMeetingStartCaches();
   const students = await User.find({ role: 'STUDENT' })
     .select('_id')
     .lean();
@@ -345,4 +545,6 @@ module.exports = {
   clearNotificationsForStudentByType,
   getMissedExercisesForCurrentDay,
   getAbsentClassesForCurrentDay,
+  hydrateClassAbsentItemsInNotifications,
+  clearMeetingStartCaches,
 };

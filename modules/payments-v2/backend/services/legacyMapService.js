@@ -215,6 +215,13 @@ const reconcileLevelSlotQuote = async ({ studentId, adminId, slotKey, currency, 
 const createLegacyRecord = async ({ studentId, adminId, paymentType, customType, amount, paidAmount, currency, paymentDate, remarks, session }) => {
   const now = new Date();
   const dueDate = paymentDate ? new Date(paymentDate) : now;
+  const quoted = Number(amount) || 0;
+  const paid = Number(paidAmount) || 0;
+  if (paid > quoted + 0.01) {
+    throw new Error(
+      `Paid amount (${currency} ${paid}) cannot exceed the request amount (${currency} ${quoted}). Check for an extra zero (e.g. 750000 vs 75000).`,
+    );
+  }
   const { existing, fingerprint } = await findExistingLegacySubmission({
     studentId,
     paymentType,
@@ -656,10 +663,161 @@ const updateLegacyPaymentRequest = async ({ requestId, adminId, updates }) => {
   return { request: request.toObject() };
 };
 
+/**
+ * Record a level as fully paid at a custom amount (e.g. course upfront with 10% discount).
+ * Clears pending submissions, consolidates slot requests, sets quote = paid = fullPaidAmount.
+ */
+const markLevelSlotFullPaid = async ({ studentId, adminId, slotKey, fullPaidAmount, currency, paymentDate, remarks }) => {
+  const slot = String(slotKey || '').trim().toUpperCase();
+  if (!LEVEL_SLOTS.has(slot)) {
+    throw new Error('Full paid is only available for A1, A2, B1, and B2');
+  }
+
+  const amount = Number(fullPaidAmount);
+  if (!amount || amount <= 0 || Number.isNaN(amount)) {
+    throw new Error('fullPaidAmount must be a positive number');
+  }
+  const ccy = String(currency || 'LKR').toUpperCase();
+  if (!['LKR', 'INR', 'USD'].includes(ccy)) {
+    throw new Error('currency must be LKR, INR, or USD');
+  }
+  const payDate = paymentDate ? new Date(paymentDate) : new Date();
+  if (Number.isNaN(payDate.getTime())) {
+    throw new Error('Invalid payment date');
+  }
+
+  const session = await mongoose.startSession();
+  let result = null;
+
+  try {
+    await session.withTransaction(async () => {
+      const requests = await findLevelSlotRequests({ studentId, slotKey: slot, currency: ccy, session });
+      const requestIds = requests.map((r) => r._id);
+      const now = new Date();
+      const note = remarks?.trim() || `Full paid — ${slot} (${ccy} ${amount})`;
+
+      if (requestIds.length) {
+        await PaymentFlowSubmission.updateMany(
+          {
+            paymentRequestId: { $in: requestIds },
+            status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
+            isArchived: false,
+          },
+          { $set: { isArchived: true, archivedAt: now, archivedBy: adminId } },
+          { session },
+        );
+      }
+
+      if (!requests.length) {
+        result = await createLegacyRecord({
+          studentId,
+          adminId,
+          paymentType: 'CUSTOM_PAYMENT',
+          customType: slot,
+          amount,
+          paidAmount: amount,
+          currency: ccy,
+          paymentDate: payDate,
+          remarks: note,
+          session,
+        });
+        return;
+      }
+
+      const primary = requests[0];
+      const extras = requests.slice(1);
+
+      const approvedSubs = await PaymentFlowSubmission.find({
+        paymentRequestId: { $in: requestIds },
+        status: 'APPROVED',
+        isArchived: false,
+      }).session(session);
+
+      for (const sub of approvedSubs) {
+        if (extras.some((r) => String(r._id) === String(sub.paymentRequestId))) {
+          sub.paymentRequestId = primary._id;
+          await sub.save({ session });
+        }
+      }
+
+      for (const req of extras) {
+        req.isArchived = true;
+        req.archivedAt = now;
+        req.archivedBy = adminId;
+        req.archiveReason = `${slot} full paid — consolidated`;
+        await req.save({ session });
+      }
+
+      await PaymentFlowSubmission.updateMany(
+        { paymentRequestId: primary._id, status: 'APPROVED', isArchived: false },
+        { $set: { isArchived: true, archivedAt: now, archivedBy: adminId } },
+        { session },
+      );
+
+      primary.paymentType = 'CUSTOM_PAYMENT';
+      primary.customType = slot;
+      primary.amount = amount;
+      primary.amountRemaining = 0;
+      primary.status = 'FULLY_PAID';
+      primary.currency = ccy;
+      primary.dueDate = payDate;
+      primary.remarks = note;
+      primary.source = SOURCE;
+      primary.isImported = true;
+      if (!primary.legacyImportedAt) primary.legacyImportedAt = now;
+      if (!primary.legacyImportedBy) primary.legacyImportedBy = adminId;
+      await primary.save({ session });
+
+      const fingerprint = buildFingerprint(studentId, 'CUSTOM_PAYMENT', payDate, amount, ccy, slot);
+      const [submission] = await PaymentFlowSubmission.create(
+        [{
+          paymentRequestId: primary._id,
+          studentId,
+          paidAmount: amount,
+          currency: ccy,
+          paymentMethod: 'Legacy',
+          status: 'APPROVED',
+          approvedBy: adminId,
+          approvedAt: payDate,
+          reviewedBy: adminId,
+          reviewedAt: payDate,
+          submittedAt: payDate,
+          source: SOURCE,
+          isImported: true,
+          legacyFingerprint: fingerprint,
+        }],
+        { session },
+      );
+
+      await PaymentAuditLog.create(
+        [{
+          entityType: 'PaymentRequest',
+          entityId: primary._id,
+          action: 'LEVEL_FULL_PAID',
+          performedBy: adminId,
+          performedByRole: 'ADMIN',
+          newState: { status: 'FULLY_PAID', amount, currency: ccy, slot },
+          studentId,
+          metadata: { slot, fullPaidAmount: amount, remarks: note },
+        }],
+        { session },
+      );
+
+      result = { request: primary, submission };
+    });
+  } finally {
+    session.endSession();
+  }
+
+  await recalculateStudentProfile(studentId);
+  return result;
+};
+
 module.exports = {
   mapLegacyPayments,
   bulkMapLegacyLanguageFees,
   reconcileLevelSlotQuote,
   updateLegacyPaymentRequest,
   isEditableLegacyRequest,
+  markLevelSlotFullPaid,
 };

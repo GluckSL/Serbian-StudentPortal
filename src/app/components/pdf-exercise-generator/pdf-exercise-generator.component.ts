@@ -227,9 +227,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   selectAllChecked = false;
 
   /** Which field is being bulk-edited. */
-  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | '' = '';
+  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | 'attachment-upload' | '' = '';
   bulkEditValue = '';
   bulkAudioUploading = false;
+  bulkAttachmentUploading = false;
 
   /** Bulk type change panel */
   bulkTypeChangeOpen = false;
@@ -1669,10 +1670,16 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   onAttachmentFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if ((this as any)._bulkAttachmentMode) {
+      (this as any)._bulkAttachmentMode = false;
+      this.onBulkAttachmentFileSelected(file);
+      return;
+    }
     const q = this.currentAttachmentQ;
     this.currentAttachmentQ = null;
-    input.value = '';
-    if (!file || !q) return;
+    if (!q) return;
     q.attachmentUploading = true;
     this.exerciseService.uploadQuestionAttachment(file).subscribe({
       next: (res) => {
@@ -2016,6 +2023,37 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.bulkAudioUploading = false;
         this.showError(err.error?.error || 'Audio upload failed');
+      }
+    });
+  }
+
+  triggerBulkAttachmentFile(): void {
+    if (this.selectedIndices.size === 0) return;
+    (this as any)._bulkAttachmentMode = true;
+    this.attachmentFileInput?.nativeElement?.click();
+  }
+
+  onBulkAttachmentFileSelected(file: File): void {
+    if (this.selectedIndices.size === 0) return;
+    this.bulkAttachmentUploading = true;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        this.bulkAttachmentUploading = false;
+        const canonicalUrl = canonicalizeStoredMediaUrl(res.canonicalUrl || res.url);
+        const attType = this.getAttachmentType(canonicalUrl);
+        for (const idx of this.selectedIndices) {
+          const q = this.reviewQuestions[idx];
+          if (!q) continue;
+          q.attachmentUrl = canonicalUrl;
+          if (attType !== 'audio') {
+            q.attachmentAudioMaxPlaysPerAttempt = undefined;
+          }
+        }
+        this.showSuccess(`Attachment applied to ${this.selectedIndices.size} question(s).`);
+      },
+      error: (err: { error?: { error?: string } }) => {
+        this.bulkAttachmentUploading = false;
+        this.showError(err.error?.error || 'Upload failed');
       }
     });
   }

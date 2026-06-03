@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { PaymentHubApiService, StudentHistory, PaymentRequestItem as PaymentRequest, ApprovalQueueItem } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
@@ -19,6 +20,7 @@ import {
   computeLanguageFeeStatus,
 } from './payment-language-fee-status.util';
 import { currentJourneyDayFromStudent } from './payment-journey-metrics.util';
+import { LEVEL_PAYMENT_CONFIG, suggestInrForLevel } from './level-payment-config';
 
 @Component({
   selector: 'app-payment-hub-student-detail',
@@ -32,6 +34,7 @@ import { currentJourneyDayFromStudent } from './payment-journey-metrics.util';
     MatSnackBarModule,
     MatIconModule,
     MatChipsModule,
+    MatTooltipModule,
     PaymentCurrencyTotalsComponent,
     PaymentCurrencyPendingTotalsComponent,
     PaymentCurrencyOverdueTotalsComponent,
@@ -65,6 +68,14 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   mappingRemarks = '';
   mappingSaving = false;
 
+  activeFullPaidSlot: LanguageLevelSlot | null = null;
+  fullPaidAmount: number | null = null;
+  fullPaidCurrency: CurrencyKey = 'LKR';
+  fullPaidDate = new Date().toISOString().slice(0, 10);
+  fullPaidRemarks = '';
+  fullPaidSaving = false;
+  private catalogCefrRows: Array<{ code: string; lkr: number; inr: number }> | null = null;
+
   editingRequestId: string | null = null;
   editSaving = false;
   editForm: {
@@ -84,6 +95,14 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   ngOnInit(): void {
     this.studentId = this.route.snapshot.params['studentId'];
+    this.api.getCatalogSettings().subscribe({
+      next: (res) => {
+        this.catalogCefrRows = res.data?.cefrRows ?? null;
+      },
+      error: () => {
+        this.catalogCefrRows = null;
+      },
+    });
     this.load();
   }
 
@@ -390,6 +409,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   }
 
   beginMap(slotKey: PaymentSlotKey): void {
+    this.activeFullPaidSlot = null;
     const initialCurrency = this.primaryCurrencyForSlot(slotKey);
     const initial = this.slotAmountsForCurrency(slotKey, initialCurrency);
     this.activeMapSlot = slotKey;
@@ -408,6 +428,87 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   cancelMap(): void {
     this.activeMapSlot = null;
     this.mappingSaving = false;
+  }
+
+  isLevelSlot(slotKey: PaymentSlotKey): slotKey is LanguageLevelSlot {
+    return slotKey === 'A1' || slotKey === 'A2' || slotKey === 'B1' || slotKey === 'B2';
+  }
+
+  beginFullPaid(slotKey: LanguageLevelSlot): void {
+    this.activeFullPaidSlot = slotKey;
+    this.activeMapSlot = null;
+    this.fullPaidCurrency = this.primaryCurrencyForSlot(slotKey);
+    this.fullPaidAmount = this.suggestFullPaidAmount(slotKey, this.fullPaidCurrency);
+    this.fullPaidDate = new Date().toISOString().slice(0, 10);
+    this.fullPaidRemarks = 'Full course payment — discounted level fee';
+  }
+
+  cancelFullPaid(): void {
+    this.activeFullPaidSlot = null;
+    this.fullPaidSaving = false;
+  }
+
+  onFullPaidCurrencyChange(slotKey: LanguageLevelSlot): void {
+    this.fullPaidAmount = this.suggestFullPaidAmount(slotKey, this.fullPaidCurrency);
+  }
+
+  saveFullPaid(slotKey: LanguageLevelSlot): void {
+    if (!this.history?.student?._id) return;
+    const amount = Number(this.fullPaidAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.snack.open('Enter the full paid amount for this level', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    if (!this.fullPaidDate) {
+      this.snack.open('Select a payment date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    const paymentDate = new Date(this.fullPaidDate);
+    if (Number.isNaN(paymentDate.getTime())) {
+      this.snack.open('Invalid payment date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+
+    this.fullPaidSaving = true;
+    this.api.markLevelSlotFullPaid({
+      studentId: this.history.student._id,
+      slotKey,
+      fullPaidAmount: amount,
+      currency: this.fullPaidCurrency,
+      paymentDate: paymentDate.toISOString(),
+      remarks: this.fullPaidRemarks.trim() || undefined,
+    }).subscribe({
+      next: (res) => {
+        this.fullPaidSaving = false;
+        this.snack.open(res.message || `${slotKey} marked full paid`, 'OK', { duration: 4500 });
+        this.cancelFullPaid();
+        this.load();
+      },
+      error: (e) => {
+        this.fullPaidSaving = false;
+        this.snack.open(e?.error?.message || 'Could not save full paid amount', 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  /** Standard catalog fee for a level (before discount). */
+  standardLevelFee(slotKey: LanguageLevelSlot, currency: CurrencyKey): number {
+    const code = slotKey.toUpperCase();
+    const row = this.catalogCefrRows?.find((r) => String(r.code).toUpperCase() === code);
+    if (currency === 'INR') {
+      return row?.inr ?? suggestInrForLevel(code);
+    }
+    if (currency === 'USD') {
+      const lkr = row?.lkr ?? LEVEL_PAYMENT_CONFIG[code] ?? LEVEL_PAYMENT_CONFIG['A1'];
+      return Math.round(lkr / 300);
+    }
+    return row?.lkr ?? LEVEL_PAYMENT_CONFIG[code] ?? LEVEL_PAYMENT_CONFIG['A1'];
+  }
+
+  /** Suggested full-paid amount (10% course discount on standard fee). */
+  suggestFullPaidAmount(slotKey: LanguageLevelSlot, currency: CurrencyKey): number {
+    const standard = this.standardLevelFee(slotKey, currency);
+    return Math.round(standard * 0.9);
   }
 
   saveMappedPayment(slotKey: PaymentSlotKey): void {
