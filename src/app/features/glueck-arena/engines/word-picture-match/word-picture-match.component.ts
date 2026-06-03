@@ -8,6 +8,7 @@ import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-bur
 import { InteractiveGameService } from '../../services/interactive-game.service';
 import { GameAudioService } from '../../services/game-audio.service';
 import { WordPictureMatchQuestion, GameAttempt, GameSet } from '../../glueck-arena.types';
+import { germanUppercase } from '../../utils/german-text';
 
 export interface WPMResult {
   score: number;
@@ -55,7 +56,7 @@ interface ImageCard {
 
       <div class="wpm__word-area" *ngIf="phase === 'playing'">
         <div class="wpm__word" [class.wpm__word--enter]="wordAnimState === 'enter'" [class.wpm__word--leave]="wordAnimState === 'leave'">
-          <span class="wpm__word-text">{{ currentWord }}</span>
+          <span class="wpm__word-text">{{ formatWord(currentWord) }}</span>
         </div>
         <p class="wpm__hint">Click the matching picture</p>
       </div>
@@ -106,7 +107,6 @@ interface ImageCard {
       padding: 12px 28px; background: #fff; border-radius: 16px;
       box-shadow: 0 4px 16px rgba(0,0,0,.08); border: 2px solid #e2e8f0;
     }
-    .wpm__word-text { text-transform: uppercase; }
     .wpm__word--enter { animation: wpmWordIn .35s ease-out; }
     .wpm__word--leave { animation: wpmWordOut .25s ease-in forwards; }
     @keyframes wpmWordIn {
@@ -178,6 +178,10 @@ export class WordPictureMatchComponent implements OnInit, OnDestroy {
 
   get livesArr(): number[] { return Array(this.lives).fill(0); }
   get lostLivesArr(): number[] { return Array(3 - this.lives).fill(0); }
+
+  formatWord(word: string): string {
+    return germanUppercase(word);
+  }
 
   get accuracy(): number {
     if (this.totalPairs === 0) return 0;
