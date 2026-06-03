@@ -83,7 +83,7 @@ interface ImageCard {
     </div>
   `,
   styles: [`
-    .wpm { position: relative; max-width: 720px; margin: 0 auto; padding: 16px; }
+    .wpm { position: relative; max-width: 720px; margin: 0 auto; }
     .wpm__hud {
       display: flex; justify-content: space-between; align-items: center; gap: 12px;
       padding: 12px 16px; background: #fff; border-radius: 16px;

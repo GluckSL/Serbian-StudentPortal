@@ -336,8 +336,6 @@ const DEADLINE_Y = 88;
 
       gap: 14px;
 
-      padding: 16px 18px 28px;
-
       max-width: 960px;
 
       margin: 0 auto;
@@ -1389,7 +1387,7 @@ const DEADLINE_Y = 88;
 
     @media (max-width: 600px) {
 
-      .sr { padding: 12px 12px 22px; border-radius: 18px; }
+      .sr { border-radius: 18px; }
 
       .sr__arena { min-height: 260px; }
 

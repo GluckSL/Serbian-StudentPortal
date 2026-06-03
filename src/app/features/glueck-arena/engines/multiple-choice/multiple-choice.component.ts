@@ -87,7 +87,7 @@ export interface MCResult {
     </div>
   `,
   styles: [`
-    .mc { position: relative; max-width: 640px; margin: 0 auto; padding: 16px; }
+    .mc { position: relative; max-width: 640px; margin: 0 auto; }
     .mc__hud {
       display: flex; justify-content: space-between; align-items: center; gap: 12px;
       padding: 12px 16px; background: #fff; border-radius: 16px;
