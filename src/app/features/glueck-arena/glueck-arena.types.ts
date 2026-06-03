@@ -1,7 +1,7 @@
 // GlückArena shared TypeScript types
 
 export type ArticleGender = 'der' | 'die' | 'das';
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words' | 'hangman' | 'word_picture_match';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -146,6 +146,31 @@ export interface JumbledWordsQuestion {
   letterCount: number;
 }
 
+export interface HangmanQuestion {
+  _id: string;
+  gameType: 'hangman';
+  order: number;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+  word: string;
+  letterCount: number;
+}
+
+export interface WordPictureMatchPair {
+  word: string;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export interface WordPictureMatchQuestion {
+  _id: string;
+  gameType: 'word_picture_match';
+  order: number;
+  pairs: WordPictureMatchPair[];
+}
+
 export interface MatchingQuestion {
   _id: string;
   gameType: 'matching';
@@ -154,7 +179,7 @@ export interface MatchingQuestion {
   translation: string;
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion | MatchingQuestion;
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion | HangmanQuestion | WordPictureMatchQuestion | MatchingQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -193,7 +218,18 @@ export interface AdminMemoryGameQuestion extends MemoryGameQuestion {
 export interface AdminJumbledWordsQuestion extends JumbledWordsQuestion {
   word: string;
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion | AdminMemoryGameQuestion | AdminJumbledWordsQuestion;
+export interface AdminHangmanQuestion extends HangmanQuestion {
+}
+export interface AdminWordPictureMatchPair {
+  word: string;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+export interface AdminWordPictureMatchQuestion extends WordPictureMatchQuestion {
+  pairs: AdminWordPictureMatchPair[];
+}
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion | AdminMemoryGameQuestion | AdminJumbledWordsQuestion | AdminHangmanQuestion | AdminWordPictureMatchQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -306,6 +342,8 @@ export interface StudentGameStats {
     whackawort: { gamesCompleted: number; bestScore: number; totalXp: number };
     memory: { gamesCompleted: number; bestScore: number; totalXp: number };
     jumbled_words: { gamesCompleted: number; bestScore: number; totalXp: number };
+    hangman: { gamesCompleted: number; bestScore: number; totalXp: number };
+    word_picture_match: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 

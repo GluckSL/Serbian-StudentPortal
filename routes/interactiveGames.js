@@ -155,6 +155,7 @@ router.post('/:id/attempts', verifyToken, blockVisaDocsOnly, checkRole(arenaPlay
 router.post('/attempts/:attemptId/slots', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.submitSentenceSlot);
 router.post('/attempts/:attemptId/image-match', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitImageMatchSlot);
 router.post('/attempts/:attemptId/memory-match', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitMemoryMatch);
+router.post('/attempts/:attemptId/word-picture-match', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitWordPictureMatchSlot);
 router.post('/attempts/:attemptId/answers', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitAnswer);
 
 // Finalize / complete the session

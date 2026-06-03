@@ -104,6 +104,19 @@ export class InteractiveGameService {
     return this.http.post<any>(`${this.base}/attempts/${attemptId}/memory-match`, payload);
   }
 
+  submitWordPictureMatchSlot(attemptId: string, payload: {
+    questionId: string;
+    pairIndex: number;
+    word: string;
+    responseTimeMs?: number;
+  }): Observable<{
+    success: boolean;
+    isCorrect: boolean;
+    pointsEarned: number;
+  }> {
+    return this.http.post<any>(`${this.base}/attempts/${attemptId}/word-picture-match`, payload);
+  }
+
   completeAttempt(attemptId: string, payload: {
     timeSpentSeconds: number;
     livesRemaining?: number;

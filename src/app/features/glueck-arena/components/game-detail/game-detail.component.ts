@@ -79,6 +79,9 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
             Whack the German words that match the target category — hit the wrong ones and lose a life!
           </p>
           <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word!</p>
+          <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word.</p>
+          <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer!</p>
+          <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
         </div>
 
         <button mat-raised-button color="primary" class="gd__play-btn" (click)="play()">
@@ -174,6 +177,7 @@ export class GameDetailComponent implements OnInit {
       flapjugation: 'linear-gradient(135deg,#be185d,#ec4899)',
       whackawort: 'linear-gradient(135deg,#d97706,#f59e0b)',
       memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
+      word_picture_match: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
@@ -184,6 +188,7 @@ export class GameDetailComponent implements OnInit {
       flashcards: 'Flashcards', image_matching: 'Image Matching', gender_stack: 'Gender Stack',
       flapjugation: 'Flapjugation', whackawort: 'Whack-a-Wort',
       memory: 'Memory Game',
+      word_picture_match: 'Word-Picture Match',
     };
     return map[t] ?? t;
   }

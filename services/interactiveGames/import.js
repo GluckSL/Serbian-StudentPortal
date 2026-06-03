@@ -228,6 +228,38 @@ function validateWhackawortRow(row, index) {
   };
 }
 
+function validateJumbledWordsRow(row, index) {
+  const errors = [];
+  const word = germanUppercase(row.word);
+  const hint = String(row.hint || row.translation || '').trim();
+  const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Jumbled Words`);
+  if (!hint && !imageUrl) errors.push(`Row ${index + 1}: "hint" or "image_url" required for Jumbled Words`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: { word, hint, imageUrl, audioUrl: null, order: parseInt(row.order, 10) || index },
+  };
+}
+
+function validateHangmanRow(row, index) {
+  const errors = [];
+  const word = germanUppercase(row.word);
+  const hint = String(row.hint || '').trim();
+  const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Hangman`);
+  if (!hint) errors.push(`Row ${index + 1}: "hint" column is required for Hangman`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: { word, hint, imageUrl, audioUrl: null, order: parseInt(row.order, 10) || index },
+  };
+}
+
 function parseRows(rows, gameType, importType) {
   const normalized = rows.map(r => normalizeRow(r));
   const results = [];
@@ -294,6 +326,20 @@ function parseRows(rows, gameType, importType) {
         if (parsed.valid) {
           const key = `${parsed.doc?.word}|${parsed.doc?.category}`.toLowerCase();
           if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word in category`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'jumbled_words') {
+        parsed = validateJumbledWordsRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word;
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'hangman') {
+        parsed = validateHangmanRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word;
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word`);
           else if (key) seen.add(key);
         }
       } else {
@@ -449,6 +495,18 @@ function getImportTemplate(gameType) {
       { word: 'Apfel', translation: 'apple', category: 'Food', order: 0 },
       { word: 'Hund', translation: 'dog', category: 'Animals', order: 1 },
       { word: 'Auto', translation: 'car', category: 'Transport', order: 2 },
+    ];
+  }
+  if (gameType === 'jumbled_words') {
+    return [
+      { word: 'HAUS', hint: 'house', image_url: '', order: 0 },
+      { word: 'BUCH', hint: 'book', image_url: '', order: 1 },
+    ];
+  }
+  if (gameType === 'hangman') {
+    return [
+      { word: 'HAUS', hint: 'A place to live', image_url: '', order: 0 },
+      { word: 'GARTEN', hint: 'Where flowers grow', image_url: '', order: 1 },
     ];
   }
   return [];

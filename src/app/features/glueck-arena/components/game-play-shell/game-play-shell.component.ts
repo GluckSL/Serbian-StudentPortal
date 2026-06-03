@@ -8,7 +8,7 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
   GameAttempt, GameQuestion, GameLevel, GameSet,
-  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, MatchingQuestion, AchievementDto, LeaderboardEntry,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, HangmanQuestion, WordPictureMatchQuestion, MatchingQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
 import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
@@ -19,6 +19,8 @@ import { FlapjugationComponent, FJResult } from '../../engines/flapjugation/flap
 import { WhackawortComponent, WWResult } from '../../engines/whackawort/whackawort.component';
 import { JumbledWordsComponent, JWResult } from '../../engines/jumbled-words/jumbled-words.component';
 import { MemoryGameComponent, MemoryResult } from '../../engines/memory-game/memory-game.component';
+import { HangmanGameComponent, HangmanResult } from '../../engines/hangman-game/hangman-game.component';
+import { WordPictureMatchComponent, WPMResult } from '../../engines/word-picture-match/word-picture-match.component';
 
 export interface IMResult {
   score: number;
@@ -32,7 +34,7 @@ export interface IMResult {
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent, HangmanGameComponent, WordPictureMatchComponent
   ],
   template: `
     <div class="shell">
@@ -102,6 +104,8 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'whackawort'">Whack the German words that match the target category — hit the wrong ones and lose a life!</p>
               <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word. Match all pairs to win!</p>
               <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word. Drag each letter tile into the right slot and submit your answer.</p>
+              <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer — guess all letters before the figure is complete to win!</p>
+              <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
             </section>
           </aside>
 
@@ -208,6 +212,23 @@ export interface IMResult {
             [questions]="asMemoryQuestions()"
             (onComplete)="handleMemoryComplete($event)"
           ></app-memory-game>
+
+          <app-hangman-game
+            *ngIf="phase === 'playing' && set?.gameType === 'hangman' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asHangmanQuestions()"
+            (onComplete)="handleHangmanComplete($event)"
+          ></app-hangman-game>
+
+          <app-word-picture-match
+            *ngIf="phase === 'playing' && set?.gameType === 'word_picture_match' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asWordPictureMatchQuestions()"
+            [shuffledWords]="shuffledWords"
+            (onComplete)="handleWordPictureMatchComplete($event)"
+          ></app-word-picture-match>
 
           <app-matching
             *ngIf="phase === 'playing' && set?.gameType === 'matching' && attempt"
@@ -961,6 +982,8 @@ export class GamePlayShellComponent implements OnInit {
   asWhackawortQuestions(): WhackawortQuestion[] { return this.questions as WhackawortQuestion[]; }
   asJumbledWordsQuestions(): JumbledWordsQuestion[] { return this.questions as JumbledWordsQuestion[]; }
   asMemoryQuestions(): MemoryGameQuestion[] { return this.questions as MemoryGameQuestion[]; }
+  asHangmanQuestions(): HangmanQuestion[] { return this.questions as HangmanQuestion[]; }
+  asWordPictureMatchQuestions(): WordPictureMatchQuestion[] { return this.questions as WordPictureMatchQuestion[]; }
   asMatchingQuestions(): MatchingQuestion[] { return this.questions as MatchingQuestion[]; }
 
   isPlaceholderType(): boolean {
@@ -1174,6 +1197,52 @@ export class GamePlayShellComponent implements OnInit {
     });
   }
 
+  handleHangmanComplete(result: HangmanResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleWordPictureMatchComplete(result: WPMResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
   formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -1186,7 +1255,8 @@ export class GamePlayShellComponent implements OnInit {
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
       whackawort: 'Whack-a-Wort', memory: 'Memory Game',
-      jumbled_words: 'Jumbled Words',
+      jumbled_words: 'Jumbled Words', hangman: 'Hangman',
+      word_picture_match: 'Word-Picture Match',
     };
     return map[t] ?? t;
   }
@@ -1201,7 +1271,9 @@ export class GamePlayShellComponent implements OnInit {
       whackawort: 'linear-gradient(135deg,#d97706,#f59e0b)',
       memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
       jumbled_words: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+      hangman: 'linear-gradient(135deg,#b91c1c,#ef4444)',
       matching: 'linear-gradient(135deg,#15803d,#4ade80)',
+      word_picture_match: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
