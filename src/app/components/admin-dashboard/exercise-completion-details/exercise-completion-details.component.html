@@ -188,8 +188,11 @@
     <!-- All Attempts (detailed) -->
     <section class="section">
       <h2><span class="material-icons">history</span> All Attempts</h2>
-      <p class="section-desc">Click a student name to open a full per-question breakdown for that attempt in a new tab.</p>
-      <div class="table-wrap" *ngIf="hasAttempts">
+      <p class="section-desc">
+        Every attempt (#1, #2, #3, …) per student with score, points, and which questions were wrong.
+        Click a student name for the full per-question breakdown in a new tab.
+      </p>
+      <div class="table-wrap attempts-table-wrap" *ngIf="hasAttempts">
         <table class="data-table attempts-table">
           <thead>
             <tr>
@@ -197,12 +200,14 @@
               <th>Attempt #</th>
               <th>Score</th>
               <th>Points</th>
+              <th>Correct / Wrong</th>
+              <th>Mistakes (questions)</th>
               <th>Time</th>
               <th>Completed</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let a of attempts">
+            <tr *ngFor="let a of attemptsForTable">
               <td>
                 <button
                   type="button"
@@ -214,15 +219,31 @@
                   <span class="material-icons open-tab-icon">open_in_new</span>
                 </button>
               </td>
-              <td>#{{ a.attemptNumber }}</td>
+              <td><span class="attempt-num">#{{ a.attemptNumber }}</span></td>
               <td>
                 <span class="score-badge" [class.good]="a.scorePercentage >= 70" [class.poor]="a.scorePercentage < 50">
-                  {{ a.scorePercentage }}%
+                  {{ a.scorePercentage ?? 0 }}%
                 </span>
               </td>
-              <td>{{ a.earnedPoints || 0 }} / {{ a.totalPoints || 0 }}</td>
+              <td class="points-cell">{{ a.earnedPoints || 0 }} / {{ a.totalPoints || 0 }}</td>
+              <td class="result-split-cell">
+                <ng-container *ngIf="getAttemptResultSummary(a) as sum">
+                  <span class="result-correct" *ngIf="sum.totalGraded > 0">{{ sum.correctCount }} ✓</span>
+                  <span class="result-wrong" *ngIf="sum.wrongCount > 0">{{ sum.wrongCount }} ✗</span>
+                  <span class="result-muted" *ngIf="sum.totalGraded === 0">—</span>
+                </ng-container>
+              </td>
+              <td class="mistakes-cell">
+                <ng-container *ngIf="getAttemptResultSummary(a) as sum">
+                  <span class="mistakes-all-correct" *ngIf="sum.totalGraded > 0 && sum.wrongCount === 0">All correct</span>
+                  <span class="mistakes-tags" *ngIf="sum.wrongCount > 0">
+                    <span class="mistake-tag" *ngFor="let label of sum.wrongLabels">Q{{ label }}</span>
+                  </span>
+                  <span class="result-muted" *ngIf="sum.totalGraded === 0">—</span>
+                </ng-container>
+              </td>
               <td>{{ formatTime(a.timeSpentSeconds) }}</td>
-              <td>{{ formatDate(a.completedAt) }}</td>
+              <td class="completed-cell">{{ formatDate(a.completedAt) }}</td>
             </tr>
           </tbody>
         </table>

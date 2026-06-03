@@ -463,9 +463,25 @@ function exerciseTotalPoints(questions) {
   return (questions || []).reduce((sum, q) => sum + questionTotalPoints(q), 0);
 }
 
+/** Blanks for a fill-blank question: max of underscore runs and configured answers length. */
+function fillBlankSlotCount(q) {
+  if (!q || q.type !== 'fill-blank') return 0;
+  const fromAnswers = Array.isArray(q.answers) ? q.answers.length : 0;
+  const fromSentence = countFillBlankRuns(q.sentence || '');
+  return Math.max(fromAnswers, fromSentence);
+}
+
+function hasNonEmptyFillBlankResponses(arr) {
+  return Array.isArray(arr) && arr.some((x) => String(x ?? '').trim());
+}
+
+function findSubQuestionResponse(subResps, subIndex) {
+  return (subResps || []).find((r) => Number(r.questionIndex) === Number(subIndex));
+}
+
 function gradeFillBlankRawScore(q, fillBlankResponses) {
   const answers = q.answers || [];
-  const total = answers.length;
+  const total = fillBlankSlotCount(q);
   const sanitizedAnswers = (answers || []).map((a) => sanitizeQuestionPlainText(a));
   if (total <= 0 || !Array.isArray(fillBlankResponses)) {
     return { rawScore: 0, correctAnswer: { answers: sanitizedAnswers } };
@@ -540,7 +556,7 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
   const subResps = Array.isArray(resp.subQuestionResponses) ? resp.subQuestionResponses : [];
   for (let si = 0; si < subs.length; si++) {
     const sq = subs[si];
-    const subResp = subResps.find((r) => r.questionIndex === si) || { questionIndex: si };
+    const subResp = findSubQuestionResponse(subResps, si) || { questionIndex: si };
     const { rawScore, correctAnswer: subCorrectAnswer } = gradeSubQuestionPart(sq, subResp);
     let subIsCorrect;
     let subPoints;
@@ -592,13 +608,15 @@ function countFillBlankRuns(sentence) {
 
 function getFillBlankPartsLayout(q) {
   const parts = [];
-  if (q?.type === 'fill-blank' && countFillBlankRuns(q.sentence) > 0) {
-    parts.push({ kind: 'parent', subIndex: null, blankCount: countFillBlankRuns(q.sentence) });
+  const parentSlots = fillBlankSlotCount(q);
+  if (q?.type === 'fill-blank' && parentSlots > 0) {
+    parts.push({ kind: 'parent', subIndex: null, blankCount: parentSlots });
   }
   const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
   subs.forEach((sq, si) => {
-    if (sq?.type === 'fill-blank' && countFillBlankRuns(sq.sentence) > 0) {
-      parts.push({ kind: 'sub', subIndex: si, blankCount: countFillBlankRuns(sq.sentence) });
+    if (sq?.type === 'fill-blank') {
+      const slots = fillBlankSlotCount(sq);
+      if (slots > 0) parts.push({ kind: 'sub', subIndex: si, blankCount: slots });
     }
   });
   return parts;
@@ -621,11 +639,11 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
 
   const out = { ...resp };
   let subResps = Array.isArray(out.subQuestionResponses)
-    ? out.subQuestionResponses.map((s) => ({ ...s }))
+    ? out.subQuestionResponses.map((s) => ({ ...s, questionIndex: Number(s.questionIndex) }))
     : [];
 
   const ensureSub = (si) => {
-    let s = subResps.find((x) => Number(x.questionIndex) === si);
+    let s = findSubQuestionResponse(subResps, si);
     if (!s) {
       s = { questionIndex: si };
       subResps.push(s);
@@ -636,7 +654,7 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
   for (const part of parts) {
     if (part.kind !== 'sub') continue;
     const sub = ensureSub(part.subIndex);
-    if (!Array.isArray(sub.fillBlankResponses) || !sub.fillBlankResponses.length) {
+    if (!hasNonEmptyFillBlankResponses(sub.fillBlankResponses)) {
       const text = String(sub.textAnswer ?? '').trim();
       if (text) sub.fillBlankResponses = [text];
     }
@@ -648,17 +666,17 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
     : [];
   const parentPart = parts.find((p) => p.kind === 'parent');
   const parentCount = parentPart ? parentPart.blankCount : 0;
-  const subsAlreadyFilled = parts
+  const subsNeedFlat = parts
     .filter((p) => p.kind === 'sub')
-    .some((p) => {
-      const sub = ensureSub(p.subIndex);
-      return Array.isArray(sub.fillBlankResponses) && sub.fillBlankResponses.some((x) => String(x).trim());
-    });
+    .some((p) => !hasNonEmptyFillBlankResponses(ensureSub(p.subIndex).fillBlankResponses));
+  const flatHasContent = flat.some((x) => String(x).trim());
 
-  if (flat.length === totalBlanks && totalBlanks > 0 && !subsAlreadyFilled) {
+  if (totalBlanks > 0 && flatHasContent && subsNeedFlat) {
+    const usableLen = Math.min(flat.length, totalBlanks);
     let offset = 0;
     if (parentPart) {
-      out.fillBlankResponses = flat.slice(offset, offset + parentCount);
+      const take = Math.min(parentCount, usableLen);
+      out.fillBlankResponses = flat.slice(offset, offset + take);
       offset += parentCount;
     } else {
       out.fillBlankResponses = [];
@@ -666,7 +684,10 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
     for (const part of parts) {
       if (part.kind !== 'sub') continue;
       const sub = ensureSub(part.subIndex);
-      sub.fillBlankResponses = flat.slice(offset, offset + part.blankCount);
+      if (!hasNonEmptyFillBlankResponses(sub.fillBlankResponses)) {
+        const take = Math.min(part.blankCount, Math.max(0, usableLen - offset));
+        sub.fillBlankResponses = flat.slice(offset, offset + take);
+      }
       offset += part.blankCount;
     }
   }
@@ -1080,7 +1101,14 @@ function questionPromptSnippet(q, idx) {
 
 function subResponseToReviewShape(sq, subResp) {
   const sub = subResp || {};
-  if (sq.type === 'fill-blank') return { fillBlankResponses: sub.fillBlankResponses || [] };
+  if (sq.type === 'fill-blank') {
+    let arr = Array.isArray(sub.fillBlankResponses) ? [...sub.fillBlankResponses] : [];
+    if (!hasNonEmptyFillBlankResponses(arr)) {
+      const text = String(sub.textAnswer ?? '').trim();
+      if (text) arr = [text];
+    }
+    return { fillBlankResponses: arr };
+  }
   if (sq.type === 'mcq') return { selectedOptionIndex: sub.selectedOptionIndex };
   if (sq.type === 'listening') return { listeningText: sub.textAnswer };
   return { qaResponse: sub.textAnswer };
@@ -1169,7 +1197,7 @@ function buildPerQuestionReview(exercise, attempt) {
       const subResps = Array.isArray(r?.subQuestionResponses) ? r.subQuestionResponses : [];
       for (let si = 0; si < subs.length; si++) {
         const sq = subs[si];
-        const subResp = subResps.find((s) => Number(s.questionIndex) === si) || { questionIndex: si };
+        const subResp = findSubQuestionResponse(subResps, si) || { questionIndex: si };
         const subGrade = getSubQuestionReviewGrade(q, r, sq, si, subResp);
         serial++;
         rows.push({
@@ -2523,7 +2551,10 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
     }
 
     const q = exercise.questions[idx];
-    const resp = response || { questionIndex: idx };
+    const resp = migrateFillBlankResponsesForQuestion(
+      q,
+      response || { questionIndex: idx }
+    );
     const useAdvancedGrading = isAdvancedGradingEnabled(q);
     let isCorrect = false;
     let pointsEarned = 0;
@@ -2558,25 +2589,7 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
         pairs: pairs.map((p, i) => ({ leftIndex: i, rightValue: sanitizeQuestionPlainText(p.right) }))
       };
     } else if (q.type === 'fill-blank') {
-      const answers = q.answers || [];
-      const total = answers.length;
-      if (total > 0 && Array.isArray(resp.fillBlankResponses)) {
-        let correctCount = 0;
-        for (let i = 0; i < total; i++) {
-          const ans = String(resp.fillBlankResponses[i] ?? '');
-          const correct = answers[i];
-          const ansNorm = sanitizeQuestionPlainText(ans);
-          const corrNorm = sanitizeQuestionPlainText(correct);
-          const ok = q.caseSensitive
-            ? ansNorm === corrNorm
-            : ansNorm.toLowerCase() === corrNorm.toLowerCase();
-          if (ok) correctCount += 1;
-        }
-        rawScore = useAdvancedGrading
-          ? Math.round((correctCount / total) * 100)
-          : (correctCount === total ? 100 : 0);
-      }
-      correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
+      ({ rawScore, correctAnswer } = gradeFillBlankRawScore(q, resp.fillBlankResponses));
     } else if (q.type === 'word_bank_fill') {
       const rows = Array.isArray(q.items) ? q.items : [];
       const total = rows.length;
@@ -2860,7 +2873,10 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
 
     for (let i = 0; i < exercise.questions.length; i++) {
       const q = exercise.questions[i];
-      const resp = (responses || []).find(r => r.questionIndex === i) || { questionIndex: i };
+      const resp = migrateFillBlankResponsesForQuestion(
+        q,
+        (responses || []).find((r) => Number(r.questionIndex) === i) || { questionIndex: i }
+      );
       const useAdvancedGrading = isAdvancedGradingEnabled(q);
       let isCorrect = false;
       let pointsEarned = 0;
@@ -2894,25 +2910,7 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
           pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: sanitizeQuestionPlainText(p.right) }))
         };
       } else if (q.type === 'fill-blank') {
-        const answers = q.answers || [];
-        const total = answers.length;
-        if (total > 0 && Array.isArray(resp.fillBlankResponses)) {
-          let correctCount = 0;
-          for (let idx = 0; idx < total; idx++) {
-            const ans = String(resp.fillBlankResponses[idx] ?? '');
-            const correct = answers[idx];
-            const ansNorm = sanitizeQuestionPlainText(ans);
-            const corrNorm = sanitizeQuestionPlainText(correct);
-            const ok = q.caseSensitive
-              ? ansNorm === corrNorm
-              : ansNorm.toLowerCase() === corrNorm.toLowerCase();
-            if (ok) correctCount += 1;
-          }
-          rawScore = useAdvancedGrading
-            ? Math.round((correctCount / total) * 100)
-            : (correctCount === total ? 100 : 0);
-        }
-        correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
+        ({ rawScore, correctAnswer } = gradeFillBlankRawScore(q, resp.fillBlankResponses));
       } else if (q.type === 'word_bank_fill') {
         const rows = Array.isArray(q.items) ? q.items : [];
         const total = rows.length;

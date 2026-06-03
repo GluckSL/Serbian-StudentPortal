@@ -78,7 +78,7 @@ import { NotificationService } from '../../../services/notification.service';
     <div class="gsd-body">
       <ng-container *ngIf="tab === 'recordings'">
         <div *ngIf="(detail.recordings?.length || 0) + (detail.zoomRecordings?.length || 0) === 0" class="gsd-empty">No class recordings found.</div>
-        <div *ngFor="let r of detail.recordings" class="gsd-row" [class.gsd-locked]="r.locked">
+        <div *ngFor="let r of detail.recordings" class="gsd-row gsd-row-flex" [class.gsd-locked]="r.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ r.locked ? '🔒' : '▶' }}</span>
             <div>
@@ -91,8 +91,20 @@ import { NotificationService } from '../../../services/notification.service';
               </div>
             </div>
           </div>
+          <div class="gsd-row-side" *ngIf="!r.locked">
+            <button
+              type="button"
+              class="gsd-btn gsd-btn-outline"
+              *ngIf="!r.watched"
+              [disabled]="markingRecordingId === r._id"
+              (click)="markManualWatched(r)"
+            >
+              <span *ngIf="markingRecordingId === r._id" class="spinner-border spinner-border-sm" role="status"></span>
+              {{ markingRecordingId === r._id ? 'Saving…' : 'Mark watched' }}
+            </button>
+          </div>
         </div>
-        <div *ngFor="let zr of detail.zoomRecordings" class="gsd-row" [class.gsd-locked]="zr.locked">
+        <div *ngFor="let zr of detail.zoomRecordings" class="gsd-row gsd-row-flex" [class.gsd-locked]="zr.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ zr.locked ? '🔒' : '🎬' }}</span>
             <div>
@@ -104,6 +116,18 @@ import { NotificationService } from '../../../services/notification.service';
                 <span *ngIf="!zr.locked && !zr.watched" class="gsd-chip">Not watched</span>
               </div>
             </div>
+          </div>
+          <div class="gsd-row-side" *ngIf="!zr.locked">
+            <button
+              type="button"
+              class="gsd-btn gsd-btn-outline"
+              *ngIf="!zr.watched"
+              [disabled]="markingZoomId === zr.meetingLinkId"
+              (click)="markZoomWatched(zr)"
+            >
+              <span *ngIf="markingZoomId === zr.meetingLinkId" class="spinner-border spinner-border-sm" role="status"></span>
+              {{ markingZoomId === zr.meetingLinkId ? 'Saving…' : 'Mark watched' }}
+            </button>
           </div>
         </div>
       </ng-container>
@@ -254,6 +278,11 @@ import { NotificationService } from '../../../services/notification.service';
     .gsd-btn:disabled { opacity: .55; cursor: not-allowed; }
     .gsd-btn-primary { background: #005b96; color: #fff; }
     .gsd-btn-primary:hover:not(:disabled) { background: #03396c; }
+    .gsd-btn-outline {
+      background: #fff; color: #005b96; border: 1px solid #bae6fd;
+      font-size: 12px; padding: 6px 12px;
+    }
+    .gsd-btn-outline:hover:not(:disabled) { background: #e0f2fe; border-color: #7dd3fc; }
     .gsd-hint { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.45; max-width: 360px; }
     .gsd-sync-banner {
       margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 600;
@@ -316,6 +345,8 @@ import { NotificationService } from '../../../services/notification.service';
 export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   loading = false;
   saving = false;
+  markingRecordingId: string | null = null;
+  markingZoomId: string | null = null;
   detail: any = null;
   journeySync: {
     effectiveAccessDay?: number;
@@ -386,6 +417,58 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
         this.notify.error(this.error);
       }
     });
+  }
+
+  markManualWatched(recording: { _id: string; title?: string }): void {
+    if (!this.studentId || !recording?._id) return;
+    this.markingRecordingId = recording._id;
+    this.http
+      .post<{ journeyAdvanced?: boolean }>(
+        `${environment.apiUrl}/${this.goApiPath}/${this.studentId}/recordings/${recording._id}/mark-watched`,
+        {},
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (r) => {
+          this.markingRecordingId = null;
+          this.notify.success(
+            r?.journeyAdvanced
+              ? 'Marked as watched. Journey day advanced for this student.'
+              : 'Marked as watched.'
+          );
+          this.load(this.studentId);
+        },
+        error: (e) => {
+          this.markingRecordingId = null;
+          this.notify.error(e?.error?.message || 'Failed to mark recording as watched.');
+        }
+      });
+  }
+
+  markZoomWatched(zoom: { meetingLinkId: string; topic?: string }): void {
+    if (!this.studentId || !zoom?.meetingLinkId) return;
+    this.markingZoomId = zoom.meetingLinkId;
+    this.http
+      .post<{ journeyAdvanced?: boolean }>(
+        `${environment.apiUrl}/${this.goApiPath}/${this.studentId}/zoom-meetings/${zoom.meetingLinkId}/mark-watched`,
+        {},
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (r) => {
+          this.markingZoomId = null;
+          this.notify.success(
+            r?.journeyAdvanced
+              ? 'Marked as watched. Journey day advanced for this student.'
+              : 'Marked as watched.'
+          );
+          this.load(this.studentId);
+        },
+        error: (e) => {
+          this.markingZoomId = null;
+          this.notify.error(e?.error?.message || 'Failed to mark zoom recording as watched.');
+        }
+      });
   }
 
   saveJourneyDay(): void {

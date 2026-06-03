@@ -18,7 +18,20 @@ interface Attempt {
   totalPoints: number;
   timeSpentSeconds: number;
   completedAt: string;
-  responses?: Array<{ questionIndex: number; questionType?: string; isCorrect?: boolean; pointsEarned?: number }>;
+  responses?: Array<{
+    questionIndex: number;
+    questionType?: string;
+    isCorrect?: boolean;
+    pointsEarned?: number;
+    subQuestionGrades?: Array<{ questionIndex: number; isCorrect?: boolean }>;
+  }>;
+}
+
+interface AttemptResultSummary {
+  correctCount: number;
+  wrongCount: number;
+  totalGraded: number;
+  wrongLabels: string[];
 }
 
 interface StudentSummary {
@@ -358,4 +371,78 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
     );
     window.open(url, '_blank', 'noopener,noreferrer');
   }
+
+  /** All attempts grouped by student name, newest attempt number first */
+  get attemptsForTable(): Attempt[] {
+    return [...(this.attempts || [])].sort((a, b) => {
+      const nameA = this.attemptStudentName(a);
+      const nameB = this.attemptStudentName(b);
+      const byName = nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      if (byName !== 0) return byName;
+      return (b.attemptNumber || 0) - (a.attemptNumber || 0);
+    });
+  }
+
+  attemptStudentName(attempt: Attempt): string {
+    const student = attempt.studentId as { name?: string } | undefined;
+    return student?.name || attempt.studentName || '';
+  }
+
+  getAttemptResultSummary(attempt: Attempt): AttemptResultSummary {
+    const questions = this.exercise?.questions || [];
+    const byIdx: Record<number, NonNullable<Attempt['responses']>[number]> = {};
+    (attempt.responses || []).forEach((r) => {
+      if (r.questionIndex !== undefined && r.questionIndex !== null) {
+        byIdx[r.questionIndex] = r;
+      }
+    });
+
+    let correctCount = 0;
+    let wrongCount = 0;
+    const wrongLabels: string[] = [];
+
+    const qCount = Math.max(questions.length, ...Object.keys(byIdx).map((k) => Number(k) + 1), 0);
+    for (let i = 0; i < qCount; i++) {
+      const q = questions[i];
+      const r = byIdx[i];
+      const subs = Array.isArray((q as any)?.subQuestions) ? (q as any).subQuestions : [];
+      const subGrades = Array.isArray(r?.subQuestionGrades) ? r.subQuestionGrades : [];
+
+      if (subs.length) {
+        if (subGrades.length) {
+          for (let si = 0; si < subs.length; si++) {
+            const g = subGrades.find((x) => Number(x.questionIndex) === si);
+            if (!g || g.isCorrect === undefined) continue;
+            if (g.isCorrect) correctCount++;
+            else {
+              wrongCount++;
+              wrongLabels.push(`${i + 1}.${si + 1}`);
+            }
+          }
+        } else if (r?.isCorrect !== undefined) {
+          if (r.isCorrect) correctCount++;
+          else {
+            wrongCount++;
+            wrongLabels.push(String(i + 1));
+          }
+        }
+        continue;
+      }
+
+      if (!r || r.isCorrect === undefined) continue;
+      if (r.isCorrect) correctCount++;
+      else {
+        wrongCount++;
+        wrongLabels.push(String(i + 1));
+      }
+    }
+
+    return {
+      correctCount,
+      wrongCount,
+      totalGraded: correctCount + wrongCount,
+      wrongLabels
+    };
+  }
+
 }

@@ -436,6 +436,79 @@
   color: #b91c1c;
 }
 
+.attempts-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.attempts-table {
+  min-width: 960px;
+}
+
+.attempt-num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #4338ca;
+}
+
+.points-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.result-split-cell {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.result-correct {
+  color: #059669;
+  margin-right: 8px;
+}
+
+.result-wrong {
+  color: #dc2626;
+}
+
+.result-muted {
+  color: #9ca3af;
+}
+
+.mistakes-cell {
+  min-width: 140px;
+  max-width: 280px;
+}
+
+.mistakes-all-correct {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #059669;
+}
+
+.mistakes-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mistake-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #991b1b;
+  font-variant-numeric: tabular-nums;
+}
+
+.completed-cell {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
 @media (max-width: 768px) {
   .details-page { padding: 16px 16px 48px; }
   .summary-cards { grid-template-columns: 1fr; }
