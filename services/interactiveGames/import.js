@@ -228,8 +228,96 @@ function validateWhackawortRow(row, index) {
   };
 }
 
+function validateJumbledWordsRow(row, index) {
+  const errors = [];
+  const word = germanUppercase(row.word);
+  const hint = String(row.hint || row.translation || '').trim();
+  const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Jumbled Words`);
+  if (!hint && !imageUrl) {
+    errors.push(`Row ${index + 1}: "hint" (translation) or "image_url" is required for Jumbled Words`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      hint,
+      imageUrl,
+      audioUrl: String(row.audio_url || row.audiourl || '').trim() || null,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+/** Image Matching / Memory: one CSV row per pair; group by question_index */
+function parsePairBasedRows(normalized, gameType) {
+  const groups = new Map();
+
+  normalized.forEach((row, i) => {
+    const qIdx = parseInt(row.question_index ?? row.question_number ?? row.question ?? '0', 10);
+    const questionIndex = Number.isFinite(qIdx) && qIdx >= 0 ? qIdx : 0;
+    if (!groups.has(questionIndex)) groups.set(questionIndex, []);
+    groups.get(questionIndex).push({ row, fileRow: i });
+  });
+
+  const results = [];
+  const sortedKeys = [...groups.keys()].sort((a, b) => a - b);
+
+  sortedKeys.forEach((questionIndex) => {
+    const items = groups.get(questionIndex);
+    const errors = [];
+    const pairs = [];
+
+    if (items.length > 8) {
+      errors.push(`Question ${questionIndex + 1}: maximum 8 pairs per question`);
+    }
+
+    items.forEach(({ row, fileRow }, pairIdx) => {
+      const word = trimGermanWord(row.word);
+      const hint = String(row.hint || row.translation || '').trim();
+      const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+      const audioUrl = String(row.audio_url || row.audiourl || '').trim() || null;
+      const rowLabel = fileRow + 1;
+
+      if (!word) {
+        errors.push(`Row ${rowLabel}: "word" is required`);
+        return;
+      }
+
+      pairs.push({
+        word,
+        hint: gameType === 'image_matching' ? hint : '',
+        imageUrl,
+        audioUrl: gameType === 'image_matching' ? audioUrl : null,
+        order: parseInt(row.order, 10) ?? pairIdx,
+      });
+    });
+
+    if (pairs.length === 0 && errors.length === 0) {
+      errors.push(`Question ${questionIndex + 1}: at least one pair with a word is required`);
+    }
+
+    results.push({
+      valid: errors.length === 0 && pairs.length > 0,
+      errors,
+      doc: { pairs, order: questionIndex },
+      type: 'question',
+    });
+  });
+
+  return results;
+}
+
 function parseRows(rows, gameType, importType) {
   const normalized = rows.map(r => normalizeRow(r));
+
+  if (gameType === 'image_matching' || gameType === 'memory') {
+    return parsePairBasedRows(normalized, gameType);
+  }
+
   const results = [];
   const seen = new Set();
 
@@ -294,6 +382,13 @@ function parseRows(rows, gameType, importType) {
         if (parsed.valid) {
           const key = `${parsed.doc?.word}|${parsed.doc?.category}`.toLowerCase();
           if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word in category`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'jumbled_words') {
+        parsed = validateJumbledWordsRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word;
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word "${key}"`);
           else if (key) seen.add(key);
         }
       } else {
@@ -451,7 +546,42 @@ function getImportTemplate(gameType) {
       { word: 'Auto', translation: 'car', category: 'Transport', order: 2 },
     ];
   }
+  if (gameType === 'image_matching') {
+    return [
+      { question_index: 0, word: 'Hund', hint: 'Dog', image_url: '', order: 0 },
+      { question_index: 0, word: 'Katze', hint: 'Cat', image_url: '', order: 1 },
+      { question_index: 1, word: 'Apfel', hint: 'Apple', image_url: '', order: 0 },
+      { question_index: 1, word: 'Banane', hint: 'Banana', image_url: '', order: 1 },
+    ];
+  }
+  if (gameType === 'memory') {
+    return [
+      { question_index: 0, word: 'Hund', image_url: '', order: 0 },
+      { question_index: 0, word: 'Katze', image_url: '', order: 1 },
+      { question_index: 0, word: 'Vogel', image_url: '', order: 2 },
+      { question_index: 0, word: 'Fisch', image_url: '', order: 3 },
+    ];
+  }
+  if (gameType === 'jumbled_words') {
+    return [
+      { word: 'HAUS', hint: 'house', image_url: '', order: 0 },
+      { word: 'BAUM', hint: 'tree', image_url: '', order: 1 },
+    ];
+  }
   return [];
 }
 
-module.exports = { previewImport, commitImport, getImportTemplate };
+const SUPPORTED_GAME_TYPES = [
+  'scramble_rush', 'sentence_builder', 'matching', 'flashcards',
+  'image_matching', 'gender_stack', 'flapjugation', 'whackawort',
+  'memory', 'jumbled_words',
+];
+
+module.exports = {
+  previewImport,
+  commitImport,
+  getImportTemplate,
+  parseRows,
+  normalizeRow,
+  SUPPORTED_GAME_TYPES,
+};
