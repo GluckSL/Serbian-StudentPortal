@@ -43,6 +43,112 @@ const enrichProfileCurrencyTotals = (profile) => {
   };
 };
 
+/**
+ * Live totals from active requests + submissions (same rules as recalculateStudentProfile).
+ * Used by the Payment Hub student table so totals match the student detail page.
+ */
+const computeLiveTotalsFromData = (requests, approvedSubmissions, pendingSubmissions) => {
+  const activeRequestIds = new Set((requests || []).map((r) => String(r._id)));
+  const approvedForActiveRequests = (approvedSubmissions || []).filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId)),
+  );
+  const pendingForActiveRequests = (pendingSubmissions || []).filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId)),
+  );
+
+  const currencyMap = {};
+  for (const s of approvedForActiveRequests) {
+    if (!currencyMap[s.currency]) {
+      currencyMap[s.currency] = {
+        currency: s.currency,
+        totalPaid: 0,
+        pendingApprovalAmount: 0,
+        overdueAmount: 0,
+        expectedAmount: 0,
+      };
+    }
+    currencyMap[s.currency].totalPaid += Number(s.paidAmount) || 0;
+  }
+  for (const s of pendingForActiveRequests) {
+    if (!currencyMap[s.currency]) {
+      currencyMap[s.currency] = {
+        currency: s.currency,
+        totalPaid: 0,
+        pendingApprovalAmount: 0,
+        overdueAmount: 0,
+        expectedAmount: 0,
+      };
+    }
+    currencyMap[s.currency].pendingApprovalAmount += Number(s.paidAmount) || 0;
+  }
+  for (const r of requests || []) {
+    if (!currencyMap[r.currency]) {
+      currencyMap[r.currency] = {
+        currency: r.currency,
+        totalPaid: 0,
+        pendingApprovalAmount: 0,
+        overdueAmount: 0,
+        expectedAmount: 0,
+      };
+    }
+    if (r.status === 'OVERDUE') {
+      currencyMap[r.currency].overdueAmount += Number(r.amountRemaining) || Number(r.amount) || 0;
+    }
+    if (['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'PARTIALLY_PAID'].includes(r.status)) {
+      currencyMap[r.currency].expectedAmount += Number(r.amountRemaining) || Number(r.amount) || 0;
+    }
+  }
+
+  const breakdown = Object.values(currencyMap);
+  const totalPaid = approvedForActiveRequests.reduce((s, sub) => s + (Number(sub.paidAmount) || 0), 0);
+  const pendingApprovalAmount = pendingForActiveRequests.reduce(
+    (s, sub) => s + (Number(sub.paidAmount) || 0),
+    0,
+  );
+  const overdueAmount = (requests || [])
+    .filter((r) => r.status === 'OVERDUE')
+    .reduce((s, r) => s + (Number(r.amountRemaining) || Number(r.amount) || 0), 0);
+
+  const overdueCount = (requests || []).filter((r) => r.status === 'OVERDUE').length;
+  const activeRequestCount = (requests || []).filter((r) =>
+    ['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'REUPLOAD_REQUIRED'].includes(r.status),
+  ).length;
+  const completedRequestCount = (requests || []).filter((r) =>
+    ['APPROVED', 'FULLY_PAID'].includes(r.status),
+  ).length;
+  const pendingApprovalCount = pendingForActiveRequests.length;
+
+  let overallStatus = 'CLEAR';
+  if (overdueCount > 0) overallStatus = 'OVERDUE';
+  else if (pendingApprovalCount > 0) overallStatus = 'PENDING_REVIEW';
+  else if (activeRequestCount > 0) overallStatus = 'REQUESTED';
+  else if (completedRequestCount > 0 && activeRequestCount === 0 && overdueCount === 0) {
+    overallStatus = 'CLEAR';
+  }
+
+  return {
+    totalPaid,
+    pendingApprovalAmount,
+    overdueAmount,
+    overallStatus,
+    currencyBreakdown: breakdown,
+    ...paidTotalsFromBreakdown(breakdown),
+    ...pendingTotalsFromBreakdown(breakdown),
+    ...overdueTotalsFromBreakdown(breakdown),
+  };
+};
+
+/** Group an array of docs by studentId (string keys). */
+const groupDocsByStudentId = (docs) => {
+  const map = {};
+  for (const doc of docs || []) {
+    const sid = String(doc.studentId);
+    if (!map[sid]) map[sid] = [];
+    map[sid].push(doc);
+  }
+  return map;
+};
+
 /** Mongo $reduce: sum one field for a currency from currencyBreakdown array */
 const mongoReduceByCurrency = (breakdownExpr, currency, field = 'totalPaid') => ({
   $reduce: {
@@ -101,6 +207,8 @@ module.exports = {
   pendingTotalsFromBreakdown,
   overdueTotalsFromBreakdown,
   enrichProfileCurrencyTotals,
+  computeLiveTotalsFromData,
+  groupDocsByStudentId,
   mongoReduceByCurrency,
   mongoPaidFieldsFromProfile,
   mongoPendingFieldsFromProfile,

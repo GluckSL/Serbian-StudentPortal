@@ -1712,10 +1712,10 @@ interface TimelineDay {
         <span>GO Batch management — {{ activeGoBatchLabel }}</span>
       </div>
       <div class="gs-silver-tab-bar">
-        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'go'" (click)="silverTab = 'go'">
+        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'go'" (click)="setSilverSubTab('go')">
           {{ planTab === 'silver-sinhala' ? 'GO Sinhala Students' : 'GO Students' }}
         </button>
-        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'silver'" (click)="silverTab = 'silver'">
+        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'silver'" (click)="setSilverSubTab('silver')">
           {{ planTab === 'silver-sinhala' ? 'Silver Sinhala Students' : 'Silver Students' }}
         </button>
       </div>
@@ -1772,9 +1772,23 @@ interface TimelineDay {
         </button>
       </div>
 
-      <div *ngIf="goLoading" class="j-loading" style="min-height:200px;">
-        <div class="spinner-border text-primary"></div>
-        <p>Loading GO students…</p>
+      <div *ngIf="goLoading" class="j-skeleton-wrap" aria-busy="true" aria-label="Loading GO students">
+        <div class="j-skeleton-table">
+          <div class="j-skeleton-table-head j-skeleton-table-head--go">
+            <span class="j-skeleton-line" *ngFor="let _ of [1,2,3,4,5,6,7,8,9]"></span>
+          </div>
+          <div class="j-skeleton-table-row j-skeleton-table-row--go" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+            <span class="j-skeleton-line j-skeleton-cell--checkbox"></span>
+            <span class="j-skeleton-line j-skeleton-cell--name"></span>
+            <span class="j-skeleton-line j-skeleton-cell--id"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--date"></span>
+            <span class="j-skeleton-line j-skeleton-cell--day"></span>
+            <span class="j-skeleton-line j-skeleton-cell--actions"></span>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="!goLoading && goStudents.length === 0" class="j-empty">
@@ -1998,9 +2012,22 @@ interface TimelineDay {
         </div>
       </div>
 
-      <div *ngIf="silverLoading" class="j-loading" style="min-height:200px;">
-        <div class="spinner-border text-primary"></div>
-        <p>Loading Silver students…</p>
+      <div *ngIf="silverLoading" class="j-skeleton-wrap" aria-busy="true" aria-label="Loading Silver students">
+        <div class="j-skeleton-table">
+          <div class="j-skeleton-table-head j-skeleton-table-head--silver">
+            <span class="j-skeleton-line" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></span>
+          </div>
+          <div class="j-skeleton-table-row j-skeleton-table-row--silver" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+            <span class="j-skeleton-line j-skeleton-cell--checkbox"></span>
+            <span class="j-skeleton-line j-skeleton-cell--name"></span>
+            <span class="j-skeleton-line j-skeleton-cell--id"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--day"></span>
+            <span class="j-skeleton-line j-skeleton-cell--actions"></span>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="!silverLoading && filteredSilverStudents.length === 0" class="j-empty">
@@ -2299,6 +2326,57 @@ interface TimelineDay {
     /* ── Loading ── */
     .j-loading { text-align: center; padding: 60px 20px; color: #64748b; }
     .j-loading p { margin-top: 12px; font-size: 14px; }
+    .j-skeleton-wrap {
+      margin-top: 8px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+    }
+    .j-skeleton-table-head,
+    .j-skeleton-table-row {
+      display: grid;
+      gap: 12px;
+      padding: 12px 14px;
+      align-items: center;
+    }
+    .j-skeleton-table-head--go,
+    .j-skeleton-table-row--go {
+      grid-template-columns: 36px 2fr 1fr 0.85fr 0.75fr 0.75fr 1fr 0.75fr 1.2fr;
+    }
+    .j-skeleton-table-head--silver,
+    .j-skeleton-table-row--silver {
+      grid-template-columns: 36px 2fr 1fr 0.9fr 0.75fr 0.75fr 0.8fr 1.1fr;
+    }
+    .j-skeleton-table-head {
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .j-skeleton-table-row {
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .j-skeleton-table-row:last-child { border-bottom: none; }
+    .j-skeleton-line {
+      display: block;
+      height: 10px;
+      width: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #edf2f7 20%, #e2e8f0 50%, #edf2f7 80%);
+      background-size: 200% 100%;
+      animation: j-skeleton-shimmer 1.25s ease-in-out infinite;
+    }
+    .j-skeleton-cell--checkbox { width: 16px; justify-self: center; }
+    .j-skeleton-cell--name { width: 88%; height: 28px; border-radius: 8px; }
+    .j-skeleton-cell--id { width: 70%; }
+    .j-skeleton-cell--chip { width: 58%; }
+    .j-skeleton-cell--date { width: 72%; }
+    .j-skeleton-cell--day { width: 50%; justify-self: start; }
+    .j-skeleton-cell--actions { width: 78%; justify-self: end; }
+    @keyframes j-skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
     .j-loading-inline { padding: 20px; color: #64748b; font-size: 13px; display: flex; align-items: center; gap: 8px; }
     .j-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
     .j-empty p { margin-top: 12px; font-size: 14px; }
@@ -4310,7 +4388,15 @@ export class JourneyManagementComponent implements OnInit {
       this.silverStudents = [];
       this.goSelectedIds.clear();
       this.silverSelectedIds.clear();
+      this.silverTab = 'go';
       this.loadGoStudents();
+    }
+  }
+
+  setSilverSubTab(tab: 'go' | 'silver'): void {
+    if (this.silverTab === tab) return;
+    this.silverTab = tab;
+    if (tab === 'silver' && !this.silverLoading && this.silverStudents.length === 0) {
       this.loadSilverStudents();
     }
   }

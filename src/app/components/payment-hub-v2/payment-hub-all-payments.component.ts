@@ -64,6 +64,8 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   loadingStats = true;
   loadingTable = true;
   runningOverdue = false;
+  resettingPayments = false;
+  selectingAllMatching = false;
 
   stats: DashboardStats | null = null;
   rows: StudentTableRow[] = [];
@@ -255,6 +257,74 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       else next.delete(id);
     }
     this.selectedStudentIds = next;
+  }
+
+  selectAllMatchingFilter(): void {
+    if (this.selectingAllMatching) return;
+    this.selectingAllMatching = true;
+    const filters = this.buildFilters();
+    this.api
+      .getStudentTable({
+        ...filters,
+        page: 1,
+        limit: 9999,
+        sort: '-lastRebuiltAt',
+        search: this.searchQuery || undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          const next = new Set(this.selectedStudentIds);
+          for (const r of res.data || []) {
+            next.add(this.rowStudentId(r));
+          }
+          this.selectedStudentIds = next;
+          this.selectingAllMatching = false;
+          this.snack.open(`Selected ${res.data?.length || 0} student(s) matching current filters`, 'OK', { duration: 4000 });
+        },
+        error: () => {
+          this.selectingAllMatching = false;
+          this.snack.open('Could not load students for selection', 'Dismiss', { duration: 4000 });
+        },
+      });
+  }
+
+  clearSelection(): void {
+    this.selectedStudentIds = new Set();
+  }
+
+  resetSelectedPayments(): void {
+    const ids = Array.from(this.selectedStudentIds);
+    if (!ids.length) {
+      this.snack.open('Select at least one student.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+
+    const msg =
+      `Reset payment data for ${ids.length} selected student(s)?\n\n` +
+      'This clears total received, pending, and overdue to 0 by archiving all their payment records. ' +
+      'Use this before re-importing from Excel. This cannot be undone.';
+    if (!window.confirm(msg)) return;
+
+    this.resettingPayments = true;
+    this.api
+      .bulkResetStudentPayments({
+        studentIds: ids,
+        reason: 'Admin bulk reset before Excel re-import',
+      })
+      .subscribe({
+        next: (res) => {
+          this.resettingPayments = false;
+          this.selectedStudentIds = new Set();
+          this.snack.open(res.message || 'Payment data reset', 'OK', { duration: 5000 });
+          this.loadStats();
+          this.loadTable();
+        },
+        error: (err) => {
+          this.resettingPayments = false;
+          const message = err?.error?.message || 'Reset failed';
+          this.snack.open(message, 'Dismiss', { duration: 6000 });
+        },
+      });
   }
 
   openCorrectReceived(): void {

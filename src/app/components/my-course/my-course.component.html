@@ -215,7 +215,7 @@
           <div class="mc-update__body">
             <p class="mc-update__title">Day {{ journeyCourseDay }} Complete!</p>
             <p class="mc-update__text">
-              You've finished all exercises, Gluck Buddy, and recordings for
+              You've finished all class recordings, exercises, and Gluck Buddy for
               <strong>Day {{ journeyCourseDay }}</strong>. You'll be instantly promoted to
               <strong>Day {{ nextJourneyPreviewDay }}</strong> as soon as the last item is saved. Keep going! 🚀
             </p>
@@ -805,8 +805,8 @@
         </div>
       </div>
 
-      <!-- GlückArena -->
-      <div class="mc-completion-section" *ngIf="currentDayIncompleteGameSets.length">
+      <!-- GlückArena (optional; not required for Silver GO day advance) -->
+      <div class="mc-completion-section" *ngIf="!isSilverGoStudentFrontend && currentDayIncompleteGameSets.length">
         <p class="mc-completion-section__label">
           <span class="material-icons">sports_esports</span> GlückArena
         </p>

@@ -851,23 +851,26 @@ export class MyCourseComponent implements OnInit {
 
   /** True when at least one content item is tagged to the current day. */
   get dayHasTrackableContent(): boolean {
-    return (
+    const core =
       this.currentDayExercisesForBadge.length > 0 ||
       this.currentDayDgModules.length > 0 ||
-      this.currentDayManualRecs.length > 0 ||
-      this.currentDayGameSetsForBadge.length > 0
-    );
+      this.currentDayManualRecs.length > 0;
+    if (this.isSilverGoStudentFrontend) return core;
+    return core || this.currentDayGameSetsForBadge.length > 0;
   }
 
-  /** True when all content for the current journey day is completed. */
+  /**
+   * True when all required content for the current journey day is completed.
+   * Silver GO: recordings, exercises, and DG Bot only (matches server advance rules).
+   */
   get isDayComplete(): boolean {
     if (!this.dayHasTrackableContent) return false;
-    return (
+    const core =
       this.currentDayIncompleteExercises.length === 0 &&
       this.currentDayIncompleteDg.length === 0 &&
-      this.currentDayIncompleteRecs.length === 0 &&
-      this.currentDayIncompleteGameSets.length === 0
-    );
+      this.currentDayIncompleteRecs.length === 0;
+    if (this.isSilverGoStudentFrontend) return core;
+    return core && this.currentDayIncompleteGameSets.length === 0;
   }
 
   openDayCompletionModal(): void {
