@@ -60,7 +60,7 @@ router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) =>
         a.localeCompare(b, undefined, { sensitivity: 'base' })
       );
 
-    const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, portalTotal, portalActive, portalWithdrew, portalCrmLinked] = await Promise.all([
+    const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, portalTotal, portalActive, portalWithdrew, portalCrmLinked, portalSignupForm] = await Promise.all([
       User.distinct('batch', base),
       User.distinct('servicesOpted', base),
       User.distinct('qualifications', base),
@@ -71,6 +71,7 @@ router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) =>
       User.countDocuments({ ...base, studentStatus: { $ne: 'WITHDREW' } }),
       User.countDocuments({ ...base, studentStatus: 'WITHDREW' }),
       User.countDocuments({ ...base, crmExternalId: { $exists: true, $nin: [null, ''] } }),
+      User.countDocuments({ ...base, signupSource: 'public_signup' }),
     ]);
 
     res.json({
@@ -86,6 +87,7 @@ router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) =>
         portalActive,
         portalWithdrew,
         portalCrmLinked,
+        portalSignupForm,
       },
       phoneCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
       loginCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
