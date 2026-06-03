@@ -33,12 +33,20 @@ const recalculateStudentProfile = async (studentId) => {
     PaymentFlowSubmission.find({ studentId, status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false }).lean(),
   ]);
 
+  const activeRequestIds = new Set(requests.map((r) => String(r._id)));
+  const approvedForActiveRequests = approvedSubmissions.filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId))
+  );
+  const pendingForActiveRequests = pendingSubmissions.filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId))
+  );
+
   const currencyMap = {};
-  for (const s of approvedSubmissions) {
+  for (const s of approvedForActiveRequests) {
     if (!currencyMap[s.currency]) currencyMap[s.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
     currencyMap[s.currency].totalPaid += s.paidAmount;
   }
-  for (const s of pendingSubmissions) {
+  for (const s of pendingForActiveRequests) {
     if (!currencyMap[s.currency]) currencyMap[s.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
     currencyMap[s.currency].pendingApprovalAmount += s.paidAmount;
   }
@@ -48,19 +56,19 @@ const recalculateStudentProfile = async (studentId) => {
     if (['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'PARTIALLY_PAID'].includes(r.status)) currencyMap[r.currency].expectedAmount += r.amountRemaining || r.amount;
   }
 
-  const totalPaid = approvedSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
+  const totalPaid = approvedForActiveRequests.reduce((s, sub) => s + sub.paidAmount, 0);
   const totalRequested = requests.reduce((s, r) => s + r.amount, 0);
-  const pendingApprovalAmount = pendingSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
+  const pendingApprovalAmount = pendingForActiveRequests.reduce((s, sub) => s + sub.paidAmount, 0);
   const overdueAmount = requests.filter((r) => r.status === 'OVERDUE').reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
   const expectedAmount = requests.filter((r) => !['APPROVED', 'FULLY_PAID', 'REJECTED', 'OVERDUE'].includes(r.status)).reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
 
   const overdueCount = requests.filter((r) => r.status === 'OVERDUE').length;
   const activeRequestCount = requests.filter((r) => ['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'REUPLOAD_REQUIRED'].includes(r.status)).length;
   const completedRequestCount = requests.filter((r) => ['APPROVED', 'FULLY_PAID'].includes(r.status)).length;
-  const pendingApprovalCount = pendingSubmissions.length;
+  const pendingApprovalCount = pendingForActiveRequests.length;
   const rejectedCount = requests.filter((r) => r.status === 'REJECTED').length;
 
-  const sorted = [...approvedSubmissions].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
+  const sorted = [...approvedForActiveRequests].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
   const lastSub = sorted[0];
 
   let overallStatus = 'CLEAR';
@@ -334,11 +342,18 @@ const addInternalNote = async ({ requestId, adminId, adminRole, adminName, note,
 const archiveRequest = async ({ requestId, adminId, adminRole, reason }) => {
   const request = await PaymentRequest.findById(requestId);
   if (!request) throw new Error('Payment request not found');
+  const archivedAt = new Date();
   request.isArchived = true;
-  request.archivedAt = new Date();
+  request.archivedAt = archivedAt;
   request.archivedBy = adminId;
   request.archiveReason = reason;
   await request.save();
+
+  await PaymentFlowSubmission.updateMany(
+    { paymentRequestId: request._id, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+  );
+
   await logAudit({ entityType: 'PaymentRequest', entityId: request._id, action: 'DELETED', performedBy: adminId, performedByRole: adminRole, metadata: { reason, archiveType: 'SOFT_DELETE' }, studentId: request.studentId });
   await recalculateStudentProfile(request.studentId);
   return request;

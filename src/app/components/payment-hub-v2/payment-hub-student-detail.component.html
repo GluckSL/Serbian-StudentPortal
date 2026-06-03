@@ -375,12 +375,26 @@
         <div *ngFor="let req of history.requests">
           <div *ngIf="hasSubmissions(req)" class="sd-req-block">
             <div class="sd-req-label">
-              {{ formatPaymentType(req.paymentType, req.customType) }}
-              <span class="sd-req-label__amt">
-                <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+              <span class="sd-req-label__main">
+                {{ formatPaymentType(req.paymentType, req.customType) }}
+                <span class="sd-req-label__amt">
+                  <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
+                </span>
+                <span class="sd-req-label__due">Due {{ fmtDate(req.dueDate) }}</span>
+                <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
               </span>
-              <span class="sd-req-label__due">Due {{ fmtDate(req.dueDate) }}</span>
-              <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
+              <span *ngIf="canManageRequest(req)" class="sd-req-label__actions">
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="sd-icon-btn sd-icon-btn--danger"
+                  title="Remove this payment record"
+                  (click)="deleteRequest(req)"
+                  [disabled]="editSaving"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </span>
             </div>
             <div *ngFor="let sub of getSubmissions(req); let j = index" class="sd-submission-row">
               <div class="sd-sub-index">#{{ j + 1 }}</div>
