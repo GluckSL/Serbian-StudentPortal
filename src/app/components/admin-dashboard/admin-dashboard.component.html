@@ -57,7 +57,8 @@
             <span class="stat-label">Students in portal</span>
             <span class="stat-hint" *ngIf="!hasActiveStudentFilters() && portalStudentCounts.portalTotal">
               {{ portalStudentCounts.portalCrmLinked }} linked to Monday CRM ·
-              {{ portalStudentCounts.portalSignupForm }} via signup form ·
+              {{ portalStudentCounts.portalSignupForm ?? 0 }} via signup form ·
+              {{ portalStudentCounts.portalTestAccounts ?? 0 }} test accounts ·
               {{ portalStudentCounts.portalWithdrew }} withdrew ·
               {{ portalStudentCounts.portalTotal }} total accounts
             </span>

@@ -651,13 +651,8 @@ function getImportTemplate(gameType) {
       { question_text: 'Was ist der Plural von "Kind"?', option_1: 'Kind', option_2: 'Kinder', option_3: 'Kindern', correct_option: '2', order: 1 },
     ];
   }
-  if (gameType === 'hangman') {
-    return [
-      { word: 'HAUS', hint: 'A place to live', image_url: '', order: 0 },
-      { word: 'GARTEN', hint: 'Where flowers grow', image_url: '', order: 1 },
-    ];
-  }
-  
+  return [];
+}
 
 const SUPPORTED_GAME_TYPES = [
   'scramble_rush', 'sentence_builder', 'matching', 'flashcards',

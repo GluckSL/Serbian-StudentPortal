@@ -360,7 +360,7 @@ export class AdminDashboardComponent implements OnInit {
     });
     }
 
-  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0, portalSignupForm: 0 };
+  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0, portalSignupForm: 0, portalTestAccounts: 0 };
 
   dataIssuesPanelOpen = false;
   dataIssuesLoading = false;
@@ -390,7 +390,7 @@ export class AdminDashboardComponent implements OnInit {
         languageLevelOpted?: string[];
         phoneCountries?: string[];
         loginCountries?: string[];
-        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number; portalSignupForm: number };
+        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number; portalSignupForm: number; portalTestAccounts: number };
       }>(`${apiUrl}/admin/students/filter-options`, { withCredentials: true })
       .subscribe({
         next: (res) => {

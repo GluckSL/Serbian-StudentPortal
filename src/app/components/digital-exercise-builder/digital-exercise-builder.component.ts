@@ -2194,9 +2194,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         q.attachmentUrl = this.bulkEditValue;
       } else if (this.bulkEditField === 'example') {
         q.workedExample = this.bulkEditValue;
-      } else {
-        q[this.bulkEditField] = this.bulkEditValue;
+      } else if (this.bulkEditField === 'context') {
+        q.context = this.bulkEditValue;
+      } else if (this.bulkEditField === 'instruction') {
+        q.instruction = this.bulkEditValue;
       }
+      // attachment-upload is applied via onBulkAttachmentFileSelected, not here
     }
     this.showSuccess(`Applied "${this.bulkEditField}" to ${this.selectedIndices.size} question(s).`);
     this.bulkEditValue = '';

@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
+const SignupApplication = require('../models/StudentSignupApplication');
 const MeetingLink = require('../models/MeetingLink');
 const Course = require('../models/Course');
 const CourseProgress = require('../models/CourseProgress');
@@ -54,7 +55,7 @@ async function loadStudentFilterOptions() {
       a.localeCompare(b, undefined, { sensitivity: 'base' })
     );
 
-  const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, countAgg] =
+  const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, signupAppUserIds, countAgg] =
     await Promise.all([
       User.distinct('batch', base),
       User.distinct('servicesOpted', base),
@@ -62,6 +63,7 @@ async function loadStudentFilterOptions() {
       User.distinct('languageLevelOpted', base),
       User.distinct('leadSource', base),
       User.distinct('stream', base),
+      SignupApplication.distinct('userId', { userId: { $ne: null } }),
       User.aggregate([
         { $match: base },
         {
@@ -88,12 +90,30 @@ async function loadStudentFilterOptions() {
                 ],
               },
             },
+            portalSignupForm: {
+              $sum: {
+                $cond: [{ $eq: ['$signupSource', 'public_signup'] }, 1, 0],
+              },
+            },
+            portalTestAccounts: {
+              $sum: {
+                $cond: [{ $eq: ['$isTestAccount', true] }, 1, 0],
+              },
+            },
           },
         },
       ]),
     ]);
 
   const counts = countAgg[0] || {};
+  const signupFormUserIds = (signupAppUserIds || []).filter((id) => id != null);
+  let portalSignupForm = counts.portalSignupForm ?? 0;
+  if (signupFormUserIds.length) {
+    portalSignupForm = await User.countDocuments({
+      ...base,
+      $or: [{ signupSource: 'public_signup' }, { _id: { $in: signupFormUserIds } }],
+    });
+  }
   const payload = {
     success: true,
     batches: mergePortalBatchNames(clean(batches)),
@@ -107,6 +127,8 @@ async function loadStudentFilterOptions() {
       portalActive: counts.portalActive ?? 0,
       portalWithdrew: counts.portalWithdrew ?? 0,
       portalCrmLinked: counts.portalCrmLinked ?? 0,
+      portalSignupForm,
+      portalTestAccounts: counts.portalTestAccounts ?? 0,
     },
     phoneCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
     loginCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
