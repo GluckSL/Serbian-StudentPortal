@@ -12,6 +12,8 @@ const BASE_POINTS = {
   whackawort: 10,
   memory: 10,
   jumbled_words: 12,
+  hangman: 10,
+  word_picture_match: 10,
 };
 
 const PER_ANSWER_XP = {
@@ -25,6 +27,8 @@ const PER_ANSWER_XP = {
   whackawort: 3,
   memory: 3,
   jumbled_words: 4,
+  hangman: 3,
+  word_picture_match: 3,
 };
 
 /**

@@ -15,6 +15,8 @@ import { FlapjugationQuestionFormComponent } from '../flapjugation-question-form
 import { WhackawortQuestionFormComponent } from '../whackawort-question-form/whackawort-question-form.component';
 import { JumbledWordsQuestionFormComponent } from '../jumbled-words-question-form/jumbled-words-question-form.component';
 import { MemoryGameQuestionFormComponent } from '../memory-game-question-form/memory-game-question-form.component';
+import { HangmanQuestionFormComponent } from '../hangman-question-form/hangman-question-form.component';
+import { WordPictureMatchQuestionFormComponent } from '../word-picture-match-question-form/word-picture-match-question-form.component';
 
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
@@ -32,6 +34,8 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     LevelEditorComponent, GameImportPanelComponent, ImageMatchingQuestionFormComponent,
     GenderStackQuestionFormComponent, FlapjugationQuestionFormComponent,
     WhackawortQuestionFormComponent, JumbledWordsQuestionFormComponent, MemoryGameQuestionFormComponent,
+    HangmanQuestionFormComponent,
+    WordPictureMatchQuestionFormComponent,
   ],
   template: `
     <div class="ga-editor">
@@ -68,6 +72,8 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
                   <mat-option value="whackawort">Whack-a-Wort</mat-option>
                   <mat-option value="memory">Memory Game</mat-option>
                   <mat-option value="jumbled_words">Jumbled Words</mat-option>
+                  <mat-option value="hangman">Hangman</mat-option>
+                  <mat-option value="word_picture_match">Word-Picture Match</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -248,6 +254,8 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
             <app-whackawort-question-form *ngSwitchCase="'whackawort'" #whackawortForm [gameSetId]="setId || ''"></app-whackawort-question-form>
             <app-jumbled-words-question-form *ngSwitchCase="'jumbled_words'" #jumbledWordsForm [gameSetId]="setId || ''"></app-jumbled-words-question-form>
             <app-memory-game-question-form *ngSwitchCase="'memory'" #memoryForm [gameSetId]="setId || ''"></app-memory-game-question-form>
+            <app-hangman-question-form *ngSwitchCase="'hangman'" #hangmanForm [gameSetId]="setId || ''"></app-hangman-question-form>
+            <app-word-picture-match-question-form *ngSwitchCase="'word_picture_match'" #wordPictureMatchForm [gameSetId]="setId || ''"></app-word-picture-match-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
@@ -313,6 +321,7 @@ export class GameSetEditorComponent implements OnInit {
   @ViewChild('genderStackForm') genderStackForm?: GenderStackQuestionFormComponent;
   @ViewChild('jumbledWordsForm') jumbledWordsForm?: JumbledWordsQuestionFormComponent;
   @ViewChild('memoryForm') memoryForm?: MemoryGameQuestionFormComponent;
+  @ViewChild('hangmanForm') hangmanForm?: HangmanQuestionFormComponent;
 
   form!: FormGroup;
   isEdit = false;
@@ -361,6 +370,7 @@ export class GameSetEditorComponent implements OnInit {
     this.genderStackForm?.load();
     this.jumbledWordsForm?.load();
     this.memoryForm?.load();
+    this.hangmanForm?.load();
     if (this.setId) this.loadSet(this.setId);
   }
 

@@ -41,7 +41,6 @@ function buildMemoryImageUploader(fieldName) {
   return multer({
     storage: multer.memoryStorage(),
     fileFilter: imageFileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 },
   }).single(fieldName);
 }
 
@@ -60,7 +59,6 @@ function buildS3ImageUploader(fieldName, keyFolder) {
   return multer({
     storage,
     fileFilter: imageFileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 },
   }).single(fieldName);
 }
 

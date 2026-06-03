@@ -501,10 +501,46 @@ router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res)
       .filter((meeting) => meeting.startTime && new Date(meeting.startTime) >= now)
       .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
       .slice(0, 10);
-    const pastMeetings = mappedMeetings
+    const allPastMeetings = mappedMeetings
       .filter((meeting) => meeting.startTime && new Date(meeting.startTime) < now)
-      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
-      .slice(0, 15);
+      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+    const pastMeetings = allPastMeetings.slice(0, 15);
+
+    let totalScheduledMinutes = 0;
+    let totalAttendedStudentMinutes = 0;
+    let meetingsWithRecordedDuration = 0;
+    let meetingsUsingDefaultDuration = 0;
+
+    const teachingTimeMeetings = allPastMeetings.map((meeting) => {
+      const hasRecordedDuration = meeting.meetingDurationMinutes > 0;
+      const scheduledMinutes = hasRecordedDuration
+        ? meeting.meetingDurationMinutes
+        : (meeting.attendanceRecorded ? 60 : 0);
+
+      if (hasRecordedDuration) meetingsWithRecordedDuration += 1;
+      else if (scheduledMinutes > 0) meetingsUsingDefaultDuration += 1;
+
+      totalScheduledMinutes += scheduledMinutes;
+      totalAttendedStudentMinutes += meeting.totalAttendedMinutes || 0;
+
+      return {
+        _id: meeting._id,
+        topic: meeting.topic,
+        batch: meeting.batch,
+        startTime: meeting.startTime,
+        status: meeting.status,
+        attendanceRecorded: meeting.attendanceRecorded,
+        present: meeting.present,
+        late: meeting.late,
+        absent: meeting.absent,
+        attendanceRate: meeting.attendanceRate,
+        scheduledMinutes,
+        meetingDurationMinutes: meeting.meetingDurationMinutes,
+        totalAttendedMinutes: meeting.totalAttendedMinutes || 0,
+        avgAttendedMinutes: meeting.avgAttendedMinutes || 0
+      };
+    });
 
     const overallAttendanceRate = totalAttendanceRecords
       ? Math.round(((attendedCount + lateCount) / totalAttendanceRecords) * 100)
@@ -550,7 +586,16 @@ router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res)
           totalMeetings: meetings.length,
           totalAttendanceRecords,
           overallAttendanceRate,
-          averageCourseDay: courseDayCount ? Math.round(courseDaySum / courseDayCount) : 0
+          averageCourseDay: courseDayCount ? Math.round(courseDaySum / courseDayCount) : 0,
+          totalTeachingMinutes: totalScheduledMinutes
+        },
+        teachingTime: {
+          totalMinutes: totalScheduledMinutes,
+          totalAttendedStudentMinutes,
+          pastMeetingCount: allPastMeetings.length,
+          meetingsWithRecordedDuration,
+          meetingsUsingDefaultDuration,
+          meetings: teachingTimeMeetings
         },
         performance: {
           statusBreakdown: statusTemplate,
