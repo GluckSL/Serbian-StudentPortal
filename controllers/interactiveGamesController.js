@@ -1597,7 +1597,7 @@ exports.adminUploadQuestionAudio = async (req, res) => {
       { new: true }
     );
     if (!question) return notFound(res, 'Question not found');
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, question });
   } catch (err) {
     serverError(res, err);
@@ -1615,7 +1615,7 @@ exports.adminUploadQuestionImage = async (req, res) => {
       { new: true }
     );
     if (!question) return notFound(res, 'Question not found');
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, question });
   } catch (err) {
     serverError(res, err);
@@ -1653,7 +1653,7 @@ exports.adminUploadPairImage = async (req, res) => {
     question.pairs[pairIndex].imageUrl = canonicalUrl;
     await question.save();
 
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, pairIndex });
   } catch (err) {
     serverError(res, err);

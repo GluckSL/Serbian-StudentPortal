@@ -1,16 +1,35 @@
-import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { environment } from '../../../../environments/environment';
 
-/** GlückArena audio — pronunciation, SFX, mute. Mobile-safe unlock via user gesture. */
+interface ArenaMediaConfigResponse {
+  success?: boolean;
+  r2Configured?: boolean;
+  sfx?: {
+    correct?: string;
+    wrong?: string;
+    lost?: string;
+    xpGain?: string;
+  } | null;
+}
+
+/** GlückArena audio — pronunciation, SFX, mute. SFX load from R2 when configured. */
 @Injectable({ providedIn: 'root' })
 export class GameAudioService {
+  private readonly http = inject(HttpClient);
   private muted = false;
   private cache = new Map<string, HTMLAudioElement>();
   private unlocked = false;
 
-  readonly correctSrc = '/assets/audios/correct.mp3';
-  readonly wrongSrc = '/assets/audios/incorrect.mp3';
-  readonly lostSrc = '/assets/audios/lost.mp3';
-  readonly xpGainSrc = '/assets/audios/xp-gain.mp3';
+  private correctSrc = '/assets/audios/correct.mp3';
+  private wrongSrc = '/assets/audios/incorrect.mp3';
+  private lostSrc = '/assets/audios/lost.mp3';
+  private xpGainSrc = '/assets/audios/xp-gain.mp3';
+
+  constructor() {
+    this.loadMutePreference();
+    this.loadSfxFromApi();
+  }
 
   isMuted(): boolean { return this.muted; }
 
@@ -26,6 +45,21 @@ export class GameAudioService {
   /** Call once on first user tap (required on iOS). */
   unlock(): void {
     this.unlocked = true;
+  }
+
+  private loadSfxFromApi(): void {
+    const url = `${environment.apiUrl}/interactive-games/media-config`;
+    this.http.get<ArenaMediaConfigResponse>(url).subscribe({
+      next: (res) => {
+        const sfx = res?.sfx;
+        if (!sfx) return;
+        if (sfx.correct) this.correctSrc = sfx.correct;
+        if (sfx.wrong) this.wrongSrc = sfx.wrong;
+        if (sfx.lost) this.lostSrc = sfx.lost;
+        if (sfx.xpGain) this.xpGainSrc = sfx.xpGain;
+      },
+      error: () => { /* keep local /assets fallback for dev without R2 */ },
+    });
   }
 
   private createAudio(src: string): HTMLAudioElement {

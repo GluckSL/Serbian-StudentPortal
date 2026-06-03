@@ -13,6 +13,7 @@ const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
 // ── Health ─────────────────────────────────────────────────────────────────────
 router.get('/health', gaExt.publicHealth);
 router.get('/health/legacy', (_req, res) => res.json({ ok: true, module: 'GlückArena' }));
+router.get('/media-config', gaExt.getArenaMediaConfig);
 router.get('/config/features', verifyToken, gaExt.getFeatureFlags);
 
 router.use(arenaApiLimiter);
