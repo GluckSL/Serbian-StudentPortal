@@ -13,7 +13,7 @@ const GameQuestionSchema = new mongoose.Schema({
 
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match'],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice'],
     required: true,
   },
 
@@ -53,6 +53,13 @@ const GameQuestionSchema = new mongoose.Schema({
   randomizeWords: { type: Boolean, default: true },
   // precomputed tokens derived from correctSentence (stored for efficiency)
   tokens: [{ type: String }],
+
+  // ── Multiple Choice fields ──────────────────────────────────────────────────
+  questionText: { type: String, default: '' },
+  options: [{
+    text: { type: String, default: '' },
+    isCorrect: { type: Boolean, default: false },
+  }],
 
   // ── Whack-a-Wort fields ─────────────────────────────────────────────────────
   category: { type: String, default: '' },

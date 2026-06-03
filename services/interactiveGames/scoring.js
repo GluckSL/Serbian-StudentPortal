@@ -14,6 +14,7 @@ const BASE_POINTS = {
   jumbled_words: 12,
   hangman: 10,
   word_picture_match: 10,
+  multiple_choice: 10,
 };
 
 const PER_ANSWER_XP = {
@@ -29,6 +30,7 @@ const PER_ANSWER_XP = {
   jumbled_words: 4,
   hangman: 3,
   word_picture_match: 3,
+  multiple_choice: 3,
 };
 
 /**

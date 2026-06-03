@@ -1,7 +1,7 @@
 // GlückArena shared TypeScript types
 
 export type ArticleGender = 'der' | 'die' | 'das';
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words' | 'hangman' | 'word_picture_match';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words' | 'hangman' | 'word_picture_match' | 'multiple_choice';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -179,7 +179,21 @@ export interface MatchingQuestion {
   translation: string;
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion | HangmanQuestion | WordPictureMatchQuestion | MatchingQuestion;
+export interface MultipleChoiceOption {
+  text: string;
+}
+
+export interface MultipleChoiceQuestion {
+  _id: string;
+  gameType: 'multiple_choice';
+  order: number;
+  questionText: string;
+  options: MultipleChoiceOption[];
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion | HangmanQuestion | WordPictureMatchQuestion | MatchingQuestion | MultipleChoiceQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -229,7 +243,16 @@ export interface AdminWordPictureMatchPair {
 export interface AdminWordPictureMatchQuestion extends WordPictureMatchQuestion {
   pairs: AdminWordPictureMatchPair[];
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion | AdminMemoryGameQuestion | AdminJumbledWordsQuestion | AdminHangmanQuestion | AdminWordPictureMatchQuestion;
+export interface AdminMultipleChoiceOption {
+  text: string;
+  isCorrect: boolean;
+}
+
+export interface AdminMultipleChoiceQuestion extends MultipleChoiceQuestion {
+  options: AdminMultipleChoiceOption[];
+}
+
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion | AdminMemoryGameQuestion | AdminJumbledWordsQuestion | AdminHangmanQuestion | AdminWordPictureMatchQuestion | AdminMultipleChoiceQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -268,7 +291,7 @@ export interface AnswerResult {
   isCorrect: boolean;
   pointsEarned: number;
   speedBonus?: number;
-  correctAnswer: { word?: string; sentence?: string; tokens?: string[]; articleGender?: ArticleGender };
+  correctAnswer: { word?: string; sentence?: string; tokens?: string[]; articleGender?: ArticleGender; correctIndex?: number; text?: string };
 }
 
 export interface CompleteResult {
@@ -344,6 +367,7 @@ export interface StudentGameStats {
     jumbled_words: { gamesCompleted: number; bestScore: number; totalXp: number };
     hangman: { gamesCompleted: number; bestScore: number; totalXp: number };
     word_picture_match: { gamesCompleted: number; bestScore: number; totalXp: number };
+    multiple_choice: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 

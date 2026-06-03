@@ -260,6 +260,32 @@ function validateHangmanRow(row, index) {
   };
 }
 
+function validateMultipleChoiceRow(row, index) {
+  const errors = [];
+  const questionText = String(row.question_text || row.questiontext || '').trim();
+  const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+
+  if (!questionText) errors.push(`Row ${index + 1}: "question_text" column is required for Multiple Choice`);
+
+  const options = [];
+  for (let j = 1; j <= 6; j++) {
+    const text = String(row[`option_${j}`] || row[`option${j}`] || '').trim();
+    if (!text) break;
+    const isCorrect = String(row[`correct_option`] || row.correctoption || '').trim() === String(j);
+    options.push({ text, isCorrect });
+  }
+
+  if (options.length < 2) errors.push(`Row ${index + 1}: at least 2 options required (option_1, option_2 columns)`);
+  const correctCount = options.filter(o => o.isCorrect).length;
+  if (correctCount !== 1) errors.push(`Row ${index + 1}: exactly one option must be marked as correct (correct_option column)`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: { questionText, options, imageUrl, audioUrl: null, order: parseInt(row.order, 10) || index },
+  };
+}
+
 function parseRows(rows, gameType, importType) {
   const normalized = rows.map(r => normalizeRow(r));
   const results = [];
@@ -340,6 +366,13 @@ function parseRows(rows, gameType, importType) {
         if (parsed.valid) {
           const key = parsed.doc?.word;
           if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'multiple_choice') {
+        parsed = validateMultipleChoiceRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.questionText?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate question text`);
           else if (key) seen.add(key);
         }
       } else {
@@ -507,6 +540,12 @@ function getImportTemplate(gameType) {
     return [
       { word: 'HAUS', hint: 'A place to live', image_url: '', order: 0 },
       { word: 'GARTEN', hint: 'Where flowers grow', image_url: '', order: 1 },
+    ];
+  }
+  if (gameType === 'multiple_choice') {
+    return [
+      { question_text: 'Wie lautet der Imperativ von "essen"?', option_1: 'iss!', option_2: 'isst!', option_3: 'esse!', correct_option: '1', order: 0 },
+      { question_text: 'Was ist der Plural von "Kind"?', option_1: 'Kind', option_2: 'Kinder', option_3: 'Kindern', correct_option: '2', order: 1 },
     ];
   }
   return [];
