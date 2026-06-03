@@ -42,6 +42,10 @@
         Unread
         <span class="ph-notif__badge" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
       </button>
+      <select class="ph-notif__select" [(ngModel)]="batch" (ngModelChange)="onFilterChange()">
+        <option [ngValue]="''">All batches</option>
+        <option *ngFor="let b of batchOptions" [ngValue]="b">Batch {{ b }}</option>
+      </select>
       <select class="ph-notif__select" [(ngModel)]="batchLevel" (ngModelChange)="onFilterChange()">
         <option *ngFor="let lvl of levelOptions" [ngValue]="lvl">{{ lvl || 'All levels' }}</option>
       </select>
@@ -89,14 +93,46 @@
         <div class="ph-notif__copy">
           <p class="ph-notif__title">{{ n.title }}</p>
           <p class="ph-notif__msg">{{ n.message }}</p>
-          <p class="ph-notif__meta" *ngIf="n.metadata">
+          <p class="ph-notif__meta" *ngIf="n.metadata && n.type !== 'JOURNEY_CLASS_ABSENT_TODAY'">
             <span *ngIf="journeyDay(n) as jd">Journey day {{ jd }}</span>
             <span *ngIf="n.metadata.batch"> · Batch {{ n.metadata.batch }}</span>
             <span *ngIf="n.metadata.level"> · {{ n.metadata.level }}</span>
           </p>
+          <ul
+            *ngIf="n.type === 'JOURNEY_CLASS_ABSENT_TODAY' && classAbsentItems(n).length"
+            class="ph-notif__class-list">
+            <li *ngFor="let c of classAbsentItems(n)" class="ph-notif__class-row">
+              <dl class="ph-notif__class-grid">
+                <div class="ph-notif__class-field">
+                  <dt>Meeting</dt>
+                  <dd>{{ c.topic }}</dd>
+                </div>
+                <div class="ph-notif__class-field">
+                  <dt>Time</dt>
+                  <dd>{{ formatClassTime(c.startTime) }}</dd>
+                </div>
+                <div class="ph-notif__class-field">
+                  <dt>Batch</dt>
+                  <dd>{{ c.batch || n.metadata?.batch || '—' }}</dd>
+                </div>
+                <div class="ph-notif__class-field">
+                  <dt>Day & date</dt>
+                  <dd>
+                    <span *ngIf="c.courseDay != null">Day {{ c.courseDay }}</span>
+                    <span *ngIf="c.courseDay != null"> · </span>
+                    {{ formatClassDate(c.startTime) }}
+                  </dd>
+                </div>
+                <div class="ph-notif__class-field ph-notif__class-field--status">
+                  <dt>Status</dt>
+                  <dd><span class="ph-notif__missed">Missed</span></dd>
+                </div>
+              </dl>
+            </li>
+          </ul>
         </div>
         <div class="ph-notif__due">
-          <span class="ph-notif__due-label">Due</span>
+          <span class="ph-notif__due-label">{{ statusColumnLabel(n) }}</span>
           <strong class="ph-notif__due-amt">{{ dueLabel(n) }}</strong>
         </div>
       </div>

@@ -600,6 +600,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   font-size: 13px;
   font-weight: 700;
@@ -607,6 +608,17 @@
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 1px dashed #e2e8f0;
+}
+
+.sd-req-label__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sd-req-label__actions {
+  flex-shrink: 0;
 }
 
 .sd-req-label__amt,

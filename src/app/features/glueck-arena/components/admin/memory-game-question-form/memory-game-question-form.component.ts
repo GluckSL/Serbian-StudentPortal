@@ -5,7 +5,7 @@ import { MaterialModule } from '../../../../../shared/material.module';
 import { InteractiveGameService } from '../../../services/interactive-game.service';
 import { NotificationService } from '../../../../../services/notification.service';
 import { trimGermanWord } from '../../../utils/german-text';
-import { AdminMemoryGameQuestion } from '../../../glueck-arena.types';
+import type { AdminMemoryGameQuestion } from '../../../glueck-arena.types';
 
 function canonicalImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;

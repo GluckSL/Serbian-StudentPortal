@@ -226,9 +226,10 @@ export interface AdminMemoryMatchPair {
   audioUrl: string | null;
 }
 
-export interface AdminMemoryGameQuestion extends MemoryGameQuestion {
+/** Admin memory board — pairs include words (same shape as MemoryGamePair). */
+export type AdminMemoryGameQuestion = Omit<MemoryGameQuestion, 'pairs'> & {
   pairs: AdminMemoryMatchPair[];
-}
+};
 export interface AdminJumbledWordsQuestion extends JumbledWordsQuestion {
   word: string;
 }

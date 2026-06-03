@@ -474,7 +474,7 @@ const getStudentPaymentHistory = async (req, res) => {
     ]);
 
     const PaymentFlowSubmission = require('../models/PaymentSubmission');
-    const allSubmissions = await PaymentFlowSubmission.find({ studentId })
+    const allSubmissions = await PaymentFlowSubmission.find({ studentId, isArchived: false })
       .populate('approvedBy', 'name')
       .populate('reviewedBy', 'name')
       .lean();

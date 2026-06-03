@@ -10,16 +10,18 @@ const listMine = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Admin access required' });
     }
 
-    const { page = 1, limit = 50, unreadOnly, type, batchLevel, studentStatus } = req.query;
+    const { page = 1, limit = 50, unreadOnly, type, batch, batchLevel, studentStatus } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
     const filter = { recipientId: req.user.id };
     if (String(unreadOnly) === 'true') filter.isRead = false;
     if (type && String(type).trim()) filter.type = String(type).trim();
+    if (batch && String(batch).trim()) filter['metadata.batch'] = String(batch).trim();
     if (batchLevel && String(batchLevel).trim()) filter['metadata.level'] = String(batchLevel).trim();
     if (studentStatus && String(studentStatus).trim()) filter['metadata.studentStatus'] = String(studentStatus).trim().toUpperCase();
 
     const unreadFilter = { recipientId: req.user.id, isRead: false };
     if (type && String(type).trim()) unreadFilter.type = String(type).trim();
+    if (batch && String(batch).trim()) unreadFilter['metadata.batch'] = String(batch).trim();
     if (batchLevel && String(batchLevel).trim()) unreadFilter['metadata.level'] = String(batchLevel).trim();
     if (studentStatus && String(studentStatus).trim()) unreadFilter['metadata.studentStatus'] = String(studentStatus).trim().toUpperCase();
 
@@ -28,6 +30,9 @@ const listMine = async (req, res) => {
       PaymentNotification.countDocuments(filter),
       PaymentNotification.countDocuments(unreadFilter),
     ]);
+
+    journeyDueService.clearMeetingStartCaches();
+    await journeyDueService.hydrateClassAbsentItemsInNotifications(items);
 
     res.json({
       success: true,
@@ -50,6 +55,7 @@ const unreadCount = async (req, res) => {
     }
     const filter = { recipientId: req.user.id, isRead: false };
     if (req.query.type && String(req.query.type).trim()) filter.type = String(req.query.type).trim();
+    if (req.query.batch && String(req.query.batch).trim()) filter['metadata.batch'] = String(req.query.batch).trim();
     if (req.query.batchLevel && String(req.query.batchLevel).trim()) filter['metadata.level'] = String(req.query.batchLevel).trim();
     if (req.query.studentStatus && String(req.query.studentStatus).trim()) {
       filter['metadata.studentStatus'] = String(req.query.studentStatus).trim().toUpperCase();
