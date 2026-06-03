@@ -41,7 +41,8 @@ router.get('/requirements', verifyToken, checkRole(['STUDENT']), async (req, res
     }
 
     const service = (student.servicesOpted || '').trim();
-    const requirements = await getRequirementsForStudentService(service);
+    // Show every active document type to all students; required flag stays program-specific.
+    const requirements = await getAllActiveRequirementsForStudent(service);
 
     // Map to the shape the frontend expects
     const mapped = requirements.map(mapRequirement);
@@ -903,6 +904,42 @@ async function ensureDefaultRequirementsSeeded() {
       active: true
     }))
   );
+}
+
+function requirementAppliesToStudentService(requirement, service = '') {
+  const scopedServices = [
+    ...(Array.isArray(requirement.applicableServices) ? requirement.applicableServices : []),
+    ...(Array.isArray(requirement.programKeys) ? requirement.programKeys : [])
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+
+  if (scopedServices.length === 0) return true;
+
+  const trimmedService = String(service || '').trim();
+  if (!trimmedService) return false;
+
+  const normalized = trimmedService.replace(/[\s\-]+/g, '[\\s\\-]*');
+  const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+  return scopedServices.some((s) => serviceRegex.test(String(s).trim()));
+}
+
+async function getAllActiveRequirementsForStudent(service = '') {
+  const allRequirements = await DocumentRequirement.find({ active: true })
+    .sort({ order: 1, label: 1 })
+    .lean();
+
+  return allRequirements.map((req) => {
+    const applies = requirementAppliesToStudentService(req, service);
+    const baseRequired =
+      typeof req.isRequired === 'boolean' ? req.isRequired : !!req.required;
+    const isRequiredForStudent = applies && baseRequired;
+    return {
+      ...req,
+      required: isRequiredForStudent,
+      isRequired: isRequiredForStudent
+    };
+  });
 }
 
 function buildServiceScopedRequirementFilter(service = '', { requiredOnly = false } = {}) {
