@@ -2184,7 +2184,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   // ── Bulk field edit ──────────────────────────────────────────────────────────
 
   applyBulkField(): void {
-    if (!this.bulkEditField || this.selectedIndices.size === 0) return;
+    if (!this.bulkEditField || this.bulkEditField === 'attachment-upload' || this.selectedIndices.size === 0) {
+      return;
+    }
     for (const idx of this.selectedIndices) {
       const q = this.questions[idx];
       if (!q) continue;
