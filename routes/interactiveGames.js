@@ -26,6 +26,7 @@ router.get('/', verifyToken, interactiveGamesController.getCatalog);
 // Student stats summary
 router.get('/me/stats', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.getMyStats);
 router.get('/me/arena-access', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.getArenaAccess);
+router.get('/journey-games', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.getJourneyGames);
 
 // Global leaderboard: GET /api/interactive-games/leaderboard/global?period=daily|weekly|all
 router.get('/leaderboard/global', verifyToken, interactiveGamesController.getGlobalLeaderboard);
@@ -122,7 +123,7 @@ router.post('/mobile/sync/process', verifyToken, gaExt.mobileSyncProcess);
 router.post('/mobile/sync/reconcile', verifyToken, gaExt.mobileReconcile);
 
 // ── Admin routes (before /:id) ───────────────────────────────────────────────
-const adminRoles = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
+const adminRoles = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'];
 
 router.get('/admin/analytics', verifyToken, checkRole(adminRoles), interactiveGamesController.adminAnalytics);
 router.get('/admin/teacher-analytics', verifyToken, checkRole(adminRoles), interactiveGamesController.teacherAnalytics);
@@ -149,7 +150,7 @@ router.get('/:id', verifyToken, interactiveGamesController.getGameDetail);
 router.get('/:id/leaderboard', verifyToken, interactiveGamesController.getGameLeaderboard);
 
 // Start attempt (students + admin preview)
-const arenaPlayRoles = ['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
+const arenaPlayRoles = ['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'];
 router.post('/:id/attempts', verifyToken, blockVisaDocsOnly, checkRole(arenaPlayRoles), interactiveGamesController.startAttempt);
 
 // Submit a single answer during play

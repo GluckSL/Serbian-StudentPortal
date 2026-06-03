@@ -593,25 +593,25 @@ export const routes: Routes = [
     path: 'admin/glueck-arena',
     loadComponent: () => import('./features/glueck-arena/components/admin/game-set-list/game-set-list.component').then(m => m.GameSetListComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
   },
   {
     path: 'admin/glueck-arena/create',
     loadComponent: () => import('./features/glueck-arena/components/admin/game-set-editor/game-set-editor.component').then(m => m.GameSetEditorComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
   },
   {
     path: 'admin/glueck-arena/:id/edit',
     loadComponent: () => import('./features/glueck-arena/components/admin/game-set-editor/game-set-editor.component').then(m => m.GameSetEditorComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
   },
   {
     path: 'admin/glueck-arena/:id/play',
     loadComponent: () => import('./features/glueck-arena/components/game-play-shell/game-play-shell.component').then(m => m.GamePlayShellComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], arenaPreview: true }
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'], arenaPreview: true }
   },
   {
     path: 'admin/glueck-arena/analytics',

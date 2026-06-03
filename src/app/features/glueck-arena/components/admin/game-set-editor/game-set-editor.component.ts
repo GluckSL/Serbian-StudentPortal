@@ -172,9 +172,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </div>
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Course Day (unlock)</mat-label>
-                <input matInput type="number" formControlName="courseDay" min="1">
-                <mat-hint>Leave empty for no gating</mat-hint>
+                <mat-label>Journey day</mat-label>
+                <input matInput type="number" formControlName="courseDay" min="1" max="200">
+                <mat-hint>Maps to Journey to Germany (My Course). Leave empty for arena-only (no day pill).</mat-hint>
               </mat-form-field>
 
               <div class="ga-toggle-group">

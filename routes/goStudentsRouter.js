@@ -15,6 +15,9 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const StudentProgress = require('../models/StudentProgress');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
+const GameSet = require('../models/GameSet');
+const GameAttempt = require('../models/GameAttempt');
+const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { withJourneyLevelInSet, levelForJourneyDay } = require('../services/journeyLevelSync.service');
@@ -883,6 +886,48 @@ function createGoStudentsRouter(trackKey) {
   
       const completedDgModules = dgModules.filter((d) => d.status === 'completed').length;
       const totalDgModules = dgModules.length;
+
+      // ── GlückArena (journey-day games) ───────────────────────────────────────
+      let arenaGames = [];
+      try {
+        const arenaBatchKeys = studentTargetBatchKeys(student);
+        const arenaFilter = {
+          isDeleted: { $ne: true },
+          isPublished: true,
+          visibleToStudents: true,
+          targetLanguage: 'German',
+          courseDay: { $ne: null, $gte: 1, $lte: 200 },
+          ...moduleTargetingQuery(arenaBatchKeys),
+        };
+        const arenaSets = await GameSet.find(arenaFilter)
+          .select('title level category courseDay sequenceLetter gameType difficulty')
+          .sort({ courseDay: 1, sequenceLetter: 1, title: 1 })
+          .lean();
+        const arenaIds = arenaSets.map((g) => g._id);
+        const playedArenaIds =
+          arenaIds.length > 0
+            ? await GameAttempt.find({
+                studentId,
+                gameSetId: { $in: arenaIds },
+                status: 'completed',
+              }).distinct('gameSetId')
+            : [];
+        const playedArenaSet = new Set((playedArenaIds || []).map((id) => String(id)));
+        arenaGames = arenaSets.map((g) => ({
+          _id: g._id,
+          title: g.title,
+          level: g.level,
+          category: g.category,
+          courseDay: g.courseDay,
+          sequenceLetter: g.sequenceLetter,
+          gameType: g.gameType,
+          difficulty: g.difficulty,
+          locked: Number(g.courseDay) > accessDay,
+          played: playedArenaSet.has(String(g._id)),
+        }));
+      } catch (arenaErr) {
+        console.warn('go-students detail: arena games skipped', arenaErr?.message || arenaErr);
+      }
   
       res.json({
         journeyLength,
@@ -909,6 +954,7 @@ function createGoStudentsRouter(trackKey) {
         modules,
         exercises,
         dgModules,
+        arenaGames,
         progress: {
           currentDay: accessDay,
           totalExercises,

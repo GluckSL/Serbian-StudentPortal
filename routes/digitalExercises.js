@@ -2519,6 +2519,17 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
     });
     await attempt.save();
 
+    // Older unfinished attempts are superseded when the student starts a new try
+    await ExerciseAttempt.updateMany(
+      {
+        studentId: req.user.id,
+        exerciseId: req.params.id,
+        status: 'in-progress',
+        _id: { $ne: attempt._id }
+      },
+      { status: 'abandoned' }
+    );
+
     // Update exercise attempt count
     await DigitalExercise.findByIdAndUpdate(req.params.id, { $inc: { totalAttempts: 1 } });
 
@@ -3523,8 +3534,14 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
     await assertTeacherOwnsExercise(req.user, exercise);
 
-    const { date, studentId, page = 1, limit = 50 } = req.query;
-    const filter = { exerciseId: req.params.id, status: 'completed' };
+    const { date, studentId, page = 1, limit = 50, all } = req.query;
+    const filter = { exerciseId: req.params.id };
+    // Default: completed only. all=true returns every attempt row (#1, #2, …) including in-progress.
+    if (all === 'true') {
+      filter.status = { $in: ['completed', 'in-progress', 'abandoned'] };
+    } else {
+      filter.status = 'completed';
+    }
     if (studentId) filter.studentId = studentId;
     if (date) {
       const start = new Date(date);
@@ -3535,14 +3552,20 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
     }
 
     const total = await ExerciseAttempt.countDocuments(filter);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = all === 'true'
+      ? Math.min(10000, Math.max(1, parseInt(limit, 10) || 10000))
+      : Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
+
     const attempts = await ExerciseAttempt.find(filter)
       .populate('studentId', 'name email batch level isTestAccount')
-      .sort({ completedAt: -1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
+      .sort({ completedAt: -1, attemptNumber: -1 })
+      .limit(limitNum)
+      .skip(all === 'true' ? 0 : (pageNum - 1) * limitNum)
       .lean();
 
-    res.json({ attempts, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
+    const pages = all === 'true' ? 1 : Math.ceil(total / limitNum);
+    res.json({ attempts, total, page: all === 'true' ? 1 : pageNum, pages });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

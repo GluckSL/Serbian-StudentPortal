@@ -40,7 +40,7 @@ const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flas
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
-const ARENA_STAFF_ROLES = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
+const ARENA_STAFF_ROLES = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'];
 
 function isArenaStaff(role) {
   return ARENA_STAFF_ROLES.includes(role);
@@ -99,6 +99,59 @@ exports.getArenaAccess = async (req, res) => {
   }
 };
 
+/** Attach best score + play count for a student across game sets. */
+async function attachStudentProgressToSets(studentId, sets) {
+  if (!studentId || !sets.length) return sets;
+  const setIds = sets.map((s) => s._id);
+  const studentObjId = new mongoose.Types.ObjectId(String(studentId));
+  const bestAttempts = await GameAttempt.aggregate([
+    { $match: { studentId: studentObjId, gameSetId: { $in: setIds }, status: 'completed' } },
+    { $sort: { score: -1 } },
+    { $group: { _id: '$gameSetId', bestScore: { $max: '$score' }, count: { $sum: 1 } } },
+  ]);
+  const studentStats = {};
+  bestAttempts.forEach((a) => {
+    studentStats[String(a._id)] = { bestScore: a.bestScore, timesPlayed: a.count };
+  });
+  return sets.map((s) => ({
+    ...s,
+    studentProgress: studentStats[String(s._id)] || { bestScore: null, timesPlayed: 0 },
+  }));
+}
+
+// ── STUDENT — Journey day map (My Course → Journey to Germany) ───────────────
+
+exports.getJourneyGames = async (req, res) => {
+  try {
+    if (req.user.role !== 'STUDENT') {
+      return res.status(403).json({ success: false, message: 'Students only' });
+    }
+    const access = await journeyFilterService.hasArenaAccess(req.user.id);
+    const filter = await journeyFilterService.buildStudentFilter(req.user.id);
+    Object.assign(filter, {
+      courseDay: { $ne: null, $gte: 1, $lte: 200 },
+      targetLanguage: 'German',
+    });
+
+    const sets = await GameSet.find(filter)
+      .select('-__v')
+      .sort({ courseDay: 1, sequenceLetter: 1, title: 1 })
+      .lean();
+
+    let items = await attachStudentProgressToSets(req.user.id, sets);
+    await resignMediaInObjects(items);
+
+    res.json({
+      success: true,
+      items,
+      hasArenaAccess: access.hasAccess,
+      gameCount: access.gameCount,
+    });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
 // ── STUDENT — Catalog ─────────────────────────────────────────────────────────
 
 exports.getCatalog = async (req, res) => {
@@ -138,26 +191,10 @@ exports.getCatalog = async (req, res) => {
       GameSet.countDocuments(filter),
     ]);
 
-    // Attach student's best score + completion status if authenticated student
-    let studentStats = {};
+    let items = sets;
     if (req.user.role === 'STUDENT' && sets.length) {
-      const setIds = sets.map(s => s._id);
-      const mongoose = require('mongoose');
-      const studentObjId = new mongoose.Types.ObjectId(req.user.id);
-      const bestAttempts = await GameAttempt.aggregate([
-        { $match: { studentId: studentObjId, gameSetId: { $in: setIds }, status: 'completed' } },
-        { $sort: { score: -1 } },
-        { $group: { _id: '$gameSetId', bestScore: { $max: '$score' }, count: { $sum: 1 } } },
-      ]);
-      bestAttempts.forEach(a => {
-        studentStats[String(a._id)] = { bestScore: a.bestScore, timesPlayed: a.count };
-      });
+      items = await attachStudentProgressToSets(req.user.id, sets);
     }
-
-    const items = sets.map(s => ({
-      ...s,
-      studentProgress: studentStats[String(s._id)] || { bestScore: null, timesPlayed: 0 },
-    }));
 
     await resignMediaInObjects(items);
 

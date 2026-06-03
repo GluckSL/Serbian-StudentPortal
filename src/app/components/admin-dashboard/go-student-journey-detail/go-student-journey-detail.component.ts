@@ -192,7 +192,32 @@ import { NotificationService } from '../../../services/notification.service';
       </ng-container>
 
       <ng-container *ngIf="tab === 'exercises'">
-        <div *ngIf="(detail.exercises?.length || 0) === 0" class="gsd-empty">No exercises found.</div>
+        <h3 class="gsd-section-title">GlückArena</h3>
+        <p class="gsd-section-hint">Games tagged with a journey day (set in the game editor).</p>
+        <div *ngIf="(detail.arenaGames?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No journey-day arena games for this student’s batch.</div>
+        <div *ngFor="let g of (detail.arenaGames || [])" class="gsd-row gsd-row-flex" [class.gsd-locked]="g.locked">
+          <div class="gsd-row-inner">
+            <span class="gsd-ico">{{ g.locked ? '🔒' : '🎮' }}</span>
+            <div>
+              <div class="gsd-row-title">{{ g.title }}</div>
+              <div class="gsd-row-meta">
+                <span *ngIf="g.courseDay != null">Day {{ g.courseDay }}</span>
+                <span *ngIf="g.sequenceLetter">· {{ g.sequenceLetter }}</span>
+                <span *ngIf="g.level">· {{ g.level }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="gsd-row-side">
+            <span *ngIf="g.locked" class="gsd-chip gsd-chip-lock">Locked</span>
+            <ng-container *ngIf="!g.locked">
+              <span *ngIf="!g.played" class="gsd-status gsd-status-ns">Not played</span>
+              <span *ngIf="g.played" class="gsd-status gsd-status-done">Played</span>
+            </ng-container>
+          </div>
+        </div>
+
+        <h3 class="gsd-section-title">Digital exercises</h3>
+        <div *ngIf="(detail.exercises?.length || 0) === 0" class="gsd-empty gsd-empty--tight">No exercises found.</div>
         <div *ngFor="let e of detail.exercises" class="gsd-row gsd-row-flex" [class.gsd-locked]="e.locked">
           <div class="gsd-row-inner">
             <span class="gsd-ico">{{ e.locked ? '🔒' : '🏋️' }}</span>

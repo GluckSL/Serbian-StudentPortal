@@ -252,6 +252,64 @@ function validateJumbledWordsRow(row, index) {
   };
 }
 
+function validateHangmanRow(row, index) {
+  const errors = [];
+  const word = germanUppercase(row.word);
+  const hint = String(row.hint || row.translation || '').trim();
+  const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Hangman`);
+  if (!hint) errors.push(`Row ${index + 1}: "hint" column is required for Hangman`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      hint,
+      imageUrl,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function readMultipleChoiceOptions(row) {
+  const options = [];
+  for (let n = 1; n <= 6; n += 1) {
+    const text = String(row[`option_${n}`] ?? row[`option${n}`] ?? '').trim();
+    if (text) options.push(text);
+  }
+  return options;
+}
+
+function validateMultipleChoiceRow(row, index) {
+  const errors = [];
+  const questionText = String(row.question_text || row.questiontext || '').trim();
+  const options = readMultipleChoiceOptions(row);
+  const correctOption = parseInt(row.correct_option || row.correctoption, 10);
+
+  if (!questionText) errors.push(`Row ${index + 1}: "question_text" column is required for Multiple Choice`);
+  if (options.length < 2) {
+    errors.push(`Row ${index + 1}: at least two options (option_1, option_2, …) are required`);
+  }
+  if (!Number.isFinite(correctOption) || correctOption < 1 || correctOption > options.length) {
+    errors.push(`Row ${index + 1}: "correct_option" must be 1–${options.length || 'n'} matching a filled option`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      questionText,
+      options: options.map((text, i) => ({
+        text,
+        isCorrect: i + 1 === correctOption,
+      })),
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
 /** Image Matching / Memory: one CSV row per pair; group by question_index */
 function parsePairBasedRows(normalized, gameType) {
   const groups = new Map();
@@ -389,6 +447,19 @@ function parseRows(rows, gameType, importType) {
           const key = parsed.doc?.word;
           if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word "${key}"`);
           else if (key) seen.add(key);
+        }
+      } else if (gameType === 'hangman') {
+        parsed = validateHangmanRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word;
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word "${key}"`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'multiple_choice') {
+        parsed = validateMultipleChoiceRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.questionText?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate question`);
           else if (key) seen.add(key);
         }
       } else {
@@ -586,7 +657,7 @@ function getImportTemplate(gameType) {
 const SUPPORTED_GAME_TYPES = [
   'scramble_rush', 'sentence_builder', 'matching', 'flashcards',
   'image_matching', 'gender_stack', 'flapjugation', 'whackawort',
-  'memory', 'jumbled_words',
+  'memory', 'jumbled_words', 'hangman', 'multiple_choice',
 ];
 
 module.exports = {

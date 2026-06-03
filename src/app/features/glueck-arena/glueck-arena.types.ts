@@ -320,6 +320,14 @@ export interface CatalogResponse {
   pagination: { page: number; limit: number; total: number; pages: number };
 }
 
+/** Games tagged to journey days (courseDay) for My Course → Journey to Germany. */
+export interface JourneyGamesResponse {
+  success: boolean;
+  items: GameSet[];
+  hasArenaAccess: boolean;
+  gameCount: number;
+}
+
 export interface LeaderboardEntry {
   rank: number;
   studentId: string;

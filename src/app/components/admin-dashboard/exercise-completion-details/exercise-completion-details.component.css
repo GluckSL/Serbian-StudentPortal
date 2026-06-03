@@ -451,6 +451,34 @@
   color: #4338ca;
 }
 
+.attempt-row-incomplete {
+  background: #fafafa;
+}
+
+.attempt-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.attempt-status--done {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.btn-student-link--disabled {
+  cursor: default;
+  color: #374151;
+}
+
+.btn-student-link--disabled:hover {
+  text-decoration: none;
+}
+
 .points-cell {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

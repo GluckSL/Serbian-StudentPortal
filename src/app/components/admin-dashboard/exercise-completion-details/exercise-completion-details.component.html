@@ -198,6 +198,7 @@
             <tr>
               <th>Student</th>
               <th>Attempt #</th>
+              <th>Status</th>
               <th>Score</th>
               <th>Points</th>
               <th>Correct / Wrong</th>
@@ -207,23 +208,36 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let a of attemptsForTable">
+            <tr *ngFor="let a of attemptsForTable" [class.attempt-row-incomplete]="!isAttemptCompleted(a)">
               <td>
                 <button
                   type="button"
                   class="btn-student-link"
+                  [class.btn-student-link--disabled]="!isAttemptCompleted(a)"
                   (click)="openAttemptDetailInNewTab(a, $event)"
-                  title="Open detailed analytics for this attempt"
+                  [title]="isAttemptCompleted(a) ? 'Open detailed analytics for this attempt' : 'Attempt not finished yet'"
+                  [disabled]="!isAttemptCompleted(a)"
                 >
                   {{ a.studentId?.name || a.studentName || '—' }}
-                  <span class="material-icons open-tab-icon">open_in_new</span>
+                  <span class="material-icons open-tab-icon" *ngIf="isAttemptCompleted(a)">open_in_new</span>
                 </button>
               </td>
               <td><span class="attempt-num">#{{ a.attemptNumber }}</span></td>
               <td>
-                <span class="score-badge" [class.good]="a.scorePercentage >= 70" [class.poor]="a.scorePercentage < 50">
+                <span class="attempt-status" [class.attempt-status--done]="isAttemptCompleted(a)">
+                  {{ getAttemptStatusLabel(a) }}
+                </span>
+              </td>
+              <td>
+                <span
+                  *ngIf="isAttemptCompleted(a)"
+                  class="score-badge"
+                  [class.good]="a.scorePercentage >= 70"
+                  [class.poor]="a.scorePercentage < 50"
+                >
                   {{ a.scorePercentage ?? 0 }}%
                 </span>
+                <span class="result-muted" *ngIf="!isAttemptCompleted(a)">—</span>
               </td>
               <td class="points-cell">{{ a.earnedPoints || 0 }} / {{ a.totalPoints || 0 }}</td>
               <td class="result-split-cell">

@@ -5,6 +5,7 @@ import { environment } from '../../../../environments/environment';
 import {
   CatalogFilters,
   CatalogResponse,
+  JourneyGamesResponse,
   GameSet,
   StartAttemptResult,
   AnswerResult,
@@ -135,6 +136,11 @@ export class InteractiveGameService {
 
   getArenaAccess(): Observable<{ success: boolean; hasAccess: boolean; gameCount: number }> {
     return this.http.get<any>(`${this.base}/me/arena-access`);
+  }
+
+  /** Published games with a journey day (courseDay) for the Journey to Germany tab. */
+  getJourneyGames(): Observable<JourneyGamesResponse> {
+    return this.http.get<JourneyGamesResponse>(`${this.base}/journey-games`);
   }
 
   getGlobalLeaderboard(period: LeaderboardPeriod = 'all'): Observable<LeaderboardResponse> {
