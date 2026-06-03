@@ -235,7 +235,7 @@
                   [class.good]="a.scorePercentage >= 70"
                   [class.poor]="a.scorePercentage < 50"
                 >
-                  {{ a.scorePercentage ?? 0 }}%
+                  {{ a.scorePercentage }}%
                 </span>
                 <span class="result-muted" *ngIf="!isAttemptCompleted(a)">—</span>
               </td>

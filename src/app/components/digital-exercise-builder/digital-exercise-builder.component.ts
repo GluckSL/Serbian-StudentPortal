@@ -2184,7 +2184,9 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   // ── Bulk field edit ──────────────────────────────────────────────────────────
 
   applyBulkField(): void {
-    if (!this.bulkEditField || this.selectedIndices.size === 0) return;
+    if (!this.bulkEditField || this.bulkEditField === 'attachment-upload' || this.selectedIndices.size === 0) {
+      return;
+    }
     for (const idx of this.selectedIndices) {
       const q = this.questions[idx];
       if (!q) continue;
@@ -2194,8 +2196,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         q.attachmentUrl = this.bulkEditValue;
       } else if (this.bulkEditField === 'example') {
         q.workedExample = this.bulkEditValue;
-      } else {
-        q[this.bulkEditField] = this.bulkEditValue;
+      } else if (this.bulkEditField === 'context') {
+        q.context = this.bulkEditValue;
+      } else if (this.bulkEditField === 'instruction') {
+        q.instruction = this.bulkEditValue;
       }
     }
     this.showSuccess(`Applied "${this.bulkEditField}" to ${this.selectedIndices.size} question(s).`);
