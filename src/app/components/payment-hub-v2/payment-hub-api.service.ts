@@ -240,9 +240,18 @@ export interface PaymentHubNotification {
     missedCount?: number;
     missedItems?: string[];
     absentCount?: number;
-    absentItems?: string[];
+    absentItems?: (string | PaymentHubClassAbsentItem)[];
   };
   createdAt: string;
+}
+
+export interface PaymentHubClassAbsentItem {
+  meetingId?: string;
+  topic: string;
+  startTime?: string | null;
+  batch?: string;
+  courseDay?: number;
+  status?: 'missed';
 }
 
 export interface PaymentRequestItem {
@@ -586,6 +595,7 @@ export class PaymentHubApiService {
     limit?: number;
     unreadOnly?: boolean;
     type?: string;
+    batch?: string;
     batchLevel?: string;
     studentStatus?: string;
   }): Observable<{
