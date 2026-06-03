@@ -416,9 +416,9 @@ export class AnalyticDashComponent implements OnInit {
           startWith(''),
           map((v) => this.filterAdvancedFieldList(v))
         );
-        this.fetchFilterOptions();
         this.fetchStudents();
-        this.fetchTeachers();
+        this.fetchFilterOptions();
+        setTimeout(() => this.fetchTeachers(), 0);
       },
       error: (err) => {
         //console.error('Not authenticated:', err);

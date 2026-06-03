@@ -162,16 +162,26 @@ async function backfillLoginCountriesFromLogs() {
     },
   ]);
 
+  const ops = [];
   for (const row of latestByUser) {
     let country = row.logCountry ? normalizeLoginCountry(row.logCountry) : null;
     if (!country || country === COUNTRY_UNKNOWN) {
       country = await countryFromIp(row.ip);
     }
-    await User.updateOne(
-      { _id: row._id, role: 'STUDENT', $or: [{ lastLoginCountry: { $exists: false } }, { lastLoginCountry: '' }, { lastLoginCountry: null }] },
-      { $set: { lastLoginCountry: country } }
-    );
-    await new Promise((r) => setTimeout(r, 50));
+    ops.push({
+      updateOne: {
+        filter: {
+          _id: row._id,
+          role: 'STUDENT',
+          $or: [{ lastLoginCountry: { $exists: false } }, { lastLoginCountry: '' }, { lastLoginCountry: null }],
+        },
+        update: { $set: { lastLoginCountry: country } },
+      },
+    });
+  }
+  if (ops.length) {
+    await User.bulkWrite(ops, { ordered: false });
+    console.log(`[studentCountry] loginCountry backfill updated ${ops.length} students`);
   }
 }
 

@@ -118,15 +118,17 @@ async function resolveStudentDisplayPassword(user, options = {}) {
   const { listView = false } = options;
   if (!user || user.role !== 'STUDENT') return null;
 
+  // Directory list: decrypt recoverable only (no bcrypt / extra DB).
+  if (listView) {
+    return readRecoverablePassword(user.passwordRecoverable) || null;
+  }
+
   user = await loadUserForPasswordResolve(user);
 
   let plain = readRecoverablePassword(user.passwordRecoverable);
   if (plain && (await plainMatchesCurrentHash(plain, user.password))) {
     return plain;
   }
-
-  // Directory list: skip bcrypt brute-force and extra DB lookups (recoverable already tried above).
-  if (listView) return null;
 
   plain = await resolveSignupPlainPassword(user, null);
   if (plain && (await plainMatchesCurrentHash(plain, user.password))) {

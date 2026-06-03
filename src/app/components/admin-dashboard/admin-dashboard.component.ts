@@ -285,9 +285,10 @@ export class AdminDashboardComponent implements OnInit {
         }
         this.isFullAdmin = user.role === 'ADMIN';
         this.initColumnVisibility();
-        this.fetchFilterOptions();
         this.fetchStudents();
-        this.fetchTeachers();
+        this.fetchFilterOptions();
+        // Teachers only power autocomplete — load after the student table request starts.
+        setTimeout(() => this.fetchTeachers(), 0);
       },
       error: () => {
         this.loading = false;

@@ -6,12 +6,35 @@ const User = require('../models/User');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+/** Short TTL cache — cuts one DB round-trip per burst of parallel API calls (e.g. admin dashboard). */
+const SESSION_VERSION_TTL_MS = 30_000;
+const sessionVersionByUserId = new Map();
+
+function invalidateSessionVersionCache(userId) {
+  if (userId != null) sessionVersionByUserId.delete(String(userId));
+}
+
+async function getAuthTokenVersion(userId) {
+  const key = String(userId);
+  const now = Date.now();
+  const hit = sessionVersionByUserId.get(key);
+  if (hit && now - hit.at < SESSION_VERSION_TTL_MS) return hit.version;
+
+  const row = await User.findById(userId).select('authTokenVersion').lean();
+  if (!row) {
+    sessionVersionByUserId.delete(key);
+    return null;
+  }
+  const version = row.authTokenVersion ?? 0;
+  sessionVersionByUserId.set(key, { version, at: now });
+  return version;
+}
+
 async function assertTokenSessionValid(decoded) {
   if (!decoded?.id) return true;
-  const row = await User.findById(decoded.id).select('authTokenVersion').lean();
-  if (!row) return false;
+  const currentVersion = await getAuthTokenVersion(decoded.id);
+  if (currentVersion === null) return false;
   const tokenVersion = decoded.tv ?? 0;
-  const currentVersion = row.authTokenVersion ?? 0;
   return currentVersion === tokenVersion;
 }
 
@@ -146,4 +169,5 @@ module.exports = {
   requireFullAdmin,
   checkRole,
   extractBearerToken,
+  invalidateSessionVersionCache,
 };
