@@ -175,7 +175,7 @@
       <ng-container *ngIf="selectedAnnouncement as a">
         <div class="sf-ann-detail sf-ann-detail--announcement">
           <div class="sf-ann-detail__title">{{ a.title }}</div>
-          <div class="sf-ann-detail__body">{{ a.body }}</div>
+          <div class="sf-ann-detail__body sf-richtext" [innerHTML]="a.body"></div>
         </div>
       </ng-container>
     </div>

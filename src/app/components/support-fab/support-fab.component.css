@@ -378,7 +378,18 @@
 .sf-ann-detail__top { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
 .sf-ann-detail__date { font-size: 12px; font-weight: 900; color: #64748b; }
 .sf-ann-detail__title { margin-top: 10px; font-size: 14px; font-weight: 900; color: #0f172a; }
-.sf-ann-detail__body { margin-top: 8px; font-size: 12px; line-height: 1.6; color: #334155; white-space: pre-wrap; }
+.sf-ann-detail__body { margin-top: 8px; font-size: 12px; line-height: 1.6; color: #334155; }
+.sf-richtext p { margin: 0 0 10px; }
+.sf-richtext p:last-child { margin-bottom: 0; }
+.sf-richtext ul, .sf-richtext ol { margin: 8px 0 12px 20px; padding: 0; }
+.sf-richtext a { color: #1d4ed8; text-decoration: underline; word-break: break-word; }
+.sf-richtext strong { font-weight: 700; }
+.sf-richtext blockquote {
+  margin: 10px 0;
+  padding-left: 12px;
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+}
 .sf-ann-detail__files { margin-top: 12px; display: grid; gap: 6px; }
 .sf-ann-detail__filesTitle { font-size: 12px; font-weight: 900; color: #334155; }
 .sf-replies { margin-top: 10px; display:grid; gap:8px; }
