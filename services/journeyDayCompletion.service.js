@@ -36,6 +36,7 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   const creditMeetingIds = new Set((options.creditMeetings || []).map((id) => String(id)));
   const includeRecordings = options.includeRecordings === true;
   const includeDg = options.includeDg === true;
+  const includeLiveClasses = options.includeLiveClasses !== false;
   const recordingWatchRatio =
     options.recordingWatchRatio != null && Number.isFinite(Number(options.recordingWatchRatio))
       ? Math.min(1, Math.max(0.5, Number(options.recordingWatchRatio)))
@@ -89,7 +90,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     }));
 
   let classes = [];
-  if (batchNames.length) {
+  const needsMeetings = (includeLiveClasses || includeRecordings) && batchNames.length;
+  if (needsMeetings) {
     const batchOr = batchNames.map((n) => ({
       batch: new RegExp(`^${escapeRegExp(n)}$`, 'i')
     }));
@@ -98,25 +100,27 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       courseDay: day,
       status: { $ne: 'cancelled' }
     })
-      .select('_id topic attendance')
+      .select('_id topic attendance duration')
       .lean();
   }
 
   let classDone = 0;
-  const classTotal = classes.length;
+  const classTotal = includeLiveClasses ? classes.length : 0;
   const incompleteClasses = [];
-  for (const cls of classes) {
-    const record = (cls.attendance || []).find(
-      (a) => String(a.studentId) === String(studentId) && a.attended === true
-    );
-    if (record || creditMeetingIds.has(String(cls._id))) {
-      classDone++;
-    } else {
-      incompleteClasses.push({
-        kind: 'class',
-        title: cls.topic && String(cls.topic).trim() ? cls.topic : 'Live class',
-        courseDay: day
-      });
+  if (includeLiveClasses) {
+    for (const cls of classes) {
+      const record = (cls.attendance || []).find(
+        (a) => String(a.studentId) === String(studentId) && a.attended === true
+      );
+      if (record || creditMeetingIds.has(String(cls._id))) {
+        classDone++;
+      } else {
+        incompleteClasses.push({
+          kind: 'class',
+          title: cls.topic && String(cls.topic).trim() ? cls.topic : 'Live class',
+          courseDay: day
+        });
+      }
     }
   }
 

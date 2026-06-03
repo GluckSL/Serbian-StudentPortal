@@ -19,9 +19,35 @@ import { NotificationService } from '../../../services/notification.service';
     <a routerLink="/admin/journey" class="gsd-back">← Journey Management</a>
   </div>
 
-  <div *ngIf="loading && !detail" class="gsd-loading">
-    <div class="spinner-border text-primary" role="status"></div>
-    <p>Loading student…</p>
+  <div *ngIf="loading && !detail" class="gsd-skeleton" aria-busy="true" aria-label="Loading student journey">
+    <div class="gsd-skeleton-header">
+      <div class="gsd-skeleton-header-left">
+        <span class="gsd-sk gsd-sk--title"></span>
+        <span class="gsd-sk gsd-sk--line"></span>
+        <div class="gsd-skeleton-badges">
+          <span class="gsd-sk gsd-sk--badge"></span>
+          <span class="gsd-sk gsd-sk--badge"></span>
+        </div>
+      </div>
+      <div class="gsd-skeleton-header-right">
+        <span class="gsd-sk gsd-sk--label"></span>
+        <span class="gsd-sk gsd-sk--day-row"></span>
+        <span class="gsd-sk gsd-sk--hint"></span>
+      </div>
+    </div>
+    <div class="gsd-skeleton-tabs">
+      <span class="gsd-sk gsd-sk--tab" *ngFor="let _ of [1,2,3,4]"></span>
+    </div>
+    <div class="gsd-skeleton-body">
+      <div class="gsd-skeleton-row" *ngFor="let _ of [1,2,3,4,5,6,7]">
+        <span class="gsd-sk gsd-sk--icon"></span>
+        <div class="gsd-skeleton-row-text">
+          <span class="gsd-sk gsd-sk--row-title"></span>
+          <span class="gsd-sk gsd-sk--row-meta"></span>
+        </div>
+        <span class="gsd-sk gsd-sk--row-action"></span>
+      </div>
+    </div>
   </div>
 
   <div *ngIf="error && !detail" class="gsd-error">{{ error }}</div>
@@ -42,6 +68,10 @@ import { NotificationService } from '../../../services/notification.service';
           <div class="gsd-sync-banner" *ngIf="sync.reconciled">
             Synced from Day {{ sync.storedCourseDayBeforeSync }} → Day {{ sync.effectiveAccessDay }}
             (first day with incomplete resources).
+          </div>
+          <div class="gsd-sync-banner gsd-sync-banner--hint" *ngIf="!sync.reconciled && sync.needsSync">
+            Stored day is {{ sync.storedCourseDayBeforeSync }}; student access is Day {{ sync.effectiveAccessDay }}
+            until earlier days are complete.
           </div>
         </ng-container>
         <div class="gsd-day-row">
@@ -217,8 +247,52 @@ import { NotificationService } from '../../../services/notification.service';
     .gsd-bar { margin-bottom: 16px; }
     .gsd-back { color: #005b96; font-weight: 600; font-size: 13px; text-decoration: none; }
     .gsd-back:hover { text-decoration: underline; }
-    .gsd-loading, .gsd-error { text-align: center; padding: 48px 20px; color: #64748b; }
-    .gsd-error { color: #b91c1c; }
+    .gsd-error { text-align: center; padding: 48px 20px; color: #b91c1c; }
+    .gsd-skeleton { display: flex; flex-direction: column; gap: 0; }
+    .gsd-skeleton-header {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 22px;
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px;
+      box-shadow: 0 2px 12px rgba(15,23,42,.06);
+    }
+    .gsd-skeleton-header-left { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 10px; }
+    .gsd-skeleton-header-right { min-width: 220px; display: flex; flex-direction: column; gap: 8px; }
+    .gsd-skeleton-badges { display: flex; gap: 8px; }
+    .gsd-skeleton-tabs {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px 12px 0 0; padding: 10px 12px 0;
+      border-bottom: none;
+    }
+    .gsd-skeleton-body {
+      background: #fff; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 14px 14px;
+      padding: 16px 20px 24px; box-shadow: 0 2px 12px rgba(15,23,42,.05);
+    }
+    .gsd-skeleton-row {
+      display: flex; align-items: center; gap: 12px; padding: 14px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .gsd-skeleton-row:last-child { border-bottom: none; }
+    .gsd-skeleton-row-text { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .gsd-sk {
+      display: block; border-radius: 999px;
+      background: linear-gradient(90deg, #edf2f7 20%, #e2e8f0 50%, #edf2f7 80%);
+      background-size: 200% 100%;
+      animation: gsd-shimmer 1.25s ease-in-out infinite;
+    }
+    .gsd-sk--title { width: 42%; height: 22px; border-radius: 8px; }
+    .gsd-sk--line { width: 55%; height: 12px; }
+    .gsd-sk--badge { width: 72px; height: 22px; }
+    .gsd-sk--label { width: 140px; height: 10px; }
+    .gsd-sk--day-row { width: 100%; max-width: 280px; height: 36px; border-radius: 10px; }
+    .gsd-sk--hint { width: 90%; max-width: 320px; height: 10px; }
+    .gsd-sk--tab { width: 110px; height: 32px; border-radius: 8px 8px 0 0; }
+    .gsd-sk--icon { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; }
+    .gsd-sk--row-title { width: 72%; height: 14px; border-radius: 6px; }
+    .gsd-sk--row-meta { width: 48%; height: 10px; }
+    .gsd-sk--row-action { width: 88px; height: 28px; border-radius: 8px; flex-shrink: 0; }
+    @keyframes gsd-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
     .gsd-header {
       background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 22px;
       display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 20px;
@@ -252,6 +326,7 @@ import { NotificationService } from '../../../services/notification.service';
       margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 600;
       background: #fef9c3; color: #854d0e; border: 1px solid #fde047; line-height: 1.45; max-width: 360px;
     }
+    .gsd-sync-banner--hint { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
     .gsd-tabs {
       display: flex; gap: 4px; flex-wrap: wrap; margin: 18px 0 0; border-bottom: 2px solid #e2e8f0;
       background: #f8fafc; border-radius: 12px 12px 0 0; padding: 6px 8px 0;
@@ -317,6 +392,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
     effectiveAccessDay?: number;
     storedCourseDayBeforeSync?: number;
     reconciled?: boolean;
+    needsSync?: boolean;
     sequentialUnlock?: boolean;
   } | null = null;
   editDay = 1;
@@ -361,6 +437,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   load(studentId: string): void {
     this.loading = true;
     this.error = '';
+    this.detail = null;
     this.http.get<any>(`${environment.apiUrl}/${this.goApiPath}/${studentId}/detail`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.detail = r;

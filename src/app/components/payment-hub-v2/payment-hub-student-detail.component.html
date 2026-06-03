@@ -146,11 +146,24 @@
               class="sd-slot-card"
               *ngFor="let slot of paymentSlots"
               [ngClass]="slotCardThemeClass(slot.key)"
-              [class.sd-slot-card--active]="activeMapSlot === slot.key"
+              [class.sd-slot-card--active]="activeMapSlot === slot.key || activeFullPaidSlot === slot.key"
             >
               <div class="sd-slot-card__top">
                 <h3 class="sd-slot-card__title">{{ slot.label }}</h3>
-                <span class="sd-pill pill-grey">{{ slotSummary(slot.key).requestCount }} requests</span>
+                <div class="sd-slot-card__top-actions">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="sd-slot-fullpaid-btn"
+                    *ngIf="isLevelSlot(slot.key)"
+                    (click)="beginFullPaid(slot.key)"
+                    matTooltip="Record full level payment at a custom amount (e.g. 10% course discount)"
+                  >
+                    <mat-icon>verified</mat-icon>
+                    Full paid
+                  </button>
+                  <span class="sd-pill pill-grey">{{ slotSummary(slot.key).requestCount }} requests</span>
+                </div>
               </div>
               <div class="sd-slot-card__meta">
                 Settled {{ slotSummary(slot.key).settledCount }}/{{ slotSummary(slot.key).requestCount }}
@@ -182,6 +195,42 @@
                 <mat-icon>add_card</mat-icon>
                 Map payment to {{ slot.label }}
               </button>
+
+              <div class="sd-slot-fullpaid-form" *ngIf="activeFullPaidSlot === slot.key && isLevelSlot(slot.key)">
+                <p class="sd-slot-fullpaid-form__hint">
+                  Enter the actual amount paid for {{ slot.label }} (e.g. {{ fullPaidCurrency }}
+                  {{ fmt(suggestFullPaidAmount(slot.key, fullPaidCurrency)) }} with 10% course discount instead of
+                  {{ fmt(standardLevelFee(slot.key, fullPaidCurrency)) }}). Balance will be set to zero.
+                </p>
+                <div class="sd-slot-map-grid">
+                  <label>
+                    <span>Full paid amount</span>
+                    <input type="number" min="0" [(ngModel)]="fullPaidAmount" />
+                  </label>
+                  <label>
+                    <span>Currency</span>
+                    <select [(ngModel)]="fullPaidCurrency" (ngModelChange)="onFullPaidCurrencyChange(slot.key)">
+                      <option value="LKR">LKR</option>
+                      <option value="INR">INR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Payment date</span>
+                    <input type="date" [(ngModel)]="fullPaidDate" />
+                  </label>
+                  <label class="sd-slot-map-grid__full">
+                    <span>Remarks (optional)</span>
+                    <input type="text" [(ngModel)]="fullPaidRemarks" placeholder="e.g. Full course upfront — 10% discount" />
+                  </label>
+                </div>
+                <div class="sd-slot-map-actions">
+                  <button mat-button type="button" (click)="cancelFullPaid()" [disabled]="fullPaidSaving">Cancel</button>
+                  <button mat-flat-button color="primary" type="button" (click)="saveFullPaid(slot.key)" [disabled]="fullPaidSaving">
+                    {{ fullPaidSaving ? 'Saving…' : 'Save full paid' }}
+                  </button>
+                </div>
+              </div>
 
               <div class="sd-slot-map-form" *ngIf="activeMapSlot === slot.key">
                 <div class="sd-slot-map-grid">

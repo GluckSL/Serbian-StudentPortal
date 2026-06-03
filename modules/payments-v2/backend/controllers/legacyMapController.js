@@ -9,6 +9,7 @@ const {
   mapLegacyPayments,
   bulkMapLegacyLanguageFees,
   updateLegacyPaymentRequest,
+  markLevelSlotFullPaid,
 } = require('../services/legacyMapService');
 
 const mapLegacyPaymentsHandler = async (req, res) => {
@@ -238,8 +239,57 @@ const updateLegacyPaymentRequestHandler = async (req, res) => {
   }
 };
 
+const markLevelSlotFullPaidHandler = async (req, res) => {
+  try {
+    const adminId = getAuthUserId(req);
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const { studentId, slotKey, fullPaidAmount, currency, paymentDate, remarks } = req.body;
+    if (!studentId || !mongoose.isValidObjectId(studentId)) {
+      return res.status(400).json({ success: false, message: 'Valid studentId is required' });
+    }
+    if (!slotKey || !['A1', 'A2', 'B1', 'B2'].includes(String(slotKey).trim().toUpperCase())) {
+      return res.status(400).json({ success: false, message: 'slotKey must be A1, A2, B1, or B2' });
+    }
+
+    const User = mongoose.model('User');
+    const student = await User.findOne({ _id: studentId, role: 'STUDENT' }).select('_id').lean();
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    const result = await markLevelSlotFullPaid({
+      studentId,
+      adminId,
+      slotKey: String(slotKey).trim().toUpperCase(),
+      fullPaidAmount,
+      currency,
+      paymentDate,
+      remarks,
+    });
+
+    const slot = String(slotKey).trim().toUpperCase();
+    const amt = Number(fullPaidAmount);
+    const ccy = String(currency || 'LKR').toUpperCase();
+    return res.status(201).json({
+      success: true,
+      message: `${slot} marked full paid at ${ccy} ${amt.toLocaleString('en-IN')} — no balance due`,
+      data: {
+        requestId: result?.request?._id,
+        submissionId: result?.submission?._id,
+      },
+    });
+  } catch (err) {
+    console.error('[LevelFullPaid]', err);
+    return res.status(400).json({ success: false, message: err.message || 'Failed to mark level full paid' });
+  }
+};
+
 module.exports = {
   mapLegacyPaymentsHandler,
   bulkMapLegacyLanguageFeesHandler,
   updateLegacyPaymentRequestHandler,
+  markLevelSlotFullPaidHandler,
 };

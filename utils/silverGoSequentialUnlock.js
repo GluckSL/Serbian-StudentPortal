@@ -1,6 +1,6 @@
 /**
- * Silver GO students unlock journey day N+1 content only after day N is fully complete
- * (recordings watched ≥90%, DG sessions, digital exercises, live attendance as applicable).
+ * Silver GO students unlock journey day N+1 content only after day N is fully complete:
+ * class recordings (≥90% watch), digital exercises, and DG Bot — not learning modules or live attendance.
  */
 
 const User = require('../models/User');
@@ -20,6 +20,7 @@ function silverGoCompletionOptions(student) {
   return {
     includeRecordings: true,
     includeDg: true,
+    includeLiveClasses: false,
     includeLearningModules: false,
     recordingWatchRatio: SILVER_GO_RECORDING_WATCH_RATIO,
     studentLevel: student?.level,

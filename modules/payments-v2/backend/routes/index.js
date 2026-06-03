@@ -32,6 +32,7 @@ router.get('/batches/:batch/students', ctrl.getBatchStudentsPaymentDetail);
 // ─── Admin: Student payment history ─────────────────────────────────────────
 router.get('/students/:studentId/history', ctrl.getStudentPaymentHistory);
 router.patch('/students/:studentId/correct-total-paid', requireFinanceAdmin, ctrl.correctStudentTotalPaid);
+router.post('/students/bulk-reset-payments', requireFinanceAdmin, ctrl.bulkResetStudentPayments);
 
 // ─── Admin: Payment Requests ─────────────────────────────────────────────────
 router.get('/requests', ctrl.getAllRequests);
@@ -56,6 +57,7 @@ router.patch('/approvals/:submissionId/correct-amount', requireFinanceAdmin, app
 // ─── Legacy manual payment mapping ───────────────────────────────────────────
 router.post('/legacy/map-payment', requireFinanceAdmin, legacyCtrl.mapLegacyPaymentsHandler);
 router.post('/legacy/bulk-language-paid', requireFinanceAdmin, legacyCtrl.bulkMapLegacyLanguageFeesHandler);
+router.post('/legacy/level-full-paid', requireFinanceAdmin, legacyCtrl.markLevelSlotFullPaidHandler);
 router.patch('/legacy/requests/:requestId', requireFinanceAdmin, legacyCtrl.updateLegacyPaymentRequestHandler);
 
 // ─── Catalog / pricing settings ──────────────────────────────────────────────

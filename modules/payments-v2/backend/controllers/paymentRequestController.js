@@ -20,6 +20,8 @@ const {
   pendingTotalsFromBreakdown,
   overdueTotalsFromBreakdown,
   enrichProfileCurrencyTotals,
+  computeLiveTotalsFromData,
+  groupDocsByStudentId,
   mongoPaidFieldsFromProfile,
   mongoPendingFieldsFromProfile,
   mongoOverdueFieldsFromProfile,
@@ -351,6 +353,8 @@ const getStudentTable = async (req, res) => {
       },
     });
 
+    const PaymentFlowSubmission = require('../models/PaymentSubmission');
+
     const [aggregateResult, catalog] = await Promise.all([
       mongoose.model('User').aggregate(pipeline),
       PaymentHubCatalog.getOrCreate(),
@@ -358,6 +362,26 @@ const getStudentTable = async (req, res) => {
     const [result] = aggregateResult;
     const total = result.total[0]?.count || 0;
     const rawRows = result.rows || [];
+
+    const pageStudentIds = rawRows.map((row) => row._id).filter(Boolean);
+    const [pageRequests, pageApprovedSubs, pagePendingSubs] = pageStudentIds.length
+      ? await Promise.all([
+          PaymentRequest.find({ studentId: { $in: pageStudentIds }, isArchived: false }).lean(),
+          PaymentFlowSubmission.find({
+            studentId: { $in: pageStudentIds },
+            status: 'APPROVED',
+            isArchived: false,
+          }).lean(),
+          PaymentFlowSubmission.find({
+            studentId: { $in: pageStudentIds },
+            status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
+            isArchived: false,
+          }).lean(),
+        ])
+      : [[], [], []];
+    const requestsByStudent = groupDocsByStudentId(pageRequests);
+    const approvedByStudent = groupDocsByStudentId(pageApprovedSubs);
+    const pendingByStudent = groupDocsByStudentId(pagePendingSubs);
     const levelPriceMap = new Map();
     for (const r of catalog?.cefrRows || []) {
       const code = String(r?.code || '').trim().toUpperCase();
@@ -388,11 +412,18 @@ const getStudentTable = async (req, res) => {
     };
 
     const data = rawRows.map((row) => {
+      const sid = String(row._id);
+      const live = computeLiveTotalsFromData(
+        requestsByStudent[sid] || [],
+        approvedByStudent[sid] || [],
+        pendingByStudent[sid] || [],
+      );
+
       const inferredCurrency = inferCurrencyFromPhone(row?.studentId?.phoneNumber);
       const level = String(row?.studentId?.level || '').trim().toUpperCase();
       const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
       const targetFee = Number(levelPrice[inferredCurrency] || 0);
-      const paidForTargetCurrency = amountForCurrency(inferredCurrency, row);
+      const paidForTargetCurrency = amountForCurrency(inferredCurrency, live);
       const balance = Math.max(0, targetFee - paidForTargetCurrency);
       const journeyDayRaw = Number(row?.studentId?.currentCourseDay);
       const journeyDay = Number.isFinite(journeyDayRaw)
@@ -402,6 +433,19 @@ const getStudentTable = async (req, res) => {
       const isDue = balance > 0 && journeyDay >= JOURNEY_DUE_FROM_DAY;
       const base = {
         ...row,
+        totalPaid: live.totalPaid,
+        totalPaidLKR: live.totalPaidLKR,
+        totalPaidINR: live.totalPaidINR,
+        totalPaidUSD: live.totalPaidUSD,
+        pendingApprovalAmount: live.pendingApprovalAmount,
+        pendingApprovalAmountLKR: live.pendingApprovalAmountLKR,
+        pendingApprovalAmountINR: live.pendingApprovalAmountINR,
+        pendingApprovalAmountUSD: live.pendingApprovalAmountUSD,
+        overdueAmount: live.overdueAmount,
+        overdueAmountLKR: live.overdueAmountLKR,
+        overdueAmountINR: live.overdueAmountINR,
+        overdueAmountUSD: live.overdueAmountUSD,
+        overallStatus: live.overallStatus,
         inferredCurrency,
         languageFeeBalance: balance,
         languageFeeStatus: computeLanguageFeeStatus(balance, journeyDay),
@@ -462,6 +506,8 @@ const getStudentPaymentHistory = async (req, res) => {
     const { studentId } = req.params;
     const { page = 1, limit = 15 } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
+
+    await paymentService.recalculateStudentProfile(studentId);
 
     const [requests, total, profile] = await Promise.all([
       PaymentRequest.find({ studentId, isArchived: false })
@@ -1231,6 +1277,42 @@ const correctStudentTotalPaid = async (req, res) => {
   }
 };
 
+const bulkResetStudentPayments = async (req, res) => {
+  try {
+    const adminId = getAuthUserId(req);
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const { studentIds, reason } = req.body;
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'studentIds array is required' });
+    }
+
+    for (let i = 0; i < studentIds.length; i++) {
+      if (!studentIds[i] || !mongoose.isValidObjectId(studentIds[i])) {
+        return res.status(400).json({ success: false, message: `studentIds[${i}] is invalid` });
+      }
+    }
+
+    const result = await paymentService.bulkResetStudentPayments({
+      studentIds,
+      adminId,
+      adminRole: req.user.role,
+      reason,
+    });
+
+    return res.json({
+      success: true,
+      message: `Reset payment data for ${result.studentsProcessed} student(s). Total received, pending, and overdue are now 0.`,
+      data: result,
+    });
+  } catch (e) {
+    console.error('[BulkReset]', e);
+    return res.status(400).json({ success: false, message: e.message || 'Bulk reset failed' });
+  }
+};
+
 module.exports = {
   createRequests,
   getAllRequests,
@@ -1249,4 +1331,5 @@ module.exports = {
   studentGetOwnRequests,
   updateInstallmentSchedule,
   correctStudentTotalPaid,
+  bulkResetStudentPayments,
 };

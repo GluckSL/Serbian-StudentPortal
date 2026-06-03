@@ -71,9 +71,20 @@ interface GoStudentRow {
       </button>
     </div>
 
-    <div *ngIf="loadingPlatinum" class="jas-loading">
-      <div class="spinner-border text-primary"></div>
-      <p>Loading students…</p>
+    <div *ngIf="loadingPlatinum" class="jas-skeleton-wrap" aria-busy="true" aria-label="Loading students">
+      <div class="jas-skeleton-table">
+        <div class="jas-skeleton-table-head">
+          <span class="jas-skeleton-line" *ngFor="let _ of [1,2,3,4,5,6]"></span>
+        </div>
+        <div class="jas-skeleton-table-row" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+          <span class="jas-skeleton-line jas-skeleton-cell--name"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--id"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--chip"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--chip"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--chip"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--day"></span>
+        </div>
+      </div>
     </div>
 
     <div *ngIf="!loadingPlatinum && filteredPlatinum.length === 0" class="jas-empty">
@@ -122,9 +133,22 @@ interface GoStudentRow {
       </button>
     </div>
 
-    <div *ngIf="loadingGo" class="jas-loading">
-      <div class="spinner-border text-primary"></div>
-      <p>Loading GO students…</p>
+    <div *ngIf="loadingGo" class="jas-skeleton-wrap" aria-busy="true" aria-label="Loading GO students">
+      <div class="jas-skeleton-table">
+        <div class="jas-skeleton-table-head jas-skeleton-table-head--go">
+          <span class="jas-skeleton-line" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></span>
+        </div>
+        <div class="jas-skeleton-table-row jas-skeleton-table-row--go" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+          <span class="jas-skeleton-line jas-skeleton-cell--name"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--id"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--chip"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--chip"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--chip"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--date"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--day"></span>
+          <span class="jas-skeleton-line jas-skeleton-cell--actions"></span>
+        </div>
+      </div>
     </div>
 
     <div *ngIf="!loadingGo && filteredGo.length === 0" class="jas-empty">
@@ -224,8 +248,53 @@ interface GoStudentRow {
     .jas-btn-outline:hover:not(:disabled) { background: #f8fafc; border-color: #005b96; color: #005b96; }
     .jas-btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .jas-btn-sm { padding: 6px 12px; font-size: 12px; }
-    .jas-loading { text-align: center; padding: 40px; color: #64748b; }
-    .jas-loading p { margin-top: 12px; }
+    .jas-skeleton-wrap {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .jas-skeleton-table-head,
+    .jas-skeleton-table-row {
+      display: grid;
+      gap: 12px;
+      padding: 12px 14px;
+      align-items: center;
+    }
+    .jas-skeleton-table-head {
+      grid-template-columns: 2fr 1fr 0.9fr 0.8fr 0.8fr 0.75fr;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .jas-skeleton-table-head--go,
+    .jas-skeleton-table-row--go {
+      grid-template-columns: 2fr 1fr 0.85fr 0.75fr 0.75fr 1fr 0.75fr 0.9fr;
+    }
+    .jas-skeleton-table-row {
+      grid-template-columns: 2fr 1fr 0.9fr 0.8fr 0.8fr 0.75fr;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .jas-skeleton-table-row--go { border-bottom: 1px solid #f1f5f9; }
+    .jas-skeleton-table-row:last-child { border-bottom: none; }
+    .jas-skeleton-line {
+      display: block;
+      height: 10px;
+      width: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #edf2f7 20%, #e2e8f0 50%, #edf2f7 80%);
+      background-size: 200% 100%;
+      animation: jas-shimmer 1.25s ease-in-out infinite;
+    }
+    .jas-skeleton-cell--name { width: 88%; height: 28px; border-radius: 8px; }
+    .jas-skeleton-cell--id { width: 70%; }
+    .jas-skeleton-cell--chip { width: 58%; }
+    .jas-skeleton-cell--date { width: 72%; }
+    .jas-skeleton-cell--day { width: 50%; }
+    .jas-skeleton-cell--actions { width: 65%; justify-self: end; }
+    @keyframes jas-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
     .jas-empty { text-align: center; padding: 48px 20px; color: #94a3b8; }
     .jas-empty p { margin-top: 12px; font-size: 14px; }
     .jas-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -337,7 +406,12 @@ export class JourneyAllStudentsComponent implements OnInit {
 
   loadGoStudents(): void {
     this.loadingGo = true;
-    this.http.get<{ students: GoStudentRow[] }>(`${environment.apiUrl}/${this.goApiPath}`, { withCredentials: true }).subscribe({
+    this.http
+      .get<{ students: GoStudentRow[] }>(`${environment.apiUrl}/${this.goApiPath}`, {
+        params: { enrich: '1' },
+        withCredentials: true
+      })
+      .subscribe({
       next: (r) => {
         this.goStudents = r.students || [];
         this.loadingGo = false;

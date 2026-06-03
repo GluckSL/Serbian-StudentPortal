@@ -103,6 +103,18 @@
       <mat-icon>account_balance_wallet</mat-icon>
       Set balance to zero
     </button>
+    <button
+      mat-stroked-button
+      color="warn"
+      type="button"
+      class="ph-pill-btn ph-pill-btn-warn ph-anim-btn"
+      (click)="resetSelectedPayments()"
+      [disabled]="selectedCount === 0 || resettingPayments"
+      matTooltip="Clear total received, pending, and overdue for selected students before Excel re-import"
+    >
+      <mat-icon>delete_sweep</mat-icon>
+      {{ resettingPayments ? 'Resetting…' : 'Reset payments' }}
+    </button>
   </div>
 </section>
 
@@ -190,6 +202,20 @@
     <div class="ph-table-toolbar-left">
       <h2 class="ph-section-title">Students</h2>
       <span class="ph-select-meta" *ngIf="selectedCount > 0">{{ selectedCount }} selected</span>
+      <button
+        mat-button
+        type="button"
+        class="ph-select-all-btn"
+        *ngIf="total > rows.length"
+        (click)="selectAllMatchingFilter()"
+        [disabled]="selectingAllMatching"
+        matTooltip="Select every student matching the current filters (all pages)"
+      >
+        {{ selectingAllMatching ? 'Selecting…' : 'Select all ' + total + ' matching' }}
+      </button>
+      <button mat-button type="button" class="ph-select-clear-btn" *ngIf="selectedCount > 0" (click)="clearSelection()">
+        Clear selection
+      </button>
     </div>
     <mat-form-field appearance="outline" class="ph-search-field">
       <mat-label>Search by name or email</mat-label>
