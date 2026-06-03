@@ -152,6 +152,7 @@ function xpForLevel(level: number): number {
                 <div class="arena-filters__dropdown-item" (click)="setType('jumbled_words')">Jumbled Words</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('hangman')">Hangman</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('word_picture_match')">Word-Picture Match</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('multiple_choice')">Multiple Choice</div>
               </div>
             </div>
             <div class="arena-filters__dropdown-wrap">
@@ -896,6 +897,7 @@ export class GameCatalogComponent implements OnInit {
       jumbled_words: 'linear-gradient(145deg, #7c3aed 0%, #a78bfa 100%)',
       hangman: 'linear-gradient(145deg, #b91c1c 0%, #ef4444 100%)',
       word_picture_match: 'linear-gradient(145deg, #0d9488 0%, #2dd4bf 100%)',
+      multiple_choice: 'linear-gradient(145deg, #0891b2 0%, #06b6d4 50%, #22d3ee 100%)',
     };
     return map[type] ?? 'linear-gradient(145deg, #1e3a5f, #64748b)';
   }
@@ -910,6 +912,7 @@ export class GameCatalogComponent implements OnInit {
       jumbled_words: 'Jumbled Words',
       hangman: 'Hangman',
       word_picture_match: 'Word-Picture Match',
+      multiple_choice: 'Multiple Choice',
     };
     return map[t] ?? t;
   }

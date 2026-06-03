@@ -23,7 +23,7 @@ const GameSetSchema = new mongoose.Schema({
 
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match'],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice'],
     required: true,
   },
 
