@@ -148,6 +148,7 @@ function xpForLevel(level: number): number {
                 <div class="arena-filters__dropdown-item" (click)="setType('gender_stack')">Gender Stack</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('flapjugation')">Flapjugation</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('whackawort')">Whack-a-Wort</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('jumbled_words')">Jumbled Words</div>
               </div>
             </div>
             <div class="arena-filters__dropdown-wrap">
@@ -888,6 +889,8 @@ export class GameCatalogComponent implements OnInit {
       gender_stack: 'linear-gradient(145deg, #0284c7 0%, #38bdf8 50%, #7dd3fc 100%)',
       flapjugation: 'linear-gradient(145deg, #be185d 0%, #ec4899 50%, #f472b6 100%)',
       whackawort: 'linear-gradient(145deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%)',
+      memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
+      jumbled_words: 'linear-gradient(145deg, #7c3aed 0%, #a78bfa 100%)',
     };
     return map[type] ?? 'linear-gradient(145deg, #1e3a5f, #64748b)';
   }
@@ -898,6 +901,8 @@ export class GameCatalogComponent implements OnInit {
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
       whackawort: 'Whack-a-Wort',
+      memory: 'Memory Game',
+      jumbled_words: 'Jumbled Words',
     };
     return map[t] ?? t;
   }

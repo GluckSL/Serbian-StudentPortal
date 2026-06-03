@@ -835,3 +835,85 @@
     margin: 0;
   }
 }
+
+.sd-actions-col {
+  width: 88px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sd-actions-muted {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.sd-icon-btn {
+  color: #4338ca;
+
+  &--danger {
+    color: #b91c1c;
+  }
+}
+
+.sd-row-editing td {
+  background: #eef2ff;
+}
+
+.sd-edit-row td {
+  padding: 0 12px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sd-edit-panel {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px dashed #a5b4fc;
+  background: #f8fafc;
+}
+
+.sd-edit-panel__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4338ca;
+  margin-bottom: 12px;
+}
+
+.sd-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+  }
+
+  input,
+  select {
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    text-transform: none;
+    font-weight: 400;
+    letter-spacing: normal;
+  }
+}
+
+.sd-edit-remarks {
+  grid-column: 1 / -1;
+}
+
+.sd-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}

@@ -8,6 +8,7 @@ const { verifyToken, checkRole } = require('../middleware/auth');
 const interactiveGamesController = require('../controllers/interactiveGamesController');
 const gaExt = require('../controllers/glueckArenaExtensions');
 const { arenaApiLimiter } = require('../middleware/glueckArenaRateLimit');
+const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
 
 // ── Health ─────────────────────────────────────────────────────────────────────
 router.get('/health', gaExt.publicHealth);
@@ -22,35 +23,35 @@ router.use(arenaApiLimiter);
 router.get('/', verifyToken, interactiveGamesController.getCatalog);
 
 // Student stats summary
-router.get('/me/stats', verifyToken, checkRole(['STUDENT']), interactiveGamesController.getMyStats);
-router.get('/me/arena-access', verifyToken, checkRole(['STUDENT']), interactiveGamesController.getArenaAccess);
+router.get('/me/stats', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.getMyStats);
+router.get('/me/arena-access', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.getArenaAccess);
 
 // Global leaderboard: GET /api/interactive-games/leaderboard/global?period=daily|weekly|all
 router.get('/leaderboard/global', verifyToken, interactiveGamesController.getGlobalLeaderboard);
 
 // Daily challenges & achievements
-router.get('/daily-challenges', verifyToken, checkRole(['STUDENT']), interactiveGamesController.getDailyChallenges);
-router.post('/daily-challenges/:progressId/claim', verifyToken, checkRole(['STUDENT']), interactiveGamesController.claimDailyChallenge);
+router.get('/daily-challenges', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.getDailyChallenges);
+router.post('/daily-challenges/:progressId/claim', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.claimDailyChallenge);
 router.get('/achievements', verifyToken, interactiveGamesController.getAchievements);
 
 // ── Streak 2.0 ────────────────────────────────────────────────────────────────
-router.get('/me/streak', verifyToken, checkRole(['STUDENT']), gaExt.getStreakDashboard);
-router.post('/me/streak/freeze', verifyToken, checkRole(['STUDENT']), gaExt.useStreakFreeze);
-router.post('/me/streak/repair', verifyToken, checkRole(['STUDENT']), gaExt.repairStreak);
-router.post('/me/streak/weekly-claim', verifyToken, checkRole(['STUDENT']), gaExt.claimWeeklyStreakReward);
-router.post('/me/streak/milestone/:days/claim', verifyToken, checkRole(['STUDENT']), gaExt.claimStreakMilestone);
+router.get('/me/streak', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.getStreakDashboard);
+router.post('/me/streak/freeze', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.useStreakFreeze);
+router.post('/me/streak/repair', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.repairStreak);
+router.post('/me/streak/weekly-claim', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.claimWeeklyStreakReward);
+router.post('/me/streak/milestone/:days/claim', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.claimStreakMilestone);
 
 // ── Quests ────────────────────────────────────────────────────────────────────
-router.get('/quests', verifyToken, checkRole(['STUDENT']), gaExt.getQuests);
-router.post('/quests/:progressId/claim', verifyToken, checkRole(['STUDENT']), gaExt.claimQuest);
+router.get('/quests', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.getQuests);
+router.post('/quests/:progressId/claim', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.claimQuest);
 
 // ── Leagues ───────────────────────────────────────────────────────────────────
 router.get('/leagues/me', verifyToken, gaExt.getMyLeague);
 
 // ── Economy ───────────────────────────────────────────────────────────────────
-router.get('/me/wallet', verifyToken, checkRole(['STUDENT']), gaExt.getWallet);
-router.post('/me/wallet/daily-wheel', verifyToken, checkRole(['STUDENT']), gaExt.spinDailyWheel);
-router.post('/me/wallet/buy-freeze', verifyToken, checkRole(['STUDENT']), gaExt.buyStreakFreeze);
+router.get('/me/wallet', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.getWallet);
+router.post('/me/wallet/daily-wheel', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.spinDailyWheel);
+router.post('/me/wallet/buy-freeze', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), gaExt.buyStreakFreeze);
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 router.get('/me/profile', verifyToken, gaExt.getArenaProfile);
@@ -148,11 +149,12 @@ router.get('/:id/leaderboard', verifyToken, interactiveGamesController.getGameLe
 
 // Start attempt (students + admin preview)
 const arenaPlayRoles = ['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
-router.post('/:id/attempts', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.startAttempt);
+router.post('/:id/attempts', verifyToken, blockVisaDocsOnly, checkRole(arenaPlayRoles), interactiveGamesController.startAttempt);
 
 // Submit a single answer during play
-router.post('/attempts/:attemptId/slots', verifyToken, checkRole(['STUDENT']), interactiveGamesController.submitSentenceSlot);
+router.post('/attempts/:attemptId/slots', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT']), interactiveGamesController.submitSentenceSlot);
 router.post('/attempts/:attemptId/image-match', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitImageMatchSlot);
+router.post('/attempts/:attemptId/memory-match', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitMemoryMatch);
 router.post('/attempts/:attemptId/answers', verifyToken, checkRole(arenaPlayRoles), interactiveGamesController.submitAnswer);
 
 // Finalize / complete the session

@@ -16,6 +16,10 @@ const {
 } = require('./journeyDayCompletion.service');
 const { withJourneyLevelInSet } = require('./journeyLevelSync.service');
 const { shouldSkipStudentRollover } = require('../utils/journeyPause');
+const {
+  silverGoCompletionOptions,
+  allPriorJourneyDaysComplete
+} = require('../utils/silverGoSequentialUnlock');
 
 /**
  * Check if a Silver GO student has completed all tasks for their current journey day
@@ -40,15 +44,15 @@ async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
   const currentDay = normalizeCourseDay(student.currentCourseDay);
   if (currentDay >= 200) return { advanced: false };
 
-  const completion = await computeJourneyDayCompletion(studentId, keys, currentDay, {
-    includeRecordings: true,
-    includeDg: true,
-    includeLearningModules: false,
-    studentLevel: student.level,
-    studentPlan: student.subscription,
-    goStatus: student.goStatus,
-    subscription: student.subscription
-  });
+  const priorOk = await allPriorJourneyDaysComplete(studentId, student, currentDay);
+  if (!priorOk) return { advanced: false };
+
+  const completion = await computeJourneyDayCompletion(
+    studentId,
+    keys,
+    currentDay,
+    silverGoCompletionOptions(student)
+  );
 
   if (!completion.complete) return { advanced: false };
 
@@ -247,18 +251,28 @@ async function applyJourneyDayRollovers() {
       shouldAdvance = true;
     } else {
       const keys = allStudentBatchStringsForContent(s);
-      const completion = await computeJourneyDayCompletion(s._id, keys, cur, {
-        includeRecordings: isSilverGoStudent(s),
-        includeDg: isSilverGoStudent(s),
-        includeLearningModules: !isSilverGoStudent(s),
-        studentLevel: s.level,
-        studentPlan: s.subscription,
-        goStatus: s.goStatus,
-        subscription: s.subscription
-      });
-      shouldAdvance = silverGoStrict
-        ? !!completion.complete
-        : meetsStrictThreshold(completion, cfg);
+      const completion = await computeJourneyDayCompletion(
+        s._id,
+        keys,
+        cur,
+        silverGoStrict
+          ? silverGoCompletionOptions(s)
+          : {
+              includeRecordings: false,
+              includeDg: false,
+              includeLearningModules: true,
+              studentLevel: s.level,
+              studentPlan: s.subscription,
+              goStatus: s.goStatus,
+              subscription: s.subscription
+            }
+      );
+      if (silverGoStrict) {
+        const priorOk = await allPriorJourneyDaysComplete(s._id, s, cur);
+        shouldAdvance = priorOk && !!completion.complete;
+      } else {
+        shouldAdvance = meetsStrictThreshold(completion, cfg);
+      }
     }
 
     if (!shouldAdvance) {

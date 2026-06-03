@@ -17,7 +17,21 @@ const SOURCE = 'LEGACY_MANUAL_MAPPING';
 
 // ── Fingerprint for duplicate detection ────────────────────────────────────────
 
-const buildFingerprint = (studentId, paymentType, paymentDate, paidAmount, currency, remarks) => {
+/** Stable identity for legacy rows — level/customType included so A1 vs A2 do not collide. */
+const buildFingerprint = (studentId, paymentType, paymentDate, paidAmount, currency, customType) => {
+  const raw = [
+    String(studentId),
+    String(paymentType).toUpperCase(),
+    String(customType || '').trim().toUpperCase(),
+    new Date(paymentDate).toISOString().slice(0, 10),
+    String(paidAmount),
+    String(currency).toUpperCase(),
+  ].join('|');
+  return crypto.createHash('sha256').update(raw).digest('hex');
+};
+
+/** Pre–level-slot fingerprints (remarks in hash) — used only for duplicate detection. */
+const buildLegacyFingerprint = (studentId, paymentType, paymentDate, paidAmount, currency, remarks) => {
   const raw = [
     String(studentId),
     String(paymentType).toUpperCase(),
@@ -29,18 +43,208 @@ const buildFingerprint = (studentId, paymentType, paymentDate, paidAmount, curre
   return crypto.createHash('sha256').update(raw).digest('hex');
 };
 
+const dayBoundsUtc = (paymentDate) => {
+  const d = new Date(paymentDate);
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+  const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
+  return { start, end };
+};
+
+const findExistingLegacySubmission = async ({ studentId, paymentType, customType, dueDate, paidAmount, currency, remarks, session }) => {
+  const fingerprint = buildFingerprint(studentId, paymentType, dueDate, paidAmount, currency, customType);
+  const legacyFp = buildLegacyFingerprint(studentId, paymentType, dueDate, paidAmount, currency, remarks);
+  const fingerprints = [fingerprint, legacyFp].filter((v, i, a) => a.indexOf(v) === i);
+
+  let existing = await PaymentFlowSubmission.findOne({ legacyFingerprint: { $in: fingerprints } })
+    .session(session)
+    .lean();
+  if (existing) return { existing, fingerprint };
+
+  const { start, end } = dayBoundsUtc(dueDate);
+  existing = await PaymentFlowSubmission.findOne({
+    studentId,
+    paidAmount,
+    currency,
+    source: SOURCE,
+    isImported: true,
+    status: 'APPROVED',
+    approvedAt: { $gte: start, $lte: end },
+  })
+    .session(session)
+    .lean();
+  if (!existing) return { existing: null, fingerprint };
+
+  const existingRequest = await PaymentRequest.findById(existing.paymentRequestId).session(session).lean();
+  if (!existingRequest || existingRequest.paymentType !== paymentType) return { existing: null, fingerprint };
+  if (customType && existingRequest.customType
+    && String(existingRequest.customType).toUpperCase() !== String(customType).toUpperCase()) {
+    return { existing: null, fingerprint };
+  }
+  return { existing, fingerprint };
+};
+
+const LEVEL_SLOTS = new Set(['A1', 'A2', 'B1', 'B2']);
+
+/** Payment requests that belong to a CEFR level slot (custom A1…B2 or imported language fee for that level). */
+const findLevelSlotRequests = async ({ studentId, slotKey, currency, session }) => {
+  const slot = String(slotKey || '').trim().toUpperCase();
+  const slotRegex = new RegExp(`^${slot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+  const customRequests = await PaymentRequest.find({
+    studentId,
+    paymentType: 'CUSTOM_PAYMENT',
+    customType: { $regex: slotRegex },
+    currency,
+    isArchived: false,
+  })
+    .session(session)
+    .sort({ legacyImportedAt: 1, createdAt: 1 });
+
+  const User = mongoose.model('User');
+  const student = await User.findById(studentId).select('level').session(session).lean();
+  const studentLevel = String(student?.level || '').trim().toUpperCase();
+
+  let languageRequests = [];
+  if (studentLevel === slot) {
+    languageRequests = await PaymentRequest.find({
+      studentId,
+      paymentType: 'LANGUAGE_FEE',
+      currency,
+      isArchived: false,
+      $or: [
+        { customType: { $regex: slotRegex } },
+        { customType: { $in: [null, ''] } },
+        { customType: { $exists: false } },
+      ],
+    })
+      .session(session)
+      .sort({ legacyImportedAt: 1, createdAt: 1 });
+  }
+
+  const byId = new Map();
+  for (const r of [...customRequests, ...languageRequests]) {
+    byId.set(String(r._id), r);
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const ta = a.legacyImportedAt || a.createdAt || 0;
+    const tb = b.legacyImportedAt || b.createdAt || 0;
+    return new Date(ta) - new Date(tb);
+  });
+};
+
+/**
+ * Consolidate level-slot requests to a single quoted total (e.g. A1 = LKR 75,000).
+ * Merges approved submissions onto the primary request and archives duplicates.
+ */
+const reconcileLevelSlotQuote = async ({ studentId, adminId, slotKey, currency, quotedTotal, session }) => {
+  const slot = String(slotKey || '').trim().toUpperCase();
+  if (!LEVEL_SLOTS.has(slot)) {
+    return { updated: false, skipped: true };
+  }
+  const total = Number(quotedTotal);
+  if (!total || total <= 0 || Number.isNaN(total)) {
+    return { updated: false, skipped: true };
+  }
+
+  const requests = await findLevelSlotRequests({ studentId, slotKey: slot, currency, session });
+
+  if (!requests.length) {
+    return { updated: false, noRequests: true, quotedTotal: total };
+  }
+
+  const requestIds = requests.map((r) => r._id);
+  const submissions = await PaymentFlowSubmission.find({
+    paymentRequestId: { $in: requestIds },
+    status: 'APPROVED',
+    isArchived: false,
+  }).session(session);
+
+  const totalPaid = submissions.reduce((s, sub) => s + (Number(sub.paidAmount) || 0), 0);
+  const currentQuoted = requests.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  const primary = requests[0];
+  const extras = requests.slice(1);
+  const now = new Date();
+
+  for (const sub of submissions) {
+    const parentId = String(sub.paymentRequestId);
+    if (extras.some((r) => String(r._id) === parentId)) {
+      sub.paymentRequestId = primary._id;
+      await sub.save({ session });
+    }
+  }
+
+  for (const req of extras) {
+    req.isArchived = true;
+    req.archivedAt = now;
+    req.archivedBy = adminId;
+    req.archiveReason = `${slot} slot consolidated — quoted total set to ${currency} ${total}`;
+    await req.save({ session });
+  }
+
+  const amountRemaining = Math.max(0, total - totalPaid);
+  primary.amount = total;
+  primary.amountRemaining = amountRemaining;
+  if (amountRemaining <= 0.02) {
+    primary.status = 'FULLY_PAID';
+  } else if (primary.dueDate && new Date(primary.dueDate) < now) {
+    primary.status = 'OVERDUE';
+  } else {
+    primary.status = 'REQUESTED';
+  }
+  await primary.save({ session });
+
+  const changed =
+    extras.length > 0
+    || Math.abs(currentQuoted - total) > 0.02
+    || Math.abs((primary.amountRemaining ?? 0) - amountRemaining) > 0.02;
+
+  return {
+    updated: changed,
+    primaryRequestId: primary._id,
+    quotedTotal: total,
+    totalPaid,
+    previousQuoted: currentQuoted,
+    amountRemaining,
+    archivedCount: extras.length,
+  };
+};
+
 // ── Create one approved legacy record ─────────────────────────────────────────
 
 const createLegacyRecord = async ({ studentId, adminId, paymentType, customType, amount, paidAmount, currency, paymentDate, remarks, session }) => {
   const now = new Date();
   const dueDate = paymentDate ? new Date(paymentDate) : now;
-  const fingerprint = buildFingerprint(studentId, paymentType, dueDate, paidAmount, currency, remarks);
+  const { existing, fingerprint } = await findExistingLegacySubmission({
+    studentId,
+    paymentType,
+    customType,
+    dueDate,
+    paidAmount,
+    currency,
+    remarks,
+    session,
+  });
 
   // Duplicate check (participate in txn so we do not race another in-flight legacy insert)
-  const existing = await PaymentFlowSubmission.findOne({ legacyFingerprint: fingerprint }).session(session).lean();
   if (existing) {
+    const existingRequest = await PaymentRequest.findById(existing.paymentRequestId).session(session).lean();
+    const levelLabel = customType ? ` (${customType})` : '';
+    const sameSlot =
+      !customType ||
+      !existingRequest?.customType ||
+      String(existingRequest.customType).toUpperCase() === String(customType).toUpperCase();
+    if (sameSlot) {
+      return {
+        request: existingRequest || { _id: existing.paymentRequestId },
+        submission: existing,
+        alreadyMapped: true,
+      };
+    }
     throw Object.assign(
-      new Error(`Duplicate legacy record detected for ${paymentType} on ${dueDate.toISOString().slice(0, 10)} (${currency} ${paidAmount})`),
+      new Error(
+        `Duplicate legacy record detected for ${paymentType}${levelLabel} on ${dueDate.toISOString().slice(0, 10)} (${currency} ${paidAmount}). Change the date, amount, or currency, or refresh the page if this payment is already listed.`,
+      ),
       { code: 'DUPLICATE', fingerprint },
     );
   }
@@ -187,20 +391,50 @@ const mapLegacyPayments = async ({ studentId, adminId, languagePayment, docsPaym
         results.visa.push({ requestId: request._id, submissionId: submission._id });
       }
 
-      // Custom payments
+      // Custom payments (level slots + docs-style custom lines)
       for (const custom of customPayments) {
-        const { request, submission } = await createLegacyRecord({
-          studentId, adminId,
-          paymentType: 'CUSTOM_PAYMENT',
-          customType: custom.paymentType,
-          amount: custom.amount,
-          paidAmount: custom.amount,
-          currency: custom.currency,
-          paymentDate: custom.paymentDate,
-          remarks: custom.remarks,
-          session,
+        const paidAmount = Number(custom.amount) || 0;
+        const quotedTotal = Number(custom.quotedTotal) > 0 ? Number(custom.quotedTotal) : null;
+        let reconciled = null;
+
+        if (quotedTotal) {
+          reconciled = await reconcileLevelSlotQuote({
+            studentId,
+            adminId,
+            slotKey: custom.paymentType,
+            currency: custom.currency,
+            quotedTotal,
+            session,
+          });
+        }
+
+        const remainingAfter = reconciled?.amountRemaining;
+        const shouldRecordPayment =
+          paidAmount > 0
+          && (!reconciled?.updated || (remainingAfter != null && remainingAfter > 0.02 && paidAmount <= remainingAfter + 0.02));
+
+        let record = null;
+        if (shouldRecordPayment) {
+          record = await createLegacyRecord({
+            studentId,
+            adminId,
+            paymentType: 'CUSTOM_PAYMENT',
+            customType: custom.paymentType,
+            amount: quotedTotal || paidAmount,
+            paidAmount,
+            currency: custom.currency,
+            paymentDate: custom.paymentDate,
+            remarks: custom.remarks,
+            session,
+          });
+        }
+
+        results.custom.push({
+          requestId: record?.request?._id || reconciled?.primaryRequestId,
+          submissionId: record?.submission?._id,
+          reconciled,
+          alreadyMapped: record?.alreadyMapped,
         });
-        results.custom.push({ requestId: request._id, submissionId: submission._id });
       }
     });
   } finally {
@@ -251,4 +485,181 @@ const bulkMapLegacyLanguageFees = async ({ adminId, rows }) => {
   return { succeeded, failed };
 };
 
-module.exports = { mapLegacyPayments, bulkMapLegacyLanguageFees };
+// ── Admin: edit an imported / legacy-mapped payment request ───────────────────
+
+const isEditableLegacyRequest = (request) =>
+  !!request
+  && !request.isArchived
+  && (request.isImported === true || request.source === SOURCE);
+
+const updateLegacyPaymentRequest = async ({ requestId, adminId, updates }) => {
+  const request = await PaymentRequest.findById(requestId);
+  if (!request) throw new Error('Payment request not found');
+  if (!isEditableLegacyRequest(request)) {
+    throw new Error('Only imported or manually mapped payments can be edited here');
+  }
+
+  const {
+    amount,
+    paidAmount,
+    amountRemaining,
+    currency,
+    dueDate,
+    remarks,
+    status,
+  } = updates || {};
+
+  if (currency && ['LKR', 'INR', 'USD'].includes(String(currency).toUpperCase())) {
+    request.currency = String(currency).toUpperCase();
+  }
+  if (dueDate) {
+    const d = new Date(dueDate);
+    if (Number.isNaN(d.getTime())) throw new Error('Invalid due date');
+    request.dueDate = d;
+  }
+  if (remarks !== undefined) {
+    request.remarks = String(remarks || '').trim();
+  }
+  if (amount != null) {
+    const a = Number(amount);
+    if (!a || a <= 0 || Number.isNaN(a)) throw new Error('Requested amount must be greater than zero');
+    request.amount = a;
+  }
+
+  const approvedSubs = await PaymentFlowSubmission.find({
+    paymentRequestId: request._id,
+    status: 'APPROVED',
+    isArchived: false,
+  });
+
+  const applyPaidToRequest = (paid) => {
+    const safePaid = Math.max(0, paid);
+    if (safePaid > request.amount + 0.02) {
+      throw new Error(`Paid amount cannot exceed requested total (${request.currency} ${request.amount})`);
+    }
+    request.amountRemaining = Math.max(0, request.amount - safePaid);
+    return safePaid;
+  };
+
+  if (paidAmount != null) {
+    const paid = applyPaidToRequest(Number(paidAmount) || 0);
+    if (approvedSubs.length > 1) {
+      throw new Error('Multiple approved payments on this request — delete extras or edit submissions separately');
+    }
+    if (approvedSubs.length === 1) {
+      approvedSubs[0].paidAmount = paid;
+      approvedSubs[0].currency = request.currency;
+      await approvedSubs[0].save();
+    } else if (paid > 0) {
+      const due = request.dueDate || new Date();
+      const fingerprint = buildFingerprint(
+        request.studentId,
+        request.paymentType,
+        due,
+        paid,
+        request.currency,
+        request.customType,
+      );
+      await PaymentFlowSubmission.create({
+        paymentRequestId: request._id,
+        studentId: request.studentId,
+        paidAmount: paid,
+        currency: request.currency,
+        paymentMethod: 'Legacy',
+        status: 'APPROVED',
+        approvedBy: adminId,
+        approvedAt: due,
+        reviewedBy: adminId,
+        reviewedAt: due,
+        submittedAt: due,
+        source: SOURCE,
+        isImported: true,
+        legacyFingerprint: fingerprint,
+      });
+    }
+  } else if (amountRemaining != null) {
+    const rem = Math.max(0, Number(amountRemaining) || 0);
+    if (rem > request.amount + 0.02) {
+      throw new Error('Balance cannot exceed requested amount');
+    }
+    request.amountRemaining = rem;
+    const impliedPaid = Math.max(0, request.amount - rem);
+    if (approvedSubs.length > 1) {
+      throw new Error('Multiple approved payments on this request — delete extras or edit submissions separately');
+    }
+    if (approvedSubs.length === 1) {
+      approvedSubs[0].paidAmount = impliedPaid;
+      approvedSubs[0].currency = request.currency;
+      await approvedSubs[0].save();
+    } else if (impliedPaid > 0) {
+      const due = request.dueDate || new Date();
+      const fingerprint = buildFingerprint(
+        request.studentId,
+        request.paymentType,
+        due,
+        impliedPaid,
+        request.currency,
+        request.customType,
+      );
+      await PaymentFlowSubmission.create({
+        paymentRequestId: request._id,
+        studentId: request.studentId,
+        paidAmount: impliedPaid,
+        currency: request.currency,
+        paymentMethod: 'Legacy',
+        status: 'APPROVED',
+        approvedBy: adminId,
+        approvedAt: due,
+        reviewedBy: adminId,
+        reviewedAt: due,
+        submittedAt: due,
+        source: SOURCE,
+        isImported: true,
+        legacyFingerprint: fingerprint,
+      });
+    }
+  }
+
+  const allowedStatuses = ['REQUESTED', 'OVERDUE', 'FULLY_PAID', 'APPROVED'];
+  if (status && allowedStatuses.includes(String(status).toUpperCase())) {
+    request.status = String(status).toUpperCase();
+  } else {
+    const rem = request.amountRemaining ?? request.amount;
+    const now = new Date();
+    if (rem <= 0.02) {
+      request.status = 'FULLY_PAID';
+    } else if (request.dueDate && new Date(request.dueDate) < now) {
+      request.status = 'OVERDUE';
+    } else {
+      request.status = 'REQUESTED';
+    }
+  }
+
+  await request.save();
+
+  await PaymentAuditLog.create({
+    entityType: 'PaymentRequest',
+    entityId: request._id,
+    action: 'LEGACY_UPDATED',
+    performedBy: adminId,
+    performedByRole: 'ADMIN',
+    newState: {
+      amount: request.amount,
+      amountRemaining: request.amountRemaining,
+      currency: request.currency,
+      status: request.status,
+    },
+    studentId: request.studentId,
+  });
+
+  await recalculateStudentProfile(request.studentId);
+  return { request: request.toObject() };
+};
+
+module.exports = {
+  mapLegacyPayments,
+  bulkMapLegacyLanguageFees,
+  reconcileLevelSlotQuote,
+  updateLegacyPaymentRequest,
+  isEditableLegacyRequest,
+};

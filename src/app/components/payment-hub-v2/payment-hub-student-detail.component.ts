@@ -65,6 +65,17 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   mappingRemarks = '';
   mappingSaving = false;
 
+  editingRequestId: string | null = null;
+  editSaving = false;
+  editForm: {
+    amount: number;
+    paidAmount: number;
+    balance: number;
+    currency: CurrencyKey;
+    dueDate: string;
+    remarks: string;
+  } | null = null;
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly api: PaymentHubApiService,
@@ -78,7 +89,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.api.getStudentHistory(this.studentId).subscribe({
+    this.api.getStudentHistory(this.studentId, { limit: 100, page: 1 }).subscribe({
       next: (res) => {
         this.history = res.data;
         this.loading = false;
@@ -133,6 +144,20 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   fmtDateTime(d: string | undefined | null): string {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  planLabel(raw: string | undefined | null): string {
+    const v = String(raw || '').trim().toUpperCase();
+    if (!v) return '—';
+    const map: Record<string, string> = {
+      SILVER: 'Silver',
+      PLATINUM: 'Platinum',
+      DOCS_RECOGNITION: 'Docs recognition',
+      VISA_DOC: 'Visa doc',
+      VISA_DOC_ONLY: 'Visa doc',
+      POST_LANDING: 'Post landing',
+    };
+    return map[v] || raw || '—';
   }
 
   statusClass(status: string): string {
@@ -238,6 +263,102 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return !!req.isImported;
   }
 
+  canManageRequest(req: PaymentRequest): boolean {
+    return !!(req.isImported || req.source === 'LEGACY_MANUAL_MAPPING');
+  }
+
+  paidAmountForRequest(req: PaymentRequest): number {
+    const approved = this.getSubmissions(req).filter((s) => s.status === 'APPROVED');
+    if (approved.length) {
+      return approved.reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
+    }
+    return Math.max(0, (req.amount || 0) - (req.amountRemaining ?? 0));
+  }
+
+  beginEditRequest(req: PaymentRequest): void {
+    this.editingRequestId = req._id;
+    const paid = this.paidAmountForRequest(req);
+    this.editForm = {
+      amount: req.amount ?? 0,
+      paidAmount: paid,
+      balance: req.amountRemaining ?? Math.max(0, (req.amount ?? 0) - paid),
+      currency: this.normCurrency(req.currency),
+      dueDate: req.dueDate ? new Date(req.dueDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+      remarks: req.remarks || '',
+    };
+  }
+
+  cancelEditRequest(): void {
+    this.editingRequestId = null;
+    this.editForm = null;
+    this.editSaving = false;
+  }
+
+  onEditPaidChange(): void {
+    if (!this.editForm) return;
+    this.editForm.balance = Math.max(0, Number(this.editForm.amount) - Number(this.editForm.paidAmount));
+  }
+
+  onEditAmountChange(): void {
+    this.onEditPaidChange();
+  }
+
+  saveEditRequest(req: PaymentRequest): void {
+    if (!this.editForm || !req._id) return;
+    const amount = Number(this.editForm.amount);
+    const paidAmount = Number(this.editForm.paidAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      this.snack.open('Enter a valid requested amount', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    if (!this.editForm.dueDate) {
+      this.snack.open('Select a due date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    const dueDate = new Date(this.editForm.dueDate);
+    if (Number.isNaN(dueDate.getTime())) {
+      this.snack.open('Invalid due date', 'Dismiss', { duration: 3500 });
+      return;
+    }
+
+    this.editSaving = true;
+    this.api.updateLegacyPaymentRequest(req._id, {
+      amount,
+      paidAmount,
+      currency: this.editForm.currency,
+      dueDate: dueDate.toISOString(),
+      remarks: this.editForm.remarks.trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.editSaving = false;
+        this.snack.open('Payment record updated', 'OK', { duration: 3500 });
+        this.cancelEditRequest();
+        this.load();
+      },
+      error: (e) => {
+        this.editSaving = false;
+        this.snack.open(e?.error?.message || 'Could not update payment', 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  deleteRequest(req: PaymentRequest): void {
+    if (!req._id || !this.canManageRequest(req)) return;
+    const label = this.formatPaymentType(req.paymentType, req.customType);
+    if (!window.confirm(`Remove this payment record (${label})? This cannot be undone.`)) return;
+
+    this.api.archiveRequest(req._id, 'Removed from payment hub by admin').subscribe({
+      next: () => {
+        this.snack.open('Payment record removed', 'OK', { duration: 3500 });
+        if (this.editingRequestId === req._id) this.cancelEditRequest();
+        this.load();
+      },
+      error: (e) => {
+        this.snack.open(e?.error?.message || 'Could not remove payment', 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
   slotSummary(slotKey: PaymentSlotKey): PaymentSlotSummary {
     const rows = (this.history?.requests || []).filter((req) => this.slotForRequest(req) === slotKey);
     const summary: PaymentSlotSummary = {
@@ -269,14 +390,17 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   }
 
   beginMap(slotKey: PaymentSlotKey): void {
-    const seeded = this.slotAmountsForCurrency(slotKey, 'LKR');
-    const initialCurrency = seeded.hasValue ? 'LKR' : this.firstCurrencyWithValues(slotKey);
+    const initialCurrency = this.primaryCurrencyForSlot(slotKey);
     const initial = this.slotAmountsForCurrency(slotKey, initialCurrency);
     this.activeMapSlot = slotKey;
     this.mappingCurrency = initialCurrency;
-    this.mappingAmount = initial.paid > 0 ? initial.paid : null;
+    this.mappingAmount =
+      initial.balance > 0 ? initial.balance : initial.paid > 0 ? initial.paid : null;
     this.mappingTotal = initial.requested > 0 ? initial.requested : null;
     this.mappingBalance = initial.balance > 0 ? initial.balance : null;
+    if (this.mappingAmount != null && this.mappingTotal != null && this.mappingTotal > 0) {
+      this.mappingBalance = Math.max(0, this.mappingTotal - this.mappingAmount);
+    }
     this.mappingDate = new Date().toISOString().slice(0, 10);
     this.mappingRemarks = '';
   }
@@ -289,8 +413,15 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   saveMappedPayment(slotKey: PaymentSlotKey): void {
     if (!this.history?.student?._id) return;
     const amount = Number(this.mappingAmount || 0);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const quotedTotal = Number(this.mappingTotal ?? 0);
+    const isLevelSlot = slotKey === 'A1' || slotKey === 'A2' || slotKey === 'B1' || slotKey === 'B2';
+    const quoteOnlySave = isLevelSlot && quotedTotal > 0 && (!Number.isFinite(amount) || amount <= 0);
+    if (!quoteOnlySave && (!Number.isFinite(amount) || amount <= 0)) {
       this.snack.open('Enter a valid amount', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    if (quoteOnlySave && quotedTotal <= 0) {
+      this.snack.open('Enter the correct Total / Quoted for this level', 'Dismiss', { duration: 3500 });
       return;
     }
     if (!this.mappingDate) {
@@ -317,7 +448,14 @@ export class PaymentHubStudentDetailComponent implements OnInit {
       };
       docsPayments?: Array<{ amount: number; currency: CurrencyKey; paymentDate: string; remarks?: string }>;
       visaPayments?: Array<{ amount: number; currency: CurrencyKey; paymentDate: string; remarks?: string }>;
-      customPayments?: Array<{ paymentType: string; amount: number; currency: CurrencyKey; paymentDate: string; remarks?: string }>;
+      customPayments?: Array<{
+        paymentType: string;
+        amount: number;
+        quotedTotal?: number;
+        currency: CurrencyKey;
+        paymentDate: string;
+        remarks?: string;
+      }>;
     } = {
       studentId: this.history.student._id,
     };
@@ -329,7 +467,8 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     } else {
       body.customPayments = [{
         paymentType: slotKey,
-        amount,
+        amount: quoteOnlySave ? 0 : amount,
+        quotedTotal: quotedTotal > 0 ? quotedTotal : undefined,
         currency: this.mappingCurrency,
         paymentDate: paymentDate.toISOString(),
         remarks: remarks || `Mapped as ${slotKey} advance payment`,
@@ -338,15 +477,31 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
     this.mappingSaving = true;
     this.api.mapLegacyPayments(body).subscribe({
-      next: () => {
+      next: (res) => {
         this.mappingSaving = false;
-        this.snack.open(`${slotKey} payment mapped successfully`, 'OK', { duration: 3500 });
+        const custom = res.data?.custom?.[0];
+        let msg = `${slotKey} payment mapped successfully`;
+        if (custom?.reconciled?.updated) {
+          const q = custom.reconciled.quotedTotal ?? 0;
+          msg = `${slotKey} quote updated to ${this.mappingCurrency} ${this.fmt(q)}`;
+          if ((custom.reconciled.amountRemaining ?? 0) <= 0) {
+            msg += ' — fully settled';
+          }
+        } else if (custom?.alreadyMapped) {
+          msg = `${slotKey} payment was already on file; totals refreshed`;
+        }
+        this.snack.open(msg, 'OK', { duration: 4500 });
         this.cancelMap();
         this.load();
       },
       error: (e) => {
         this.mappingSaving = false;
-        this.snack.open(e?.error?.message || 'Could not map payment', 'Dismiss', { duration: 5000 });
+        const msg = e?.error?.message || 'Could not map payment';
+        const isDuplicate = e?.status === 409 || String(msg).toLowerCase().includes('duplicate');
+        if (isDuplicate) {
+          this.load();
+        }
+        this.snack.open(msg, 'Dismiss', { duration: isDuplicate ? 7000 : 5000 });
       },
     });
   }
@@ -385,9 +540,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   onMappingCurrencyChange(slotKey: PaymentSlotKey): void {
     const seeded = this.slotAmountsForCurrency(slotKey, this.mappingCurrency);
-    this.mappingAmount = seeded.paid > 0 ? seeded.paid : null;
+    this.mappingAmount =
+      seeded.balance > 0 ? seeded.balance : seeded.paid > 0 ? seeded.paid : null;
     this.mappingTotal = seeded.requested > 0 ? seeded.requested : null;
     this.mappingBalance = seeded.balance > 0 ? seeded.balance : null;
+    if (this.mappingAmount != null && this.mappingTotal != null && this.mappingTotal > 0) {
+      this.mappingBalance = Math.max(0, this.mappingTotal - this.mappingAmount);
+    }
   }
 
   slotCardThemeClass(slotKey: PaymentSlotKey): string {
@@ -400,6 +559,22 @@ export class PaymentHubStudentDetailComponent implements OnInit {
       VISA: 'sd-slot-card--visa',
     };
     return map[slotKey];
+  }
+
+  /** Prefer the currency bucket that still has an outstanding balance for this slot. */
+  private primaryCurrencyForSlot(slotKey: PaymentSlotKey): CurrencyKey {
+    const all: CurrencyKey[] = ['LKR', 'INR', 'USD'];
+    let best: CurrencyKey = 'LKR';
+    let bestBalance = 0;
+    for (const c of all) {
+      const balance = this.slotAmountsForCurrency(slotKey, c).balance;
+      if (balance > bestBalance) {
+        bestBalance = balance;
+        best = c;
+      }
+    }
+    if (bestBalance > 0) return best;
+    return this.firstCurrencyWithValues(slotKey);
   }
 
   private firstCurrencyWithValues(slotKey: PaymentSlotKey): CurrencyKey {

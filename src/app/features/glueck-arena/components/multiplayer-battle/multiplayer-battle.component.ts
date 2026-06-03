@@ -22,6 +22,7 @@ import { ImageMatchingMpComponent } from '../../engines/image-matching-mp/image-
 import { GenderStackMpComponent } from '../../engines/gender-stack-mp/gender-stack-mp.component';
 import { FlashCardsMpComponent } from '../../engines/flash-cards-mp/flash-cards-mp.component';
 import { MatchingMpComponent } from '../../engines/matching-mp/matching-mp.component';
+import { JumbledWordsMpComponent } from '../../engines/jumbled-words-mp/jumbled-words-mp.component';
 
 import { NotificationService } from '../../../../services/notification.service';
 
@@ -71,6 +72,7 @@ import {
     GenderStackMpComponent,
     FlashCardsMpComponent,
     MatchingMpComponent,
+    JumbledWordsMpComponent,
 
   ],
 
@@ -286,6 +288,20 @@ import {
 
         ></app-matching-mp>
 
+        <app-jumbled-words-mp
+
+          *ngIf="room?.gameType === 'jumbled_words'"
+
+          [round]="battleRound"
+
+          [localScore]="myScore"
+
+          [answerResult]="lastAnswerResult"
+
+          (submitAnswer)="onJumbledWordsSubmit($event)"
+
+        ></app-jumbled-words-mp>
+
       </div>
 
 
@@ -437,6 +453,8 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
     if (this.room?.gameType === 'sentence_builder') return 'Sentence Builder';
 
     if (this.room?.gameType === 'whackawort') return 'Whack-a-Wort';
+
+    if (this.room?.gameType === 'jumbled_words') return 'Jumbled Words';
 
     return 'Battle';
 
@@ -695,6 +713,20 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
       roundIndex: this.battleRound.roundIndex,
 
       orderedTokens: e.orderedTokens,
+
+    });
+
+  }
+
+  onJumbledWordsSubmit(e: { typedWord: string }) {
+
+    if (!this.battleRound) return;
+
+    this.socket.submitBattleAnswer({
+
+      roundIndex: this.battleRound.roundIndex,
+
+      typedWord: e.typedWord,
 
     });
 

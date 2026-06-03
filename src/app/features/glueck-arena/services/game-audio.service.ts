@@ -7,8 +7,10 @@ export class GameAudioService {
   private cache = new Map<string, HTMLAudioElement>();
   private unlocked = false;
 
-  readonly correctSrc = '/assets/glueck-arena/sfx/correct.mp3';
-  readonly wrongSrc = '/assets/glueck-arena/sfx/wrong.mp3';
+  readonly correctSrc = '/assets/audios/correct.mp3';
+  readonly wrongSrc = '/assets/audios/incorrect.mp3';
+  readonly lostSrc = '/assets/audios/lost.mp3';
+  readonly xpGainSrc = '/assets/audios/xp-gain.mp3';
 
   isMuted(): boolean { return this.muted; }
 
@@ -26,10 +28,16 @@ export class GameAudioService {
     this.unlocked = true;
   }
 
+  private createAudio(src: string): HTMLAudioElement {
+    const a = new Audio(src);
+    a.volume = 0.7;
+    return a;
+  }
+
   preload(url: string): void {
     if (!url || this.muted) return;
     if (!this.cache.has(url)) {
-      const a = new Audio(url);
+      const a = this.createAudio(url);
       a.preload = 'auto';
       this.cache.set(url, a);
     }
@@ -39,18 +47,28 @@ export class GameAudioService {
     if (!url || this.muted || !this.unlocked) return;
     this.preload(url);
     const base = this.cache.get(url);
-    const a = base ? (base.cloneNode(true) as HTMLAudioElement) : new Audio(url);
+    const a = base ? (base.cloneNode(true) as HTMLAudioElement) : this.createAudio(url);
     a.play().catch(() => { /* autoplay blocked */ });
   }
 
   playCorrect(): void {
     if (this.muted || !this.unlocked) return;
-    new Audio(this.correctSrc).play().catch(() => this.beep(880, 0.12));
+    this.createAudio(this.correctSrc).play().catch(() => this.beep(880, 0.12));
   }
 
   playWrong(): void {
     if (this.muted || !this.unlocked) return;
-    new Audio(this.wrongSrc).play().catch(() => this.beep(220, 0.15));
+    this.createAudio(this.wrongSrc).play().catch(() => this.beep(220, 0.15));
+  }
+
+  playLost(): void {
+    if (this.muted || !this.unlocked) return;
+    this.createAudio(this.lostSrc).play().catch(() => this.beep(180, 0.4));
+  }
+
+  playXpGain(): void {
+    if (this.muted || !this.unlocked) return;
+    this.createAudio(this.xpGainSrc).play().catch(() => this.beep(660, 0.2));
   }
 
   private beep(freq: number, duration: number): void {

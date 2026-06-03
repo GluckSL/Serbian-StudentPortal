@@ -10,6 +10,8 @@ const BASE_POINTS = {
   gender_stack: 10,
   flapjugation: 10,
   whackawort: 10,
+  memory: 10,
+  jumbled_words: 12,
 };
 
 const PER_ANSWER_XP = {
@@ -21,6 +23,8 @@ const PER_ANSWER_XP = {
   gender_stack: 3,
   flapjugation: 3,
   whackawort: 3,
+  memory: 3,
+  jumbled_words: 4,
 };
 
 /**

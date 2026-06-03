@@ -50,6 +50,46 @@ const StudentGameStatsSchema = new mongoose.Schema({
       bestScore: { type: Number, default: 0 },
       totalXp: { type: Number, default: 0 },
     },
+    matching: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    flashcards: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    image_matching: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    gender_stack: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    flapjugation: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    whackawort: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    memory: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    jumbled_words: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
   },
 }, { timestamps: true });
 

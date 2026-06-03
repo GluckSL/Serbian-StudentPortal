@@ -343,22 +343,26 @@ export class ImageMatchingQuestionFormComponent implements OnInit {
 
     this.svc.adminUpsertQuestions(this.gameSetId, questions).subscribe({
       next: async (r) => {
-        const savedQuestions = r.questions || [];
-        const idMap = new Map<string, { _id: string }>(
-          savedQuestions.map((q: any) => [String(q.order), q])
+        const savedQuestions = [...(r.questions || [])].sort(
+          (a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)
         );
 
         for (let qIdx = 0; qIdx < this.questions.length; qIdx++) {
-          const order = qIdx;
-          const saved = idMap.get(String(order));
-          if (!saved?._id) continue;
+          const saved = savedQuestions[qIdx];
+          const questionId = saved?._id ? String(saved._id) : null;
+          if (!questionId) {
+            this.saving = false;
+            this.notify.error(`Could not save question ${qIdx + 1}. Reload the page and try again.`);
+            return;
+          }
           for (let pIdx = 0; pIdx < (this.pendingPairImages[qIdx]?.length || 0); pIdx++) {
             const file = this.pendingPairImages[qIdx]?.[pIdx];
             if (file) {
-              const ok = await this.uploadPairImage(saved._id, qIdx, pIdx, file);
-              if (!ok) {
+              const result = await this.uploadPairImage(questionId, qIdx, pIdx, file);
+              if (!result.ok) {
                 this.saving = false;
-                this.notify.error(`Failed to upload image for question ${qIdx + 1}, pair ${pIdx + 1}`);
+                const detail = result.message ? `: ${result.message}` : '';
+                this.notify.error(`Failed to upload image for question ${qIdx + 1}, pair ${pIdx + 1}${detail}`);
                 return;
               }
             }
@@ -381,7 +385,7 @@ export class ImageMatchingQuestionFormComponent implements OnInit {
     qIdx: number,
     pairIndex: number,
     file: File
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; message?: string }> {
     return new Promise((resolve) => {
       this.svc.adminUploadPairImage(questionId, pairIndex, file).subscribe({
         next: (r) => {
@@ -394,11 +398,12 @@ export class ImageMatchingQuestionFormComponent implements OnInit {
             this.getPairs(qIdx).at(pairIndex)?.patchValue({ imageUrl: storedUrl });
           }
           this.pendingPairImages[qIdx][pairIndex] = null;
-          resolve(true);
+          resolve({ ok: true });
         },
         error: (err) => {
+          const message = err?.error?.message || err?.message || 'Upload failed';
           console.error('[image-matching] pair upload failed', err);
-          resolve(false);
+          resolve({ ok: false, message });
         },
       });
     });

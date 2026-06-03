@@ -293,6 +293,8 @@ export interface LegacyLineItem {
 
 export interface LegacyCustomPayment extends LegacyLineItem {
   paymentType: string;
+  /** Corrects the slot quoted total (A1–B2) before optional payment recording */
+  quotedTotal?: number;
 }
 
 export interface MapLegacyPaymentsBody {
@@ -307,7 +309,18 @@ export interface MapLegacyPaymentsResult {
   language: { requestId: string; submissionId: string } | null;
   docs: { requestId: string; submissionId: string }[];
   visa: { requestId: string; submissionId: string }[];
-  custom: { requestId: string; submissionId: string }[];
+  custom: Array<{
+    requestId?: string;
+    submissionId?: string;
+    reconciled?: {
+      updated?: boolean;
+      quotedTotal?: number;
+      totalPaid?: number;
+      amountRemaining?: number;
+      archivedCount?: number;
+    };
+    alreadyMapped?: boolean;
+  }>;
 }
 
 export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {
@@ -555,6 +568,24 @@ export class PaymentHubApiService {
 
   mapLegacyPayments(body: MapLegacyPaymentsBody): Observable<{ success: boolean; message: string; data: MapLegacyPaymentsResult }> {
     return this.http.post<{ success: boolean; message: string; data: MapLegacyPaymentsResult }>(`${this.base}/legacy/map-payment`, body);
+  }
+
+  updateLegacyPaymentRequest(
+    requestId: string,
+    body: {
+      amount?: number;
+      paidAmount?: number;
+      amountRemaining?: number;
+      currency?: string;
+      dueDate?: string;
+      remarks?: string;
+      status?: string;
+    },
+  ): Observable<{ success: boolean; message: string; data: { request: PaymentRequestItem } }> {
+    return this.http.patch<{ success: boolean; message: string; data: { request: PaymentRequestItem } }>(
+      `${this.base}/legacy/requests/${requestId}`,
+      body,
+    );
   }
 
   mapLegacyBulkLanguagePaid(body: { rows: BulkLegacyLanguageRow[] }): Observable<{

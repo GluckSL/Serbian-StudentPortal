@@ -41,6 +41,11 @@ const {
 } = require('../utils/signupProofNotify');
 const { storeRecoverablePassword } = require('../utils/passwordRecoverable');
 const { activatePublicSignupStudent } = require('../utils/signupActivation');
+const {
+  isAllowedStudentPlan,
+  isServicePlan,
+  getServicePlanAmount,
+} = require('../utils/studentSubscriptionPlans');
 
 // Payment v2 services (require lazily to avoid circular init issues)
 const getPaymentService = () => require('../modules/payments-v2/backend/services/paymentService');
@@ -190,21 +195,15 @@ async function getSystemAdminId() {
 async function getCatalogAmount(level, subscription, currency) {
   const catalog = await PaymentHubCatalog.getOrCreate();
   const curr = (currency || 'INR').toUpperCase();
+  const sub = String(subscription || '').trim().toUpperCase();
 
-  // Try CEFR table first
-  const cefrRow = catalog.cefrRows?.find(r => r.code === level);
+  if (isServicePlan(sub)) {
+    return getServicePlanAmount(sub, curr, catalog.referenceRows || []);
+  }
+
+  const cefrRow = catalog.cefrRows?.find((r) => r.code === level);
   if (cefrRow) {
     return curr === 'LKR' ? cefrRow.lkr : cefrRow.inr;
-  }
-
-  // Fallback to reference rows based on subscription
-  if (subscription === 'PLATINUM') {
-    const ref = catalog.referenceRows?.find(r => (r.label || '').toLowerCase().includes('doc'));
-    if (ref) return curr === 'LKR' ? ref.lkr : ref.inr;
-  }
-  if (subscription === 'VISA_DOC_ONLY') {
-    const ref = catalog.referenceRows?.find(r => (r.label || '').toLowerCase().includes('visa'));
-    if (ref) return curr === 'LKR' ? ref.lkr : ref.inr;
   }
   return 0;
 }
@@ -316,7 +315,7 @@ router.post('/start', startLimiter, async (req, res) => {
     app.leadSource = leadSource || app.leadSource || '';
     if (subscription) {
       const sub = String(subscription).trim().toUpperCase();
-      if (['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'].includes(sub)) {
+      if (isAllowedStudentPlan(sub)) {
         app.subscription = sub;
       }
     }

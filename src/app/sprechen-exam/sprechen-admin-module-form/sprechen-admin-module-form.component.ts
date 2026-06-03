@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { SprechenApiService } from '../sprechen-api.service';
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { LearningModulesService } from '../../services/learning-modules.service';
@@ -43,7 +43,8 @@ export class SprechenAdminModuleFormComponent implements OnInit {
   editDescription = '';
   editLevel = 'A1';
   editPassThreshold = 10;
-  editCourseDay = '';
+  /** Bound to `<input type="number">` — may be string or number. */
+  editCourseDay: string | number | null = '';
   editCharacterId = '';
   editVisible = false;
 
@@ -59,6 +60,13 @@ export class SprechenAdminModuleFormComponent implements OnInit {
   batches: BatchSummary[] = [];
   batchToAdd = '';
   targetBatches: string[] = [];
+
+  /** True after Teil 1–3 or card images change; skips heavy exam payload on metadata-only save. */
+  private examContentDirty = false;
+  /** Ignores ngModel/input noise while the form is hydrating from the server. */
+  private examContentInitialized = false;
+
+  private static readonly SAVE_TIMEOUT_MS = 60_000;
 
   get isCreateMode(): boolean {
     return this.formMode === 'create';
@@ -133,16 +141,54 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     const olly = this.characters.find((c) => /olly/i.test(c.name || ''));
     const fallback = this.characters.find((c) => c.isDefault) || this.characters[0];
     this.editCharacterId = olly?._id || fallback?._id || '';
+    this.enableExamContentTracking();
+  }
+
+  private enableExamContentTracking(): void {
+    this.examContentInitialized = false;
+    setTimeout(() => {
+      this.examContentInitialized = true;
+    });
+  }
+
+  markExamContentDirty(): void {
+    if (!this.examContentInitialized) return;
+    this.examContentDirty = true;
+  }
+
+  clearIntroCardImage(): void {
+    this.introCardImageUrl = '';
+    this.markExamContentDirty();
+  }
+
+  private applyMetadataFromResponse(meta: Partial<SprechenExamModuleSummary>): void {
+    if (!this.selected || !meta) return;
+    this.selected = { ...this.selected, ...meta };
+    if (meta.title !== undefined) this.editTitle = meta.title || '';
+    if (meta.description !== undefined) this.editDescription = meta.description || '';
+    if (meta.level !== undefined) this.editLevel = meta.level || 'A1';
+    if (meta.passThreshold !== undefined) this.editPassThreshold = meta.passThreshold ?? 10;
+    if (meta.courseDay !== undefined) {
+      this.editCourseDay = this.courseDayForInput(meta.courseDay);
+    }
+    if (meta.visibleToStudents !== undefined) this.editVisible = !!meta.visibleToStudents;
+    if (meta.targetBatchKeys !== undefined) this.targetBatches = [...(meta.targetBatchKeys || [])];
+    if (meta.characterId !== undefined) {
+      const char = meta.characterId;
+      this.editCharacterId =
+        typeof char === 'string' ? char : (char as { _id?: string })?._id || '';
+    }
   }
 
   private hydrateFromModule(mod: SprechenExamModuleSummary): void {
+    this.examContentInitialized = false;
+    this.examContentDirty = false;
     this.selected = mod;
     this.editTitle = mod.title || '';
     this.editDescription = mod.description || '';
     this.editLevel = mod.level || 'A1';
     this.editPassThreshold = mod.passThreshold ?? 10;
-    this.editCourseDay =
-      mod.courseDay != null && mod.courseDay > 0 ? String(mod.courseDay) : '';
+    this.editCourseDay = this.courseDayForInput(mod.courseDay);
     this.editVisible = !!mod.visibleToStudents;
     this.targetBatches = [...(mod.targetBatchKeys || [])];
     const char = mod.characterId;
@@ -154,6 +200,7 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     this.numberPromptsText = (mod.teil1?.numberPrompts || []).join('\n');
     this.themes = JSON.parse(JSON.stringify(mod.teil2?.themes || []));
     this.rounds = JSON.parse(JSON.stringify(mod.teil3?.rounds || []));
+    this.enableExamContentTracking();
   }
 
   isInvalid(key: string): boolean {
@@ -169,6 +216,7 @@ export class SprechenAdminModuleFormComponent implements OnInit {
   }
 
   addTheme(): void {
+    this.markExamContentDirty();
     this.themes.push({ name: '', studentKeyword: '', botKeyword: '', studentCardImageUrl: '', botCardImageUrl: '' });
   }
 
@@ -185,7 +233,15 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
-    await this._uploadToField(file, (url) => (this.introCardImageUrl = url), () => (this.introCardUploading = true), () => (this.introCardUploading = false));
+    await this._uploadToField(
+      file,
+      (url) => {
+        this.introCardImageUrl = url;
+        this.markExamContentDirty();
+      },
+      () => (this.introCardUploading = true),
+      () => (this.introCardUploading = false),
+    );
   }
 
   async onThemeImageFile(ev: Event, theme: SprechenTeil2Theme, field: 'studentCardImageUrl' | 'botCardImageUrl'): Promise<void> {
@@ -193,7 +249,10 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
-    await this._uploadToField(file, (url) => (theme[field] = url));
+    await this._uploadToField(file, (url) => {
+      theme[field] = url;
+      this.markExamContentDirty();
+    });
   }
 
   async onRoundImageFile(ev: Event, round: SprechenTeil3Round, which: 'student' | 'bot'): Promise<void> {
@@ -202,7 +261,10 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     input.value = '';
     if (!file) return;
     const card = which === 'student' ? round.studentCard : round.botCard;
-    await this._uploadToField(file, (url) => (card.imageUrl = url));
+    await this._uploadToField(file, (url) => {
+      card.imageUrl = url;
+      this.markExamContentDirty();
+    });
   }
 
   private async _uploadToField(
@@ -226,10 +288,12 @@ export class SprechenAdminModuleFormComponent implements OnInit {
   }
 
   removeTheme(i: number): void {
+    this.markExamContentDirty();
     this.themes.splice(i, 1);
   }
 
   addRound(): void {
+    this.markExamContentDirty();
     this.rounds.push({
       studentCard: { label: '', objectDe: '', imageUrl: '' },
       botCard: { label: '', objectDe: '', imageUrl: '' },
@@ -237,6 +301,7 @@ export class SprechenAdminModuleFormComponent implements OnInit {
   }
 
   removeRound(i: number): void {
+    this.markExamContentDirty();
     this.rounds.splice(i, 1);
   }
 
@@ -269,21 +334,39 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     return this.missingFields.size === 0;
   }
 
-  private buildPayload(): Partial<SprechenExamModuleSummary> {
-    const defaults = defaultSprechenExamContent();
-    const courseDay = this.editCourseDay.trim()
-      ? Math.min(200, Math.max(1, parseInt(this.editCourseDay, 10)))
-      : undefined;
+  /** Normalizes journey day from the number input for API saves. */
+  private resolveCourseDayForSave(): number | null {
+    const raw = this.editCourseDay;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw).trim(), 10);
+    if (!Number.isFinite(n) || n < 1) return null;
+    return Math.min(200, Math.max(1, Math.floor(n)));
+  }
 
+  private courseDayForInput(day: number | null | undefined): string | number {
+    if (day == null || day <= 0) return '';
+    return day;
+  }
+
+  private buildMetadataPayload(): Partial<SprechenExamModuleSummary> {
+    const courseDay = this.resolveCourseDayForSave();
     return {
       title: this.editTitle.trim(),
       description: this.editDescription.trim(),
       level: this.editLevel.trim(),
       passThreshold: Number(this.editPassThreshold) || 10,
       visibleToStudents: this.editVisible,
-      courseDay,
+      courseDay: courseDay as unknown as number | undefined,
       targetBatchKeys: [...this.targetBatches],
       characterId: this.editCharacterId,
+    };
+  }
+
+  private buildFullPayload(): Partial<SprechenExamModuleSummary> {
+    const defaults = defaultSprechenExamContent();
+
+    return {
+      ...this.buildMetadataPayload(),
       teil1: {
         keywords: this.keywordsText
           .split(/[,;\n]/)
@@ -333,26 +416,45 @@ export class SprechenAdminModuleFormComponent implements OnInit {
       this.message = 'Please fill in all required fields.';
       return;
     }
+    if (this.saving) return;
+
     this.saving = true;
     this.message = null;
-    const body = this.buildPayload();
+    const includeExamContent = this.isCreateMode || this.examContentDirty;
     try {
       if (this.isCreateMode) {
-        const created = await firstValueFrom(this.sprechenApi.createModule(body));
+        const created = await firstValueFrom(
+          this.sprechenApi
+            .createModule(this.buildFullPayload())
+            .pipe(timeout(SprechenAdminModuleFormComponent.SAVE_TIMEOUT_MS)),
+        );
         this.router.navigate(['/admin/sprechen-exam'], {
           queryParams: { saved: created._id },
         });
       } else if (this.selected?._id) {
-        await firstValueFrom(this.sprechenApi.updateModule(this.selected._id, body));
+        const id = this.selected._id;
+        const updated = await firstValueFrom(
+          (includeExamContent
+            ? this.sprechenApi.updateModule(id, this.buildFullPayload())
+            : this.sprechenApi.patchModuleMetadata(id, this.buildMetadataPayload())
+          ).pipe(timeout(SprechenAdminModuleFormComponent.SAVE_TIMEOUT_MS)),
+        );
+        if (includeExamContent) {
+          this.hydrateFromModule(updated as SprechenExamModuleSummary);
+        } else {
+          this.applyMetadataFromResponse(updated);
+        }
         this.messageType = 'success';
-        this.message = 'Module saved.';
-        this.router.navigate(['/admin/sprechen-exam'], {
-          queryParams: { saved: this.selected._id },
-        });
+        this.message = includeExamContent ? 'Module saved.' : 'Basic settings saved.';
       }
     } catch (e: any) {
       this.messageType = 'error';
-      this.message = e?.error?.message || 'Save failed';
+      if (e instanceof TimeoutError || e?.name === 'TimeoutError') {
+        this.message =
+          'Save timed out. Confirm the API server is running (port 4000), then try again.';
+      } else {
+        this.message = e?.error?.message || e?.message || 'Save failed';
+      }
     } finally {
       this.saving = false;
     }

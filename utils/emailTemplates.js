@@ -125,6 +125,8 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+const { formatSubscriptionLabel } = require('./studentSubscriptionPlans');
+
 /** OTP sent to current email when student requests an email change during setup. */
 function buildEmailChangeOtpEmail({ name, otp, newEmail, expiresMinutes = 15 }) {
   return {
@@ -379,7 +381,7 @@ function buildSignupProofReceivedAdminEmail({
     proofDetailRow('Address', address),
     proofDetailRow('Learn-from language', learnFromLanguage),
     proofDetailRow('German Level', level),
-    proofDetailRow('Plan', subscription),
+    proofDetailRow('Plan', formatSubscriptionLabel(subscription)),
     proofDetailRow('Amount', amountStr),
     proofDetailRow('Payment method', paymentMethod || 'Bank transfer (manual proof)'),
     proofDetailRow('Proof file', proofFileName),

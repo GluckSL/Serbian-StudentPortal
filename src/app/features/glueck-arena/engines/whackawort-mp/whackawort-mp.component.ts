@@ -1,5 +1,6 @@
-import { Component, Input, Output, EventEmitter, OnChanges, OnInit, SimpleChanges, ViewChild, ElementRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnChanges, OnInit, SimpleChanges, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { GameAudioService } from '../../services/game-audio.service';
 import { ArenaBattleRound, ArenaBattleAnswerResult, ArenaBattleWhackawortQuestion } from '../../glueck-arena.types';
 
 interface GridWord {
@@ -42,6 +43,7 @@ export class WhackawortMpComponent implements OnInit, OnChanges {
   private countdown = 0;
   private roundStart = 0;
   private canTap = true;
+  private audio = inject(GameAudioService);
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['round'] && this.round?.question) {
@@ -49,6 +51,11 @@ export class WhackawortMpComponent implements OnInit, OnChanges {
     }
     if (changes['answerResult'] && this.answerResult) {
       this.canTap = false;
+      if (this.answerResult.isCorrect) {
+        this.audio.playCorrect();
+      } else {
+        this.audio.playWrong();
+      }
       setTimeout(() => {
         if (this.round?.question) {
           this.canTap = true;
@@ -128,6 +135,7 @@ export class WhackawortMpComponent implements OnInit, OnChanges {
   };
 
   private onCanvasClick = (e: MouseEvent) => {
+    this.audio.unlock();
     if (!this.canTap || !this.q) return;
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
@@ -144,6 +152,7 @@ export class WhackawortMpComponent implements OnInit, OnChanges {
   };
 
   ngOnInit() {
+    this.audio.unlock();
     this.initCanvas();
     this.loop(0);
   }

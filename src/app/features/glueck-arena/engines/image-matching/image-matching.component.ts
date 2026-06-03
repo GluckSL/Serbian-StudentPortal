@@ -13,6 +13,7 @@ import { MaterialModule } from '../../../../shared/material.module';
 import { XpFloatComponent } from '../../shared/xp-float/xp-float.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
 import { InteractiveGameService } from '../../services/interactive-game.service';
+import { GameAudioService } from '../../services/game-audio.service';
 import { ImageMatchingQuestion, GameAttempt, GameSet } from '../../glueck-arena.types';
 
 export interface IMResult {
@@ -352,9 +353,11 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
   constructor(
     private svc: InteractiveGameService,
     private cdr: ChangeDetectorRef,
+    readonly audio: GameAudioService,
   ) {}
 
   ngOnInit() {
+    this.audio.unlock();
     this.sessionStartedAt = Date.now();
     this.availableWords = this.shuffle([...this.shuffledWords]);
     this.loadPage(0);
@@ -543,6 +546,7 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
       next: (r) => {
         pair.validating = false;
         if (r.isCorrect) {
+          this.audio.playCorrect();
           pair.matched = true;
           pair.matchedWord = word;
           pair.wrongFlash = false;
@@ -550,11 +554,13 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
           this.correctCount++;
           this.xpPerMatch = r.pointsEarned || 5;
           this.xpTrigger = Date.now();
+          this.audio.playXpGain();
 
           if (this.matchedCount === this.currentPairs.length) {
             setTimeout(() => this.loadPage(this.currentPageIndex + 1), 500);
           }
         } else {
+          this.audio.playWrong();
           pair.wrongFlash = true;
           this.returnWordToPool(pair, word);
           setTimeout(() => { pair.wrongFlash = false; }, 450);

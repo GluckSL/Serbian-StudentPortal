@@ -368,7 +368,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
   }
 
   private onCorrect(card: FormCard) {
-    this.audio.playUrl('/assets/audios/correct-flappy.mp3');
+    this.audio.playCorrect();
     card.hitState = 'hit';
     card.hitCorrect = true;
     card.hitTimer = 30;
@@ -378,6 +378,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     this.hitsThisPronoun++;
     this.xpBurst = 10;
     this.xpTrigger++;
+    this.audio.playXpGain();
     this.showFeedback('✓', '#22c55e');
     if (this.hitsThisPronoun >= HITS_PER_PRONOUN) {
       this.pronounCycleIndex++;
@@ -430,7 +431,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     card.hitTimer = 25;
     const cx = card.x + (CARD_WIDTH * this.scaleFactor) / 2;
     const cy = card.y + (CARD_HEIGHT * this.scaleFactor) / 2;
-    this.audio.playUrl('/assets/audios/incorrect-flappy.mp3');
+    this.audio.playWrong();
     this.spawnParticles(cx, cy, '#ef4444', 30);
     this.spawnFragments(cx, cy);
     this.boomRingX = cx;
@@ -443,7 +444,10 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     this.livesArr = Array(Math.max(0, this.lives)).fill(0);
     this.lostLivesArr = Array(MAX_LIVES - Math.max(0, this.lives)).fill(0);
     this.showFeedback('✗', '#ef4444');
-    if (this.lives <= 0) { this.endGame(); }
+    if (this.lives <= 0) {
+      this.audio.playLost();
+      this.endGame();
+    }
   }
 
   private showFeedback(text: string, color: string) {

@@ -88,6 +88,22 @@ export class InteractiveGameService {
     return this.http.post<any>(`${this.base}/attempts/${attemptId}/image-match`, payload);
   }
 
+  submitMemoryMatch(attemptId: string, payload: {
+    questionId: string;
+    pairIndex: number;
+    word: string;
+    responseTimeMs?: number;
+  }): Observable<{
+    success: boolean;
+    isCorrect: boolean;
+    pointsEarned: number;
+    questionComplete: boolean;
+    correctMatches: number;
+    totalPairs: number;
+  }> {
+    return this.http.post<any>(`${this.base}/attempts/${attemptId}/memory-match`, payload);
+  }
+
   completeAttempt(attemptId: string, payload: {
     timeSpentSeconds: number;
     livesRemaining?: number;

@@ -11,6 +11,13 @@ import {
   detectCurrencyFromPhone,
   formatMoney,
 } from '../../utils/bank-details.util';
+import {
+  CatalogReferenceRow,
+  formatPlanLabel,
+  getServicePlanAmount,
+  isCoursePlan,
+  isServicePlan,
+} from '../../utils/student-subscription-plans.util';
 
 interface CatalogRow {
   code: string;
@@ -55,6 +62,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   showConfirmPwd = false;
 
   cefrRows: CatalogRow[] = [];
+  referenceRows: CatalogReferenceRow[] = [];
   computedAmount = 0;
   paymentFinalized = false;
   catalogLoading = false;
@@ -75,6 +83,9 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   readonly SUBSCRIPTIONS = [
     { value: 'SILVER', label: 'Silver' },
     { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'DOCS_RECOGNITION', label: 'Docs recognition' },
+    { value: 'VISA_DOC', label: 'Visa doc' },
+    { value: 'POST_LANDING', label: 'Post landing' },
   ];
 
   readonly LEARN_FROM_LANGUAGE_OPTIONS = ['English', 'Hindi', 'Tamil', 'Telugu', 'Malayalam', 'Other'];
@@ -139,6 +150,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
     this.svc.getCatalog().subscribe({
       next: (res: any) => {
         this.cefrRows = res?.cefr || [];
+        this.referenceRows = res?.reference || [];
         this.catalogLoading = false;
       },
       error: () => {
@@ -151,12 +163,20 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
     return detectCurrencyFromPhone(this.phoneNumber, this.whatsappNumber);
   }
 
-  /** Razorpay checkout is INR-only on this portal. */
+  /** Razorpay: INR course plans only; service plans use bank transfer + proof upload. */
   get canPayWithRazorpay(): boolean {
-    return this.selectedCurrency === 'INR';
+    if (isServicePlan(this.selectedSubscription)) return false;
+    return isCoursePlan(this.selectedSubscription) && this.selectedCurrency === 'INR';
   }
 
   get previewAmount(): number {
+    if (isServicePlan(this.selectedSubscription)) {
+      return getServicePlanAmount(
+        this.selectedSubscription,
+        this.selectedCurrency,
+        this.referenceRows,
+      );
+    }
     if (!this.languageLevelOpted) return 0;
     const row = this.cefrRows.find((r) => r.code === this.languageLevelOpted);
     if (!row) return 0;
@@ -176,7 +196,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   }
 
   get planLabel(): string {
-    return this.SUBSCRIPTIONS.find((s) => s.value === this.selectedSubscription)?.label || this.selectedSubscription || '—';
+    return formatPlanLabel(this.selectedSubscription);
   }
 
   get isLkrPayment(): boolean {

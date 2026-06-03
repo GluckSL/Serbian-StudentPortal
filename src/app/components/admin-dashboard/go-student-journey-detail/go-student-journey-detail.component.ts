@@ -38,6 +38,12 @@ import { NotificationService } from '../../../services/notification.service';
       </div>
       <div class="gsd-day-box">
         <label for="gsd-day-select">Journey day (student access)</label>
+        <ng-container *ngIf="journeySync as sync">
+          <div class="gsd-sync-banner" *ngIf="sync.reconciled">
+            Synced from Day {{ sync.storedCourseDayBeforeSync }} → Day {{ sync.effectiveAccessDay }}
+            (first day with incomplete resources).
+          </div>
+        </ng-container>
         <div class="gsd-day-row">
           <select id="gsd-day-select" class="gsd-select" [(ngModel)]="editDay">
             <option *ngFor="let d of dayOptions" [ngValue]="d">Day {{ d }}</option>
@@ -52,7 +58,11 @@ import { NotificationService } from '../../../services/notification.service';
             {{ saving ? 'Saving…' : 'Save' }}
           </button>
         </div>
-        <p class="gsd-hint">
+        <p class="gsd-hint" *ngIf="journeySync?.sequentialUnlock">
+          Silver GO: the student only unlocks the next day after finishing the current day (recordings ~90%, exercises, DG).
+          This value matches what they see in the portal. Raising it manually skips that rule.
+        </p>
+        <p class="gsd-hint" *ngIf="!journeySync?.sequentialUnlock">
           Content for days after this stays locked for the student until you raise this day.
         </p>
       </div>
@@ -244,7 +254,11 @@ import { NotificationService } from '../../../services/notification.service';
     .gsd-btn:disabled { opacity: .55; cursor: not-allowed; }
     .gsd-btn-primary { background: #005b96; color: #fff; }
     .gsd-btn-primary:hover:not(:disabled) { background: #03396c; }
-    .gsd-hint { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.45; max-width: 320px; }
+    .gsd-hint { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.45; max-width: 360px; }
+    .gsd-sync-banner {
+      margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 600;
+      background: #fef9c3; color: #854d0e; border: 1px solid #fde047; line-height: 1.45; max-width: 360px;
+    }
     .gsd-tabs {
       display: flex; gap: 4px; flex-wrap: wrap; margin: 18px 0 0; border-bottom: 2px solid #e2e8f0;
       background: #f8fafc; border-radius: 12px 12px 0 0; padding: 6px 8px 0;
@@ -303,6 +317,12 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   loading = false;
   saving = false;
   detail: any = null;
+  journeySync: {
+    effectiveAccessDay?: number;
+    storedCourseDayBeforeSync?: number;
+    reconciled?: boolean;
+    sequentialUnlock?: boolean;
+  } | null = null;
   editDay = 1;
   maxJourneyDay = 200;
   dayOptions: number[] = [];
@@ -348,9 +368,15 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
     this.http.get<any>(`${environment.apiUrl}/${this.goApiPath}/${studentId}/detail`, { withCredentials: true }).subscribe({
       next: (r) => {
         this.detail = r;
+        this.journeySync = r.journeySync || null;
         this.maxJourneyDay = r.journeyLength >= 1 ? Math.min(r.journeyLength, 200) : 200;
         this.rebuildDayOptions();
         this.editDay = r.student?.currentDay || 1;
+        if (r.journeySync?.reconciled) {
+          this.notify.success(
+            `Journey day synced to Day ${r.student?.currentDay} based on incomplete resources.`
+          );
+        }
         this.loading = false;
       },
       error: (e) => {

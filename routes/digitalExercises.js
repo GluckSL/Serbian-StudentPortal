@@ -12,6 +12,7 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const { sanitizeReportedTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
 const OpenAI = require('openai');
 const s3Client = require('../config/s3');
 const {
@@ -1289,6 +1290,8 @@ const {
 } = require('../utils/journeyContentBlock');
 
 async function getStudentExerciseAccess(userId) {
+  const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
+  await reconcileSilverGoCourseDay(userId);
   const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription blockedJourneyLevels').lean();
   if (!u || u.role !== 'STUDENT') {
     return {
@@ -1462,7 +1465,7 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
 // ─── PUBLIC (STUDENT/TEACHER/ADMIN) ROUTES ───────────────────────────────────
 
 // GET /api/digital-exercises  — Browse exercises
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
     const {
       level, category, difficulty, targetLanguage, search,
@@ -1698,7 +1701,7 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
-router.get('/:id', verifyToken, async (req, res) => {
+router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
     const exercise = await DigitalExercise.findOne({
       _id: req.params.id,
@@ -2420,7 +2423,7 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
 // ─── STUDENT ATTEMPT ROUTES ───────────────────────────────────────────────────
 
 // POST /api/digital-exercises/:id/start  — Start a new attempt (students + admin/teacher for testing)
-router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const isStaff = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'].includes(req.user.role);
     const exercise = await DigitalExercise.findOne({
@@ -2499,7 +2502,7 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
 });
 
 // POST /api/digital-exercises/:id/submit-question  — Submit a single question (per-question feedback)
-router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, questionIndex, response, timeSpentSeconds } = req.body;
 
@@ -2816,7 +2819,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
 });
 
 // POST /api/digital-exercises/:id/submit  — Final submit (all questions)
-router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, responses, timeSpentSeconds } = req.body;
 

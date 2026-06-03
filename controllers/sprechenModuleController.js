@@ -64,6 +64,29 @@ exports.update = async (req, res) => {
   }
 };
 
+/** Fast path: title, description, journey day, batches, etc. — does not touch Teil 1–3. */
+exports.patchMetadata = async (req, res) => {
+  try {
+    const payload = _sanitizeMetadataPayload(req.body);
+    if (!Object.keys(payload).length) {
+      return res.status(400).json({ message: 'No fields to update' });
+    }
+    const mod = await SprechenExamModule.findByIdAndUpdate(
+      req.params.id,
+      { $set: payload },
+      { new: true, runValidators: true }
+    )
+      .select(
+        'title description level visibleToStudents courseDay passThreshold targetBatchKeys characterId updatedAt'
+      )
+      .lean();
+    if (!mod) return res.status(404).json({ message: 'Not found' });
+    res.json(mod);
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
 exports.patchVisibility = async (req, res) => {
   try {
     const { visibleToStudents } = req.body;
@@ -286,6 +309,25 @@ exports.exportCsv = async (req, res) => {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function _sanitizeMetadataPayload(body) {
+  const p = {};
+  if (!body || typeof body !== 'object') return p;
+  if (body.title !== undefined) p.title = String(body.title || '').trim();
+  if (body.description !== undefined) p.description = String(body.description || '');
+  if (body.level !== undefined) p.level = body.level || 'A1';
+  if (body.visibleToStudents !== undefined) p.visibleToStudents = Boolean(body.visibleToStudents);
+  if (body.courseDay !== undefined) {
+    p.courseDay =
+      body.courseDay == null || body.courseDay === ''
+        ? null
+        : Math.min(200, Math.max(1, Number(body.courseDay)));
+  }
+  if (body.passThreshold !== undefined) p.passThreshold = Number(body.passThreshold) || 10;
+  if (body.characterId !== undefined) p.characterId = body.characterId || undefined;
+  if (body.targetBatchKeys !== undefined) p.targetBatchKeys = normalizeBatchKeys(body.targetBatchKeys);
+  return p;
+}
 
 function _sanitizePayload(body, createdBy) {
   const p = {};

@@ -5,7 +5,11 @@
  */
 const mongoose = require('mongoose');
 const { getAuthUserId } = require('../helpers/authUserId');
-const { mapLegacyPayments, bulkMapLegacyLanguageFees } = require('../services/legacyMapService');
+const {
+  mapLegacyPayments,
+  bulkMapLegacyLanguageFees,
+  updateLegacyPaymentRequest,
+} = require('../services/legacyMapService');
 
 const mapLegacyPaymentsHandler = async (req, res) => {
   try {
@@ -75,10 +79,24 @@ const mapLegacyPaymentsHandler = async (req, res) => {
       if (hasDocs) validateItems(docsPayments, 'docsPayments');
       if (hasVisa) validateItems(visaPayments, 'visaPayments');
       if (hasCustom) {
-        validateItems(customPayments, 'customPayments');
         for (let i = 0; i < customPayments.length; i++) {
-          if (!customPayments[i].paymentType || !String(customPayments[i].paymentType).trim()) {
-            return res.status(400).json({ success: false, message: `customPayments[${i}].paymentType is required` });
+          const item = customPayments[i];
+          if (!item.paymentType || !String(item.paymentType).trim()) {
+            throw new Error(`customPayments[${i}].paymentType is required`);
+          }
+          const hasQuote = Number(item.quotedTotal) > 0;
+          const amt = Number(item.amount);
+          if ((!amt || amt <= 0) && !hasQuote) {
+            throw new Error(`customPayments[${i}].amount or quotedTotal is required`);
+          }
+          if (item.quotedTotal != null && item.quotedTotal !== '' && !hasQuote) {
+            throw new Error(`customPayments[${i}].quotedTotal must be a positive number`);
+          }
+          if (!['LKR', 'INR', 'USD'].includes(item.currency)) {
+            throw new Error(`customPayments[${i}].currency must be LKR, INR, or USD`);
+          }
+          if (!item.paymentDate || isNaN(Date.parse(item.paymentDate))) {
+            throw new Error(`customPayments[${i}].paymentDate must be a valid date`);
           }
         }
       }
@@ -182,4 +200,46 @@ const bulkMapLegacyLanguageFeesHandler = async (req, res) => {
   }
 };
 
-module.exports = { mapLegacyPaymentsHandler, bulkMapLegacyLanguageFeesHandler };
+const updateLegacyPaymentRequestHandler = async (req, res) => {
+  try {
+    const adminId = getAuthUserId(req);
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const { requestId } = req.params;
+    if (!requestId || !mongoose.isValidObjectId(requestId)) {
+      return res.status(400).json({ success: false, message: 'Valid requestId is required' });
+    }
+
+    const { amount, paidAmount, amountRemaining, currency, dueDate, remarks, status } = req.body;
+    const hasField =
+      amount != null
+      || paidAmount != null
+      || amountRemaining != null
+      || currency
+      || dueDate
+      || remarks !== undefined
+      || status;
+    if (!hasField) {
+      return res.status(400).json({ success: false, message: 'At least one field to update is required' });
+    }
+
+    const data = await updateLegacyPaymentRequest({
+      requestId,
+      adminId,
+      updates: { amount, paidAmount, amountRemaining, currency, dueDate, remarks, status },
+    });
+
+    return res.json({ success: true, message: 'Payment record updated', data });
+  } catch (err) {
+    console.error('[LegacyUpdate]', err);
+    return res.status(400).json({ success: false, message: err.message || 'Failed to update payment' });
+  }
+};
+
+module.exports = {
+  mapLegacyPaymentsHandler,
+  bulkMapLegacyLanguageFeesHandler,
+  updateLegacyPaymentRequestHandler,
+};

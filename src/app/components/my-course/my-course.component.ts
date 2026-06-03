@@ -801,7 +801,8 @@ export class MyCourseComponent implements OnInit {
     const totalSec = Number(r.duration ?? 0);
     const rawWatched = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
     const watchedSec = totalSec > 0 ? Math.min(rawWatched, totalSec) : rawWatched;
-    return totalSec > 0 && watchedSec >= Math.ceil(totalSec * 0.75);
+    const ratio = this.isSilverGoStudentFrontend ? 0.9 : 0.75;
+    return totalSec > 0 && watchedSec >= Math.ceil(totalSec * ratio);
   }
 
   /** Exercises tagged to the current journey day. */

@@ -56,6 +56,7 @@ router.patch('/approvals/:submissionId/correct-amount', requireFinanceAdmin, app
 // ─── Legacy manual payment mapping ───────────────────────────────────────────
 router.post('/legacy/map-payment', requireFinanceAdmin, legacyCtrl.mapLegacyPaymentsHandler);
 router.post('/legacy/bulk-language-paid', requireFinanceAdmin, legacyCtrl.bulkMapLegacyLanguageFeesHandler);
+router.patch('/legacy/requests/:requestId', requireFinanceAdmin, legacyCtrl.updateLegacyPaymentRequestHandler);
 
 // ─── Catalog / pricing settings ──────────────────────────────────────────────
 router.get('/catalog/settings', requireFinanceAdmin, catalogCtrl.getCatalogSettings);

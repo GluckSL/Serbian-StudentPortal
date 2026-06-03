@@ -306,6 +306,7 @@ export class LanguageTrackingDrawerComponent implements OnInit, OnChanges {
       flashcards: 'Flashcards',
       image_matching: 'Image Matching',
       gender_stack: 'Gender Stack',
+      memory: 'Memory Game',
     };
     return map[gt] || gt;
   }

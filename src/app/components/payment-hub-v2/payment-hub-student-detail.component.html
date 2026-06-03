@@ -76,7 +76,7 @@
           </div>
           <div class="sd-chip" *ngIf="history.student.subscription">
             <span class="sd-chip__label">Plan</span>
-            <strong class="sd-chip__value">{{ history.student.subscription }}</strong>
+            <strong class="sd-chip__value">{{ planLabel(history.student.subscription) }}</strong>
           </div>
           <div class="sd-chip">
             <span class="sd-chip__label">Student status</span>
@@ -215,7 +215,8 @@
                   </label>
                 </div>
                 <p class="sd-slot-map-note" *ngIf="slot.key === 'A1' || slot.key === 'A2' || slot.key === 'B1' || slot.key === 'B2'">
-                  This saves as a mapped level payment, so it stays visible under {{ slot.label }} even if paid in advance.
+                  <strong>Total / Quoted</strong> sets the correct fee for {{ slot.label }} (e.g. LKR 75,000) and merges duplicate rows.
+                  <strong>Amount</strong> records an additional payment only when there is still a balance. LKR and INR are tracked separately.
                 </p>
                 <div class="sd-slot-map-actions">
                   <button mat-button type="button" (click)="cancelMap()" [disabled]="mappingSaving">Cancel</button>
@@ -259,10 +260,12 @@
                 <th>Due</th>
                 <th>Created</th>
                 <th>Remarks</th>
+                <th class="sd-actions-col">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let req of history.requests; let i = index">
+              <ng-container *ngFor="let req of history.requests; let i = index">
+              <tr [class.sd-row-editing]="editingRequestId === req._id">
                 <td class="sd-num">{{ i + 1 }}</td>
                 <td><span class="sd-cell-batch">{{ batchLabel }}</span></td>
                 <td><span class="sd-cell-journey">{{ journeyDayLabel }}</span></td>
@@ -288,7 +291,76 @@
                 <td class="sd-date">{{ fmtDate(req.dueDate) }}</td>
                 <td class="sd-date">{{ fmtDate(req.createdAt) }}</td>
                 <td class="sd-remarks" [title]="req.remarks || ''">{{ req.remarks || '—' }}</td>
+                <td class="sd-actions-col">
+                  <ng-container *ngIf="canManageRequest(req)">
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="sd-icon-btn"
+                      title="Edit payment"
+                      (click)="beginEditRequest(req)"
+                      [disabled]="editSaving"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="sd-icon-btn sd-icon-btn--danger"
+                      title="Delete payment"
+                      (click)="deleteRequest(req)"
+                      [disabled]="editSaving"
+                    >
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </ng-container>
+                  <span *ngIf="!canManageRequest(req)" class="sd-actions-muted">—</span>
+                </td>
               </tr>
+              <tr *ngIf="editingRequestId === req._id && editForm" class="sd-edit-row">
+                <td colspan="12">
+                  <div class="sd-edit-panel">
+                    <div class="sd-edit-panel__title">Edit imported payment</div>
+                    <div class="sd-edit-grid">
+                      <label>
+                        <span>Requested</span>
+                        <input type="number" min="0" [(ngModel)]="editForm.amount" (ngModelChange)="onEditAmountChange()" />
+                      </label>
+                      <label>
+                        <span>Paid</span>
+                        <input type="number" min="0" [(ngModel)]="editForm.paidAmount" (ngModelChange)="onEditPaidChange()" />
+                      </label>
+                      <label>
+                        <span>Balance</span>
+                        <input type="number" min="0" [(ngModel)]="editForm.balance" readonly />
+                      </label>
+                      <label>
+                        <span>Currency</span>
+                        <select [(ngModel)]="editForm.currency">
+                          <option value="LKR">LKR</option>
+                          <option value="INR">INR</option>
+                          <option value="USD">USD</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Due date</span>
+                        <input type="date" [(ngModel)]="editForm.dueDate" />
+                      </label>
+                      <label class="sd-edit-remarks">
+                        <span>Remarks</span>
+                        <input type="text" [(ngModel)]="editForm.remarks" placeholder="Optional note" />
+                      </label>
+                    </div>
+                    <div class="sd-edit-actions">
+                      <button mat-button type="button" (click)="cancelEditRequest()" [disabled]="editSaving">Cancel</button>
+                      <button mat-flat-button color="primary" type="button" (click)="saveEditRequest(req)" [disabled]="editSaving">
+                        Save changes
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              </ng-container>
             </tbody>
           </table>
         </div>
