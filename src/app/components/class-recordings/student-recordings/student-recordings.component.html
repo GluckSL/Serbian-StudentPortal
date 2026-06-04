@@ -103,12 +103,30 @@
           <button
             type="button"
             class="sr-rec-card__pending"
-            *ngIf="isPendingApproval(r)"
+            *ngIf="isAccessRequestPending(r)"
             disabled
             title="Pending approval"
             aria-label="Pending approval">
             <span class="material-icons">hourglass_top</span>
           </button>
+          <button
+            type="button"
+            class="sr-rec-card__cancel-req"
+            *ngIf="canCancelRecordingRequest(r)"
+            (click)="cancelRecordingRequest(r, $event)"
+            [disabled]="cancellingRequestId === (r.accessRequestId || r.meetingLinkId)"
+            title="Cancel request"
+            aria-label="Cancel request">
+            <span class="material-icons sr-spin" *ngIf="cancellingRequestId === (r.accessRequestId || r.meetingLinkId)">autorenew</span>
+            <span class="material-icons" *ngIf="cancellingRequestId !== (r.accessRequestId || r.meetingLinkId)">undo</span>
+          </button>
+          <span
+            class="sr-rec-card__processing"
+            *ngIf="isRecordingProcessing(r)"
+            title="Approved — recording is being prepared"
+            aria-label="Recording processing">
+            <span class="material-icons">cloud_upload</span>
+          </span>
           <span class="sr-status-pill sr-status-pill--declined" *ngIf="isDeclinedRequest(r)">Declined</span>
           <button
             type="button"
@@ -197,12 +215,30 @@
               <button
                 type="button"
                 class="sr-icon-btn sr-icon-btn--pending"
-                *ngIf="isPendingApproval(r)"
+                *ngIf="isAccessRequestPending(r)"
                 disabled
                 title="Pending approval"
                 aria-label="Pending approval">
                 <span class="material-icons">hourglass_top</span>
               </button>
+              <button
+                type="button"
+                class="sr-icon-btn sr-icon-btn--cancel-req"
+                *ngIf="canCancelRecordingRequest(r)"
+                (click)="cancelRecordingRequest(r, $event)"
+                [disabled]="cancellingRequestId === (r.accessRequestId || r.meetingLinkId)"
+                title="Cancel request"
+                aria-label="Cancel request">
+                <span class="material-icons sr-spin" *ngIf="cancellingRequestId === (r.accessRequestId || r.meetingLinkId)">autorenew</span>
+                <span class="material-icons" *ngIf="cancellingRequestId !== (r.accessRequestId || r.meetingLinkId)">undo</span>
+              </button>
+              <span
+                class="sr-icon-btn sr-icon-btn--processing"
+                *ngIf="isRecordingProcessing(r)"
+                title="Approved — recording is being prepared"
+                aria-label="Recording processing">
+                <span class="material-icons">cloud_upload</span>
+              </span>
               <span
                 class="sr-status-pill sr-status-pill--declined"
                 *ngIf="isDeclinedRequest(r)"

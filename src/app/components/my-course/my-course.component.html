@@ -159,6 +159,7 @@
           [isPlatinumStudent]="isPlatinumStudent"
           [refreshToken]="recordingsRefreshToken"
           (reqRecordingClick)="openRecordingReqPanel()"
+          (recordingRequestChanged)="onRecordingRequestChanged()"
         ></app-student-recordings>
       </section>
     </div>
@@ -894,7 +895,15 @@
 
         <div class="mc-req-banner mc-req-banner--warn" *ngIf="recordingReqQuota && recordingReqQuota.remaining === 0 && !recordingReqLoading">
           <span class="material-icons">info</span>
-          You have used all {{ recordingReqQuota.limit }} approved recording requests for level {{ recordingReqQuota.level }}.
+          You have used all {{ recordingReqQuota.limit }} recording requests for level {{ recordingReqQuota.level }} (approved or declined).
+        </div>
+        <div
+          class="mc-req-banner mc-req-banner--info"
+          *ngIf="recordingReqQuota && recordingReqQuota.remaining > 0 && recordingReqQuota.slotsAvailable === 0 && !recordingReqLoading"
+        >
+          <span class="material-icons">info</span>
+          You have {{ recordingReqQuota.pendingCount }} pending request{{ recordingReqQuota.pendingCount !== 1 ? 's' : '' }}.
+          Cancel one to submit another, or wait for admin review.
         </div>
 
         <div class="mc-req-banner mc-req-banner--error" *ngIf="recordingReqError && !recordingReqLoading">
@@ -973,14 +982,27 @@
                     >
                       <span class="material-icons">verified</span>
                     </span>
-                    <span
-                      class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--pending"
-                      *ngIf="cls.requestStatus === 'PENDING'"
-                      title="Pending review"
-                      aria-label="Pending review"
-                    >
-                      <span class="material-icons">schedule</span>
-                    </span>
+                    <ng-container *ngIf="cls.requestStatus === 'PENDING'">
+                      <span
+                        class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--pending"
+                        title="Pending review"
+                        aria-label="Pending review"
+                      >
+                        <span class="material-icons">schedule</span>
+                      </span>
+                      <button
+                        type="button"
+                        class="mc-req-icon-btn mc-req-icon-btn--cancel"
+                        *ngIf="cls.canCancel && cls.requestId"
+                        (click)="cancelRecordingRequest(cls)"
+                        [disabled]="recordingReqCancellingId === cls.requestId"
+                        title="Cancel request"
+                        aria-label="Cancel request"
+                      >
+                        <span class="material-icons mc-req-spin" *ngIf="recordingReqCancellingId === cls.requestId">autorenew</span>
+                        <span class="material-icons" *ngIf="recordingReqCancellingId !== cls.requestId">undo</span>
+                      </button>
+                    </ng-container>
                     <button
                       type="button"
                       class="mc-req-icon-btn mc-req-icon-btn--request"
@@ -1083,7 +1105,7 @@
       <div class="mc-req-confirm-quota" *ngIf="recordingReqQuota">
         <div class="mc-req-confirm-quota__stat">
           <span class="mc-req-confirm-quota__label">Request #</span>
-          <span class="mc-req-confirm-quota__value">{{ recordingReqOrdinal(recordingReqQuota.approvedCount + 1) }}</span>
+          <span class="mc-req-confirm-quota__value">{{ recordingReqOrdinal(recordingReqQuota.decidedCount + recordingReqQuota.pendingCount + 1) }}</span>
         </div>
         <div class="mc-req-confirm-quota__divider"></div>
         <div class="mc-req-confirm-quota__stat">
@@ -1092,15 +1114,16 @@
         </div>
         <div class="mc-req-confirm-quota__divider"></div>
         <div class="mc-req-confirm-quota__stat">
-          <span class="mc-req-confirm-quota__label">After approval</span>
+          <span class="mc-req-confirm-quota__label">Slots left</span>
           <span class="mc-req-confirm-quota__value">
-            {{ recordingReqQuota.remaining - 1 }} left
+            {{ recordingReqQuota.remaining }} after review
           </span>
         </div>
       </div>
 
       <p class="mc-req-confirm-note" *ngIf="recordingReqQuota">
-        You can submit up to {{ recordingReqQuota.limit }} approved recording requests per level.
+        You can submit up to {{ recordingReqQuota.limit }} recording requests per level.
+        Only approved or declined requests count toward your limit; pending requests can be cancelled.
         We will notify you by email once your request is reviewed.
       </p>
 

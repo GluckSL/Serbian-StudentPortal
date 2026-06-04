@@ -5,8 +5,11 @@ import { environment } from '../../environments/environment';
 
 export interface RecordingRequestQuota {
   level: string;
+  decidedCount: number;
+  pendingCount: number;
   approvedCount: number;
   remaining: number;
+  slotsAvailable: number;
   limit: number;
 }
 
@@ -21,7 +24,9 @@ export interface EligibleClass {
   hasRecording: boolean;
   isAlreadyPublished: boolean;
   requestStatus: 'PENDING' | 'APPROVED' | 'DECLINED' | null;
+  requestId?: string | null;
   canRequest: boolean;
+  canCancel?: boolean;
 }
 
 export interface EligibleClassesPagination {
@@ -94,6 +99,14 @@ export class RecordingAccessRequestService {
 
   submitRequest(meetingLinkId: string): Observable<any> {
     return this.http.post<any>(this.url, { meetingLinkId });
+  }
+
+  cancelRequest(requestId: string): Observable<{ success: boolean; message: string; quota?: RecordingRequestQuota }> {
+    return this.http.delete<any>(`${this.url}/${requestId}`);
+  }
+
+  cancelPendingByMeeting(meetingLinkId: string): Observable<{ success: boolean; message: string; quota?: RecordingRequestQuota }> {
+    return this.http.delete<any>(`${this.url}/pending/meeting/${meetingLinkId}`);
   }
 
   // Admin

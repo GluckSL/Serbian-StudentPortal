@@ -115,6 +115,7 @@ export class MyCourseComponent implements OnInit {
   /** The class row currently open in the confirmation modal. */
   recordingReqConfirmTarget: EligibleClass | null = null;
   recordingReqSubmitting = false;
+  recordingReqCancellingId: string | null = null;
   recordingReqSuccessMsg = '';
   recordingReqFailMsg = '';
   recordingsRefreshToken = 0;
@@ -1217,15 +1218,7 @@ export class MyCourseComponent implements OnInit {
         const p = res?.pagination;
         this.recordingReqTotal = p?.total ?? list.length;
         this.recordingReqTotalPages = p?.totalPages ?? (list.length ? 1 : 0);
-        const q = res?.quota;
-        this.recordingReqQuota = q
-          ? {
-              level: q.level || this.levelShortLabel,
-              approvedCount: q.approvedCount ?? 0,
-              remaining: q.remaining ?? 0,
-              limit: q.limit ?? 5,
-            }
-          : null;
+        this.recordingReqQuota = this.mapRecordingReqQuota(res?.quota);
         this.recordingReqLoading = false;
       },
       error: (err) => {
@@ -1250,6 +1243,50 @@ export class MyCourseComponent implements OnInit {
 
   closeRecordingReqConfirm(): void {
     this.recordingReqConfirmTarget = null;
+  }
+
+  private mapRecordingReqQuota(q: Partial<RecordingRequestQuota> | null | undefined): RecordingRequestQuota | null {
+    if (!q) return null;
+    const decidedCount = q.decidedCount ?? 0;
+    const pendingCount = q.pendingCount ?? 0;
+    const limit = q.limit ?? 5;
+    return {
+      level: q.level || this.levelShortLabel,
+      decidedCount,
+      pendingCount,
+      approvedCount: q.approvedCount ?? 0,
+      remaining: q.remaining ?? Math.max(0, limit - decidedCount),
+      slotsAvailable: q.slotsAvailable ?? Math.max(0, limit - decidedCount - pendingCount),
+      limit,
+    };
+  }
+
+  onRecordingRequestChanged(): void {
+    this.recordingsRefreshToken += 1;
+    if (this.showRecordingReqPanel) {
+      this.loadEligibleClasses(this.recordingReqPage);
+    }
+  }
+
+  cancelRecordingRequest(cls: EligibleClass): void {
+    const requestId = cls.requestId;
+    if (!requestId || this.recordingReqCancellingId) return;
+    this.recordingReqCancellingId = requestId;
+    this.recordingReqFailMsg = '';
+    this.recordingReqService.cancelRequest(requestId).subscribe({
+      next: (res) => {
+        this.recordingReqCancellingId = null;
+        this.recordingReqSuccessMsg = res?.message || 'Request cancelled.';
+        if (res?.quota) {
+          this.recordingReqQuota = this.mapRecordingReqQuota(res.quota);
+        }
+        this.onRecordingRequestChanged();
+      },
+      error: (err) => {
+        this.recordingReqCancellingId = null;
+        this.recordingReqFailMsg = err?.error?.message || 'Failed to cancel request. Please try again.';
+      },
+    });
   }
 
   confirmRecordingRequest(): void {

@@ -1,6 +1,6 @@
 // routes/recordingAccessRequests.js
 // Platinum-only recording access request workflow.
-// Students request access to recordings of past classes (5 approved per CEFR level).
+// Students request access to recordings of past classes (5 per CEFR level; approved+declined count).
 // Admins approve (grants per-student playback) or decline (emails student).
 
 const express = require('express');
@@ -20,7 +20,7 @@ const {
   REQUEST_LIMIT,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
-  countApprovedForLevel,
+  countDecidedForLevel,
   getQuota,
   getEligibleClassesPage,
   recordingIsReady,
@@ -37,7 +37,7 @@ const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/eff
 
 /**
  * GET /api/recording-access-requests/quota
- * Returns approved count + remaining slots for the student's current level.
+ * Returns quota (decided/pending counts + remaining slots) for the student's current level.
  */
 router.get('/quota', verifyToken, requirePlatinum, async (req, res) => {
   try {
@@ -114,12 +114,18 @@ router.post('/', verifyToken, requirePlatinum, async (req, res) => {
       return res.status(403).json({ success: false, message: 'This class is not in your batch.' });
     }
 
-    // Quota check — only APPROVED count
-    const approvedCount = await countApprovedForLevel(req.user.id, student.level);
-    if (approvedCount >= REQUEST_LIMIT) {
+    const quota = await getQuota(req.user.id, student.level);
+    if (quota.decidedCount >= REQUEST_LIMIT) {
       return res.status(400).json({
         success: false,
-        message: `You have already used all ${REQUEST_LIMIT} approved recording requests for level ${student.level}.`,
+        message: `You have already used all ${REQUEST_LIMIT} recording requests for level ${student.level} (approved or declined).`,
+        quotaExhausted: true,
+      });
+    }
+    if (quota.slotsAvailable <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: `You already have ${REQUEST_LIMIT} active recording requests for level ${student.level}. Cancel a pending request or wait for admin review before submitting another.`,
         quotaExhausted: true,
       });
     }
@@ -155,12 +161,8 @@ router.post('/', verifyToken, requirePlatinum, async (req, res) => {
       status: 'PENDING',
     });
 
-    const remaining = Math.max(0, REQUEST_LIMIT - approvedCount);
-    sendNewRequestAdminEmail(request, meeting, {
-      approvedCount,
-      remaining,
-      limit: REQUEST_LIMIT,
-    }).catch(() => {});
+    const updatedQuota = await getQuota(req.user.id, student.level);
+    sendNewRequestAdminEmail(request, meeting, updatedQuota).catch(() => {});
 
     res.status(201).json({
       success: true,
@@ -168,9 +170,7 @@ router.post('/', verifyToken, requirePlatinum, async (req, res) => {
       request: {
         _id: request._id,
         status: request.status,
-        approvedCount,
-        remaining,
-        limit: REQUEST_LIMIT,
+        ...updatedQuota,
       },
     });
   } catch (err) {
@@ -179,6 +179,84 @@ router.post('/', verifyToken, requirePlatinum, async (req, res) => {
     }
     console.error('[RecordingAccessRequest] submit error:', err);
     res.status(500).json({ success: false, message: 'Failed to submit request.' });
+  }
+});
+
+/**
+ * DELETE /api/recording-access-requests/pending/meeting/:meetingLinkId
+ * Cancel the student's PENDING request for a class (used when feed has no request id).
+ */
+router.delete('/pending/meeting/:meetingLinkId', verifyToken, requirePlatinum, async (req, res) => {
+  try {
+    const { meetingLinkId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(meetingLinkId)) {
+      return res.status(400).json({ success: false, message: 'Invalid meeting id.' });
+    }
+
+    const request = await RecordingAccessRequest.findOne({
+      studentId: req.user.id,
+      meetingLinkId,
+      status: 'PENDING',
+    }).sort({ requestedAt: -1 });
+
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'No pending request found for this class.' });
+    }
+
+    await RecordingAccessRequest.deleteOne({ _id: request._id });
+
+    const student = await User.findById(req.user.id).select('level').lean();
+    const quota = student ? await getQuota(req.user.id, student.level) : null;
+
+    res.json({
+      success: true,
+      message: 'Request cancelled.',
+      quota,
+      requestId: String(request._id),
+    });
+  } catch (err) {
+    console.error('[RecordingAccessRequest] cancel-by-meeting error:', err);
+    res.status(500).json({ success: false, message: 'Failed to cancel request.' });
+  }
+});
+
+/**
+ * DELETE /api/recording-access-requests/:id
+ * Student cancels a PENDING request (does not count toward quota).
+ */
+router.delete('/:id', verifyToken, requirePlatinum, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid request id.' });
+    }
+
+    const request = await RecordingAccessRequest.findOne({
+      _id: req.params.id,
+      studentId: req.user.id,
+    });
+    if (!request) {
+      return res.status(404).json({ success: false, message: 'Request not found.' });
+    }
+    if (request.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only pending requests can be cancelled. Approved or declined requests cannot be undone.',
+      });
+    }
+
+    await RecordingAccessRequest.deleteOne({ _id: request._id });
+
+    const student = await User.findById(req.user.id).select('level').lean();
+    const quota = student ? await getQuota(req.user.id, student.level) : null;
+
+    res.json({
+      success: true,
+      message: 'Request cancelled.',
+      quota,
+    });
+  } catch (err) {
+    console.error('[RecordingAccessRequest] cancel error:', err);
+    res.status(500).json({ success: false, message: 'Failed to cancel request.' });
   }
 });
 
@@ -206,13 +284,11 @@ router.get(
       const enriched = await Promise.all(
         requests.map(async (r) => {
           const hasRecording = await recordingIsReady(r.meetingLinkId?._id || r.meetingLinkId);
-          const approvedCount = await countApprovedForLevel(r.studentId, r.studentLevel);
+          const q = await getQuota(r.studentId, r.studentLevel);
           return {
             ...r,
             hasRecording,
-            approvedCount,
-            remaining: Math.max(0, REQUEST_LIMIT - approvedCount),
-            limit: REQUEST_LIMIT,
+            ...q,
           };
         })
       );
@@ -239,6 +315,14 @@ router.post(
       if (!request) return res.status(404).json({ success: false, message: 'Request not found.' });
       if (request.status !== 'PENDING') {
         return res.status(400).json({ success: false, message: `Request is already ${request.status.toLowerCase()}.` });
+      }
+
+      const decidedCount = await countDecidedForLevel(request.studentId, request.studentLevel);
+      if (decidedCount >= REQUEST_LIMIT) {
+        return res.status(400).json({
+          success: false,
+          message: `Student has already used all ${REQUEST_LIMIT} recording requests for level ${request.studentLevel}.`,
+        });
       }
 
       const hasRecording = await recordingIsReady(request.meetingLinkId);
