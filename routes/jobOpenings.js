@@ -148,6 +148,23 @@ function parseSkills(raw) {
   return [];
 }
 
+function parseMinJourneyDay(raw) {
+  if (raw === undefined || raw === null) return null;
+  const s = String(raw).trim();
+  if (s === '' || s === 'null' || s === 'undefined') return null;
+  const n = Math.floor(Number(s));
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(200, n);
+}
+
+function studentJourneyDay(student) {
+  const raw = student?.currentCourseDay;
+  if (raw != null && Number.isFinite(Number(raw))) {
+    return Math.min(200, Math.max(1, Math.floor(Number(raw))));
+  }
+  return 1;
+}
+
 function studentVisibleFilter() {
   const now = new Date();
   return {
@@ -335,7 +352,7 @@ router.get('/admin/applications', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
 router.get('/student/apply-prefill', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
     const student = await User.findById(req.user.id)
-      .select('name email regNo batch phoneNumber')
+      .select('name email regNo batch phoneNumber currentCourseDay')
       .lean();
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
@@ -347,7 +364,8 @@ router.get('/student/apply-prefill', verifyToken, checkRole('STUDENT'), async (r
         email: student.email || '',
         regNo: student.regNo || '',
         batch: student.batch || '',
-        phone: student.phoneNumber || ''
+        phone: student.phoneNumber || '',
+        journeyDay: studentJourneyDay(student)
       }
     });
   } catch (error) {
@@ -482,8 +500,19 @@ router.post(
       }
 
       const student = await User.findById(req.user.id)
-        .select('name email regNo batch')
+        .select('name email regNo batch currentCourseDay')
         .lean();
+
+      const minJourneyDay = opening.minJourneyDay;
+      if (minJourneyDay != null && minJourneyDay >= 1) {
+        const day = studentJourneyDay(student);
+        if (day < minJourneyDay) {
+          return res.status(403).json({
+            success: false,
+            message: `${minJourneyDay} journey day required to apply.`
+          });
+        }
+      }
 
       const application = await JobApplication.create({
         studentId: req.user.id,
@@ -808,6 +837,7 @@ router.post(
         skills: parseSkills(req.body.skills),
         description: sanitizeDescription(req.body.description),
         applyBefore,
+        minJourneyDay: parseMinJourneyDay(req.body.minJourneyDay),
         isPublished: String(req.body.isPublished || 'true') !== 'false',
         isActive: String(req.body.isActive || 'true') !== 'false',
         createdBy: req.user.id
@@ -850,6 +880,7 @@ router.put(
       }
       if (req.body.isPublished !== undefined) opening.isPublished = String(req.body.isPublished) !== 'false';
       if (req.body.isActive !== undefined) opening.isActive = String(req.body.isActive) !== 'false';
+      if (req.body.minJourneyDay !== undefined) opening.minJourneyDay = parseMinJourneyDay(req.body.minJourneyDay);
 
       if (req.file) {
         const nextLogoUrl = await persistCompanyLogo(req.file);

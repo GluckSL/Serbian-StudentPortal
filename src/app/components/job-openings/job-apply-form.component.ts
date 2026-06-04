@@ -1,7 +1,12 @@
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { JobOpening, JobOpeningService } from '../../services/job-opening.service';
+import {
+  canApplyToJob,
+  JobOpening,
+  JobOpeningService,
+  journeyDayRequiredMessage
+} from '../../services/job-opening.service';
 import { NotificationService } from '../../services/notification.service';
 
 @Component({
@@ -20,6 +25,7 @@ export class JobApplyFormComponent implements OnChanges {
   loadingPrefill = false;
   submitting = false;
   resumeFile: File | null = null;
+  studentJourneyDay = 1;
 
   prefill = {
     name: '',
@@ -48,6 +54,7 @@ export class JobApplyFormComponent implements OnChanges {
     this.jobService.getApplyPrefill().subscribe({
       next: (res) => {
         const d = res?.data;
+        this.studentJourneyDay = d?.journeyDay ?? 1;
         this.prefill = {
           name: d?.name || '',
           email: d?.email || '',
@@ -77,6 +84,10 @@ export class JobApplyFormComponent implements OnChanges {
 
   submit(): void {
     if (!this.job || this.submitting) return;
+    if (!canApplyToJob(this.job, this.studentJourneyDay)) {
+      this.notify.error(journeyDayRequiredMessage(this.job));
+      return;
+    }
     if (!this.prefill.phone.trim()) {
       this.notify.error('Phone number is required.');
       return;

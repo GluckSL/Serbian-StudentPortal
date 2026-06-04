@@ -45,6 +45,9 @@
         <span *ngIf="job.jobType" class="jo-detail-meta-item">
           <span class="material-icons">work</span>{{ job.jobType }}
         </span>
+        <span *ngIf="job.minJourneyDay" class="jo-detail-meta-item">
+          <span class="material-icons">flag</span>Journey day {{ job.minJourneyDay }}+ required
+        </span>
       </div>
 
       <section class="jo-detail-section" *ngIf="job.skills?.length">

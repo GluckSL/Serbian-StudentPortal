@@ -13,6 +13,8 @@ const jobOpeningSchema = new mongoose.Schema(
     },
     experience: { type: String, default: '', trim: true, maxlength: 80 },
     jobCategory: { type: String, default: '', trim: true, maxlength: 80, index: true },
+    /** Minimum student journey day (currentCourseDay) to apply; null = no restriction */
+    minJourneyDay: { type: Number, default: null, min: 1, max: 200 },
     locationType: {
       type: String,
       enum: ['Onsite', 'Remote', 'Hybrid'],

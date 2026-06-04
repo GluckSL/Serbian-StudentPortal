@@ -95,6 +95,7 @@ export class AdminJobOpeningsComponent implements OnInit {
     jobType: 'Full Time' as JobType,
     experience: '',
     jobCategory: '',
+    minJourneyDay: '' as string | number,
     locationType: 'Onsite' as LocationType,
     location: '',
     salary: '',
@@ -214,6 +215,7 @@ export class AdminJobOpeningsComponent implements OnInit {
       jobType: 'Full Time',
       experience: '',
       jobCategory: '',
+      minJourneyDay: '',
       locationType: 'Onsite',
       location: '',
       salary: '',
@@ -242,6 +244,7 @@ export class AdminJobOpeningsComponent implements OnInit {
       jobType: job.jobType,
       experience: job.experience || '',
       jobCategory: job.jobCategory || '',
+      minJourneyDay: job.minJourneyDay != null ? job.minJourneyDay : '',
       locationType: job.locationType,
       location: job.location || '',
       salary: job.salary || '',
@@ -274,6 +277,8 @@ export class AdminJobOpeningsComponent implements OnInit {
     fd.append('jobType', this.form.jobType);
     fd.append('experience', this.form.experience.trim());
     fd.append('jobCategory', this.form.jobCategory.trim());
+    const minJd = String(this.form.minJourneyDay ?? '').trim();
+    fd.append('minJourneyDay', minJd);
     fd.append('locationType', this.form.locationType);
     fd.append('location', this.form.location.trim());
     fd.append('salary', this.form.salary.trim());

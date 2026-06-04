@@ -3,14 +3,17 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import {
+  canApplyToJob,
   JobClosedListing,
   JobOpening,
   JobOpeningService,
   JobPlacementHighlight,
   JobPortalStats,
   JobType,
+  journeyDayRequiredMessage,
   LocationType
 } from '../../services/job-opening.service';
+import { NotificationService } from '../../services/notification.service';
 import { JobApplyFormComponent } from './job-apply-form.component';
 
 export type JobPortalTab = 'openings' | 'closed' | 'placements';
@@ -45,17 +48,29 @@ export class StudentJobOpeningsComponent implements OnInit {
   viewAppliedOnly = false;
   applyJob: JobOpening | null = null;
   showApplyForm = false;
+  studentJourneyDay = 1;
 
   readonly jobTypes: JobType[] = ['Full Time', 'Part Time', 'Internship', 'Contract'];
   readonly locationTypes: LocationType[] = ['Onsite', 'Remote', 'Hybrid'];
 
   constructor(
     private jobService: JobOpeningService,
-    private router: Router
+    private router: Router,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
+    this.loadStudentJourneyDay();
     this.loadOpenings();
+  }
+
+  private loadStudentJourneyDay(): void {
+    this.jobService.getApplyPrefill().subscribe({
+      next: (res) => {
+        this.studentJourneyDay = res?.data?.journeyDay ?? 1;
+      },
+      error: () => {}
+    });
   }
 
   setTab(tab: JobPortalTab): void {
@@ -171,6 +186,10 @@ export class StudentJobOpeningsComponent implements OnInit {
   apply(job: JobOpening, event: Event): void {
     event.stopPropagation();
     if (this.isApplied(job)) return;
+    if (!canApplyToJob(job, this.studentJourneyDay)) {
+      this.notify.error(journeyDayRequiredMessage(job));
+      return;
+    }
     this.applyJob = job;
     this.showApplyForm = true;
   }

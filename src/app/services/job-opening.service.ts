@@ -20,6 +20,8 @@ export interface JobOpening {
   skills: string[];
   description: string;
   applyBefore: string;
+  /** Minimum journey day to apply; omitted or null = no restriction */
+  minJourneyDay?: number | null;
   isPublished?: boolean;
   isActive?: boolean;
   applicationCount?: number;
@@ -34,6 +36,19 @@ export interface JobApplyPrefill {
   regNo: string;
   batch: string;
   phone: string;
+  journeyDay?: number;
+}
+
+/** True when the student may apply (journey day meets opening minimum, if any). */
+export function canApplyToJob(job: JobOpening, studentJourneyDay: number): boolean {
+  const min = job.minJourneyDay;
+  if (min == null || min < 1) return true;
+  return studentJourneyDay >= min;
+}
+
+export function journeyDayRequiredMessage(job: JobOpening): string {
+  const min = job.minJourneyDay;
+  return min != null && min >= 1 ? `${min} journey day required to apply.` : '';
 }
 
 export interface JobApplicationRecord {

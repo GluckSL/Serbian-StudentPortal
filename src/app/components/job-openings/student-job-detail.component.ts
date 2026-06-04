@@ -1,7 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { JobOpening, JobOpeningService } from '../../services/job-opening.service';
+import {
+  canApplyToJob,
+  JobOpening,
+  JobOpeningService,
+  journeyDayRequiredMessage
+} from '../../services/job-opening.service';
+import { NotificationService } from '../../services/notification.service';
 import { JobApplyFormComponent } from './job-apply-form.component';
 
 @Component({
@@ -16,11 +22,13 @@ export class StudentJobDetailComponent implements OnInit {
   job: JobOpening | null = null;
   applied = false;
   showApplyForm = false;
+  studentJourneyDay = 1;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private jobService: JobOpeningService
+    private jobService: JobOpeningService,
+    private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -29,6 +37,12 @@ export class StudentJobDetailComponent implements OnInit {
       this.router.navigate(['/student/job-openings']);
       return;
     }
+    this.jobService.getApplyPrefill().subscribe({
+      next: (res) => {
+        this.studentJourneyDay = res?.data?.journeyDay ?? 1;
+      },
+      error: () => {}
+    });
     this.jobService.getStudentDetail(id).subscribe({
       next: (res) => {
         this.job = res?.data || null;
@@ -59,6 +73,10 @@ export class StudentJobDetailComponent implements OnInit {
 
   apply(): void {
     if (!this.job || this.applied) return;
+    if (!canApplyToJob(this.job, this.studentJourneyDay)) {
+      this.notify.error(journeyDayRequiredMessage(this.job));
+      return;
+    }
     this.showApplyForm = true;
   }
 

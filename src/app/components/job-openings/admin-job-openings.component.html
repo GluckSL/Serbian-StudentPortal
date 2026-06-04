@@ -384,6 +384,17 @@
             <span class="ajo-field__label">Job category</span>
             <input type="text" [(ngModel)]="form.jobCategory" placeholder="e.g. Software Development" />
           </label>
+          <label class="ajo-field">
+            <span class="ajo-field__label">Journey day</span>
+            <input
+              type="number"
+              min="1"
+              max="200"
+              [(ngModel)]="form.minJourneyDay"
+              placeholder="e.g. 40"
+            />
+            <span class="ajo-field__hint">Min day to apply · leave empty for all</span>
+          </label>
           <label class="ajo-field ajo-field--wide">
             <span class="ajo-field__label">Skills <span class="ajo-field__hint">comma-separated</span></span>
             <input type="text" [(ngModel)]="form.skillsText" placeholder="Java, React.js, MongoDB, Node" />
