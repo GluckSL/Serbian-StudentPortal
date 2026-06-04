@@ -657,11 +657,38 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
       });
   }
 
+  private static readonly PROOF_MAX_BYTES = 15 * 1024 * 1024;
+  private static readonly PROOF_EXT = /\.(jpe?g|png|gif|webp|heic|heif|pdf)$/i;
+
   onProofFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
-    this.proofFile = input.files[0];
-    this.proofFileName = this.proofFile.name;
+    const file = input.files[0];
+    const name = (file.name || '').toLowerCase();
+    const type = (file.type || '').toLowerCase();
+    const extOk = PublicSignupWizardComponent.PROOF_EXT.test(name);
+    const typeOk =
+      /^image\/(jpeg|jpg|png|gif|webp|heic|heif)/.test(type) ||
+      type === 'application/pdf' ||
+      type === 'application/x-pdf' ||
+      (!type && extOk);
+    if (!extOk && !typeOk) {
+      this.proofFile = null;
+      this.proofFileName = '';
+      this.error = 'Please choose a photo (PNG, JPG, HEIC) or PDF.';
+      input.value = '';
+      return;
+    }
+    if (file.size > PublicSignupWizardComponent.PROOF_MAX_BYTES) {
+      this.proofFile = null;
+      this.proofFileName = '';
+      this.error = 'File is too large. Maximum size is 15 MB.';
+      input.value = '';
+      return;
+    }
+    this.error = '';
+    this.proofFile = file;
+    this.proofFileName = file.name;
   }
 
   submitProof(): void {

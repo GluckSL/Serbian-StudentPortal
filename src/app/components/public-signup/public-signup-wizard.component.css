@@ -1009,6 +1009,20 @@
   color: #94a3b8;
 }
 
+/* iOS Safari ignores clicks on `hidden` file inputs inside labels */
+.sw-file-input-offscreen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+}
+
 .sw-btn--outline {
   background: #fff;
   color: #6c3fc5;

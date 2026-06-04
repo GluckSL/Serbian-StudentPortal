@@ -44,17 +44,17 @@ export interface UploadDialogData {
         &bull; Due {{ fmtDate(data.installmentNumber && data.suggestedDueDate ? data.suggestedDueDate : data.request.dueDate) }}
       </p>
 
-      <div class="ud-file-zone" [class.ud-file-selected]="selectedFile" (click)="filePicker.click()" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
-        <input #filePicker type="file" accept="image/*,application/pdf" (change)="onFileSelect($event)" style="display:none" />
+      <label class="ud-file-zone" [class.ud-file-selected]="selectedFile" for="paymentProofFile" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
+        <input id="paymentProofFile" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf,.pdf,image/*" (change)="onFileSelect($event)" class="ud-file-input-offscreen" />
         <mat-icon class="ud-file-icon">{{ selectedFile ? 'check_circle' : 'cloud_upload' }}</mat-icon>
         <div *ngIf="!selectedFile">
           <div class="ud-file-label">Click or drag to upload screenshot</div>
-          <div class="ud-file-hint">JPG, PNG, PDF accepted</div>
+          <div class="ud-file-hint">JPG, PNG, HEIC, PDF — max 15 MB</div>
         </div>
         <div *ngIf="selectedFile" class="ud-file-name">
           {{ selectedFile.name }} ({{ (selectedFile.size / 1024).toFixed(0) }} KB)
         </div>
-      </div>
+      </label>
 
       <div class="ud-form-row">
         <mat-form-field appearance="outline" class="ud-field">
@@ -145,6 +145,18 @@ export interface UploadDialogData {
       &:hover { border-color: #1565c0; background: #f0f4ff; }
       &.ud-file-selected { border-color: #4caf50; background: #f1f8e9; }
     }
+    .ud-file-input-offscreen {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+      opacity: 0;
+    }
     .ud-file-icon {
       font-size: 40px; height: 40px; width: 40px;
       color: #9e9e9e;
@@ -221,11 +233,26 @@ export class PaymentUploadDialogComponent {
     this.currency = data.request.currency || 'LKR';
   }
 
+  private static readonly PROOF_MAX_BYTES = 15 * 1024 * 1024;
+  private static readonly PROOF_EXT = /\.(jpe?g|png|gif|webp|heic|heif|pdf)$/i;
+
   onFileSelect(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files?.length) {
-      this.selectedFile = input.files[0];
+    if (!input.files?.length) return;
+    const file = input.files[0];
+    const name = (file.name || '').toLowerCase();
+    const type = (file.type || '').toLowerCase();
+    const extOk = PaymentUploadDialogComponent.PROOF_EXT.test(name);
+    const typeOk =
+      /^image\/(jpeg|jpg|png|gif|webp|heic|heif)/.test(type) ||
+      type === 'application/pdf' ||
+      (!type && extOk);
+    if ((!extOk && !typeOk) || file.size > PaymentUploadDialogComponent.PROOF_MAX_BYTES) {
+      this.selectedFile = null;
+      input.value = '';
+      return;
     }
+    this.selectedFile = file;
   }
 
   onDrop(event: DragEvent): void {

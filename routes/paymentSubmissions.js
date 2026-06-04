@@ -35,8 +35,9 @@ const uploadProof = multer({
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|pdf|webp/;
-    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+    const allowed = /jpeg|jpg|png|pdf|webp|heic|heif/;
+    const ext = path.extname(file.originalname || '').toLowerCase().replace('.', '');
+    cb(null, allowed.test(ext));
   }
 });
 

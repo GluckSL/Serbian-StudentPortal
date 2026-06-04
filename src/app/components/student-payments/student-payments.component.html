@@ -382,8 +382,8 @@
 
       <div class="sp-form-group">
         <label class="sp-label">Payment Screenshot <span class="sp-hint-text">(JPG, PNG, PDF — max 5MB)</span></label>
-        <div class="sp-file-upload" (click)="fileInput.click()">
-          <input #fileInput type="file" accept="image/*,.pdf" style="display:none" (change)="onProofFileChange($event)">
+        <label class="sp-file-upload" for="studentPaymentProofFile">
+          <input id="studentPaymentProofFile" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf,.pdf,image/*" class="sp-file-input-offscreen" (change)="onProofFileChange($event)">
           <ng-container *ngIf="!manualForm.proofFile">
             <span class="material-icons sp-file-upload__icon">attach_file</span>
             <span>Click to upload screenshot</span>
@@ -392,7 +392,7 @@
             <span class="material-icons">check</span>
             {{ manualForm.proofFile.name }}
           </span>
-        </div>
+        </label>
       </div>
 
       <div class="sp-form-group">
