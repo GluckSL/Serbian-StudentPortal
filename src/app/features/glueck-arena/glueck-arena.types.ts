@@ -24,6 +24,11 @@ export interface SpinWheelSettings {
   centerLabel: string;
 }
 
+export interface TapBoxesSettings {
+  /** Custom board background image URL; null = default green board */
+  backgroundUrl: string | null;
+}
+
 export interface GameSet {
   _id: string;
   title: string;
@@ -40,6 +45,7 @@ export interface GameSet {
   timerSettings: TimerSettings;
   genderStackSettings?: GenderStackSettings;
   spinWheelSettings?: SpinWheelSettings;
+  tapBoxesSettings?: TapBoxesSettings;
   visibleToStudents: boolean;
   courseDay: number | null;
   sequenceLetter: string | null;

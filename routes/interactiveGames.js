@@ -178,6 +178,9 @@ router.delete('/admin/sets/:id', verifyToken, checkRole(adminRoles), interactive
 // Thumbnail upload
 router.post('/admin/sets/:id/thumbnail', verifyToken, checkRole(adminRoles), interactiveGamesController.adminUploadThumbnail);
 
+// Tap the Boxes play-area background
+router.post('/admin/sets/:id/tap-boxes-background', verifyToken, checkRole(adminRoles), interactiveGamesController.adminUploadTapBoxesBackground);
+
 // Question management
 router.get('/admin/sets/:id/questions', verifyToken, checkRole(adminRoles), interactiveGamesController.adminGetQuestions);
 router.post('/admin/sets/:id/questions', verifyToken, checkRole(adminRoles), interactiveGamesController.adminUpsertQuestions);

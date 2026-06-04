@@ -23,7 +23,7 @@ const wordPictureMatchService = require('../services/interactiveGames/wordPictur
 const multipleChoiceService = require('../services/interactiveGames/multipleChoice');
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
-const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
+const { uploadThumbnail, uploadTapBoxesBackground, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
 const { presignMediaUrl, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
 const analyticsService = require('../services/interactiveGames/analytics');
 const securityService = require('../services/interactiveGames/security');
@@ -74,6 +74,14 @@ function normalizeSpinWheelSettings(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const label = String(src.centerLabel || '').trim();
   return { centerLabel: label || 'ergänze den Satz!' };
+}
+
+function normalizeTapBoxesSettings(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const url = src.backgroundUrl == null || src.backgroundUrl === ''
+    ? null
+    : String(src.backgroundUrl).trim() || null;
+  return { backgroundUrl: url };
 }
 
 function badRequest(res, msg) { return res.status(400).json({ success: false, message: msg }); }
@@ -374,6 +382,8 @@ exports.startAttempt = async (req, res) => {
       const hints = questions.map(q => q.hint).filter(Boolean);
       shuffledWords = imageMatchingService.shuffleWords(hints);
     }
+
+    await resignMediaInObject(set);
 
     res.json({
       success: true,
@@ -1117,7 +1127,7 @@ exports.adminListSets = async (req, res) => {
 exports.adminCreateSet = async (req, res) => {
   try {
     const { title, description, gameType, difficulty, level, category, tags, xpReward,
-            timerSettings, genderStackSettings, spinWheelSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
+            timerSettings, genderStackSettings, spinWheelSettings, tapBoxesSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
             icon, estimatedDurationMinutes, targetBatches } = req.body;
 
     if (!title || !title.trim()) return badRequest(res, 'title required');
@@ -1136,6 +1146,7 @@ exports.adminCreateSet = async (req, res) => {
       timerSettings: timerSettings || {},
       genderStackSettings: normalizeGenderStackSettings(genderStackSettings),
       spinWheelSettings: normalizeSpinWheelSettings(spinWheelSettings),
+      tapBoxesSettings: normalizeTapBoxesSettings(tapBoxesSettings),
       visibleToStudents: !!visibleToStudents,
       courseDay: courseDay ? Number(courseDay) : null,
       sequenceLetter: sequenceLetter || null,
@@ -1177,7 +1188,7 @@ exports.adminGetSet = async (req, res) => {
 exports.adminUpdateSet = async (req, res) => {
   try {
     const allowedFields = ['title', 'description', 'difficulty', 'level', 'category', 'tags',
-      'xpReward', 'timerSettings', 'genderStackSettings', 'spinWheelSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
+      'xpReward', 'timerSettings', 'genderStackSettings', 'spinWheelSettings', 'tapBoxesSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
       'targetLanguage', 'icon', 'estimatedDurationMinutes', 'isPublished', 'isArchived'];
 
     const updates = {};
@@ -1187,7 +1198,9 @@ exports.adminUpdateSet = async (req, res) => {
           ? normalizeGenderStackSettings(req.body[f])
           : f === 'spinWheelSettings'
             ? normalizeSpinWheelSettings(req.body[f])
-            : req.body[f];
+            : f === 'tapBoxesSettings'
+              ? normalizeTapBoxesSettings(req.body[f])
+              : req.body[f];
       }
     }
     if (req.body.targetBatches !== undefined) {
@@ -1243,6 +1256,36 @@ exports.adminUploadThumbnail = async (req, res) => {
 
     const thumbnailUrl = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, thumbnailUrl, canonicalUrl });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
+exports.adminUploadTapBoxesBackground = async (req, res) => {
+  try {
+    const existing = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
+    if (!existing) return notFound(res);
+    if (existing.gameType !== 'tap_boxes') {
+      return badRequest(res, 'Background upload is only for Tap the Boxes game sets');
+    }
+
+    const canonicalUrl = await uploadTapBoxesBackground(req, res);
+    if (!canonicalUrl) return;
+
+    const set = await GameSet.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          'tapBoxesSettings.backgroundUrl': canonicalUrl,
+          updatedBy: req.user.id,
+        },
+      },
+      { new: true }
+    );
+    if (!set) return notFound(res);
+
+    const backgroundUrl = await presignMediaUrl(canonicalUrl);
+    res.json({ success: true, backgroundUrl, canonicalUrl });
   } catch (err) {
     serverError(res, err);
   }

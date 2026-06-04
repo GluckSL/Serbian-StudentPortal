@@ -248,6 +248,38 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </mat-form-field>
             </div>
 
+            <div class="ga-card" *ngIf="form.get('gameType')?.value === 'tap_boxes'">
+              <div class="ga-card__head">
+                <mat-icon>wallpaper</mat-icon>
+                <div>
+                  <h3>Tap the Boxes — play background</h3>
+                  <p>Replaces the default green board behind the numbered boxes. JPG, PNG, or WebP recommended (wide landscape works best).</p>
+                </div>
+              </div>
+              <div class="ga-tb-bg-row">
+                <div class="ga-tb-bg-preview" *ngIf="tapBoxesBgPreview">
+                  <img [src]="tapBoxesBgPreview" alt="Board background preview">
+                </div>
+                <div class="ga-tb-bg-actions">
+                  <button type="button" mat-stroked-button (click)="tbBgInput.click()" [disabled]="!isEdit">
+                    <mat-icon>upload</mat-icon> Upload background
+                  </button>
+                  <button
+                    type="button"
+                    mat-stroked-button
+                    color="warn"
+                    *ngIf="tapBoxesBgPreview"
+                    [disabled]="!isEdit || clearingTapBoxesBg"
+                    (click)="clearTapBoxesBackground()"
+                  >
+                    <mat-icon>delete</mat-icon> Remove
+                  </button>
+                  <p class="ga-tb-bg-hint" *ngIf="!isEdit">Save the game set first, then upload a background.</p>
+                </div>
+                <input #tbBgInput type="file" accept="image/*" style="display:none" (change)="onTapBoxesBackgroundFile($event)">
+              </div>
+            </div>
+
             <!-- Thumbnail -->
             <div class="ga-section-title">Thumbnail</div>
             <div class="ga-thumb-row">
@@ -341,6 +373,14 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     .ga-card__head p { margin: 0; font-size: 13px; color: #64748b; line-height: 1.45; }
     .ga-batch-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
     .ga-batch-empty { margin: 8px 0 0; font-size: 13px; color: #64748b; }
+    .ga-tb-bg-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+    .ga-tb-bg-preview {
+      width: 200px; height: 112px; border-radius: 10px; overflow: hidden;
+      border: 1px solid #cbd5e1; background: #e2e8f0;
+    }
+    .ga-tb-bg-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ga-tb-bg-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+    .ga-tb-bg-hint { margin: 0; font-size: 12px; color: #64748b; }
   `]
 })
 export class GameSetEditorComponent implements OnInit {
@@ -364,6 +404,9 @@ export class GameSetEditorComponent implements OnInit {
   saving = false;
   thumbnailPreview: string | null = null;
   pendingThumbnail: File | null = null;
+  tapBoxesBgPreview: string | null = null;
+  pendingTapBoxesBg: File | null = null;
+  clearingTapBoxesBg = false;
   batches: BatchSummary[] = [];
   batchToAdd = '';
   targetBatches: string[] = [];
@@ -477,6 +520,7 @@ export class GameSetEditorComponent implements OnInit {
           questionCount: s.questionCount ?? (r.questions?.length ?? 0),
         });
         this.thumbnailPreview = s.thumbnailUrl || null;
+        this.tapBoxesBgPreview = s.tapBoxesSettings?.backgroundUrl || null;
         this.targetBatches = Array.isArray(s.targetBatches) ? [...s.targetBatches] : [];
         this.loading = false;
       },
@@ -509,6 +553,51 @@ export class GameSetEditorComponent implements OnInit {
       error: (err) => {
         this.notify.error(err?.error?.message || 'Thumbnail upload failed');
       }
+    });
+  }
+
+  onTapBoxesBackgroundFile(e: Event): void {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (!this.isEdit || !this.setId) {
+      this.notify.error('Save the game set before uploading a background');
+      return;
+    }
+    this.pendingTapBoxesBg = file;
+    const reader = new FileReader();
+    reader.onload = ev => { this.tapBoxesBgPreview = ev.target?.result as string; };
+    reader.readAsDataURL(file);
+    this.uploadTapBoxesBackgroundNow(this.setId, file);
+    (e.target as HTMLInputElement).value = '';
+  }
+
+  private uploadTapBoxesBackgroundNow(setId: string, file: File): void {
+    this.svc.adminUploadTapBoxesBackground(setId, file).subscribe({
+      next: (r) => {
+        this.tapBoxesBgPreview = r.backgroundUrl;
+        this.pendingTapBoxesBg = null;
+        this.notify.success('Play background uploaded');
+      },
+      error: (err) => {
+        this.notify.error(err?.error?.message || 'Background upload failed');
+      },
+    });
+  }
+
+  clearTapBoxesBackground(): void {
+    if (!this.setId) return;
+    this.clearingTapBoxesBg = true;
+    this.svc.adminUpdateSet(this.setId, { tapBoxesSettings: { backgroundUrl: null } }).subscribe({
+      next: () => {
+        this.tapBoxesBgPreview = null;
+        this.pendingTapBoxesBg = null;
+        this.clearingTapBoxesBg = false;
+        this.notify.success('Background removed');
+      },
+      error: (err) => {
+        this.clearingTapBoxesBg = false;
+        this.notify.error(err?.error?.message || 'Failed to remove background');
+      },
     });
   }
 

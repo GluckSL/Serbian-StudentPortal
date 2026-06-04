@@ -57,54 +57,29 @@ function layoutRowSizes(count: number): number[] {
   template: `
     <div class="tb">
       <div class="tb__stage">
-        <!-- Classroom backdrop -->
-        <div class="tb__room" aria-hidden="true">
-          <div class="tb__sky"></div>
-          <ul class="tb__pennants">
-            <li *ngFor="let c of pennantColors" [style.background]="c"></li>
-          </ul>
-          <div class="tb__wall-map"></div>
-          <div class="tb__chalkboard">
-            <div class="tb__chalk-tray" aria-hidden="true">
-              <span class="tb__chalk tb__chalk--w"></span>
-              <span class="tb__chalk tb__chalk--y"></span>
-              <span class="tb__chalk tb__chalk--b"></span>
-            </div>
-          </div>
-          <div class="tb__desk">
-            <div class="tb__eraser" aria-hidden="true">
-              <span class="tb__eraser-body"></span>
-              <span class="tb__eraser-label"></span>
-            </div>
-            <div class="tb__book" aria-hidden="true">
-              <span class="tb__book-cover"></span>
-              <span class="tb__book-pages"></span>
-              <span class="tb__book-spine"></span>
-            </div>
-            <div class="tb__pencil-cup" aria-hidden="true">
-              <span class="tb__pencil"></span>
-              <span class="tb__pencil tb__pencil--2"></span>
-            </div>
-          </div>
-        </div>
-
-        <!-- HUD (floating, like Wordwall) -->
-        <header class="tb__hud">
-          <div class="tb__timer">
-            <span class="tb__timer-val" [class.tb__timer-val--warn]="sessionLimitSeconds && remainingSeconds <= 10">
-              {{ sessionLimitSeconds ? formatTime(remainingSeconds) : formatTime(elapsedSeconds) }}
-            </span>
-          </div>
-          <p class="tb__instruction">{{ hudHint }}</p>
-          <div class="tb__hud-right">
-            <span class="tb__score" *ngIf="score > 0">{{ score }}</span>
-          </div>
-        </header>
+        <div class="tb__wall" aria-hidden="true"></div>
 
         <div
-          class="tb__play"
-          [class.tb__play--focus]="phase === 'zoom' || phase === 'reveal'"
+          class="tb__board"
+          [class.tb__board--custom-bg]="!!boardBackgroundUrl"
+          [ngStyle]="boardBackgroundStyle"
         >
+          <header class="tb__hud">
+            <div class="tb__timer">
+              <span class="tb__timer-val" [class.tb__timer-val--warn]="sessionLimitSeconds && remainingSeconds <= 10">
+                {{ sessionLimitSeconds ? formatTime(remainingSeconds) : formatTime(elapsedSeconds) }}
+              </span>
+            </div>
+            <p class="tb__instruction">{{ hudHint }}</p>
+            <div class="tb__hud-right">
+              <span class="tb__score" *ngIf="score > 0">{{ score }}</span>
+            </div>
+          </header>
+
+          <div
+            class="tb__play"
+            [class.tb__play--focus]="phase === 'zoom' || phase === 'reveal'"
+          >
           <div class="tb__grid-panel" *ngIf="phase !== 'done'">
             <div class="tb__grid">
               <div
@@ -186,20 +161,21 @@ function layoutRowSizes(count: number): number[] {
               <mat-icon>close</mat-icon>
             </button>
           </div>
-        </div>
+          </div>
 
-        <div class="tb__done" *ngIf="phase === 'done'">
+          <div class="tb__done" *ngIf="phase === 'done'">
           <mat-icon>emoji_events</mat-icon>
           <h2>All boxes opened!</h2>
           <p>Score <strong>{{ score }}</strong></p>
         </div>
 
-        <footer class="tb__bar" *ngIf="phase === 'reveal'">
-          <button type="button" class="tb__bar-btn" (click)="backToGrid()">
-            <mat-icon>apps</mat-icon>
-            Back to grid
-          </button>
-        </footer>
+          <footer class="tb__bar" *ngIf="phase === 'reveal'">
+            <button type="button" class="tb__bar-btn" (click)="backToGrid()">
+              <mat-icon>apps</mat-icon>
+              Back to grid
+            </button>
+          </footer>
+        </div>
       </div>
     </div>
   `,
@@ -212,279 +188,97 @@ function layoutRowSizes(count: number): number[] {
 
     .tb {
       width: 100%;
-      max-width: 1000px;
+      max-width: 100%;
       margin: 0 auto;
     }
 
     .tb__stage {
       position: relative;
-      border-radius: 8px;
+      border-radius: 12px;
       overflow: hidden;
-      min-height: 580px;
+      min-height: min(72vh, 640px);
       box-shadow:
-        0 0 0 1px rgba(15, 23, 42, 0.08),
-        0 20px 50px rgba(15, 23, 42, 0.18);
+        0 0 0 1px rgba(30, 58, 95, 0.1),
+        0 16px 40px rgba(30, 58, 95, 0.14);
     }
 
-    /* ── Classroom ───────────────────────────────────────── */
-    .tb__room {
+    .tb__wall {
       position: absolute;
       inset: 0;
-      z-index: 0;
-      overflow: hidden;
+      background: linear-gradient(165deg, #eef4fb 0%, #e2ecf6 45%, #d8e6f2 100%);
     }
-    .tb__sky {
+
+    /* Full-height chalkboard — no desk strip */
+    .tb__board {
       position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, #b8d4e8 0%, #d4e4f0 28%, #e8dcc8 72%, #c4a574 100%);
-    }
-    .tb__pennants {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      justify-content: center;
-      gap: 6px;
-      padding: 8px 12px 0;
-      margin: 0;
-      list-style: none;
+      inset: 14px;
       z-index: 1;
-    }
-    .tb__pennants li {
-      width: 28px;
-      height: 22px;
-      clip-path: polygon(50% 100%, 0 0, 100% 0);
-      opacity: 0.95;
-      filter: drop-shadow(0 1px 1px rgba(0,0,0,0.15));
-    }
-    .tb__wall-map {
-      position: absolute;
-      top: 12%;
-      left: 4%;
-      width: 22%;
-      height: 18%;
-      border-radius: 4px;
-      background: linear-gradient(135deg, #93c5fd 0%, #fef08a 50%, #86efac 100%);
-      opacity: 0.45;
-      border: 2px solid rgba(255,255,255,0.5);
-    }
-    .tb__chalkboard {
-      position: absolute;
-      top: 11%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 92%;
-      height: 58%;
-      background:
-        radial-gradient(ellipse 80% 50% at 50% 20%, rgba(255,255,255,0.04) 0%, transparent 55%),
-        linear-gradient(175deg, #4a5d4c 0%, #354539 38%, #283229 72%, #1e2822 100%);
-      border-radius: 4px;
-      box-shadow:
-        inset 0 3px 12px rgba(0,0,0,0.4),
-        inset 0 -2px 6px rgba(255,255,255,0.04),
-        0 6px 16px rgba(0,0,0,0.25);
-      border: 10px solid #6b5344;
-      outline: 3px solid #4a3728;
-    }
-    .tb__chalk-tray {
-      position: absolute;
-      bottom: 10px;
-      right: 14px;
       display: flex;
-      align-items: flex-end;
-      gap: 5px;
-      padding: 6px 10px 4px;
-      background: linear-gradient(180deg, #8b6914 0%, #6b4f1a 100%);
-      border-radius: 4px 4px 2px 2px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.35);
-      z-index: 1;
-    }
-    .tb__chalk {
-      display: block;
-      width: 8px;
-      height: 28px;
-      border-radius: 2px 2px 1px 1px;
-      box-shadow: 1px 2px 3px rgba(0,0,0,0.3);
-    }
-    .tb__chalk--w {
-      background: linear-gradient(90deg, #f8fafc 0%, #e2e8f0 70%, #cbd5e1 100%);
-    }
-    .tb__chalk--y {
-      height: 24px;
-      background: linear-gradient(90deg, #fef08a 0%, #eab308 100%);
-    }
-    .tb__chalk--b {
-      height: 22px;
-      background: linear-gradient(90deg, #93c5fd 0%, #3b82f6 100%);
-    }
-
-    .tb__desk {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 24%;
-      background:
-        linear-gradient(180deg, rgba(0,0,0,0.06) 0%, transparent 12%),
-        linear-gradient(180deg, #c9a66b 0%, #a67c52 45%, #8b6914 100%);
-      box-shadow: inset 0 4px 12px rgba(255,255,255,0.12);
-    }
-
-    /* Realistic pink chalkboard eraser */
-    .tb__eraser {
-      position: absolute;
-      bottom: 38%;
-      left: 8%;
-      width: 72px;
-      height: 34px;
-      transform: rotate(-6deg);
-      filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.28));
-    }
-    .tb__eraser-body {
-      position: absolute;
-      inset: 0;
-      border-radius: 6px 8px 7px 5px;
-      background: linear-gradient(165deg, #fda4af 0%, #f472b6 35%, #ec4899 70%, #db2777 100%);
+      flex-direction: column;
+      border-radius: 10px;
+      border: 12px solid #4a5568;
+      outline: 2px solid #2d3748;
+      background-color: #264035;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: cover;
+      background-image:
+        radial-gradient(ellipse 90% 60% at 50% 15%, rgba(255,255,255,0.06) 0%, transparent 50%),
+        linear-gradient(168deg, #3d5c4f 0%, #2f4a40 40%, #264035 100%);
       box-shadow:
-        inset 0 2px 4px rgba(255,255,255,0.45),
-        inset 0 -3px 6px rgba(0,0,0,0.15),
-        0 4px 0 #9d174d;
+        inset 0 4px 20px rgba(0, 0, 0, 0.35),
+        0 8px 24px rgba(30, 58, 95, 0.2);
     }
-    .tb__eraser-label {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 52px;
-      height: 8px;
-      border-radius: 2px;
-      background: rgba(255,255,255,0.25);
-      opacity: 0.6;
+    .tb__board--custom-bg {
+      background-image:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.28) 100%),
+        var(--tb-board-photo, none);
     }
 
-    /* Closed book on desk */
-    .tb__book {
-      position: absolute;
-      bottom: 36%;
-      right: 10%;
-      width: 88px;
-      height: 52px;
-      transform: perspective(200px) rotateY(-12deg) rotate(-2deg);
-      filter: drop-shadow(3px 5px 8px rgba(0,0,0,0.3));
-    }
-    .tb__book-cover {
-      position: absolute;
-      inset: 0;
-      border-radius: 2px 6px 6px 2px;
-      background: linear-gradient(135deg, #dc2626 0%, #991b1b 55%, #7f1d1d 100%);
-      box-shadow: inset 2px 0 4px rgba(255,255,255,0.2);
-    }
-    .tb__book-pages {
-      position: absolute;
-      top: 4px;
-      right: 6px;
-      bottom: 4px;
-      width: 12px;
-      border-radius: 0 2px 2px 0;
-      background: repeating-linear-gradient(
-        180deg,
-        #f8fafc 0px,
-        #f8fafc 2px,
-        #e2e8f0 2px,
-        #e2e8f0 4px
-      );
-      box-shadow: inset -1px 0 2px rgba(0,0,0,0.1);
-    }
-    .tb__book-spine {
-      position: absolute;
-      left: 0;
-      top: 2px;
-      bottom: 2px;
-      width: 10px;
-      border-radius: 2px 0 0 2px;
-      background: linear-gradient(90deg, #7f1d1d, #991b1b);
-      box-shadow: inset -2px 0 4px rgba(0,0,0,0.25);
-    }
-
-    /* Pencil cup */
-    .tb__pencil-cup {
-      position: absolute;
-      bottom: 34%;
-      left: 22%;
-      width: 36px;
-      height: 44px;
-      background: linear-gradient(90deg, #d4a574 0%, #b8956a 50%, #9a7b4f 100%);
-      border-radius: 4px 4px 8px 8px;
-      box-shadow:
-        inset 0 2px 4px rgba(255,255,255,0.25),
-        0 4px 8px rgba(0,0,0,0.25);
-    }
-    .tb__pencil {
-      position: absolute;
-      bottom: 70%;
-      left: 50%;
-      width: 5px;
-      height: 38px;
-      margin-left: -6px;
-      transform: rotate(-8deg);
-      border-radius: 2px;
-      background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 60%, #1e293b 95%);
-      box-shadow: 1px 2px 3px rgba(0,0,0,0.25);
-    }
-    .tb__pencil--2 {
-      margin-left: 4px;
-      transform: rotate(6deg);
-      height: 34px;
-      background: linear-gradient(90deg, #60a5fa 0%, #2563eb 60%, #1e293b 95%);
-    }
-
-    /* ── HUD ─────────────────────────────────────────────── */
     .tb__hud {
-      position: relative;
-      z-index: 4;
+      flex-shrink: 0;
       display: grid;
-      grid-template-columns: 80px 1fr 80px;
+      grid-template-columns: 88px 1fr 88px;
       align-items: center;
-      padding: 14px 20px 8px;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       pointer-events: none;
     }
     .tb__timer-val {
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 700;
-      color: #1e293b;
-      letter-spacing: 0.02em;
-      text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+      color: #f8fafc;
+      letter-spacing: 0.03em;
+      font-variant-numeric: tabular-nums;
     }
-    .tb__timer-val--warn { color: #dc2626; }
+    .tb__timer-val--warn { color: #fca5a5; }
     .tb__instruction {
       margin: 0;
       text-align: center;
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 600;
-      color: #334155;
+      color: rgba(248, 250, 252, 0.92);
       letter-spacing: 0.02em;
-      text-shadow: 0 1px 2px rgba(255,255,255,0.95);
     }
     .tb__hud-right { text-align: right; }
     .tb__score {
       font-size: 15px;
       font-weight: 800;
-      color: #b45309;
-      background: rgba(255,255,255,0.85);
-      padding: 4px 10px;
+      color: #fef3c7;
+      background: rgba(15, 23, 42, 0.35);
+      padding: 5px 12px;
       border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
-    /* ── Play area (tiles on chalkboard) ───────────────── */
     .tb__play {
       position: relative;
-      z-index: 2;
-      min-height: 420px;
-      padding: 4% 3% 26%;
+      flex: 1;
+      min-height: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 16px 20px 20px;
     }
     .tb__play--focus .tb__grid-panel {
       filter: blur(3px) brightness(0.75);
@@ -495,8 +289,8 @@ function layoutRowSizes(count: number): number[] {
 
     .tb__grid-panel {
       width: 100%;
-      max-width: 920px;
-      padding: 8px 12px 20px;
+      max-width: 100%;
+      padding: 8px 4px;
       transition: filter 0.4s ease, opacity 0.4s ease;
     }
     .tb__grid {
@@ -518,7 +312,7 @@ function layoutRowSizes(count: number): number[] {
 
     /* ── Tile button ───────────────────────────────────── */
     .tb__tile {
-      --tb-tile: 108px;
+      --tb-tile: 124px;
       position: relative;
       width: var(--tb-tile);
       height: var(--tb-tile);
@@ -861,11 +655,14 @@ function layoutRowSizes(count: number): number[] {
 
     /* ── Done & footer ─────────────────────────────────── */
     .tb__done {
-      position: relative;
-      z-index: 3;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       text-align: center;
-      padding: 56px 24px;
-      background: rgba(255,255,255,0.92);
+      padding: 48px 24px;
+      color: #f8fafc;
     }
     .tb__done mat-icon {
       font-size: 56px;
@@ -873,16 +670,16 @@ function layoutRowSizes(count: number): number[] {
       height: 56px;
       color: #f59e0b;
     }
-    .tb__done h2 { margin: 8px 0; font-size: 26px; color: #0f172a; }
-    .tb__done p { color: #475569; font-size: 17px; }
-    .tb__done strong { color: #b45309; font-size: 20px; }
+    .tb__done h2 { margin: 8px 0; font-size: 26px; color: #fff; }
+    .tb__done p { color: rgba(248, 250, 252, 0.85); font-size: 17px; }
+    .tb__done strong { color: #fde68a; font-size: 20px; }
+    .tb__done mat-icon { color: #fde68a !important; }
 
     .tb__bar {
-      position: relative;
-      z-index: 5;
+      flex-shrink: 0;
       display: flex;
       justify-content: center;
-      padding: 0 16px 18px;
+      padding: 0 16px 16px;
     }
     .tb__bar-btn {
       display: inline-flex;
@@ -902,33 +699,30 @@ function layoutRowSizes(count: number): number[] {
     .tb__bar-btn:hover { transform: translateY(-2px); }
     .tb__bar-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
-    /* ── Responsive tile sizing ────────────────────────── */
     @media (max-width: 900px) {
-      .tb__tile { --tb-tile: 96px; }
-      .tb__eraser { width: 60px; height: 28px; }
-      .tb__book { width: 72px; height: 44px; }
+      .tb__tile { --tb-tile: 108px; }
+      .tb__stage { min-height: 520px; }
+      .tb__board { inset: 10px; border-width: 10px; }
     }
     @media (max-width: 720px) {
-      .tb__tile { --tb-tile: 82px; }
+      .tb__tile { --tb-tile: 92px; }
       .tb__row { gap: 12px; }
       .tb__grid { gap: 14px; }
       .tb__instruction { font-size: 16px; }
-      .tb__play { padding-bottom: 28%; }
+      .tb__hud { grid-template-columns: 72px 1fr 56px; padding: 12px 14px 10px; }
+      .tb__timer-val { font-size: 20px; }
     }
     @media (max-width: 480px) {
-      .tb__tile { --tb-tile: 72px; }
+      .tb__tile { --tb-tile: 80px; }
       .tb__row { gap: 10px; }
       .tb__row--stagger { padding-left: calc(var(--tb-tile) / 2 + 4px); }
-      .tb__hud { grid-template-columns: 64px 1fr 48px; padding: 10px 12px 6px; }
-      .tb__timer-val { font-size: 18px; }
-      .tb__eraser { width: 52px; height: 24px; left: 5%; }
-      .tb__book { width: 64px; height: 38px; right: 6%; }
-      .tb__pencil-cup { display: none; }
+      .tb__stage { min-height: 460px; }
     }
     @media (min-width: 1100px) {
-      .tb__tile { --tb-tile: 118px; }
-      .tb__row { gap: 18px; }
-      .tb__grid { gap: 20px; }
+      .tb__tile { --tb-tile: 136px; }
+      .tb__row { gap: 20px; }
+      .tb__grid { gap: 22px; }
+      .tb__stage { min-height: 660px; }
     }
   `],
 })
@@ -949,9 +743,19 @@ export class TapBoxesComponent implements OnInit, OnDestroy {
   elapsedSeconds = 0;
   sessionLimitSeconds: number | null = null;
   remainingSeconds = 0;
-  pennantColors = ['#f97316', '#eab308', '#22c55e', '#3b82f6', '#ec4899', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#ec4899', '#f97316', '#eab308'];
   private timerId: ReturnType<typeof setInterval> | null = null;
   private elapsedId: ReturnType<typeof setInterval> | null = null;
+
+  get boardBackgroundUrl(): string | null {
+    const url = this.gameSet?.tapBoxesSettings?.backgroundUrl;
+    return url && String(url).trim() ? String(url).trim() : null;
+  }
+
+  get boardBackgroundStyle(): Record<string, string> | null {
+    const url = this.boardBackgroundUrl;
+    if (!url) return null;
+    return { '--tb-board-photo': `url("${url.replace(/"/g, '%22')}")` };
+  }
 
   get hudHint(): string {
     if (this.phase === 'reveal') return 'Tap one to open';

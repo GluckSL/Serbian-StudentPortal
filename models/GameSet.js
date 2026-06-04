@@ -19,6 +19,11 @@ const SpinWheelSettingsSchema = new mongoose.Schema({
   centerLabel: { type: String, default: 'ergänze den Satz!' },
 }, { _id: false });
 
+const TapBoxesSettingsSchema = new mongoose.Schema({
+  /** Custom play-area background (R2/S3); null = default green board */
+  backgroundUrl: { type: String, default: null },
+}, { _id: false });
+
 const GameSetSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
@@ -67,6 +72,9 @@ const GameSetSchema = new mongoose.Schema({
 
   /** Spin Wheel: center hub label */
   spinWheelSettings: { type: SpinWheelSettingsSchema, default: () => ({}) },
+
+  /** Tap the Boxes: optional custom board background image */
+  tapBoxesSettings: { type: TapBoxesSettingsSchema, default: () => ({}) },
 
   // Journey gating — mirrors DigitalExercise gating conventions
   visibleToStudents: { type: Boolean, default: false },
