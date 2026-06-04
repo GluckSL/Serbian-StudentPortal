@@ -8,7 +8,7 @@ export type LocationType = 'Onsite' | 'Remote' | 'Hybrid';
 
 export interface JobOpening {
   _id: string;
-  companyName: string;
+  companyName?: string;
   companyLogoUrl?: string;
   jobTitle: string;
   jobType: JobType;

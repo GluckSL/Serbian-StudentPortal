@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const jobOpeningSchema = new mongoose.Schema(
   {
-    companyName: { type: String, required: true, trim: true, maxlength: 120 },
+    companyName: { type: String, default: '', trim: true, maxlength: 120 },
     companyLogoUrl: { type: String, default: '', trim: true },
     jobTitle: { type: String, required: true, trim: true, maxlength: 200 },
     jobType: {

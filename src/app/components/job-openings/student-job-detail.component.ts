@@ -62,7 +62,7 @@ export class StudentJobDetailComponent implements OnInit {
   }
 
   companyInitial(): string {
-    return String(this.job?.companyName || '?').trim().charAt(0).toUpperCase() || '?';
+    return String(this.job?.jobTitle || '?').trim().charAt(0).toUpperCase() || '?';
   }
 
   formatApplyBefore(dateStr: string): string {

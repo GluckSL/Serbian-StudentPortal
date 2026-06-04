@@ -207,8 +207,18 @@ async function getOrCreatePortalSettings() {
 
 async function buildPortalStats() {
   const visible = studentVisibleFilter();
-  const openings = await JobOpening.find(visible).select('companyName').lean();
-  const orgSet = new Set(openings.map((o) => String(o.companyName || '').trim().toLowerCase()).filter(Boolean));
+  const openings = await JobOpening.find(visible).select('companyName companyLogoUrl').lean();
+  const orgSet = new Set(
+    openings
+      .map((o) => {
+        const logo = String(o.companyLogoUrl || '').trim().toLowerCase();
+        if (logo) return logo;
+        const name = String(o.companyName || '').trim().toLowerCase();
+        if (name) return name;
+        return String(o._id);
+      })
+      .filter(Boolean)
+  );
   const settings = await getOrCreatePortalSettings();
   return {
     organizations: orgSet.size,
@@ -823,12 +833,11 @@ router.post(
   runLogoUpload,
   async (req, res) => {
     try {
-      const companyName = String(req.body.companyName || '').trim();
       const jobTitle = String(req.body.jobTitle || '').trim();
       const applyBefore = parseApplyBefore(req.body.applyBefore);
 
-      if (!companyName || !jobTitle) {
-        return res.status(400).json({ success: false, message: 'Company name and job title are required.' });
+      if (!jobTitle) {
+        return res.status(400).json({ success: false, message: 'Job title is required.' });
       }
       if (!applyBefore || Number.isNaN(applyBefore.getTime())) {
         return res.status(400).json({ success: false, message: 'Valid apply-before date is required.' });
@@ -846,7 +855,7 @@ router.post(
       }
 
       const opening = await JobOpening.create({
-        companyName,
+        companyName: String(req.body.companyName || '').trim(),
         companyLogoUrl,
         jobTitle,
         jobType: String(req.body.jobType || 'Full Time'),
@@ -885,7 +894,7 @@ router.put(
 
       const prevLogo = opening.companyLogoUrl;
 
-      if (req.body.companyName !== undefined) opening.companyName = String(req.body.companyName).trim();
+      if (req.body.companyName !== undefined) opening.companyName = String(req.body.companyName || '').trim();
       if (req.body.jobTitle !== undefined) opening.jobTitle = String(req.body.jobTitle).trim();
       if (req.body.jobType !== undefined) opening.jobType = String(req.body.jobType);
       if (req.body.experience !== undefined) opening.experience = String(req.body.experience).trim();

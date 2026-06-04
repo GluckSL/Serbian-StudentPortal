@@ -121,8 +121,8 @@
       >
         <aside class="jo-card__aside">
           <div class="jo-card__logo-wrap">
-            <img *ngIf="logoUrl(job)" class="jo-card__logo" [src]="logoUrl(job)" [alt]="job.companyName" />
-            <span *ngIf="!logoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.companyName) }}</span>
+            <img *ngIf="logoUrl(job)" class="jo-card__logo" [src]="logoUrl(job)" [alt]="job.jobTitle" />
+            <span *ngIf="!logoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.jobTitle) }}</span>
           </div>
           <p class="jo-card__deadline" *ngIf="job.applyBefore">
             <span class="jo-card__deadline-text">Apply before {{ formatApplyBefore(job.applyBefore) }}</span>
@@ -131,7 +131,7 @@
 
         <div class="jo-card__body">
           <div class="jo-card__top">
-            <h2 class="jo-card__title">{{ job.companyName }} — {{ job.jobTitle }}</h2>
+            <h2 class="jo-card__title">{{ job.jobTitle }}</h2>
             <div class="jo-card__meta">
               <span *ngIf="job.experience" class="jo-meta">
                 <span class="material-icons">schedule</span>{{ job.experience }}

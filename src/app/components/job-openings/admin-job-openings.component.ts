@@ -39,7 +39,6 @@ export class AdminJobOpeningsComponent implements OnInit {
   closedLogoFile: File | null = null;
   closedLogoPreview = '';
   closedForm = {
-    companyName: '',
     companyLogoUrl: '',
     jobTitle: '',
     jobType: 'Full Time' as JobType,
@@ -64,7 +63,6 @@ export class AdminJobOpeningsComponent implements OnInit {
     studentName: '',
     studentRegNo: '',
     batch: '',
-    companyName: '',
     companyLogoUrl: '',
     jobTitle: '',
     placedAt: '',
@@ -89,7 +87,6 @@ export class AdminJobOpeningsComponent implements OnInit {
   logoPreview = '';
 
   form = {
-    companyName: '',
     companyLogoUrl: '',
     jobTitle: '',
     jobType: 'Full Time' as JobType,
@@ -209,7 +206,6 @@ export class AdminJobOpeningsComponent implements OnInit {
     this.logoFile = null;
     this.logoPreview = '';
     this.form = {
-      companyName: '',
       companyLogoUrl: '',
       jobTitle: '',
       jobType: 'Full Time',
@@ -234,7 +230,6 @@ export class AdminJobOpeningsComponent implements OnInit {
     this.logoPreview = this.resolveLogoUrl(job.companyLogoUrl);
     const applyBefore = job.applyBefore ? this.toDateInput(job.applyBefore) : '';
     this.form = {
-      companyName: job.companyName,
       companyLogoUrl: job.companyLogoUrl || '',
       jobTitle: job.jobTitle,
       jobType: job.jobType,
@@ -268,7 +263,6 @@ export class AdminJobOpeningsComponent implements OnInit {
 
   buildFormData(): FormData {
     const fd = new FormData();
-    fd.append('companyName', this.form.companyName.trim());
     fd.append('jobTitle', this.form.jobTitle.trim());
     fd.append('jobType', this.form.jobType);
     fd.append('experience', this.form.experience.trim());
@@ -297,8 +291,8 @@ export class AdminJobOpeningsComponent implements OnInit {
   }
 
   save(): void {
-    if (!this.form.companyName.trim() || !this.form.jobTitle.trim()) {
-      this.notify.error('Company name and job title are required.');
+    if (!this.form.jobTitle.trim()) {
+      this.notify.error('Job title is required.');
       return;
     }
     if (!this.form.applyBefore) {
@@ -330,7 +324,7 @@ export class AdminJobOpeningsComponent implements OnInit {
   }
 
   remove(job: JobOpening): void {
-    if (!confirm(`Delete opening "${job.jobTitle}" at ${job.companyName}?`)) return;
+    if (!confirm(`Delete opening "${job.jobTitle}"?`)) return;
     this.jobService.delete(job._id).subscribe({
       next: () => {
         this.notify.success('Job opening deleted.');
