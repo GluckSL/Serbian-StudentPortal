@@ -42,7 +42,7 @@ function buildApprovalPageUrl() {
 }
 
 /**
- * Count how many APPROVED requests this student has at the given level.
+ * Count APPROVED requests at the given level (for admin display).
  */
 async function countApprovedForLevel(studentId, level) {
   return RecordingAccessRequest.countDocuments({
@@ -52,15 +52,41 @@ async function countApprovedForLevel(studentId, level) {
   });
 }
 
+/** Count APPROVED + DECLINED — these consume the 5-request lifetime quota. */
+async function countDecidedForLevel(studentId, level) {
+  return RecordingAccessRequest.countDocuments({
+    studentId,
+    studentLevel: level,
+    status: { $in: ['APPROVED', 'DECLINED'] },
+  });
+}
+
+async function countPendingForLevel(studentId, level) {
+  return RecordingAccessRequest.countDocuments({
+    studentId,
+    studentLevel: level,
+    status: 'PENDING',
+  });
+}
+
 /**
  * Returns quota info for a student at their current level.
  */
 async function getQuota(studentId, level) {
-  const approvedCount = await countApprovedForLevel(studentId, level);
+  const [decidedCount, pendingCount, approvedCount] = await Promise.all([
+    countDecidedForLevel(studentId, level),
+    countPendingForLevel(studentId, level),
+    countApprovedForLevel(studentId, level),
+  ]);
+  const remaining = Math.max(0, REQUEST_LIMIT - decidedCount);
+  const slotsAvailable = Math.max(0, REQUEST_LIMIT - decidedCount - pendingCount);
   return {
     level,
+    decidedCount,
+    pendingCount,
     approvedCount,
-    remaining: Math.max(0, REQUEST_LIMIT - approvedCount),
+    remaining,
+    slotsAvailable,
     limit: REQUEST_LIMIT,
   };
 }
@@ -201,7 +227,7 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
   const totalPages = total > 0 ? Math.ceil(total / pageSize) : 0;
   const meetingIds = rows.map((m) => m._id);
 
-  const [requests, zoomRecs, approvedCount] = await Promise.all([
+  const [requests, zoomRecs] = await Promise.all([
     meetingIds.length
       ? RecordingAccessRequest.find({
           studentId,
@@ -218,7 +244,6 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
           .select('meetingLinkId isPublished')
           .lean()
       : [],
-    countApprovedForLevel(studentId, student.level),
   ]);
 
   const requestMap = {};
@@ -234,8 +259,6 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
     recordingMap[String(z.meetingLinkId)] = z;
   }
 
-  const remaining = Math.max(0, REQUEST_LIMIT - approvedCount);
-
   const classes = rows.map((m) => {
     const idStr = String(m._id);
     const req_ = requestMap[idStr];
@@ -246,7 +269,8 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
       !isAlreadyPublished &&
       requestStatus !== 'PENDING' &&
       requestStatus !== 'APPROVED' &&
-      remaining > 0;
+      quota.remaining > 0 &&
+      quota.slotsAvailable > 0;
 
     return {
       meetingLinkId: m._id,
@@ -259,18 +283,15 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
       hasRecording: !!zoomRec,
       isAlreadyPublished,
       requestStatus,
+      requestId: req_?._id || null,
       canRequest,
+      canCancel: requestStatus === 'PENDING' && !!req_?._id,
     };
   });
 
   return {
     classes,
-    quota: {
-      level: student.level,
-      approvedCount,
-      remaining,
-      limit: REQUEST_LIMIT,
-    },
+    quota,
     pagination: {
       page,
       pageSize,
@@ -282,7 +303,8 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
 
 async function sendNewRequestAdminEmail(request, meeting = {}, quota = {}) {
   const {
-    approvedCount = 0,
+    decidedCount = 0,
+    pendingCount = 0,
     remaining = REQUEST_LIMIT,
     limit = REQUEST_LIMIT,
   } = quota;
@@ -358,12 +380,13 @@ async function sendNewRequestAdminEmail(request, meeting = {}, quota = {}) {
             </table>
 
             <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px 16px;margin:0 0 8px;">
-              <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#991b1b;">Quota at level ${studentLevel} (approved only)</p>
+              <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#991b1b;">Quota at level ${studentLevel}</p>
               <p style="margin:0;font-size:13px;color:#7f1d1d;">
-                <strong>${approvedCount}</strong> of <strong>${limit}</strong> approved &nbsp;·&nbsp;
-                <strong>${remaining}</strong> remaining after this request if approved
+                <strong>${decidedCount}</strong> of <strong>${limit}</strong> reviewed (approved or declined) &nbsp;·&nbsp;
+                <strong>${pendingCount}</strong> pending &nbsp;·&nbsp;
+                <strong>${remaining}</strong> lifetime slots left
               </p>
-              <p style="margin:8px 0 0;font-size:12px;color:#b91c1c;">Pending requests do not count toward the limit until approved.</p>
+              <p style="margin:8px 0 0;font-size:12px;color:#b91c1c;">Pending requests do not count until approved or declined. Students may cancel pending requests.</p>
             </div>
 
             ${approvalLink}
@@ -464,6 +487,8 @@ module.exports = {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   countApprovedForLevel,
+  countDecidedForLevel,
+  countPendingForLevel,
   getQuota,
   getEligibleClassesPage,
   recordingIsReady,

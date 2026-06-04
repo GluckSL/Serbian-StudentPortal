@@ -3729,6 +3729,30 @@
     color: #94a3b8;
     border-color: #e2e8f0;
   }
+
+  &--cancel {
+    background: #fff;
+    color: #b45309;
+    border-color: #fde68a;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+
+    &:hover:not(:disabled) {
+      background: #fffbeb;
+      border-color: #f59e0b;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.mc-req-banner--info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
 }
 
 .mc-req-sk-row td {
