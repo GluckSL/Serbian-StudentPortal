@@ -19,7 +19,34 @@
     </div>
   </section>
 
-  <div class="jo-layout">
+  <nav class="jo-tabs" aria-label="Job portal sections">
+    <button
+      type="button"
+      class="jo-tabs__btn"
+      [class.jo-tabs__btn--active]="activeTab === 'openings'"
+      (click)="setTab('openings')"
+    >
+      Opening jobs
+    </button>
+    <button
+      type="button"
+      class="jo-tabs__btn"
+      [class.jo-tabs__btn--active]="activeTab === 'closed'"
+      (click)="setTab('closed')"
+    >
+      Closed jobs
+    </button>
+    <button
+      type="button"
+      class="jo-tabs__btn"
+      [class.jo-tabs__btn--active]="activeTab === 'placements'"
+      (click)="setTab('placements')"
+    >
+      Placed via Glück
+    </button>
+  </nav>
+
+  <div class="jo-layout" *ngIf="activeTab === 'openings'">
     <aside class="jo-filters">
       <div class="jo-filters__head">
         <span class="material-icons jo-filters__icon">filter_list</span>
@@ -137,6 +164,71 @@
       </article>
     </main>
   </div>
+
+  <section class="jo-alt-panel" *ngIf="activeTab === 'closed'">
+    <div *ngIf="closedLoading" class="jo-loading">
+      <div class="jo-card jo-card--skeleton" *ngFor="let i of [1,2]"></div>
+    </div>
+    <div class="jo-empty" *ngIf="!closedLoading && closedJobs.length === 0">
+      <span class="material-icons">history</span>
+      <p>No closed jobs listed yet.</p>
+    </div>
+    <article class="jo-card jo-card--closed" *ngFor="let job of closedJobs">
+      <aside class="jo-card__aside">
+        <div class="jo-card__logo-wrap">
+          <img *ngIf="closedLogoUrl(job)" class="jo-card__logo" [src]="closedLogoUrl(job)" [alt]="job.companyName" />
+          <span *ngIf="!closedLogoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.companyName) }}</span>
+        </div>
+        <p class="jo-card__deadline">
+          <span class="jo-card__deadline-text">Closed {{ formatClosedAt(job.closedAt) }}</span>
+        </p>
+      </aside>
+      <div class="jo-card__body">
+        <div class="jo-card__top">
+          <h2 class="jo-card__title">{{ job.companyName }} — {{ job.jobTitle }}</h2>
+          <span class="jo-badge-closed">Closed</span>
+        </div>
+        <div class="jo-card__meta jo-card__meta--inline">
+          <span *ngIf="job.jobType" class="jo-meta">{{ job.jobType }}</span>
+          <span *ngIf="job.experience" class="jo-meta">{{ job.experience }}</span>
+          <span *ngIf="job.location" class="jo-meta">{{ job.location }}</span>
+        </div>
+        <div class="jo-card__skills" *ngIf="job.skills?.length">
+          <span class="jo-skill" *ngFor="let skill of job.skills">{{ skill }}</span>
+        </div>
+        <p class="jo-closed-note" *ngIf="job.note">{{ job.note }}</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="jo-alt-panel" *ngIf="activeTab === 'placements'">
+    <div *ngIf="placementsLoading" class="jo-placements-grid">
+      <div class="jo-placement jo-placement--skeleton" *ngFor="let i of [1,2,3]"></div>
+    </div>
+    <div class="jo-empty" *ngIf="!placementsLoading && placements.length === 0">
+      <span class="material-icons">celebration</span>
+      <p>No placement stories yet.</p>
+      <span>Students hired through Glück will appear here.</span>
+    </div>
+    <div class="jo-placements-grid" *ngIf="!placementsLoading && placements.length > 0">
+      <article class="jo-placement" *ngFor="let p of placements">
+        <div class="jo-placement__head">
+          <img *ngIf="placementLogoUrl(p)" class="jo-placement__logo" [src]="placementLogoUrl(p)" alt="" />
+          <span *ngIf="!placementLogoUrl(p)" class="jo-placement__logo-fallback">{{ companyInitial(p.companyName) }}</span>
+          <div>
+            <h3 class="jo-placement__student">{{ p.studentName }}</h3>
+            <p class="jo-placement__role">{{ p.jobTitle }} · {{ p.companyName }}</p>
+            <p class="jo-placement__meta" *ngIf="p.batch || p.studentRegNo">
+              {{ p.batch ? 'Batch ' + p.batch : '' }}{{ p.batch && p.studentRegNo ? ' · ' : '' }}{{ p.studentRegNo }}
+            </p>
+          </div>
+        </div>
+        <p class="jo-placement__package" *ngIf="p.packageLabel">{{ p.packageLabel }}</p>
+        <p class="jo-placement__story" *ngIf="p.story">{{ p.story }}</p>
+        <p class="jo-placement__date">Placed {{ formatPlacedAt(p.placedAt) }}</p>
+      </article>
+    </div>
+  </section>
 
   <app-job-apply-form
     [job]="applyJob"
