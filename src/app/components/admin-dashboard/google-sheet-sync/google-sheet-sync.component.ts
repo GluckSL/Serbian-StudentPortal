@@ -3,12 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   GoogleSheetSyncService,
-  SyncStatus,
-  SyncResult,
-  OcrBatchSummary,
-  OcrTestResult,
-  ExtractionData,
   StudentBrief,
+  StudentListResponse,
+  FilterOptions,
   ActivityLogEntry,
   ActivityJob,
   ActivityLogLevel,
@@ -23,52 +20,49 @@ import {
 })
 export class GoogleSheetSyncComponent implements OnInit, OnDestroy {
   @ViewChild('activityLogBody') activityLogBody?: ElementRef<HTMLDivElement>;
-  status: SyncStatus | null = null;
-  loading = false;
-  syncLoading = false;
-  ocrLoading = false;
-  message = '';
-  messageType: 'success' | 'error' | 'info' = 'info';
-  lastResult: SyncResult | null = null;
-  lastOcrResult: OcrBatchSummary | null = null;
-  extractions: ExtractionData[] = [];
-  extractionsLoading = false;
+
+  students: StudentBrief[] = [];
+  totalItems = 0;
   currentPage = 1;
   totalPages = 1;
-  totalItems = 0;
-  pageSize = 20;
-  testFile: File | null = null;
-  testDocType = '';
-  testLoading = false;
-  testResult: OcrTestResult | null = null;
-  testDocTypes = ['', 'PASSPORT', 'BIRTH_CERTIFICATE', 'DEGREE_TRANSCRIPT', 'CV'];
+  pageSize = 50;
+  studentsLoading = false;
   searchQuery = '';
   private searchTimeout: any = null;
 
-  showStudentPicker = false;
-  studentSearchQuery = '';
-  studentSearchResults: StudentBrief[] = [];
-  studentSearchLoading = false;
-  selectedOcrIds = new Set<string>();
-  selectedTableIds = new Set<string>();
-  private studentSearchTimeout: any = null;
+  batchFilter = '';
+  levelFilter = '';
+  batchOptions: string[] = [];
+  levelOptions: string[] = [];
+
+  selectedIds = new Set<string>();
+  selectAllCurrentPage = false;
+
+  extractLoading = false;
+  message = '';
+  messageType: 'success' | 'error' | 'info' = 'info';
 
   activityLogs: ActivityLogEntry[] = [];
   activityJob: ActivityJob | null = null;
   private lastActivityId = 0;
-  private activityPollTimer: ReturnType<typeof setInterval> | null = null;
+  private activityPollTimer: ReturnType<typeof setTimeout> | null = null;
+  private activityPolling = false;
 
   constructor(private syncService: GoogleSheetSyncService) {}
 
-  get sheetConnected(): boolean {
-    return !!(this.status?.sheetConfigured && this.status.sheetConnection?.titleMatch !== false && !this.status.sheetConnectionError);
+  ngOnInit(): void {
+    this.loadFilterOptions();
+    this.loadStudents();
+    this.fetchActivity();
   }
 
-  ngOnInit(): void {
-    this.loadStatus();
-    this.loadExtractions();
-    this.fetchActivity();
-    this.startActivityPolling();
+  loadFilterOptions(): void {
+    this.syncService.getFilterOptions().subscribe({
+      next: (opts: FilterOptions) => {
+        this.batchOptions = opts.batches;
+        this.levelOptions = opts.levels;
+      },
+    });
   }
 
   ngOnDestroy(): void {
@@ -78,6 +72,10 @@ export class GoogleSheetSyncComponent implements OnInit, OnDestroy {
   get activityProgressPercent(): number {
     if (!this.activityJob?.total) return 0;
     return Math.min(100, Math.round((this.activityJob.current / this.activityJob.total) * 100));
+  }
+
+  get jobIsRunning(): boolean {
+    return !!(this.activityJob?.running || this.extractLoading);
   }
 
   logIcon(level: ActivityLogLevel): string {
@@ -98,6 +96,8 @@ export class GoogleSheetSyncComponent implements OnInit, OnDestroy {
   }
 
   private fetchActivity(): void {
+    if (this.activityPolling) return;
+    this.activityPolling = true;
     this.syncService.getActivity(this.lastActivityId).subscribe({
       next: (res) => {
         if (res.logs.length) {
@@ -106,11 +106,10 @@ export class GoogleSheetSyncComponent implements OnInit, OnDestroy {
           this.scrollActivityToBottom();
         }
         this.activityJob = res.job;
-        const stillBusy = !!(res.job?.running || this.syncLoading || this.ocrLoading);
-        if (!stillBusy && !res.job?.running) {
-          // keep polling briefly after job ends to catch final lines
-        }
+        if (!res.job?.running && !this.extractLoading) this.stopActivityPolling();
       },
+      complete: () => { this.activityPolling = false; },
+      error: () => { this.activityPolling = false; },
     });
   }
 
@@ -123,88 +122,54 @@ export class GoogleSheetSyncComponent implements OnInit, OnDestroy {
 
   private startActivityPolling(): void {
     this.stopActivityPolling();
-    this.activityPollTimer = setInterval(() => this.fetchActivity(), 1500);
+
+    const poll = () => {
+      this.fetchActivity();
+      this.activityPollTimer = setTimeout(poll, 500);
+    };
+
+    this.activityPollTimer = setTimeout(poll, 500);
   }
 
   private stopActivityPolling(): void {
     if (this.activityPollTimer) {
-      clearInterval(this.activityPollTimer);
+      clearTimeout(this.activityPollTimer);
       this.activityPollTimer = null;
     }
   }
 
-  loadStatus(): void {
-    this.loading = true;
-    this.syncService.getStatus().subscribe({
-      next: (s) => { this.status = s; this.loading = false; },
-      error: (err) => { this.showMessage('Failed to load sync status: ' + err.message, 'error'); this.loading = false; },
-    });
-  }
-
-  triggerSync(): void {
-    this.syncLoading = true;
-    this.lastResult = null;
-    this.fetchActivity();
-    this.syncService.triggerSync().subscribe({
-      next: (r) => {
-        this.lastResult = r;
-        const rows = r.rowsWritten ?? r.synced;
-        this.showMessage(`✓ Sync complete: ${rows} rows written (${r.synced}/${r.totalStudents} students)`, r.errors?.length ? 'error' : 'success');
-        this.syncLoading = false;
-        this.fetchActivity();
-        this.loadStatus();
-        this.loadExtractions(this.currentPage);
-      },
-      error: (err) => {
-        this.showMessage('✗ Sync failed: ' + err.message, 'error');
-        this.syncLoading = false;
-        this.fetchActivity();
-      },
-    });
-  }
-
-  runOcrAll(): void {
-    this.ocrLoading = true;
-    this.lastOcrResult = null;
-    this.fetchActivity();
-    this.syncService.runOcrAll().subscribe({
-      next: (r) => {
-        this.lastOcrResult = r;
-        this.showMessage(`OCR complete: ${r.ok}/${r.total} processed`, r.errors ? 'error' : 'success');
-        this.ocrLoading = false;
-        this.fetchActivity();
-        this.loadStatus();
-        this.loadExtractions();
-      },
-      error: (err) => {
-        if (err.status === 409) {
-          this.showMessage('OCR batch is already running in another tab or session.', 'error');
-        } else {
-          this.showMessage('OCR failed: ' + err.message, 'error');
-        }
-        this.ocrLoading = false;
-        this.fetchActivity();
-      },
-    });
-  }
-
-  loadExtractions(page = 1): void {
-    this.extractionsLoading = true;
-    this.syncService.getExtractions(page, this.pageSize, this.searchQuery).subscribe({
-      next: (res) => {
-        this.extractions = res.data;
+  loadStudents(page = this.currentPage): void {
+    this.studentsLoading = true;
+    this.syncService.getAllStudents(page, this.pageSize, this.searchQuery, this.batchFilter, this.levelFilter).subscribe({
+      next: (res: StudentListResponse) => {
+        this.students = res.data;
         this.currentPage = res.page;
         this.totalPages = res.totalPages;
         this.totalItems = res.total;
-        this.extractionsLoading = false;
+        this.studentsLoading = false;
+        this.selectedIds.clear();
+        this.selectAllCurrentPage = false;
       },
-      error: () => { this.extractionsLoading = false; },
+      error: () => { this.studentsLoading = false; },
     });
+  }
+
+  onSearch(): void {
+    if (this.searchTimeout) clearTimeout(this.searchTimeout);
+    this.searchTimeout = setTimeout(() => {
+      this.currentPage = 1;
+      this.loadStudents(1);
+    }, 400);
+  }
+
+  onFilterChange(): void {
+    this.currentPage = 1;
+    this.loadStudents(1);
   }
 
   goToPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
-    this.loadExtractions(page);
+    this.loadStudents(page);
   }
 
   get pages(): number[] {
@@ -216,168 +181,57 @@ export class GoogleSheetSyncComponent implements OnInit, OnDestroy {
     return [1, -1, current - 1, current, current + 1, -1, total];
   }
 
-  getCandidateName(e: ExtractionData): string {
-    const c = e.candidate || {};
-    return [c.firstName, c.familyName].filter(Boolean).join(' ') || e.studentId?.name || e.regNo || '-';
-  }
-
-  getExtractionStudentId(ext: ExtractionData): string | null {
-    const sid = ext.studentId as { _id?: string } | string | null;
-    if (!sid) return null;
-    if (typeof sid === 'string') return sid;
-    return sid._id ? String(sid._id) : null;
-  }
-
-  isTableRowSelected(ext: ExtractionData): boolean {
-    const id = this.getExtractionStudentId(ext);
-    return id ? this.selectedTableIds.has(id) : false;
-  }
-
-  toggleTableRow(studentId: string): void {
-    if (this.selectedTableIds.has(studentId)) this.selectedTableIds.delete(studentId);
-    else this.selectedTableIds.add(studentId);
-  }
-
-  isAllTableSelected(): boolean {
-    const ids = this.extractions.map((e) => this.getExtractionStudentId(e)).filter((id): id is string => !!id);
-    return ids.length > 0 && ids.every((id) => this.selectedTableIds.has(id));
-  }
-
-  toggleAllTableRows(): void {
-    const ids = this.extractions.map((e) => this.getExtractionStudentId(e)).filter((id): id is string => !!id);
-    if (this.isAllTableSelected()) ids.forEach((id) => this.selectedTableIds.delete(id));
-    else ids.forEach((id) => this.selectedTableIds.add(id));
-  }
-
-  runOcrForTableSelection(): void {
-    const ids = Array.from(this.selectedTableIds);
-    if (ids.length === 0) {
-      this.showMessage('Select students using the checkboxes in the table.', 'info');
-      return;
-    }
-    this.ocrLoading = true;
-    this.lastOcrResult = null;
-    this.fetchActivity();
-    this.syncService.runOcrSelected(ids).subscribe({
-      next: (r) => {
-        this.lastOcrResult = r;
-        this.showMessage(`✓ OCR: ${r.ok}/${r.total} processed`, r.errors ? 'error' : 'success');
-        this.ocrLoading = false;
-        this.selectedTableIds.clear();
-        this.fetchActivity();
-        this.loadStatus();
-        this.loadExtractions(this.currentPage);
-      },
-      error: (err) => {
-        if (err.status === 409) {
-          this.showMessage('OCR batch is already running in another tab or session.', 'error');
-        } else {
-          this.showMessage('✗ OCR failed: ' + err.message, 'error');
-        }
-        this.ocrLoading = false;
-        this.fetchActivity();
-      },
-    });
-  }
-
-  onSearch(): void {
-    if (this.searchTimeout) clearTimeout(this.searchTimeout);
-    this.searchTimeout = setTimeout(() => {
-      this.currentPage = 1;
-      this.loadExtractions(1);
-    }, 400);
-  }
-
-  openStudentPicker(): void {
-    this.showStudentPicker = true;
-    this.studentSearchQuery = '';
-    this.studentSearchResults = [];
-    this.selectedOcrIds = new Set();
-  }
-
-  closeStudentPicker(): void {
-    this.showStudentPicker = false;
-    this.studentSearchResults = [];
-    this.selectedOcrIds = new Set();
-  }
-
-  onStudentSearch(): void {
-    if (this.studentSearchTimeout) clearTimeout(this.studentSearchTimeout);
-    this.studentSearchTimeout = setTimeout(() => {
-      const q = this.studentSearchQuery.trim();
-      if (!q) { this.studentSearchResults = []; return; }
-      this.studentSearchLoading = true;
-      this.syncService.searchStudents(q).subscribe({
-        next: (res) => { this.studentSearchResults = res.data; this.studentSearchLoading = false; },
-        error: () => { this.studentSearchLoading = false; },
-      });
-    }, 400);
-  }
-
-  toggleOcrStudent(id: string): void {
-    if (this.selectedOcrIds.has(id)) this.selectedOcrIds.delete(id);
-    else this.selectedOcrIds.add(id);
-  }
-
-  toggleAllStudentsInResults(): void {
-    if (this.studentSearchResults.every(s => this.selectedOcrIds.has(s._id))) {
-      this.studentSearchResults.forEach(s => this.selectedOcrIds.delete(s._id));
+  toggleStudent(id: string): void {
+    if (this.selectedIds.has(id)) {
+      this.selectedIds.delete(id);
     } else {
-      this.studentSearchResults.forEach(s => this.selectedOcrIds.add(s._id));
+      this.selectedIds.add(id);
     }
   }
 
-  isAllSelected(): boolean {
-    return this.studentSearchResults.length > 0 && this.studentSearchResults.every(s => this.selectedOcrIds.has(s._id));
+  toggleAllOnPage(): void {
+    this.selectAllCurrentPage = !this.selectAllCurrentPage;
+    if (this.selectAllCurrentPage) {
+      this.students.forEach(s => this.selectedIds.add(s._id));
+    } else {
+      this.students.forEach(s => this.selectedIds.delete(s._id));
+    }
+  }
+
+  isAllOnPageSelected(): boolean {
+    return this.students.length > 0 && this.students.every(s => this.selectedIds.has(s._id));
   }
 
   isSelected(id: string): boolean {
-    return this.selectedOcrIds.has(id);
+    return this.selectedIds.has(id);
   }
 
-  runOcrForSelected(): void {
-    const ids = Array.from(this.selectedOcrIds);
+  runExtract(): void {
+    const ids = Array.from(this.selectedIds);
     if (ids.length === 0) return;
-    this.closeStudentPicker();
-    this.ocrLoading = true;
-    this.lastOcrResult = null;
-    this.syncService.runOcrSelected(ids).subscribe({
+
+    this.extractLoading = true;
+    this.fetchActivity();
+    this.startActivityPolling();
+
+    this.syncService.extractAndSyncSelected(ids).subscribe({
       next: (r) => {
-        this.lastOcrResult = r;
-        this.showMessage(`OCR complete: ${r.ok}/${r.total} processed`, r.errors ? 'error' : 'success');
-        this.ocrLoading = false;
-        this.loadStatus();
-        this.loadExtractions();
+        this.showMessage(`${r.ok}/${r.total} written to sheet${r.errors ? ` (${r.errors} failed)` : ''}`, r.errors ? 'error' : 'success');
+        this.extractLoading = false;
+        this.selectedIds.clear();
+        this.selectAllCurrentPage = false;
+        this.fetchActivity();
       },
       error: (err) => {
         if (err.status === 409) {
-          this.showMessage('OCR batch is already running in another tab or session.', 'error');
+          this.showMessage('Extraction is already running in another tab or session.', 'error');
         } else {
-          this.showMessage('OCR failed: ' + err.message, 'error');
+          this.showMessage('✗ Extraction failed: ' + err.message, 'error');
         }
-        this.ocrLoading = false;
+        this.extractLoading = false;
+        this.fetchActivity();
       },
     });
-  }
-
-  onTestFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.testFile = input.files?.[0] || null;
-    this.testResult = null;
-  }
-
-  runOcrTest(): void {
-    if (!this.testFile) return;
-    this.testLoading = true;
-    this.testResult = null;
-    this.syncService.testOcr(this.testFile, this.testDocType).subscribe({
-      next: (r) => { this.testResult = r; this.testLoading = false; },
-      error: (err) => { this.showMessage('Test OCR failed: ' + err.message, 'error'); this.testLoading = false; },
-    });
-  }
-
-  getParsedEntries(parsed: Record<string, string>): { key: string; value: string }[] {
-    return Object.entries(parsed).filter(([k]) => k !== 'fullText').map(([key, value]) => ({ key, value }));
   }
 
   private showMessage(msg: string, type: 'success' | 'error' | 'info'): void {

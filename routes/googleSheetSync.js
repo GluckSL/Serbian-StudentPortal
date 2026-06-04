@@ -3,38 +3,17 @@ const router = express.Router();
 const multer = require('multer');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const {
-  syncAllStudents,
-  syncSingleStudent,
-  getSyncStatus,
+  extractAndWriteSelectedStudents,
   verifySheetConnection,
   getActivity,
   clearActivityLog,
 } = require('../services/googleSheetSyncService');
-const { runOcrForStudent, runOcrForAllStudents, runOcrForSelectedStudents, processSingleDocument } = require('../services/ocrService');
-const StudentExtractedData = require('../models/StudentExtractedData');
+const { extractDocument } = require('../services/ocrService');
+const { extractAllFieldsFromImage } = require('../services/visionOcrService');
 const User = require('../models/User');
+const StudentDocument = require('../models/StudentDocument');
 
 const testUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-
-router.get('/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    const status = await getSyncStatus();
-    res.json(status);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/** Confirm API can reach the spreadsheet and log title vs GOOGLE_SPREADSHEET_TITLE_EXPECTED */
-router.get('/activity', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
-  const since = parseInt(req.query.since, 10) || 0;
-  res.json(getActivity(since));
-});
-
-router.post('/activity/clear', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
-  clearActivityLog();
-  res.json({ ok: true });
-});
 
 router.get('/verify', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
@@ -46,84 +25,26 @@ router.get('/verify', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
   }
 });
 
-router.post('/sync', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    const result = await syncAllStudents();
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/activity', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  const since = parseInt(req.query.since, 10) || 0;
+  res.json(getActivity(since));
 });
 
-router.post('/sync/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    const result = await syncSingleStudent(req.params.studentId);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+router.post('/activity/clear', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  clearActivityLog();
+  res.json({ ok: true });
 });
 
 router.post('/ocr/test', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), testUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const doc = {
-      mimeType: req.file.mimetype,
-      documentType: req.body.documentType || '',
-      fileName: req.file.originalname,
-    };
+    const mimeType = req.file.mimetype;
 
-    const { result } = await processSingleDocument(doc, { buffer: req.file.buffer, dryRun: true });
+    await extractAllFieldsFromImage(req.file.buffer, mimeType);
 
-    res.json({
-      text: result?.rawText || '',
-      parsed: result?.structured || {},
-      fileName: req.file.originalname,
-      fileSize: req.file.size,
-      mimeType: req.file.mimetype,
-    });
+    res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/ocr/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    const results = await runOcrForAllStudents();
-    const summary = {
-      total: results.length,
-      ok: results.filter(r => r.status === 'ok').length,
-      errors: results.filter(r => r.status === 'error').length,
-      details: results,
-    };
-    res.json(summary);
-  } catch (err) {
-    if (err.message.includes('already in progress')) {
-      return res.status(409).json({ error: err.message });
-    }
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/ocr/selected', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    const { studentIds } = req.body;
-    if (!Array.isArray(studentIds) || studentIds.length === 0) {
-      return res.status(400).json({ error: 'studentIds must be a non-empty array' });
-    }
-    const results = await runOcrForSelectedStudents(studentIds);
-    const summary = {
-      total: results.length,
-      ok: results.filter(r => r.status === 'ok').length,
-      errors: results.filter(r => r.status === 'error').length,
-      details: results,
-    };
-    res.json(summary);
-  } catch (err) {
-    if (err.message.includes('already in progress')) {
-      return res.status(409).json({ error: err.message });
-    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -149,52 +70,75 @@ router.get('/students/search', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
   }
 });
 
-router.post('/ocr/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const result = await runOcrForStudent(req.params.studentId);
-    res.json({
-      studentId: result.studentId,
-      regNo: result.regNo,
-      ocrStatus: result.ocrStatus,
-      documentsUsed: result.documentsUsed?.length || 0,
-    });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 50), 100);
+    const q = (req.query.q || '').trim();
+    const batch = (req.query.batch || '').trim();
+    const level = (req.query.level || '').trim();
+
+    const filter = { role: 'STUDENT', isTestAccount: { $ne: true } };
+    if (q) {
+      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ name: rx }, { regNo: rx }, { email: rx }];
+    }
+    if (batch) filter.batch = batch;
+    if (level) filter.level = level;
+
+    const [data, total] = await Promise.all([
+      User.find(filter)
+        .select('name regNo email batch level')
+        .sort({ regNo: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      User.countDocuments(filter),
+    ]);
+
+    const studentIds = data.map(s => s._id);
+    const docCounts = await StudentDocument.aggregate([
+      { $match: { studentId: { $in: studentIds }, isCurrent: true } },
+      { $group: { _id: '$studentId', count: { $sum: 1 } } },
+    ]);
+    const countMap = {};
+    for (const dc of docCounts) {
+      countMap[dc._id.toString()] = dc.count;
+    }
+    for (const s of data) {
+      s.documentCount = countMap[s._id.toString()] || 0;
+    }
+
+    res.json({ data, total, page, totalPages: Math.ceil(total / limit) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.get('/extractions', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/students/filter-options', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const skip = (page - 1) * limit;
-    const search = (req.query.search || '').trim();
-
-    let filter = {};
-    if (search) {
-      const users = await User.find({
-        role: 'STUDENT',
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { regNo: { $regex: search, $options: 'i' } },
-        ],
-      }).select('_id').lean();
-      filter.studentId = { $in: users.map(u => u._id) };
-    }
-
-    const [data, total] = await Promise.all([
-      StudentExtractedData.find(filter)
-        .populate('studentId', 'name email regNo')
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      StudentExtractedData.countDocuments(filter),
+    const [batches, levels] = await Promise.all([
+      User.distinct('batch', { role: 'STUDENT', isTestAccount: { $ne: true }, batch: { $ne: '', $exists: true } }),
+      User.distinct('level', { role: 'STUDENT', isTestAccount: { $ne: true }, level: { $ne: '', $exists: true } }),
     ]);
-
-    res.json({ data, total, page, totalPages: Math.ceil(total / limit) });
+    res.json({ batches: batches.sort(), levels: levels.sort() });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/extract-and-sync', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ error: 'studentIds must be a non-empty array' });
+    }
+    const result = await extractAndWriteSelectedStudents(studentIds);
+    res.json(result);
+  } catch (err) {
+    if (err.message.includes('already running')) {
+      return res.status(409).json({ error: err.message });
+    }
     res.status(500).json({ error: err.message });
   }
 });

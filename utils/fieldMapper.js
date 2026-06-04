@@ -1,9 +1,7 @@
-const DASH = '-';
-
 function splitName(fullName) {
-  if (!fullName) return { first: DASH, last: DASH };
+  if (!fullName) return { first: '', last: '' };
   const parts = fullName.trim().split(/\s+/);
-  if (parts.length === 1) return { first: parts[0], last: DASH };
+  if (parts.length === 1) return { first: parts[0], last: '' };
   return { first: parts.slice(0, -1).join(' '), last: parts[parts.length - 1] };
 }
 
@@ -16,8 +14,81 @@ function docStatusLabel(status) {
 }
 
 function v(val) {
-  return val && val.trim() ? val.trim() : DASH;
+  return val && String(val).trim() ? String(val).trim() : '';
 }
+
+const HEADERS = [
+  'Candidate Family Name',
+  'Candidate  First Name(s)',
+  'Candidate  Nationality',
+  'Candidate  Date of Birth',
+  'Candidate  Place of Birth',
+  'Candidate Place of Residence',
+  'Street',
+  'House Number',
+  'Other Addresses Info (If Applicable)',
+  'Postal Code',
+  'Town/City',
+  'Country',
+  'Telephone/Mobile Number',
+  'Email',
+  'Job Title',
+  'Company',
+  'Column 15',
+  'Father Family Name',
+  'Father First Name(s)',
+  'Father Nationality',
+  'Date of Birth',
+  'Place of Birth',
+  'Place of Residence',
+  'Mother  Family Name',
+  'Mother  First Name(s)',
+  'Mother  Nationality',
+  'Date of Birth',
+  'Place of Birth',
+  'Place of Residence',
+  'Spouse  First Name',
+  'Spouse   Last Name',
+  'Date f Birth',
+  'Place of Birth',
+  'Address',
+  'Family Relationship',
+  'Family Name of Contact Person',
+  'First Name(s) of Contact Person',
+  'Gender',
+  'Date of Birth',
+  'Place of Birth',
+  'Nationality',
+  'Street',
+  'House Number',
+  'Postal Code',
+  'Town/City',
+  'Country',
+  'Telephone/Mobile Number',
+  'Passport  Scanned',
+  'School/Degree Leaving Certificate  Scanned',
+  'O/A Level- Scanned',
+  'Degree/Diploma Certificate  Scanned',
+  'Experience Letter  Scanned',
+  'Language Certificates  Scanned',
+  'CV',
+  'Title of your degree',
+  'Duration of your studies - start dates with year',
+  'Duration of your studies - End dates with year',
+  'Date of graduation',
+  'Course Type',
+  'Thesis Completed - If applicable',
+  'Passport Number',
+  'Aadhaar Number',
+  'EPIC Number',
+  'Document Number',
+  'Student ID',
+  'Roll Number',
+  'Certificate Number',
+  'Employee ID',
+  'Batch',
+  'Level',
+];
 
 function mapToSheetRow(extracted, user, studentDocs) {
   const name = splitName(user?.name);
@@ -27,7 +98,6 @@ function mapToSheetRow(extracted, user, studentDocs) {
     docStatusMap[key] = doc.status || 'PENDING';
   }
 
-  const ds = extracted?.documentStatus || {};
   const candidate = extracted?.candidate || {};
   const father = extracted?.father || {};
   const mother = extracted?.mother || {};
@@ -35,70 +105,82 @@ function mapToSheetRow(extracted, user, studentDocs) {
   const contact = extracted?.contactPerson || {};
   const edu = extracted?.education || {};
 
-  return {
-    'Candidate Family Name': v(candidate.familyName || name.last),
-    'Candidate First Name(s)': v(candidate.firstName || name.first),
-    'Candidate Nationality': v(candidate.nationality || user?.nationality || ''),
-    'Candidate Date of Birth': v(candidate.dateOfBirth || ''),
-    'Candidate Place of Birth': v(candidate.placeOfBirth || ''),
-    'Candidate Place of Residence': v(candidate.placeOfResidence || ''),
-    'Street': v(candidate.street || ''),
-    'House Number': v(candidate.houseNumber || ''),
-    'Other Addresses Info (If Applicable)': v(candidate.otherAddressInfo || ''),
-    'Postal Code': v(candidate.postalCode || ''),
-    'Town/City': v(candidate.townCity || ''),
-    'Country': v(candidate.country || ''),
-    'Telephone/Mobile Number': v(candidate.telephoneMobile || user?.phoneNumber || ''),
-    'Email': v(candidate.email || user?.email || ''),
-    'Column 15': DASH,
-    'Father Family Name': v(father.familyName || ''),
-    'Father First Name(s)': v(father.firstName || ''),
-    'Father Nationality': v(father.nationality || ''),
-    'Date of Birth': v(father.dateOfBirth || ''),
-    'Place of Birth': v(father.placeOfBirth || ''),
-    'Place of Residence': v(father.placeOfResidence || ''),
-    'Mother Family Name': v(mother.familyName || ''),
-    'Mother First Name(s)': v(mother.firstName || ''),
-    'Mother Nationality': v(mother.nationality || ''),
-    'Date of Birth': v(mother.dateOfBirth || ''),
-    'Place of Birth': v(mother.placeOfBirth || ''),
-    'Place of Residence': v(mother.placeOfResidence || ''),
-    'Spouse First Name': v(spouse.firstName || ''),
-    'Spouse Last Name': v(spouse.lastName || ''),
-    'Date f Birth': v(spouse.dateOfBirth || ''),
-    'Place of Birth': v(spouse.placeOfBirth || ''),
-    'Address': v(spouse.address || ''),
-    'Family Relationship': v(contact.familyRelationship || ''),
-    'Family Name of Contact Person': v(contact.familyName || ''),
-    'First Name(s) of Contact Person': v(contact.firstName || ''),
-    'Gender': v(contact.gender || ''),
-    'Date of Birth': v(contact.dateOfBirth || ''),
-    'Place of Birth': v(contact.placeOfBirth || ''),
-    'Nationality': v(contact.nationality || ''),
-    'Street': v(contact.street || ''),
-    'House Number': v(contact.houseNumber || ''),
-    'Postal Code': v(contact.postalCode || ''),
-    'Town/City': v(contact.townCity || ''),
-    'Country': v(contact.country || ''),
-    'Telephone/Mobile Number': v(contact.telephoneMobile || ''),
-    'Passport Status': docStatusLabel(docStatusMap['PASSPORT'] || ds.passport),
-    'School/Degree Certificate Status': docStatusLabel(docStatusMap['SCHOOL_LEAVING_CERTIFICATE'] || ds.schoolLeavingCertificate),
-    'O/A Level Status': docStatusLabel(docStatusMap['O/A_LEVEL'] || docStatusMap['A/L_CERTIFICATE'] || ds.oALevel),
-    'Degree/Diploma Status': docStatusLabel(docStatusMap['DEGREE_DIPLOMA'] || docStatusMap['DEGREE_TRANSCRIPT'] || ds.degreeDiploma),
-    'Experience Letter Status': docStatusLabel(docStatusMap['EXPERIENCE_LETTER'] || ds.experienceLetter),
-    'Language Certificate Status': docStatusLabel(docStatusMap['LANGUAGE_CERTIFICATE'] || docStatusMap['LANGUAGE_CERTIFICATES'] || ds.languageCertificates),
-    'CV Status': docStatusLabel(docStatusMap['CV'] || ds.cv),
-    'Title of your degree': v(edu.degreeTitle || ''),
-    'Duration of your studies - start dates with year': v(edu.studyStartDate || ''),
-    'Duration of your studies - End dates with year': v(edu.studyEndDate || ''),
-    'Date of graduation': v(edu.graduationDate || ''),
-    'Course Type': v(edu.courseType || ''),
-    'Thesis Completed - If applicable': v(edu.thesisCompleted || ''),
-  };
+  return [
+    v(candidate.familyName || name.last),
+    v(candidate.firstName || name.first),
+    v(candidate.nationality || user?.nationality || ''),
+    v(candidate.dateOfBirth || ''),
+    v(candidate.placeOfBirth || ''),
+    v(candidate.placeOfResidence || ''),
+    v(candidate.street || ''),
+    v(candidate.houseNumber || ''),
+    v(candidate.otherAddressInfo || ''),
+    v(candidate.postalCode || ''),
+    v(candidate.townCity || ''),
+    v(candidate.country || ''),
+    v(candidate.telephoneMobile || user?.phoneNumber || ''),
+    v(candidate.email || user?.email || ''),
+    v(candidate.jobTitle || ''),
+    v(candidate.company || ''),
+    '',
+    v(father.familyName || ''),
+    v(father.firstName || ''),
+    v(father.nationality || ''),
+    v(father.dateOfBirth || ''),
+    v(father.placeOfBirth || ''),
+    v(father.placeOfResidence || ''),
+    v(mother.familyName || ''),
+    v(mother.firstName || ''),
+    v(mother.nationality || ''),
+    v(mother.dateOfBirth || ''),
+    v(mother.placeOfBirth || ''),
+    v(mother.placeOfResidence || ''),
+    v(spouse.firstName || ''),
+    v(spouse.lastName || ''),
+    v(spouse.dateOfBirth || ''),
+    v(spouse.placeOfBirth || ''),
+    v(spouse.address || ''),
+    v(contact.familyRelationship || ''),
+    v(contact.familyName || ''),
+    v(contact.firstName || ''),
+    v(contact.gender || ''),
+    v(contact.dateOfBirth || ''),
+    v(contact.placeOfBirth || ''),
+    v(contact.nationality || ''),
+    v(contact.street || ''),
+    v(contact.houseNumber || ''),
+    v(contact.postalCode || ''),
+    v(contact.townCity || ''),
+    v(contact.country || ''),
+    v(contact.telephoneMobile || ''),
+    docStatusLabel(docStatusMap['PASSPORT']),
+    docStatusLabel(docStatusMap['SCHOOL_LEAVING_CERTIFICATE'] || docStatusMap['BIRTH_CERTIFICATE']),
+    docStatusLabel(docStatusMap['O/A_LEVEL'] || docStatusMap['A_LEVEL_CERTIFICATE'] || docStatusMap['O_LEVEL_CERTIFICATE']),
+    docStatusLabel(docStatusMap['DEGREE_DIPLOMA'] || docStatusMap['DEGREE_TRANSCRIPT'] || docStatusMap['ACADEMIC_TRANSCRIPT'] || docStatusMap['DEGREE']),
+    docStatusLabel(docStatusMap['EXPERIENCE_LETTER']),
+    docStatusLabel(docStatusMap['LANGUAGE_CERTIFICATE'] || docStatusMap['LANGUAGE_CERTIFICATES']),
+    docStatusLabel(docStatusMap['CV']),
+    v(edu.degreeTitle || ''),
+    v(edu.studyStartDate || ''),
+    v(edu.studyEndDate || ''),
+    v(edu.graduationDate || ''),
+    v(edu.courseType || ''),
+    v(edu.thesisCompleted || ''),
+    v(candidate.passportNumber || ''),
+    v(candidate.aadhaarNumber || ''),
+    v(candidate.epicNumber || ''),
+    v(candidate.documentNumber || ''),
+    v(candidate.studentId || ''),
+    v(candidate.rollNo || ''),
+    v(candidate.certificateNo || ''),
+    v(candidate.employeeId || ''),
+    v(user?.batch || ''),
+    v(user?.level || ''),
+  ];
 }
 
 function getSheetHeaders() {
-  return Object.keys(mapToSheetRow({}, {}, []));
+  return [...HEADERS];
 }
 
 module.exports = { mapToSheetRow, getSheetHeaders };

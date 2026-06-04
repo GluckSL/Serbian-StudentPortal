@@ -13,7 +13,7 @@ const deleteFromS3 = require('../config/s3Delete');
 const s3Client = require('../config/s3');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { processSingleDocument } = require('../services/ocrService');
+
 
 // Services that don't require any documents
 const NO_DOCS_SERVICES = ['German Language Only', 'Language only', 'Only for language', 'None', ''];
@@ -191,10 +191,6 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
     });
     
     await document.save();
-
-    processSingleDocument(document.toObject()).catch(err =>
-      console.error(`[OCR] Background processing failed for ${document._id}:`, err.message)
-    );
 
     console.log(`✅ Document uploaded: ${documentName} by ${student.name}`);
     
@@ -574,10 +570,6 @@ router.post('/admin/replace/:documentId', verifyToken, checkRole(['ADMIN', 'TEAC
       isCurrent: true
     });
 
-    processSingleDocument(replacement.toObject()).catch(err =>
-      console.error(`[OCR] Background processing failed for replacement ${replacement._id}:`, err.message)
-    );
-
     await StudentDocument.updateOne(
       { _id: targetDocument._id },
       {
@@ -684,10 +676,6 @@ router.post('/admin/upload', verifyToken, checkRole(['ADMIN']), upload.single('d
     
     await document.save();
 
-    processSingleDocument(document.toObject()).catch(err =>
-      console.error(`[OCR] Background processing failed for ${document._id}:`, err.message)
-    );
-
     let emailSent = false;
     try {
       const { sendDocumentAddedByAdminEmail, isDocumentEmailConfigured } = require('../config/documentEmailConfig');
@@ -772,8 +760,7 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
       );
     }
     
-    // Create document record with VERIFIED status and no file
-    const document = new StudentDocument({
+    const doc = new StudentDocument({
       studentId: student._id,
       studentName: student.name,
       studentEmail: student.email,
@@ -795,7 +782,7 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
       isCurrent: true
     });
     
-    await document.save();
+    await doc.save();
     
     console.log(`✅ Admin marked document as verified: ${documentName} for ${student.name}`);
     
@@ -803,9 +790,9 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
       success: true,
       message: 'Document marked as verified successfully',
       document: mapStudentDocument({
-        ...document.toObject(),
+        ...doc.toObject(),
         formattedFileSize: 'N/A',
-        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(document.documentType)
+        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(doc.documentType)
       })
     });
   } catch (error) {

@@ -2,9 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
-const StudentExtractedData = require('../models/StudentExtractedData');
-const StudentDocument = require('../models/StudentDocument');
 const User = require('../models/User');
+const StudentDocument = require('../models/StudentDocument');
+const { extractDocument, downloadFromS3, parseName, mergeStructuredResults } = require('./ocrService');
 const { mapToSheetRow, getSheetHeaders } = require('../utils/fieldMapper');
 const activityLog = require('./googleSheetActivityLog');
 
@@ -24,7 +24,6 @@ function statusLine(ok, message) {
   log(`${ok ? ICON_OK : ICON_FAIL} ${message}`);
 }
 
-/** dotenv often loads only the first line of a multiline GOOGLE_PRIVATE_KEY — recover from .env or file. */
 function loadPrivateKey() {
   const keyPath = process.env.GOOGLE_PRIVATE_KEY_PATH;
   if (keyPath) {
@@ -43,7 +42,6 @@ function loadPrivateKey() {
       const match = raw.match(/GOOGLE_PRIVATE_KEY=([\s\S]*?)(?=\n#|\nGOOGLE_|\nKEEP_|\n[A-Z][A-Z0-9_]+=)/);
       if (match) {
         key = match[1].trim().replace(/^["']|["']$/g, '');
-        // recovered multiline key from .env file (dotenv truncates PEM)
       }
     } catch (e) {
       warn('Could not read multiline private key from .env:', e.message);
@@ -60,7 +58,6 @@ function loadPrivateKey() {
   return normalizePrivateKeyPem(key);
 }
 
-/** Fix .env line-wrapped base64 that breaks OpenSSL decoder on Windows. */
 function normalizePrivateKeyPem(raw) {
   const begin = '-----BEGIN PRIVATE KEY-----';
   const end = '-----END PRIVATE KEY-----';
@@ -157,12 +154,8 @@ async function sheetsApiRequest(pathSuffix, { method = 'GET', body } = {}) {
   return null;
 }
 
-/** Write header + all rows via Sheets API (works on empty sheets). */
 async function writeAllRowsToSheet(worksheetTitle, headers, rowObjects) {
-  const matrix = rowObjects.map((r) => {
-    const { _regNo, _studentId, ...cleanRow } = r;
-    return headers.map((h) => String(cleanRow[h] ?? ''));
-  });
+  const matrix = rowObjects.map((r) => headers.map((h) => String(r[h] ?? '')));
   const values = [headers, ...matrix];
   const range = `${worksheetTitle}!A1`;
   const clearRange = encodeURIComponent(`${worksheetTitle}!A:ZZ`);
@@ -199,7 +192,6 @@ async function getSheet(options) {
   return connectSpreadsheet(options);
 }
 
-/** Read-only check for admin UI / scripts — does not write rows. */
 async function verifySheetConnection() {
   const { meta } = await connectSpreadsheet({ quiet: true });
   let headerCount = 0;
@@ -216,176 +208,120 @@ async function verifySheetConnection() {
     headerCount,
     openInBrowserHint:
       meta.titleMatch ?
-        'Click “Sync to Google Sheets” to fill the sheet (OCR alone does not write rows).' :
+        'Click Sync to Google Sheets to fill the sheet.' :
         'GOOGLE_SPREADSHEET_ID may point to a different file than the one you have open.',
   };
 }
 
-async function syncAllStudents() {
-  if (activityLog.isJobRunning()) {
-    throw new Error('A sync or OCR job is already running. Wait for it to finish.');
-  }
+let batchRunning = false;
 
-  activityLog.startJob('sync', 0, 'Starting sync to Google Sheets…');
+async function extractAndWriteSelectedStudents(studentIds) {
+  if (batchRunning || activityLog.isJobRunning()) {
+    throw new Error('An extraction job is already running. Wait for it to finish.');
+  }
+  batchRunning = true;
 
   try {
-    const { sheet, meta } = await connectSpreadsheet({ quiet: true });
-    if (!meta.titleMatch) {
-      activityLog.append('warn', `✗ Sheet title mismatch (expected "${meta.expectedTitle}") — continuing anyway`);
-    } else {
-      activityLog.append('success', `✓ Connected to "${meta.spreadsheetTitle}" (${sheet.title})`);
-    }
-
-    const headers = getSheetHeaders();
-    const students = await User.find({ role: 'STUDENT', isTestAccount: { $ne: true } })
-      .select('_id regNo name email phoneNumber nationality')
+    const students = await User.find({ _id: { $in: studentIds }, role: 'STUDENT', isTestAccount: { $ne: true } })
+      .select('_id regNo name email phoneNumber nationality batch level')
       .lean();
 
-    activityLog.setJobProgress(0, students.length, `Loading ${students.length} students…`);
+    if (!students.length) throw new Error('No valid students found');
 
-    const rows = [];
-    const errors = [];
-    const syncedStudentIds = [];
-    const logEvery = Math.max(1, Math.floor(students.length / 20));
+    const { sheet, meta } = await connectSpreadsheet({ quiet: true });
+    const headers = getSheetHeaders();
+    const total = students.length;
 
-    for (let i = 0; i < students.length; i++) {
+    const existingRange = encodeURIComponent(`${sheet.title}!1:1`);
+    let existingData;
+    try {
+      existingData = await sheetsApiRequest(`/values/${existingRange}`);
+    } catch { /* assume empty */ }
+    const existingHeaders = (existingData?.values?.[0] || []).filter(c => String(c || '').trim() !== '');
+    if (existingHeaders.length === 0) {
+      await sheetsApiRequest(
+        `/values/${encodeURIComponent(`${sheet.title}!A1`)}?valueInputOption=USER_ENTERED`,
+        { method: 'PUT', body: { range: `${sheet.title}!A1`, values: [headers] } },
+      );
+      activityLog.append('info', `Headers written (${headers.length} cols)`);
+    }
+
+    activityLog.startJob('extract', total, `${total} students...`);
+
+    const results = [];
+    for (let i = 0; i < total; i++) {
       const student = students[i];
       try {
-        const extracted = await StudentExtractedData.findOne({ studentId: student._id }).lean();
         const docs = await StudentDocument.find({
           studentId: student._id,
           isCurrent: true,
-        }).select('documentType status').lean();
+          status: { $ne: 'REJECTED' },
+          mimeType: { $in: ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'] },
+        }).lean();
 
-        const row = mapToSheetRow(extracted, student, docs);
-        row['_regNo'] = student.regNo || '';
-        row['_studentId'] = student._id.toString();
-        rows.push(row);
-        syncedStudentIds.push(student._id);
-      } catch (err) {
-        errors.push({ studentId: student._id, regNo: student.regNo, error: err.message });
-      }
+        const merged = { candidate: {}, father: {}, mother: {}, spouse: {}, contactPerson: {}, education: {} };
+        let docsProcessed = 0;
 
-      if ((i + 1) % logEvery === 0 || i === students.length - 1) {
-        activityLog.setJobProgress(
-          i + 1,
-          students.length,
-          `Prepared rows ${i + 1} / ${students.length}${errors.length ? ` (${errors.length} errors)` : ''}`,
+        for (const doc of docs) {
+          const docLabel = doc.documentType || doc.fileName || 'unknown';
+          const studentRef = student.regNo || student._id;
+          try {
+            const fileBuffer = await downloadFromS3(doc.filePath);
+            const result = await extractDocument(fileBuffer, doc.mimeType, doc.documentType);
+            if (result?.structured) {
+              mergeStructuredResults(merged, result.structured);
+              docsProcessed++;
+              activityLog.append('success', `${studentRef} ${docLabel} ✓`);
+            }
+          } catch (docErr) {
+            console.error(`[Extract] Failed doc ${doc.fileName}: ${docErr.message}`);
+            activityLog.append('error', `${studentRef} ${docLabel} ✗ ${docErr.message}`);
+          }
+        }
+
+        if (!merged.candidate.email && student.email) merged.candidate.email = student.email;
+        if (!merged.candidate.familyName && !merged.candidate.firstName && student.name) {
+          const n = parseName(student.name);
+          if (!merged.candidate.familyName) merged.candidate.familyName = n.familyName;
+          if (!merged.candidate.firstName) merged.candidate.firstName = n.firstName;
+        }
+
+        const row = mapToSheetRow(merged, student, docs);
+        const values = [row.map(v => String(v ?? ''))];
+        const appendRange = `${sheet.title}!A:ZZ`;
+        await sheetsApiRequest(
+          `/values/${encodeURIComponent(appendRange)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+          { method: 'POST', body: { range: appendRange, values } },
         );
+
+        results.push({ studentId: student._id, regNo: student.regNo, status: 'ok', documentsProcessed: docsProcessed, extracted: merged });
+        activityLog.append('success', `${student.regNo || student._id} ✓ (${docsProcessed} docs)`);
+      } catch (err) {
+        results.push({ studentId: student._id, regNo: student.regNo, status: 'error', error: err.message });
+        activityLog.append('error', `${student.regNo || student._id} ✗ ${err.message}`);
       }
+
+      activityLog.setJobProgress(i + 1, total, `${i + 1}/${total}`);
     }
 
-    activityLog.append('info', `Writing ${rows.length} rows to Google Sheet…`);
-    const rowsWritten = await writeAllRowsToSheet(sheet.title, headers, rows);
-    statusLine(rowsWritten > 0, `Sync done: ${rowsWritten} data rows on sheet`);
+    const okCount = results.filter((r) => r.status === 'ok').length;
+    const failCount = total - okCount;
+    statusLine(failCount === 0, `Extraction done: ${okCount}/${total} written to sheet`);
+    activityLog.endJob(failCount === 0, `Done: ${okCount}/${total} ✓${failCount ? ` ${failCount} ✗` : ''}`);
 
-    if (syncedStudentIds.length) {
-      await StudentExtractedData.updateMany(
-        { studentId: { $in: syncedStudentIds } },
-        { $set: { lastSyncedToSheet: new Date() } },
-      );
-    }
-
-    const ok = rowsWritten > 0 && errors.length === 0;
-    activityLog.endJob(
-      ok || rowsWritten > 0,
-      rowsWritten > 0 ?
-        `✓ Sync complete: ${rowsWritten} rows on sheet (${rows.length} students, ${errors.length} errors)` :
-        `✗ Sync finished but no rows were written`,
-    );
-
-    return {
-      totalStudents: students.length,
-      synced: rows.length,
-      errors,
-      sheet: meta,
-      worksheetTitle: sheet.title,
-      rowsWritten,
-    };
+    return { total, ok: okCount, errors: failCount, details: results };
   } catch (err) {
-    activityLog.endJob(false, `✗ Sync failed: ${err.message}`);
+    activityLog.endJob(false, `✗ Extraction failed: ${err.message}`);
     throw err;
+  } finally {
+    batchRunning = false;
   }
-}
-
-async function syncSingleStudent(studentId) {
-  const { sheet, meta } = await connectSpreadsheet({ quiet: true });
-  const headers = getSheetHeaders();
-
-  const student = await User.findById(studentId).lean();
-  if (!student || student.role !== 'STUDENT') {
-    throw new Error('Student not found');
-  }
-
-  const extracted = await StudentExtractedData.findOne({ studentId }).lean();
-  const docs = await StudentDocument.find({
-    studentId,
-    isCurrent: true,
-  }).select('documentType status').lean();
-
-  const row = mapToSheetRow(extracted, student, docs);
-  const values = [headers.map((h) => String(row[h] ?? ''))];
-  const appendRange = `${sheet.title}!A:ZZ`;
-  await sheetsApiRequest(
-    `/values/${encodeURIComponent(appendRange)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-    { method: 'POST', body: { range: appendRange, values } },
-  );
-
-  await StudentExtractedData.findOneAndUpdate(
-    { studentId },
-    { $set: { lastSyncedToSheet: new Date() } },
-  );
-
-  statusLine(true, `Synced ${student.regNo} → "${meta.spreadsheetTitle}"`);
-  return { studentId, regNo: student.regNo, synced: true };
-}
-
-async function getSyncStatus() {
-  const totalStudents = await User.countDocuments({ role: 'STUDENT', isTestAccount: { $ne: true } });
-  const ocrCompleted = await StudentExtractedData.countDocuments({ ocrStatus: 'COMPLETED' });
-  const ocrPending = await StudentExtractedData.countDocuments({ ocrStatus: { $ne: 'COMPLETED' } });
-  const syncedCount = await StudentExtractedData.countDocuments({ lastSyncedToSheet: { $ne: null } });
-
-  let lastSyncTime = null;
-  const lastSynced = await StudentExtractedData.findOne({ lastSyncedToSheet: { $ne: null } })
-    .sort({ lastSyncedToSheet: -1 })
-    .select('lastSyncedToSheet')
-    .lean();
-  if (lastSynced) {
-    lastSyncTime = lastSynced.lastSyncedToSheet;
-  }
-
-  let sheetConfigured = false;
-  let sheetConnection = null;
-  let sheetConnectionError = null;
-  try {
-    getAuth();
-    sheetConfigured = true;
-    sheetConnection = await verifySheetConnection();
-  } catch (e) {
-    sheetConnectionError = e.message;
-  }
-
-  return {
-    totalStudents,
-    ocrCompleted,
-    ocrPending,
-    syncedToSheet: syncedCount,
-    lastSyncTime,
-    sheetConfigured,
-    sheetConnection,
-    sheetConnectionError,
-    configuredSpreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || null,
-    expectedSpreadsheetTitle: expectedSpreadsheetTitle(),
-  };
 }
 
 module.exports = {
-  syncAllStudents,
-  syncSingleStudent,
-  getSyncStatus,
+  extractAndWriteSelectedStudents,
   verifySheetConnection,
   getActivity: (since) => activityLog.getActivity(since),
   clearActivityLog: () => activityLog.clearLog(),
-  isSheetJobRunning: () => activityLog.isJobRunning(),
+  isJobRunning: () => activityLog.isJobRunning(),
 };

@@ -1,32 +1,5 @@
 <div class="sync-container">
-  <h2>Google Sheet Sync</h2>
-
-  <!-- Sheet connection -->
-  @if (status?.sheetConfigured) {
-    <div class="connection-banner" [class.connection-ok]="sheetConnected" [class.connection-bad]="!sheetConnected">
-      <span class="connection-icon">{{ sheetConnected ? '✓' : '✗' }}</span>
-      <div class="connection-text">
-        @if (sheetConnected) {
-          <strong>Google Sheet connected</strong>
-          <span> — "{{ status!.sheetConnection!.spreadsheetTitle }}" ({{ status!.sheetConnection!.worksheetTitle }})</span>
-          @if (status!.sheetConnection!.spreadsheetUrl) {
-            <a class="sheet-link" [href]="status!.sheetConnection!.spreadsheetUrl" target="_blank" rel="noopener">Open sheet</a>
-          }
-        } @else {
-          <strong>Google Sheet not connected</strong>
-          <span> — {{ status?.sheetConnectionError || 'Check credentials and share the sheet with the service account.' }}</span>
-        }
-      </div>
-    </div>
-    @if (status?.sheetConnection?.openInBrowserHint) {
-      <p class="connection-hint">{{ status!.sheetConnection!.openInBrowserHint }}</p>
-    }
-  } @else {
-    <div class="alert alert-warning">
-      ✗ Google Sheets not configured. Set <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code>,
-      <code>GOOGLE_PRIVATE_KEY</code>, and <code>GOOGLE_SPREADSHEET_ID</code> in .env
-    </div>
-  }
+  <h2>Document Extraction & Sheet Sync</h2>
 
   <!-- Message -->
   @if (message) {
@@ -37,59 +10,19 @@
     </div>
   }
 
-  <!-- Status Cards -->
-  <div class="status-grid">
-    <div class="status-card">
-      <div class="card-label">Total Students</div>
-      <div class="card-value">{{ status?.totalStudents ?? '...' }}</div>
-    </div>
-    <div class="status-card">
-      <div class="card-label">OCR Completed</div>
-      <div class="card-value">{{ status?.ocrCompleted ?? '...' }}</div>
-    </div>
-    <div class="status-card">
-      <div class="card-label">OCR Pending</div>
-      <div class="card-value">{{ status?.ocrPending ?? '...' }}</div>
-    </div>
-    <div class="status-card">
-      <div class="card-label">Synced to Sheet</div>
-      <div class="card-value">{{ status?.syncedToSheet ?? '...' }}</div>
-    </div>
-  </div>
-
-  @if (status?.lastSyncTime) {
-    <p class="last-sync">Last sync: {{ status!.lastSyncTime | date:'medium' }}</p>
-  }
-
-  <!-- Action Buttons -->
-  <div class="actions">
-    <button class="btn btn-primary" (click)="triggerSync()" [disabled]="syncLoading || !status?.sheetConfigured">
-      {{ syncLoading ? 'Syncing...' : 'Sync to Google Sheets' }}
-    </button>
-    <button class="btn btn-secondary" (click)="runOcrAll()" [disabled]="ocrLoading">
-      {{ ocrLoading ? 'Processing...' : 'Run OCR for All Students' }}
-    </button>
-    <button class="btn btn-secondary" (click)="runOcrForTableSelection()" [disabled]="ocrLoading || selectedTableIds.size === 0">
-      {{ selectedTableIds.size ? ('Run OCR for Selected (' + selectedTableIds.size + ')') : 'Run OCR for Selected' }}
-    </button>
-    <button class="btn btn-outline" (click)="loadStatus()" [disabled]="loading">
-      Refresh Status
-    </button>
-  </div>
-
-  <!-- Activity log -->
+  <!-- Activity log (top) -->
   <div class="activity-log-panel">
     <div class="activity-log-header">
       <h3>Activity log</h3>
       @if (activityJob?.running) {
         <span class="job-badge job-badge--running">
-          {{ activityJob!.type === 'sync' ? 'Syncing' : 'OCR' }}
+          {{ activityJob!.type === 'extract' ? 'Extracting' : (activityJob!.type === 'sync' ? 'Syncing' : 'OCR') }}
           @if (activityJob!.total) {
             — {{ activityJob!.current }} / {{ activityJob!.total }} ({{ activityProgressPercent }}%)
           }
         </span>
       } @else if (activityJob && !activityJob.running) {
-        <span class="job-badge job-badge--done">Finished</span>
+        <span class="job-badge job-badge--done">Done</span>
       }
       <button type="button" class="btn btn-sm btn-outline" (click)="clearActivityLog()">Clear</button>
     </div>
@@ -100,13 +33,12 @@
     }
     <div class="activity-log-body" #activityLogBody>
       @if (activityLogs.length === 0) {
-        <p class="activity-empty">No activity yet. Run Sync or OCR to see live progress (✓ success, ✗ error).</p>
+        <p class="activity-empty">No activity yet.</p>
       } @else {
         @for (entry of activityLogs; track entry.id) {
           <div class="log-line" [class.log-success]="entry.level === 'success'"
                [class.log-error]="entry.level === 'error'"
                [class.log-warn]="entry.level === 'warn'">
-            <span class="log-icon">{{ logIcon(entry.level) }}</span>
             <span class="log-time">{{ entry.at | date:'HH:mm:ss' }}</span>
             <span class="log-msg">{{ entry.message }}</span>
           </div>
@@ -115,143 +47,79 @@
     </div>
   </div>
 
-  <!-- Last Sync Result -->
-  @if (lastResult) {
-    <div class="result-box" [class.has-errors]="lastResult.errors.length">
-      <h3>Sync Result</h3>
-      <p>
-        <span class="result-icon">✓</span>
-        {{ lastResult.synced }} / {{ lastResult.totalStudents }} students synced
-        @if (lastResult.rowsWritten != null) {
-          — {{ lastResult.rowsWritten }} rows on "{{ lastResult.worksheetTitle || 'sheet' }}"
-        }
-      </p>
-      @if (lastResult.errors.length) {
-        <div class="errors-list">
-          <h4>Errors ({{ lastResult.errors.length }})</h4>
-          <ul>
-            @for (e of lastResult.errors; track e.studentId) {
-              <li>{{ e.regNo }}: {{ e.error }}</li>
-            }
-          </ul>
-        </div>
-      }
-    </div>
-  }
+  <!-- Student Selection -->
+  <div class="student-section">
+    <h3>Select Students</h3>
 
-  <!-- Last OCR Result -->
-  @if (lastOcrResult) {
-    <div class="result-box" [class.has-errors]="lastOcrResult.errors">
-      <h3>OCR Batch Result</h3>
-      <p>{{ lastOcrResult.ok }} / {{ lastOcrResult.total }} processed successfully</p>
-      @if (lastOcrResult.errors) {
-        <span class="error-count">{{ lastOcrResult.errors }} failed</span>
-      }
-    </div>
-  }
+    <div class="toolbar">
+      <input type="text" class="search-input" placeholder="Search by name, email or reg no..."
+             [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" />
 
-  <!-- Test OCR -->
-  <div class="test-section">
-    <h3>Test OCR Extraction</h3>
-    <p class="test-desc">Upload a file to test OCR without saving to database or S3.</p>
-    <div class="test-controls">
-      <input type="file" (change)="onTestFileSelected($event)" accept=".pdf,.jpg,.jpeg,.png" class="file-input" />
-      <select [(ngModel)]="testDocType" class="doc-type-select">
-        @for (t of testDocTypes; track t) {
-          <option [value]="t">{{ t || 'Auto-detect document type' }}</option>
+      <select class="filter-select" [(ngModel)]="batchFilter" (ngModelChange)="onFilterChange()">
+        <option value="">All Batches</option>
+        @for (b of batchOptions; track b) {
+          <option [value]="b">{{ b }}</option>
         }
       </select>
-      <button class="btn btn-primary" (click)="runOcrTest()" [disabled]="!testFile || testLoading">
-        {{ testLoading ? 'Processing...' : 'Test OCR' }}
+
+      <select class="filter-select" [(ngModel)]="levelFilter" (ngModelChange)="onFilterChange()">
+        <option value="">All Levels</option>
+        @for (l of levelOptions; track l) {
+          <option [value]="l">{{ l }}</option>
+        }
+      </select>
+
+      <button class="btn btn-outline" (click)="loadStudents()" [disabled]="studentsLoading">
+        Refresh
       </button>
     </div>
 
-    @if (testResult) {
-      <div class="test-result">
-        <div class="test-meta">
-          <strong>{{ testResult.fileName }}</strong> ({{ (testResult.fileSize / 1024).toFixed(1) }} KB) — {{ testResult.mimeType }}
-        </div>
-        <div class="test-columns">
-          <div class="test-col">
-            <h4>Raw Extracted Text</h4>
-            <pre class="test-text">{{ testResult.text || '(no text extracted)' }}</pre>
-          </div>
-          @if (getParsedEntries(testResult.parsed).length > 0) {
-            <div class="test-col">
-              <h4>Parsed Fields</h4>
-              <table class="parsed-table">
-                <tbody>
-                  @for (e of getParsedEntries(testResult.parsed); track e.key) {
-                    <tr><td class="parsed-key">{{ e.key }}</td><td>{{ e.value }}</td></tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-        </div>
-      </div>
-    }
-  </div>
-
-  <!-- Recent Extractions -->
-  <div class="extractions-section">
-    <h3>Recent OCR Extractions</h3>
-    <div class="extractions-toolbar">
-      <input type="text" class="search-input" placeholder="Search by name, email or reg no..."
-             [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" />
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <span class="selection-count">{{ selectedIds.size }} student{{ selectedIds.size !== 1 ? 's' : '' }} selected</span>
+      <button class="btn btn-primary" (click)="runExtract()"
+              [disabled]="selectedIds.size === 0 || extractLoading">
+        {{ extractLoading ? 'Extracting...' : 'Extract & Sync to Sheet (' + selectedIds.size + ')' }}
+      </button>
     </div>
-    @if (extractionsLoading) {
-      <p>Loading...</p>
-    } @else if (extractions.length === 0) {
-      <p class="empty">No extractions yet. Run OCR first.</p>
+
+    @if (studentsLoading) {
+      <p class="loading-text">Loading students...</p>
+    } @else if (students.length === 0) {
+      <p class="empty-text">{{ searchQuery || batchFilter || levelFilter ? 'No students match your filters.' : 'No students found.' }}</p>
     } @else {
-      <table class="extractions-table">
+      <table class="student-table">
         <thead>
           <tr>
             <th class="col-check">
-              <input type="checkbox" [checked]="isAllTableSelected()" (change)="toggleAllTableRows()" title="Select all on this page" />
+              <input type="checkbox" [checked]="isAllOnPageSelected()" (change)="toggleAllOnPage()"
+                     title="Select all on this page" />
             </th>
-            <th>Student</th>
+            <th>Name</th>
             <th>Reg No</th>
             <th>Email</th>
-            <th>OCR</th>
-            <th>Sheet</th>
-            <th>Documents</th>
-            <th>Last Synced</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th class="col-docs">Docs</th>
           </tr>
         </thead>
         <tbody>
-          @for (ext of extractions; track ext._id) {
-            <tr [class.row-selected]="isTableRowSelected(ext)">
+          @for (s of students; track s._id) {
+            <tr [class.row-selected]="selectedIds.has(s._id)">
               <td class="col-check">
-                @if (getExtractionStudentId(ext); as sid) {
-                  <input type="checkbox" [checked]="selectedTableIds.has(sid)" (change)="toggleTableRow(sid)" />
-                }
+                <input type="checkbox" [checked]="isSelected(s._id)" (change)="toggleStudent(s._id)" />
               </td>
-              <td>{{ getCandidateName(ext) }}</td>
-              <td>{{ ext.studentId?.regNo || ext.regNo }}</td>
-              <td>{{ ext.studentId?.email || '-' }}</td>
-              <td>
-                <span class="status-icon" [class.status-ok]="ext.ocrStatus === 'COMPLETED'"
-                      [class.status-pending]="ext.ocrStatus === 'PENDING'"
-                      [class.status-fail]="ext.ocrStatus === 'FAILED'"
-                      [title]="ext.ocrStatus">
-                  {{ ext.ocrStatus === 'COMPLETED' ? '✓' : (ext.ocrStatus === 'FAILED' ? '✗' : '…') }}
-                </span>
-              </td>
-              <td>
-                <span class="status-icon" [class.status-ok]="!!ext.lastSyncedToSheet"
-                      [class.status-fail]="!ext.lastSyncedToSheet"
-                      [title]="ext.lastSyncedToSheet ? 'Synced to sheet' : 'Not synced yet'">
-                  {{ ext.lastSyncedToSheet ? '✓' : '✗' }}
-                </span>
-              </td>
-              <td>{{ ext.documentsUsed?.length || 0 }}</td>
-              <td>{{ ext.lastSyncedToSheet ? (ext.lastSyncedToSheet | date:'short') : '-' }}</td>
+              <td>{{ s.name }}</td>
+              <td>{{ s.regNo }}</td>
+              <td>{{ s.email }}</td>
+              <td>{{ s.batch || '-' }}</td>
+              <td>{{ s.level || '-' }}</td>
+              <td class="col-docs">{{ s.documentCount ?? 0 }}</td>
             </tr>
           }
         </tbody>
       </table>
+
       <div class="pagination">
         <span class="pagination-info">{{ totalItems }} total — Page {{ currentPage }} of {{ totalPages }}</span>
         <div class="pagination-controls">
@@ -271,49 +139,3 @@
     }
   </div>
 </div>
-
-<!-- Student Picker Modal -->
-@if (showStudentPicker) {
-  <div class="modal-overlay" (click)="closeStudentPicker()">
-    <div class="modal-card" (click)="$event.stopPropagation()">
-      <h3>Select Students for OCR</h3>
-
-      <input type="text" class="modal-search" placeholder="Search by name, email or reg no..."
-             [(ngModel)]="studentSearchQuery" (ngModelChange)="onStudentSearch()" autofocus />
-
-      <div class="modal-results">
-        @if (studentSearchLoading) {
-          <p class="modal-loading">Searching...</p>
-        } @else if (studentSearchResults.length === 0) {
-          <p class="modal-empty">{{ studentSearchQuery ? 'No students found.' : 'Type to search for students.' }}</p>
-        } @else {
-          <label class="modal-select-all">
-            <input type="checkbox" [checked]="isAllSelected()"
-                   (change)="toggleAllStudentsInResults()" />
-            <strong>{{ selectedOcrIds.size }} selected</strong> — Select all {{ studentSearchResults.length }}
-          </label>
-          <div class="modal-list">
-            @for (s of studentSearchResults; track s._id) {
-              <label class="modal-item">
-                <input type="checkbox" [checked]="isSelected(s._id)" (change)="toggleOcrStudent(s._id)" />
-                <span class="modal-item-name">{{ s.name }}</span>
-                <span class="modal-item-reg">{{ s.regNo }}</span>
-                <span class="modal-item-email">{{ s.email }}</span>
-              </label>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="modal-footer">
-        <span class="modal-count">{{ selectedOcrIds.size }} student{{ selectedOcrIds.size !== 1 ? 's' : '' }} selected</span>
-        <div class="modal-actions">
-          <button class="btn btn-outline" (click)="closeStudentPicker()">Cancel</button>
-          <button class="btn btn-primary" (click)="runOcrForSelected()" [disabled]="selectedOcrIds.size === 0">
-            Run OCR ({{ selectedOcrIds.size }})
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-}

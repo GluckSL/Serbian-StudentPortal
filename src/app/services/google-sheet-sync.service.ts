@@ -14,64 +14,11 @@ export interface SheetConnectionInfo {
   openInBrowserHint?: string;
 }
 
-export interface SyncStatus {
-  totalStudents: number;
-  ocrCompleted: number;
-  ocrPending: number;
-  syncedToSheet: number;
-  lastSyncTime: string | null;
-  sheetConfigured: boolean;
-  sheetConnection?: SheetConnectionInfo | null;
-  sheetConnectionError?: string | null;
-  expectedSpreadsheetTitle?: string | null;
-}
-
-export interface SyncResult {
-  totalStudents: number;
-  synced: number;
-  rowsWritten?: number;
-  errors: { studentId: string; regNo: string; error: string }[];
-  sheet?: SheetConnectionInfo;
-  worksheetTitle?: string;
-}
-
-export interface OcrResult {
-  studentId: string;
-  regNo: string;
-  ocrStatus: string;
-  documentsUsed: number;
-}
-
 export interface OcrBatchSummary {
   total: number;
   ok: number;
   errors: number;
   details: { studentId: string; regNo: string; status: string; error?: string }[];
-}
-
-export interface ExtractionData {
-  _id: string;
-  studentId: { _id: string; name: string; email: string; regNo: string } | null;
-  regNo: string;
-  ocrStatus: string;
-  lastSyncedToSheet: string | null;
-  documentsUsed: any[];
-  candidate: any;
-  father: any;
-  mother: any;
-  spouse: any;
-  contactPerson: any;
-  documentStatus: any;
-  education: any;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ExtractionListResponse {
-  data: ExtractionData[];
-  total: number;
-  page: number;
-  totalPages: number;
 }
 
 export interface OcrTestResult {
@@ -87,6 +34,14 @@ export interface StudentBrief {
   name: string;
   regNo: string;
   email: string;
+  batch?: string;
+  level?: string;
+  documentCount?: number;
+}
+
+export interface FilterOptions {
+  batches: string[];
+  levels: string[];
 }
 
 export type ActivityLogLevel = 'info' | 'success' | 'error' | 'warn';
@@ -99,7 +54,7 @@ export interface ActivityLogEntry {
 }
 
 export interface ActivityJob {
-  type: 'sync' | 'ocr';
+  type: 'sync' | 'ocr' | 'extract';
   running: boolean;
   current: number;
   total: number;
@@ -114,31 +69,16 @@ export interface ActivityResponse {
   lastId: number;
 }
 
+export interface StudentListResponse {
+  data: StudentBrief[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GoogleSheetSyncService {
   constructor(private http: HttpClient) {}
-
-  getStatus(): Observable<SyncStatus> {
-    return this.http.get<SyncStatus>('/api/google-sheet/status');
-  }
-
-  triggerSync(): Observable<SyncResult> {
-    return this.http.post<SyncResult>('/api/google-sheet/sync', {});
-  }
-
-  syncSingleStudent(studentId: string): Observable<{ studentId: string; regNo: string; synced: boolean }> {
-    return this.http.post<{ studentId: string; regNo: string; synced: boolean }>(
-      `/api/google-sheet/sync/${studentId}`, {}
-    );
-  }
-
-  runOcr(studentId: string): Observable<OcrResult> {
-    return this.http.post<OcrResult>(`/api/google-sheet/ocr/${studentId}`, {});
-  }
-
-  runOcrAll(): Observable<OcrBatchSummary> {
-    return this.http.post<OcrBatchSummary>('/api/google-sheet/ocr/all', {});
-  }
 
   testOcr(file: File, documentType: string): Observable<OcrTestResult> {
     const fd = new FormData();
@@ -147,18 +87,24 @@ export class GoogleSheetSyncService {
     return this.http.post<OcrTestResult>('/api/google-sheet/ocr/test', fd);
   }
 
-  getExtractions(page = 1, limit = 50, search = ''): Observable<ExtractionListResponse> {
-    let url = `/api/google-sheet/extractions?page=${page}&limit=${limit}`;
-    if (search) url += `&search=${encodeURIComponent(search)}`;
-    return this.http.get<ExtractionListResponse>(url);
-  }
-
   searchStudents(q: string, limit = 50): Observable<{ data: StudentBrief[] }> {
     return this.http.get<{ data: StudentBrief[] }>(`/api/google-sheet/students/search?q=${encodeURIComponent(q)}&limit=${limit}`);
   }
 
-  runOcrSelected(studentIds: string[]): Observable<OcrBatchSummary> {
-    return this.http.post<OcrBatchSummary>('/api/google-sheet/ocr/selected', { studentIds });
+  getAllStudents(page = 1, limit = 50, q = '', batch = '', level = ''): Observable<StudentListResponse> {
+    let url = `/api/google-sheet/students?page=${page}&limit=${limit}`;
+    if (q) url += `&q=${encodeURIComponent(q)}`;
+    if (batch) url += `&batch=${encodeURIComponent(batch)}`;
+    if (level) url += `&level=${encodeURIComponent(level)}`;
+    return this.http.get<StudentListResponse>(url);
+  }
+
+  getFilterOptions(): Observable<FilterOptions> {
+    return this.http.get<FilterOptions>('/api/google-sheet/students/filter-options');
+  }
+
+  extractAndSyncSelected(studentIds: string[]): Observable<OcrBatchSummary> {
+    return this.http.post<OcrBatchSummary>('/api/google-sheet/extract-and-sync', { studentIds });
   }
 
   getActivity(since = 0): Observable<ActivityResponse> {
