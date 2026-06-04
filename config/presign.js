@@ -356,6 +356,7 @@ async function resignExercises(exercises) {
 
 const MEDIA_URL_FIELD_NAMES = new Set([
   'imageUrl',
+  'backgroundUrl',
   'thumbnailUrl',
   'introCardImageUrl',
   'studentCardImageUrl',

@@ -59,7 +59,11 @@ function layoutRowSizes(count: number): number[] {
       <div class="tb__stage">
         <div class="tb__wall" aria-hidden="true"></div>
 
-        <div class="tb__board">
+        <div
+          class="tb__board"
+          [class.tb__board--custom-bg]="!!boardBackgroundUrl"
+          [ngStyle]="boardBackgroundStyle"
+        >
           <header class="tb__hud">
             <div class="tb__timer">
               <span class="tb__timer-val" [class.tb__timer-val--warn]="sessionLimitSeconds && remainingSeconds <= 10">
@@ -214,12 +218,21 @@ function layoutRowSizes(count: number): number[] {
       border-radius: 10px;
       border: 12px solid #4a5568;
       outline: 2px solid #2d3748;
-      background:
+      background-color: #264035;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: cover;
+      background-image:
         radial-gradient(ellipse 90% 60% at 50% 15%, rgba(255,255,255,0.06) 0%, transparent 50%),
         linear-gradient(168deg, #3d5c4f 0%, #2f4a40 40%, #264035 100%);
       box-shadow:
         inset 0 4px 20px rgba(0, 0, 0, 0.35),
         0 8px 24px rgba(30, 58, 95, 0.2);
+    }
+    .tb__board--custom-bg {
+      background-image:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.28) 100%),
+        var(--tb-board-photo, none);
     }
 
     .tb__hud {
@@ -732,6 +745,17 @@ export class TapBoxesComponent implements OnInit, OnDestroy {
   remainingSeconds = 0;
   private timerId: ReturnType<typeof setInterval> | null = null;
   private elapsedId: ReturnType<typeof setInterval> | null = null;
+
+  get boardBackgroundUrl(): string | null {
+    const url = this.gameSet?.tapBoxesSettings?.backgroundUrl;
+    return url && String(url).trim() ? String(url).trim() : null;
+  }
+
+  get boardBackgroundStyle(): Record<string, string> | null {
+    const url = this.boardBackgroundUrl;
+    if (!url) return null;
+    return { '--tb-board-photo': `url("${url.replace(/"/g, '%22')}")` };
+  }
 
   get hudHint(): string {
     if (this.phase === 'reveal') return 'Tap one to open';

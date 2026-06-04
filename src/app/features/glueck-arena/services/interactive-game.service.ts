@@ -185,6 +185,12 @@ export class InteractiveGameService {
     return this.http.post<any>(`${this.base}/admin/sets/${id}/thumbnail`, fd);
   }
 
+  adminUploadTapBoxesBackground(id: string, file: File): Observable<any> {
+    const fd = new FormData();
+    fd.append('background', file);
+    return this.http.post<any>(`${this.base}/admin/sets/${id}/tap-boxes-background`, fd);
+  }
+
   adminGetQuestions(gameSetId: string): Observable<{ success: boolean; questions: AdminGameQuestion[] }> {
     return this.http.get<any>(`${this.base}/admin/sets/${gameSetId}/questions`);
   }
