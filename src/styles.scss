@@ -440,7 +440,7 @@ button:disabled,
 
 /* Minimum 44px touch targets for interactive elements */
 @media (max-width: 768px) {
-  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play):not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
+  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play):not(.sr-rec-card__res):not(.sr-rec-card__pending):not(.sr-icon-btn):not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
   .btn,
   a[role="button"]:not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
   [mat-button],

@@ -1941,19 +1941,19 @@ mat-card-actions button mat-icon {
   background: #fff;
   color: #475569;
   border-radius: 8px;
-  width: 30px;
+  min-width: 30px;
   height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
+  text-align: center;
+  padding: 0;
 }
 
 .sm-pagination__btn mat-icon {
   font-size: 18px;
   width: 18px;
   height: 18px;
+  vertical-align: middle;
 }
 
 .sm-pagination__btn:hover:not(:disabled) {
@@ -1965,6 +1965,7 @@ mat-card-actions button mat-icon {
 .sm-pagination__btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  color: #94a3b8;
 }
 
 .sm-pagination__num {
