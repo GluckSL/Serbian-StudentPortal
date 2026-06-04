@@ -44,7 +44,25 @@ export interface StudentCatalog {
   inferredCurrency?: string;
 }
 
+export interface CatalogPaymentLevelRow {
+  level: string;
+  studentCount: number;
+  feeLKR: number;
+  feeINR: number;
+  feeUSD: number;
+  totalLKR: number;
+  totalINR: number;
+  totalUSD: number;
+}
+
 export interface DashboardStats {
+  totalPaymentExpectedLKR: number;
+  totalPaymentExpectedINR: number;
+  totalPaymentExpectedUSD: number;
+  catalogPaymentBreakdown?: CatalogPaymentLevelRow[];
+  totalDueLKR: number;
+  totalDueINR: number;
+  totalDueUSD: number;
   totalReceivedLKR: number;
   totalReceivedINR: number;
   totalReceivedUSD: number;
@@ -59,7 +77,11 @@ export interface DashboardStats {
   totalOverdueUSD: number;
   totalStudents: number;
   fullyPaidStudents: number;
-  activeStudents: number;
+  balanceStudents: number;
+  overdueStudents: number;
+  docsPaidStudents: number;
+  visaPaidStudents: number;
+  activeStudents?: number;
   overdueCount: number;
   /** True when dashboard stats respect current hub filters */
   filtered?: boolean;

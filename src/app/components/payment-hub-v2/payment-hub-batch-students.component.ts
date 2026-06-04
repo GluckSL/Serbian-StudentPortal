@@ -13,7 +13,7 @@ import { PaymentCurrencyAmountComponent } from './payment-currency-amount.compon
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
 import { paidTotalsFromBucket } from './payment-currency.util';
-import { totalJourneyDaysForLevel } from './payment-journey-metrics.util';
+import { formatJourneyDayCurrentTotal } from './payment-journey-metrics.util';
 
 @Component({
   selector: 'app-payment-hub-batch-students',
@@ -72,8 +72,8 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
     return paidTotalsFromBucket(bucket);
   }
 
-  totalJourneyDays(row: BatchStudentPaymentRow): number {
-    return totalJourneyDaysForLevel(row.level);
+  journeyDayDisplay(row: BatchStudentPaymentRow): string {
+    return formatJourneyDayCurrentTotal({ currentCourseDay: row.currentJourneyDay }, row.level);
   }
 
   totalPaidSum(): CurrencyPaidTotals {

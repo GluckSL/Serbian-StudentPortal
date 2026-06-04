@@ -79,3 +79,14 @@ export function journeyProgressRatio(currentDay: number | null, totalDays: numbe
   if (currentDay == null || totalDays <= 0) return null;
   return Math.min(1, Math.max(0, currentDay / totalDays));
 }
+
+/** Display journey progress as "8/42" (current / total for level). */
+export function formatJourneyDayCurrentTotal(
+  student: Parameters<typeof currentJourneyDayFromStudent>[0],
+  level?: string | null,
+): string {
+  const total = totalJourneyDaysForLevel(level);
+  const current = currentJourneyDayFromStudent(student);
+  if (current == null) return `—/${total}`;
+  return `${current}/${total}`;
+}

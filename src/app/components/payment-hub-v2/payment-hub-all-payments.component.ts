@@ -15,6 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { PaymentHubApiService, DashboardStats, StudentTableRow } from './payment-hub-api.service';
+import { fmtPaymentAmount, fmtPaymentAmountCompact } from './payment-currency.util';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
 import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
@@ -25,7 +26,7 @@ import { PaymentCorrectReceivedDialogComponent } from './payment-correct-receive
 import { PaymentExcelImportDialogComponent } from './payment-excel-import-dialog.component';
 import {
   currentJourneyDayFromStudent,
-  totalJourneyDaysForLevel,
+  formatJourneyDayCurrentTotal,
 } from './payment-journey-metrics.util';
 import {
   LANGUAGE_FEE_STATUS_LABELS,
@@ -118,6 +119,9 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       this.filterDateTo
     );
   }
+
+  fmtCompact = fmtPaymentAmountCompact;
+  fmtFull = fmtPaymentAmount;
 
   get activeFilterLabel(): string {
     if (this.stats?.filterSummary) return this.stats.filterSummary;
@@ -487,12 +491,8 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   }
 
-  totalJourneyDays(row: StudentTableRow): number {
-    return totalJourneyDaysForLevel(row.studentId?.level);
-  }
-
-  currentJourneyDay(row: StudentTableRow): number | null {
-    return currentJourneyDayFromStudent(row.studentId);
+  journeyDayDisplay(row: StudentTableRow): string {
+    return formatJourneyDayCurrentTotal(row.studentId, row.studentId?.level);
   }
 
   rowLanguageFeeStatus(row: StudentTableRow): string {

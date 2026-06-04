@@ -478,8 +478,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return map[this.slotStatusKey(slotKey)] || '';
   }
 
+  /** Level slots (A1–B2): show unless this slot is already fully settled with zero balance. */
   canMarkFullPaid(slotKey: PaymentSlotKey): boolean {
-    return this.isLevelSlot(slotKey) && this.slotSummary(slotKey).requestCount > 0;
+    if (!this.isLevelSlot(slotKey)) return false;
+    const s = this.slotSummary(slotKey);
+    if (s.requestCount === 0) return true;
+    const balanceTotal = (s.balance.LKR || 0) + (s.balance.INR || 0) + (s.balance.USD || 0);
+    return !(s.settledCount === s.requestCount && balanceTotal <= 0);
   }
 
   /** Template handler — narrows level slot before opening full-paid form. */

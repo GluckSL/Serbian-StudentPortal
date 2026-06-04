@@ -246,7 +246,7 @@
                   {{ ext.lastSyncedToSheet ? '✓' : '✗' }}
                 </span>
               </td>
-              <td>{{ ext.documentsUsed?.length || 0 }}</td>
+              <td>{{ ext.documentsUsed.length || 0 }}</td>
               <td>{{ ext.lastSyncedToSheet ? (ext.lastSyncedToSheet | date:'short') : '-' }}</td>
             </tr>
           }

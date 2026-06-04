@@ -35,6 +35,7 @@ const {
   filterSummaryLabel,
   hasActiveFilters,
 } = require('../helpers/paymentHubStudentFilter');
+const { aggregateHubDashboardStats } = require('../helpers/paymentHubStatsAggregator');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 // ─── Helper to get admin name from user model ──────────────────────────────
@@ -145,71 +146,53 @@ const getAllRequests = async (req, res) => {
 const getDashboardStats = async (req, res) => {
   try {
     const { filters, studentIds } = await getFilteredStudentIds(req.query);
-    const raw = await paymentService.getPaymentDashboardStats({
-      studentIds,
-      currency: filters.currency || null,
-    });
+    const agg = await aggregateHubDashboardStats(studentIds);
 
-    const g = (map, cur) => (map && map[cur] && map[cur].total) || 0;
-    const pick = (lkr, inr, usd) => {
+    const pick = (bucket) => {
+      const lkr = bucket.LKR || 0;
+      const inr = bucket.INR || 0;
+      const usd = bucket.USD || 0;
       if (filters.currency === 'LKR') return { lkr, inr: 0, usd: 0 };
       if (filters.currency === 'INR') return { lkr: 0, inr, usd: 0 };
       if (filters.currency === 'USD') return { lkr: 0, inr: 0, usd };
       return { lkr, inr, usd };
     };
 
-    const received = pick(
-      g(raw.totalReceived?.overall, 'LKR'),
-      g(raw.totalReceived?.overall, 'INR'),
-      g(raw.totalReceived?.overall, 'USD'),
-    );
-    const pending = pick(
-      g(raw.pendingApproval?.byCurrency, 'LKR'),
-      g(raw.pendingApproval?.byCurrency, 'INR'),
-      g(raw.pendingApproval?.byCurrency, 'USD'),
-    );
-    const expected = pick(
-      g(raw.expectedThisMonth, 'LKR'),
-      g(raw.expectedThisMonth, 'INR'),
-      g(raw.expectedThisMonth, 'USD'),
-    );
-    const overdue = pick(
-      g(raw.overdue?.byCurrency, 'LKR'),
-      g(raw.overdue?.byCurrency, 'INR'),
-      g(raw.overdue?.byCurrency, 'USD'),
-    );
-
-    const User = mongoose.model('User');
-    const profileScope = studentIds === null ? {} : { studentId: { $in: studentIds } };
-
-    const [totalStudents, fullyPaidStudents, activeStudents] = await Promise.all([
-      studentIds === null ?
-        User.countDocuments({ role: 'STUDENT' }) :
-        studentIds.length,
-      StudentPaymentProfile.countDocuments({ ...profileScope, overallStatus: 'CLEAR' }),
-      StudentPaymentProfile.countDocuments({
-        ...profileScope,
-        overallStatus: { $in: ['REQUESTED', 'PENDING_REVIEW', 'OVERDUE'] },
-      }),
-    ]);
+    const received = pick(agg.received);
+    const pending = pick(agg.pending);
+    const overdue = pick(agg.overdue);
+    const totalPayment = pick(agg.totalPaymentExpected);
+    const totalDue = pick(agg.totalDue);
+    const expectedMonth = pick(agg.expectedThisMonth || { LKR: 0, INR: 0, USD: 0 });
 
     const data = {
+      totalPaymentExpectedLKR: totalPayment.lkr,
+      totalPaymentExpectedINR: totalPayment.inr,
+      totalPaymentExpectedUSD: totalPayment.usd,
+      catalogPaymentBreakdown: agg.catalogPaymentBreakdown || [],
       totalReceivedLKR: received.lkr,
       totalReceivedINR: received.inr,
       totalReceivedUSD: received.usd,
+      totalDueLKR: totalDue.lkr,
+      totalDueINR: totalDue.inr,
+      totalDueUSD: totalDue.usd,
       pendingApprovalAmountLKR: pending.lkr,
       pendingApprovalAmountINR: pending.inr,
       pendingApprovalAmountUSD: pending.usd,
-      totalExpectedThisMonthLKR: expected.lkr,
-      totalExpectedThisMonthINR: expected.inr,
-      totalExpectedThisMonthUSD: expected.usd,
+      totalExpectedThisMonthLKR: expectedMonth.lkr,
+      totalExpectedThisMonthINR: expectedMonth.inr,
+      totalExpectedThisMonthUSD: expectedMonth.usd,
       totalOverdueLKR: overdue.lkr,
       totalOverdueINR: overdue.inr,
       totalOverdueUSD: overdue.usd,
-      overdueCount: raw.overdue?.studentCount || 0,
-      totalStudents,
-      fullyPaidStudents,
-      activeStudents,
+      overdueCount: agg.overdueRequestCount,
+      totalStudents: agg.totalStudents,
+      fullyPaidStudents: agg.fullyPaidStudents,
+      balanceStudents: agg.balanceStudents,
+      overdueStudents: agg.overdueStudents,
+      docsPaidStudents: agg.docsPaidStudents,
+      visaPaidStudents: agg.visaPaidStudents,
+      activeStudents: agg.activeStudents,
       filtered: hasActiveFilters(filters),
       filterSummary: filterSummaryLabel(filters),
     };

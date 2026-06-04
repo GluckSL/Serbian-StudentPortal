@@ -129,6 +129,43 @@
   </div>
 
   <div class="ph-cards-grid" *ngIf="stats">
+    <mat-card class="ph-card ph-card-indigo ph-card--total-payment">
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--indigo"><mat-icon>payments</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Total Payment</span>
+          <span class="ph-card-desc">{{ stats.totalStudents }} students × level fee</span>
+        </div>
+      </div>
+      <mat-card-content class="ph-card-body ph-card-body--total-payment">
+        @if (!filterCurrency || filterCurrency === 'LKR') {
+          @if (stats.totalPaymentExpectedLKR > 0) {
+            <div class="ph-compact-total-row">
+              <span class="ph-ccy-badge ph-ccy-badge--lkr">LKR</span>
+              <span class="ph-compact-total-val">{{ fmtCompact(stats.totalPaymentExpectedLKR) }}</span>
+              <span class="ph-compact-total-full" [title]="fmtFull(stats.totalPaymentExpectedLKR) + ' LKR'">
+                ({{ fmtFull(stats.totalPaymentExpectedLKR) }})
+              </span>
+            </div>
+          }
+        }
+        @if (!filterCurrency || filterCurrency === 'INR') {
+          @if (stats.totalPaymentExpectedINR > 0) {
+            <div class="ph-compact-total-row">
+              <span class="ph-ccy-badge ph-ccy-badge--inr">INR</span>
+              <span class="ph-compact-total-val">{{ fmtCompact(stats.totalPaymentExpectedINR) }}</span>
+              <span class="ph-compact-total-full" [title]="fmtFull(stats.totalPaymentExpectedINR) + ' INR'">
+                ({{ fmtFull(stats.totalPaymentExpectedINR) }})
+              </span>
+            </div>
+          }
+        }
+        @if (stats.totalPaymentExpectedLKR === 0 && stats.totalPaymentExpectedINR === 0) {
+          <span class="ph-compact-empty">—</span>
+        }
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="ph-card ph-card-green">
       <div class="ph-card-top">
         <div class="ph-card-icon ph-card-icon--green"><mat-icon>check_circle</mat-icon></div>
@@ -151,8 +188,8 @@
       <div class="ph-card-top">
         <div class="ph-card-icon ph-card-icon--amber"><mat-icon>hourglass_empty</mat-icon></div>
         <div class="ph-card-meta">
-          <span class="ph-card-title">Pending</span>
-          <span class="ph-card-desc">Submitted, not yet approved</span>
+          <span class="ph-card-title">Pending / Balance</span>
+          <span class="ph-card-desc">Outstanding on payment slots (matches table)</span>
         </div>
       </div>
       <mat-card-content class="ph-card-body">
@@ -162,24 +199,6 @@
           [usd]="stats.pendingApprovalAmountUSD"
           [hideZero]="!!filterCurrency"
         ></app-payment-currency-pending-totals>
-      </mat-card-content>
-    </mat-card>
-
-    <mat-card class="ph-card ph-card-blue">
-      <div class="ph-card-top">
-        <div class="ph-card-icon ph-card-icon--blue"><mat-icon>calendar_today</mat-icon></div>
-        <div class="ph-card-meta">
-          <span class="ph-card-title">Expected This Month</span>
-          <span class="ph-card-desc">Due by end of current month</span>
-        </div>
-      </div>
-      <mat-card-content class="ph-card-body">
-        <app-payment-currency-totals
-          [lkr]="stats.totalExpectedThisMonthLKR"
-          [inr]="stats.totalExpectedThisMonthINR"
-          [usd]="stats.totalExpectedThisMonthUSD"
-          [hideZero]="!!filterCurrency"
-        ></app-payment-currency-totals>
       </mat-card-content>
     </mat-card>
 
@@ -204,18 +223,33 @@
 
   <div class="ph-summary-row" *ngIf="stats">
     <div class="ph-summary-item">
-      <span class="ph-summary-label">Students in view</span>
+      <span class="ph-summary-label">Total students</span>
       <span class="ph-summary-val">{{ stats.totalStudents }}</span>
     </div>
     <div class="ph-summary-divider"></div>
     <div class="ph-summary-item">
-      <span class="ph-summary-label">Fully Paid</span>
+      <span class="ph-summary-label">Paid full</span>
       <span class="ph-summary-val ph-val-green">{{ stats.fullyPaidStudents }}</span>
     </div>
     <div class="ph-summary-divider"></div>
     <div class="ph-summary-item">
-      <span class="ph-summary-label">Active</span>
-      <span class="ph-summary-val ph-val-blue">{{ stats.activeStudents }}</span>
+      <span class="ph-summary-label">Have balance</span>
+      <span class="ph-summary-val ph-val-amber">{{ stats.balanceStudents }}</span>
+    </div>
+    <div class="ph-summary-divider"></div>
+    <div class="ph-summary-item">
+      <span class="ph-summary-label">Overdue</span>
+      <span class="ph-summary-val ph-val-red">{{ stats.overdueStudents }}</span>
+    </div>
+    <div class="ph-summary-divider"></div>
+    <div class="ph-summary-item">
+      <span class="ph-summary-label">Paid docs</span>
+      <span class="ph-summary-val ph-val-teal">{{ stats.docsPaidStudents }}</span>
+    </div>
+    <div class="ph-summary-divider"></div>
+    <div class="ph-summary-item">
+      <span class="ph-summary-label">Paid visa</span>
+      <span class="ph-summary-val ph-val-indigo">{{ stats.visaPaidStudents }}</span>
     </div>
   </div>
 </div>
@@ -263,8 +297,7 @@
           <th>Batch</th>
           <th>Level</th>
           <th>Date joined</th>
-          <th class="ph-num ph-col-compact">Total journey days</th>
-          <th class="ph-num ph-col-compact">Current journey day</th>
+          <th class="ph-num ph-col-compact">Journey day</th>
           <th class="ph-num">Total received</th>
           <th class="ph-num">Pending</th>
           <th class="ph-num">Overdue</th>
@@ -282,8 +315,9 @@
           <td>{{ studentBatch(row) }}</td>
           <td><span class="ph-level-pill">{{ studentLevel(row) }}</span></td>
           <td>{{ studentDateJoined(row) }}</td>
-          <td class="ph-num ph-col-compact ph-muted-num">{{ totalJourneyDays(row) }}</td>
-          <td class="ph-num ph-col-compact"><span class="ph-day-badge">{{ currentJourneyDay(row) ?? '—' }}</span></td>
+          <td class="ph-num ph-col-compact">
+            <span class="ph-day-badge ph-day-badge--ratio">{{ journeyDayDisplay(row) }}</span>
+          </td>
           <td class="ph-num ph-val-green ph-paid-cell">
             <app-payment-currency-totals
               [lkr]="row.totalPaidLKR"

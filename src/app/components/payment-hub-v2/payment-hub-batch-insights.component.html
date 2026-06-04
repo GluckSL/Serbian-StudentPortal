@@ -146,8 +146,7 @@
                 <th>Level</th>
                 <th class="ph-num">Students</th>
                 <th class="ph-num">Total received</th>
-                <th class="ph-num">Current journey day</th>
-                <th class="ph-num">Total journey days</th>
+                <th class="ph-num">Journey day</th>
                 <th class="ph-col-actions">Actions</th>
               </tr>
             </thead>
@@ -174,8 +173,7 @@
                     [compact]="true"
                   ></app-payment-currency-totals>
                 </td>
-                <td class="ph-num">{{ r.currentJourneyDay ?? '—' }}</td>
-                <td class="ph-num">{{ r.totalJourneyDays ?? '—' }}</td>
+                <td class="ph-num"><span class="ph-day-ratio">{{ journeyDayRatio(r) }}</span></td>
                 <td class="ph-col-actions">
                   <button mat-stroked-button color="primary" type="button" (click)="openBatchStudents(r.batch)">
                     <mat-icon>groups</mat-icon> Show students
@@ -203,8 +201,7 @@
               <th>Level</th>
               <th class="ph-num">Students</th>
               <th class="ph-num">Total received</th>
-              <th class="ph-num">Current journey day</th>
-              <th class="ph-num">Total journey days</th>
+              <th class="ph-num">Journey day</th>
               <th class="ph-col-actions">Actions</th>
             </tr>
           </thead>
@@ -235,8 +232,7 @@
                   [hideZero]="true"
                 ></app-payment-currency-totals>
               </td>
-              <td class="ph-num">{{ r.currentJourneyDay ?? '—' }}</td>
-              <td class="ph-num">{{ r.totalJourneyDays ?? '—' }}</td>
+              <td class="ph-num"><span class="ph-day-ratio">{{ journeyDayRatio(r) }}</span></td>
               <td class="ph-col-actions">
                 <button mat-stroked-button color="primary" type="button" (click)="openBatchStudents(r.batch)">
                   <mat-icon>groups</mat-icon>

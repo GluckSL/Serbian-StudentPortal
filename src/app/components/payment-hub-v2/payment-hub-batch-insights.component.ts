@@ -179,6 +179,13 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
     return this.batchTypeByKey.get(normBatchKey(batchLabel)) === this.filterBatchType;
   }
 
+  journeyDayRatio(r: { currentJourneyDay?: number | null; totalJourneyDays?: number | null }): string {
+    const cur = r.currentJourneyDay;
+    const total = r.totalJourneyDays;
+    if (cur == null && (total == null || total === undefined)) return '—';
+    return `${cur ?? '—'}/${total ?? '—'}`;
+  }
+
   batchTypeLabel(type: 'new' | 'old'): string {
     return type === 'old' ? 'Old' : 'New';
   }

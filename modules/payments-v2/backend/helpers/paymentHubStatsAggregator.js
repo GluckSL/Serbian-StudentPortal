@@ -1,0 +1,320 @@
+/**
+ * Dashboard KPI totals using the same rules as Payment Hub student table rows.
+ */
+const mongoose = require('mongoose');
+const PaymentRequest = require('../models/PaymentRequest');
+const PaymentFlowSubmission = require('../models/PaymentSubmission');
+const PaymentHubCatalog = require('../models/PaymentHubCatalog');
+const {
+  computeLiveTotalsFromData,
+  computeBalanceDueFromRequests,
+  groupDocsByStudentId,
+  emptyCurrencyBucket,
+  addToCurrencyBucket,
+} = require('../utils/currencyBreakdownHelper');
+const { computeLanguageFeeStatus } = require('./languageFeeStatus');
+
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+function buildLevelPriceMap(catalog) {
+  const levelPriceMap = new Map();
+  for (const r of catalog?.cefrRows || []) {
+    const code = String(r?.code || '').trim().toUpperCase();
+    if (!CEFR_ORDER.includes(code)) continue;
+    levelPriceMap.set(code, {
+      LKR: Number(r?.lkr) || 0,
+      INR: Number(r?.inr) || 0,
+      USD: 0,
+    });
+  }
+  return levelPriceMap;
+}
+
+/** Same pending LKR/INR/USD as one student table row. */
+function pendingTotalsForStudent(studentRequests, approvedSubs, pendingSubs, student, levelPriceMap) {
+  const live = computeLiveTotalsFromData(studentRequests, approvedSubs, pendingSubs);
+  const balanceDue = computeBalanceDueFromRequests(studentRequests, approvedSubs);
+  const hasMappedPayments = studentRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
+
+  const level = String(student?.level || '').trim().toUpperCase();
+  const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
+  const catalogGaps = {
+    LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
+    INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
+    USD: Math.max(0, (levelPrice.USD || 0) - (Number(live.totalPaidUSD) || 0)),
+  };
+  const catalogBalance = catalogGaps.LKR + catalogGaps.INR + catalogGaps.USD;
+
+  if (balanceDue.total > 0) {
+    return {
+      LKR: balanceDue.pendingApprovalAmountLKR,
+      INR: balanceDue.pendingApprovalAmountINR,
+      USD: balanceDue.pendingApprovalAmountUSD,
+    };
+  }
+  if (!hasMappedPayments && catalogBalance > 0) {
+    return { LKR: catalogGaps.LKR, INR: catalogGaps.INR, USD: catalogGaps.USD };
+  }
+  return { LKR: 0, INR: 0, USD: 0 };
+}
+
+function addBuckets(target, source) {
+  target.LKR += source.LKR || 0;
+  target.INR += source.INR || 0;
+  target.USD += source.USD || 0;
+}
+
+/** Per-student language fee from hub catalog (CEFR level × fee row). */
+function catalogFeeForStudent(student, levelPriceMap) {
+  const level = String(student?.level || 'A1').trim().toUpperCase();
+  const lp = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
+  return { level, LKR: lp.LKR, INR: lp.INR, USD: lp.USD };
+}
+
+function buildCatalogPaymentBreakdown(students, levelPriceMap) {
+  const byLevel = new Map();
+  for (const student of students) {
+    const fee = catalogFeeForStudent(student, levelPriceMap);
+    const key = fee.level;
+    if (!byLevel.has(key)) {
+      byLevel.set(key, {
+        level: key,
+        studentCount: 0,
+        feeLKR: fee.LKR,
+        feeINR: fee.INR,
+        feeUSD: fee.USD,
+        totalLKR: 0,
+        totalINR: 0,
+        totalUSD: 0,
+      });
+    }
+    const row = byLevel.get(key);
+    row.studentCount += 1;
+    row.totalLKR += fee.LKR;
+    row.totalINR += fee.INR;
+    row.totalUSD += fee.USD;
+  }
+  return [...byLevel.values()].sort((a, b) => CEFR_ORDER.indexOf(a.level) - CEFR_ORDER.indexOf(b.level));
+}
+
+function dueFromPendingOverdue(pending, overdue) {
+  return {
+    LKR: (pending.LKR || 0) + (overdue.LKR || 0),
+    INR: (pending.INR || 0) + (overdue.INR || 0),
+    USD: (pending.USD || 0) + (overdue.USD || 0),
+  };
+}
+
+function bucketTotal(bucket) {
+  return (bucket.LKR || 0) + (bucket.INR || 0) + (bucket.USD || 0);
+}
+
+function hasApprovedPaymentForType(studentRequests, approvedSubs, paymentType) {
+  const reqs = (studentRequests || []).filter(
+    (r) => !r.isArchived && String(r.paymentType) === paymentType,
+  );
+  if (!reqs.length) return false;
+  const reqIds = new Set(reqs.map((r) => String(r._id)));
+  const paid = (approvedSubs || [])
+    .filter((s) => reqIds.has(String(s.paymentRequestId)))
+    .reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
+  if (paid > 0) return true;
+  return reqs.some((r) => ['APPROVED', 'FULLY_PAID'].includes(r.status));
+}
+
+/** Matches Payment Hub table language-fee / pending column rules. */
+function effectiveOutstandingBalance(studentRequests, approved, pendingSubs, student, levelPriceMap) {
+  const live = computeLiveTotalsFromData(studentRequests, approved, pendingSubs);
+  const balanceDue = computeBalanceDueFromRequests(studentRequests, approved);
+  const hasMappedPayments = studentRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
+  const level = String(student?.level || 'A1').trim().toUpperCase();
+  const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
+  const catalogGaps = {
+    LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
+    INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
+    USD: Math.max(0, (levelPrice.USD || 0) - (Number(live.totalPaidUSD) || 0)),
+  };
+  const catalogBalance = catalogGaps.LKR + catalogGaps.INR + catalogGaps.USD;
+  if (balanceDue.total > 0) return balanceDue.total;
+  if (!hasMappedPayments && catalogBalance > 0) return catalogBalance;
+  return 0;
+}
+
+function journeyDayForStudent(student) {
+  const raw = student?.currentCourseDay;
+  if (raw != null && Number.isFinite(Number(raw))) {
+    return Math.min(200, Math.max(1, Math.floor(Number(raw))));
+  }
+  return 1;
+}
+
+/**
+ * @param {import('mongoose').Types.ObjectId[] | null} studentIds null = all students
+ */
+async function aggregateHubDashboardStats(studentIds = null) {
+  const User = mongoose.model('User');
+  const userQuery = { role: 'STUDENT' };
+  if (studentIds !== null) {
+    userQuery._id = { $in: studentIds.length ? studentIds : [] };
+  }
+
+  const [students, catalog] = await Promise.all([
+    User.find(userQuery).select('_id level phoneNumber currentCourseDay').lean(),
+    PaymentHubCatalog.getOrCreate(),
+  ]);
+
+  const ids = students.map((s) => s._id);
+  const levelPriceMap = buildLevelPriceMap(catalog);
+
+  const received = emptyCurrencyBucket();
+  const pending = emptyCurrencyBucket();
+  const overdue = emptyCurrencyBucket();
+  const totalPaymentExpected = emptyCurrencyBucket();
+  const totalDue = emptyCurrencyBucket();
+  let fullyPaidStudents = 0;
+  let balanceStudents = 0;
+  let overdueStudents = 0;
+  let docsPaidStudents = 0;
+  let visaPaidStudents = 0;
+  let overdueRequestCount = 0;
+
+  if (!ids.length) {
+    return {
+      received,
+      pending,
+      overdue,
+      totalPaymentExpected,
+      totalDue,
+      catalogPaymentBreakdown: [],
+      expectedThisMonth: emptyCurrencyBucket(),
+      overdueRequestCount: 0,
+      totalStudents: 0,
+      fullyPaidStudents: 0,
+      balanceStudents: 0,
+      overdueStudents: 0,
+      docsPaidStudents: 0,
+      visaPaidStudents: 0,
+      activeStudents: 0,
+    };
+  }
+
+  const [requests, approvedSubs, pendingSubs] = await Promise.all([
+    PaymentRequest.find({ studentId: { $in: ids }, isArchived: false }).lean(),
+    PaymentFlowSubmission.find({
+      studentId: { $in: ids },
+      status: 'APPROVED',
+      isArchived: false,
+    }).lean(),
+    PaymentFlowSubmission.find({
+      studentId: { $in: ids },
+      status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
+      isArchived: false,
+    }).lean(),
+  ]);
+
+  const requestsByStudent = groupDocsByStudentId(requests);
+  const approvedByStudent = groupDocsByStudentId(approvedSubs);
+  const pendingByStudent = groupDocsByStudentId(pendingSubs);
+
+  for (const student of students) {
+    const sid = String(student._id);
+    const studentRequests = requestsByStudent[sid] || [];
+    const approved = approvedByStudent[sid] || [];
+    const pendingSubmissions = pendingByStudent[sid] || [];
+
+    const live = computeLiveTotalsFromData(studentRequests, approved, pendingSubmissions);
+    addBuckets(received, {
+      LKR: live.totalPaidLKR,
+      INR: live.totalPaidINR,
+      USD: live.totalPaidUSD,
+    });
+    const overdueStudent = {
+      LKR: live.overdueAmountLKR,
+      INR: live.overdueAmountINR,
+      USD: live.overdueAmountUSD,
+    };
+    addBuckets(overdue, overdueStudent);
+
+    const pendingStudent = pendingTotalsForStudent(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student,
+      levelPriceMap,
+    );
+    addBuckets(pending, pendingStudent);
+    addBuckets(totalDue, dueFromPendingOverdue(pendingStudent, overdueStudent));
+    addBuckets(totalPaymentExpected, catalogFeeForStudent(student, levelPriceMap));
+
+    overdueRequestCount += studentRequests.filter((r) => r.status === 'OVERDUE').length;
+
+    const outstanding = effectiveOutstandingBalance(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student,
+      levelPriceMap,
+    );
+    const journeyDay = journeyDayForStudent(student);
+    const langStatus = computeLanguageFeeStatus(outstanding, journeyDay);
+
+    if (langStatus === 'FULL_PAID') fullyPaidStudents += 1;
+    if (langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0) balanceStudents += 1;
+    if (langStatus === 'DUE' || bucketTotal(overdueStudent) > 0 || studentRequests.some((r) => r.status === 'OVERDUE')) {
+      overdueStudents += 1;
+    }
+    if (hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT')) docsPaidStudents += 1;
+    if (hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT')) visaPaidStudents += 1;
+  }
+
+  const expectedThisMonth = await expectedThisMonthForScope(studentIds);
+  const catalogPaymentBreakdown = buildCatalogPaymentBreakdown(students, levelPriceMap);
+
+  return {
+    received,
+    pending,
+    overdue,
+    totalPaymentExpected,
+    totalDue,
+    catalogPaymentBreakdown,
+    expectedThisMonth,
+    overdueRequestCount,
+    totalStudents: students.length,
+    fullyPaidStudents,
+    balanceStudents,
+    overdueStudents,
+    docsPaidStudents,
+    visaPaidStudents,
+    activeStudents: balanceStudents + overdueStudents,
+  };
+}
+
+async function expectedThisMonthForScope(studentIds) {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const match = {
+    dueDate: { $gte: startOfMonth, $lte: endOfMonth },
+    status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] },
+    isArchived: false,
+  };
+  if (studentIds !== null) {
+    match.studentId = {
+      $in: studentIds.length ? studentIds : [new mongoose.Types.ObjectId('000000000000000000000000')],
+    };
+  }
+
+  const rows = await PaymentRequest.aggregate([
+    { $match: match },
+    { $group: { _id: '$currency', total: { $sum: '$amountRemaining' } } },
+  ]);
+
+  const expected = emptyCurrencyBucket();
+  for (const row of rows) {
+    addToCurrencyBucket(expected, row._id, row.total);
+  }
+  return expected;
+}
+
+module.exports = { aggregateHubDashboardStats };
