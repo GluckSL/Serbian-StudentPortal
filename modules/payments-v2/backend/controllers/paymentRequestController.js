@@ -32,10 +32,15 @@ const {
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
 const {
   getFilteredStudentIds,
+  parseHubFilters,
+  applyTestAccountFilter,
   filterSummaryLabel,
   hasActiveFilters,
 } = require('../helpers/paymentHubStudentFilter');
-const { aggregateHubDashboardStats } = require('../helpers/paymentHubStatsAggregator');
+const {
+  aggregateHubDashboardStats,
+  aggregateBatchPaymentInsights,
+} = require('../helpers/paymentHubStatsAggregator');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 // ─── Helper to get admin name from user model ──────────────────────────────
@@ -146,7 +151,9 @@ const getAllRequests = async (req, res) => {
 const getDashboardStats = async (req, res) => {
   try {
     const { filters, studentIds } = await getFilteredStudentIds(req.query);
-    const agg = await aggregateHubDashboardStats(studentIds);
+    const agg = await aggregateHubDashboardStats(studentIds, {
+      includeTestAccounts: filters.includeTestAccounts,
+    });
 
     const pick = (bucket) => {
       const lkr = bucket.LKR || 0;
@@ -221,7 +228,8 @@ const getStudentTable = async (req, res) => {
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
-    const userMatch = { role: 'STUDENT' };
+    const hubFilters = parseHubFilters(req.query);
+    const userMatch = applyTestAccountFilter({ role: 'STUDENT' }, hubFilters);
     if (batch) userMatch.batch = batch;
     if (level) userMatch.level = level;
     if (studentStatus && String(studentStatus).trim()) {
@@ -361,6 +369,7 @@ const getStudentTable = async (req, res) => {
                 dateJoined: '$enrollmentDate',
                 registeredAt: '$registeredAt',
                 createdAt: '$createdAt',
+                isTestAccount: '$isTestAccount',
               },
               totalPaid: { $ifNull: ['$profile.totalPaid', 0] },
               ...mongoPaidFieldsFromProfile('$profile.currencyBreakdown'),
@@ -1049,79 +1058,13 @@ function detectLevelFromPaymentRequest(req) {
 const getBatchPaymentSummary = async (req, res) => {
   try {
     const { batch, level } = req.query;
-    const userMatch = { role: 'STUDENT' };
-    if (batch && String(batch).trim()) userMatch.batch = String(batch).trim();
-    if (level && String(level).trim()) userMatch.level = String(level).trim();
-
-    const grouped = await mongoose.model('User').aggregate([
-      { $match: userMatch },
-      {
-        $lookup: {
-          from: 'studentpaymentprofiles',
-          localField: '_id',
-          foreignField: 'studentId',
-          as: 'profileArr',
-        },
-      },
-      { $addFields: { profile: { $arrayElemAt: ['$profileArr', 0] } } },
-      { $addFields: mongoPaidFieldsFromProfile('$profile.currencyBreakdown') },
-      {
-        $addFields: {
-          batchLabel: {
-            $let: {
-              vars: { b: { $trim: { input: { $ifNull: ['$batch', ''] } } } },
-              in: { $cond: [{ $eq: ['$$b', ''] }, '—', '$$b'] },
-            },
-          },
-          levelKey: { $toUpper: { $trim: { input: { $ifNull: ['$level', ''] } } } },
-        },
-      },
-      {
-        $group: {
-          _id: '$batchLabel',
-          studentCount: { $sum: 1 },
-          totalPaid: { $sum: { $ifNull: ['$profile.totalPaid', 0] } },
-          totalPaidLKR: { $sum: '$totalPaidLKR' },
-          totalPaidINR: { $sum: '$totalPaidINR' },
-          totalPaidUSD: { $sum: '$totalPaidUSD' },
-          levels: { $push: '$levelKey' },
-          maxStudentDay: { $max: '$currentCourseDay' },
-        },
-      },
-      { $sort: { totalPaidLKR: -1, totalPaidINR: -1, totalPaidUSD: -1 } },
-    ]);
-
-    const batches = grouped.map((row) => {
-      const levelCounts = {};
-      for (const lv of row.levels || []) {
-        if (!lv) continue;
-        levelCounts[lv] = (levelCounts[lv] || 0) + 1;
-      }
-      let maxDay = row.maxStudentDay;
-      if (maxDay != null && Number.isFinite(Number(maxDay))) {
-        maxDay = Math.min(200, Math.max(1, Math.floor(Number(maxDay))));
-      } else {
-        maxDay = null;
-      }
-      return {
-        batch: row._id,
-        studentCount: row.studentCount,
-        totalPaid: row.totalPaid,
-        totalPaidLKR: row.totalPaidLKR || 0,
-        totalPaidINR: row.totalPaidINR || 0,
-        totalPaidUSD: row.totalPaidUSD || 0,
-        levelCounts,
-        maxStudentDay: maxDay,
-      };
+    const batchFilters = parseHubFilters(req.query);
+    const data = await aggregateBatchPaymentInsights({
+      batch: batch && String(batch).trim() ? String(batch).trim() : undefined,
+      level: level && String(level).trim() ? String(level).trim() : undefined,
+      includeTestAccounts: batchFilters.includeTestAccounts,
     });
-
-    const totalStudents = batches.reduce((s, b) => s + b.studentCount, 0);
-    const batchNames = batches.map((b) => b.batch).filter((n) => n && n !== '—');
-
-    res.json({
-      success: true,
-      data: { batches, totalStudents, batchNames },
-    });
+    res.json({ success: true, data });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }

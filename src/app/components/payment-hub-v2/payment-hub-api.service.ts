@@ -147,6 +147,7 @@ export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTota
     dateJoined?: string;
     createdAt?: string;
     currentCourseDay?: number;
+    isTestAccount?: boolean;
   };
   totalPaid: number;
   pendingApprovalAmount: number;
@@ -379,14 +380,38 @@ export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
   batch: string;
   studentCount: number;
   totalPaid: number;
+  totalPendingLKR?: number;
+  totalPendingINR?: number;
+  totalPendingUSD?: number;
+  totalOverdueLKR?: number;
+  totalOverdueINR?: number;
+  totalOverdueUSD?: number;
+  totalExpectedLKR?: number;
+  totalExpectedINR?: number;
+  totalExpectedUSD?: number;
+  totalDueLKR?: number;
+  totalDueINR?: number;
+  totalDueUSD?: number;
+  fullyPaidStudents?: number;
+  balanceStudents?: number;
+  overdueStudents?: number;
+  docsPaidStudents?: number;
+  visaPaidStudents?: number;
   levelCounts: Record<string, number>;
   maxStudentDay: number | null;
+  avgJourneyDay?: number | null;
+  collectionRateLKR?: number | null;
+}
+
+export interface BatchPaymentSummaryTotals extends Omit<BatchPaymentSummaryRow, 'batch' | 'levelCounts'> {
+  levelCounts?: Record<string, number>;
 }
 
 export interface BatchPaymentSummary {
   batches: BatchPaymentSummaryRow[];
   totalStudents: number;
   batchNames: string[];
+  totals?: BatchPaymentSummaryTotals | null;
 }
 
 export interface StudentHistory {

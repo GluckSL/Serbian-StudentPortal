@@ -5,9 +5,9 @@
         <mat-icon>arrow_back</mat-icon>
         Back to hub
       </a>
-      <h1 class="ph-insights-title">Batch payment overview</h1>
+      <h1 class="ph-insights-title">Batch payment insights</h1>
       <p class="ph-insights-sub">
-        Collected totals per batch, plus each batch’s current journey day and level-based total journey length.
+        Live totals per batch — same rules as Payment Hub (approved payments, catalog expected fees, balance &amp; overdue).
       </p>
     </div>
   </div>
@@ -33,40 +33,100 @@
           <mat-option *ngFor="let lv of levels; let i = index" [value]="lv">{{ levelLabels[i] }}</mat-option>
         </mat-select>
       </mat-form-field>
+      <div class="ph-filter-test" matTooltip="Test accounts are excluded by default from batch totals.">
+        <mat-checkbox [(ngModel)]="includeTestAccounts" (change)="applyFilter()" [disabled]="loading">
+          Include test accounts
+        </mat-checkbox>
+      </div>
     </div>
 
     <ng-container *ngIf="!loading; else skeleton">
-      <div class="ph-insights-cards">
+      <div class="ph-insights-cards ph-insights-cards--wide">
         <div class="ph-insight-card">
           <div class="ph-insight-card-label">{{ showDetailsPanel ? 'Selected batches' : 'Batches' }}</div>
           <div class="ph-insight-card-value">{{ cardBatches }}</div>
-          <div class="ph-insight-card-hint">{{ showDetailsPanel ? 'From your checkbox selection' : 'Distinct batch labels in view' }}</div>
+          <div class="ph-insight-card-hint">In current filter</div>
         </div>
         <div class="ph-insight-card">
           <div class="ph-insight-card-label">Students</div>
           <div class="ph-insight-card-value">{{ fmt(cardStudents) }}</div>
-          <div class="ph-insight-card-hint">Aggregated from payment profiles</div>
+          <div class="ph-insight-card-hint">Enrolled in view</div>
+        </div>
+        <div class="ph-insight-card ph-accent-slate">
+          <div class="ph-insight-card-label">Expected (catalog)</div>
+          <div class="ph-insight-card-value ph-insight-card-value--compact">
+            LKR {{ fmtCompact(cardExpected.totalPaidLKR) }}
+            <span class="ph-insight-card-subline" *ngIf="cardExpected.totalPaidINR">· INR {{ fmtCompact(cardExpected.totalPaidINR) }}</span>
+          </div>
+          <div class="ph-insight-card-hint">Level fee × students</div>
         </div>
         <div class="ph-insight-card ph-accent-violet ph-insight-card--currency">
-          <div class="ph-insight-card-label">Total received</div>
+          <div class="ph-insight-card-label">Received</div>
           <app-payment-currency-totals
-            [lkr]="cardTotals.totalPaidLKR"
-            [inr]="cardTotals.totalPaidINR"
-            [usd]="cardTotals.totalPaidUSD"
+            [lkr]="cardReceived.totalPaidLKR"
+            [inr]="cardReceived.totalPaidINR"
+            [usd]="cardReceived.totalPaidUSD"
             [compact]="true"
           ></app-payment-currency-totals>
-          <div class="ph-insight-card-hint">{{ showDetailsPanel ? 'Selected batches only' : 'Across every batch shown' }}</div>
+          <div class="ph-insight-card-hint">Approved payments</div>
         </div>
-        <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Top batch by payments</div>
-          <div class="ph-insight-card-value ph-value-sm">{{ cardLargestBatch }}</div>
-          <div class="ph-insight-card-hint">Highest total paid in this view</div>
+        <div class="ph-insight-card ph-accent-amber ph-insight-card--currency">
+          <div class="ph-insight-card-label">Pending / balance</div>
+          <app-payment-currency-pending-totals
+            [lkr]="cardPending.pendingApprovalAmountLKR"
+            [inr]="cardPending.pendingApprovalAmountINR"
+            [usd]="cardPending.pendingApprovalAmountUSD"
+            [compact]="true"
+          ></app-payment-currency-pending-totals>
+        </div>
+        <div class="ph-insight-card ph-accent-red ph-insight-card--currency">
+          <div class="ph-insight-card-label">Overdue</div>
+          <app-payment-currency-overdue-totals
+            [lkr]="cardOverdue.overdueAmountLKR"
+            [inr]="cardOverdue.overdueAmountINR"
+            [usd]="cardOverdue.overdueAmountUSD"
+            [compact]="true"
+          ></app-payment-currency-overdue-totals>
         </div>
       </div>
 
-      <div class="ph-insights-split">
+      <div class="ph-insights-cards ph-insights-cards--health">
+        <div class="ph-insight-card ph-health-card ph-health-card--green">
+          <div class="ph-insight-card-label">Paid full</div>
+          <div class="ph-insight-card-value">{{ viewTotals.fullyPaidStudents }}</div>
+          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.fullyPaidStudents ?? 0, cardStudents) }} of students</div>
+        </div>
+        <div class="ph-insight-card ph-health-card ph-health-card--amber">
+          <div class="ph-insight-card-label">Have balance</div>
+          <div class="ph-insight-card-value">{{ viewTotals.balanceStudents }}</div>
+          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.balanceStudents ?? 0, cardStudents) }} of students</div>
+        </div>
+        <div class="ph-insight-card ph-health-card ph-health-card--red">
+          <div class="ph-insight-card-label">Overdue</div>
+          <div class="ph-insight-card-value">{{ viewTotals.overdueStudents }}</div>
+          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.overdueStudents ?? 0, cardStudents) }} of students</div>
+        </div>
+        <div class="ph-insight-card ph-health-card ph-health-card--teal">
+          <div class="ph-insight-card-label">Paid docs</div>
+          <div class="ph-insight-card-value">{{ viewTotals.docsPaidStudents }}</div>
+          <div class="ph-insight-card-hint">Docs payment approved</div>
+        </div>
+        <div class="ph-insight-card ph-health-card ph-health-card--indigo">
+          <div class="ph-insight-card-label">Paid visa</div>
+          <div class="ph-insight-card-value">{{ viewTotals.visaPaidStudents }}</div>
+          <div class="ph-insight-card-hint">Visa payment approved</div>
+        </div>
+        <div class="ph-insight-card">
+          <div class="ph-insight-card-label">Top batch (LKR)</div>
+          <div class="ph-insight-card-value ph-value-sm">{{ cardLargestBatch }}</div>
+          <div class="ph-insight-card-hint">Highest received in view</div>
+        </div>
+      </div>
+
+      <div class="ph-insights-split ph-insights-split--charts">
         <div class="ph-insights-panel">
-          <h2 class="ph-insights-panel-title">Total payments received by batch</h2>
+          <h2 class="ph-insights-panel-title">Received vs outstanding (LKR)</h2>
+          <p class="ph-panel-caption">Top batches — received (green) vs pending + overdue (amber)</p>
           <div class="ph-insights-chart-wrap">
             <canvas
               *ngIf="batchRows.length"
@@ -75,38 +135,71 @@
               [options]="barChartOptions"
               type="bar"
             ></canvas>
-            <p *ngIf="!batchRows.length" class="ph-empty-note">No rows for this filter.</p>
+            <p *ngIf="!batchRows.length" class="ph-empty-note">No batches for this filter.</p>
           </div>
         </div>
         <div class="ph-insights-panel">
-          <h2 class="ph-insights-panel-title">How to read this</h2>
-          <ul class="ph-bullets">
-            <li>Select batches with checkboxes, then <strong>Show details</strong> for a focused card + table view.</li>
-            <li><strong>Show students</strong> opens a full student payment table for that batch (A1/A2 paid, journey day, status).</li>
-            <li><strong>Batch type:</strong> New = full modules; Old = live classes & recordings only.</li>
-            <li>Level column shows the main level; hover the breakdown for all levels in the batch.</li>
-          </ul>
+          <h2 class="ph-insights-panel-title">Student payment health</h2>
+          <p class="ph-panel-caption">Stacked counts — paid full, balance, overdue (per batch)</p>
+          <div class="ph-insights-chart-wrap ph-insights-chart-wrap--tall">
+            <canvas
+              *ngIf="batchRows.length"
+              baseChart
+              [data]="healthChartData"
+              [options]="healthChartOptions"
+              type="bar"
+            ></canvas>
+            <p *ngIf="!batchRows.length" class="ph-empty-note">No data to chart.</p>
+          </div>
         </div>
       </div>
 
       <div class="ph-batch-toolbar">
         <div class="ph-batch-toolbar-left">
           <span class="ph-batch-select-hint" *ngIf="selectedBatches.size">{{ selectedBatches.size }} batch(es) selected</span>
-          <span class="ph-batch-select-hint ph-muted" *ngIf="!selectedBatches.size">Select batches to compare</span>
+          <span class="ph-batch-select-hint ph-muted" *ngIf="!selectedBatches.size">Select rows to focus charts &amp; export</span>
         </div>
         <div class="ph-batch-toolbar-actions">
+          <button
+            mat-stroked-button
+            type="button"
+            class="ph-btn-export"
+            [matMenuTriggerFor]="exportMenu"
+            [disabled]="exporting || !batchRows.length"
+          >
+            <mat-icon>download</mat-icon>
+            {{ exporting ? 'Exporting…' : 'Export' }}
+          </button>
+          <mat-menu #exportMenu="matMenu">
+            <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
+              <mat-icon>grid_on</mat-icon>
+              <span>Excel — all batches ({{ batchRows.length }})</span>
+            </button>
+            <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
+              <mat-icon>description</mat-icon>
+              <span>CSV — all batches</span>
+            </button>
+            <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
+              <mat-icon>filter_list</mat-icon>
+              <span>Excel — table filter ({{ displayBatchRows.length }})</span>
+            </button>
+            <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'selected')" [disabled]="!selectedBatches.size">
+              <mat-icon>checklist</mat-icon>
+              <span>Excel — selected ({{ selectedBatches.size }})</span>
+            </button>
+          </mat-menu>
           <button mat-stroked-button type="button" (click)="clearSelection()" [disabled]="!selectedBatches.size">
             Clear
           </button>
           <button mat-flat-button color="primary" type="button" (click)="showSelectedDetails()" [disabled]="!selectedBatches.size">
             <mat-icon>visibility</mat-icon>
-            Show details
+            Focus selection
           </button>
         </div>
       </div>
 
       <section *ngIf="showDetailsPanel && selectedBatchRows.length" class="ph-selected-details">
-        <h2 class="ph-insights-panel-title">Selected batch details</h2>
+        <h2 class="ph-insights-panel-title">Selected batches</h2>
         <div class="ph-selected-cards">
           <div class="ph-selected-card" *ngFor="let r of selectedBatchRows">
             <div class="ph-selected-card-head">
@@ -115,138 +208,198 @@
                 [class.ph-batch-type-pill--old]="r.batchType === 'old'"
                 [class.ph-batch-type-pill--new]="r.batchType === 'new'"
               >{{ batchTypeLabel(r.batchType) }}</span>
-              <span class="ph-level-pill" *ngIf="r.level">{{ r.level }}</span>
             </div>
             <div class="ph-selected-card-grid">
               <div><span class="ph-sc-label">Students</span><span class="ph-sc-val">{{ r.studentCount }}</span></div>
-              <div class="ph-sc-paid">
-                <span class="ph-sc-label">Total received</span>
-                <app-payment-currency-totals
-                  [lkr]="r.totalPaidLKR"
-                  [inr]="r.totalPaidINR"
-                  [usd]="r.totalPaidUSD"
-                  [compact]="true"
-                  [hideZero]="true"
-                ></app-payment-currency-totals>
+              <div><span class="ph-sc-label">Collection (LKR)</span>
+                <span class="ph-sc-val" [ngClass]="collectionClass(r.collectionRateLKR)">{{ collectionLabel(r.collectionRateLKR) }}</span>
               </div>
-              <div><span class="ph-sc-label">Journey day</span><span class="ph-sc-val">{{ r.currentJourneyDay ?? '—' }} / {{ r.totalJourneyDays ?? '—' }}</span></div>
+              <div class="ph-sc-paid">
+                <span class="ph-sc-label">Received</span>
+                <app-payment-currency-totals [lkr]="r.totalPaidLKR" [inr]="r.totalPaidINR" [usd]="r.totalPaidUSD" [compact]="true" [hideZero]="true"></app-payment-currency-totals>
+              </div>
+              <div><span class="ph-sc-label">Paid full / balance / overdue</span>
+                <span class="ph-sc-val ph-sc-val-sm">{{ r.fullyPaidStudents }} / {{ r.balanceStudents }} / {{ r.overdueStudents }}</span>
+              </div>
+              <div><span class="ph-sc-label">Journey day</span><span class="ph-sc-val">{{ journeyDayRatio(r) }}</span></div>
               <div><span class="ph-sc-label">Levels</span><span class="ph-sc-val ph-sc-val-sm">{{ r.levelSummary }}</span></div>
             </div>
             <button mat-stroked-button color="primary" type="button" class="ph-selected-card-btn" (click)="openBatchStudents(r.batch)">
-              <mat-icon>groups</mat-icon> Show students
+              <mat-icon>groups</mat-icon> Student breakdown
             </button>
           </div>
         </div>
-        <div class="ph-insights-table-wrap ph-selected-table-wrap">
-          <table class="ph-insights-table">
+      </section>
+
+      <section class="ph-batch-table-section">
+        <div class="ph-batch-table-head">
+          <div class="ph-batch-table-head__text">
+            <h2 class="ph-insights-panel-title">Batch breakdown</h2>
+            <p class="ph-panel-caption">{{ batchRows.length }} batches · sorted by LKR received</p>
+          </div>
+          <mat-form-field appearance="outline" class="ph-batch-table-search">
+            <mat-label>Search batch</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input matInput [(ngModel)]="tableSearch" placeholder="Batch name or level…" />
+          </mat-form-field>
+        </div>
+
+        <div class="ph-batch-table-scroll" *ngIf="displayBatchRows.length; else emptyTable">
+          <table class="ph-batch-table">
             <thead>
-              <tr>
-                <th>Batch</th>
-                <th>Type</th>
-                <th>Level</th>
+              <tr class="ph-batch-table__groups">
+                <th colspan="4" class="ph-th-group">Batch</th>
+                <th colspan="6" class="ph-th-group ph-th-group--money">Finances</th>
+                <th colspan="1" class="ph-th-group ph-th-group--health">Health</th>
+                <th colspan="2" class="ph-th-group"></th>
+              </tr>
+              <tr class="ph-batch-table__cols">
+                <th class="ph-col-check ph-sticky">
+                  <mat-checkbox
+                    [checked]="allVisibleSelected"
+                    [indeterminate]="someVisibleSelected"
+                    (change)="toggleSelectAllVisible($event.checked)"
+                  ></mat-checkbox>
+                </th>
+                <th class="ph-col-rank ph-sticky">#</th>
+                <th class="ph-sticky ph-col-batch">Batch</th>
+                <th>Levels</th>
                 <th class="ph-num">Students</th>
-                <th class="ph-num">Total received</th>
-                <th class="ph-num">Journey day</th>
-                <th class="ph-col-actions">Actions</th>
+                <th class="ph-num">Expected</th>
+                <th class="ph-num">Received</th>
+                <th class="ph-num">Pending</th>
+                <th class="ph-num">Overdue</th>
+                <th class="ph-num">LKR %</th>
+                <th class="ph-col-health">Payment health</th>
+                <th class="ph-num">Journey</th>
+                <th class="ph-col-actions"></th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let r of selectedBatchRows">
-                <td><strong>{{ r.batch }}</strong></td>
-                <td>
-                  <span class="ph-batch-type-pill"
-                    [class.ph-batch-type-pill--old]="r.batchType === 'old'"
-                    [class.ph-batch-type-pill--new]="r.batchType === 'new'"
-                  >{{ batchTypeLabel(r.batchType) }}</span>
+              <tr
+                *ngFor="let r of displayBatchRows; let i = index"
+                class="ph-batch-row"
+                [class.ph-row-selected]="isBatchSelected(r.batch)"
+                [class.ph-batch-row--alt]="i % 2 === 1"
+              >
+                <td class="ph-col-check ph-sticky">
+                  <mat-checkbox [checked]="isBatchSelected(r.batch)" (change)="toggleBatch(r.batch, $event.checked)"></mat-checkbox>
                 </td>
-                <td>
+                <td class="ph-col-rank ph-sticky ph-rank-cell">{{ batchRank(r) }}</td>
+                <td class="ph-sticky ph-col-batch">
+                  <div class="ph-batch-cell">
+                    <span class="ph-batch-cell__name">{{ r.batch }}</span>
+                    <span
+                      class="ph-batch-type-pill"
+                      [class.ph-batch-type-pill--old]="r.batchType === 'old'"
+                      [class.ph-batch-type-pill--new]="r.batchType === 'new'"
+                    >{{ batchTypeLabel(r.batchType) }}</span>
+                  </div>
+                </td>
+                <td class="ph-levels-cell">
                   <span class="ph-level-pill" *ngIf="r.level">{{ r.level }}</span>
-                  <span *ngIf="!r.level">—</span>
-                  <div class="ph-level-breakdown" *ngIf="r.levelSummary !== '—'">{{ r.levelSummary }}</div>
+                  <span class="ph-level-breakdown" *ngIf="r.levelSummary !== '—'" [matTooltip]="r.levelSummary">{{ r.levelSummary }}</span>
                 </td>
-                <td class="ph-num">{{ r.studentCount }}</td>
-                <td class="ph-num ph-paid-cell">
+                <td class="ph-num ph-students-cell">
+                  <span class="ph-students-count">{{ r.studentCount }}</span>
+                </td>
+                <td class="ph-num ph-money-cell">
+                  <app-payment-currency-totals
+                    [lkr]="r.totalExpectedLKR"
+                    [inr]="r.totalExpectedINR"
+                    [usd]="r.totalExpectedUSD"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
+                <td class="ph-num ph-money-cell ph-money-cell--received">
                   <app-payment-currency-totals
                     [lkr]="r.totalPaidLKR"
                     [inr]="r.totalPaidINR"
                     [usd]="r.totalPaidUSD"
                     [compact]="true"
+                    [hideZero]="true"
                   ></app-payment-currency-totals>
                 </td>
-                <td class="ph-num"><span class="ph-day-ratio">{{ journeyDayRatio(r) }}</span></td>
+                <td class="ph-num ph-money-cell">
+                  <app-payment-currency-pending-totals
+                    [lkr]="r.totalPendingLKR"
+                    [inr]="r.totalPendingINR"
+                    [usd]="r.totalPendingUSD"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-pending-totals>
+                </td>
+                <td class="ph-num ph-money-cell">
+                  <app-payment-currency-overdue-totals
+                    [lkr]="r.totalOverdueLKR"
+                    [inr]="r.totalOverdueINR"
+                    [usd]="r.totalOverdueUSD"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-overdue-totals>
+                </td>
+                <td class="ph-num">
+                  <span class="ph-collection-pill" [ngClass]="collectionClass(r.collectionRateLKR)">
+                    {{ collectionLabel(r.collectionRateLKR) }}
+                  </span>
+                </td>
+                <td class="ph-col-health">
+                  <div class="ph-health-chips">
+                    <span class="ph-health-chip ph-health-chip--green" matTooltip="Paid full">
+                      <mat-icon>check_circle</mat-icon>{{ r.fullyPaidStudents }}
+                    </span>
+                    <span class="ph-health-chip ph-health-chip--amber" matTooltip="Have balance">
+                      <mat-icon>hourglass_empty</mat-icon>{{ r.balanceStudents }}
+                    </span>
+                    <span class="ph-health-chip ph-health-chip--red" matTooltip="Overdue">
+                      <mat-icon>warning</mat-icon>{{ r.overdueStudents }}
+                    </span>
+                    <span class="ph-health-chip ph-health-chip--muted" *ngIf="r.docsPaidStudents || r.visaPaidStudents" matTooltip="Docs / Visa paid">
+                      D{{ r.docsPaidStudents }} V{{ r.visaPaidStudents }}
+                    </span>
+                  </div>
+                </td>
+                <td class="ph-num">
+                  <span class="ph-day-badge">{{ journeyDayRatio(r) }}</span>
+                </td>
                 <td class="ph-col-actions">
-                  <button mat-stroked-button color="primary" type="button" (click)="openBatchStudents(r.batch)">
-                    <mat-icon>groups</mat-icon> Show students
+                  <button
+                    mat-icon-button
+                    color="primary"
+                    type="button"
+                    (click)="openBatchStudents(r.batch)"
+                    matTooltip="Student breakdown"
+                    aria-label="Open students"
+                  >
+                    <mat-icon>groups</mat-icon>
                   </button>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+        <ng-template #emptyTable>
+          <p class="ph-empty-note">{{ tableSearch ? 'No batches match your search.' : 'No batches for this filter.' }}</p>
+        </ng-template>
       </section>
 
-      <div class="ph-insights-table-wrap">
-        <table class="ph-insights-table ph-batch-main-table">
-          <thead>
-            <tr>
-              <th class="ph-col-check">
-                <mat-checkbox
-                  [checked]="allVisibleSelected"
-                  [indeterminate]="someVisibleSelected"
-                  (change)="toggleSelectAllVisible($event.checked)"
-                ></mat-checkbox>
-              </th>
-              <th>Batch</th>
-              <th>Type</th>
-              <th>Level</th>
-              <th class="ph-num">Students</th>
-              <th class="ph-num">Total received</th>
-              <th class="ph-num">Journey day</th>
-              <th class="ph-col-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let r of batchRows" [class.ph-row-selected]="isBatchSelected(r.batch)">
-              <td class="ph-col-check">
-                <mat-checkbox [checked]="isBatchSelected(r.batch)" (change)="toggleBatch(r.batch, $event.checked)"></mat-checkbox>
-              </td>
-              <td><strong>{{ r.batch }}</strong></td>
-              <td>
-                <span class="ph-batch-type-pill"
-                  [class.ph-batch-type-pill--old]="r.batchType === 'old'"
-                  [class.ph-batch-type-pill--new]="r.batchType === 'new'"
-                >{{ batchTypeLabel(r.batchType) }}</span>
-              </td>
-              <td>
-                <span class="ph-level-pill" *ngIf="r.level">{{ r.level }}</span>
-                <span *ngIf="!r.level">—</span>
-                <div class="ph-level-breakdown" *ngIf="r.levelSummary !== '—'" [title]="r.levelSummary">{{ r.levelSummary }}</div>
-              </td>
-              <td class="ph-num">{{ r.studentCount }}</td>
-              <td class="ph-num ph-paid-cell">
-                <app-payment-currency-totals
-                  [lkr]="r.totalPaidLKR"
-                  [inr]="r.totalPaidINR"
-                  [usd]="r.totalPaidUSD"
-                  [compact]="true"
-                  [hideZero]="true"
-                ></app-payment-currency-totals>
-              </td>
-              <td class="ph-num"><span class="ph-day-ratio">{{ journeyDayRatio(r) }}</span></td>
-              <td class="ph-col-actions">
-                <button mat-stroked-button color="primary" type="button" (click)="openBatchStudents(r.batch)">
-                  <mat-icon>groups</mat-icon>
-                  Show students
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <details class="ph-insights-help">
+        <summary>How these numbers are calculated</summary>
+        <ul class="ph-bullets">
+          <li><strong>Received</strong> — sum of approved payment submissions (live data, not cached profiles).</li>
+          <li><strong>Expected</strong> — catalog language fee × each student’s current level in the batch.</li>
+          <li><strong>Pending / overdue</strong> — same rules as the main Payment Hub student table.</li>
+          <li><strong>LKR collection %</strong> — received LKR ÷ expected LKR for that batch (INR/Euro shown separately in columns).</li>
+          <li><strong>Journey day</strong> — batch calendar day from journey config when set; otherwise highest student day / level total (e.g. 23/42).</li>
+          <li><strong>Student breakdown</strong> — per-student A1–C2 paid, docs, visa, pending, and status.</li>
+        </ul>
+      </details>
     </ng-container>
+
     <ng-template #skeleton>
-      <div class="ph-skeleton-layout" aria-busy="true" aria-label="Loading batch overview">
-        <div class="ph-insights-cards">
+      <div class="ph-skeleton-layout" aria-busy="true" aria-label="Loading batch insights">
+        <div class="ph-insights-cards ph-insights-cards--wide">
           <div class="ph-insight-card ph-skeleton-card" *ngFor="let _ of skeletonCards">
             <div class="ph-sk ph-sk--label"></div>
             <div class="ph-sk ph-sk--value"></div>
@@ -260,23 +413,14 @@
           </div>
           <div class="ph-insights-panel ph-skeleton-panel">
             <div class="ph-sk ph-sk--title"></div>
-            <div class="ph-sk ph-sk--line" *ngFor="let _ of skeletonTableRows"></div>
+            <div class="ph-sk ph-sk--chart"></div>
           </div>
-        </div>
-        <div class="ph-batch-toolbar ph-skeleton-toolbar">
-          <div class="ph-sk ph-sk--toolbar"></div>
         </div>
         <div class="ph-insights-table-wrap ph-skeleton-table">
           <div class="ph-sk ph-sk--thead"></div>
           <div class="ph-skeleton-table-row" *ngFor="let _ of skeletonTableRows">
             <div class="ph-sk ph-sk--cell ph-sk--check"></div>
-            <div class="ph-sk ph-sk--cell"></div>
-            <div class="ph-sk ph-sk--cell ph-sk--short"></div>
-            <div class="ph-sk ph-sk--cell ph-sk--num"></div>
-            <div class="ph-sk ph-sk--cell ph-sk--num"></div>
-            <div class="ph-sk ph-sk--cell ph-sk--num"></div>
-            <div class="ph-sk ph-sk--cell ph-sk--num"></div>
-            <div class="ph-sk ph-sk--cell ph-sk--btn"></div>
+            <div class="ph-sk ph-sk--cell" *ngFor="let __ of [1,2,3,4,5,6,7,8]"></div>
           </div>
         </div>
       </div>

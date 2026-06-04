@@ -31,12 +31,13 @@ const dailyChallengesService = require('../services/interactiveGames/dailyChalle
 const achievementsService = require('../services/interactiveGames/achievements');
 const teacherAnalyticsService = require('../services/interactiveGames/teacherAnalytics');
 const importService = require('../services/interactiveGames/import');
+const wordSearchService = require('../services/interactiveGames/wordSearch');
 const cacheService = require('../services/interactiveGames/cache');
 const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice', 'spin_wheel', 'tap_boxes', 'word_search'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
@@ -67,6 +68,12 @@ function normalizeGenderStackSettings(raw) {
     spawnIntervalSeconds: Math.min(5, Math.max(3, parseInt(src.spawnIntervalSeconds, 10) || 4)),
     fallDurationSeconds: Math.min(3, Math.max(0.5, parseFloat(src.fallDurationSeconds) || 1.2)),
   };
+}
+
+function normalizeSpinWheelSettings(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const label = String(src.centerLabel || '').trim();
+  return { centerLabel: label || 'ergänze den Satz!' };
 }
 
 function badRequest(res, msg) { return res.status(400).json({ success: false, message: msg }); }
@@ -252,7 +259,7 @@ exports.startAttempt = async (req, res) => {
     // Determine attempt number
     const prevCount = await GameAttempt.countDocuments({ studentId: req.user.id, gameSetId: set._id });
 
-    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' || set.gameType === 'memory' ? 5 : set.gameType === 'jumbled_words' || set.gameType === 'hangman' ? 99 : 3;
+    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' || set.gameType === 'memory' || set.gameType === 'word_search' ? 5 : set.gameType === 'jumbled_words' || set.gameType === 'hangman' || set.gameType === 'spin_wheel' || set.gameType === 'tap_boxes' ? 99 : 3;
     const attempt = await GameAttempt.create({
       studentId: req.user.id,
       gameSetId: set._id,
@@ -333,6 +340,13 @@ exports.startAttempt = async (req, res) => {
       if (set.gameType === 'multiple_choice') {
         // Strip isCorrect from options — never expose correct answers to client
         return multipleChoiceService.sanitizeQuestions([q])[0];
+      }
+      if (set.gameType === 'spin_wheel' || set.gameType === 'tap_boxes') {
+        const { word: _w, imageUrl: _img, audioUrl: _au, articleGender: _ag, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, options: _opt, questionText: _qt, category: _cat, difficultyLevel: _dl, fallDurationSeconds: _fds, __v: _v, ...safe } = q;
+        return { ...safe, phrase: String(q.hint || '').trim() };
+      }
+      if (set.gameType === 'word_search') {
+        return wordSearchService.attachPuzzle(q);
       }
       const { __v: _v, ...safe } = q;
       return safe;
@@ -1103,7 +1117,7 @@ exports.adminListSets = async (req, res) => {
 exports.adminCreateSet = async (req, res) => {
   try {
     const { title, description, gameType, difficulty, level, category, tags, xpReward,
-            timerSettings, genderStackSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
+            timerSettings, genderStackSettings, spinWheelSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
             icon, estimatedDurationMinutes, targetBatches } = req.body;
 
     if (!title || !title.trim()) return badRequest(res, 'title required');
@@ -1121,6 +1135,7 @@ exports.adminCreateSet = async (req, res) => {
       xpReward: Math.max(0, parseInt(xpReward, 10) || 50),
       timerSettings: timerSettings || {},
       genderStackSettings: normalizeGenderStackSettings(genderStackSettings),
+      spinWheelSettings: normalizeSpinWheelSettings(spinWheelSettings),
       visibleToStudents: !!visibleToStudents,
       courseDay: courseDay ? Number(courseDay) : null,
       sequenceLetter: sequenceLetter || null,
@@ -1162,7 +1177,7 @@ exports.adminGetSet = async (req, res) => {
 exports.adminUpdateSet = async (req, res) => {
   try {
     const allowedFields = ['title', 'description', 'difficulty', 'level', 'category', 'tags',
-      'xpReward', 'timerSettings', 'genderStackSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
+      'xpReward', 'timerSettings', 'genderStackSettings', 'spinWheelSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
       'targetLanguage', 'icon', 'estimatedDurationMinutes', 'isPublished', 'isArchived'];
 
     const updates = {};
@@ -1170,7 +1185,9 @@ exports.adminUpdateSet = async (req, res) => {
       if (req.body[f] !== undefined) {
         updates[f] = f === 'genderStackSettings'
           ? normalizeGenderStackSettings(req.body[f])
-          : req.body[f];
+          : f === 'spinWheelSettings'
+            ? normalizeSpinWheelSettings(req.body[f])
+            : req.body[f];
       }
     }
     if (req.body.targetBatches !== undefined) {
@@ -1334,6 +1351,48 @@ exports.adminUpsertQuestions = async (req, res) => {
       }
     }
 
+    if (set.gameType === 'spin_wheel') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const phrase = String(q.hint || q.phrase || '').trim();
+        if (!phrase) return badRequest(res, `Question ${i + 1}: wheel phrase required`);
+      }
+      if (questions.length < 2) {
+        return badRequest(res, 'Spin wheel needs at least 2 segments');
+      }
+    }
+
+    if (set.gameType === 'tap_boxes') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const phrase = String(q.hint || q.phrase || '').trim();
+        if (!phrase) return badRequest(res, `Question ${i + 1}: box phrase required`);
+      }
+      if (questions.length < 2) {
+        return badRequest(res, 'Tap the Boxes needs at least 2 boxes');
+      }
+    }
+
+    if (set.gameType === 'word_search') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const words = Array.isArray(q.searchWords)
+          ? q.searchWords.map(w => wordSearchService.normalizeSearchWord(w)).filter(Boolean)
+          : [];
+        if (words.length < 3) {
+          return badRequest(res, `Puzzle ${i + 1}: at least 3 hidden words required`);
+        }
+        if (words.length > 20) {
+          return badRequest(res, `Puzzle ${i + 1}: maximum 20 words per puzzle`);
+        }
+        try {
+          wordSearchService.generatePuzzle(words, `validate-${i}`);
+        } catch (err) {
+          return badRequest(res, `Puzzle ${i + 1}: ${err.message}`);
+        }
+      }
+    }
+
     if (set.gameType === 'multiple_choice') {
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
@@ -1421,6 +1480,12 @@ exports.adminUpsertQuestions = async (req, res) => {
           text: String(o.text || '').trim(),
           isCorrect: !!o.isCorrect,
         }));
+      } else if (set.gameType === 'spin_wheel' || set.gameType === 'tap_boxes') {
+        doc.hint = String(q.hint || q.phrase || '').trim();
+      } else if (set.gameType === 'word_search') {
+        doc.searchWords = (q.searchWords || [])
+          .map(w => wordSearchService.normalizeSearchWord(w))
+          .filter(w => w.length >= 2);
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';

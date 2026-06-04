@@ -3,6 +3,7 @@
  */
 const mongoose = require('mongoose');
 const { JOURNEY_DUE_FROM_DAY } = require('./languageFeeStatus');
+const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
 
 function parseHubFilters(query = {}) {
   return {
@@ -15,7 +16,16 @@ function parseHubFilters(query = {}) {
     dateFrom: query.dateFrom || null,
     dateTo: query.dateTo || null,
     currency: query.currency ? String(query.currency).trim().toUpperCase() : '',
+    /** When false (default), students with isTestAccount are excluded from table and totals. */
+    includeTestAccounts: query.includeTestAccounts === 'true',
   };
+}
+
+function applyTestAccountFilter(userMatch, filters) {
+  if (!filters.includeTestAccounts) {
+    Object.assign(userMatch, EXCLUDE_TEST);
+  }
+  return userMatch;
 }
 
 /** Filters that narrow which students are included (not currency-only). */
@@ -33,11 +43,11 @@ function hasStudentFilters(filters) {
 }
 
 function hasActiveFilters(filters) {
-  return hasStudentFilters(filters) || !!filters.currency;
+  return hasStudentFilters(filters) || !!filters.currency || !!filters.includeTestAccounts;
 }
 
 function buildStudentFilterPipeline(filters) {
-  const userMatch = { role: 'STUDENT' };
+  const userMatch = applyTestAccountFilter({ role: 'STUDENT' }, filters);
   if (filters.batch) userMatch.batch = filters.batch;
   if (filters.level) userMatch.level = filters.level;
   if (filters.studentStatus) userMatch.studentStatus = filters.studentStatus;
@@ -167,11 +177,14 @@ function filterSummaryLabel(filters) {
   if (filters.currency) parts.push(filters.currency);
   if (filters.search) parts.push(`Search "${filters.search}"`);
   if (filters.dateFrom || filters.dateTo) parts.push('Date range');
+  if (filters.includeTestAccounts) parts.push('Incl. test accounts');
+  else parts.push('Excl. test accounts');
   return parts.length ? parts.join(' · ') : 'All students';
 }
 
 module.exports = {
   parseHubFilters,
+  applyTestAccountFilter,
   hasStudentFilters,
   hasActiveFilters,
   buildStudentFilterPipeline,

@@ -44,6 +44,20 @@
   flex: 1 1 180px;
 }
 
+.ph-filter-test {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 4px;
+  flex: 0 1 auto;
+
+  mat-checkbox {
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+  }
+}
+
 .ph-actions-row {
   display: flex;
   flex-wrap: wrap;
@@ -107,6 +121,15 @@
 
 .ph-pill-btn-outline.mat-mdc-outlined-button {
   border-width: 1.5px !important;
+}
+
+.ph-pill-btn-export.mat-mdc-outlined-button {
+  border-color: #0d9488;
+  color: #0f766e;
+
+  mat-icon {
+    color: #0d9488;
+  }
 }
 
 .ph-pill-btn-accent.mat-mdc-unelevated-button {

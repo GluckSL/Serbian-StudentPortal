@@ -1,7 +1,7 @@
 // GlückArena shared TypeScript types
 
 export type ArticleGender = 'der' | 'die' | 'das';
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words' | 'hangman' | 'word_picture_match' | 'multiple_choice';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words' | 'hangman' | 'word_picture_match' | 'multiple_choice' | 'spin_wheel' | 'tap_boxes' | 'word_search';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -19,6 +19,11 @@ export interface GenderStackSettings {
   fallDurationSeconds: number;
 }
 
+export interface SpinWheelSettings {
+  /** Text shown in the center hub of the wheel */
+  centerLabel: string;
+}
+
 export interface GameSet {
   _id: string;
   title: string;
@@ -34,6 +39,7 @@ export interface GameSet {
   xpReward: number;
   timerSettings: TimerSettings;
   genderStackSettings?: GenderStackSettings;
+  spinWheelSettings?: SpinWheelSettings;
   visibleToStudents: boolean;
   courseDay: number | null;
   sequenceLetter: string | null;
@@ -193,7 +199,36 @@ export interface MultipleChoiceQuestion {
   audioUrl: string | null;
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion | HangmanQuestion | WordPictureMatchQuestion | MatchingQuestion | MultipleChoiceQuestion;
+export interface SpinWheelQuestion {
+  _id: string;
+  gameType: 'spin_wheel';
+  order: number;
+  phrase: string;
+}
+
+export interface TapBoxesQuestion {
+  _id: string;
+  gameType: 'tap_boxes';
+  order: number;
+  phrase: string;
+}
+
+export interface WordSearchPlacement {
+  id: string;
+  cells: { row: number; col: number }[];
+}
+
+export interface WordSearchQuestion {
+  _id: string;
+  gameType: 'word_search';
+  order: number;
+  gridSize: number;
+  grid: string[][];
+  placements: WordSearchPlacement[];
+  totalWords: number;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion | HangmanQuestion | WordPictureMatchQuestion | MatchingQuestion | MultipleChoiceQuestion | SpinWheelQuestion | TapBoxesQuestion | WordSearchQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -377,6 +412,9 @@ export interface StudentGameStats {
     hangman: { gamesCompleted: number; bestScore: number; totalXp: number };
     word_picture_match: { gamesCompleted: number; bestScore: number; totalXp: number };
     multiple_choice: { gamesCompleted: number; bestScore: number; totalXp: number };
+    spin_wheel: { gamesCompleted: number; bestScore: number; totalXp: number };
+    tap_boxes: { gamesCompleted: number; bestScore: number; totalXp: number };
+    word_search: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 

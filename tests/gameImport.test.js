@@ -98,6 +98,36 @@ describe('parseRows — per-row game types', () => {
     const results = parseRows([{ word: 'HAUS' }], 'jumbled_words');
     assert.equal(results[0].valid, false);
   });
+
+  it('validates spin_wheel phrases', () => {
+    const results = parseRows([
+      { phrase: 'Obwohl es regnet,', order: 0 },
+      { phrase: '..., deswegen lerne ich Deutsch.', order: 1 },
+    ], 'spin_wheel');
+    assert.equal(results.length, 2);
+    assert.ok(results.every(r => r.valid));
+    assert.equal(results[0].doc.hint, 'Obwohl es regnet,');
+  });
+
+  it('rejects spin_wheel rows without phrase', () => {
+    const results = parseRows([{ order: 0 }], 'spin_wheel');
+    assert.equal(results[0].valid, false);
+  });
+
+  it('validates tap_boxes phrases', () => {
+    const results = parseRows([
+      { phrase: 'jeden Tag lachen', order: 0 },
+      { phrase: 'jeden Tag Sport machen', order: 1 },
+    ], 'tap_boxes');
+    assert.equal(results.length, 2);
+    assert.ok(results.every(r => r.valid));
+    assert.equal(results[0].doc.hint, 'jeden Tag lachen');
+  });
+
+  it('rejects tap_boxes rows without phrase', () => {
+    const results = parseRows([{ order: 0 }], 'tap_boxes');
+    assert.equal(results[0].valid, false);
+  });
 });
 
 describe('parseRows — pair-based game types', () => {

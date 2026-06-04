@@ -153,6 +153,9 @@ function xpForLevel(level: number): number {
                 <div class="arena-filters__dropdown-item" (click)="setType('hangman')">Hangman</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('word_picture_match')">Word-Picture Match</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('multiple_choice')">Multiple Choice</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('spin_wheel')">Spin the Wheel</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('tap_boxes')">Tap the Boxes</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('word_search')">Word Search</div>
               </div>
             </div>
             <div class="arena-filters__dropdown-wrap">
@@ -898,6 +901,9 @@ export class GameCatalogComponent implements OnInit {
       hangman: 'linear-gradient(145deg, #b91c1c 0%, #ef4444 100%)',
       word_picture_match: 'linear-gradient(145deg, #0d9488 0%, #2dd4bf 100%)',
       multiple_choice: 'linear-gradient(145deg, #0891b2 0%, #06b6d4 50%, #22d3ee 100%)',
+      spin_wheel: 'linear-gradient(145deg, #6d28d9 0%, #a855f7 50%, #c084fc 100%)',
+      tap_boxes: 'linear-gradient(145deg, #0f766e 0%, #14b8a6 50%, #5eead4 100%)',
+      word_search: 'linear-gradient(145deg, #ca8a04 0%, #fb923c 55%, #fef08a 100%)',
     };
     return map[type] ?? 'linear-gradient(145deg, #1e3a5f, #64748b)';
   }
@@ -913,6 +919,9 @@ export class GameCatalogComponent implements OnInit {
       hangman: 'Hangman',
       word_picture_match: 'Word-Picture Match',
       multiple_choice: 'Multiple Choice',
+      spin_wheel: 'Spin the Wheel',
+      tap_boxes: 'Tap the Boxes',
+      word_search: 'Word Search',
     };
     return map[t] ?? t;
   }

@@ -252,6 +252,87 @@ function validateJumbledWordsRow(row, index) {
   };
 }
 
+function validateSpinWheelRow(row, index) {
+  const errors = [];
+  const phrase = String(row.phrase || row.hint || row.segment || '').trim();
+  if (!phrase) errors.push(`Row ${index + 1}: "phrase" column is required for Spin the Wheel`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      hint: phrase,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function validateTapBoxesRow(row, index) {
+  const errors = [];
+  const phrase = String(row.phrase || row.hint || row.text || '').trim();
+  if (!phrase) errors.push(`Row ${index + 1}: "phrase" column is required for Tap the Boxes`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      hint: phrase,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+/** Word search: group rows by question_index into one puzzle per index */
+function parseWordSearchRows(normalized) {
+  const groups = new Map();
+
+  normalized.forEach((row, i) => {
+    const qIdx = parseInt(row.question_index ?? row.question_number ?? row.question ?? '0', 10);
+    const questionIndex = Number.isFinite(qIdx) && qIdx >= 0 ? qIdx : 0;
+    if (!groups.has(questionIndex)) groups.set(questionIndex, []);
+    groups.get(questionIndex).push({ row, fileRow: i });
+  });
+
+  const results = [];
+  const sortedKeys = [...groups.keys()].sort((a, b) => a - b);
+
+  sortedKeys.forEach((questionIndex) => {
+    const items = groups.get(questionIndex);
+    const errors = [];
+    const searchWords = [];
+
+    items.forEach(({ row, fileRow }) => {
+      const word = germanUppercase(row.word);
+      const rowLabel = fileRow + 1;
+      if (!word) {
+        errors.push(`Row ${rowLabel}: "word" is required`);
+        return;
+      }
+      if (word.length < 2) {
+        errors.push(`Row ${rowLabel}: word must be at least 2 letters`);
+        return;
+      }
+      searchWords.push(word);
+    });
+
+    if (searchWords.length < 3) {
+      errors.push(`Question ${questionIndex + 1}: at least 3 words required per puzzle`);
+    }
+    if (searchWords.length > 20) {
+      errors.push(`Question ${questionIndex + 1}: maximum 20 words per puzzle`);
+    }
+
+    results.push({
+      valid: errors.length === 0 && searchWords.length >= 3,
+      errors,
+      doc: { searchWords, order: questionIndex },
+      type: 'question',
+    });
+  });
+
+  return results;
+}
+
 function validateHangmanRow(row, index) {
   const errors = [];
   const word = germanUppercase(row.word);
@@ -375,6 +456,10 @@ function parseRows(rows, gameType, importType) {
     return parsePairBasedRows(normalized, gameType);
   }
 
+  if (gameType === 'word_search') {
+    return parseWordSearchRows(normalized);
+  }
+
   const results = [];
   const seen = new Set();
 
@@ -462,6 +547,20 @@ function parseRows(rows, gameType, importType) {
           if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate question`);
           else if (key) seen.add(key);
         }
+      } else if (gameType === 'spin_wheel') {
+        parsed = validateSpinWheelRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.hint?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate phrase`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'tap_boxes') {
+        parsed = validateTapBoxesRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.hint?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate phrase`);
+          else if (key) seen.add(key);
+        }
       } else {
         parsed = { valid: false, errors: [`Row ${i + 1}: unsupported game type "${gameType}"`], doc: null };
       }
@@ -480,6 +579,18 @@ async function previewImport(gameSetId, rows, importType, gameType) {
   const activeGameType = gameType || set.gameType;
   const parsedResults = parseRows(rows, activeGameType, importType);
   const allErrors = parsedResults.flatMap(r => r.errors);
+  if (activeGameType === 'spin_wheel' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Spin the Wheel requires at least 2 phrase rows');
+    }
+  }
+  if (activeGameType === 'tap_boxes' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Tap the Boxes requires at least 2 phrase rows');
+    }
+  }
 
   return {
     ok: allErrors.length === 0,
@@ -497,6 +608,18 @@ async function commitImport(gameSetId, rows, importType, gameType) {
   const activeGameType = gameType || set.gameType;
   const parsedResults = parseRows(rows, activeGameType, importType);
   const allErrors = parsedResults.flatMap(r => r.errors);
+  if (activeGameType === 'spin_wheel' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Spin the Wheel requires at least 2 phrase rows');
+    }
+  }
+  if (activeGameType === 'tap_boxes' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Tap the Boxes requires at least 2 phrase rows');
+    }
+  }
 
   if (allErrors.length > 0) {
     return { ok: false, errors: allErrors.slice(0, 50), message: 'Validation failed' };
@@ -651,13 +774,37 @@ function getImportTemplate(gameType) {
       { question_text: 'Was ist der Plural von "Kind"?', option_1: 'Kind', option_2: 'Kinder', option_3: 'Kindern', correct_option: '2', order: 1 },
     ];
   }
+  if (gameType === 'spin_wheel') {
+    return [
+      { phrase: 'Obwohl es regnet,', order: 0 },
+      { phrase: 'Wenn ich böse bin,', order: 1 },
+      { phrase: '..., deswegen lerne ich Deutsch.', order: 2 },
+      { phrase: '..., daher muss ich ein neues Handy kaufen.', order: 3 },
+    ];
+  }
+  if (gameType === 'tap_boxes') {
+    return [
+      { phrase: 'nicht den ganzen Tag sitzen', order: 0 },
+      { phrase: 'jeden Tag Sport machen', order: 1 },
+      { phrase: 'jeden Tag lachen', order: 2 },
+      { phrase: 'jeden Tag Deutsch lernen', order: 3 },
+    ];
+  }
+  if (gameType === 'word_search') {
+    return [
+      { question_index: 0, word: 'SCHULE', order: 0 },
+      { question_index: 0, word: 'COMPUTER', order: 1 },
+      { question_index: 0, word: 'LEHRER', order: 2 },
+      { question_index: 0, word: 'SPIELPLATZ', order: 3 },
+    ];
+  }
   return [];
 }
 
 const SUPPORTED_GAME_TYPES = [
   'scramble_rush', 'sentence_builder', 'matching', 'flashcards',
   'image_matching', 'gender_stack', 'flapjugation', 'whackawort',
-  'memory', 'jumbled_words', 'hangman', 'multiple_choice',
+  'memory', 'jumbled_words', 'hangman', 'multiple_choice', 'spin_wheel', 'tap_boxes', 'word_search',
 ];
 
 module.exports = {

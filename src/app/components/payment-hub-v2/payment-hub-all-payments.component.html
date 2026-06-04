@@ -64,6 +64,15 @@
       <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
       <mat-datepicker #pickerTo></mat-datepicker>
     </mat-form-field>
+
+    <div
+      class="ph-filter-test"
+      matTooltip="Test accounts are hidden by default. Turn on to include them in the student list and all summary numbers."
+    >
+      <mat-checkbox [(ngModel)]="includeTestAccounts" (change)="applyFilters()">
+        Include test accounts
+      </mat-checkbox>
+    </div>
   </div>
 
   <div class="ph-actions-row">
@@ -95,6 +104,45 @@
       <mat-icon>table_chart</mat-icon>
       Import from Excel
     </button>
+    <button
+      mat-stroked-button
+      type="button"
+      class="ph-pill-btn ph-pill-btn-export ph-anim-btn"
+      [matMenuTriggerFor]="exportMenu"
+      [disabled]="exporting || total === 0"
+      matTooltip="Download student payment data as Excel or CSV (current filters)"
+    >
+      <mat-icon>download</mat-icon>
+      {{ exporting ? 'Exporting…' : 'Export' }}
+    </button>
+    <mat-menu #exportMenu="matMenu">
+      <button mat-menu-item type="button" (click)="exportPayments('xlsx', 'all')" [disabled]="exporting || total === 0">
+        <mat-icon>grid_on</mat-icon>
+        <span>Excel (.xlsx) — all matching ({{ total }})</span>
+      </button>
+      <button mat-menu-item type="button" (click)="exportPayments('csv', 'all')" [disabled]="exporting || total === 0">
+        <mat-icon>description</mat-icon>
+        <span>CSV — all matching ({{ total }})</span>
+      </button>
+      <button
+        mat-menu-item
+        type="button"
+        (click)="exportPayments('xlsx', 'selected')"
+        [disabled]="exporting || selectedCount === 0"
+      >
+        <mat-icon>checklist</mat-icon>
+        <span>Excel (.xlsx) — selected ({{ selectedCount }})</span>
+      </button>
+      <button
+        mat-menu-item
+        type="button"
+        (click)="exportPayments('csv', 'selected')"
+        [disabled]="exporting || selectedCount === 0"
+      >
+        <mat-icon>checklist</mat-icon>
+        <span>CSV — selected ({{ selectedCount }})</span>
+      </button>
+    </mat-menu>
     <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openCorrectReceived()" [disabled]="selectedCount !== 1" matTooltip="Fix wrong approved amount for one selected student (updates student portal too)">
       <mat-icon>edit</mat-icon>
       Correct total received
@@ -310,7 +358,10 @@
           <td class="ph-col-check">
             <mat-checkbox [checked]="isRowSelected(row)" (change)="toggleRowSelection(row, $event.checked)"></mat-checkbox>
           </td>
-          <td class="ph-name-cell">{{ studentName(row) }}</td>
+          <td class="ph-name-cell">
+            {{ studentName(row) }}
+            <app-test-account-badge [show]="includeTestAccounts && !!row.studentId?.isTestAccount"></app-test-account-badge>
+          </td>
           <td class="ph-email-cell">{{ studentEmail(row) }}</td>
           <td>{{ studentBatch(row) }}</td>
           <td><span class="ph-level-pill">{{ studentLevel(row) }}</span></td>

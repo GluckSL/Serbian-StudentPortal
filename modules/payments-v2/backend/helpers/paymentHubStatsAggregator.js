@@ -13,6 +13,7 @@ const {
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
 const { computeLanguageFeeStatus } = require('./languageFeeStatus');
+const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -151,9 +152,12 @@ function journeyDayForStudent(student) {
 /**
  * @param {import('mongoose').Types.ObjectId[] | null} studentIds null = all students
  */
-async function aggregateHubDashboardStats(studentIds = null) {
+async function aggregateHubDashboardStats(studentIds = null, options = {}) {
   const User = mongoose.model('User');
   const userQuery = { role: 'STUDENT' };
+  if (!options.includeTestAccounts) {
+    Object.assign(userQuery, EXCLUDE_TEST);
+  }
   if (studentIds !== null) {
     userQuery._id = { $in: studentIds.length ? studentIds : [] };
   }
@@ -317,4 +321,229 @@ async function expectedThisMonthForScope(studentIds) {
   return expected;
 }
 
-module.exports = { aggregateHubDashboardStats };
+function batchLabelForStudent(student) {
+  const b = String(student?.batch || '').trim();
+  return b || '—';
+}
+
+function emptyBatchAccumulator() {
+  return {
+    studentCount: 0,
+    received: emptyCurrencyBucket(),
+    pending: emptyCurrencyBucket(),
+    overdue: emptyCurrencyBucket(),
+    expected: emptyCurrencyBucket(),
+    due: emptyCurrencyBucket(),
+    fullyPaidStudents: 0,
+    balanceStudents: 0,
+    overdueStudents: 0,
+    docsPaidStudents: 0,
+    visaPaidStudents: 0,
+    levelCounts: {},
+    journeyDaySum: 0,
+    journeyDayCount: 0,
+    maxStudentDay: null,
+  };
+}
+
+function finalizeBatchRow(batch, acc) {
+  const levelCounts = acc.levelCounts;
+  const receivedLKR = acc.received.LKR || 0;
+  const expectedLKR = acc.expected.LKR || 0;
+  let maxDay = acc.maxStudentDay;
+  if (maxDay != null && Number.isFinite(Number(maxDay))) {
+    maxDay = Math.min(200, Math.max(1, Math.floor(Number(maxDay))));
+  } else {
+    maxDay = null;
+  }
+  const avgJourneyDay =
+    acc.journeyDayCount > 0 ? Math.round(acc.journeyDaySum / acc.journeyDayCount) : null;
+  return {
+    batch,
+    studentCount: acc.studentCount,
+    totalPaid: receivedLKR + (acc.received.INR || 0) + (acc.received.USD || 0),
+    totalPaidLKR: receivedLKR,
+    totalPaidINR: acc.received.INR || 0,
+    totalPaidUSD: acc.received.USD || 0,
+    totalPendingLKR: acc.pending.LKR || 0,
+    totalPendingINR: acc.pending.INR || 0,
+    totalPendingUSD: acc.pending.USD || 0,
+    totalOverdueLKR: acc.overdue.LKR || 0,
+    totalOverdueINR: acc.overdue.INR || 0,
+    totalOverdueUSD: acc.overdue.USD || 0,
+    totalExpectedLKR: expectedLKR,
+    totalExpectedINR: acc.expected.INR || 0,
+    totalExpectedUSD: acc.expected.USD || 0,
+    totalDueLKR: acc.due.LKR || 0,
+    totalDueINR: acc.due.INR || 0,
+    totalDueUSD: acc.due.USD || 0,
+    fullyPaidStudents: acc.fullyPaidStudents,
+    balanceStudents: acc.balanceStudents,
+    overdueStudents: acc.overdueStudents,
+    docsPaidStudents: acc.docsPaidStudents,
+    visaPaidStudents: acc.visaPaidStudents,
+    levelCounts,
+    maxStudentDay: maxDay,
+    avgJourneyDay,
+    collectionRateLKR:
+      expectedLKR > 0 ? Math.min(100, Math.round((receivedLKR / expectedLKR) * 100)) : null,
+  };
+}
+
+/**
+ * Per-batch payment insights using the same rules as Payment Hub dashboard + table.
+ * @param {{ batch?: string, level?: string }} filters
+ */
+async function aggregateBatchPaymentInsights(filters = {}) {
+  const User = mongoose.model('User');
+  const userQuery = { role: 'STUDENT' };
+  if (!filters.includeTestAccounts) {
+    Object.assign(userQuery, EXCLUDE_TEST);
+  }
+  if (filters.batch && String(filters.batch).trim()) {
+    userQuery.batch = String(filters.batch).trim();
+  }
+  if (filters.level && String(filters.level).trim()) {
+    userQuery.level = String(filters.level).trim();
+  }
+
+  const [students, catalog] = await Promise.all([
+    User.find(userQuery).select('_id batch level phoneNumber currentCourseDay').lean(),
+    PaymentHubCatalog.getOrCreate(),
+  ]);
+
+  const levelPriceMap = buildLevelPriceMap(catalog);
+  const batchMap = new Map();
+  const totalsAcc = emptyBatchAccumulator();
+
+  if (!students.length) {
+    return { batches: [], totalStudents: 0, batchNames: [], totals: null };
+  }
+
+  const ids = students.map((s) => s._id);
+  const [requests, approvedSubs, pendingSubs] = await Promise.all([
+    PaymentRequest.find({ studentId: { $in: ids }, isArchived: false }).lean(),
+    PaymentFlowSubmission.find({
+      studentId: { $in: ids },
+      status: 'APPROVED',
+      isArchived: false,
+    }).lean(),
+    PaymentFlowSubmission.find({
+      studentId: { $in: ids },
+      status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
+      isArchived: false,
+    }).lean(),
+  ]);
+
+  const requestsByStudent = groupDocsByStudentId(requests);
+  const approvedByStudent = groupDocsByStudentId(approvedSubs);
+  const pendingByStudent = groupDocsByStudentId(pendingSubs);
+
+  for (const student of students) {
+    const sid = String(student._id);
+    const batch = batchLabelForStudent(student);
+    if (!batchMap.has(batch)) batchMap.set(batch, emptyBatchAccumulator());
+    const acc = batchMap.get(batch);
+
+    const studentRequests = requestsByStudent[sid] || [];
+    const approved = approvedByStudent[sid] || [];
+    const pendingSubmissions = pendingByStudent[sid] || [];
+
+    const live = computeLiveTotalsFromData(studentRequests, approved, pendingSubmissions);
+    const receivedStudent = {
+      LKR: live.totalPaidLKR,
+      INR: live.totalPaidINR,
+      USD: live.totalPaidUSD,
+    };
+    const overdueStudent = {
+      LKR: live.overdueAmountLKR,
+      INR: live.overdueAmountINR,
+      USD: live.overdueAmountUSD,
+    };
+    const pendingStudent = pendingTotalsForStudent(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student,
+      levelPriceMap,
+    );
+    const expectedStudent = catalogFeeForStudent(student, levelPriceMap);
+    const dueStudent = dueFromPendingOverdue(pendingStudent, overdueStudent);
+
+    const lv = String(student?.level || '').trim().toUpperCase();
+    if (lv) acc.levelCounts[lv] = (acc.levelCounts[lv] || 0) + 1;
+
+    const jDay = journeyDayForStudent(student);
+    acc.journeyDaySum += jDay;
+    acc.journeyDayCount += 1;
+    if (student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay))) {
+      const d = Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))));
+      acc.maxStudentDay = acc.maxStudentDay == null ? d : Math.max(acc.maxStudentDay, d);
+    }
+
+    acc.studentCount += 1;
+    addBuckets(acc.received, receivedStudent);
+    addBuckets(acc.pending, pendingStudent);
+    addBuckets(acc.overdue, overdueStudent);
+    addBuckets(acc.expected, expectedStudent);
+    addBuckets(acc.due, dueStudent);
+
+    const outstanding = effectiveOutstandingBalance(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student,
+      levelPriceMap,
+    );
+    const langStatus = computeLanguageFeeStatus(outstanding, jDay);
+
+    if (langStatus === 'FULL_PAID') acc.fullyPaidStudents += 1;
+    if (langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0) acc.balanceStudents += 1;
+    if (
+      langStatus === 'DUE'
+      || bucketTotal(overdueStudent) > 0
+      || studentRequests.some((r) => r.status === 'OVERDUE')
+    ) {
+      acc.overdueStudents += 1;
+    }
+    if (hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT')) acc.docsPaidStudents += 1;
+    if (hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT')) acc.visaPaidStudents += 1;
+
+    addBuckets(totalsAcc.received, receivedStudent);
+    addBuckets(totalsAcc.pending, pendingStudent);
+    addBuckets(totalsAcc.overdue, overdueStudent);
+    addBuckets(totalsAcc.expected, expectedStudent);
+    addBuckets(totalsAcc.due, dueStudent);
+    totalsAcc.studentCount += 1;
+    totalsAcc.journeyDaySum += jDay;
+    totalsAcc.journeyDayCount += 1;
+    if (langStatus === 'FULL_PAID') totalsAcc.fullyPaidStudents += 1;
+    if (langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0) totalsAcc.balanceStudents += 1;
+    if (
+      langStatus === 'DUE'
+      || bucketTotal(overdueStudent) > 0
+      || studentRequests.some((r) => r.status === 'OVERDUE')
+    ) {
+      totalsAcc.overdueStudents += 1;
+    }
+    if (hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT')) totalsAcc.docsPaidStudents += 1;
+    if (hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT')) totalsAcc.visaPaidStudents += 1;
+  }
+
+  const batches = [...batchMap.entries()]
+    .map(([batch, acc]) => finalizeBatchRow(batch, acc))
+    .sort((a, b) => b.totalPaidLKR - a.totalPaidLKR || b.totalPaidINR - a.totalPaidINR);
+
+  const batchNames = batches.map((b) => b.batch).filter((n) => n && n !== '—');
+  const totals = finalizeBatchRow('__all__', totalsAcc);
+  delete totals.batch;
+
+  return {
+    batches,
+    totalStudents: students.length,
+    batchNames,
+    totals,
+  };
+}
+
+module.exports = { aggregateHubDashboardStats, aggregateBatchPaymentInsights };

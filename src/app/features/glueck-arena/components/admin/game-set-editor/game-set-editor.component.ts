@@ -18,6 +18,9 @@ import { MemoryGameQuestionFormComponent } from '../memory-game-question-form/me
 import { HangmanQuestionFormComponent } from '../hangman-question-form/hangman-question-form.component';
 import { WordPictureMatchQuestionFormComponent } from '../word-picture-match-question-form/word-picture-match-question-form.component';
 import { MultipleChoiceQuestionFormComponent } from '../multiple-choice-question-form/multiple-choice-question-form.component';
+import { SpinWheelQuestionFormComponent } from '../spin-wheel-question-form/spin-wheel-question-form.component';
+import { TapBoxesQuestionFormComponent } from '../tap-boxes-question-form/tap-boxes-question-form.component';
+import { WordSearchQuestionFormComponent } from '../word-search-question-form/word-search-question-form.component';
 
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
@@ -38,6 +41,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     HangmanQuestionFormComponent,
     WordPictureMatchQuestionFormComponent,
     MultipleChoiceQuestionFormComponent,
+    SpinWheelQuestionFormComponent,
+    TapBoxesQuestionFormComponent,
+    WordSearchQuestionFormComponent,
   ],
   template: `
     <div class="ga-editor">
@@ -77,6 +83,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
                   <mat-option value="hangman">Hangman</mat-option>
                   <mat-option value="word_picture_match">Word-Picture Match</mat-option>
                   <mat-option value="multiple_choice">Multiple Choice</mat-option>
+                  <mat-option value="spin_wheel">Spin the Wheel</mat-option>
+                  <mat-option value="tap_boxes">Tap the Boxes</mat-option>
+                  <mat-option value="word_search">Word Search</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -225,6 +234,20 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </div>
             </div>
 
+            <div class="ga-card" *ngIf="form.get('gameType')?.value === 'spin_wheel'">
+              <div class="ga-card__head">
+                <mat-icon>casino</mat-icon>
+                <div>
+                  <h3>Spin Wheel</h3>
+                  <p>Label shown in the center of the wheel during play.</p>
+                </div>
+              </div>
+              <mat-form-field appearance="outline" class="ga-editor__field ga-editor__field--full">
+                <mat-label>Center label</mat-label>
+                <input matInput formControlName="swCenterLabel" placeholder="ergänze den Satz!">
+              </mat-form-field>
+            </div>
+
             <!-- Thumbnail -->
             <div class="ga-section-title">Thumbnail</div>
             <div class="ga-thumb-row">
@@ -260,6 +283,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
             <app-hangman-question-form *ngSwitchCase="'hangman'" #hangmanForm [gameSetId]="setId || ''"></app-hangman-question-form>
             <app-word-picture-match-question-form *ngSwitchCase="'word_picture_match'" #wordPictureMatchForm [gameSetId]="setId || ''"></app-word-picture-match-question-form>
             <app-multiple-choice-question-form *ngSwitchCase="'multiple_choice'" #multipleChoiceForm [gameSetId]="setId || ''"></app-multiple-choice-question-form>
+            <app-spin-wheel-question-form *ngSwitchCase="'spin_wheel'" #spinWheelForm [gameSetId]="setId || ''"></app-spin-wheel-question-form>
+            <app-tap-boxes-question-form *ngSwitchCase="'tap_boxes'" #tapBoxesForm [gameSetId]="setId || ''"></app-tap-boxes-question-form>
+            <app-word-search-question-form *ngSwitchCase="'word_search'" #wordSearchForm [gameSetId]="setId || ''"></app-word-search-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
@@ -431,6 +457,7 @@ export class GameSetEditorComponent implements OnInit {
       perQuestionSeconds: [null],
       gsSpawnIntervalSeconds: [4, [Validators.min(3), Validators.max(5)]],
       gsFallDurationSeconds: [1.2, [Validators.min(0.5), Validators.max(3)]],
+      swCenterLabel: ['ergänze den Satz!'],
       questionCount: [0],
     });
   }
@@ -446,6 +473,7 @@ export class GameSetEditorComponent implements OnInit {
           perQuestionSeconds: s.timerSettings?.perQuestionSeconds ?? null,
           gsSpawnIntervalSeconds: s.genderStackSettings?.spawnIntervalSeconds ?? 4,
           gsFallDurationSeconds: s.genderStackSettings?.fallDurationSeconds ?? 1.2,
+          swCenterLabel: s.spinWheelSettings?.centerLabel ?? 'ergänze den Satz!',
           questionCount: s.questionCount ?? (r.questions?.length ?? 0),
         });
         this.thumbnailPreview = s.thumbnailUrl || null;
@@ -502,11 +530,15 @@ export class GameSetEditorComponent implements OnInit {
         spawnIntervalSeconds: Number(v.gsSpawnIntervalSeconds) || 4,
         fallDurationSeconds: Number(v.gsFallDurationSeconds) || 1.2,
       } : undefined,
+      spinWheelSettings: v.gameType === 'spin_wheel' ? {
+        centerLabel: String(v.swCenterLabel || '').trim() || 'ergänze den Satz!',
+      } : undefined,
     };
     delete payload.sessionLimitSeconds;
     delete payload.perQuestionSeconds;
     delete payload.gsSpawnIntervalSeconds;
     delete payload.gsFallDurationSeconds;
+    delete payload.swCenterLabel;
 
     const obs = this.isEdit
       ? this.svc.adminUpdateSet(this.setId!, payload)

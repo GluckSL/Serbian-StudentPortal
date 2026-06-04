@@ -15,6 +15,9 @@ const BASE_POINTS = {
   hangman: 10,
   word_picture_match: 10,
   multiple_choice: 10,
+  spin_wheel: 10,
+  tap_boxes: 10,
+  word_search: 10,
 };
 
 const PER_ANSWER_XP = {
@@ -31,6 +34,9 @@ const PER_ANSWER_XP = {
   hangman: 3,
   word_picture_match: 3,
   multiple_choice: 3,
+  spin_wheel: 3,
+  tap_boxes: 3,
+  word_search: 3,
 };
 
 /**
