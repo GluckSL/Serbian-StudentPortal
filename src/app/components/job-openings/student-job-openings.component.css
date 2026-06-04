@@ -476,17 +476,17 @@
 }
 
 .jo-apply-btn:not(.jo-apply-btn--applied) {
-  background: var(--jp-apply-fallback) !important;
-  background-image: var(--jp-gradient-apply) !important;
+  background: #111 !important;
+  background-image: none !important;
   border: none !important;
   color: #fff !important;
 }
 
 .jo-apply-btn:not(.jo-apply-btn--applied):hover {
-  filter: brightness(1.06);
+  background: #1f2937 !important;
+  background-image: none !important;
   transform: translateY(-1px);
   color: #fff !important;
-  background-image: var(--jp-gradient-apply) !important;
 }
 
 .jo-apply-btn:not(.jo-apply-btn--applied) .material-icons {

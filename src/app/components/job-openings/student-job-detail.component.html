@@ -4,20 +4,11 @@
   <article class="jo-detail-card" *ngIf="!loading && job">
     <header class="jo-detail-hero">
       <div class="jo-detail-hero__row">
-        <div class="jo-detail-hero__left">
-          <button type="button" class="jo-detail-back jo-detail-back--hero" (click)="goBack()" aria-label="Back">
-            <span class="material-icons">arrow_back</span>
-          </button>
-          <div class="jo-detail-logo-stack">
-            <img *ngIf="logoUrl()" class="jo-detail-logo jo-detail-logo--hero" [src]="logoUrl()" [alt]="job.companyName" />
-            <span *ngIf="!logoUrl()" class="jo-detail-logo-fallback jo-detail-logo--hero">{{ companyInitial() }}</span>
-            <button *ngIf="canShare()" type="button" class="jo-detail-share jo-detail-share--hero" (click)="share()" aria-label="Share">
-              <span class="material-icons">share</span>
-            </button>
-          </div>
+        <div class="jo-detail-hero__main">
+          <img *ngIf="logoUrl()" class="jo-detail-logo jo-detail-logo--hero" [src]="logoUrl()" [alt]="job.companyName" />
+          <span *ngIf="!logoUrl()" class="jo-detail-logo-fallback jo-detail-logo--hero">{{ companyInitial() }}</span>
+          <h1 class="jo-detail-title jo-detail-title--hero">{{ job.companyName }} — {{ job.jobTitle }}</h1>
         </div>
-
-        <h1 class="jo-detail-title jo-detail-title--hero">{{ job.companyName }} — {{ job.jobTitle }}</h1>
 
         <div class="jo-detail-apply-wrap jo-detail-apply-wrap--hero">
           <p class="jo-detail-deadline jo-detail-deadline--hero" *ngIf="job.applyBefore">

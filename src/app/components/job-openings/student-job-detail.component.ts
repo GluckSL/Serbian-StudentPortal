@@ -43,10 +43,6 @@ export class StudentJobDetailComponent implements OnInit {
     });
   }
 
-  goBack(): void {
-    this.router.navigate(['/student/job-openings']);
-  }
-
   logoUrl(): string {
     return this.jobService.mediaFullUrl(this.job?.companyLogoUrl);
   }
@@ -73,17 +69,5 @@ export class StudentJobDetailComponent implements OnInit {
 
   onApplyClosed(): void {
     this.showApplyForm = false;
-  }
-
-  share(): void {
-    if (!this.job || !navigator.share) return;
-    navigator.share({
-      title: `${this.job.companyName} — ${this.job.jobTitle}`,
-      url: window.location.href
-    }).catch(() => {});
-  }
-
-  canShare(): boolean {
-    return typeof navigator !== 'undefined' && !!navigator.share;
   }
 }
