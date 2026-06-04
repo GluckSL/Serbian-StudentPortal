@@ -39,6 +39,7 @@ export class AdminJobOpeningsComponent implements OnInit {
   closedLogoFile: File | null = null;
   closedLogoPreview = '';
   closedForm = {
+    companyName: '',
     companyLogoUrl: '',
     jobTitle: '',
     jobType: 'Full Time' as JobType,
@@ -63,6 +64,7 @@ export class AdminJobOpeningsComponent implements OnInit {
     studentName: '',
     studentRegNo: '',
     batch: '',
+    companyName: '',
     companyLogoUrl: '',
     jobTitle: '',
     placedAt: '',
