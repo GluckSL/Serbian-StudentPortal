@@ -8,6 +8,7 @@ const JobApplication = require('../models/JobApplication');
 const JobPortalSettings = require('../models/JobPortalSettings');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 
 const router = express.Router();
 
@@ -16,20 +17,10 @@ if (!fs.existsSync(logosUploadDir)) {
   fs.mkdirSync(logosUploadDir, { recursive: true });
 }
 
-const logoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, logosUploadDir),
-  filename: (_req, file, cb) => {
-    const safeName = String(file.originalname || 'logo')
-      .replace(/[^a-zA-Z0-9._-]/g, '_')
-      .slice(0, 80);
-    cb(null, `${Date.now()}_${safeName}`);
-  }
-});
-
 const LOGO_MAX_BYTES = 5 * 1024 * 1024;
 
 const logoUpload = multer({
-  storage: logoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: LOGO_MAX_BYTES },
   fileFilter: (_req, file, cb) => {
     const ok = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'].includes(file.mimetype);
@@ -185,6 +176,30 @@ async function buildPortalStats() {
     heroTitle: settings.heroTitle || 'Get Hired with Glück',
     heroSubtitle: settings.heroSubtitle || ''
   };
+}
+
+function sanitizeLogoFilename(name) {
+  const base = String(name || 'logo')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 80);
+  return base || 'logo';
+}
+
+async function persistCompanyLogo(file) {
+  if (!file?.buffer?.length) return '';
+  const safeName = sanitizeLogoFilename(file.originalname);
+  const contentType = file.mimetype || 'image/png';
+
+  if (isExerciseR2Configured()) {
+    const key = `job-openings/logos/${Date.now()}_${safeName}`;
+    return putExerciseMediaBuffer(file.buffer, key, contentType);
+  }
+
+  const localName = `${Date.now()}_${safeName}`;
+  const filePath = path.join(logosUploadDir, localName);
+  await fs.promises.writeFile(filePath, file.buffer);
+  return `/uploads/job-openings/${localName}`;
 }
 
 function unlinkLogoIfLocal(fileUrl) {
@@ -465,7 +480,13 @@ router.post(
 
       let companyLogoUrl = String(req.body.companyLogoUrl || '').trim();
       if (req.file) {
-        companyLogoUrl = `/uploads/job-openings/${req.file.filename}`;
+        companyLogoUrl = await persistCompanyLogo(req.file);
+        if (!companyLogoUrl) {
+          return res.status(503).json({
+            success: false,
+            message: 'Logo storage is not configured. Set R2 credentials or try again without a logo.'
+          });
+        }
       }
 
       const opening = await JobOpening.create({
@@ -525,7 +546,14 @@ router.put(
       if (req.body.isActive !== undefined) opening.isActive = String(req.body.isActive) !== 'false';
 
       if (req.file) {
-        opening.companyLogoUrl = `/uploads/job-openings/${req.file.filename}`;
+        const nextLogoUrl = await persistCompanyLogo(req.file);
+        if (!nextLogoUrl) {
+          return res.status(503).json({
+            success: false,
+            message: 'Logo storage is not configured. Set R2 credentials or try again without a logo.'
+          });
+        }
+        opening.companyLogoUrl = nextLogoUrl;
         if (prevLogo && prevLogo !== opening.companyLogoUrl) unlinkLogoIfLocal(prevLogo);
       } else if (req.body.companyLogoUrl !== undefined) {
         const nextUrl = String(req.body.companyLogoUrl).trim();

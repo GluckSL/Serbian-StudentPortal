@@ -92,10 +92,15 @@
         tabindex="0"
         (keydown.enter)="openDetail(job)"
       >
-        <div class="jo-card__logo-wrap">
-          <img *ngIf="logoUrl(job)" class="jo-card__logo" [src]="logoUrl(job)" [alt]="job.companyName" />
-          <span *ngIf="!logoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.companyName) }}</span>
-        </div>
+        <aside class="jo-card__aside">
+          <div class="jo-card__logo-wrap">
+            <img *ngIf="logoUrl(job)" class="jo-card__logo" [src]="logoUrl(job)" [alt]="job.companyName" />
+            <span *ngIf="!logoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.companyName) }}</span>
+          </div>
+          <p class="jo-card__deadline" *ngIf="job.applyBefore">
+            <span class="jo-card__deadline-text">Apply before {{ formatApplyBefore(job.applyBefore) }}</span>
+          </p>
+        </aside>
 
         <div class="jo-card__body">
           <div class="jo-card__top">
@@ -118,9 +123,6 @@
           </div>
 
           <div class="jo-card__footer">
-            <span class="jo-card__deadline" *ngIf="job.applyBefore">
-              Apply before {{ formatApplyBefore(job.applyBefore) }}
-            </span>
             <button
               type="button"
               class="jo-apply-btn"

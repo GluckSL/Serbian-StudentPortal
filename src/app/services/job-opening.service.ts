@@ -166,11 +166,16 @@ export class JobOpeningService {
     );
   }
 
-  resumeFullUrl(path: string): string {
-    const url = String(path || '').trim();
+  /** Resolve stored logo/resume URL (R2 https or local /uploads). */
+  mediaFullUrl(pathOrUrl?: string): string {
+    const url = String(pathOrUrl || '').trim();
     if (!url) return '';
-    if (url.startsWith('http')) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     const base = environment.apiUrl.replace(/\/api\/?$/, '');
     return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+  }
+
+  resumeFullUrl(path: string): string {
+    return this.mediaFullUrl(path);
   }
 }

@@ -10,7 +10,6 @@ import {
   LocationType
 } from '../../services/job-opening.service';
 import { JobApplyFormComponent } from './job-apply-form.component';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-student-job-openings',
@@ -97,11 +96,7 @@ export class StudentJobOpeningsComponent implements OnInit {
   }
 
   logoUrl(job: JobOpening): string {
-    const url = String(job.companyLogoUrl || '').trim();
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+    return this.jobService.mediaFullUrl(job.companyLogoUrl);
   }
 
   companyInitial(name: string): string {
@@ -137,6 +132,6 @@ export class StudentJobOpeningsComponent implements OnInit {
   formatApplyBefore(dateStr: string): string {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 }

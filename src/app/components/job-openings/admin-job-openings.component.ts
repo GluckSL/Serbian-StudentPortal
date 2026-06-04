@@ -12,7 +12,6 @@ import {
   LocationType
 } from '../../services/job-opening.service';
 import { NotificationService } from '../../services/notification.service';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-admin-job-openings',
@@ -186,11 +185,7 @@ export class AdminJobOpeningsComponent implements OnInit {
   }
 
   resolveLogoUrl(url?: string): string {
-    const u = String(url || '').trim();
-    if (!u) return '';
-    if (u.startsWith('http')) return u;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return `${base}${u.startsWith('/') ? u : `/${u}`}`;
+    return this.jobService.mediaFullUrl(url);
   }
 
   buildFormData(): FormData {

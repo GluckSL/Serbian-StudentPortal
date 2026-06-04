@@ -265,21 +265,34 @@
 }
 
 .jo-card {
-  display: flex;
-  gap: 18px;
-  background: var(--jo-surface);
-  border: 1px solid var(--jo-border);
+  position: relative;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: stretch;
+  background: var(--jp-gradient-card);
+  border: none;
   border-radius: var(--jp-radius-lg);
-  padding: 20px;
+  padding: 18px 20px 20px;
   margin-bottom: 14px;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  overflow: visible;
+  color: #111;
+  transition: box-shadow 0.15s, transform 0.12s, filter 0.15s;
+  box-shadow: 0 4px 18px rgba(66, 128, 130, 0.28);
+}
+
+.jo-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 100% 0%, rgba(255, 255, 255, 0.14) 0%, transparent 55%);
+  pointer-events: none;
 }
 
 .jo-card:hover {
-  border-color: var(--jp-accent-hover);
-  box-shadow: 0 8px 20px var(--jp-shadow-sm);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 28px rgba(69, 100, 186, 0.35);
   transform: translateY(-2px);
 }
 
@@ -295,18 +308,38 @@
   50% { background-position: -100% 0; }
 }
 
+.jo-card__aside {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  align-self: stretch;
+  min-height: 100%;
+  width: 68px;
+  min-width: 68px;
+  max-width: 68px;
+  overflow: visible;
+  margin-top: -6px;
+  padding-top: 2px;
+  padding-bottom: 0;
+}
+
 .jo-card__logo-wrap {
   flex-shrink: 0;
+  margin-bottom: 0;
 }
 
 .jo-card__logo,
 .jo-card__logo-fallback {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
+  width: 68px;
+  height: 68px;
+  border-radius: 14px;
   object-fit: contain;
-  background: #f8fafc;
-  border: 1px solid var(--jo-border);
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .jo-card__logo-fallback {
@@ -315,12 +348,41 @@
   justify-content: center;
   font-weight: 800;
   font-size: 1.25rem;
-  color: var(--jp-accent);
+  color: #4564ba;
+}
+
+.jo-card__deadline {
+  margin: 0;
+  margin-top: auto;
+  padding: 0;
+  width: max-content;
+  max-width: none;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.jo-card__deadline-text {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: #111;
+  font-weight: 600;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.32);
+  border-radius: 8px;
+  box-sizing: border-box;
 }
 
 .jo-card__body {
-  flex: 1;
+  position: relative;
+  z-index: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .jo-card__top {
@@ -328,18 +390,25 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .jo-card__title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.35rem;
   font-weight: 700;
-  color: var(--jo-text);
+  color: #0f172a;
   flex: 1;
-  min-width: 200px;
-  line-height: 1.35;
+  min-width: 0;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  padding: 0;
+  background: none;
+  border: none;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.55),
+    0 2px 10px rgba(255, 255, 255, 0.35);
 }
 
 .jo-card__meta {
@@ -353,8 +422,9 @@
   align-items: center;
   gap: 4px;
   font-size: 0.8rem;
-  color: var(--jo-muted);
-  background: #f8fafc;
+  color: #111;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.32);
   padding: 4px 10px;
   border-radius: 8px;
   white-space: nowrap;
@@ -362,7 +432,7 @@
 
 .jo-meta .material-icons {
   font-size: 15px;
-  color: var(--jp-accent);
+  color: #111;
 }
 
 .jo-card__skills {
@@ -373,59 +443,73 @@
 }
 
 .jo-skill {
-  background: var(--jp-accent-light);
-  border: none;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.32);
   border-radius: 999px;
   padding: 5px 12px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--jp-accent-dark);
+  color: #111;
 }
 
 .jo-card__footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--jo-border);
-}
-
-.jo-card__deadline {
-  font-size: 0.82rem;
-  color: var(--jo-muted);
-  font-weight: 500;
+  margin-top: auto;
+  border-top: 1px solid rgba(0, 0, 0, 0.18);
 }
 
 .jo-apply-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--jp-gradient);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 9px 18px;
+  border-radius: 10px !important;
+  padding: 9px 20px;
   font-weight: 700;
   font-size: 0.88rem;
   cursor: pointer;
-  box-shadow: 0 2px 8px var(--jp-shadow);
+  box-shadow: 0 3px 12px var(--jp-shadow);
 }
 
-.jo-apply-btn:hover {
-  filter: brightness(1.05);
+.jo-apply-btn:not(.jo-apply-btn--applied) {
+  background: var(--jp-apply-fallback) !important;
+  background-image: var(--jp-gradient-apply) !important;
+  border: none !important;
+  color: #fff !important;
+}
+
+.jo-apply-btn:not(.jo-apply-btn--applied):hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  color: #fff !important;
+  background-image: var(--jp-gradient-apply) !important;
+}
+
+.jo-apply-btn:not(.jo-apply-btn--applied) .material-icons {
+  color: #fff !important;
+  font-size: 16px;
 }
 
 .jo-apply-btn--applied {
-  background: #fff;
-  border: 2px solid var(--jp-accent);
-  color: var(--jp-accent-dark);
+  background: rgba(255, 255, 255, 0.9) !important;
+  background-image: none !important;
+  border: 1px solid rgba(0, 0, 0, 0.35) !important;
+  color: #111 !important;
   box-shadow: none;
 }
 
-.jo-apply-btn .material-icons {
-  font-size: 16px;
+.jo-apply-btn--applied:hover {
+  background: #fff !important;
+  filter: none;
+  transform: none;
+}
+
+.jo-apply-btn--applied .material-icons {
+  color: #111 !important;
 }
 
 .jo-empty,
