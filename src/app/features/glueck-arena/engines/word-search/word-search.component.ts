@@ -21,13 +21,15 @@ interface Placement {
 
 type Feedback = 'idle' | 'correct' | 'wrong';
 
+/** Wordwall-style highlight palette */
 const HIGHLIGHT_COLORS = [
-  '#22c55e', '#a16207', '#dc2626', '#7c3aed', '#0891b2',
-  '#ea580c', '#be185d', '#15803d', '#4338ca', '#0d9488',
+  '#22c55e', '#8B6914', '#374151', '#16a34a', '#a16207',
+  '#15803d', '#7c2d12', '#0f766e', '#4ade80', '#92400e',
 ];
 
 const TOTAL_LIVES = 5;
 const POINTS_PER_WORD = 100;
+const DEFAULT_SESSION_SECONDS = 300;
 
 @Component({
   selector: 'app-word-search',
@@ -35,184 +37,416 @@ const POINTS_PER_WORD = 100;
   imports: [CommonModule, MaterialModule, ConfettiBurstComponent],
   template: `
     <div class="ws">
-      <div class="ws__board">
-        <header class="ws__hud">
-          <div class="ws__timer" *ngIf="sessionLimitSeconds">
-            <mat-icon>timer</mat-icon>
-            <span [class.ws__timer--warn]="remainingSeconds <= 30">{{ formatTime(remainingSeconds) }}</span>
-          </div>
-          <div class="ws__lives">
-            <mat-icon *ngFor="let _ of hearts; let i = index"
-              [class.ws__lives--lost]="i >= remainingLives">favorite</mat-icon>
-          </div>
-          <p class="ws__prompt" [class.ws__prompt--correct]="feedback === 'correct'"
-            [class.ws__prompt--wrong]="feedback === 'wrong'">{{ promptText }}</p>
-          <div class="ws__found">
-            <mat-icon>check_circle</mat-icon>
-            <span>{{ foundCount }}</span>
-          </div>
-        </header>
+      <div class="ws__canvas">
+        <div class="ws__pattern" aria-hidden="true"></div>
 
-        <div class="ws__grid-area" *ngIf="phase === 'playing'">
-          <div class="ws__grid" [style.--ws-cols]="gridSize">
-            <ng-container *ngFor="let row of grid; let ri = index">
-              <button
-                type="button"
-                class="ws__cell"
-                *ngFor="let letter of row; let ci = index"
-                [class.ws__cell--empty]="!letter.trim()"
-                [class.ws__cell--found]="cellHighlight(ri, ci)"
-                [style.--ws-highlight]="cellColor(ri, ci)"
-                [disabled]="feedback !== 'idle' || !letter.trim()"
-                (click)="onCellTap(ri, ci)"
-                [attr.aria-label]="letter ? 'Letter ' + letter : 'Empty'"
-              >
-                <span>{{ letter }}</span>
-              </button>
-            </ng-container>
+        <div class="ws__status" *ngIf="phase === 'playing'">
+          <div class="ws__timer">{{ formatTime(displaySeconds) }}</div>
+          <div class="ws__status-right">
+            <div class="ws__lives" aria-label="Lives remaining">
+              <mat-icon
+                *ngFor="let _ of hearts; let i = index"
+                [class.ws__heart--lost]="i >= remainingLives"
+              >favorite</mat-icon>
+            </div>
+            <div class="ws__score" aria-label="Words found">
+              <mat-icon>check</mat-icon>
+              <span>{{ foundCount }}</span>
+            </div>
           </div>
+        </div>
 
-          <div class="ws__overlay ws__overlay--correct" *ngIf="feedback === 'correct'">
-            <mat-icon>check_circle</mat-icon>
-          </div>
-          <div class="ws__overlay ws__overlay--wrong" *ngIf="feedback === 'wrong'">
-            <mat-icon>close</mat-icon>
+        <h2
+          class="ws__prompt"
+          *ngIf="phase === 'playing'"
+          [class.ws__prompt--correct]="feedback === 'correct'"
+          [class.ws__prompt--wrong]="feedback === 'wrong'"
+        >{{ promptText }}</h2>
+
+        <div class="ws__play" *ngIf="phase === 'playing'">
+          <div class="ws__grid-shell">
+            <div
+              class="ws__grid"
+              [style.--ws-cols]="gridSize"
+              [style.--ws-cell]="cellPx + 'px'"
+            >
+              <ng-container *ngFor="let row of grid; let ri = index; trackBy: trackRow">
+                <ng-container *ngFor="let letter of row; let ci = index; trackBy: trackCol">
+                  <button
+                    type="button"
+                    class="ws__cell"
+                    *ngIf="isPlayable(letter)"
+                    [class.ws__cell--found]="cellHighlight(ri, ci)"
+                    [style.--ws-highlight]="cellColor(ri, ci)"
+                    [disabled]="feedback !== 'idle'"
+                    (click)="onCellTap(ri, ci)"
+                    [attr.aria-label]="'Letter ' + letter"
+                  >
+                    <span>{{ letter }}</span>
+                  </button>
+                  <span
+                    class="ws__gap"
+                    *ngIf="!isPlayable(letter)"
+                    aria-hidden="true"
+                  ></span>
+                </ng-container>
+              </ng-container>
+            </div>
+
+            <div class="ws__fx ws__fx--correct" *ngIf="feedback === 'correct'" aria-hidden="true">
+              <svg viewBox="0 0 120 120" class="ws__fx-icon">
+                <defs>
+                  <linearGradient id="wsCheckGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#4ade80"/>
+                    <stop offset="100%" stop-color="#16a34a"/>
+                  </linearGradient>
+                </defs>
+                <circle cx="60" cy="60" r="54" fill="url(#wsCheckGrad)" opacity="0.95"/>
+                <path d="M34 62 L52 80 L88 38" fill="none" stroke="#fff" stroke-width="10"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="ws__fx ws__fx--wrong" *ngIf="feedback === 'wrong'" aria-hidden="true">
+              <svg viewBox="0 0 120 120" class="ws__fx-icon">
+                <circle cx="60" cy="60" r="54" fill="#ef4444" opacity="0.92"/>
+                <path d="M42 42 L78 78 M78 42 L42 78" stroke="#fff" stroke-width="10"
+                  stroke-linecap="round"/>
+              </svg>
+            </div>
           </div>
         </div>
 
         <div class="ws__complete" *ngIf="phase === 'complete'">
-          <mat-icon>emoji_events</mat-icon>
+          <svg viewBox="0 0 80 80" class="ws__complete-icon" aria-hidden="true">
+            <circle cx="40" cy="40" r="36" fill="#22c55e"/>
+            <path d="M22 42 L36 56 L60 28" fill="none" stroke="#fff" stroke-width="6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
           <h2>All words found!</h2>
-          <p>Score: <strong>{{ score }}</strong></p>
+          <p>Score <strong>{{ score }}</strong></p>
         </div>
+
+        <footer class="ws__footer" *ngIf="phase === 'playing'" aria-hidden="true">
+          <mat-icon>menu</mat-icon>
+          <div class="ws__footer-right">
+            <mat-icon>volume_up</mat-icon>
+            <mat-icon>fullscreen</mat-icon>
+          </div>
+        </footer>
       </div>
 
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
     </div>
   `,
   styles: [`
-    .ws { width: 100%; max-width: 640px; margin: 0 auto; }
-    .ws__board {
-      border-radius: 20px; overflow: hidden;
-      border: 1px solid #fbbf24;
-      box-shadow: 0 12px 40px rgba(180, 83, 9, 0.2);
-      background: linear-gradient(145deg, #fef08a 0%, #fdba74 45%, #fb923c 100%);
+    .ws {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      padding: 8px 12px 20px;
+    }
+
+    .ws__canvas {
       position: relative;
+      width: 100%;
+      max-width: 560px;
+      min-height: 520px;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow:
+        0 4px 24px rgba(120, 53, 15, 0.18),
+        0 0 0 1px rgba(180, 83, 9, 0.12);
+      background: linear-gradient(165deg, #fde68a 0%, #fcd34d 28%, #fb923c 62%, #f97316 100%);
     }
-    .ws__board::before {
-      content: '';
-      position: absolute; inset: 0;
-      background:
-        linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%),
-        repeating-linear-gradient(45deg, transparent, transparent 28px, rgba(255,255,255,0.06) 28px, rgba(255,255,255,0.06) 56px);
+
+    .ws__pattern {
+      position: absolute;
+      inset: 0;
       pointer-events: none;
+      opacity: 0.45;
+      background:
+        linear-gradient(135deg, transparent 42%, rgba(255,255,255,0.14) 50%, transparent 58%),
+        repeating-linear-gradient(
+          60deg,
+          transparent,
+          transparent 48px,
+          rgba(255, 255, 255, 0.07) 48px,
+          rgba(255, 255, 255, 0.07) 96px
+        ),
+        repeating-linear-gradient(
+          -60deg,
+          transparent,
+          transparent 48px,
+          rgba(0, 0, 0, 0.04) 48px,
+          rgba(0, 0, 0, 0.04) 96px
+        );
     }
 
-    .ws__hud {
-      position: relative; z-index: 2;
-      display: flex; align-items: center; gap: 12px;
-      padding: 14px 16px;
-      background: rgba(255, 255, 255, 0.88);
-      border-bottom: 1px solid rgba(251, 191, 36, 0.5);
-      backdrop-filter: blur(6px);
+    .ws__status {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 16px 20px 0;
     }
+
     .ws__timer {
-      display: flex; align-items: center; gap: 4px;
-      font-weight: 800; font-size: 17px; color: #78350f; min-width: 64px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: #3d2914;
+      letter-spacing: 0.02em;
+      line-height: 1;
     }
-    .ws__timer mat-icon { font-size: 18px; width: 18px; height: 18px; color: #a16207; }
-    .ws__timer--warn { color: #dc2626; }
-    .ws__lives { display: flex; gap: 2px; }
-    .ws__lives mat-icon {
-      font-size: 20px; width: 20px; height: 20px; color: #ef4444;
-      transition: color 0.25s, transform 0.25s;
-    }
-    .ws__lives--lost { color: #fde68a !important; transform: scale(0.85); }
-    .ws__prompt {
-      flex: 1; margin: 0; text-align: center;
-      font-size: 15px; font-weight: 700; color: #92400e;
-      font-family: Georgia, 'Times New Roman', serif;
-      transition: color 0.2s;
-    }
-    .ws__prompt--correct { color: #166534; }
-    .ws__prompt--wrong { color: #991b1b; }
-    .ws__found {
-      display: flex; align-items: center; gap: 4px;
-      font-weight: 800; font-size: 17px; color: #78350f;
-      min-width: 48px; justify-content: flex-end;
-    }
-    .ws__found mat-icon { font-size: 20px; width: 20px; height: 20px; color: #16a34a; }
 
-    .ws__grid-area {
-      position: relative; z-index: 1;
-      padding: 20px 14px 28px;
-      display: flex; justify-content: center;
+    .ws__status-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
     }
+
+    .ws__lives {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .ws__lives mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+      color: #1c1917;
+      transition: color 0.3s ease, opacity 0.3s ease;
+    }
+
+    .ws__heart--lost {
+      color: rgba(28, 25, 23, 0.2) !important;
+    }
+
+    .ws__score {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #3d2914;
+    }
+
+    .ws__score mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+      color: #3d2914;
+    }
+
+    .ws__prompt {
+      position: relative;
+      z-index: 2;
+      margin: 18px 16px 14px;
+      text-align: center;
+      font-family: Georgia, 'Palatino Linotype', 'Times New Roman', serif;
+      font-size: clamp(20px, 4.5vw, 26px);
+      font-weight: 400;
+      font-style: normal;
+      color: #5c4033;
+      letter-spacing: 0.01em;
+      line-height: 1.25;
+      transition: color 0.2s ease, transform 0.25s ease;
+    }
+
+    .ws__prompt--correct {
+      color: #14532d;
+      font-weight: 600;
+      transform: scale(1.02);
+    }
+
+    .ws__prompt--wrong {
+      color: #7f1d1d;
+      font-weight: 600;
+      transform: scale(1.02);
+    }
+
+    .ws__play {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: center;
+      padding: 0 12px 12px;
+    }
+
+    .ws__grid-shell {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
     .ws__grid {
       display: grid;
-      grid-template-columns: repeat(var(--ws-cols, 11), 1fr);
-      gap: 6px;
-      max-width: 100%;
+      grid-template-columns: repeat(var(--ws-cols, 11), var(--ws-cell, 40px));
+      gap: 5px;
+      justify-content: center;
     }
+
+    .ws__cell,
+    .ws__gap {
+      width: var(--ws-cell, 40px);
+      height: var(--ws-cell, 40px);
+    }
+
     .ws__cell {
-      aspect-ratio: 1;
-      min-width: 0;
       border: none;
-      border-radius: 8px;
-      background: #334155;
-      color: #fff;
-      font-size: clamp(12px, 2.8vw, 17px);
-      font-weight: 800;
+      border-radius: 7px;
+      background: #3f3f46;
+      color: #fafafa;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: calc(var(--ws-cell, 40px) * 0.38);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 0;
-      transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease;
-      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition:
+        transform 0.1s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
     }
+
+    .ws__cell span {
+      user-select: none;
+      line-height: 1;
+    }
+
     .ws__cell:hover:not(:disabled):not(.ws__cell--found) {
-      transform: scale(1.06);
-      background: #475569;
+      background: #52525b;
+      transform: translateY(-1px);
     }
-    .ws__cell--empty {
-      background: transparent;
-      box-shadow: none;
-      cursor: default;
-      pointer-events: none;
+
+    .ws__cell:active:not(:disabled) {
+      transform: scale(0.96);
     }
+
     .ws__cell--found {
       background: var(--ws-highlight, #22c55e) !important;
       color: #fff;
       cursor: default;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
-    .ws__cell:active:not(:disabled) { transform: scale(0.95); }
 
-    .ws__overlay {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
+    .ws__gap {
+      display: block;
+      visibility: hidden;
       pointer-events: none;
-      animation: wsOverlayIn 0.35s ease;
     }
-    .ws__overlay mat-icon {
-      font-size: 120px; width: 120px; height: 120px;
-      filter: drop-shadow(0 8px 24px rgba(0,0,0,0.25));
+
+    .ws__fx {
+      position: absolute;
+      top: 8%;
+      right: 6%;
+      width: clamp(88px, 28vw, 130px);
+      height: clamp(88px, 28vw, 130px);
+      pointer-events: none;
+      animation: wsFxPop 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
+      filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.28));
     }
-    .ws__overlay--correct mat-icon { color: #22c55e; }
-    .ws__overlay--wrong mat-icon { color: #ef4444; }
-    @keyframes wsOverlayIn {
-      0% { opacity: 0; transform: scale(0.5); }
-      60% { opacity: 1; transform: scale(1.08); }
-      100% { transform: scale(1); }
+
+    .ws__fx--wrong {
+      top: auto;
+      bottom: 18%;
+      left: 12%;
+      right: auto;
+    }
+
+    .ws__fx-icon {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    @keyframes wsFxPop {
+      0% { opacity: 0; transform: scale(0.35) rotate(-8deg); }
+      55% { opacity: 1; transform: scale(1.12) rotate(2deg); }
+      100% { transform: scale(1) rotate(0); }
+    }
+
+    .ws__footer {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px 14px;
+      margin-top: 4px;
+    }
+
+    .ws__footer mat-icon,
+    .ws__footer-right mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+      color: rgba(61, 41, 20, 0.55);
+    }
+
+    .ws__footer-right {
+      display: flex;
+      gap: 12px;
     }
 
     .ws__complete {
-      position: relative; z-index: 2;
-      text-align: center; padding: 48px 24px; color: #78350f;
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      padding: 56px 24px 40px;
+      color: #5c4033;
+      font-family: Georgia, serif;
     }
-    .ws__complete mat-icon { font-size: 56px; width: 56px; height: 56px; color: #ca8a04; }
-    .ws__complete h2 { margin: 12px 0 8px; font-size: 22px; }
+
+    .ws__complete-icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 16px;
+      display: block;
+      filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.2));
+    }
+
+    .ws__complete h2 {
+      margin: 0 0 10px;
+      font-size: 26px;
+      font-weight: 600;
+      color: #3d2914;
+    }
+
+    .ws__complete p {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 18px;
+      color: #5c4033;
+    }
+
+    .ws__complete strong {
+      font-weight: 800;
+      color: #1c1917;
+    }
+
+    @media (max-width: 420px) {
+      .ws__canvas { min-height: 460px; }
+      .ws__status { padding: 12px 14px 0; }
+      .ws__timer { font-size: 18px; }
+      .ws__lives mat-icon,
+      .ws__score mat-icon { font-size: 18px; width: 18px; height: 18px; }
+      .ws__score { font-size: 17px; }
+    }
   `],
 })
 export class WordSearchComponent implements OnInit, OnDestroy {
@@ -227,6 +461,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
   grid: string[][] = [];
   gridSize = 11;
+  cellPx = 40;
   placements: Placement[] = [];
   foundIds = new Set<string>();
   highlightByCell = new Map<string, string>();
@@ -236,8 +471,9 @@ export class WordSearchComponent implements OnInit, OnDestroy {
   remainingLives = TOTAL_LIVES;
   hearts = Array(TOTAL_LIVES).fill(0);
 
-  sessionLimitSeconds = 0;
-  remainingSeconds = 0;
+  sessionLimitSeconds = DEFAULT_SESSION_SECONDS;
+  remainingSeconds = DEFAULT_SESSION_SECONDS;
+  displaySeconds = DEFAULT_SESSION_SECONDS;
   sessionElapsedSeconds = 0;
   showConfetti = false;
 
@@ -247,22 +483,40 @@ export class WordSearchComponent implements OnInit, OnDestroy {
   private feedbackTimer: ReturnType<typeof setTimeout> | null = null;
   private totalWordsInGame = 0;
   private wordsFoundInGame = 0;
-  private wrongGuesses = 0;
 
-  constructor(
-    private audio: GameAudioService,
-  ) {}
+  constructor(private audio: GameAudioService) {}
 
   ngOnInit(): void {
-    this.sessionLimitSeconds = this.gameSet.timerSettings?.sessionLimitSeconds ?? 300;
+    const limit = this.gameSet.timerSettings?.sessionLimitSeconds;
+    this.sessionLimitSeconds = limit != null && limit > 0 ? limit : DEFAULT_SESSION_SECONDS;
     this.remainingSeconds = this.sessionLimitSeconds;
-    this.totalWordsInGame = this.questions.reduce((n, q) => n + (q.totalWords || q.placements?.length || 0), 0);
+    this.displaySeconds = this.remainingSeconds;
+    this.totalWordsInGame = this.questions.reduce(
+      (n, q) => n + (q.totalWords || q.placements?.length || 0),
+      0,
+    );
+    this.updateCellSize();
     this.loadPuzzle(0);
     this.startTimers();
   }
 
   ngOnDestroy(): void {
     this.clearTimers();
+  }
+
+  trackRow = (i: number) => i;
+  trackCol = (i: number) => i;
+
+  isPlayable(letter: string): boolean {
+    return !!letter && letter.trim().length > 0;
+  }
+
+  private updateCellSize(): void {
+    const cols = Math.max(this.gridSize, 8);
+    const maxBoard = 480;
+    const gap = 5;
+    this.cellPx = Math.min(42, Math.floor((maxBoard - gap * (cols - 1)) / cols));
+    this.cellPx = Math.max(28, this.cellPx);
   }
 
   private loadPuzzle(index: number): void {
@@ -273,6 +527,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     }
     this.grid = q.grid.map(row => [...row]);
     this.gridSize = q.gridSize || q.grid.length;
+    this.updateCellSize();
     this.placements = (q.placements || []).map(p => ({
       id: p.id,
       cells: p.cells.map(c => ({ row: c.row, col: c.col })),
@@ -285,14 +540,20 @@ export class WordSearchComponent implements OnInit, OnDestroy {
   }
 
   private startTimers(): void {
-    if (this.sessionLimitSeconds > 0) {
-      this.timerId = setInterval(() => {
+    this.timerId = setInterval(() => {
+      if (this.sessionLimitSeconds > 0) {
         this.remainingSeconds = Math.max(0, this.remainingSeconds - 1);
+        this.displaySeconds = this.remainingSeconds;
         if (this.remainingSeconds <= 0) this.onTimeUp();
-      }, 1000);
-    }
+      } else {
+        this.displaySeconds = this.sessionElapsedSeconds;
+      }
+    }, 1000);
     this.elapsedId = setInterval(() => {
       this.sessionElapsedSeconds++;
+      if (!this.sessionLimitSeconds) {
+        this.displaySeconds = this.sessionElapsedSeconds;
+      }
     }, 1000);
   }
 
@@ -325,7 +586,6 @@ export class WordSearchComponent implements OnInit, OnDestroy {
       this.showWrong();
       return;
     }
-
     this.showCorrect(match);
   }
 
@@ -348,7 +608,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
       if (this.foundIds.size >= this.placements.length) {
         this.advancePuzzle();
       }
-    }, 900);
+    }, 1100);
   }
 
   private showWrong(): void {
@@ -356,7 +616,6 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     this.promptText = 'Wrong!';
     this.audio.playWrong();
     this.remainingLives--;
-    this.wrongGuesses++;
 
     this.feedbackTimer = setTimeout(() => {
       this.feedback = 'idle';
@@ -364,7 +623,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
       if (this.remainingLives <= 0) {
         this.finishGame();
       }
-    }, 900);
+    }, 1100);
   }
 
   private advancePuzzle(): void {
@@ -375,7 +634,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     }
     this.showConfetti = true;
     this.phase = 'complete';
-    setTimeout(() => this.finishGame(), 1200);
+    setTimeout(() => this.finishGame(), 1400);
   }
 
   private onTimeUp(): void {

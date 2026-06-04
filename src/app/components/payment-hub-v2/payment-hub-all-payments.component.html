@@ -360,7 +360,7 @@
           </td>
           <td class="ph-name-cell">
             {{ studentName(row) }}
-            <app-test-account-badge [show]="includeTestAccounts && !!row.studentId?.isTestAccount"></app-test-account-badge>
+            <app-test-account-badge [show]="includeTestAccounts && !!row.studentId.isTestAccount"></app-test-account-badge>
           </td>
           <td class="ph-email-cell">{{ studentEmail(row) }}</td>
           <td>{{ studentBatch(row) }}</td>
