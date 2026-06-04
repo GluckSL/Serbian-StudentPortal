@@ -510,12 +510,32 @@ export class PaymentHubApiService {
     return this.http.get<{ success: boolean; data: ApprovalQueueItem }>(`${this.base}/approvals/${submissionId}`);
   }
 
-  approveSubmission(submissionId: string, body: { adminRemarks?: string; paidAmount?: number }): Observable<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }> {
+  approveSubmission(
+    submissionId: string,
+    body: {
+      adminRemarks?: string;
+      paidAmount?: number;
+      reviewUpdates?: Record<string, unknown>;
+    },
+  ): Observable<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }> {
     return this.http.patch<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }>(`${this.base}/approvals/${submissionId}/approve`, body);
   }
 
-  rejectSubmission(submissionId: string, body: { rejectionReason: string }): Observable<unknown> {
+  rejectSubmission(
+    submissionId: string,
+    body: { rejectionReason: string; reviewUpdates?: Record<string, unknown> },
+  ): Observable<unknown> {
     return this.http.patch(`${this.base}/approvals/${submissionId}/reject`, body);
+  }
+
+  updateSubmissionReviewDetails(
+    submissionId: string,
+    body: Record<string, unknown>,
+  ): Observable<{ success: boolean; message: string; data: unknown }> {
+    return this.http.patch<{ success: boolean; message: string; data: unknown }>(
+      `${this.base}/approvals/${submissionId}/review-details`,
+      body,
+    );
   }
 
   requestReupload(submissionId: string, body: { reuploadNote?: string }): Observable<unknown> {

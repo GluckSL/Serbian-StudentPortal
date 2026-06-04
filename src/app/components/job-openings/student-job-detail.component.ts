@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { JobOpening, JobOpeningService } from '../../services/job-opening.service';
 import { JobApplyFormComponent } from './job-apply-form.component';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-student-job-detail',
@@ -44,17 +43,8 @@ export class StudentJobDetailComponent implements OnInit {
     });
   }
 
-  goBack(): void {
-    this.router.navigate(['/student/job-openings']);
-  }
-
   logoUrl(): string {
-    if (!this.job) return '';
-    const url = String(this.job.companyLogoUrl || '').trim();
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+    return this.jobService.mediaFullUrl(this.job?.companyLogoUrl);
   }
 
   companyInitial(): string {
@@ -79,17 +69,5 @@ export class StudentJobDetailComponent implements OnInit {
 
   onApplyClosed(): void {
     this.showApplyForm = false;
-  }
-
-  share(): void {
-    if (!this.job || !navigator.share) return;
-    navigator.share({
-      title: `${this.job.companyName} — ${this.job.jobTitle}`,
-      url: window.location.href
-    }).catch(() => {});
-  }
-
-  canShare(): boolean {
-    return typeof navigator !== 'undefined' && !!navigator.share;
   }
 }

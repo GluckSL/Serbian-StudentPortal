@@ -6,8 +6,27 @@
   --jp-stop-0: #0b3e52;
   --jp-stop-50: #5759c7;
   --jp-stop-100: #0e1d6b;
-  --jp-gradient: linear-gradient(135deg, #0b3e52 0%, #5759c7 50%, #0e1d6b 100%);
+  /* Buttons — horizontal glow (dark teal → indigo highlight → royal blue) */
+  --jp-gradient: linear-gradient(
+    90deg,
+    #0b3e52 0%,
+    #2f4f7a 22%,
+    #5759c7 42%,
+    #6d6fd4 52%,
+    #3d4f9a 72%,
+    #0e1d6b 100%
+  );
   --jp-gradient-hero: linear-gradient(120deg, #0b3e52 0%, #5759c7 50%, #0e1d6b 100%);
+  /* Job card surface — #B8D1D6 · #4564BA · #428082 */
+  --jp-gradient-card: linear-gradient(135deg, #b8d1d6 0%, #4564ba 50%, #428082 100%);
+  /* Apply button only */
+  --jp-gradient-apply: linear-gradient(
+    90deg,
+    rgba(2, 0, 36, 1) 0%,
+    rgba(9, 121, 110, 1) 65%,
+    rgba(0, 212, 255, 1) 100%
+  );
+  --jp-apply-fallback: #020024;
   --jp-accent: #5759c7;
   --jp-accent-dark: #0e1d6b;
   --jp-accent-deep: #0b3e52;

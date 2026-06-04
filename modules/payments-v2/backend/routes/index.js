@@ -48,6 +48,7 @@ router.post('/overdue/detect', requireFinanceAdmin, ctrl.runOverdueDetection);
 // ─── Admin: Approval Queue ───────────────────────────────────────────────────
 router.get('/approvals', approvalCtrl.getApprovalQueue);
 router.get('/approvals/:submissionId', approvalCtrl.getSubmissionDetail);
+router.patch('/approvals/:submissionId/review-details', requireFinanceAdmin, approvalCtrl.updateReviewDetails);
 router.patch('/approvals/:submissionId/approve', requireFinanceAdmin, approvalCtrl.approvePayment);
 router.patch('/approvals/:submissionId/reject', requireFinanceAdmin, approvalCtrl.rejectPayment);
 router.patch('/approvals/:submissionId/reupload', requireFinanceAdmin, approvalCtrl.requestReupload);

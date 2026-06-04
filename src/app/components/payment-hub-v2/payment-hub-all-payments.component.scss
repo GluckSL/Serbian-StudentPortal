@@ -134,6 +134,8 @@
 }
 
 .ph-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   border-radius: 20px !important;
   overflow: hidden;
   border: 1px solid rgba(226, 232, 240, 0.95) !important;
@@ -175,18 +177,27 @@
 }
 
 .ph-card-body {
-  padding: 4px 18px 10px !important;
-}
-
-.ph-currency-row {
-  display: flex;
-  justify-content: space-between;
+  display: flex !important;
+  flex-direction: column;
   align-items: center;
-  padding: 5px 0;
-  border-bottom: 1px solid #f1f5f9;
+  justify-content: center;
+  text-align: center;
+  padding: 10px 18px 14px !important;
+  min-height: 72px;
 
-  &:last-child {
-    border-bottom: none;
+  app-payment-currency-totals,
+  app-payment-currency-pending-totals,
+  app-payment-currency-overdue-totals {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  ::ng-deep .ph-currency-row {
+    justify-content: center;
+    width: 100%;
+    max-width: 100%;
   }
 }
 

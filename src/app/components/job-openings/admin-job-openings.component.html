@@ -46,10 +46,34 @@
   </section>
 
   <section class="ajo-section">
-    <h2 class="ajo-section__title">All openings</h2>
+    <h2 class="ajo-section__title">Manage portal listings</h2>
+    <p class="ajo-hint ajo-section__intro">Opening jobs, closed roles, and students placed through Glück.</p>
 
-    <div *ngIf="loading" class="ajo-loading">
-      <div class="ajo-skeleton" *ngFor="let i of [1,2,3]"></div>
+    <nav class="ajo-tabs" aria-label="Admin job portal tabs">
+      <button type="button" class="ajo-tabs__btn" [class.ajo-tabs__btn--active]="adminTab === 'openings'" (click)="setAdminTab('openings')">
+        Opening jobs
+      </button>
+      <button type="button" class="ajo-tabs__btn" [class.ajo-tabs__btn--active]="adminTab === 'closed'" (click)="setAdminTab('closed')">
+        Closed jobs
+      </button>
+      <button type="button" class="ajo-tabs__btn" [class.ajo-tabs__btn--active]="adminTab === 'placements'" (click)="setAdminTab('placements')">
+        Placed students
+      </button>
+    </nav>
+
+    <div class="ajo-tab-panel" *ngIf="adminTab === 'openings'">
+    <div class="ajo-section__head">
+      <div>
+        <p class="ajo-hint" *ngIf="!loading && openings.length > 0">{{ openings.length }} active opening(s)</p>
+      </div>
+      <button type="button" class="ajo-btn ajo-btn--accent ajo-btn--sm" (click)="openCreate()">
+        <span class="material-icons">add</span>
+        New opening
+      </button>
+    </div>
+
+    <div *ngIf="loading" class="ajo-table-loading">
+      <div class="ajo-table-skeleton" *ngFor="let i of [1,2,3,4]"></div>
     </div>
 
     <div class="ajo-empty-card" *ngIf="!loading && openings.length === 0">
@@ -59,39 +83,264 @@
       <button type="button" class="ajo-btn ajo-btn--primary" (click)="openCreate()">Create first opening</button>
     </div>
 
-    <div class="ajo-cards" *ngIf="!loading && openings.length > 0">
-      <article class="ajo-card" *ngFor="let job of openings">
-        <div class="ajo-card__top">
-          <img *ngIf="resolveLogoUrl(job.companyLogoUrl)" class="ajo-card__logo" [src]="resolveLogoUrl(job.companyLogoUrl)" alt="" />
-          <span *ngIf="!resolveLogoUrl(job.companyLogoUrl)" class="ajo-card__logo-fallback">{{ job.companyName.charAt(0) || '?' }}</span>
-          <div class="ajo-card__info">
-            <h3>{{ job.companyName }}</h3>
-            <p class="ajo-card__title">{{ job.jobTitle }}</p>
-          </div>
-          <span
-            class="ajo-status"
-            [class.ajo-status--live]="job.isPublished && job.isActive"
-            [class.ajo-status--draft]="!job.isPublished"
-            [class.ajo-status--off]="job.isPublished && !job.isActive"
-          >
-            {{ !job.isPublished ? 'Draft' : !job.isActive ? 'Inactive' : 'Live' }}
-          </span>
-        </div>
-        <p class="ajo-card__meta">
-          {{ job.jobType }} · {{ job.experience || '—' }} · {{ job.location || '—' }}
-        </p>
-        <p class="ajo-card__deadline">Apply before {{ formatDate(job.applyBefore) }}</p>
-        <div class="ajo-card__actions">
-          <button type="button" class="ajo-btn ajo-btn--apps" (click)="viewApplications(job)">
-            <span class="material-icons">groups</span>
-            Applications ({{ job.applicationCount || 0 }})
-          </button>
-          <button type="button" class="ajo-btn" (click)="openEdit(job)">Edit</button>
-          <button type="button" class="ajo-btn ajo-btn--danger" (click)="remove(job)">Delete</button>
-        </div>
-      </article>
+    <div class="ajo-table-wrap" *ngIf="!loading && openings.length > 0">
+      <table class="ajo-table">
+        <thead>
+          <tr>
+            <th class="ajo-table__col-company">Company</th>
+            <th class="ajo-table__col-role">Role</th>
+            <th class="ajo-table__col-details">Details</th>
+            <th class="ajo-table__col-deadline">Apply before</th>
+            <th class="ajo-table__col-apps">Applications</th>
+            <th class="ajo-table__col-status">Status</th>
+            <th class="ajo-table__col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let job of openings" class="ajo-table__row">
+            <td class="ajo-table__company" data-label="Company">
+              <div class="ajo-table__company-cell">
+                <img
+                  *ngIf="resolveLogoUrl(job.companyLogoUrl)"
+                  class="ajo-table__logo"
+                  [src]="resolveLogoUrl(job.companyLogoUrl)"
+                  [alt]="job.companyName"
+                />
+                <span *ngIf="!resolveLogoUrl(job.companyLogoUrl)" class="ajo-table__logo-fallback">
+                  {{ job.companyName.charAt(0) || '?' }}
+                </span>
+                <span class="ajo-table__company-name">{{ job.companyName }}</span>
+              </div>
+            </td>
+            <td class="ajo-table__role" data-label="Role">{{ job.jobTitle }}</td>
+            <td class="ajo-table__details" data-label="Details">
+              <span class="ajo-table__detail-line">{{ job.jobType || '—' }}</span>
+              <span class="ajo-table__detail-sub">{{ job.experience || '—' }} · {{ job.location || '—' }}</span>
+            </td>
+            <td class="ajo-table__deadline" data-label="Apply before">{{ formatDeadline(job.applyBefore) }}</td>
+            <td class="ajo-table__apps" data-label="Applications">
+              <button type="button" class="ajo-btn ajo-btn--apps ajo-btn--sm" (click)="viewApplications(job)">
+                <span class="material-icons">groups</span>
+                {{ job.applicationCount || 0 }}
+              </button>
+            </td>
+            <td class="ajo-table__status" data-label="Status">
+              <span
+                class="ajo-status"
+                [class.ajo-status--live]="job.isPublished && job.isActive"
+                [class.ajo-status--draft]="!job.isPublished"
+                [class.ajo-status--off]="job.isPublished && !job.isActive"
+              >
+                {{ !job.isPublished ? 'Draft' : !job.isActive ? 'Inactive' : 'Live' }}
+              </span>
+            </td>
+            <td class="ajo-table__actions" data-label="Actions">
+              <div class="ajo-table__action-group">
+                <button type="button" class="ajo-btn ajo-btn--sm" (click)="openEdit(job)">Edit</button>
+                <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="remove(job)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    </div>
+
+    <div class="ajo-tab-panel" *ngIf="adminTab === 'closed'">
+      <div class="ajo-section__head">
+        <p class="ajo-hint">Shown on the student <strong>Closed jobs</strong> tab.</p>
+        <button type="button" class="ajo-btn ajo-btn--accent ajo-btn--sm" (click)="openClosedCreate()">
+          <span class="material-icons">add</span>
+          Add closed job
+        </button>
+      </div>
+      <div *ngIf="closedLoading" class="ajo-table-loading">
+        <div class="ajo-table-skeleton" *ngFor="let i of [1,2,3]"></div>
+      </div>
+      <div class="ajo-empty-card" *ngIf="!closedLoading && closedList.length === 0">
+        <span class="material-icons">history</span>
+        <p>No closed jobs yet</p>
+        <button type="button" class="ajo-btn ajo-btn--primary" (click)="openClosedCreate()">Add closed job</button>
+      </div>
+      <div class="ajo-table-wrap" *ngIf="!closedLoading && closedList.length > 0">
+        <table class="ajo-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Role</th>
+              <th>Details</th>
+              <th>Closed</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of closedList">
+              <td>
+                <div class="ajo-table__company-cell">
+                  <img *ngIf="resolveLogoUrl(row.companyLogoUrl)" class="ajo-table__logo" [src]="resolveLogoUrl(row.companyLogoUrl)" alt="" />
+                  <span *ngIf="!resolveLogoUrl(row.companyLogoUrl)" class="ajo-table__logo-fallback">{{ row.companyName.charAt(0) }}</span>
+                  <span class="ajo-table__company-name">{{ row.companyName }}</span>
+                </div>
+              </td>
+              <td class="ajo-table__role">{{ row.jobTitle }}</td>
+              <td>
+                <span class="ajo-table__detail-line">{{ row.jobType }}</span>
+                <span class="ajo-table__detail-sub">{{ row.experience || '—' }} · {{ row.location || '—' }}</span>
+              </td>
+              <td class="ajo-table__deadline">{{ formatDeadline(row.closedAt) }}</td>
+              <td>
+                <span class="ajo-status" [class.ajo-status--live]="row.isPublished" [class.ajo-status--draft]="!row.isPublished">
+                  {{ row.isPublished ? 'Published' : 'Hidden' }}
+                </span>
+              </td>
+              <td>
+                <div class="ajo-table__action-group">
+                  <button type="button" class="ajo-btn ajo-btn--sm" (click)="openClosedEdit(row)">Edit</button>
+                  <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="removeClosed(row)">Delete</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="ajo-tab-panel" *ngIf="adminTab === 'placements'">
+      <div class="ajo-section__head">
+        <p class="ajo-hint">Success stories on the student <strong>Placed via Glück</strong> tab.</p>
+        <button type="button" class="ajo-btn ajo-btn--accent ajo-btn--sm" (click)="openPlacementCreate()">
+          <span class="material-icons">add</span>
+          Add placement
+        </button>
+      </div>
+      <div *ngIf="placementsLoading" class="ajo-table-loading">
+        <div class="ajo-table-skeleton" *ngFor="let i of [1,2,3]"></div>
+      </div>
+      <div class="ajo-empty-card" *ngIf="!placementsLoading && placementsList.length === 0">
+        <span class="material-icons">celebration</span>
+        <p>No placements yet</p>
+        <button type="button" class="ajo-btn ajo-btn--primary" (click)="openPlacementCreate()">Add placement</button>
+      </div>
+      <div class="ajo-table-wrap" *ngIf="!placementsLoading && placementsList.length > 0">
+        <table class="ajo-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Company</th>
+              <th>Role</th>
+              <th>Package</th>
+              <th>Placed</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of placementsList">
+              <td>
+                <strong>{{ row.studentName }}</strong>
+                <span class="ajo-table__detail-sub" *ngIf="row.batch || row.studentRegNo">{{ row.batch }} {{ row.studentRegNo }}</span>
+              </td>
+              <td>
+                <div class="ajo-table__company-cell">
+                  <img *ngIf="resolveLogoUrl(row.companyLogoUrl)" class="ajo-table__logo" [src]="resolveLogoUrl(row.companyLogoUrl)" alt="" />
+                  <span *ngIf="!resolveLogoUrl(row.companyLogoUrl)" class="ajo-table__logo-fallback">{{ row.companyName.charAt(0) }}</span>
+                  <span class="ajo-table__company-name">{{ row.companyName }}</span>
+                </div>
+              </td>
+              <td class="ajo-table__role">{{ row.jobTitle }}</td>
+              <td>{{ row.packageLabel || '—' }}</td>
+              <td class="ajo-table__deadline">{{ formatDeadline(row.placedAt) }}</td>
+              <td>
+                <span class="ajo-status" [class.ajo-status--live]="row.isPublished" [class.ajo-status--draft]="!row.isPublished">
+                  {{ row.isPublished ? 'Published' : 'Hidden' }}
+                </span>
+              </td>
+              <td>
+                <div class="ajo-table__action-group">
+                  <button type="button" class="ajo-btn ajo-btn--sm" (click)="openPlacementEdit(row)">Edit</button>
+                  <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="removePlacement(row)">Delete</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
+
+  <div class="ajo-modal-backdrop" *ngIf="showClosedForm" (click)="closeClosedForm()"></div>
+  <div class="ajo-modal ajo-modal--compact" *ngIf="showClosedForm" role="dialog" (click)="$event.stopPropagation()">
+    <header class="ajo-modal__head">
+      <div class="ajo-modal__head-text">
+        <h2>{{ editingClosedId ? 'Edit closed job' : 'Add closed job' }}</h2>
+      </div>
+      <button type="button" class="ajo-modal__close" (click)="closeClosedForm()" aria-label="Close"><span class="material-icons">close</span></button>
+    </header>
+    <div class="ajo-modal__body">
+      <div class="ajo-form-grid ajo-form-grid--2">
+        <label class="ajo-field"><span class="ajo-field__label">Company <em>*</em></span><input type="text" [(ngModel)]="closedForm.companyName" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Job title <em>*</em></span><input type="text" [(ngModel)]="closedForm.jobTitle" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Job type</span>
+          <select [(ngModel)]="closedForm.jobType"><option *ngFor="let t of jobTypes" [value]="t">{{ t }}</option></select>
+        </label>
+        <label class="ajo-field"><span class="ajo-field__label">Closed date <em>*</em></span><input type="datetime-local" [(ngModel)]="closedForm.closedAt" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Experience</span><input type="text" [(ngModel)]="closedForm.experience" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Location</span><input type="text" [(ngModel)]="closedForm.location" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Salary</span><input type="text" [(ngModel)]="closedForm.salary" /></label>
+        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Skills (comma-separated)</span><input type="text" [(ngModel)]="closedForm.skillsText" /></label>
+        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Note</span><input type="text" [(ngModel)]="closedForm.note" placeholder="e.g. Position filled" /></label>
+      </div>
+      <div class="ajo-logo-row">
+        <label class="ajo-file-btn"><span class="material-icons">upload</span> Logo<input type="file" accept="image/*" (change)="onClosedLogoSelected($event)" hidden /></label>
+        <img *ngIf="closedLogoPreview" class="ajo-logo-preview" [src]="closedLogoPreview" alt="" />
+      </div>
+      <label class="ajo-switch">
+        <input type="checkbox" [(ngModel)]="closedForm.isPublished" />
+        <span class="ajo-switch__ui"></span>
+        <span class="ajo-switch__text"><strong>Published</strong><small>Visible on student Closed jobs tab</small></span>
+      </label>
+    </div>
+    <footer class="ajo-modal__foot">
+      <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closeClosedForm()">Cancel</button>
+      <button type="button" class="ajo-btn ajo-btn--submit" [disabled]="savingClosed" (click)="saveClosed()">{{ savingClosed ? 'Saving…' : 'Save' }}</button>
+    </footer>
+  </div>
+
+  <div class="ajo-modal-backdrop" *ngIf="showPlacementForm" (click)="closePlacementForm()"></div>
+  <div class="ajo-modal ajo-modal--compact" *ngIf="showPlacementForm" role="dialog" (click)="$event.stopPropagation()">
+    <header class="ajo-modal__head">
+      <div class="ajo-modal__head-text">
+        <h2>{{ editingPlacementId ? 'Edit placement' : 'Add placement' }}</h2>
+      </div>
+      <button type="button" class="ajo-modal__close" (click)="closePlacementForm()" aria-label="Close"><span class="material-icons">close</span></button>
+    </header>
+    <div class="ajo-modal__body">
+      <div class="ajo-form-grid ajo-form-grid--2">
+        <label class="ajo-field"><span class="ajo-field__label">Student name <em>*</em></span><input type="text" [(ngModel)]="placementForm.studentName" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Reg. no.</span><input type="text" [(ngModel)]="placementForm.studentRegNo" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Batch</span><input type="text" [(ngModel)]="placementForm.batch" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Placed date <em>*</em></span><input type="datetime-local" [(ngModel)]="placementForm.placedAt" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Company <em>*</em></span><input type="text" [(ngModel)]="placementForm.companyName" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Role <em>*</em></span><input type="text" [(ngModel)]="placementForm.jobTitle" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Package</span><input type="text" [(ngModel)]="placementForm.packageLabel" placeholder="e.g. 12 LPA" /></label>
+        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Story</span><textarea rows="3" [(ngModel)]="placementForm.story"></textarea></label>
+      </div>
+      <div class="ajo-logo-row">
+        <label class="ajo-file-btn"><span class="material-icons">upload</span> Company logo<input type="file" accept="image/*" (change)="onPlacementLogoSelected($event)" hidden /></label>
+        <img *ngIf="placementLogoPreview" class="ajo-logo-preview" [src]="placementLogoPreview" alt="" />
+      </div>
+      <label class="ajo-switch">
+        <input type="checkbox" [(ngModel)]="placementForm.isPublished" />
+        <span class="ajo-switch__ui"></span>
+        <span class="ajo-switch__text"><strong>Published</strong><small>Visible on student Placed via Glück tab</small></span>
+      </label>
+    </div>
+    <footer class="ajo-modal__foot">
+      <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closePlacementForm()">Cancel</button>
+      <button type="button" class="ajo-btn ajo-btn--submit" [disabled]="savingPlacement" (click)="savePlacement()">{{ savingPlacement ? 'Saving…' : 'Save' }}</button>
+    </footer>
+  </div>
 
   <div class="ajo-modal-backdrop" *ngIf="showForm" (click)="closeForm()"></div>
   <div class="ajo-modal" *ngIf="showForm" role="dialog" aria-labelledby="ajo-modal-title" (click)="$event.stopPropagation()">

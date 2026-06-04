@@ -234,40 +234,125 @@
   border-top: 1px solid var(--ajo-border);
 }
 
-.ajo-section__title {
-  margin-bottom: 16px;
+.ajo-section__intro {
+  margin: 0 0 14px;
 }
 
-.ajo-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.ajo-card {
+.ajo-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  background: #f8fafc;
   border: 1px solid var(--ajo-border);
   border-radius: 12px;
-  padding: 16px;
-  background: #fafbfc;
-  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.ajo-card:hover {
-  border-color: var(--jp-accent-hover);
-  box-shadow: 0 4px 12px var(--jp-shadow-sm);
+.ajo-tabs__btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 14px !important;
+  border: none !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: var(--ajo-muted) !important;
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
 }
 
-.ajo-card__top {
+.ajo-tabs__btn--active {
+  background: var(--jp-gradient-hero) !important;
+  color: #fff !important;
+}
+
+.ajo-tab-panel {
+  margin-top: 4px;
+}
+
+.ajo-modal--compact {
+  width: min(640px, 94vw);
+}
+
+.ajo-section__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 18px;
 }
 
-.ajo-card__logo,
-.ajo-card__logo-fallback {
-  width: 44px;
-  height: 44px;
+.ajo-section__head .ajo-section__title {
+  margin-bottom: 4px;
+}
+
+.ajo-btn--sm {
+  padding: 7px 12px;
+  font-size: 0.82rem;
+}
+
+.ajo-btn--sm .material-icons {
+  font-size: 17px;
+}
+
+.ajo-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ajo-border);
+  border-radius: 12px;
+  background: #fafbfc;
+}
+
+.ajo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.ajo-table thead {
+  background: linear-gradient(180deg, #f1f5f9 0%, #e8eef4 100%);
+}
+
+.ajo-table th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ajo-muted);
+  border-bottom: 1px solid var(--ajo-border);
+  white-space: nowrap;
+}
+
+.ajo-table td {
+  padding: 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--ajo-border);
+  color: var(--ajo-text);
+  background: #fff;
+}
+
+.ajo-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ajo-table__row:hover td {
+  background: #f8fafc;
+}
+
+.ajo-table__company-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 140px;
+}
+
+.ajo-table__logo,
+.ajo-table__logo-fallback {
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   object-fit: contain;
   background: #fff;
@@ -275,33 +360,80 @@
   flex-shrink: 0;
 }
 
-.ajo-card__logo-fallback {
+.ajo-table__logo-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   color: var(--jp-accent);
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
-.ajo-card__info {
-  flex: 1;
-  min-width: 0;
-}
-
-.ajo-card__info h3 {
-  margin: 0;
-  font-size: 0.9rem;
+.ajo-table__company-name {
   font-weight: 600;
+  color: var(--ajo-text);
+}
+
+.ajo-table__role {
+  font-weight: 700;
+  min-width: 120px;
+}
+
+.ajo-table__details {
+  min-width: 160px;
+}
+
+.ajo-table__detail-line {
+  display: block;
+  font-weight: 600;
+  color: var(--ajo-text);
+}
+
+.ajo-table__detail-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
   color: var(--ajo-muted);
 }
 
-.ajo-card__title {
-  margin: 2px 0 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--ajo-text);
-  line-height: 1.3;
+.ajo-table__deadline {
+  font-size: 0.82rem;
+  color: var(--ajo-muted);
+  white-space: nowrap;
+}
+
+.ajo-table__apps {
+  text-align: center;
+}
+
+.ajo-table__status {
+  white-space: nowrap;
+}
+
+.ajo-table__action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.ajo-table-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ajo-table-skeleton {
+  height: 52px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: ajo-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ajo-pulse {
+  0%, 100% { background-position: 100% 0; }
+  50% { background-position: -100% 0; }
 }
 
 .ajo-status {
@@ -331,21 +463,6 @@
   color: #b91c1c;
 }
 
-.ajo-card__meta,
-.ajo-card__deadline {
-  margin: 0 0 6px;
-  font-size: 0.8rem;
-  color: var(--ajo-muted);
-}
-
-.ajo-card__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--ajo-border);
-}
-
 .ajo-empty-card {
   text-align: center;
   padding: 48px 24px;
@@ -371,25 +488,6 @@
   display: block;
   margin-bottom: 16px;
   font-size: 0.88rem;
-}
-
-.ajo-loading {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.ajo-skeleton {
-  height: 160px;
-  border-radius: 12px;
-  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-  background-size: 200% 100%;
-  animation: ajo-shimmer 1.2s infinite;
-}
-
-@keyframes ajo-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
 }
 
 .ajo-modal-backdrop {

@@ -3,9 +3,9 @@
     <div>
       <h2 class="pad-title">{{ title }}</h2>
       <p class="pad-sub" *ngIf="studentName">
-        Review details for <strong>{{ studentName }}</strong> before confirming.
+        Edit details for <strong>{{ studentName }}</strong>, then approve or reject.
       </p>
-      <p class="pad-sub" *ngIf="!studentName">Review payment details before confirming.</p>
+      <p class="pad-sub" *ngIf="!studentName">Edit payment details before confirming.</p>
     </div>
     <button mat-icon-button type="button" (click)="cancel()" aria-label="Close">
       <mat-icon>close</mat-icon>
@@ -15,48 +15,86 @@
   <mat-divider></mat-divider>
 
   <div class="pad-body">
-    <dl class="pad-details">
-      <div class="pad-detail-row">
-        <dt>Student email</dt>
-        <dd>{{ studentEmail || '—' }}</dd>
-      </div>
-      <div class="pad-detail-row">
-        <dt>Account holder name</dt>
-        <dd>{{ accountHolderDisplay }}</dd>
-      </div>
-      <div class="pad-detail-row">
-        <dt>Payment date</dt>
-        <dd>{{ data.paymentDateLabel || '—' }}</dd>
-      </div>
-      <div class="pad-detail-row pad-detail-row--amount">
-        <dt>Declared amount</dt>
-        <dd class="pad-amount-cell">
-          <ng-container *ngIf="!amountEditing">
-            <span class="pad-amount-value">{{ currency }} {{ fmt(creditedAmount) }}</span>
-            <button
-              type="button"
-              class="pad-edit-btn"
-              (click)="toggleAmountEdit()"
-              matTooltip="Change amount to credit on approval">
-              <mat-icon>edit</mat-icon>
-              Edit
-            </button>
-          </ng-container>
-          <div *ngIf="amountEditing" class="pad-amount-edit">
-            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-amount-field">
-              <mat-label>Credit amount ({{ currency }})</mat-label>
-              <input matInput type="number" min="1" [(ngModel)]="creditedAmount" />
-            </mat-form-field>
-            <button type="button" mat-stroked-button (click)="toggleAmountEdit()">Done</button>
-          </div>
-        </dd>
-      </div>
-    </dl>
-
-    <p class="pad-hint">
-      The student declared <strong>{{ currency }} {{ fmt(declaredAmount) }}</strong>.
-      Approve to credit the amount (confirmation email sent). Reject only after entering a reason below (rejection email sent).
+    <p class="pad-email-line" *ngIf="studentEmail">
+      <mat-icon>email</mat-icon>
+      {{ studentEmail }}
     </p>
+
+    <section class="pad-section">
+      <h3 class="pad-section__title">Student</h3>
+      <div class="pad-form-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Batch</mat-label>
+          <input matInput [(ngModel)]="batch" placeholder="e.g. Batch 36" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Level</mat-label>
+          <mat-select [(ngModel)]="level">
+            <mat-option value="">—</mat-option>
+            <mat-option *ngFor="let lv of levels" [value]="lv">{{ lv }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="pad-section">
+      <h3 class="pad-section__title">Payment request</h3>
+      <div class="pad-form-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Payment type</mat-label>
+          <mat-select [(ngModel)]="paymentType">
+            <mat-option *ngFor="let pt of paymentTypes" [value]="pt.value">{{ pt.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2" *ngIf="showCustomType">
+          <mat-label>{{ customTypeLabel }}</mat-label>
+          <input matInput [(ngModel)]="customType" placeholder="e.g. A1" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Currency</mat-label>
+          <mat-select [(ngModel)]="currency">
+            <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Request total</mat-label>
+          <input matInput type="number" min="0" [(ngModel)]="requestAmount" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Balance after credit</mat-label>
+          <input matInput type="number" min="0" [(ngModel)]="balance" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Request remarks</mat-label>
+          <input matInput [(ngModel)]="requestRemarks" placeholder="Optional note on the request" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="pad-section">
+      <h3 class="pad-section__title">Submission (proof)</h3>
+      <div class="pad-form-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Credit amount ({{ currency }})</mat-label>
+          <input matInput type="number" min="1" [(ngModel)]="creditedAmount" />
+          <mat-hint>Amount to approve and credit</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Payment date</mat-label>
+          <input matInput type="datetime-local" [(ngModel)]="paymentDate" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Account holder name</mat-label>
+          <input matInput [(ngModel)]="accountHolderName" placeholder="Name on bank / UPI" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Payment method</mat-label>
+          <mat-select [(ngModel)]="paymentMethod">
+            <mat-option *ngFor="let m of paymentMethods" [value]="m">{{ m }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </section>
 
     <mat-form-field appearance="outline" class="pad-field" subscriptSizing="dynamic">
       <mat-label>Admin remarks (optional)</mat-label>

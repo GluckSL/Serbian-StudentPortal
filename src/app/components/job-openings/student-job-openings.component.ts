@@ -3,14 +3,17 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import {
+  JobClosedListing,
   JobOpening,
   JobOpeningService,
+  JobPlacementHighlight,
   JobPortalStats,
   JobType,
   LocationType
 } from '../../services/job-opening.service';
 import { JobApplyFormComponent } from './job-apply-form.component';
-import { environment } from '../../../environments/environment';
+
+export type JobPortalTab = 'openings' | 'closed' | 'placements';
 
 @Component({
   selector: 'app-student-job-openings',
@@ -20,10 +23,19 @@ import { environment } from '../../../environments/environment';
   styleUrls: ['./job-portal-theme.css', './student-job-openings.component.css']
 })
 export class StudentJobOpeningsComponent implements OnInit {
+  activeTab: JobPortalTab = 'openings';
   loading = true;
   jobs: JobOpening[] = [];
   stats: JobPortalStats | null = null;
   appliedIds = new Set<string>();
+
+  closedLoading = false;
+  closedJobs: JobClosedListing[] = [];
+  closedLoaded = false;
+
+  placementsLoading = false;
+  placements: JobPlacementHighlight[] = [];
+  placementsLoaded = false;
 
   filterJobType = '';
   filterExperience = '';
@@ -43,10 +55,16 @@ export class StudentJobOpeningsComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.load();
+    this.loadOpenings();
   }
 
-  load(): void {
+  setTab(tab: JobPortalTab): void {
+    this.activeTab = tab;
+    if (tab === 'closed' && !this.closedLoaded) this.loadClosed();
+    if (tab === 'placements' && !this.placementsLoaded) this.loadPlacements();
+  }
+
+  loadOpenings(): void {
     this.loading = true;
     this.jobService.getForStudent(this.viewAppliedOnly).subscribe({
       next: (res) => {
@@ -58,6 +76,36 @@ export class StudentJobOpeningsComponent implements OnInit {
       error: () => {
         this.jobs = [];
         this.loading = false;
+      }
+    });
+  }
+
+  loadClosed(): void {
+    this.closedLoading = true;
+    this.jobService.getClosedForStudent().subscribe({
+      next: (res) => {
+        this.closedJobs = res?.data || [];
+        this.closedLoaded = true;
+        this.closedLoading = false;
+      },
+      error: () => {
+        this.closedJobs = [];
+        this.closedLoading = false;
+      }
+    });
+  }
+
+  loadPlacements(): void {
+    this.placementsLoading = true;
+    this.jobService.getPlacementsForStudent().subscribe({
+      next: (res) => {
+        this.placements = res?.data || [];
+        this.placementsLoaded = true;
+        this.placementsLoading = false;
+      },
+      error: () => {
+        this.placements = [];
+        this.placementsLoading = false;
       }
     });
   }
@@ -93,15 +141,19 @@ export class StudentJobOpeningsComponent implements OnInit {
   }
 
   onAppliedToggle(): void {
-    this.load();
+    this.loadOpenings();
   }
 
-  logoUrl(job: JobOpening): string {
-    const url = String(job.companyLogoUrl || '').trim();
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    const base = environment.apiUrl.replace(/\/api\/?$/, '');
-    return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+  logoUrl(job: { companyLogoUrl?: string }): string {
+    return this.jobService.mediaFullUrl(job.companyLogoUrl);
+  }
+
+  closedLogoUrl(job: JobClosedListing): string {
+    return this.logoUrl(job);
+  }
+
+  placementLogoUrl(p: JobPlacementHighlight): string {
+    return this.logoUrl(p);
   }
 
   companyInitial(name: string): string {
@@ -137,6 +189,14 @@ export class StudentJobOpeningsComponent implements OnInit {
   formatApplyBefore(dateStr: string): string {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  formatClosedAt(dateStr: string): string {
+    return this.formatApplyBefore(dateStr);
+  }
+
+  formatPlacedAt(dateStr: string): string {
+    return this.formatApplyBefore(dateStr);
   }
 }

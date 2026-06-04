@@ -2,29 +2,21 @@
   <div *ngIf="loading" class="jo-detail-loading">Loading...</div>
 
   <article class="jo-detail-card" *ngIf="!loading && job">
-      <header class="jo-detail-header">
-        <button type="button" class="jo-detail-back" (click)="goBack()" aria-label="Back">
-          <span class="material-icons">arrow_back</span>
-        </button>
-
-        <div class="jo-detail-brand">
-          <img *ngIf="logoUrl()" class="jo-detail-logo" [src]="logoUrl()" [alt]="job.companyName" />
-          <span *ngIf="!logoUrl()" class="jo-detail-logo-fallback">{{ companyInitial() }}</span>
-          <div>
-            <h1 class="jo-detail-title">{{ job.companyName }} — {{ job.jobTitle }}</h1>
-            <button *ngIf="canShare()" type="button" class="jo-detail-share" (click)="share()">
-              <span class="material-icons">share</span>
-            </button>
-          </div>
+    <header class="jo-detail-hero">
+      <div class="jo-detail-hero__row">
+        <div class="jo-detail-hero__main">
+          <img *ngIf="logoUrl()" class="jo-detail-logo jo-detail-logo--hero" [src]="logoUrl()" [alt]="job.companyName" />
+          <span *ngIf="!logoUrl()" class="jo-detail-logo-fallback jo-detail-logo--hero">{{ companyInitial() }}</span>
+          <h1 class="jo-detail-title jo-detail-title--hero">{{ job.companyName }} — {{ job.jobTitle }}</h1>
         </div>
 
-        <div class="jo-detail-apply-wrap">
-          <p class="jo-detail-deadline" *ngIf="job.applyBefore">
+        <div class="jo-detail-apply-wrap jo-detail-apply-wrap--hero">
+          <p class="jo-detail-deadline jo-detail-deadline--hero" *ngIf="job.applyBefore">
             Apply before {{ formatApplyBefore(job.applyBefore) }}
           </p>
           <button
             type="button"
-            class="jo-detail-apply"
+            class="jo-detail-apply jo-detail-apply--hero"
             [class.jo-detail-apply--applied]="applied"
             [disabled]="applied"
             (click)="apply()"
@@ -33,8 +25,10 @@
             <span class="material-icons">{{ applied ? 'check_circle' : 'edit_note' }}</span>
           </button>
         </div>
-      </header>
+      </div>
+    </header>
 
+    <div class="jo-detail-body">
       <div class="jo-detail-meta">
         <span *ngIf="job.experience" class="jo-detail-meta-item">
           <span class="material-icons">schedule</span>{{ job.experience }}
@@ -64,6 +58,7 @@
         <h2>Job Description</h2>
         <div class="jo-detail-desc" [innerHTML]="job.description"></div>
       </section>
+    </div>
   </article>
 
   <app-job-apply-form

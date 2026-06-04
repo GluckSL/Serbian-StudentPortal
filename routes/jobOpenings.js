@@ -6,8 +6,11 @@ const sanitizeHtml = require('sanitize-html');
 const JobOpening = require('../models/JobOpening');
 const JobApplication = require('../models/JobApplication');
 const JobPortalSettings = require('../models/JobPortalSettings');
+const JobClosedListing = require('../models/JobClosedListing');
+const JobPlacementHighlight = require('../models/JobPlacementHighlight');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 
 const router = express.Router();
 
@@ -16,20 +19,10 @@ if (!fs.existsSync(logosUploadDir)) {
   fs.mkdirSync(logosUploadDir, { recursive: true });
 }
 
-const logoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, logosUploadDir),
-  filename: (_req, file, cb) => {
-    const safeName = String(file.originalname || 'logo')
-      .replace(/[^a-zA-Z0-9._-]/g, '_')
-      .slice(0, 80);
-    cb(null, `${Date.now()}_${safeName}`);
-  }
-});
-
 const LOGO_MAX_BYTES = 5 * 1024 * 1024;
 
 const logoUpload = multer({
-  storage: logoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: LOGO_MAX_BYTES },
   fileFilter: (_req, file, cb) => {
     const ok = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'].includes(file.mimetype);
@@ -185,6 +178,56 @@ async function buildPortalStats() {
     heroTitle: settings.heroTitle || 'Get Hired with Glück',
     heroSubtitle: settings.heroSubtitle || ''
   };
+}
+
+const LOGO_R2_REQUIRED_MSG =
+  'Company logo upload requires Cloudflare R2. Set R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET (or R2_BUCKET_NAME), R2_PUBLIC_BASE_URL, and restart the server.';
+
+function sanitizeLogoFilename(name) {
+  const raw = String(name || 'logo');
+  const ext = path.extname(raw).toLowerCase();
+  const allowedExt = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif'];
+  const safeExt = allowedExt.includes(ext) ? ext : '.png';
+  const base = path
+    .basename(raw, ext)
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 72);
+  return `${base || 'logo'}${safeExt}`;
+}
+
+/**
+ * Upload company logo buffer to R2 at job-openings/logos/…
+ * Returns public https URL, or null if R2 is missing or upload fails.
+ */
+async function persistCompanyLogo(file) {
+  if (!file?.buffer?.length) return '';
+
+  if (!isExerciseR2Configured()) {
+    console.warn('[job-openings] R2 is not configured — cannot upload company logo');
+    return null;
+  }
+
+  try {
+    const safeName = sanitizeLogoFilename(file.originalname);
+    const contentType = file.mimetype || 'image/png';
+    const key = `job-openings/logos/${Date.now()}_${safeName}`;
+    const publicUrl = await putExerciseMediaBuffer(file.buffer, key, contentType);
+    if (!String(publicUrl || '').startsWith('http')) {
+      console.error('[job-openings] R2 logo upload returned invalid URL', { key, publicUrl });
+      return null;
+    }
+    return publicUrl;
+  } catch (err) {
+    console.error('[job-openings] R2 logo upload failed:', err.message);
+    return null;
+  }
+}
+
+if (isExerciseR2Configured()) {
+  console.log('[job-openings] Company logo uploads → Cloudflare R2 (job-openings/logos/)');
+} else {
+  console.warn('[job-openings] R2 not configured — new company logo uploads will be rejected');
 }
 
 function unlinkLogoIfLocal(fileUrl) {
@@ -343,6 +386,38 @@ router.get('/student', verifyToken, checkRole('STUDENT'), async (req, res) => {
   }
 });
 
+function publishedStudentExtraFilter() {
+  return { isPublished: true };
+}
+
+// ── Student: closed job listings (must be before /student/:id) ───────────
+router.get('/student/closed', verifyToken, checkRole('STUDENT'), async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const list = await JobClosedListing.find(publishedStudentExtraFilter())
+      .sort({ sortOrder: -1, closedAt: -1, createdAt: -1 })
+      .lean();
+    res.json({ success: true, data: list });
+  } catch (error) {
+    console.error('job-openings GET /student/closed failed', error);
+    res.status(500).json({ success: false, message: 'Failed to load closed jobs.' });
+  }
+});
+
+// ── Student: placement highlights (must be before /student/:id) ────────────
+router.get('/student/placements', verifyToken, checkRole('STUDENT'), async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const list = await JobPlacementHighlight.find(publishedStudentExtraFilter())
+      .sort({ sortOrder: -1, placedAt: -1, createdAt: -1 })
+      .lean();
+    res.json({ success: true, data: list });
+  } catch (error) {
+    console.error('job-openings GET /student/placements failed', error);
+    res.status(500).json({ success: false, message: 'Failed to load placements.' });
+  }
+});
+
 // ── Student: single opening ───────────────────────────────────────────────
 router.get('/student/:id', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
@@ -432,6 +507,252 @@ router.post(
   }
 );
 
+function parseClosedPlacementBody(body) {
+  return {
+    companyName: String(body.companyName || '').trim(),
+    companyLogoUrl: String(body.companyLogoUrl || '').trim(),
+    jobTitle: String(body.jobTitle || '').trim(),
+    jobType: String(body.jobType || 'Full Time'),
+    experience: String(body.experience || '').trim(),
+    location: String(body.location || '').trim(),
+    salary: String(body.salary || '').trim(),
+    skills: parseSkills(body.skills),
+    isPublished: String(body.isPublished || 'true') !== 'false',
+    sortOrder: Number(body.sortOrder) || 0
+  };
+}
+
+// ── Admin: closed listings CRUD ────────────────────────────────────────────
+router.get('/admin/closed', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const list = await JobClosedListing.find()
+      .sort({ closedAt: -1, createdAt: -1 })
+      .populate('createdBy', 'name role')
+      .lean();
+    res.json({ success: true, data: list });
+  } catch (error) {
+    console.error('job-openings GET /admin/closed failed', error);
+    res.status(500).json({ success: false, message: 'Failed to load closed jobs.' });
+  }
+});
+
+router.post(
+  '/admin/closed',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  runLogoUpload,
+  async (req, res) => {
+    try {
+      const base = parseClosedPlacementBody(req.body);
+      const closedAtRaw = String(req.body.closedAt || '').trim();
+      const closedAt = closedAtRaw ? new Date(closedAtRaw) : null;
+      if (!base.companyName || !base.jobTitle) {
+        return res.status(400).json({ success: false, message: 'Company name and job title are required.' });
+      }
+      if (!closedAt || Number.isNaN(closedAt.getTime())) {
+        return res.status(400).json({ success: false, message: 'Valid closed date is required.' });
+      }
+      let companyLogoUrl = base.companyLogoUrl;
+      if (req.file) {
+        companyLogoUrl = await persistCompanyLogo(req.file);
+        if (!companyLogoUrl) {
+          return res.status(503).json({ success: false, message: LOGO_R2_REQUIRED_MSG });
+        }
+      }
+      const doc = await JobClosedListing.create({
+        ...base,
+        companyLogoUrl,
+        closedAt,
+        note: String(req.body.note || '').trim().slice(0, 500),
+        createdBy: req.user.id
+      });
+      res.status(201).json({ success: true, data: doc });
+    } catch (error) {
+      console.error('job-openings POST /admin/closed failed', error);
+      res.status(500).json({ success: false, message: error.message || 'Failed to create closed job.' });
+    }
+  }
+);
+
+router.put(
+  '/admin/closed/:id',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  runLogoUpload,
+  async (req, res) => {
+    try {
+      const doc = await JobClosedListing.findById(req.params.id);
+      if (!doc) return res.status(404).json({ success: false, message: 'Not found.' });
+      const prevLogo = doc.companyLogoUrl;
+      if (req.body.companyName !== undefined) doc.companyName = String(req.body.companyName).trim();
+      if (req.body.jobTitle !== undefined) doc.jobTitle = String(req.body.jobTitle).trim();
+      if (req.body.jobType !== undefined) doc.jobType = String(req.body.jobType);
+      if (req.body.experience !== undefined) doc.experience = String(req.body.experience).trim();
+      if (req.body.location !== undefined) doc.location = String(req.body.location).trim();
+      if (req.body.salary !== undefined) doc.salary = String(req.body.salary).trim();
+      if (req.body.skills !== undefined) doc.skills = parseSkills(req.body.skills);
+      if (req.body.note !== undefined) doc.note = String(req.body.note).trim().slice(0, 500);
+      if (req.body.closedAt !== undefined) {
+        const d = new Date(String(req.body.closedAt));
+        if (!Number.isNaN(d.getTime())) doc.closedAt = d;
+      }
+      if (req.body.isPublished !== undefined) doc.isPublished = String(req.body.isPublished) !== 'false';
+      if (req.body.sortOrder !== undefined) doc.sortOrder = Number(req.body.sortOrder) || 0;
+      if (req.file) {
+        const nextLogo = await persistCompanyLogo(req.file);
+        if (!nextLogo) return res.status(503).json({ success: false, message: LOGO_R2_REQUIRED_MSG });
+        doc.companyLogoUrl = nextLogo;
+        if (prevLogo && prevLogo !== doc.companyLogoUrl) unlinkLogoIfLocal(prevLogo);
+      } else if (req.body.companyLogoUrl !== undefined) {
+        const nextUrl = String(req.body.companyLogoUrl).trim();
+        if (nextUrl !== prevLogo) {
+          doc.companyLogoUrl = nextUrl;
+          if (prevLogo) unlinkLogoIfLocal(prevLogo);
+        }
+      }
+      await doc.save();
+      res.json({ success: true, data: doc });
+    } catch (error) {
+      console.error('job-openings PUT /admin/closed/:id failed', error);
+      res.status(500).json({ success: false, message: error.message || 'Failed to update.' });
+    }
+  }
+);
+
+router.delete('/admin/closed/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const doc = await JobClosedListing.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, message: 'Not found.' });
+    if (doc.companyLogoUrl) unlinkLogoIfLocal(doc.companyLogoUrl);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('job-openings DELETE /admin/closed/:id failed', error);
+    res.status(500).json({ success: false, message: 'Failed to delete.' });
+  }
+});
+
+// ── Admin: placement highlights CRUD ───────────────────────────────────────
+router.get('/admin/placements', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const list = await JobPlacementHighlight.find()
+      .sort({ placedAt: -1, createdAt: -1 })
+      .populate('createdBy', 'name role')
+      .lean();
+    res.json({ success: true, data: list });
+  } catch (error) {
+    console.error('job-openings GET /admin/placements failed', error);
+    res.status(500).json({ success: false, message: 'Failed to load placements.' });
+  }
+});
+
+router.post(
+  '/admin/placements',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  runLogoUpload,
+  async (req, res) => {
+    try {
+      const studentName = String(req.body.studentName || '').trim();
+      const companyName = String(req.body.companyName || '').trim();
+      const jobTitle = String(req.body.jobTitle || '').trim();
+      const placedAtRaw = String(req.body.placedAt || '').trim();
+      const placedAt = placedAtRaw ? new Date(placedAtRaw) : null;
+      if (!studentName || !companyName || !jobTitle) {
+        return res.status(400).json({
+          success: false,
+          message: 'Student name, company, and role are required.'
+        });
+      }
+      if (!placedAt || Number.isNaN(placedAt.getTime())) {
+        return res.status(400).json({ success: false, message: 'Valid placed date is required.' });
+      }
+      let companyLogoUrl = String(req.body.companyLogoUrl || '').trim();
+      if (req.file) {
+        companyLogoUrl = await persistCompanyLogo(req.file);
+        if (!companyLogoUrl) {
+          return res.status(503).json({ success: false, message: LOGO_R2_REQUIRED_MSG });
+        }
+      }
+      const doc = await JobPlacementHighlight.create({
+        studentName,
+        studentRegNo: String(req.body.studentRegNo || '').trim(),
+        batch: String(req.body.batch || '').trim(),
+        companyName,
+        companyLogoUrl,
+        jobTitle,
+        placedAt,
+        packageLabel: String(req.body.packageLabel || '').trim(),
+        story: String(req.body.story || '').trim().slice(0, 2000),
+        isPublished: String(req.body.isPublished || 'true') !== 'false',
+        sortOrder: Number(req.body.sortOrder) || 0,
+        createdBy: req.user.id
+      });
+      res.status(201).json({ success: true, data: doc });
+    } catch (error) {
+      console.error('job-openings POST /admin/placements failed', error);
+      res.status(500).json({ success: false, message: error.message || 'Failed to create placement.' });
+    }
+  }
+);
+
+router.put(
+  '/admin/placements/:id',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  runLogoUpload,
+  async (req, res) => {
+    try {
+      const doc = await JobPlacementHighlight.findById(req.params.id);
+      if (!doc) return res.status(404).json({ success: false, message: 'Not found.' });
+      const prevLogo = doc.companyLogoUrl;
+      if (req.body.studentName !== undefined) doc.studentName = String(req.body.studentName).trim();
+      if (req.body.studentRegNo !== undefined) doc.studentRegNo = String(req.body.studentRegNo).trim();
+      if (req.body.batch !== undefined) doc.batch = String(req.body.batch).trim();
+      if (req.body.companyName !== undefined) doc.companyName = String(req.body.companyName).trim();
+      if (req.body.jobTitle !== undefined) doc.jobTitle = String(req.body.jobTitle).trim();
+      if (req.body.packageLabel !== undefined) doc.packageLabel = String(req.body.packageLabel).trim();
+      if (req.body.story !== undefined) doc.story = String(req.body.story).trim().slice(0, 2000);
+      if (req.body.placedAt !== undefined) {
+        const d = new Date(String(req.body.placedAt));
+        if (!Number.isNaN(d.getTime())) doc.placedAt = d;
+      }
+      if (req.body.isPublished !== undefined) doc.isPublished = String(req.body.isPublished) !== 'false';
+      if (req.body.sortOrder !== undefined) doc.sortOrder = Number(req.body.sortOrder) || 0;
+      if (req.file) {
+        const nextLogo = await persistCompanyLogo(req.file);
+        if (!nextLogo) return res.status(503).json({ success: false, message: LOGO_R2_REQUIRED_MSG });
+        doc.companyLogoUrl = nextLogo;
+        if (prevLogo && prevLogo !== doc.companyLogoUrl) unlinkLogoIfLocal(prevLogo);
+      } else if (req.body.companyLogoUrl !== undefined) {
+        const nextUrl = String(req.body.companyLogoUrl).trim();
+        if (nextUrl !== prevLogo) {
+          doc.companyLogoUrl = nextUrl;
+          if (prevLogo) unlinkLogoIfLocal(prevLogo);
+        }
+      }
+      await doc.save();
+      res.json({ success: true, data: doc });
+    } catch (error) {
+      console.error('job-openings PUT /admin/placements/:id failed', error);
+      res.status(500).json({ success: false, message: error.message || 'Failed to update.' });
+    }
+  }
+);
+
+router.delete('/admin/placements/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const doc = await JobPlacementHighlight.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, message: 'Not found.' });
+    if (doc.companyLogoUrl) unlinkLogoIfLocal(doc.companyLogoUrl);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('job-openings DELETE /admin/placements/:id failed', error);
+    res.status(500).json({ success: false, message: 'Failed to delete.' });
+  }
+});
+
 // ── Admin: get one ─────────────────────────────────────────────────────────
 router.get('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
@@ -465,7 +786,13 @@ router.post(
 
       let companyLogoUrl = String(req.body.companyLogoUrl || '').trim();
       if (req.file) {
-        companyLogoUrl = `/uploads/job-openings/${req.file.filename}`;
+        companyLogoUrl = await persistCompanyLogo(req.file);
+        if (!companyLogoUrl) {
+          return res.status(503).json({
+            success: false,
+            message: LOGO_R2_REQUIRED_MSG
+          });
+        }
       }
 
       const opening = await JobOpening.create({
@@ -525,7 +852,14 @@ router.put(
       if (req.body.isActive !== undefined) opening.isActive = String(req.body.isActive) !== 'false';
 
       if (req.file) {
-        opening.companyLogoUrl = `/uploads/job-openings/${req.file.filename}`;
+        const nextLogoUrl = await persistCompanyLogo(req.file);
+        if (!nextLogoUrl) {
+          return res.status(503).json({
+            success: false,
+            message: LOGO_R2_REQUIRED_MSG
+          });
+        }
+        opening.companyLogoUrl = nextLogoUrl;
         if (prevLogo && prevLogo !== opening.companyLogoUrl) unlinkLogoIfLocal(prevLogo);
       } else if (req.body.companyLogoUrl !== undefined) {
         const nextUrl = String(req.body.companyLogoUrl).trim();

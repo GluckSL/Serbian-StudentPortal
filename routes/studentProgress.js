@@ -34,6 +34,72 @@ const {
 const ClassRecording = require('../models/ClassRecording');
 const User = require('../models/User');
 const SessionRecord = require('../models/SessionRecord');
+const { resolveJourneyPayments } = require('../modules/payments-v2/backend/utils/journeyPaymentsHelper');
+
+const escapeRegexEmail = (str) => String(str || '').replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+async function buildLegacyJourneyPayments(studentId, email, { includeTotalInvoiced = false } = {}) {
+  const StudentPayment = require('../models/StudentPayment');
+  const Invoice = require('../models/Invoice');
+  const normalizedEmail = String(email || '').toLowerCase();
+  const sp = await StudentPayment.findOne({
+    $or: [{ studentId }, { email: normalizedEmail }],
+  }).populate('payments.recordedBy', 'name').lean();
+  if (sp) {
+    const paidInvoices = await Invoice.find({
+      customer_email: { $regex: new RegExp('^' + escapeRegexEmail(normalizedEmail) + '$', 'i') },
+      payment_status: 'paid',
+    }).lean();
+    const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+    const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
+    const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
+    const base = {
+      source: 'ledger',
+      currency: sp.currency || 'LKR',
+      totalPackageAmount: sp.totalPackageAmount || 0,
+      totalAmount: sp.totalPackageAmount || 0,
+      paidAmount: livePaid,
+      pendingAmount: liveBalance > 0 ? liveBalance : 0,
+      payments: (sp.payments || []).map((p) => ({
+        amount: p.amount,
+        date: p.date,
+        method: p.method || '',
+        note: p.note || '',
+        recordedBy: p.recordedBy?.name || '',
+      })),
+      invoices: [],
+    };
+    if (includeTotalInvoiced) base.totalInvoiced = sp.totalInvoiced || 0;
+    return base;
+  }
+  const invoices = await Invoice.find({ customer_email: email }).sort({ created_at: 1 }).lean();
+  const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+  const paidAmount = invoices
+    .filter((i) => i.payment_status === 'paid')
+    .reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+  const base = {
+    source: 'invoices',
+    currency: 'LKR',
+    totalPackageAmount: totalAmount,
+    totalAmount,
+    paidAmount,
+    pendingAmount: totalAmount - paidAmount,
+    payments: [],
+    invoices: invoices.map((inv) => ({
+      invoiceNumber: inv.invoice_number,
+      description: inv.items?.map((i) => i.description).join(', ') || '',
+      invoiceDate: inv.invoice_date,
+      dueDate: inv.due_date,
+      subtotal: inv.subtotal || 0,
+      tax: inv.total_tax || 0,
+      totalPayable: inv.total_payable || 0,
+      paymentStatus: inv.payment_status || 'unpaid',
+      paymentDate: inv.payment_date || '',
+    })),
+  };
+  if (includeTotalInvoiced) base.totalInvoiced = totalAmount;
+  return base;
+}
 const StudentPayment = require('../models/StudentPayment');
 const VisaTracking = require('../models/VisaTracking');
 
@@ -464,67 +530,12 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
       documents, docsSummary,
       feedbackByLevel, history: history.slice(0, 20),
-      payments: await (async () => {
-        // Try StudentPayment (CSV-imported ledger) first — match by studentId OR email
-        const sp = await StudentPayment.findOne({
-          $or: [
-            { studentId: studentId },
-            { email: student.email.toLowerCase() }
-          ]
-        }).populate('payments.recordedBy', 'name').lean();
-        if (sp) {
-          // Also check for paid invoices to add to the total
-          const paidInvoices = await Invoice.find({
-            customer_email: { $regex: new RegExp('^' + student.email.toLowerCase().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$' + '&') + '$', 'i') },
-            payment_status: 'paid'
-          }).lean();
-          const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-          const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
-          const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
-          return {
-            source: 'ledger',
-            currency: sp.currency || 'LKR',
-            totalPackageAmount: sp.totalPackageAmount || 0,
-            totalInvoiced: sp.totalInvoiced || 0,
-            totalAmount: sp.totalPackageAmount || 0,
-            paidAmount: livePaid,
-            pendingAmount: liveBalance > 0 ? liveBalance : 0,
-            payments: (sp.payments || []).map(p => ({
-              amount: p.amount,
-              date: p.date,
-              method: p.method || '',
-              note: p.note || '',
-              recordedBy: p.recordedBy?.name || ''
-            })),
-            invoices: []
-          };
-        }
-        // Fallback to Invoice collection
-        const invoices = await Invoice.find({ customer_email: student.email }).sort({ created_at: 1 }).lean();
-        const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-        const paidAmount = invoices.filter(i => i.payment_status === 'paid').reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-        return {
-          source: 'invoices',
-          currency: 'LKR',
-          totalPackageAmount: totalAmount,
-          totalInvoiced: totalAmount,
-          totalAmount,
-          paidAmount,
-          pendingAmount: totalAmount - paidAmount,
-          payments: [],
-          invoices: invoices.map((inv, idx) => ({
-            invoiceNumber: inv.invoice_number,
-            description: inv.items?.map(i => i.description).join(', ') || '',
-            invoiceDate: inv.invoice_date,
-            dueDate: inv.due_date,
-            subtotal: inv.subtotal || 0,
-            tax: inv.total_tax || 0,
-            totalPayable: inv.total_payable || 0,
-            paymentStatus: inv.payment_status || 'unpaid',
-            paymentDate: inv.payment_date || ''
-          }))
-        };
-      })(),
+      payments: await resolveJourneyPayments(
+        studentId,
+        student.email,
+        student.level,
+        (id, em) => buildLegacyJourneyPayments(id, em, { includeTotalInvoiced: true }),
+      ),
       visa: await (async () => {
         const PORTAL_STEP_NAMES = [
           'Application Filed', 'Preliminary Review', 'Embassy Review',
@@ -1251,36 +1262,12 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
     if (student.enrollmentDate) history.push({ date: student.enrollmentDate, title: 'Enrollment confirmed', desc: 'Student enrolled in ' + (student.servicesOpted || 'program') + '.' });
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Payments
-    const escapeRegex = (str) => str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\' + '$' + '&');
-    const payments = await (async () => {
-      const sp = await StudentPayment.findOne({
-        $or: [{ studentId: studentId }, { email: student.email.toLowerCase() }]
-      }).populate('payments.recordedBy', 'name').lean();
-      if (sp) {
-        const paidInvoices = await Invoice.find({
-          customer_email: { $regex: new RegExp('^' + escapeRegex(student.email.toLowerCase()) + '$', 'i') },
-          payment_status: 'paid'
-        }).lean();
-        const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-        const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
-        const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
-        return {
-          source: 'ledger', currency: sp.currency || 'LKR',
-          totalPackageAmount: sp.totalPackageAmount || 0, totalAmount: sp.totalPackageAmount || 0,
-          paidAmount: livePaid, pendingAmount: liveBalance > 0 ? liveBalance : 0,
-          payments: (sp.payments || []).map(p => ({ amount: p.amount, date: p.date, method: p.method || '', note: p.note || '', recordedBy: p.recordedBy?.name || '' })),
-          invoices: []
-        };
-      }
-      const invoices = await Invoice.find({ customer_email: student.email }).sort({ created_at: 1 }).lean();
-      const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-      const paidAmount = invoices.filter(i => i.payment_status === 'paid').reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-      return {
-        source: 'invoices', currency: 'LKR', totalPackageAmount: totalAmount, totalAmount, paidAmount, pendingAmount: totalAmount - paidAmount, payments: [],
-        invoices: invoices.map(inv => ({ invoiceNumber: inv.invoice_number, description: inv.items?.map(i => i.description).join(', ') || '', invoiceDate: inv.invoice_date, dueDate: inv.due_date, subtotal: inv.subtotal || 0, tax: inv.total_tax || 0, totalPayable: inv.total_payable || 0, paymentStatus: inv.payment_status || 'unpaid', paymentDate: inv.payment_date || '' }))
-      };
-    })();
+    const payments = await resolveJourneyPayments(
+      studentId,
+      student.email,
+      student.level,
+      (id, em) => buildLegacyJourneyPayments(id, em),
+    );
 
     // Visa
     const PORTAL_STEP_NAMES = ['Application Filed', 'Preliminary Review', 'Embassy Review', 'Embassy Feedback', 'Changes / Appointment', 'Final Submission & Decision'];

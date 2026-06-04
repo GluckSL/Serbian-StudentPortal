@@ -400,9 +400,10 @@ async function runOcrForStudent(studentId) {
 }
 
 let batchRunning = false;
+const activityLog = require('./googleSheetActivityLog');
 
 async function runOcrForAllStudents() {
-  if (batchRunning) {
+  if (batchRunning || activityLog.isJobRunning()) {
     throw new Error('Batch OCR is already in progress. Please wait for it to complete.');
   }
   batchRunning = true;
@@ -411,28 +412,44 @@ async function runOcrForAllStudents() {
     const students = await User.find({ role: 'STUDENT', isTestAccount: { $ne: true } }).select('_id regNo name email').lean();
     const total = students.length;
     log(`Starting batch OCR for ${total} students`);
+    activityLog.startJob('ocr', total, `Starting OCR for ${total} students…`);
     const results = [];
+    const logEvery = Math.max(1, Math.floor(total / 25));
     for (let i = 0; i < total; i++) {
       const student = students[i];
       try {
-        const result = await runOcrForStudent(student._id);
+        await runOcrForStudent(student._id);
         results.push({ studentId: student._id, regNo: student.regNo, status: 'ok' });
         log(`[${i + 1}/${total}] Done: ${student.regNo || student._id}`);
       } catch (err) {
         results.push({ studentId: student._id, regNo: student.regNo, status: 'error', error: err.message });
         console.error(`[OCR] [${i + 1}/${total}] Failed: ${student.regNo || student._id} — ${err.message}`);
       }
+      if ((i + 1) % logEvery === 0 || i === total - 1) {
+        const ok = results.filter((r) => r.status === 'ok').length;
+        const failed = results.length - ok;
+        activityLog.setJobProgress(
+          i + 1,
+          total,
+          `OCR ${i + 1} / ${total} — ✓ ${ok}${failed ? `, ✗ ${failed}` : ''}`,
+        );
+      }
     }
     const ok = results.filter(r => r.status === 'ok').length;
+    const failed = total - ok;
     log(`Batch complete: ${ok}/${total} done`);
+    activityLog.endJob(failed === 0, `✓ OCR complete: ${ok} / ${total} succeeded${failed ? `, ${failed} failed` : ''}`);
     return results;
+  } catch (err) {
+    activityLog.endJob(false, `✗ OCR batch failed: ${err.message}`);
+    throw err;
   } finally {
     batchRunning = false;
   }
 }
 
 async function runOcrForSelectedStudents(studentIds) {
-  if (batchRunning) {
+  if (batchRunning || activityLog.isJobRunning()) {
     throw new Error('Batch OCR is already in progress. Please wait for it to complete.');
   }
   batchRunning = true;
@@ -440,6 +457,7 @@ async function runOcrForSelectedStudents(studentIds) {
   try {
     const total = studentIds.length;
     log(`Starting selected OCR for ${total} students`);
+    activityLog.startJob('ocr', total, `Starting OCR for ${total} selected students…`);
     const results = [];
     for (let i = 0; i < total; i++) {
       const id = studentIds[i];
@@ -447,14 +465,21 @@ async function runOcrForSelectedStudents(studentIds) {
         const result = await runOcrForStudent(id);
         results.push({ studentId: id, regNo: result.regNo, status: 'ok' });
         log(`[${i + 1}/${total}] Done: ${result.regNo || id}`);
+        activityLog.setJobProgress(i + 1, total, `✓ ${result.regNo || id} (${i + 1} / ${total})`);
       } catch (err) {
         results.push({ studentId: id, regNo: '', status: 'error', error: err.message });
         console.error(`[OCR] [${i + 1}/${total}] Failed: ${id} — ${err.message}`);
+        activityLog.append('error', `✗ ${id}: ${err.message}`);
       }
     }
     const ok = results.filter(r => r.status === 'ok').length;
+    const failed = total - ok;
     log(`Selected batch complete: ${ok}/${total} done`);
+    activityLog.endJob(failed === 0, `✓ Selected OCR: ${ok} / ${total} succeeded${failed ? `, ${failed} failed` : ''}`);
     return results;
+  } catch (err) {
+    activityLog.endJob(false, `✗ Selected OCR failed: ${err.message}`);
+    throw err;
   } finally {
     batchRunning = false;
   }

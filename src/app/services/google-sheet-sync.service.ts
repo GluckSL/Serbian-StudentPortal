@@ -2,6 +2,18 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+export interface SheetConnectionInfo {
+  connected?: boolean;
+  configured?: boolean;
+  spreadsheetTitle?: string;
+  expectedTitle?: string;
+  titleMatch?: boolean;
+  worksheetTitle?: string;
+  spreadsheetUrl?: string;
+  headerCount?: number;
+  openInBrowserHint?: string;
+}
+
 export interface SyncStatus {
   totalStudents: number;
   ocrCompleted: number;
@@ -9,12 +21,18 @@ export interface SyncStatus {
   syncedToSheet: number;
   lastSyncTime: string | null;
   sheetConfigured: boolean;
+  sheetConnection?: SheetConnectionInfo | null;
+  sheetConnectionError?: string | null;
+  expectedSpreadsheetTitle?: string | null;
 }
 
 export interface SyncResult {
   totalStudents: number;
   synced: number;
+  rowsWritten?: number;
   errors: { studentId: string; regNo: string; error: string }[];
+  sheet?: SheetConnectionInfo;
+  worksheetTitle?: string;
 }
 
 export interface OcrResult {
@@ -71,6 +89,31 @@ export interface StudentBrief {
   email: string;
 }
 
+export type ActivityLogLevel = 'info' | 'success' | 'error' | 'warn';
+
+export interface ActivityLogEntry {
+  id: number;
+  at: string;
+  level: ActivityLogLevel;
+  message: string;
+}
+
+export interface ActivityJob {
+  type: 'sync' | 'ocr';
+  running: boolean;
+  current: number;
+  total: number;
+  startedAt: string;
+  finishedAt?: string;
+  message?: string;
+}
+
+export interface ActivityResponse {
+  job: ActivityJob | null;
+  logs: ActivityLogEntry[];
+  lastId: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class GoogleSheetSyncService {
   constructor(private http: HttpClient) {}
@@ -116,5 +159,13 @@ export class GoogleSheetSyncService {
 
   runOcrSelected(studentIds: string[]): Observable<OcrBatchSummary> {
     return this.http.post<OcrBatchSummary>('/api/google-sheet/ocr/selected', { studentIds });
+  }
+
+  getActivity(since = 0): Observable<ActivityResponse> {
+    return this.http.get<ActivityResponse>(`/api/google-sheet/activity?since=${since}`);
+  }
+
+  clearActivityLog(): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>('/api/google-sheet/activity/clear', {});
   }
 }

@@ -73,6 +73,39 @@ export interface StudentJobListResponse {
   appliedIds: string[];
 }
 
+export interface JobClosedListing {
+  _id: string;
+  companyName: string;
+  companyLogoUrl?: string;
+  jobTitle: string;
+  jobType: JobType;
+  experience: string;
+  location: string;
+  salary: string;
+  skills: string[];
+  closedAt: string;
+  note?: string;
+  isPublished?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+}
+
+export interface JobPlacementHighlight {
+  _id: string;
+  studentName: string;
+  studentRegNo?: string;
+  batch?: string;
+  companyName: string;
+  companyLogoUrl?: string;
+  jobTitle: string;
+  placedAt: string;
+  packageLabel?: string;
+  story?: string;
+  isPublished?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class JobOpeningService {
   private readonly apiUrl = `${environment.apiUrl}/job-openings`;
@@ -137,6 +170,78 @@ export class JobOpeningService {
     return this.http.delete<{ success: boolean }>(`${this.apiUrl}/${id}`, { withCredentials: true });
   }
 
+  getClosedForStudent(): Observable<{ success: boolean; data: JobClosedListing[] }> {
+    return this.http.get<{ success: boolean; data: JobClosedListing[] }>(
+      `${this.apiUrl}/student/closed`,
+      { withCredentials: true, params: { _ts: String(Date.now()) } }
+    );
+  }
+
+  getPlacementsForStudent(): Observable<{ success: boolean; data: JobPlacementHighlight[] }> {
+    return this.http.get<{ success: boolean; data: JobPlacementHighlight[] }>(
+      `${this.apiUrl}/student/placements`,
+      { withCredentials: true, params: { _ts: String(Date.now()) } }
+    );
+  }
+
+  getAdminClosed(): Observable<{ success: boolean; data: JobClosedListing[] }> {
+    return this.http.get<{ success: boolean; data: JobClosedListing[] }>(
+      `${this.apiUrl}/admin/closed`,
+      { withCredentials: true, params: { _ts: String(Date.now()) } }
+    );
+  }
+
+  createClosed(formData: FormData): Observable<{ success: boolean; data: JobClosedListing }> {
+    return this.http.post<{ success: boolean; data: JobClosedListing }>(
+      `${this.apiUrl}/admin/closed`,
+      formData,
+      { withCredentials: true }
+    );
+  }
+
+  updateClosed(id: string, formData: FormData): Observable<{ success: boolean; data: JobClosedListing }> {
+    return this.http.put<{ success: boolean; data: JobClosedListing }>(
+      `${this.apiUrl}/admin/closed/${id}`,
+      formData,
+      { withCredentials: true }
+    );
+  }
+
+  deleteClosed(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/admin/closed/${id}`, {
+      withCredentials: true
+    });
+  }
+
+  getAdminPlacements(): Observable<{ success: boolean; data: JobPlacementHighlight[] }> {
+    return this.http.get<{ success: boolean; data: JobPlacementHighlight[] }>(
+      `${this.apiUrl}/admin/placements`,
+      { withCredentials: true, params: { _ts: String(Date.now()) } }
+    );
+  }
+
+  createPlacement(formData: FormData): Observable<{ success: boolean; data: JobPlacementHighlight }> {
+    return this.http.post<{ success: boolean; data: JobPlacementHighlight }>(
+      `${this.apiUrl}/admin/placements`,
+      formData,
+      { withCredentials: true }
+    );
+  }
+
+  updatePlacement(id: string, formData: FormData): Observable<{ success: boolean; data: JobPlacementHighlight }> {
+    return this.http.put<{ success: boolean; data: JobPlacementHighlight }>(
+      `${this.apiUrl}/admin/placements/${id}`,
+      formData,
+      { withCredentials: true }
+    );
+  }
+
+  deletePlacement(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.apiUrl}/admin/placements/${id}`, {
+      withCredentials: true
+    });
+  }
+
   getForStudent(appliedOnly = false): Observable<StudentJobListResponse> {
     return this.http.get<StudentJobListResponse>(`${this.apiUrl}/student`, {
       withCredentials: true,
@@ -166,11 +271,16 @@ export class JobOpeningService {
     );
   }
 
-  resumeFullUrl(path: string): string {
-    const url = String(path || '').trim();
+  /** Resolve stored logo/resume URL (R2 https or local /uploads). */
+  mediaFullUrl(pathOrUrl?: string): string {
+    const url = String(pathOrUrl || '').trim();
     if (!url) return '';
-    if (url.startsWith('http')) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     const base = environment.apiUrl.replace(/\/api\/?$/, '');
     return `${base}${url.startsWith('/') ? url : `/${url}`}`;
+  }
+
+  resumeFullUrl(path: string): string {
+    return this.mediaFullUrl(path);
   }
 }
