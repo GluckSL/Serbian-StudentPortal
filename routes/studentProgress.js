@@ -16,6 +16,7 @@ const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const MeetingLink = require('../models/MeetingLink');
+const BatchConfig = require('../models/BatchConfig');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { BATCH_TYPE_NEW, normalizeBatchType } = require('../utils/batchType');
@@ -613,6 +614,11 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     if (!student) return res.status(404).json({ message: 'Student not found' });
     const currentDay = student.currentCourseDay || 1;
 
+    const batchConfig = student.batch
+      ? await BatchConfig.findOne({ batchName: student.batch }).select('journeyLength').lean()
+      : null;
+    const journeyLength = batchConfig?.journeyLength || 200;
+
     const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
     const minDay = range === 'weekly' ? Math.max(1, currentDay - 6) : 1;
     const weekAgo = new Date();
@@ -628,6 +634,7 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
       if (!a.exerciseId?.courseDay) return range === 'overall';
       return a.exerciseId.courseDay >= minDay;
     });
+    const completedExerciseIds = new Set(exercisesWithData.map(a => String(a.exerciseId._id)));
 
     const journeyKeys = allStudentBatchStringsForContent(student);
     const meetings = journeyKeys.length
@@ -653,15 +660,16 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     const completedDgModuleIds = await DGSession.distinct('moduleId', {
       studentId: studentOid, completed: true
     });
-    const dgBotCompleted = completedDgModuleIds.length;
     const dgBotTotal = await DGModule.countDocuments({
       isActive: true, visibleToStudents: true,
-      courseDay: { $lte: currentDay, $gte: 1 }
+      courseDay: { $gte: 1 }
     });
     const dgModulesList = await DGModule.find({
       isActive: true, visibleToStudents: true,
-      courseDay: { $lte: currentDay, $gte: 1 }
+      courseDay: { $gte: 1 }
     }).select('title level courseDay').lean();
+    const activeDgModuleIds = new Set(dgModulesList.map(m => String(m._id)));
+    const dgBotCompleted = completedDgModuleIds.filter(id => activeDgModuleIds.has(String(id))).length;
     const completedSet = new Set(completedDgModuleIds.map(id => String(id)));
     const dgBotModules = dgModulesList.map(m => ({
       moduleId: m._id, title: m.title, level: m.level,
@@ -672,12 +680,12 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     const exerciseTotal = await DigitalExercise.countDocuments({
       level: student.level, isActive: true, visibleToStudents: true,
       isDeleted: { $ne: true },
-      courseDay: { $lte: currentDay, $gte: 1 }
+      courseDay: { $gte: 1 }
     });
 
-    const exerciseCompleted = exercisesWithData.length;
+    const exerciseCompleted = completedExerciseIds.size;
     const exercisePct = exerciseTotal
-      ? Math.round((exerciseCompleted / exerciseTotal) * 100)
+      ? Math.min(100, Math.round((exerciseCompleted / exerciseTotal) * 100))
       : (exerciseCompleted ? 100 : 0);
 
     const now = new Date();
@@ -693,7 +701,7 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     ).length;
     const classPct = classTotal ? Math.round((classAttended / classTotal) * 100) : 0;
 
-    const dgBotPct = dgBotTotal ? Math.round((dgBotCompleted / dgBotTotal) * 100) : 0;
+    const dgBotPct = dgBotTotal ? Math.min(100, Math.round((dgBotCompleted / dgBotTotal) * 100)) : 0;
 
     const sessionCount = filteredSessions.length;
     const allScores = [
@@ -701,7 +709,7 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
       ...filteredSessions.map(s => Number(s.summary?.totalScore || 0)).filter(n => n > 0)
     ];
     const avgScore = allScores.length
-      ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+      ? Math.min(100, Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length))
       : 0;
 
     const sessionMinutes = filteredSessions.reduce((s, r) => s + (r.durationMinutes || 0), 0);
@@ -714,8 +722,8 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
 
     const overallDone = classAttended + dgBotCompleted + exerciseCompleted;
     const overallTotal = classTotal + dgBotTotal + exerciseTotal;
-    const overallCompletionPct = classPct + dgBotPct + exercisePct
-      ? Math.round((classPct + dgBotPct + exercisePct) / 3)
+    const overallCompletionPct = overallTotal
+      ? Math.min(100, Math.round((overallDone / overallTotal) * 100))
       : 0;
 
     const kpis = {
@@ -729,17 +737,18 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
 
     const dayMap = {};
     for (let d = minDay; d <= currentDay; d++) {
-      dayMap[d] = { day: d, exercisesDone: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0, sessions: 0, studyMinutes: 0 };
+      dayMap[d] = { day: d, exercisesDone: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0, sessions: 0, studyMinutes: 0, _exIds: new Set() };
     }
     exercisesWithData.forEach(a => {
       const d = a.exerciseId?.courseDay;
       if (d && dayMap[d]) {
-        dayMap[d].exercisesDone += 1;
+        dayMap[d]._exIds.add(String(a.exerciseId._id));
         dayMap[d].totalScore += a.scorePercentage || 0;
         dayMap[d].scoreCount += 1;
         dayMap[d].studyMinutes += Math.round((a.timeSpentSeconds || 0) / 60);
       }
     });
+    Object.values(dayMap).forEach(d => { d.exercisesDone = d._exIds.size; delete d._exIds; });
     filteredMeetings.forEach(m => {
       const d = m.courseDay;
       if (d && dayMap[d]) {
@@ -842,7 +851,7 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
       student: {
         _id: student._id, name: student.name, email: student.email,
         regNo: student.regNo, level: student.level, batch: student.batch,
-        currentCourseDay: currentDay
+        currentCourseDay: currentDay, journeyLength
       },
       kpis, dayBreakdown, categoryPerformance, day6Tests,
       exercises: exerciseRows, liveClasses, sessions: sessionRows, dgBotModules

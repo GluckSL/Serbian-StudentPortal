@@ -1,217 +1,213 @@
-<div class="ph-page">
-  <div class="ph-header">
-    <div>
-      <h2>Performance History</h2>
-      <p>Simple tab-wise tracking for classes, exercises, and DG bot.</p>
-    </div>
-    <div class="ph-header__actions">
-      <div class="ph-switch">
-        <button type="button" [class.on]="rangeMode === 'weekly'" (click)="setRange('weekly')">Weekly</button>
-        <button type="button" [class.on]="rangeMode === 'overall'" (click)="setRange('overall')">Overall</button>
-      </div>
-      <button type="button" class="ph-link-btn" (click)="openJourney()">Open Journey</button>
+<div class="perf-container">
+  <!-- Header -->
+  <div class="perf-header">
+    <h1>Performance History</h1>
+    <div class="range-toggles">
+      <button [class.active]="rangeMode==='overall'" (click)="setRange('overall')">Overall</button>
+      <button [class.active]="rangeMode==='weekly'" (click)="setRange('weekly')">Weekly</button>
     </div>
   </div>
 
-  <div *ngIf="isLoading">
-    <div class="ph-kpis">
-      <div class="ph-kpi ph-skeleton-box" *ngFor="let _ of skeletonRows"></div>
-    </div>
-    <div class="ph-day-table-card">
-      <div class="ph-skeleton-line ph-skeleton-line--lg"></div>
-      <div class="ph-skeleton-line" *ngFor="let _ of skeletonRows"></div>
-    </div>
+  <!-- Loading skeletons -->
+  <div *ngIf="isLoading" class="skeleton-container">
+    <section class="cards-grid">
+      <div class="skeleton-card" *ngFor="let _ of [].constructor(9)"><div class="sk-label"></div><div class="sk-value"></div><div class="sk-sub"></div></div>
+    </section>
+    <section class="charts-row">
+      <div class="skeleton-chart"><div class="sk-title"></div><div class="sk-canvas"></div></div>
+      <div class="skeleton-chart"><div class="sk-title"></div><div class="sk-canvas"></div></div>
+    </section>
+    <section class="tables-section">
+      <div class="skeleton-table"><div class="sk-title"></div><div class="sk-row" *ngFor="let _ of [].constructor(4)"></div></div>
+      <div class="skeleton-table"><div class="sk-title"></div><div class="sk-row" *ngFor="let _ of [].constructor(4)"></div></div>
+      <div class="skeleton-table"><div class="sk-title"></div><div class="sk-row" *ngFor="let _ of [].constructor(4)"></div></div>
+    </section>
   </div>
 
-  <ng-container *ngIf="!isLoading">
-    <div class="ph-kpis">
-      <div class="ph-kpi ph-kpi--overall">
-        <span>Overall completion</span>
-        <strong>{{ overallPct }}%</strong>
-        <small>{{ overallDone }} / {{ overallTotal }}</small>
+  <ng-container *ngIf="data && !isLoading">
+    <!-- ═══ Overall Completion Progress Bar ═══ -->
+    <div class="overall-progress">
+      <div class="progress-header">
+        <span class="progress-label">Overall Completion</span>
+        <span class="progress-value">{{ data.kpis.overallCompletionPct }}%</span>
       </div>
-      <div class="ph-kpi ph-kpi--class">
-        <span>Classes attendance</span>
-        <strong>{{ classPct }}%</strong>
-        <small>{{ classAttended }} / {{ classTotal }}</small>
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="data.kpis.overallCompletionPct"></div>
       </div>
-      <div class="ph-kpi ph-kpi--dg">
-        <span>DG bot done</span>
-        <strong>{{ dgBotPct }}%</strong>
-        <small>{{ dgBotCompleted }} / {{ dgBotTotal }}</small>
-      </div>
-      <div class="ph-kpi ph-kpi--exercise">
-        <span>Exercises done</span>
-        <strong>{{ exercisePct }}%</strong>
-        <small>{{ exerciseCompleted }} / {{ exerciseTotal }}</small>
-      </div>
-      <div class="ph-kpi ph-kpi--session">
-        <span>AI sessions</span>
-        <strong>{{ sessionCount }}</strong>
-        <small>Avg score {{ avgScore }}</small>
-      </div>
-      <div class="ph-kpi ph-kpi--time">
-        <span>Study time</span>
-        <strong>{{ formatMinutes(totalStudyMinutes) }}</strong>
-      </div>
+      <span class="progress-sub">{{ data.kpis.overallDone }} / {{ data.kpis.overallTotal }} done</span>
     </div>
 
-    <div class="ph-day-table-card">
-      <div class="ph-tabs">
-        <button type="button" [class.on]="activeTab === 'classes'" (click)="setTab('classes')">My Class</button>
-        <button type="button" [class.on]="activeTab === 'exercises'" (click)="setTab('exercises')">Exercises</button>
-        <button type="button" [class.on]="activeTab === 'dgBot'" (click)="setTab('dgBot')">DG Bot</button>
+    <!-- ═══ Summary Cards ═══ -->
+    <section class="cards-grid">
+      <div class="summary-card card-day">
+        <span class="card-label">Current Day</span>
+        <span class="card-value">{{ currentDay }}</span>
+        <span class="card-sub">{{ currentDay }} / {{ data.student.journeyLength }} days</span>
       </div>
-      <div class="ph-day-table-head">
-        <h3 *ngIf="activeTab === 'classes'">Class Tracking</h3>
-        <h3 *ngIf="activeTab === 'exercises'">Exercise Tracking</h3>
-        <h3 *ngIf="activeTab === 'dgBot'">DG Bot Tracking</h3>
-        <input class="ph-search" type="text" placeholder="Search..." [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" />
+      <div class="summary-card card-exercises">
+        <span class="card-label">Exercises</span>
+        <span class="card-value">{{ data.kpis.exercisePct }}%</span>
+        <span class="card-sub">{{ data.kpis.exerciseCompleted }} / {{ data.kpis.exerciseTotal }} done</span>
       </div>
-
-      <p class="ph-count" *ngIf="activeTab === 'classes'">{{ classRowCountText() }}</p>
-      <p class="ph-count" *ngIf="activeTab === 'exercises'">{{ exerciseRowCountText() }}</p>
-      <p class="ph-count" *ngIf="activeTab === 'dgBot'">{{ dgBotRowCountText() }}</p>
-
-      <div class="ph-table-wrap">
-        <table *ngIf="activeTab === 'classes'" class="ph-class-table">
-          <thead>
-            <tr>
-              <th>Class</th>
-              <th>Teacher</th>
-              <th>Day</th>
-              <th>Date & Time</th>
-              <th>Attendance</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let row of pagedMeetings">
-              <td>
-                <div class="ph-class-cell">
-                  <span class="ph-class-code">{{ getClassCode(row) }}</span>
-                  <div>
-                    <div class="ph-class-cell__title">{{ row.topic || 'Live class' }}</div>
-                    <div class="ph-class-cell__sub">{{ getClassSubTitle(row) }}</div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <div class="ph-teacher-cell">
-                  <span class="ph-teacher-avatar">{{ getClassCode({ topic: row.teacher?.name || 'T' }) }}</span>
-                  <span>{{ row.teacher?.name || '—' }}</span>
-                </div>
-              </td>
-              <td>{{ getMeetingWeekday(row) }}</td>
-              <td>
-                <div class="ph-date-cell">
-                  <strong>{{ formatDate(row.startTime) }}</strong>
-                  <span>{{ formatMeetingTimeRange(row) }}</span>
-                </div>
-              </td>
-              <td>
-                <div class="ph-attendance-cell">
-                  <span>{{ getAttendancePercent(row) }}%</span>
-                  <i class="ph-attendance-bar"><b [style.width.%]="getAttendancePercent(row)" [class]="'attendance-fill ' + getAttendanceColor(row)"></b></i>
-                </div>
-              </td>
-              <td>
-                <span class="ph-status-pill" [class]="getMeetingStatusClass(row)">
-                  {{ getMeetingStatus(row) }}
-                </span>
-              </td>
-              <td><button class="ph-action-btn" type="button">⋮</button></td>
-            </tr>
-            <tr *ngIf="!pagedMeetings.length">
-              <td colspan="7" class="empty">No classes in this filter.</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table *ngIf="activeTab === 'exercises'" class="ph-ex-table">
-          <thead>
-            <tr>
-              <th>Exercise</th>
-              <th>Level</th>
-              <th>Day</th>
-              <th>Status</th>
-              <th>Score</th>
-              <th>Time Spent</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let ex of pagedExercises">
-              <td>
-                <div class="ph-ex-item">
-                  <span class="ph-ex-item__icon">✎</span>
-                  <span class="ph-ex-item__title">{{ ex.title }}</span>
-                </div>
-              </td>
-              <td><span class="ph-level-chip">{{ ex.level }}</span></td>
-              <td>Day {{ ex.courseDay || '-' }}</td>
-              <td>
-                <span class="ph-status-pill" [class]="getExerciseStatusClass(ex)">
-                  {{ getExerciseStatus(ex) }}
-                </span>
-              </td>
-              <td>{{ formatExerciseScore(ex) }}</td>
-              <td>{{ formatSecondsAsMinutes(ex.studentAttempt?.timeSpentSeconds) }}</td>
-            </tr>
-            <tr *ngIf="!pagedExercises.length">
-              <td colspan="6" class="empty">No exercises in this filter.</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table *ngIf="activeTab === 'dgBot'" class="ph-dg-table">
-          <thead>
-            <tr>
-              <th>Lesson</th>
-              <th>Level</th>
-              <th>Language</th>
-              <th>Day</th>
-              <th>Status</th>
-              <th>Progress</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let mod of pagedDgBotModules">
-              <td>
-                <div class="ph-dg-item">
-                  <span class="ph-dg-item__icon">🤖</span>
-                  <span class="ph-dg-item__title">{{ mod.title }}</span>
-                </div>
-              </td>
-              <td><span class="ph-level-chip">{{ mod.level || '—' }}</span></td>
-              <td>{{ mod.language || 'German' }}</td>
-              <td>Day {{ mod.courseDay || '-' }}</td>
-              <td>
-                <span class="ph-status-pill" [class]="getDgBotStatusClass(mod)">
-                  {{ getDgBotStatus(mod) }}
-                </span>
-              </td>
-              <td>{{ formatDgBotProgress(mod) }}</td>
-              <td>
-                <button class="ph-play-btn" type="button" (click)="openDgBot(mod)">Play</button>
-              </td>
-            </tr>
-            <tr *ngIf="!pagedDgBotModules.length">
-              <td colspan="7" class="empty">No DG bot lessons in this filter.</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="summary-card card-classes">
+        <span class="card-label">Classes</span>
+        <span class="card-value">{{ data.kpis.classPct }}%</span>
+        <span class="card-sub">{{ data.kpis.classAttended }} / {{ data.kpis.classTotal }} attended</span>
       </div>
+      <div class="summary-card card-dgbot">
+        <span class="card-label">DG Bot</span>
+        <span class="card-value">{{ data.kpis.dgBotPct }}%</span>
+        <span class="card-sub">{{ data.kpis.dgBotCompleted }} / {{ data.kpis.dgBotTotal }} modules</span>
+      </div>
+      <div class="summary-card card-score">
+        <span class="card-label">Avg Score</span>
+        <span class="card-value">{{ data.kpis.avgScore }}%</span>
+        <span class="card-sub">across all activities</span>
+      </div>
+      <div class="summary-card card-time">
+        <span class="card-label">Study Time</span>
+        <span class="card-value">{{ formatMinutes(data.kpis.totalStudyMinutes) }}</span>
+        <span class="card-sub">total time</span>
+      </div>
+    </section>
 
-      <div class="ph-pagination">
-        <span class="ph-pagination__meta">Showing {{ showingFromForActiveTab }}-{{ showingToForActiveTab }} of {{ totalRowsForActiveTab }} {{ activeTabLabel }}</span>
-        <div class="ph-pagination__actions">
-          <button type="button" (click)="changeActivePage(-1)" [disabled]="!canGoPrev()">Prev</button>
-          <span>Page {{ currentPage }} / {{ totalPagesForActiveTab }}</span>
-          <button type="button" (click)="changeActivePage(1)" [disabled]="!canGoNext()">Next</button>
+    <!-- ═══ Charts Row ═══ -->
+    <section class="charts-row">
+      <div class="chart-card">
+        <h3>Journey Progress</h3>
+        <div class="chart-wrapper">
+          <canvas baseChart
+            [data]="lineChartData"
+            [options]="lineChartOptions"
+            type="line">
+          </canvas>
         </div>
       </div>
-    </div>
+      <div class="chart-card">
+        <h3>Category Performance</h3>
+        <div class="chart-wrapper">
+          <canvas baseChart
+            [data]="radarChartData"
+            [options]="radarChartOptions"
+            type="radar">
+          </canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Tables (combined in one card with toggles) ═══ -->
+    <section class="tables-section">
+      <div class="table-card">
+        <div class="table-header">
+          <h3>Details</h3>
+          <div class="table-toggles">
+            <button [class.active]="activeTable==='classes'" (click)="activeTable='classes'">Classes</button>
+            <button [class.active]="activeTable==='exercises'" (click)="activeTable='exercises'">Exercises</button>
+            <button [class.active]="activeTable==='dg'" (click)="activeTable='dg'">DG Modules</button>
+            <button [class.active]="activeTable==='tests'" (click)="activeTable='tests'">Tests</button>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <!-- Classes -->
+          <table *ngIf="activeTable==='classes' && endedClasses.length">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Topic</th>
+                <th>Date</th>
+                <th>Duration</th>
+                <th>Attended</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of endedClasses">
+                <td>{{ c.courseDay || '—' }}</td>
+                <td>{{ c.topic }}</td>
+                <td>{{ c.startTime | date:'shortDate' }}</td>
+                <td>{{ c.duration || '—' }}m</td>
+                <td>
+                  <span class="status-dot" [class.green]="c.attended" [class.red]="!c.attended && c.hasEnded" [class.gray]="!c.hasEnded"></span>
+                  {{ c.attended ? 'Yes' : c.hasEnded ? 'No' : 'Upcoming' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Exercises -->
+          <table *ngIf="activeTable==='exercises' && data.exercises.length">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Score</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let e of data.exercises">
+                <td>{{ e.courseDay || '—' }}</td>
+                <td>{{ e.title }}</td>
+                <td>{{ e.category || '—' }}</td>
+                <td>{{ e.scorePercent }}%</td>
+                <td>{{ formatMinutes(e.timeSpentSeconds / 60) }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- DG Modules -->
+          <table *ngIf="activeTable==='dg' && data.dgBotModules?.length">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Title</th>
+                <th>Level</th>
+                <th>Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let m of data.dgBotModules">
+                <td>{{ m.courseDay || '—' }}</td>
+                <td>{{ m.title }}</td>
+                <td>{{ m.level || '—' }}</td>
+                <td>
+                  <span class="status-dot" [class.green]="m.completed" [class.gray]="!m.completed"></span>
+                  {{ m.completed ? 'Yes' : 'No' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Tests (Day 6) -->
+          <table *ngIf="activeTable==='tests' && data.day6Tests.length">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Type</th>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Score</th>
+                <th>Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let t of data.day6Tests">
+                <td>{{ t.day }}</td>
+                <td><span class="badge" [class.badge-exercise]="t.type==='exercise'" [class.badge-session]="t.type==='session'">{{ t.type }}</span></td>
+                <td>{{ t.title }}</td>
+                <td>{{ t.category || '—' }}</td>
+                <td>{{ t.score }}%</td>
+                <td>{{ t.timeSpentMinutes }}m</td>
+                <td>{{ t.status }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p *ngIf="currentTableEmpty" class="empty">No data available for this section.</p>
+        </div>
+      </div>
+    </section>
   </ng-container>
 </div>
