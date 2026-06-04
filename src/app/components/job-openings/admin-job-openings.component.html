@@ -63,7 +63,7 @@
       <article class="ajo-card" *ngFor="let job of openings">
         <div class="ajo-card__top">
           <img *ngIf="resolveLogoUrl(job.companyLogoUrl)" class="ajo-card__logo" [src]="resolveLogoUrl(job.companyLogoUrl)" alt="" />
-          <span *ngIf="!resolveLogoUrl(job.companyLogoUrl)" class="ajo-card__logo-fallback">{{ job.companyName?.charAt(0) || '?' }}</span>
+          <span *ngIf="!resolveLogoUrl(job.companyLogoUrl)" class="ajo-card__logo-fallback">{{ job.companyName.charAt(0) || '?' }}</span>
           <div class="ajo-card__info">
             <h3>{{ job.companyName }}</h3>
             <p class="ajo-card__title">{{ job.jobTitle }}</p>
