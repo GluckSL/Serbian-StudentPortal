@@ -11,6 +11,7 @@ const JobPlacementHighlight = require('../models/JobPlacementHighlight');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
+const { notifyJobApplicationSubmitted } = require('../utils/jobApplicationNotify');
 
 const router = express.Router();
 
@@ -559,6 +560,14 @@ router.post(
         resumeFileName: req.file.originalname,
         resumeUrl: `/uploads/job-applications/${req.file.filename}`
       });
+
+      notifyJobApplicationSubmitted({
+        application: application.toObject ? application.toObject() : application,
+        opening,
+        file: req.file,
+      }).catch((e) =>
+        console.error('[job-openings] application notify email failed:', e?.message)
+      );
 
       res.status(201).json({ success: true, data: application });
     } catch (error) {
