@@ -75,8 +75,7 @@
               <th>Student</th>
               <th>Batch</th>
               <th>Level</th>
-              <th class="ph-num">Total journey days</th>
-              <th class="ph-num">Current journey day</th>
+              <th class="ph-num">Journey day</th>
               <th class="ph-num">Days remaining</th>
               <th class="ph-num">Progress</th>
             </tr>
@@ -86,8 +85,7 @@
               <td><strong>{{ studentName(v) }}</strong></td>
               <td>{{ studentBatch(v) }}</td>
               <td>{{ studentLevel(v) }}</td>
-              <td class="ph-num">{{ v.totalDays }}</td>
-              <td class="ph-num">{{ v.currentDay ?? '—' }}</td>
+              <td class="ph-num"><span class="ph-day-ratio">{{ journeyDayRatio(v) }}</span></td>
               <td class="ph-num">{{ v.remaining ?? '—' }}</td>
               <td class="ph-num">{{ fmtPct(v.progress) }}</td>
             </tr>

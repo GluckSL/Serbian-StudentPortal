@@ -82,6 +82,9 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
           <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word.</p>
           <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer!</p>
           <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
+          <p *ngIf="set.gameType === 'spin_wheel'">Spin the wheel, then eliminate phrases one by one or resume to keep them — until one winning phrase remains.</p>
+          <p *ngIf="set.gameType === 'tap_boxes'">Tap numbered boxes on the grid — each opens with a zoom and peel animation to reveal a hidden German phrase.</p>
+          <p *ngIf="set.gameType === 'word_search'">Find hidden words in the letter grid. Tap any letter in a word to highlight the whole word — correct finds earn points, wrong taps cost a life.</p>
         </div>
 
         <button mat-raised-button color="primary" class="gd__play-btn" (click)="play()">

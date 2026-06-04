@@ -64,7 +64,10 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
   level = '';
   paymentType = '';
   customType = '';
-  requestAmount: number | null = null;
+  /** Student-declared amount for this submission (shown as payment amount). */
+  paymentAmount: number | null = null;
+  /** Full quoted fee on the payment request (course / invoice total). */
+  quotedCourseFee: number | null = null;
   balance: number | null = null;
   currency = 'LKR';
   creditedAmount: number;
@@ -98,14 +101,17 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
     const pr = sub.paymentRequestId;
     const sid = sub.studentId;
 
-    this.creditedAmount = this.declaredAmountFrom(sub);
+    const declared = this.declaredAmountFrom(sub);
+    this.creditedAmount = declared;
     this.currency = sub.currency || pr?.currency || 'LKR';
     this.batch = (typeof sid === 'object' && sid?.batch) ? String(sid.batch).trim() : '';
     this.level = (typeof sid === 'object' && sid?.level) ? String(sid.level).trim().toUpperCase() : '';
     this.paymentType = pr?.paymentType || 'LANGUAGE_FEE';
     this.customType = pr?.customType?.trim() || '';
-    this.requestAmount = pr?.amount ?? null;
-    this.balance = pr?.amountRemaining ?? pr?.amount ?? null;
+    this.quotedCourseFee = pr?.amount ?? null;
+    this.paymentAmount = declared > 0 ? declared : null;
+    const remainingBefore = Number(pr?.amountRemaining ?? pr?.amount ?? 0);
+    this.balance = Math.max(0, remainingBefore - (declared > 0 ? declared : 0));
     this.accountHolderName = (sub.accountHolderName || '').trim();
     this.paymentMethod = sub.paymentMethod || 'Bank Transfer';
     this.requestRemarks = pr?.remarks?.trim() || '';
@@ -190,8 +196,8 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
       paymentMethod: this.paymentMethod,
       remarks: this.requestRemarks.trim(),
     };
-    if (this.requestAmount != null && this.requestAmount > 0) {
-      updates.requestAmount = Number(this.requestAmount);
+    if (this.quotedCourseFee != null && this.quotedCourseFee > 0) {
+      updates.requestAmount = Number(this.quotedCourseFee);
     }
     if (this.balance != null && this.balance >= 0) {
       updates.balance = Number(this.balance);
@@ -227,6 +233,36 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
 
   fmt(val: number): string {
     return (val ?? 0).toLocaleString('en-IN');
+  }
+
+  onPaymentAmountChange(): void {
+    const pay = Number(this.paymentAmount);
+    if (Number.isFinite(pay) && pay > 0) {
+      this.creditedAmount = pay;
+    }
+    this.recalcBalanceAfterCredit();
+  }
+
+  onCreditedAmountChange(): void {
+    const credit = Number(this.creditedAmount);
+    if (Number.isFinite(credit) && credit > 0) {
+      this.paymentAmount = credit;
+    }
+    this.recalcBalanceAfterCredit();
+  }
+
+  onQuotedFeeChange(): void {
+    this.recalcBalanceAfterCredit();
+  }
+
+  private recalcBalanceAfterCredit(): void {
+    const quoted = Number(this.quotedCourseFee);
+    const remainingBefore = Number.isFinite(quoted) && quoted > 0
+      ? (Number(this.submission.paymentRequestId?.amountRemaining ?? quoted) || quoted)
+      : 0;
+    const pay = Number(this.paymentAmount ?? this.creditedAmount);
+    const credit = Number.isFinite(pay) && pay > 0 ? pay : 0;
+    this.balance = Math.max(0, remainingBefore - credit);
   }
 
   private declaredAmountFrom(sub: ApprovalQueueItem): number {

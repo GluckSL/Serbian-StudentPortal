@@ -264,11 +264,16 @@
           </label>
         </div>
 
-        <label class="sw-upload-box" (click)="proofInput.click()">
+        <label class="sw-upload-box" for="signupProofFile">
           <i class="fas fa-cloud-upload-alt sw-upload-box__icon"></i>
-          <span class="sw-upload-box__text">{{ proofFileName || 'Click to select file' }}</span>
-          <span class="sw-upload-box__sub">PNG, JPG, or PDF — max 15 MB</span>
-          <input #proofInput type="file" accept="image/*,.pdf" (change)="onProofFileChange($event)" hidden />
+          <span class="sw-upload-box__text">{{ proofFileName || 'Tap to select file' }}</span>
+          <span class="sw-upload-box__sub">PNG, JPG, HEIC, or PDF — max 15 MB</span>
+          <input
+            id="signupProofFile"
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf,.pdf,image/*"
+            (change)="onProofFileChange($event)"
+            class="sw-file-input-offscreen" />
         </label>
         <button
           type="button"

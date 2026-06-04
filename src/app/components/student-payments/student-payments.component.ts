@@ -162,9 +162,19 @@ export class StudentPaymentsComponent implements OnInit {
 
   onProofFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      this.manualForm.proofFile = input.files[0];
+    if (!input.files?.length) return;
+    const file = input.files[0];
+    const ext = /\.(jpe?g|png|gif|webp|heic|heif|pdf)$/i.test(file.name || '');
+    if (!ext || file.size > 5 * 1024 * 1024) {
+      this.manualForm.proofFile = null;
+      input.value = '';
+      this.showToast(
+        file.size > 5 * 1024 * 1024 ? 'File must be 5 MB or smaller.' : 'Please choose a photo or PDF.',
+        'error',
+      );
+      return;
     }
+    this.manualForm.proofFile = file;
   }
 
   submitManualPayment(): void {

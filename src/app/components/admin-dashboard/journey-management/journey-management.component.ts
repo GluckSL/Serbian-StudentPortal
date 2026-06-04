@@ -33,10 +33,18 @@ interface BatchSummary {
   journeyPaused?: boolean;
   journeyPausedAt?: string | null;
   journeyPausedFrozenDay?: number | null;
+  journeyPauseHistory?: JourneyPauseHistoryEntry[];
   studentCount: number;
   teacherId?: string | null;
   /** Resolved from students' assignedTeacher (most common per batch). */
   teacherName: string | null;
+}
+
+interface JourneyPauseHistoryEntry {
+  day: number;
+  pausedAt: string;
+  resumedAt: string;
+  pauseDays: number;
 }
 
 interface TeacherPick {
@@ -654,7 +662,7 @@ interface TimelineDay {
               </div>
             </div>
 
-            <div class="j-toggle-card" *ngIf="editBatchType === 'new'"
+            <div class="j-toggle-card j-toggle-card--pause" *ngIf="editBatchType === 'new'"
                  [class.j-toggle-card--warn]="editJourneyPaused">
               <div class="j-toggle-card-head">
                 <span class="j-toggle-card-label" title="Freeze batch day until resumed">Pause journey</span>
@@ -664,6 +672,9 @@ interface TimelineDay {
                   <span class="j-switch-slider" aria-hidden="true"></span>
                 </label>
               </div>
+              <ul class="j-pause-history" *ngIf="pauseHistoryEntries().length">
+                <li *ngFor="let entry of pauseHistoryEntries()">{{ formatPauseHistoryEntry(entry) }}</li>
+              </ul>
             </div>
 
             <div class="j-toggle-card" [class.j-toggle-card--on]="editAutoRecordingEnabled">
@@ -714,6 +725,9 @@ interface TimelineDay {
           Batch started on <strong>{{ editBatchStartDate | date:'dd MMM yyyy' }}</strong>.
           Today is automatically <strong>Day {{ computedDayFromDate() }}</strong>.
           {{ editStrictJourneyRule ? 'Strict rule is on: students only move to the next day when they meet the completion % for their current day (checked at daily rollover).' : 'Lenient mode: student journey days advance on the daily rollover even if tasks are not finished.' }}
+          <ul class="j-pause-history j-pause-history--inline" *ngIf="pauseHistoryEntries().length">
+            <li *ngFor="let entry of pauseHistoryEntries()">{{ formatPauseHistoryEntry(entry) }}</li>
+          </ul>
         </div>
         <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn-icon-sm" title="Remove start date (switch to manual)"
                 (click)="clearStartDate()">
@@ -2689,6 +2703,13 @@ interface TimelineDay {
       background: #fffbeb; border-color: #fde68a; color: #78350f;
     }
     .j-start-date-info--warn > i { color: #b45309; }
+    .j-toggle-card--pause { flex-direction: column; align-items: stretch; }
+    .j-pause-history {
+      list-style: none; margin: 6px 0 0; padding: 0;
+      font-size: 10px; color: #64748b; line-height: 1.45;
+    }
+    .j-pause-history li::before { content: '· '; color: #94a3b8; }
+    .j-pause-history--inline { margin-top: 6px; }
     .j-btn-icon-sm {
       background: none; border: none; cursor: pointer;
       color: #64748b; padding: 4px; border-radius: 6px;
@@ -5064,6 +5085,19 @@ export class JourneyManagementComponent implements OnInit {
     return Math.min(this.editJourneyLength, Math.max(1, this.daysSinceStart() + 1));
   }
 
+  pauseHistoryEntries(): JourneyPauseHistoryEntry[] {
+    const raw = this.selectedBatch?.journeyPauseHistory;
+    if (!Array.isArray(raw) || !raw.length) return [];
+    return [...raw].sort(
+      (a, b) => new Date(b.resumedAt).getTime() - new Date(a.resumedAt).getTime()
+    );
+  }
+
+  formatPauseHistoryEntry(entry: JourneyPauseHistoryEntry): string {
+    const days = entry.pauseDays === 1 ? '1 day' : `${entry.pauseDays} days`;
+    return `Day ${entry.day} — paused ${days}`;
+  }
+
   clearStartDate(): void {
     this.editBatchStartDate = '';
   }
@@ -5083,6 +5117,7 @@ export class JourneyManagementComponent implements OnInit {
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
     this.editAutoRecordingEnabled = !!b.autoRecordingEnabled;
     this.editJourneyPaused = !!(b.journeyPaused && b.batchType !== 'old');
+    this.selectedBatch.journeyPauseHistory = b.journeyPauseHistory ?? [];
     this.activeTab = 'students';
     this.batchStudents = [];
     this.studentsLoadedForBatch = null;
@@ -5165,6 +5200,7 @@ export class JourneyManagementComponent implements OnInit {
           this.editJourneyPaused = !!(r.config.journeyPaused && r.config.batchType !== 'old');
           this.selectedBatch.journeyPaused = this.editJourneyPaused;
           this.selectedBatch.journeyPausedFrozenDay = r.config.journeyPausedFrozenDay ?? null;
+          this.selectedBatch.journeyPauseHistory = r.config.journeyPauseHistory ?? [];
         }
         if (this.selectedBatch?.batchName === batchName) {
           this.studentsLoadedForBatch = batchName;
@@ -5269,6 +5305,10 @@ export class JourneyManagementComponent implements OnInit {
     this.editJourneyPaused = !!(config.journeyPaused && config.batchType !== 'old');
     this.selectedBatch.journeyPaused = this.editJourneyPaused;
     this.selectedBatch.journeyPausedFrozenDay = config.journeyPausedFrozenDay ?? null;
+    this.selectedBatch.journeyPauseHistory = config.journeyPauseHistory ?? [];
+    if (config.batchStartDate) {
+      this.editBatchStartDate = new Date(config.batchStartDate).toISOString().slice(0, 10);
+    }
     if (config.batchCurrentDay != null) {
       this.editBatchDay = config.batchCurrentDay;
     }

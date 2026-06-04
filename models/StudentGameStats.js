@@ -105,6 +105,21 @@ const StudentGameStatsSchema = new mongoose.Schema({
       bestScore: { type: Number, default: 0 },
       totalXp: { type: Number, default: 0 },
     },
+    spin_wheel: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    tap_boxes: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
+    word_search: {
+      gamesCompleted: { type: Number, default: 0 },
+      bestScore: { type: Number, default: 0 },
+      totalXp: { type: Number, default: 0 },
+    },
   },
 }, { timestamps: true });
 

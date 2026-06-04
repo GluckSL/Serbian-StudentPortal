@@ -15,6 +15,15 @@ const GenderStackSettingsSchema = new mongoose.Schema({
   fallDurationSeconds: { type: Number, default: 1.2, min: 0.5, max: 3 },
 }, { _id: false });
 
+const SpinWheelSettingsSchema = new mongoose.Schema({
+  centerLabel: { type: String, default: 'ergänze den Satz!' },
+}, { _id: false });
+
+const TapBoxesSettingsSchema = new mongoose.Schema({
+  /** Custom play-area background (R2/S3); null = default green board */
+  backgroundUrl: { type: String, default: null },
+}, { _id: false });
+
 const GameSetSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
@@ -23,7 +32,7 @@ const GameSetSchema = new mongoose.Schema({
 
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice'],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice', 'spin_wheel', 'tap_boxes', 'word_search'],
     required: true,
   },
 
@@ -60,6 +69,12 @@ const GameSetSchema = new mongoose.Schema({
 
   /** Gender Stack: spawn rate and fall speed */
   genderStackSettings: { type: GenderStackSettingsSchema, default: () => ({}) },
+
+  /** Spin Wheel: center hub label */
+  spinWheelSettings: { type: SpinWheelSettingsSchema, default: () => ({}) },
+
+  /** Tap the Boxes: optional custom board background image */
+  tapBoxesSettings: { type: TapBoxesSettingsSchema, default: () => ({}) },
 
   // Journey gating — mirrors DigitalExercise gating conventions
   visibleToStudents: { type: Boolean, default: false },

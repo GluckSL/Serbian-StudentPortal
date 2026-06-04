@@ -30,6 +30,17 @@ const {
   computeBalanceDueFromRequests,
 } = require('../utils/currencyBreakdownHelper');
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
+const {
+  getFilteredStudentIds,
+  parseHubFilters,
+  applyTestAccountFilter,
+  filterSummaryLabel,
+  hasActiveFilters,
+} = require('../helpers/paymentHubStudentFilter');
+const {
+  aggregateHubDashboardStats,
+  aggregateBatchPaymentInsights,
+} = require('../helpers/paymentHubStatsAggregator');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 // ─── Helper to get admin name from user model ──────────────────────────────
@@ -139,43 +150,58 @@ const getAllRequests = async (req, res) => {
 // ─── Dashboard summary stats ───────────────────────────────────────────────
 const getDashboardStats = async (req, res) => {
   try {
-    const raw = await paymentService.getPaymentDashboardStats();
+    const { filters, studentIds } = await getFilteredStudentIds(req.query);
+    const agg = await aggregateHubDashboardStats(studentIds, {
+      includeTestAccounts: filters.includeTestAccounts,
+    });
 
-    // Pull per-currency totals from nested structure
-    const g = (map, cur) => (map && map[cur] && map[cur].total) || 0;
+    const pick = (bucket) => {
+      const lkr = bucket.LKR || 0;
+      const inr = bucket.INR || 0;
+      const usd = bucket.USD || 0;
+      if (filters.currency === 'LKR') return { lkr, inr: 0, usd: 0 };
+      if (filters.currency === 'INR') return { lkr: 0, inr, usd: 0 };
+      if (filters.currency === 'USD') return { lkr: 0, inr: 0, usd };
+      return { lkr, inr, usd };
+    };
 
-    // Student counts: total from User; payment-state from profiles where they exist
-    const User = mongoose.model('User');
-    const [totalStudents, fullyPaidStudents, activeStudents] = await Promise.all([
-      User.countDocuments({ role: 'STUDENT' }),
-      StudentPaymentProfile.countDocuments({ overallStatus: 'CLEAR' }),
-      StudentPaymentProfile.countDocuments({
-        overallStatus: { $in: ['REQUESTED', 'PENDING_REVIEW', 'OVERDUE'] },
-      }),
-    ]);
+    const received = pick(agg.received);
+    const pending = pick(agg.pending);
+    const overdue = pick(agg.overdue);
+    const totalPayment = pick(agg.totalPaymentExpected);
+    const totalDue = pick(agg.totalDue);
+    const expectedMonth = pick(agg.expectedThisMonth || { LKR: 0, INR: 0, USD: 0 });
 
     const data = {
-      // Total received (all time)
-      totalReceivedLKR: g(raw.totalReceived?.overall, 'LKR'),
-      totalReceivedINR: g(raw.totalReceived?.overall, 'INR'),
-      totalReceivedUSD: g(raw.totalReceived?.overall, 'USD'),
-      // Pending approval (submitted but not yet approved)
-      pendingApprovalAmountLKR: g(raw.pendingApproval?.byCurrency, 'LKR'),
-      pendingApprovalAmountINR: g(raw.pendingApproval?.byCurrency, 'INR'),
-      pendingApprovalAmountUSD: g(raw.pendingApproval?.byCurrency, 'USD'),
-      // Expected this month (due but not yet paid)
-      totalExpectedThisMonthLKR: g(raw.expectedThisMonth, 'LKR'),
-      totalExpectedThisMonthINR: g(raw.expectedThisMonth, 'INR'),
-      totalExpectedThisMonthUSD: g(raw.expectedThisMonth, 'USD'),
-      // Overdue
-      totalOverdueLKR: g(raw.overdue?.byCurrency, 'LKR'),
-      totalOverdueINR: g(raw.overdue?.byCurrency, 'INR'),
-      totalOverdueUSD: g(raw.overdue?.byCurrency, 'USD'),
-      overdueCount: raw.overdue?.studentCount || 0,
-      // Student summary
-      totalStudents,
-      fullyPaidStudents,
-      activeStudents,
+      totalPaymentExpectedLKR: totalPayment.lkr,
+      totalPaymentExpectedINR: totalPayment.inr,
+      totalPaymentExpectedUSD: totalPayment.usd,
+      catalogPaymentBreakdown: agg.catalogPaymentBreakdown || [],
+      totalReceivedLKR: received.lkr,
+      totalReceivedINR: received.inr,
+      totalReceivedUSD: received.usd,
+      totalDueLKR: totalDue.lkr,
+      totalDueINR: totalDue.inr,
+      totalDueUSD: totalDue.usd,
+      pendingApprovalAmountLKR: pending.lkr,
+      pendingApprovalAmountINR: pending.inr,
+      pendingApprovalAmountUSD: pending.usd,
+      totalExpectedThisMonthLKR: expectedMonth.lkr,
+      totalExpectedThisMonthINR: expectedMonth.inr,
+      totalExpectedThisMonthUSD: expectedMonth.usd,
+      totalOverdueLKR: overdue.lkr,
+      totalOverdueINR: overdue.inr,
+      totalOverdueUSD: overdue.usd,
+      overdueCount: agg.overdueRequestCount,
+      totalStudents: agg.totalStudents,
+      fullyPaidStudents: agg.fullyPaidStudents,
+      balanceStudents: agg.balanceStudents,
+      overdueStudents: agg.overdueStudents,
+      docsPaidStudents: agg.docsPaidStudents,
+      visaPaidStudents: agg.visaPaidStudents,
+      activeStudents: agg.activeStudents,
+      filtered: hasActiveFilters(filters),
+      filterSummary: filterSummaryLabel(filters),
     };
 
     res.json({ success: true, data });
@@ -202,7 +228,8 @@ const getStudentTable = async (req, res) => {
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
-    const userMatch = { role: 'STUDENT' };
+    const hubFilters = parseHubFilters(req.query);
+    const userMatch = applyTestAccountFilter({ role: 'STUDENT' }, hubFilters);
     if (batch) userMatch.batch = batch;
     if (level) userMatch.level = level;
     if (studentStatus && String(studentStatus).trim()) {
@@ -217,6 +244,11 @@ const getStudentTable = async (req, res) => {
         { name: { $regex: q, $options: 'i' } },
         { email: { $regex: q, $options: 'i' } },
       ];
+    }
+    if (req.query.dateFrom || req.query.dateTo) {
+      userMatch.enrollmentDate = {};
+      if (req.query.dateFrom) userMatch.enrollmentDate.$gte = new Date(req.query.dateFrom);
+      if (req.query.dateTo) userMatch.enrollmentDate.$lte = new Date(req.query.dateTo);
     }
 
     let sortStage = { name: 1 };
@@ -337,6 +369,7 @@ const getStudentTable = async (req, res) => {
                 dateJoined: '$enrollmentDate',
                 registeredAt: '$registeredAt',
                 createdAt: '$createdAt',
+                isTestAccount: '$isTestAccount',
               },
               totalPaid: { $ifNull: ['$profile.totalPaid', 0] },
               ...mongoPaidFieldsFromProfile('$profile.currencyBreakdown'),
@@ -1025,79 +1058,13 @@ function detectLevelFromPaymentRequest(req) {
 const getBatchPaymentSummary = async (req, res) => {
   try {
     const { batch, level } = req.query;
-    const userMatch = { role: 'STUDENT' };
-    if (batch && String(batch).trim()) userMatch.batch = String(batch).trim();
-    if (level && String(level).trim()) userMatch.level = String(level).trim();
-
-    const grouped = await mongoose.model('User').aggregate([
-      { $match: userMatch },
-      {
-        $lookup: {
-          from: 'studentpaymentprofiles',
-          localField: '_id',
-          foreignField: 'studentId',
-          as: 'profileArr',
-        },
-      },
-      { $addFields: { profile: { $arrayElemAt: ['$profileArr', 0] } } },
-      { $addFields: mongoPaidFieldsFromProfile('$profile.currencyBreakdown') },
-      {
-        $addFields: {
-          batchLabel: {
-            $let: {
-              vars: { b: { $trim: { input: { $ifNull: ['$batch', ''] } } } },
-              in: { $cond: [{ $eq: ['$$b', ''] }, '—', '$$b'] },
-            },
-          },
-          levelKey: { $toUpper: { $trim: { input: { $ifNull: ['$level', ''] } } } },
-        },
-      },
-      {
-        $group: {
-          _id: '$batchLabel',
-          studentCount: { $sum: 1 },
-          totalPaid: { $sum: { $ifNull: ['$profile.totalPaid', 0] } },
-          totalPaidLKR: { $sum: '$totalPaidLKR' },
-          totalPaidINR: { $sum: '$totalPaidINR' },
-          totalPaidUSD: { $sum: '$totalPaidUSD' },
-          levels: { $push: '$levelKey' },
-          maxStudentDay: { $max: '$currentCourseDay' },
-        },
-      },
-      { $sort: { totalPaidLKR: -1, totalPaidINR: -1, totalPaidUSD: -1 } },
-    ]);
-
-    const batches = grouped.map((row) => {
-      const levelCounts = {};
-      for (const lv of row.levels || []) {
-        if (!lv) continue;
-        levelCounts[lv] = (levelCounts[lv] || 0) + 1;
-      }
-      let maxDay = row.maxStudentDay;
-      if (maxDay != null && Number.isFinite(Number(maxDay))) {
-        maxDay = Math.min(200, Math.max(1, Math.floor(Number(maxDay))));
-      } else {
-        maxDay = null;
-      }
-      return {
-        batch: row._id,
-        studentCount: row.studentCount,
-        totalPaid: row.totalPaid,
-        totalPaidLKR: row.totalPaidLKR || 0,
-        totalPaidINR: row.totalPaidINR || 0,
-        totalPaidUSD: row.totalPaidUSD || 0,
-        levelCounts,
-        maxStudentDay: maxDay,
-      };
+    const batchFilters = parseHubFilters(req.query);
+    const data = await aggregateBatchPaymentInsights({
+      batch: batch && String(batch).trim() ? String(batch).trim() : undefined,
+      level: level && String(level).trim() ? String(level).trim() : undefined,
+      includeTestAccounts: batchFilters.includeTestAccounts,
     });
-
-    const totalStudents = batches.reduce((s, b) => s + b.studentCount, 0);
-    const batchNames = batches.map((b) => b.batch).filter((n) => n && n !== '—');
-
-    res.json({
-      success: true,
-      data: { batches, totalStudents, batchNames },
-    });
+    res.json({ success: true, data });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }

@@ -11,6 +11,7 @@ const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../exerciseM
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const R2_THUMB_PREFIX = 'glueck-arena/game-thumbnails';
+const R2_TAP_BOXES_BG_PREFIX = 'glueck-arena/tap-boxes-backgrounds';
 const R2_IMAGE_PREFIX = 'glueck-arena/game-images';
 const R2_AUDIO_PREFIX = 'glueck-arena/game-audio';
 
@@ -330,4 +331,89 @@ function uploadPairImage(req, res) {
   });
 }
 
-module.exports = { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage };
+const tapBoxesBgMemoryUploader = buildMemoryImageUploader('background');
+
+function buildTapBoxesBgS3Uploader() {
+  return multer({
+    storage: multerS3({
+      s3: s3Client,
+      bucket: process.env.S3_BUCKET,
+      contentType: multerS3.AUTO_CONTENT_TYPE,
+      key: (_req, file, cb) => {
+        const ext = path.extname(file.originalname) || '.jpg';
+        cb(null, `glueck-arena/tap-boxes-backgrounds/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+      },
+    }),
+    fileFilter: (_req, file, cb) => {
+      if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) return cb(null, true);
+      cb(new Error('Only image files allowed for Tap the Boxes background'));
+    },
+    limits: { fileSize: 8 * 1024 * 1024 },
+  }).single('background');
+}
+
+function uploadTapBoxesBackground(req, res) {
+  return new Promise((resolve) => {
+    if (isExerciseR2Configured()) {
+      return tapBoxesBgMemoryUploader(req, res, async (err) => {
+        if (err) {
+          res.status(400).json({ success: false, message: err.message });
+          return resolve(null);
+        }
+        if (!req.file) {
+          res.status(400).json({ success: false, message: 'No background image provided' });
+          return resolve(null);
+        }
+        if (!req.file.buffer?.length) {
+          res.status(400).json({ success: false, message: 'Empty background upload' });
+          return resolve(null);
+        }
+        try {
+          const ext = path.extname(req.file.originalname) || '.jpg';
+          const key = `${R2_TAP_BOXES_BG_PREFIX}/${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
+          const publicUrl = await putExerciseMediaBuffer(
+            req.file.buffer,
+            key,
+            req.file.mimetype || 'image/jpeg'
+          );
+          resolve(publicUrl);
+        } catch (uploadErr) {
+          console.error('[glueck-arena] R2 tap-boxes background upload failed:', uploadErr.message);
+          res.status(500).json({ success: false, message: uploadErr.message || 'R2 upload failed' });
+          resolve(null);
+        }
+      });
+    }
+
+    if (!process.env.S3_BUCKET) {
+      r2NotConfiguredResponse(res);
+      return resolve(null);
+    }
+
+    const s3Uploader = buildTapBoxesBgS3Uploader();
+    return s3Uploader(req, res, (err) => {
+      if (err) {
+        res.status(400).json({ success: false, message: err.message });
+        return resolve(null);
+      }
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No background image provided' });
+        return resolve(null);
+      }
+      const rawUrl = s3UrlFromUploadedFile(req.file);
+      if (!rawUrl) {
+        res.status(500).json({ success: false, message: 'S3 upload did not return a URL' });
+        return resolve(null);
+      }
+      resolve(canonicalizeMediaUrl(rawUrl));
+    });
+  });
+}
+
+module.exports = {
+  uploadThumbnail,
+  uploadTapBoxesBackground,
+  uploadQuestionAudio,
+  uploadQuestionImage,
+  uploadPairImage,
+};

@@ -87,7 +87,6 @@
       <table class="ajo-table">
         <thead>
           <tr>
-            <th class="ajo-table__col-company">Company</th>
             <th class="ajo-table__col-role">Role</th>
             <th class="ajo-table__col-details">Details</th>
             <th class="ajo-table__col-deadline">Apply before</th>
@@ -98,26 +97,25 @@
         </thead>
         <tbody>
           <tr *ngFor="let job of openings" class="ajo-table__row">
-            <td class="ajo-table__company" data-label="Company">
+            <td class="ajo-table__role" data-label="Role">
               <div class="ajo-table__company-cell">
                 <img
                   *ngIf="resolveLogoUrl(job.companyLogoUrl)"
                   class="ajo-table__logo"
                   [src]="resolveLogoUrl(job.companyLogoUrl)"
-                  [alt]="job.companyName"
+                  [alt]="job.jobTitle"
                 />
                 <span *ngIf="!resolveLogoUrl(job.companyLogoUrl)" class="ajo-table__logo-fallback">
-                  {{ job.companyName.charAt(0) || '?' }}
+                  {{ job.jobTitle.charAt(0) || '?' }}
                 </span>
-                <span class="ajo-table__company-name">{{ job.companyName }}</span>
+                <span class="ajo-table__company-name">{{ job.jobTitle }}</span>
               </div>
             </td>
-            <td class="ajo-table__role" data-label="Role">{{ job.jobTitle }}</td>
             <td class="ajo-table__details" data-label="Details">
               <span class="ajo-table__detail-line">{{ job.jobType || '—' }}</span>
               <span class="ajo-table__detail-sub">{{ job.experience || '—' }} · {{ job.location || '—' }}</span>
             </td>
-            <td class="ajo-table__deadline" data-label="Apply before">{{ formatDeadline(job.applyBefore) }}</td>
+            <td class="ajo-table__deadline" data-label="Apply before">{{ formatApplyDeadline(job.applyBefore) }}</td>
             <td class="ajo-table__apps" data-label="Applications">
               <button type="button" class="ajo-btn ajo-btn--apps ajo-btn--sm" (click)="viewApplications(job)">
                 <span class="material-icons">groups</span>
@@ -359,13 +357,9 @@
       <section class="ajo-form-section">
         <h3 class="ajo-form-section__title">
           <span class="material-icons">business</span>
-          Company & role
+          Role details
         </h3>
         <div class="ajo-form-grid ajo-form-grid--3">
-          <label class="ajo-field">
-            <span class="ajo-field__label">Company name <em>*</em></span>
-            <input type="text" [(ngModel)]="form.companyName" placeholder="e.g. Oracle" />
-          </label>
           <label class="ajo-field">
             <span class="ajo-field__label">Job title <em>*</em></span>
             <input type="text" [(ngModel)]="form.jobTitle" placeholder="e.g. Software Engineer" />
@@ -383,6 +377,17 @@
           <label class="ajo-field">
             <span class="ajo-field__label">Job category</span>
             <input type="text" [(ngModel)]="form.jobCategory" placeholder="e.g. Software Development" />
+          </label>
+          <label class="ajo-field">
+            <span class="ajo-field__label">Journey day</span>
+            <input
+              type="number"
+              min="1"
+              max="200"
+              [(ngModel)]="form.minJourneyDay"
+              placeholder="e.g. 40"
+            />
+            <span class="ajo-field__hint">Min day to apply · leave empty for all</span>
           </label>
           <label class="ajo-field ajo-field--wide">
             <span class="ajo-field__label">Skills <span class="ajo-field__hint">comma-separated</span></span>
@@ -438,7 +443,7 @@
         <div class="ajo-form-grid ajo-form-grid--2">
           <label class="ajo-field">
             <span class="ajo-field__label">Apply before <em>*</em></span>
-            <input type="datetime-local" [(ngModel)]="form.applyBefore" />
+            <input type="date" [(ngModel)]="form.applyBefore" />
           </label>
         </div>
       </section>
@@ -482,7 +487,7 @@
     <footer class="ajo-modal__foot">
       <p class="ajo-modal__foot-note">
         <span class="material-icons">info</span>
-        Required: company, title, and apply-before deadline
+        Required: job title and apply-before deadline
       </p>
       <div class="ajo-modal__foot-actions">
         <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closeForm()">Cancel</button>
@@ -499,7 +504,7 @@
     <header class="ajo-modal__head">
       <div class="ajo-modal__head-text">
         <span class="ajo-modal__badge">Applications</span>
-        <h2>{{ applicationsJob.companyName }} — {{ applicationsJob.jobTitle }}</h2>
+        <h2>{{ applicationsJob.jobTitle }}</h2>
         <p>{{ applications.length }} submission(s)</p>
       </div>
       <button type="button" class="ajo-modal__close" (click)="closeApplications()" aria-label="Close">

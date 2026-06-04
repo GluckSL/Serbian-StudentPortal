@@ -8,7 +8,7 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
   GameAttempt, GameQuestion, GameLevel, GameSet,
-  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, HangmanQuestion, WordPictureMatchQuestion, MatchingQuestion, MultipleChoiceQuestion, AchievementDto, LeaderboardEntry,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, HangmanQuestion, WordPictureMatchQuestion, MatchingQuestion, MultipleChoiceQuestion,   SpinWheelQuestion, TapBoxesQuestion, WordSearchQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { MultipleChoiceComponent, MCResult } from '../../engines/multiple-choice/multiple-choice.component';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
@@ -22,6 +22,9 @@ import { JumbledWordsComponent, JWResult } from '../../engines/jumbled-words/jum
 import { MemoryGameComponent, MemoryResult } from '../../engines/memory-game/memory-game.component';
 import { HangmanGameComponent, HangmanResult } from '../../engines/hangman-game/hangman-game.component';
 import { WordPictureMatchComponent, WPMResult } from '../../engines/word-picture-match/word-picture-match.component';
+import { SpinWheelComponent, SWResult } from '../../engines/spin-wheel/spin-wheel.component';
+import { TapBoxesComponent, TBResult } from '../../engines/tap-boxes/tap-boxes.component';
+import { WordSearchComponent, WSResult } from '../../engines/word-search/word-search.component';
 
 export interface IMResult {
   score: number;
@@ -35,7 +38,7 @@ export interface IMResult {
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent, HangmanGameComponent, WordPictureMatchComponent, MultipleChoiceComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent, HangmanGameComponent, WordPictureMatchComponent,     MultipleChoiceComponent, SpinWheelComponent, TapBoxesComponent, WordSearchComponent
   ],
   template: `
     <div class="shell">
@@ -108,6 +111,9 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer — guess all letters before the figure is complete to win!</p>
               <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
               <p *ngIf="set.gameType === 'multiple_choice'">Read the question and choose the correct answer from the options. Each correct answer earns points — answer as many as you can before time runs out!</p>
+              <p *ngIf="set.gameType === 'spin_wheel'">Spin the wheel to land on a German phrase. After each spin, choose <strong>Eliminate</strong> to remove that phrase from the wheel or <strong>Resume</strong> to keep it and spin again. Narrow the wheel until one phrase remains!</p>
+              <p *ngIf="set.gameType === 'tap_boxes'">Tap a numbered box on the classroom grid. The view zooms in cinematically and peels back to reveal the hidden German phrase. Open every box to finish!</p>
+              <p *ngIf="set.gameType === 'word_search'">Find hidden words in the letter grid. Tap any letter that belongs to a word — the whole word highlights when you are correct. Wrong taps cost a life!</p>
             </section>
           </aside>
 
@@ -239,6 +245,30 @@ export interface IMResult {
             [questions]="asMultipleChoiceQuestions()"
             (onComplete)="handleMultipleChoiceComplete($event)"
           ></app-multiple-choice>
+
+          <app-spin-wheel
+            *ngIf="phase === 'playing' && set?.gameType === 'spin_wheel' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asSpinWheelQuestions()"
+            (onComplete)="handleSpinWheelComplete($event)"
+          ></app-spin-wheel>
+
+          <app-tap-boxes
+            *ngIf="phase === 'playing' && set?.gameType === 'tap_boxes' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asTapBoxesQuestions()"
+            (onComplete)="handleTapBoxesComplete($event)"
+          ></app-tap-boxes>
+
+          <app-word-search
+            *ngIf="phase === 'playing' && set?.gameType === 'word_search' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asWordSearchQuestions()"
+            (onComplete)="handleWordSearchComplete($event)"
+          ></app-word-search>
 
           <app-matching
             *ngIf="phase === 'playing' && set?.gameType === 'matching' && attempt"
@@ -995,6 +1025,9 @@ export class GamePlayShellComponent implements OnInit {
   asHangmanQuestions(): HangmanQuestion[] { return this.questions as HangmanQuestion[]; }
   asWordPictureMatchQuestions(): WordPictureMatchQuestion[] { return this.questions as WordPictureMatchQuestion[]; }
   asMultipleChoiceQuestions(): MultipleChoiceQuestion[] { return this.questions as MultipleChoiceQuestion[]; }
+  asSpinWheelQuestions(): SpinWheelQuestion[] { return this.questions as SpinWheelQuestion[]; }
+  asTapBoxesQuestions(): TapBoxesQuestion[] { return this.questions as TapBoxesQuestion[]; }
+  asWordSearchQuestions(): WordSearchQuestion[] { return this.questions as WordSearchQuestion[]; }
   asMatchingQuestions(): MatchingQuestion[] { return this.questions as MatchingQuestion[]; }
 
   isPlaceholderType(): boolean {
@@ -1254,6 +1287,75 @@ export class GamePlayShellComponent implements OnInit {
     });
   }
 
+  handleSpinWheelComplete(result: SWResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleTapBoxesComplete(result: TBResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleWordSearchComplete(result: WSResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
   handleWordPictureMatchComplete(result: WPMResult) {
     this.finalScore = result.score;
     this.finalAccuracy = result.accuracy;
@@ -1292,6 +1394,9 @@ export class GamePlayShellComponent implements OnInit {
       jumbled_words: 'Jumbled Words', hangman: 'Hangman',
       word_picture_match: 'Word-Picture Match',
       multiple_choice: 'Multiple Choice',
+      spin_wheel: 'Spin the Wheel',
+      tap_boxes: 'Tap the Boxes',
+      word_search: 'Word Search',
     };
     return map[t] ?? t;
   }
@@ -1310,6 +1415,9 @@ export class GamePlayShellComponent implements OnInit {
       matching: 'linear-gradient(135deg,#15803d,#4ade80)',
       word_picture_match: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
       multiple_choice: 'linear-gradient(135deg,#0891b2,#22d3ee)',
+      spin_wheel: 'linear-gradient(135deg,#7c3aed,#a855f7)',
+      tap_boxes: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
+      word_search: 'linear-gradient(135deg,#ca8a04,#fb923c)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }

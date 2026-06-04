@@ -2,6 +2,7 @@
 // Factory for GO Silver student routes (Tamil GO-SILVER / Sinhala GO-SINHALA).
 
 const express = require('express');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const BatchConfig = require('../models/BatchConfig');
 const DigitalExercise = require('../models/DigitalExercise');
@@ -17,7 +18,7 @@ const GameSet = require('../models/GameSet');
 const GameAttempt = require('../models/GameAttempt');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
 const { withJourneyLevelInSet, levelForJourneyDay } = require('../services/journeyLevelSync.service');
 const { getStudentDgJourneyAccess, dgModuleUnlockedForAccess } = require('../utils/dgStudentJourneyGate');
 const {
@@ -664,24 +665,46 @@ function createGoStudentsRouter(trackKey) {
         goBatchCfg?.journeyLength >= 1 ? Math.min(Math.floor(goBatchCfg.journeyLength), 200) : 200;
       const accessDay = unlock.maxUnlockedContentDay || storedCourseDay;
 
-      const [classRecordings, recViews, goMeetings, allExercises, attempts] = await Promise.all([
+      const batchOrForMeetings = batchKeys.map((k) => ({
+        batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+      }));
+      const studentObjectId = mongoose.Types.ObjectId.isValid(String(studentId))
+        ? new mongoose.Types.ObjectId(String(studentId))
+        : null;
+
+      const [classRecordings, recViewsAgg, goMeetings, meetingsForDuration, allExercises, attempts] =
+        await Promise.all([
         ClassRecording.find({
           active: true,
-          isPublished: true,
+          isPublished: { $ne: false },
           ...batchRecFilter,
           $or: [{ plan: 'ALL' }, { plan: 'SILVER' }, { plan: 'PLATINUM' }]
         })
-          .select('title courseDay plan level duration createdAt')
+          .select('title courseDay plan level duration batches createdAt')
           .lean(),
-        RecordingView.find({ student: studentId })
-          .select('recording watchDuration lastUpdatedAt')
-          .lean(),
+        studentObjectId
+          ? RecordingView.aggregate([
+              { $match: { student: studentObjectId } },
+              {
+                $group: {
+                  _id: '$recording',
+                  maxWatchDuration: { $max: '$watchDuration' },
+                  lastUpdatedAt: { $max: '$lastUpdatedAt' }
+                }
+              }
+            ])
+          : Promise.resolve([]),
         MeetingLink.find({
           $or: [{ batch: new RegExp(`^${GO_BATCH_NAME}$`, 'i') }, { plan: 'SILVER' }],
           status: { $ne: 'cancelled' }
         })
           .select('topic startTime duration courseDay status')
           .lean(),
+        batchOrForMeetings.length
+          ? MeetingLink.find({ $or: batchOrForMeetings, status: { $ne: 'cancelled' } })
+              .select('batch courseDay duration')
+              .lean()
+          : Promise.resolve([]),
         DigitalExercise.find({
           isDeleted: { $ne: true },
           isActive: true,
@@ -694,16 +717,41 @@ function createGoStudentsRouter(trackKey) {
           .select('exerciseId status scorePercentage earnedPoints totalPoints completedAt')
           .lean()
       ]);
+
       const recViewMap = {};
-      for (const v of recViews) {
-        recViewMap[String(v.recording)] = { watchDuration: v.watchDuration, lastUpdatedAt: v.lastUpdatedAt };
+      for (const row of recViewsAgg) {
+        recViewMap[String(row._id)] = {
+          watchDuration: Math.max(0, Math.round(Number(row.maxWatchDuration || 0))),
+          lastUpdatedAt: row.lastUpdatedAt || null
+        };
       }
-  
+
+      const resolveManualDurationSec = (recording) => {
+        let durationSec = Number.isFinite(Number(recording.duration))
+          ? Number(recording.duration)
+          : 0;
+        if (durationSec > 0) return durationSec;
+        const recDay = Number(recording?.courseDay);
+        const recBatches = Array.isArray(recording?.batches) ? recording.batches : [];
+        if (!Number.isFinite(recDay) || recDay < 1 || !recBatches.length) return 0;
+        const match = meetingsForDuration.find(
+          (m) =>
+            Number(m?.courseDay) === recDay &&
+            Number(m?.duration) > 0 &&
+            recBatches.some((rb) => batchesAlign(rb, m?.batch))
+        );
+        return match && Number(match.duration) > 0
+          ? Math.round(Number(match.duration) * 60)
+          : 0;
+      };
+
       const recordings = classRecordings.map(r => {
         const locked = r.courseDay != null && r.courseDay > accessDay;
         const viewData = recViewMap[String(r._id)];
-        const watchSec = viewData?.watchDuration || 0;
-        const durationSec = Number(r.duration || 0);
+        const durationSec = resolveManualDurationSec(r);
+        const rawWatchSec = viewData?.watchDuration || 0;
+        const watchSec =
+          durationSec > 0 ? Math.min(rawWatchSec, durationSec) : rawWatchSec;
         const watched = recordingWatchCountsAsComplete(watchSec, durationSec);
         return {
           _id: r._id,
@@ -728,15 +776,27 @@ function createGoStudentsRouter(trackKey) {
           : [];
 
       const zoomViewMap = {};
-      if (meetingIds.length > 0) {
-        const zoomViews = await ZoomRecordingView.find({
-          student: studentId,
-          meetingLinkId: { $in: meetingIds }
-        })
-          .select('meetingLinkId watchDuration lastUpdatedAt')
-          .lean();
-        for (const v of zoomViews) {
-          zoomViewMap[String(v.meetingLinkId)] = { watchDuration: v.watchDuration, lastUpdatedAt: v.lastUpdatedAt };
+      if (meetingIds.length > 0 && studentObjectId) {
+        const zoomViewsAgg = await ZoomRecordingView.aggregate([
+          {
+            $match: {
+              student: studentObjectId,
+              meetingLinkId: { $in: meetingIds }
+            }
+          },
+          {
+            $group: {
+              _id: '$meetingLinkId',
+              maxWatchDuration: { $max: '$watchDuration' },
+              lastUpdatedAt: { $max: '$lastUpdatedAt' }
+            }
+          }
+        ]);
+        for (const row of zoomViewsAgg) {
+          zoomViewMap[String(row._id)] = {
+            watchDuration: Math.max(0, Math.round(Number(row.maxWatchDuration || 0))),
+            lastUpdatedAt: row.lastUpdatedAt || null
+          };
         }
       }
   
@@ -744,13 +804,15 @@ function createGoStudentsRouter(trackKey) {
         const meeting = goMeetings.find(m => String(m._id) === String(zr.meetingLinkId));
         const locked = meeting?.courseDay != null && meeting.courseDay > accessDay;
         const viewData = zoomViewMap[String(zr.meetingLinkId)];
-        const watchSec = viewData?.watchDuration || 0;
         const durationSec =
           Number(zr.duration) > 0
             ? Number(zr.duration)
             : meeting?.duration != null && Number(meeting.duration) > 0
               ? Math.round(Number(meeting.duration) * 60)
               : 0;
+        const rawWatchSec = viewData?.watchDuration || 0;
+        const watchSec =
+          durationSec > 0 ? Math.min(rawWatchSec, durationSec) : rawWatchSec;
         const watched = recordingWatchCountsAsComplete(watchSec, durationSec);
         return {
           _id: zr._id,

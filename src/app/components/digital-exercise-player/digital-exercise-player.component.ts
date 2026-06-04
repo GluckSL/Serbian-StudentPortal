@@ -1053,6 +1053,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   private pushTutorTurnPromptForSpeak(caption: string): void {
+    if (this.watchOnlyMode) return;
     const line = String(caption || '').trim();
     if (!line) return;
     this.pushVpChat('tutor', `Now your turn says: "${line}"`, { kind: 'your-turn' });
@@ -1311,11 +1312,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         if (this.isVideoOnlyExercise) {
           this.resetVpChat();
           const title = this.exercise?.title || 'this lesson';
-          this.pushVpChat(
-            'tutor',
-            `Hey! Let's practice "${title}" together. Watch each clip, then repeat the phrase when it's your turn.`,
-            { kind: 'intro' }
-          );
+          const intro = this.watchOnlyMode
+            ? `Let's go through "${title}" together. Watch each clip, then tap Next when you're ready.`
+            : `Hey! Let's practice "${title}" together. Watch each clip, then repeat the phrase when it's your turn.`;
+          this.pushVpChat('tutor', intro, { kind: 'intro' });
           this.syncVpChatForCurrentQuestion();
           setTimeout(() => this.scrollVpChatToBottom(), 120);
         }

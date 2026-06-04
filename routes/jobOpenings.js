@@ -11,6 +11,7 @@ const JobPlacementHighlight = require('../models/JobPlacementHighlight');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
+const { notifyJobApplicationSubmitted } = require('../utils/jobApplicationNotify');
 
 const router = express.Router();
 
@@ -148,6 +149,45 @@ function parseSkills(raw) {
   return [];
 }
 
+function parseMinJourneyDay(raw) {
+  if (raw === undefined || raw === null) return null;
+  const s = String(raw).trim();
+  if (s === '' || s === 'null' || s === 'undefined') return null;
+  const n = Math.floor(Number(s));
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(200, n);
+}
+
+function studentJourneyDay(student) {
+  const raw = student?.currentCourseDay;
+  if (raw != null && Number.isFinite(Number(raw))) {
+    return Math.min(200, Math.max(1, Math.floor(Number(raw))));
+  }
+  return 1;
+}
+
+/** Date-only YYYY-MM-DD → end of that calendar day (server local); ISO/datetime passed through */
+function parseApplyBefore(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (dateOnly) {
+    const end = new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3]),
+      23,
+      59,
+      59,
+      999
+    );
+    if (!Number.isNaN(end.getTime())) return end;
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
 function studentVisibleFilter() {
   const now = new Date();
   return {
@@ -168,8 +208,18 @@ async function getOrCreatePortalSettings() {
 
 async function buildPortalStats() {
   const visible = studentVisibleFilter();
-  const openings = await JobOpening.find(visible).select('companyName').lean();
-  const orgSet = new Set(openings.map((o) => String(o.companyName || '').trim().toLowerCase()).filter(Boolean));
+  const openings = await JobOpening.find(visible).select('companyName companyLogoUrl').lean();
+  const orgSet = new Set(
+    openings
+      .map((o) => {
+        const logo = String(o.companyLogoUrl || '').trim().toLowerCase();
+        if (logo) return logo;
+        const name = String(o.companyName || '').trim().toLowerCase();
+        if (name) return name;
+        return String(o._id);
+      })
+      .filter(Boolean)
+  );
   const settings = await getOrCreatePortalSettings();
   return {
     organizations: orgSet.size,
@@ -335,7 +385,7 @@ router.get('/admin/applications', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
 router.get('/student/apply-prefill', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
     const student = await User.findById(req.user.id)
-      .select('name email regNo batch phoneNumber')
+      .select('name email regNo batch phoneNumber currentCourseDay')
       .lean();
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
@@ -347,7 +397,8 @@ router.get('/student/apply-prefill', verifyToken, checkRole('STUDENT'), async (r
         email: student.email || '',
         regNo: student.regNo || '',
         batch: student.batch || '',
-        phone: student.phoneNumber || ''
+        phone: student.phoneNumber || '',
+        journeyDay: studentJourneyDay(student)
       }
     });
   } catch (error) {
@@ -482,8 +533,19 @@ router.post(
       }
 
       const student = await User.findById(req.user.id)
-        .select('name email regNo batch')
+        .select('name email regNo batch currentCourseDay')
         .lean();
+
+      const minJourneyDay = opening.minJourneyDay;
+      if (minJourneyDay != null && minJourneyDay >= 1) {
+        const day = studentJourneyDay(student);
+        if (day < minJourneyDay) {
+          return res.status(403).json({
+            success: false,
+            message: `${minJourneyDay} journey day required to apply.`
+          });
+        }
+      }
 
       const application = await JobApplication.create({
         studentId: req.user.id,
@@ -498,6 +560,14 @@ router.post(
         resumeFileName: req.file.originalname,
         resumeUrl: `/uploads/job-applications/${req.file.filename}`
       });
+
+      notifyJobApplicationSubmitted({
+        application: application.toObject ? application.toObject() : application,
+        opening,
+        file: req.file,
+      }).catch((e) =>
+        console.error('[job-openings] application notify email failed:', e?.message)
+      );
 
       res.status(201).json({ success: true, data: application });
     } catch (error) {
@@ -772,13 +842,11 @@ router.post(
   runLogoUpload,
   async (req, res) => {
     try {
-      const companyName = String(req.body.companyName || '').trim();
       const jobTitle = String(req.body.jobTitle || '').trim();
-      const applyBeforeRaw = String(req.body.applyBefore || '').trim();
-      const applyBefore = applyBeforeRaw ? new Date(applyBeforeRaw) : null;
+      const applyBefore = parseApplyBefore(req.body.applyBefore);
 
-      if (!companyName || !jobTitle) {
-        return res.status(400).json({ success: false, message: 'Company name and job title are required.' });
+      if (!jobTitle) {
+        return res.status(400).json({ success: false, message: 'Job title is required.' });
       }
       if (!applyBefore || Number.isNaN(applyBefore.getTime())) {
         return res.status(400).json({ success: false, message: 'Valid apply-before date is required.' });
@@ -796,7 +864,7 @@ router.post(
       }
 
       const opening = await JobOpening.create({
-        companyName,
+        companyName: String(req.body.companyName || '').trim(),
         companyLogoUrl,
         jobTitle,
         jobType: String(req.body.jobType || 'Full Time'),
@@ -808,6 +876,7 @@ router.post(
         skills: parseSkills(req.body.skills),
         description: sanitizeDescription(req.body.description),
         applyBefore,
+        minJourneyDay: parseMinJourneyDay(req.body.minJourneyDay),
         isPublished: String(req.body.isPublished || 'true') !== 'false',
         isActive: String(req.body.isActive || 'true') !== 'false',
         createdBy: req.user.id
@@ -834,7 +903,7 @@ router.put(
 
       const prevLogo = opening.companyLogoUrl;
 
-      if (req.body.companyName !== undefined) opening.companyName = String(req.body.companyName).trim();
+      if (req.body.companyName !== undefined) opening.companyName = String(req.body.companyName || '').trim();
       if (req.body.jobTitle !== undefined) opening.jobTitle = String(req.body.jobTitle).trim();
       if (req.body.jobType !== undefined) opening.jobType = String(req.body.jobType);
       if (req.body.experience !== undefined) opening.experience = String(req.body.experience).trim();
@@ -845,11 +914,12 @@ router.put(
       if (req.body.skills !== undefined) opening.skills = parseSkills(req.body.skills);
       if (req.body.description !== undefined) opening.description = sanitizeDescription(req.body.description);
       if (req.body.applyBefore !== undefined) {
-        const d = new Date(String(req.body.applyBefore));
-        if (!Number.isNaN(d.getTime())) opening.applyBefore = d;
+        const d = parseApplyBefore(req.body.applyBefore);
+        if (d) opening.applyBefore = d;
       }
       if (req.body.isPublished !== undefined) opening.isPublished = String(req.body.isPublished) !== 'false';
       if (req.body.isActive !== undefined) opening.isActive = String(req.body.isActive) !== 'false';
+      if (req.body.minJourneyDay !== undefined) opening.minJourneyDay = parseMinJourneyDay(req.body.minJourneyDay);
 
       if (req.file) {
         const nextLogoUrl = await persistCompanyLogo(req.file);

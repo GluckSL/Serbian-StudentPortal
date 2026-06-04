@@ -425,9 +425,13 @@
 }
 
 .sr-col-action {
-  width: 90px;
-  min-width: 90px;
+  width: auto;
+  min-width: 132px;
   white-space: nowrap;
+}
+
+.sr-table .sr-col-action {
+  overflow: visible;
 }
 
 .sr-table tr:last-child td {
@@ -763,10 +767,97 @@
   font-size: 18px;
 }
 
+.sr-icon-btn--cancel-req {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1.5px solid #fde68a;
+  background: #fff;
+  color: #b45309;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: background 0.15s, border-color 0.15s;
+}
 
+.sr-icon-btn--cancel-req:hover:not(:disabled) {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.sr-icon-btn--cancel-req:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.sr-icon-btn--cancel-req .material-icons {
+  font-size: 18px;
+}
+
+.sr-icon-btn--processing,
+.sr-rec-card__processing {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: default;
+}
+
+.sr-icon-btn--processing .material-icons,
+.sr-rec-card__processing .material-icons {
+  font-size: 18px;
+}
 
 .sr-rec-card__pending .material-icons {
   font-size: 18px;
+}
+
+.sr-rec-card__cancel-req {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid #fde68a;
+  background: #fff;
+  color: #b45309;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sr-rec-card__cancel-req:hover:not(:disabled) {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.sr-rec-card__cancel-req:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.sr-rec-card__cancel-req .material-icons {
+  font-size: 18px;
+}
+
+.sr-spin {
+  animation: sr-spin 0.8s linear infinite;
+}
+
+@keyframes sr-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sr-status-pill {

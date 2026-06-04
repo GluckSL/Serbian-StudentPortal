@@ -5,9 +5,9 @@
     <header class="jo-detail-hero">
       <div class="jo-detail-hero__row">
         <div class="jo-detail-hero__main">
-          <img *ngIf="logoUrl()" class="jo-detail-logo jo-detail-logo--hero" [src]="logoUrl()" [alt]="job.companyName" />
+          <img *ngIf="logoUrl()" class="jo-detail-logo jo-detail-logo--hero" [src]="logoUrl()" [alt]="job.jobTitle" />
           <span *ngIf="!logoUrl()" class="jo-detail-logo-fallback jo-detail-logo--hero">{{ companyInitial() }}</span>
-          <h1 class="jo-detail-title jo-detail-title--hero">{{ job.companyName }} — {{ job.jobTitle }}</h1>
+          <h1 class="jo-detail-title jo-detail-title--hero">{{ job.jobTitle }}</h1>
         </div>
 
         <div class="jo-detail-apply-wrap jo-detail-apply-wrap--hero">
@@ -44,6 +44,9 @@
         </span>
         <span *ngIf="job.jobType" class="jo-detail-meta-item">
           <span class="material-icons">work</span>{{ job.jobType }}
+        </span>
+        <span *ngIf="job.minJourneyDay" class="jo-detail-meta-item">
+          <span class="material-icons">flag</span>Journey day {{ job.minJourneyDay }}+ required
         </span>
       </div>
 

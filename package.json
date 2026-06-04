@@ -15,6 +15,7 @@
     "test": "ng test",
     "test:split-inheritance": "node --test tests/exerciseSplitInheritance.test.js",
     "test:game-import": "node --test tests/gameImport.test.js",
+    "test:journey-pause": "node --test tests/journeyPause.test.js",
     "upload:arena-sfx": "node tools/upload-arena-sfx-to-r2.js"
   },
   "private": true,

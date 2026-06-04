@@ -526,17 +526,44 @@ const detectAndMarkOverdue = async () => {
 
 // ─── DASHBOARD STATS ─────────────────────────────────────────────────────────
 
-const getPaymentDashboardStats = async () => {
+const getPaymentDashboardStats = async (options = {}) => {
+  const { studentIds = null, currency = null } = options;
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
+  const studentScope =
+    studentIds === null ?
+      {} :
+      { studentId: { $in: studentIds.length ? studentIds : [new mongoose.Types.ObjectId('000000000000000000000000')] } };
+  const currencyScope = currency ? { currency } : {};
+
+  const matchApproved = { status: 'APPROVED', isArchived: false, ...studentScope, ...currencyScope };
+  const matchPending = { status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false, ...studentScope, ...currencyScope };
+  const matchExpected = {
+    dueDate: { $gte: startOfMonth, $lte: endOfMonth },
+    status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] },
+    isArchived: false,
+    ...studentScope,
+    ...currencyScope,
+  };
+  const matchOverdue = {
+    dueDate: { $lt: now },
+    status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] },
+    isArchived: false,
+    ...studentScope,
+    ...currencyScope,
+  };
+
   const [totalReceivedOverall, totalReceivedThisMonth, pendingApproval, expectedThisMonth, overdueData] = await Promise.all([
-    PaymentFlowSubmission.aggregate([{ $match: { status: 'APPROVED', isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
-    PaymentFlowSubmission.aggregate([{ $match: { status: 'APPROVED', approvedAt: { $gte: startOfMonth, $lte: endOfMonth }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
-    PaymentFlowSubmission.aggregate([{ $match: { status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
-    PaymentRequest.aggregate([{ $match: { dueDate: { $gte: startOfMonth, $lte: endOfMonth }, status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' } } }]),
-    PaymentRequest.aggregate([{ $match: { dueDate: { $lt: now }, status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' }, count: { $sum: 1 } } }]),
+    PaymentFlowSubmission.aggregate([{ $match: matchApproved }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
+    PaymentFlowSubmission.aggregate([
+      { $match: { ...matchApproved, approvedAt: { $gte: startOfMonth, $lte: endOfMonth } } },
+      { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } },
+    ]),
+    PaymentFlowSubmission.aggregate([{ $match: matchPending }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
+    PaymentRequest.aggregate([{ $match: matchExpected }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' } } }]),
+    PaymentRequest.aggregate([{ $match: matchOverdue }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' }, count: { $sum: 1 } } }]),
   ]);
 
   const toMap = (arr) => arr.reduce((acc, i) => ({ ...acc, [i._id]: { total: i.total, count: i.count || 0 } }), {});

@@ -508,17 +508,23 @@ router.get('/student-feed', verifyToken, async (req, res) => {
       studentId: userId,
       status: { $in: ['PENDING', 'APPROVED', 'DECLINED'] },
     })
-      .select('meetingLinkId status classTopic classDate studentBatch requestedAt')
+      .select('_id meetingLinkId status classTopic classDate studentBatch requestedAt')
       .lean();
 
     const requestStatusPriority = { APPROVED: 3, PENDING: 2, DECLINED: 1 };
     const requestStatusByMeeting = new Map();
+    const pendingRequestIdByMeeting = new Map();
     for (const ar of accessRequests) {
       const mid = String(ar.meetingLinkId);
+      if (ar.status === 'PENDING') {
+        pendingRequestIdByMeeting.set(mid, String(ar._id));
+      }
       const prev = requestStatusByMeeting.get(mid);
       const nextPri = requestStatusPriority[ar.status] || 0;
-      const prevPri = prev ? (requestStatusPriority[prev] || 0) : 0;
-      if (!prev || nextPri > prevPri) requestStatusByMeeting.set(mid, ar.status);
+      const prevPri = prev ? (requestStatusPriority[prev.status] || 0) : 0;
+      if (!prev || nextPri > prevPri) {
+        requestStatusByMeeting.set(mid, { status: ar.status, requestId: String(ar._id) });
+      }
     }
 
     const zoomRecByMeeting = new Map();
@@ -623,9 +629,16 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         return { ...r, accessRequestStatus: null, canPlay: true };
       }
       const mid = String(r.meetingLinkId || r.id);
-      const reqSt = requestStatusByMeeting.get(mid);
+      const reqInfo = requestStatusByMeeting.get(mid);
+      const reqSt = reqInfo?.status;
+      const pendingRequestId = pendingRequestIdByMeeting.get(mid) || null;
       if (reqSt === 'PENDING') {
-        return { ...r, accessRequestStatus: 'PENDING', canPlay: false };
+        return {
+          ...r,
+          accessRequestStatus: 'PENDING',
+          accessRequestId: pendingRequestId || reqInfo?.requestId || null,
+          canPlay: false,
+        };
       }
       if (reqSt === 'DECLINED') {
         return { ...r, accessRequestStatus: 'DECLINED', canPlay: false };
@@ -635,10 +648,11 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         return {
           ...r,
           accessRequestStatus: 'APPROVED',
+          accessRequestId: pendingRequestId,
           canPlay: !!(zoomRec && zoomRec.status === 'ready'),
         };
       }
-      return { ...r, accessRequestStatus: null, canPlay: true };
+      return { ...r, accessRequestStatus: null, accessRequestId: pendingRequestId, canPlay: true };
     });
 
     const mergedZoomIds = new Set(
@@ -678,6 +692,7 @@ router.get('/student-feed', verifyToken, async (req, res) => {
           courseDay: meeting.courseDay != null ? meeting.courseDay : null,
           watchedSeconds: 0,
           accessRequestStatus: ar.status,
+          accessRequestId: ar.status === 'PENDING' ? String(ar._id) : undefined,
           canPlay:
             ar.status === 'APPROVED' && !!(zoomRec && zoomRec.status === 'ready'),
         });

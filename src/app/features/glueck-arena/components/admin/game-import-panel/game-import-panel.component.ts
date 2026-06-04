@@ -16,6 +16,11 @@ const GAME_TYPE_LABELS: Record<string, string> = {
   whackawort: 'Whack-a-Wort',
   memory: 'Memory Game',
   jumbled_words: 'Jumbled Words',
+  hangman: 'Hangman',
+  multiple_choice: 'Multiple Choice',
+  spin_wheel: 'Spin the Wheel',
+  tap_boxes: 'Tap the Boxes',
+  word_search: 'Word Search',
 };
 
 const IMPORT_COLUMNS: Record<string, { col: string; required?: boolean; note?: string }[]> = {
@@ -89,6 +94,34 @@ const IMPORT_COLUMNS: Record<string, { col: string; required?: boolean; note?: s
     { col: 'word', required: true },
     { col: 'hint', note: 'translation; required if no image_url' },
     { col: 'image_url' },
+    { col: 'order' },
+  ],
+  hangman: [
+    { col: 'word', required: true },
+    { col: 'hint', required: true },
+    { col: 'image_url' },
+    { col: 'order' },
+  ],
+  multiple_choice: [
+    { col: 'question_text', required: true },
+    { col: 'option_1', required: true },
+    { col: 'option_2', required: true },
+    { col: 'option_3' },
+    { col: 'option_4' },
+    { col: 'correct_option', required: true, note: '1-based index of correct option' },
+    { col: 'order' },
+  ],
+  spin_wheel: [
+    { col: 'phrase', required: true, note: 'one wheel segment per row; min. 2 rows' },
+    { col: 'order' },
+  ],
+  tap_boxes: [
+    { col: 'phrase', required: true, note: 'one mystery box per row; min. 2 rows' },
+    { col: 'order' },
+  ],
+  word_search: [
+    { col: 'question_index', required: true, note: 'groups words into one puzzle' },
+    { col: 'word', required: true, note: 'hidden word (min. 3 per puzzle)' },
     { col: 'order' },
   ],
 };

@@ -60,3 +60,20 @@ export function amountForCurrency(code: PaymentCurrencyCode, totals: CurrencyPai
 export function fmtPaymentAmount(n: number | null | undefined): string {
   return (n ?? 0).toLocaleString('en-IN');
 }
+
+/** Indian-style compact (lakhs): 750000 → "7.5L", 236000 → "2.36L". */
+export function fmtPaymentAmountCompact(n: number | null | undefined): string {
+  const v = Number(n) || 0;
+  if (v === 0) return '0';
+  if (v >= 100000) {
+    const lakhs = v / 100000;
+    const decimals = lakhs >= 10 ? 1 : 2;
+    return `${Number(lakhs.toFixed(decimals))}L`;
+  }
+  if (v >= 1000) {
+    const k = v / 1000;
+    const decimals = k >= 100 ? 0 : k >= 10 ? 1 : 2;
+    return `${Number(k.toFixed(decimals))}K`;
+  }
+  return v.toLocaleString('en-IN');
+}

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const jobOpeningSchema = new mongoose.Schema(
   {
-    companyName: { type: String, required: true, trim: true, maxlength: 120 },
+    companyName: { type: String, default: '', trim: true, maxlength: 120 },
     companyLogoUrl: { type: String, default: '', trim: true },
     jobTitle: { type: String, required: true, trim: true, maxlength: 200 },
     jobType: {
@@ -13,6 +13,8 @@ const jobOpeningSchema = new mongoose.Schema(
     },
     experience: { type: String, default: '', trim: true, maxlength: 80 },
     jobCategory: { type: String, default: '', trim: true, maxlength: 80, index: true },
+    /** Minimum student journey day (currentCourseDay) to apply; null = no restriction */
+    minJourneyDay: { type: Number, default: null, min: 1, max: 200 },
     locationType: {
       type: String,
       enum: ['Onsite', 'Remote', 'Hybrid'],

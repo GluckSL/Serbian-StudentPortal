@@ -2,6 +2,11 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { isPaymentR2Configured } = require('../services/paymentProofR2Service');
+const {
+  paymentProofFileFilter,
+  PROOF_FILTER_ERROR,
+  PROOF_MAX_BYTES,
+} = require('../../../../utils/paymentProofFileFilter');
 
 /** Served under app static: /uploads/payment-hub-v2/... (disk fallback only) */
 const uploadDir = path.join(__dirname, '../../../../uploads/payment-hub-v2');
@@ -16,14 +21,7 @@ const diskStorage = multer.diskStorage({
   },
 });
 
-const fileFilter = (_req, file, cb) => {
-  const mimeOk = /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype) || file.mimetype === 'application/pdf';
-  const nameOk = /\.(jpe?g|png|gif|webp|pdf)$/i.test(file.originalname || '');
-  if (mimeOk || nameOk) return cb(null, true);
-  cb(new Error('Please upload an image (JPG, PNG, WebP, GIF) or a PDF'));
-};
-
-const limits = { fileSize: 15 * 1024 * 1024 };
+const limits = { fileSize: PROOF_MAX_BYTES };
 
 /**
  * When R2 is configured, store in memory so we can stream to R2.
@@ -32,7 +30,22 @@ const limits = { fileSize: 15 * 1024 * 1024 };
  */
 function buildUploadMiddleware() {
   const storage = isPaymentR2Configured() ? multer.memoryStorage() : diskStorage;
-  return multer({ storage, fileFilter, limits }).single('screenshot');
+  const upload = multer({ storage, fileFilter: paymentProofFileFilter, limits }).single('screenshot');
+  return (req, res, next) => {
+    upload(req, res, (err) => {
+      if (!err) return next();
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'File is too large. Maximum size is 15 MB.',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message || PROOF_FILTER_ERROR,
+      });
+    });
+  };
 }
 
 module.exports = { buildUploadMiddleware, uploadDir };

@@ -44,7 +44,25 @@ export interface StudentCatalog {
   inferredCurrency?: string;
 }
 
+export interface CatalogPaymentLevelRow {
+  level: string;
+  studentCount: number;
+  feeLKR: number;
+  feeINR: number;
+  feeUSD: number;
+  totalLKR: number;
+  totalINR: number;
+  totalUSD: number;
+}
+
 export interface DashboardStats {
+  totalPaymentExpectedLKR: number;
+  totalPaymentExpectedINR: number;
+  totalPaymentExpectedUSD: number;
+  catalogPaymentBreakdown?: CatalogPaymentLevelRow[];
+  totalDueLKR: number;
+  totalDueINR: number;
+  totalDueUSD: number;
   totalReceivedLKR: number;
   totalReceivedINR: number;
   totalReceivedUSD: number;
@@ -59,8 +77,15 @@ export interface DashboardStats {
   totalOverdueUSD: number;
   totalStudents: number;
   fullyPaidStudents: number;
-  activeStudents: number;
+  balanceStudents: number;
+  overdueStudents: number;
+  docsPaidStudents: number;
+  visaPaidStudents: number;
+  activeStudents?: number;
   overdueCount: number;
+  /** True when dashboard stats respect current hub filters */
+  filtered?: boolean;
+  filterSummary?: string;
 }
 
 /** Row returned by GET /students/browse — User-primary with optional profile data */
@@ -122,6 +147,7 @@ export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTota
     dateJoined?: string;
     createdAt?: string;
     currentCourseDay?: number;
+    isTestAccount?: boolean;
   };
   totalPaid: number;
   pendingApprovalAmount: number;
@@ -354,14 +380,38 @@ export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
   batch: string;
   studentCount: number;
   totalPaid: number;
+  totalPendingLKR?: number;
+  totalPendingINR?: number;
+  totalPendingUSD?: number;
+  totalOverdueLKR?: number;
+  totalOverdueINR?: number;
+  totalOverdueUSD?: number;
+  totalExpectedLKR?: number;
+  totalExpectedINR?: number;
+  totalExpectedUSD?: number;
+  totalDueLKR?: number;
+  totalDueINR?: number;
+  totalDueUSD?: number;
+  fullyPaidStudents?: number;
+  balanceStudents?: number;
+  overdueStudents?: number;
+  docsPaidStudents?: number;
+  visaPaidStudents?: number;
   levelCounts: Record<string, number>;
   maxStudentDay: number | null;
+  avgJourneyDay?: number | null;
+  collectionRateLKR?: number | null;
+}
+
+export interface BatchPaymentSummaryTotals extends Omit<BatchPaymentSummaryRow, 'batch' | 'levelCounts'> {
+  levelCounts?: Record<string, number>;
 }
 
 export interface BatchPaymentSummary {
   batches: BatchPaymentSummaryRow[];
   totalStudents: number;
   batchNames: string[];
+  totals?: BatchPaymentSummaryTotals | null;
 }
 
 export interface StudentHistory {

@@ -108,6 +108,21 @@ const BatchConfigSchema = new mongoose.Schema({
     min: 1,
     max: 200
   },
+  /**
+   * Completed pause intervals (new batch type). Each entry: journey day frozen,
+   * pause/resume timestamps, and calendar days the batch was paused.
+   */
+  journeyPauseHistory: {
+    type: [
+      {
+        day: { type: Number, min: 1, max: 200 },
+        pausedAt: { type: Date },
+        resumedAt: { type: Date },
+        pauseDays: { type: Number, min: 0 }
+      }
+    ],
+    default: []
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
