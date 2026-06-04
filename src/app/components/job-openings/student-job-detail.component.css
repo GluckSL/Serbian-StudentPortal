@@ -1,0 +1,231 @@
+:host {
+  --jo-surface: #ffffff;
+  --jo-border: #e2e8f0;
+  --jo-text: #1e293b;
+  --jo-muted: #64748b;
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.jo-detail-page {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--jp-page-gutter) var(--jp-page-gutter) 32px;
+  min-height: 100%;
+  color: var(--jo-text);
+  box-sizing: border-box;
+  background: var(--jo-bg);
+}
+
+.jo-detail-loading {
+  text-align: center;
+  padding: 80px;
+  color: var(--jo-muted);
+}
+
+.jo-detail-layout {
+  display: block;
+}
+
+.jo-detail-filters-placeholder {
+  display: none;
+}
+
+.jo-detail-card {
+  background: var(--jo-surface);
+  border: 1px solid var(--jo-border);
+  border-radius: var(--jp-radius-xl);
+  padding: 28px 32px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.jo-detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 22px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--jo-border);
+}
+
+.jo-detail-back {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--jo-border);
+  background: #f8fafc;
+  color: var(--jp-accent-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.jo-detail-back:hover {
+  border-color: var(--jp-accent);
+  background: var(--jp-accent-light);
+}
+
+.jo-detail-brand {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-width: 200px;
+  align-items: flex-start;
+}
+
+.jo-detail-logo,
+.jo-detail-logo-fallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: contain;
+  background: #f8fafc;
+  border: 1px solid var(--jo-border);
+  flex-shrink: 0;
+}
+
+.jo-detail-logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--jp-accent);
+}
+
+.jo-detail-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--jo-text);
+  line-height: 1.3;
+}
+
+.jo-detail-share {
+  background: #f8fafc;
+  border: 1px solid var(--jo-border);
+  border-radius: 8px;
+  color: var(--jo-muted);
+  cursor: pointer;
+  padding: 6px;
+  margin-top: 8px;
+}
+
+.jo-detail-apply-wrap {
+  text-align: right;
+  margin-left: auto;
+}
+
+.jo-detail-deadline {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: var(--jo-muted);
+  font-weight: 500;
+}
+
+.jo-detail-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--jp-gradient);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 28px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px var(--jp-shadow);
+}
+
+.jo-detail-apply:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.jo-detail-apply--applied {
+  background: #fff;
+  border: 2px solid var(--jp-accent);
+  color: var(--jp-accent-dark);
+  box-shadow: none;
+}
+
+.jo-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.jo-detail-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--jo-text);
+  background: #f8fafc;
+  border: 1px solid var(--jo-border);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.jo-detail-meta-item .material-icons {
+  font-size: 18px;
+  color: var(--jp-accent);
+}
+
+.jo-detail-section h2 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--jo-text);
+}
+
+.jo-detail-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.jo-skill--outline {
+  background: var(--jp-accent-light);
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--jp-accent-dark);
+}
+
+.jo-detail-desc {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: #334155;
+}
+
+.jo-detail-desc :deep(h2),
+.jo-detail-desc :deep(h3) {
+  color: var(--jo-text);
+  margin-top: 1.2em;
+}
+
+.jo-detail-desc :deep(ul) {
+  padding-left: 1.25rem;
+}
+
+.jo-detail-desc :deep(a) {
+  color: var(--jp-accent);
+}

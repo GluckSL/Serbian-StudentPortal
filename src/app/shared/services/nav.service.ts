@@ -158,6 +158,7 @@ export class NavService {
       items: [
         { id: 'reminders', label: 'Reminders', icon: 'alarm', route: '/admin/reminders', subGroup: null },
         { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
+        { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/admin/job-openings', subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets', icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
       ]
@@ -246,6 +247,7 @@ export class NavService {
         { id: 'my-course', label: 'My Course', icon: 'menu_book', route: '/student/my-course', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
         { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
+        { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/student/job-openings', subGroup: null },
         { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]
     },

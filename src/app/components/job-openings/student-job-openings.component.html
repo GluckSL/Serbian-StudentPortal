@@ -1,0 +1,145 @@
+<div class="jo-page">
+  <section class="jo-hero" *ngIf="stats">
+    <div class="jo-hero__text">
+      <h1 class="jo-hero__title">{{ stats.heroTitle }}</h1>
+      <p class="jo-hero__sub" *ngIf="stats.heroSubtitle">{{ stats.heroSubtitle }}</p>
+    </div>
+    <div class="jo-hero__stats">
+      <div class="jo-hero__stat">
+        <span class="jo-hero__stat-num">{{ stats.organizations }}+</span>
+        <span class="jo-hero__stat-label">Organizations</span>
+      </div>
+      <div class="jo-hero__stat">
+        <span class="jo-hero__stat-num">{{ stats.openings }}+</span>
+        <span class="jo-hero__stat-label">Job Openings</span>
+      </div>
+      <div class="jo-hero__stat">
+        <span class="jo-hero__stat-num jo-hero__stat-num--sm">{{ stats.averagePackageLabel }}</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="jo-layout">
+    <aside class="jo-filters">
+      <div class="jo-filters__head">
+        <span class="material-icons jo-filters__icon">filter_list</span>
+        <span class="jo-filters__title">Filters</span>
+        <button type="button" class="jo-filters__reset" (click)="resetFilters()">
+          <span class="material-icons">restart_alt</span>
+          Reset
+        </button>
+      </div>
+
+      <label class="jo-field">
+        <span class="jo-field__label">Job Type</span>
+        <select class="jo-select" [(ngModel)]="filterJobType">
+          <option value="">Select job type</option>
+          <option *ngFor="let t of jobTypes" [value]="t">{{ t }}</option>
+        </select>
+      </label>
+
+      <label class="jo-field">
+        <span class="jo-field__label">Experience</span>
+        <select class="jo-select" [(ngModel)]="filterExperience">
+          <option value="">Select experience</option>
+          <option *ngFor="let e of experienceOptions" [value]="e">{{ e }}</option>
+        </select>
+      </label>
+
+      <label class="jo-field">
+        <span class="jo-field__label">Job Category</span>
+        <select class="jo-select" [(ngModel)]="filterCategory">
+          <option value="">Select job category</option>
+          <option *ngFor="let c of categoryOptions" [value]="c">{{ c }}</option>
+        </select>
+      </label>
+
+      <label class="jo-field">
+        <span class="jo-field__label">Location Type</span>
+        <select class="jo-select" [(ngModel)]="filterLocationType">
+          <option value="">Select location type</option>
+          <option *ngFor="let l of locationTypes" [value]="l">{{ l }}</option>
+        </select>
+      </label>
+
+      <label class="jo-field">
+        <span class="jo-field__label">Location</span>
+        <input class="jo-input" type="text" placeholder="Search locations..." [(ngModel)]="locationSearch" />
+      </label>
+
+      <label class="jo-toggle">
+        <input type="checkbox" [(ngModel)]="viewAppliedOnly" (change)="onAppliedToggle()" />
+        <span class="jo-toggle__track"></span>
+        <span class="jo-toggle__label">View Applied Jobs</span>
+      </label>
+    </aside>
+
+    <main class="jo-main">
+      <div *ngIf="loading" class="jo-loading">
+        <div class="jo-card jo-card--skeleton" *ngFor="let i of [1,2,3]"></div>
+      </div>
+
+      <div *ngIf="!loading && filteredJobs.length === 0" class="jo-empty">
+        <span class="material-icons">work_off</span>
+        <p>No job openings match your filters.</p>
+        <button type="button" class="jo-link" (click)="resetFilters()">Clear filters</button>
+      </div>
+
+      <article
+        class="jo-card"
+        *ngFor="let job of filteredJobs"
+        (click)="openDetail(job)"
+        tabindex="0"
+        (keydown.enter)="openDetail(job)"
+      >
+        <div class="jo-card__logo-wrap">
+          <img *ngIf="logoUrl(job)" class="jo-card__logo" [src]="logoUrl(job)" [alt]="job.companyName" />
+          <span *ngIf="!logoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.companyName) }}</span>
+        </div>
+
+        <div class="jo-card__body">
+          <div class="jo-card__top">
+            <h2 class="jo-card__title">{{ job.companyName }} — {{ job.jobTitle }}</h2>
+            <div class="jo-card__meta">
+              <span *ngIf="job.experience" class="jo-meta">
+                <span class="material-icons">schedule</span>{{ job.experience }}
+              </span>
+              <span *ngIf="job.location" class="jo-meta">
+                <span class="material-icons">location_on</span>{{ job.location }}
+              </span>
+              <span *ngIf="job.salary" class="jo-meta">
+                <span class="material-icons">account_balance_wallet</span>{{ job.salary }}
+              </span>
+            </div>
+          </div>
+
+          <div class="jo-card__skills" *ngIf="job.skills?.length">
+            <span class="jo-skill" *ngFor="let skill of job.skills">{{ skill }}</span>
+          </div>
+
+          <div class="jo-card__footer">
+            <span class="jo-card__deadline" *ngIf="job.applyBefore">
+              Apply before {{ formatApplyBefore(job.applyBefore) }}
+            </span>
+            <button
+              type="button"
+              class="jo-apply-btn"
+              [class.jo-apply-btn--applied]="isApplied(job)"
+              (click)="apply(job, $event)"
+            >
+              {{ isApplied(job) ? 'Applied' : 'Apply' }}
+              <span class="material-icons">{{ isApplied(job) ? 'check_circle' : 'edit_note' }}</span>
+            </button>
+          </div>
+        </div>
+      </article>
+    </main>
+  </div>
+
+  <app-job-apply-form
+    [job]="applyJob"
+    [open]="showApplyForm"
+    (closed)="onApplyClosed()"
+    (submitted)="onApplySubmitted()"
+  ></app-job-apply-form>
+</div>

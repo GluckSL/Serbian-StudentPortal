@@ -1,0 +1,75 @@
+<div class="jo-detail-page">
+  <div *ngIf="loading" class="jo-detail-loading">Loading...</div>
+
+  <article class="jo-detail-card" *ngIf="!loading && job">
+      <header class="jo-detail-header">
+        <button type="button" class="jo-detail-back" (click)="goBack()" aria-label="Back">
+          <span class="material-icons">arrow_back</span>
+        </button>
+
+        <div class="jo-detail-brand">
+          <img *ngIf="logoUrl()" class="jo-detail-logo" [src]="logoUrl()" [alt]="job.companyName" />
+          <span *ngIf="!logoUrl()" class="jo-detail-logo-fallback">{{ companyInitial() }}</span>
+          <div>
+            <h1 class="jo-detail-title">{{ job.companyName }} — {{ job.jobTitle }}</h1>
+            <button *ngIf="canShare()" type="button" class="jo-detail-share" (click)="share()">
+              <span class="material-icons">share</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="jo-detail-apply-wrap">
+          <p class="jo-detail-deadline" *ngIf="job.applyBefore">
+            Apply before {{ formatApplyBefore(job.applyBefore) }}
+          </p>
+          <button
+            type="button"
+            class="jo-detail-apply"
+            [class.jo-detail-apply--applied]="applied"
+            [disabled]="applied"
+            (click)="apply()"
+          >
+            {{ applied ? 'Applied' : 'Apply now' }}
+            <span class="material-icons">{{ applied ? 'check_circle' : 'edit_note' }}</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="jo-detail-meta">
+        <span *ngIf="job.experience" class="jo-detail-meta-item">
+          <span class="material-icons">schedule</span>{{ job.experience }}
+        </span>
+        <span *ngIf="job.locationType" class="jo-detail-meta-item">
+          <span class="material-icons">business</span>{{ job.locationType }}
+        </span>
+        <span *ngIf="job.location" class="jo-detail-meta-item">
+          <span class="material-icons">location_on</span>{{ job.location }}
+        </span>
+        <span *ngIf="job.salary" class="jo-detail-meta-item">
+          <span class="material-icons">account_balance_wallet</span>{{ job.salary }}
+        </span>
+        <span *ngIf="job.jobType" class="jo-detail-meta-item">
+          <span class="material-icons">work</span>{{ job.jobType }}
+        </span>
+      </div>
+
+      <section class="jo-detail-section" *ngIf="job.skills?.length">
+        <h2>Skills</h2>
+        <div class="jo-detail-skills">
+          <span class="jo-skill jo-skill--outline" *ngFor="let skill of job.skills">{{ skill }}</span>
+        </div>
+      </section>
+
+      <section class="jo-detail-section" *ngIf="job.description">
+        <h2>Job Description</h2>
+        <div class="jo-detail-desc" [innerHTML]="job.description"></div>
+      </section>
+  </article>
+
+  <app-job-apply-form
+    [job]="job"
+    [open]="showApplyForm"
+    (closed)="onApplyClosed()"
+    (submitted)="onApplySubmitted()"
+  ></app-job-apply-form>
+</div>
