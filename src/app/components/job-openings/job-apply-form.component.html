@@ -1,0 +1,67 @@
+<div class="jaf-backdrop" *ngIf="open && job" (click)="close()"></div>
+<div class="jaf-modal" *ngIf="open && job" role="dialog" (click)="$event.stopPropagation()">
+  <header class="jaf-modal__head">
+    <div>
+      <span class="jaf-modal__badge">Apply in portal</span>
+      <h2>{{ job.companyName }} — {{ job.jobTitle }}</h2>
+      <p>Submit your details below. You can only apply once per opening.</p>
+    </div>
+    <button type="button" class="jaf-modal__close" (click)="close()" aria-label="Close">
+      <span class="material-icons">close</span>
+    </button>
+  </header>
+
+  <div class="jaf-modal__body" *ngIf="!loadingPrefill">
+    <div class="jaf-readonly-grid">
+      <div class="jaf-readonly">
+        <span class="jaf-label">Full name</span>
+        <span>{{ prefill.name }}</span>
+      </div>
+      <div class="jaf-readonly">
+        <span class="jaf-label">Email</span>
+        <span>{{ prefill.email }}</span>
+      </div>
+      <div class="jaf-readonly">
+        <span class="jaf-label">Reg. no.</span>
+        <span>{{ prefill.regNo }}</span>
+      </div>
+      <div class="jaf-readonly">
+        <span class="jaf-label">Batch</span>
+        <span>{{ prefill.batch || '—' }}</span>
+      </div>
+    </div>
+
+    <label class="jaf-field">
+      <span class="jaf-field__label">Phone number <em>*</em></span>
+      <input type="tel" [(ngModel)]="prefill.phone" placeholder="+94 …" />
+    </label>
+
+    <label class="jaf-field">
+      <span class="jaf-field__label">LinkedIn profile <span class="jaf-optional">optional</span></span>
+      <input type="url" [(ngModel)]="prefill.linkedIn" placeholder="https://linkedin.com/in/…" />
+    </label>
+
+    <label class="jaf-field">
+      <span class="jaf-field__label">Cover letter <em>*</em></span>
+      <textarea rows="5" [(ngModel)]="prefill.coverLetter" placeholder="Why are you a good fit for this role?"></textarea>
+    </label>
+
+    <label class="jaf-field">
+      <span class="jaf-field__label">Resume <em>*</em> <span class="jaf-optional">PDF or Word, max 5 MB</span></span>
+      <label class="jaf-file-btn">
+        <span class="material-icons">upload_file</span>
+        {{ resumeFile ? resumeFile.name : 'Choose resume' }}
+        <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" (change)="onResumeSelected($event)" hidden />
+      </label>
+    </label>
+  </div>
+
+  <div class="jaf-loading" *ngIf="loadingPrefill">Loading your profile…</div>
+
+  <footer class="jaf-modal__foot">
+    <button type="button" class="jaf-btn jaf-btn--ghost" (click)="close()">Cancel</button>
+    <button type="button" class="jaf-btn jaf-btn--submit" [disabled]="submitting || loadingPrefill" (click)="submit()">
+      {{ submitting ? 'Submitting…' : 'Submit application' }}
+    </button>
+  </footer>
+</div>

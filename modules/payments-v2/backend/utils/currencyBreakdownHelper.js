@@ -200,6 +200,45 @@ const addToCurrencyBucket = (bucket, currency, amount) => {
   bucket[code] += Number(amount) || 0;
 };
 
+/** Open balance for one request (matches slot "Balance" on the student detail page). */
+const openBalanceForRequest = (request, approvedSubmissions = []) => {
+  if (!request || request.isArchived) return 0;
+  if (request.status === 'REJECTED') return 0;
+
+  const remaining = Number(request.amountRemaining);
+  if (Number.isFinite(remaining) && remaining > 0) {
+    return remaining;
+  }
+
+  const requestId = String(request._id);
+  const paid = (approvedSubmissions || [])
+    .filter((s) => String(s.paymentRequestId) === requestId)
+    .reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
+  const quoted = Math.max(0, Number(request.amount) || 0);
+  return Math.max(0, quoted - paid);
+};
+
+/**
+ * Outstanding balance on payment requests (matches Payment Hub slot "Balance" rows).
+ * Uses amountRemaining when set; otherwise quoted amount minus approved payments.
+ */
+const computeBalanceDueFromRequests = (requests, approvedSubmissions = []) => {
+  const byCurrency = emptyCurrencyBucket();
+  for (const r of requests || []) {
+    const balance = openBalanceForRequest(r, approvedSubmissions);
+    if (balance <= 0) continue;
+    addToCurrencyBucket(byCurrency, r.currency, balance);
+  }
+  const total = byCurrency.LKR + byCurrency.INR + byCurrency.USD;
+  return {
+    total,
+    pendingApprovalAmount: total,
+    pendingApprovalAmountLKR: byCurrency.LKR,
+    pendingApprovalAmountINR: byCurrency.INR,
+    pendingApprovalAmountUSD: byCurrency.USD,
+  };
+};
+
 module.exports = {
   CURRENCIES,
   amountFromBreakdown,
@@ -216,4 +255,6 @@ module.exports = {
   emptyCurrencyBucket,
   normalizeCurrencyCode,
   addToCurrencyBucket,
+  computeBalanceDueFromRequests,
+  openBalanceForRequest,
 };

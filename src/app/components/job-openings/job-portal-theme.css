@@ -1,0 +1,25 @@
+/**
+ * Glück Job Portal — shared brand gradient (admin + student)
+ * Stops: 0% #0B3E52 · 50% #5759C7 · 100% #0E1D6B
+ */
+:host {
+  --jp-stop-0: #0b3e52;
+  --jp-stop-50: #5759c7;
+  --jp-stop-100: #0e1d6b;
+  --jp-gradient: linear-gradient(135deg, #0b3e52 0%, #5759c7 50%, #0e1d6b 100%);
+  --jp-gradient-hero: linear-gradient(120deg, #0b3e52 0%, #5759c7 50%, #0e1d6b 100%);
+  --jp-accent: #5759c7;
+  --jp-accent-dark: #0e1d6b;
+  --jp-accent-deep: #0b3e52;
+  --jp-accent-light: #e8e9fc;
+  --jp-accent-soft: #f0f1fb;
+  --jp-accent-hover: #6d6fd4;
+  --jp-stat-highlight: #c8caf8;
+  --jp-focus-ring: rgba(87, 89, 199, 0.18);
+  --jp-shadow: rgba(14, 29, 107, 0.28);
+  --jp-shadow-sm: rgba(11, 62, 82, 0.12);
+  --jp-radius-xl: 20px;
+  --jp-radius-lg: 16px;
+  --jp-radius-md: 12px;
+  --jp-page-gutter: 16px;
+}
