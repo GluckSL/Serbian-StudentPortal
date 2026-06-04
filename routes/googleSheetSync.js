@@ -2,7 +2,14 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { syncAllStudents, syncSingleStudent, getSyncStatus } = require('../services/googleSheetSyncService');
+const {
+  syncAllStudents,
+  syncSingleStudent,
+  getSyncStatus,
+  verifySheetConnection,
+  getActivity,
+  clearActivityLog,
+} = require('../services/googleSheetSyncService');
 const { runOcrForStudent, runOcrForAllStudents, runOcrForSelectedStudents, processSingleDocument } = require('../services/ocrService');
 const StudentExtractedData = require('../models/StudentExtractedData');
 const User = require('../models/User');
@@ -15,6 +22,27 @@ router.get('/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
     res.json(status);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+/** Confirm API can reach the spreadsheet and log title vs GOOGLE_SPREADSHEET_TITLE_EXPECTED */
+router.get('/activity', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  const since = parseInt(req.query.since, 10) || 0;
+  res.json(getActivity(since));
+});
+
+router.post('/activity/clear', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+  clearActivityLog();
+  res.json({ ok: true });
+});
+
+router.get('/verify', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const info = await verifySheetConnection();
+    res.json({ ok: true, ...info });
+  } catch (err) {
+    console.error('[GoogleSheetSync] verify failed:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 

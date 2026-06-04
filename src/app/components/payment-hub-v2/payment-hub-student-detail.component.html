@@ -138,31 +138,46 @@
 
         <div class="sd-slot-section">
           <div class="sd-slot-section__head">
-            <span class="sd-slot-section__title">Payment mapping</span>
-            <span class="sd-slot-section__sub">A1, A2, B1, B2, Docs, Visa</span>
+            <div class="sd-slot-section__titles">
+              <span class="sd-slot-section__title">Payment mapping</span>
+              <span class="sd-slot-section__sub">Mapped by level &amp; category — synced with payment history below</span>
+            </div>
+            <button
+              mat-stroked-button
+              type="button"
+              class="sd-slot-toggle-btn"
+              *ngIf="emptyMappingSlotCount() > 0"
+              (click)="showAllMappingSlots = !showAllMappingSlots"
+            >
+              {{ showAllMappingSlots ? 'Show active only' : ('Show all categories (' + paymentSlots.length + ')') }}
+            </button>
           </div>
           <div class="sd-slot-grid">
             <div
               class="sd-slot-card"
-              *ngFor="let slot of paymentSlots"
+              *ngFor="let slot of visiblePaymentSlots()"
               [ngClass]="slotCardThemeClass(slot.key)"
               [class.sd-slot-card--active]="activeMapSlot === slot.key || activeFullPaidSlot === slot.key"
+              [class.sd-slot-card--empty]="slotSummary(slot.key).requestCount === 0"
             >
               <div class="sd-slot-card__top">
                 <h3 class="sd-slot-card__title">{{ slot.label }}</h3>
                 <div class="sd-slot-card__top-actions">
+                  <span class="sd-slot-status" [ngClass]="slotStatusClass(slot.key)">{{ slotStatusLabel(slot.key) }}</span>
                   <button
                     mat-stroked-button
                     type="button"
                     class="sd-slot-fullpaid-btn"
-                    *ngIf="isLevelSlot(slot.key)"
-                    (click)="beginFullPaid(slot.key)"
+                    *ngIf="canMarkFullPaid(slot.key)"
+                    (click)="onMarkFullPaidClick(slot.key)"
                     matTooltip="Record full level payment at a custom amount (e.g. 10% course discount)"
                   >
                     <mat-icon>verified</mat-icon>
-                    Full paid
+                    Mark full paid
                   </button>
-                  <span class="sd-pill pill-grey">{{ slotSummary(slot.key).requestCount }} requests</span>
+                  <span class="sd-pill pill-grey" *ngIf="slotSummary(slot.key).requestCount > 0">
+                    {{ slotSummary(slot.key).requestCount }} request{{ slotSummary(slot.key).requestCount === 1 ? '' : 's' }}
+                  </span>
                 </div>
               </div>
               <div class="sd-slot-card__meta">
@@ -188,12 +203,24 @@
                   [hideZero]="true"
                 ></app-payment-currency-overdue-totals>
               </div>
+              <ul class="sd-slot-card__items" *ngIf="requestsForSlot(slot.key).length">
+                <li *ngFor="let req of requestsForSlot(slot.key)">
+                  <span class="sd-slot-item__label">{{ formatPaymentType(req.paymentType, req.customType) }}</span>
+                  <span class="sd-slot-item__amt">
+                    <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount - req.amountRemaining"></app-payment-currency-amount>
+                    <span class="sd-slot-item__bal" *ngIf="balanceDue(req) > 0"> · due
+                      <app-payment-currency-amount [currency]="req.currency" [amount]="balanceDue(req)"></app-payment-currency-amount>
+                    </span>
+                  </span>
+                  <span class="sd-pill sd-pill--mini" [ngClass]="statusClass(req.status)">{{ requestStatusLabel(req.status) }}</span>
+                </li>
+              </ul>
               <p class="sd-slot-card__empty" *ngIf="slotSummary(slot.key).requestCount === 0">
-                No mapped payments yet.
+                No payments mapped to {{ slot.label }} yet.
               </p>
               <button mat-stroked-button type="button" class="sd-slot-card__map-btn" (click)="beginMap(slot.key)">
                 <mat-icon>add_card</mat-icon>
-                Map payment to {{ slot.label }}
+                {{ slotSummary(slot.key).requestCount > 0 ? 'Add / adjust mapping' : ('Map payment to ' + slot.label) }}
               </button>
 
               <div class="sd-slot-fullpaid-form" *ngIf="activeFullPaidSlot === slot.key && isLevelSlot(slot.key)">

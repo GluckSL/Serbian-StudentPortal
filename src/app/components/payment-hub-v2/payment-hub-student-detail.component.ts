@@ -68,6 +68,8 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   mappingRemarks = '';
   mappingSaving = false;
 
+  showAllMappingSlots = false;
+
   activeFullPaidSlot: LanguageLevelSlot | null = null;
   fullPaidAmount: number | null = null;
   fullPaidCurrency: CurrencyKey = 'LKR';
@@ -408,6 +410,70 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return this.paymentSlots.some((slot) => this.slotSummary(slot.key).requestCount > 0);
   }
 
+  /** Slots with mapped requests, plus current student level when expanding the grid. */
+  visiblePaymentSlots(): Array<{ key: PaymentSlotKey; label: string }> {
+    if (this.showAllMappingSlots) return this.paymentSlots;
+    const current = this.normalizeLevel(this.history?.student?.level);
+    return this.paymentSlots.filter((slot) => {
+      if (this.slotSummary(slot.key).requestCount > 0) return true;
+      return current && slot.key === current;
+    });
+  }
+
+  emptyMappingSlotCount(): number {
+    return this.paymentSlots.filter((s) => this.slotSummary(s.key).requestCount === 0).length;
+  }
+
+  slotStatusKey(slotKey: PaymentSlotKey): 'empty' | 'settled' | 'partial' | 'balance' {
+    const s = this.slotSummary(slotKey);
+    if (s.requestCount === 0) return 'empty';
+    if (s.settledCount === s.requestCount) return 'settled';
+    if (s.settledCount > 0) return 'partial';
+    return 'balance';
+  }
+
+  slotStatusLabel(slotKey: PaymentSlotKey): string {
+    const map: Record<string, string> = {
+      empty: 'Not mapped',
+      settled: 'Settled',
+      partial: 'Partial',
+      balance: 'Balance due',
+    };
+    return map[this.slotStatusKey(slotKey)] || '—';
+  }
+
+  slotStatusClass(slotKey: PaymentSlotKey): string {
+    const map: Record<string, string> = {
+      empty: 'sd-slot-status--empty',
+      settled: 'sd-slot-status--settled',
+      partial: 'sd-slot-status--partial',
+      balance: 'sd-slot-status--due',
+    };
+    return map[this.slotStatusKey(slotKey)] || '';
+  }
+
+  canMarkFullPaid(slotKey: PaymentSlotKey): boolean {
+    return this.isLevelSlot(slotKey) && this.slotSummary(slotKey).requestCount > 0;
+  }
+
+  /** Template handler — narrows level slot before opening full-paid form. */
+  onMarkFullPaidClick(slotKey: PaymentSlotKey): void {
+    if (!this.isLevelSlot(slotKey)) return;
+    this.beginFullPaid(slotKey);
+  }
+
+  requestsForSlot(slotKey: PaymentSlotKey): PaymentRequest[] {
+    return (this.history?.requests || []).filter((req) => this.slotForRequest(req) === slotKey);
+  }
+
+  private slotForRequest(req: PaymentRequest): PaymentSlotKey | null {
+    if (req.paymentType === 'DOCS_PAYMENT') return 'DOCS';
+    if (req.paymentType === 'VISA_PAYMENT') return 'VISA';
+    if (req.paymentType === 'CUSTOM_PAYMENT') return this.normalizeLevel(req.customType);
+    if (req.paymentType !== 'LANGUAGE_FEE') return null;
+    return this.normalizeLevel(req.customType) || this.normalizeLevel(this.history?.student?.level);
+  }
+
   beginMap(slotKey: PaymentSlotKey): void {
     this.activeFullPaidSlot = null;
     const initialCurrency = this.primaryCurrencyForSlot(slotKey);
@@ -711,16 +777,6 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     }
     if (userText) parts.push(userText);
     return parts.join(' · ');
-  }
-
-  private slotForRequest(req: PaymentRequest): PaymentSlotKey | null {
-    if (req.paymentType === 'DOCS_PAYMENT') return 'DOCS';
-    if (req.paymentType === 'VISA_PAYMENT') return 'VISA';
-    if (req.paymentType === 'CUSTOM_PAYMENT') return this.normalizeLevel(req.customType);
-    if (req.paymentType !== 'LANGUAGE_FEE') return null;
-    const fallbackLevel = this.normalizeLevel(this.history?.student?.level);
-    const mappedLevel = this.normalizeLevel(req.customType) || fallbackLevel;
-    return mappedLevel;
   }
 
   private normalizeLevel(level: string | undefined | null): LanguageLevelSlot | null {

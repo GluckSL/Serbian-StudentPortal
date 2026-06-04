@@ -1,17 +1,28 @@
 const cron = require('node-cron');
-const { syncAllStudents } = require('../services/googleSheetSyncService');
+const { syncAllStudents, verifySheetConnection } = require('../services/googleSheetSyncService');
 
 function scheduleGoogleSheetSync() {
   const cronExpr = process.env.GOOGLE_SHEET_SYNC_CRON || '0 */6 * * *';
-  console.log(`[GoogleSheetSync] Scheduled with cron: ${cronExpr}`);
+
+  verifySheetConnection()
+    .then((info) => {
+      const icon = info.titleMatch ? '✓' : '✗';
+      console.log(
+        `[GoogleSheetSync] ${icon} "${info.spreadsheetTitle}" connected | cron ${cronExpr}`,
+      );
+    })
+    .catch((err) => {
+      console.log(`[GoogleSheetSync] ✗ Not connected: ${err.message}`);
+    });
 
   cron.schedule(cronExpr, async () => {
-    console.log('[GoogleSheetSync] Starting scheduled sync...');
     try {
       const result = await syncAllStudents();
-      console.log(`[GoogleSheetSync] Sync completed: ${result.synced}/${result.totalStudents} students synced`);
+      console.log(
+        `[GoogleSheetSync] ✓ Scheduled sync: ${result.rowsWritten} rows (${result.synced}/${result.totalStudents})`,
+      );
     } catch (err) {
-      console.error('[GoogleSheetSync] Sync error:', err.message);
+      console.log(`[GoogleSheetSync] ✗ Scheduled sync failed: ${err.message}`);
     }
   });
 }

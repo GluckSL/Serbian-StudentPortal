@@ -86,6 +86,7 @@ const approvePayment = async (req, res) => {
       adminName,
       adminRemarks: req.body.adminRemarks,
       paidAmount: req.body.paidAmount,
+      reviewUpdates: req.body.reviewUpdates,
     });
     res.json({ success: true, data: result.submission, receiptNumber: result.receiptNumber, isFullyPaid: result.isFullyPaid, message: result.isFullyPaid ? 'Payment fully paid and approved.' : 'Payment approved (partial).' });
   } catch (e) {
@@ -106,6 +107,7 @@ const rejectPayment = async (req, res) => {
       adminRole: req.user.role,
       adminName,
       rejectionReason: rejectionReason.trim(),
+      reviewUpdates: req.body.reviewUpdates,
     });
     res.json({ success: true, data: result, message: 'Payment rejected.' });
   } catch (e) {
@@ -137,6 +139,22 @@ const moveToUnderReview = async (req, res) => {
     submission.reviewedAt = new Date();
     await submission.save();
     res.json({ success: true, data: submission, message: 'Moved to Under Review.' });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+};
+
+// ─── Update review fields before approve/reject ─────────────────────────────
+const updateReviewDetails = async (req, res) => {
+  try {
+    const adminId = getAuthUserId(req);
+    const result = await paymentService.applySubmissionReviewDetails({
+      submissionId: req.params.submissionId,
+      adminId,
+      adminRole: req.user.role,
+      updates: req.body,
+    });
+    res.json({ success: true, data: result, message: 'Review details updated.' });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });
   }
@@ -174,5 +192,6 @@ module.exports = {
   rejectPayment,
   requestReupload,
   moveToUnderReview,
+  updateReviewDetails,
   correctApprovedAmount,
 };

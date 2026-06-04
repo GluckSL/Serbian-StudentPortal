@@ -197,9 +197,140 @@ const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency
   return submission;
 };
 
+const VALID_REVIEW_CURRENCIES = new Set(['LKR', 'INR', 'USD']);
+const VALID_REVIEW_METHODS = new Set(['Bank Transfer', 'UPI', 'Cash', 'Card', 'Other', 'Legacy']);
+const VALID_REVIEW_LEVELS = new Set(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
+
+/** Admin edits on approval queue review modal (batch, type, amounts, submission fields). */
+const applySubmissionReviewDetails = async ({ submissionId, adminId, adminRole, updates }) => {
+  if (!updates || typeof updates !== 'object') return null;
+
+  const submission = await PaymentFlowSubmission.findById(submissionId).populate('paymentRequestId');
+  if (!submission) throw new Error('Submission not found');
+  if (submission.status === 'APPROVED') throw new Error('Cannot edit an already approved submission');
+
+  const request = submission.paymentRequestId
+    ? await PaymentRequest.findById(submission.paymentRequestId._id || submission.paymentRequestId)
+    : null;
+  if (!request) throw new Error('Payment request not found');
+
+  const studentId = submission.studentId;
+  const User = mongoose.model('User');
+  const student = await User.findById(studentId);
+  if (!student) throw new Error('Student not found');
+
+  const previous = {
+    submission: submission.toObject(),
+    request: request.toObject(),
+    student: { batch: student.batch, level: student.level },
+  };
+
+  if (updates.batch !== undefined) {
+    student.batch = String(updates.batch || '').trim();
+  }
+  if (updates.level !== undefined) {
+    const lv = String(updates.level || '').trim().toUpperCase();
+    if (lv && !VALID_REVIEW_LEVELS.has(lv)) throw new Error('Level must be A1–C2');
+    student.level = lv || student.level;
+  }
+
+  if (updates.paymentType) {
+    request.paymentType = String(updates.paymentType).trim();
+  }
+  if (updates.customType !== undefined) {
+    request.customType = String(updates.customType || '').trim() || undefined;
+  }
+  if (updates.remarks !== undefined) {
+    request.remarks = String(updates.remarks || '').trim();
+  }
+  if (updates.requestCurrency) {
+    const c = String(updates.requestCurrency).trim().toUpperCase();
+    if (!VALID_REVIEW_CURRENCIES.has(c)) throw new Error('Currency must be LKR, INR, or USD');
+    request.currency = c;
+    submission.currency = c;
+  }
+  if (updates.requestAmount != null && updates.requestAmount !== '') {
+    const a = Number(updates.requestAmount);
+    if (!a || a <= 0 || Number.isNaN(a)) throw new Error('Request total must be greater than zero');
+    request.amount = a;
+  }
+  if (updates.balance != null && updates.balance !== '') {
+    const bal = Math.max(0, Number(updates.balance));
+    if (Number.isNaN(bal)) throw new Error('Balance must be a valid number');
+    request.amountRemaining = bal;
+  }
+
+  if (updates.declaredAmount != null && updates.declaredAmount !== '') {
+    const declared = Number(updates.declaredAmount);
+    if (!declared || declared <= 0 || Number.isNaN(declared)) {
+      throw new Error('Declared amount must be greater than zero');
+    }
+    submission.paidAmount = declared;
+  }
+  if (updates.accountHolderName !== undefined) {
+    submission.accountHolderName = String(updates.accountHolderName || '').trim();
+  }
+  if (updates.paymentMethod) {
+    const m = String(updates.paymentMethod).trim();
+    if (!VALID_REVIEW_METHODS.has(m)) throw new Error('Invalid payment method');
+    submission.paymentMethod = m;
+  }
+  if (updates.paymentDateTime) {
+    const d = new Date(updates.paymentDateTime);
+    if (Number.isNaN(d.getTime())) throw new Error('Invalid payment date');
+    submission.paymentDateTime = d;
+  }
+
+  const otherApproved = await PaymentFlowSubmission.find({
+    paymentRequestId: request._id,
+    status: 'APPROVED',
+    isArchived: false,
+    _id: { $ne: submission._id },
+  }).lean();
+  const otherPaid = otherApproved.reduce((s, sub) => s + (Number(sub.paidAmount) || 0), 0);
+  if (otherPaid + submission.paidAmount > request.amount + 0.01) {
+    throw new Error(
+      `Declared/credit amount cannot exceed request total (${request.currency} ${request.amount})`,
+    );
+  }
+
+  await student.save();
+  await request.save();
+  await submission.save();
+
+  await logAudit({
+    entityType: 'PaymentFlowSubmission',
+    entityId: submission._id,
+    action: 'REVIEW_DETAILS_UPDATED',
+    performedBy: adminId,
+    performedByRole: adminRole,
+    previousState: previous,
+    newState: {
+      submission: submission.toObject(),
+      request: request.toObject(),
+      student: { batch: student.batch, level: student.level },
+    },
+    studentId: student._id,
+  });
+
+  return { submission, request, student };
+};
+
 // ─── APPROVE PAYMENT ─────────────────────────────────────────────────────────
 
-const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, adminRemarks, paidAmount: paidAmountOverride }) => {
+const approveSubmission = async ({
+  submissionId,
+  adminId,
+  adminRole,
+  adminName,
+  adminRemarks,
+  paidAmount: paidAmountOverride,
+  reviewUpdates,
+}) => {
+  if (reviewUpdates) {
+    await applySubmissionReviewDetails({ submissionId, adminId, adminRole, updates: reviewUpdates });
+  }
+
   const submission = await PaymentFlowSubmission.findById(submissionId).populate('paymentRequestId').populate('studentId', 'name email batch level');
   if (!submission) throw new Error('Submission not found');
   if (submission.status === 'APPROVED') throw new Error('Already approved');
@@ -281,7 +412,11 @@ const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, 
 
 // ─── REJECT SUBMISSION ────────────────────────────────────────────────────────
 
-const rejectSubmission = async ({ submissionId, adminId, adminRole, adminName, rejectionReason }) => {
+const rejectSubmission = async ({ submissionId, adminId, adminRole, adminName, rejectionReason, reviewUpdates }) => {
+  if (reviewUpdates) {
+    await applySubmissionReviewDetails({ submissionId, adminId, adminRole, updates: reviewUpdates });
+  }
+
   const submission = await PaymentFlowSubmission.findById(submissionId).populate('studentId', 'name email');
   if (!submission) throw new Error('Submission not found');
   if (submission.status === 'APPROVED') throw new Error('Cannot reject an already approved payment');
@@ -629,6 +764,7 @@ const bulkResetStudentPayments = async ({ studentIds, adminId, adminRole, reason
 module.exports = {
   createPaymentRequests,
   submitPayment,
+  applySubmissionReviewDetails,
   approveSubmission,
   rejectSubmission,
   requestReupload,

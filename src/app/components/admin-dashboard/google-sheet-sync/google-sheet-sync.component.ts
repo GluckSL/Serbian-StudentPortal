@@ -1,7 +1,18 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, ElementRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GoogleSheetSyncService, SyncStatus, SyncResult, OcrBatchSummary, OcrTestResult, ExtractionData, StudentBrief } from '../../../services/google-sheet-sync.service';
+import {
+  GoogleSheetSyncService,
+  SyncStatus,
+  SyncResult,
+  OcrBatchSummary,
+  OcrTestResult,
+  ExtractionData,
+  StudentBrief,
+  ActivityLogEntry,
+  ActivityJob,
+  ActivityLogLevel,
+} from '../../../services/google-sheet-sync.service';
 
 @Component({
   selector: 'app-google-sheet-sync',
@@ -10,7 +21,8 @@ import { GoogleSheetSyncService, SyncStatus, SyncResult, OcrBatchSummary, OcrTes
   templateUrl: './google-sheet-sync.component.html',
   styleUrls: ['./google-sheet-sync.component.css'],
 })
-export class GoogleSheetSyncComponent implements OnInit {
+export class GoogleSheetSyncComponent implements OnInit, OnDestroy {
+  @ViewChild('activityLogBody') activityLogBody?: ElementRef<HTMLDivElement>;
   status: SyncStatus | null = null;
   loading = false;
   syncLoading = false;
@@ -38,13 +50,87 @@ export class GoogleSheetSyncComponent implements OnInit {
   studentSearchResults: StudentBrief[] = [];
   studentSearchLoading = false;
   selectedOcrIds = new Set<string>();
+  selectedTableIds = new Set<string>();
   private studentSearchTimeout: any = null;
 
+  activityLogs: ActivityLogEntry[] = [];
+  activityJob: ActivityJob | null = null;
+  private lastActivityId = 0;
+  private activityPollTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(private syncService: GoogleSheetSyncService) {}
+
+  get sheetConnected(): boolean {
+    return !!(this.status?.sheetConfigured && this.status.sheetConnection?.titleMatch !== false && !this.status.sheetConnectionError);
+  }
 
   ngOnInit(): void {
     this.loadStatus();
     this.loadExtractions();
+    this.fetchActivity();
+    this.startActivityPolling();
+  }
+
+  ngOnDestroy(): void {
+    this.stopActivityPolling();
+  }
+
+  get activityProgressPercent(): number {
+    if (!this.activityJob?.total) return 0;
+    return Math.min(100, Math.round((this.activityJob.current / this.activityJob.total) * 100));
+  }
+
+  logIcon(level: ActivityLogLevel): string {
+    if (level === 'success') return '✓';
+    if (level === 'error') return '✗';
+    if (level === 'warn') return '!';
+    return '·';
+  }
+
+  clearActivityLog(): void {
+    this.syncService.clearActivityLog().subscribe({
+      next: () => {
+        this.activityLogs = [];
+        this.activityJob = null;
+        this.lastActivityId = 0;
+      },
+    });
+  }
+
+  private fetchActivity(): void {
+    this.syncService.getActivity(this.lastActivityId).subscribe({
+      next: (res) => {
+        if (res.logs.length) {
+          this.activityLogs = [...this.activityLogs, ...res.logs].slice(-400);
+          this.lastActivityId = res.lastId;
+          this.scrollActivityToBottom();
+        }
+        this.activityJob = res.job;
+        const stillBusy = !!(res.job?.running || this.syncLoading || this.ocrLoading);
+        if (!stillBusy && !res.job?.running) {
+          // keep polling briefly after job ends to catch final lines
+        }
+      },
+    });
+  }
+
+  private scrollActivityToBottom(): void {
+    setTimeout(() => {
+      const el = this.activityLogBody?.nativeElement;
+      if (el) el.scrollTop = el.scrollHeight;
+    }, 0);
+  }
+
+  private startActivityPolling(): void {
+    this.stopActivityPolling();
+    this.activityPollTimer = setInterval(() => this.fetchActivity(), 1500);
+  }
+
+  private stopActivityPolling(): void {
+    if (this.activityPollTimer) {
+      clearInterval(this.activityPollTimer);
+      this.activityPollTimer = null;
+    }
   }
 
   loadStatus(): void {
@@ -58,25 +144,35 @@ export class GoogleSheetSyncComponent implements OnInit {
   triggerSync(): void {
     this.syncLoading = true;
     this.lastResult = null;
+    this.fetchActivity();
     this.syncService.triggerSync().subscribe({
       next: (r) => {
         this.lastResult = r;
-        this.showMessage(`Sync complete: ${r.synced}/${r.totalStudents} students synced`, r.errors?.length ? 'error' : 'success');
+        const rows = r.rowsWritten ?? r.synced;
+        this.showMessage(`✓ Sync complete: ${rows} rows written (${r.synced}/${r.totalStudents} students)`, r.errors?.length ? 'error' : 'success');
         this.syncLoading = false;
+        this.fetchActivity();
         this.loadStatus();
+        this.loadExtractions(this.currentPage);
       },
-      error: (err) => { this.showMessage('Sync failed: ' + err.message, 'error'); this.syncLoading = false; },
+      error: (err) => {
+        this.showMessage('✗ Sync failed: ' + err.message, 'error');
+        this.syncLoading = false;
+        this.fetchActivity();
+      },
     });
   }
 
   runOcrAll(): void {
     this.ocrLoading = true;
     this.lastOcrResult = null;
+    this.fetchActivity();
     this.syncService.runOcrAll().subscribe({
       next: (r) => {
         this.lastOcrResult = r;
         this.showMessage(`OCR complete: ${r.ok}/${r.total} processed`, r.errors ? 'error' : 'success');
         this.ocrLoading = false;
+        this.fetchActivity();
         this.loadStatus();
         this.loadExtractions();
       },
@@ -87,6 +183,7 @@ export class GoogleSheetSyncComponent implements OnInit {
           this.showMessage('OCR failed: ' + err.message, 'error');
         }
         this.ocrLoading = false;
+        this.fetchActivity();
       },
     });
   }
@@ -122,6 +219,65 @@ export class GoogleSheetSyncComponent implements OnInit {
   getCandidateName(e: ExtractionData): string {
     const c = e.candidate || {};
     return [c.firstName, c.familyName].filter(Boolean).join(' ') || e.studentId?.name || e.regNo || '-';
+  }
+
+  getExtractionStudentId(ext: ExtractionData): string | null {
+    const sid = ext.studentId as { _id?: string } | string | null;
+    if (!sid) return null;
+    if (typeof sid === 'string') return sid;
+    return sid._id ? String(sid._id) : null;
+  }
+
+  isTableRowSelected(ext: ExtractionData): boolean {
+    const id = this.getExtractionStudentId(ext);
+    return id ? this.selectedTableIds.has(id) : false;
+  }
+
+  toggleTableRow(studentId: string): void {
+    if (this.selectedTableIds.has(studentId)) this.selectedTableIds.delete(studentId);
+    else this.selectedTableIds.add(studentId);
+  }
+
+  isAllTableSelected(): boolean {
+    const ids = this.extractions.map((e) => this.getExtractionStudentId(e)).filter((id): id is string => !!id);
+    return ids.length > 0 && ids.every((id) => this.selectedTableIds.has(id));
+  }
+
+  toggleAllTableRows(): void {
+    const ids = this.extractions.map((e) => this.getExtractionStudentId(e)).filter((id): id is string => !!id);
+    if (this.isAllTableSelected()) ids.forEach((id) => this.selectedTableIds.delete(id));
+    else ids.forEach((id) => this.selectedTableIds.add(id));
+  }
+
+  runOcrForTableSelection(): void {
+    const ids = Array.from(this.selectedTableIds);
+    if (ids.length === 0) {
+      this.showMessage('Select students using the checkboxes in the table.', 'info');
+      return;
+    }
+    this.ocrLoading = true;
+    this.lastOcrResult = null;
+    this.fetchActivity();
+    this.syncService.runOcrSelected(ids).subscribe({
+      next: (r) => {
+        this.lastOcrResult = r;
+        this.showMessage(`✓ OCR: ${r.ok}/${r.total} processed`, r.errors ? 'error' : 'success');
+        this.ocrLoading = false;
+        this.selectedTableIds.clear();
+        this.fetchActivity();
+        this.loadStatus();
+        this.loadExtractions(this.currentPage);
+      },
+      error: (err) => {
+        if (err.status === 409) {
+          this.showMessage('OCR batch is already running in another tab or session.', 'error');
+        } else {
+          this.showMessage('✗ OCR failed: ' + err.message, 'error');
+        }
+        this.ocrLoading = false;
+        this.fetchActivity();
+      },
+    });
   }
 
   onSearch(): void {

@@ -272,10 +272,23 @@
 
 .sd-slot-section__head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.sd-slot-section__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sd-slot-toggle-btn {
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
 }
 
 .sd-slot-section__title {
@@ -337,6 +350,85 @@
 .sd-slot-card--active {
   border-color: #93c5fd;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.sd-slot-card--empty {
+  opacity: 0.92;
+  border-style: dashed;
+}
+
+.sd-slot-status {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.sd-slot-status--empty {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.sd-slot-status--settled {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.sd-slot-status--partial {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.sd-slot-status--due {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.sd-slot-card__items {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sd-slot-card__items li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.sd-slot-item__label {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.sd-slot-item__amt {
+  font-size: 12px;
+  font-weight: 700;
+  color: #166534;
+}
+
+.sd-slot-item__bal {
+  font-weight: 600;
+  color: #dc2626;
+  font-size: 11px;
+}
+
+.sd-pill--mini {
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  justify-self: end;
 }
 
 .sd-slot-card__top {

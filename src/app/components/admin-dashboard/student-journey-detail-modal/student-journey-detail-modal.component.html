@@ -124,34 +124,70 @@
           </div>
           <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
         </div>
-        <div class="sp-card">
+        <div class="sp-card sp-card--payments">
           <div class="sp-card__head">
             <span class="sp-card__title">Payments</span>
-            <span class="sp-card__meta">{{ jPayments.currency }}</span>
+            <span class="sp-pay-source" *ngIf="jPayments.isHub">Synced with Payment Hub</span>
+            <a *ngIf="studentId" class="sp-pay-hub-link" [href]="paymentHubUrl()" target="_blank" rel="noopener">Open hub ↗</a>
           </div>
-          <div class="sp-kv-row"><span>Total amount</span><span class="sp-kv-val">{{ jPayments.totalAmount | number:'1.0-0' }}</span></div>
-          <div class="sp-kv-row"><span>Paid amount</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ jPayments.paidAmount | number:'1.0-0' }}</span></div>
-          <div class="sp-kv-row">
-            <span>Balance</span>
-            <span class="sp-kv-val" [style.color]="jPayments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ jPayments.pendingAmount | number:'1.0-0' }}</span>
+
+          <div class="sp-pay-totals" *ngIf="hasMultiCurrencyPaid(); else spPaySingleCurrency">
+            <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidLKR > 0">
+              <span class="sp-pay-total-chip__lbl">Paid LKR</span>
+              <strong>{{ jPayments.totalPaidLKR | number:'1.0-0' }}</strong>
+            </div>
+            <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidINR > 0">
+              <span class="sp-pay-total-chip__lbl">Paid INR</span>
+              <strong>{{ jPayments.totalPaidINR | number:'1.0-0' }}</strong>
+            </div>
+            <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidUSD > 0">
+              <span class="sp-pay-total-chip__lbl">Paid USD</span>
+              <strong>{{ jPayments.totalPaidUSD | number:'1.0-0' }}</strong>
+            </div>
           </div>
-          <div class="sp-bar sp-bar--lg" style="margin-top:10px;">
+          <ng-template #spPaySingleCurrency>
+            <div class="sp-kv-row"><span>Total quoted</span><span class="sp-kv-val">{{ jPayments.totalAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
+            <div class="sp-kv-row"><span>Paid</span><span class="sp-kv-val sp-kv-val--green">{{ jPayments.paidAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
+            <div class="sp-kv-row">
+              <span>Balance</span>
+              <span class="sp-kv-val" [class.sp-kv-val--green]="jPayments.pendingAmount <= 0" [class.sp-kv-val--red]="jPayments.pendingAmount > 0">
+                {{ jPayments.pendingAmount | number:'1.0-0' }} {{ jPayments.currency }}
+              </span>
+            </div>
+          </ng-template>
+
+          <div class="sp-bar sp-bar--lg sp-pay-progress">
             <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jPayPct"></div>
           </div>
-          <div class="sp-small-text" style="margin-top:4px;">{{ jPayPct }}% paid</div>
-          <table class="sp-pay-table" *ngIf="jPayments.paymentHistory.length">
-            <thead>
-              <tr><th>Date</th><th>Amount</th><th>Method</th><th>Note</th></tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let p of $any(jPayments.paymentHistory | slice:0:8)">
-                <td>{{ formatDate(p.date) }}</td>
-                <td>{{ p.amount | number:'1.0-0' }}</td>
-                <td>{{ p.method || '—' }}</td>
-                <td>{{ p.note || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="sp-pay-progress-meta">
+            <span>{{ jPayPct }}% settled</span>
+            <span *ngIf="jPayments.requestCount">{{ jPayments.requestCount }} request(s)</span>
+          </div>
+
+          <div class="sp-pay-list-wrap" *ngIf="jPayments.paymentHistory.length">
+            <div class="sp-pay-list-head">All payments</div>
+            <table class="sp-pay-table sp-pay-table--hub">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Paid</th>
+                  <th>Balance</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let p of $any(jPayments.paymentHistory)">
+                  <td class="sp-pay-type">{{ p.label || p.note || '—' }}</td>
+                  <td class="sp-pay-amt">{{ (p.paidAmount ?? p.amount) | number:'1.0-0' }} {{ p.currency || jPayments.currency }}</td>
+                  <td [class.sp-pay-amt--due]="(p.balance ?? 0) > 0">{{ (p.balance ?? 0) | number:'1.0-0' }}</td>
+                  <td><span class="sp-pay-status" [ngClass]="payStatusClass(p.status || p.method)">{{ formatPayStatus(p.status || p.method) }}</span></td>
+                  <td class="sp-pay-date">{{ formatDate(p.createdAt || p.date) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
           <table class="sp-pay-table" *ngIf="!jPayments.paymentHistory.length && jPayments.invoices.length">
             <thead>
               <tr><th>Invoice</th><th>Total</th><th>Status</th></tr>

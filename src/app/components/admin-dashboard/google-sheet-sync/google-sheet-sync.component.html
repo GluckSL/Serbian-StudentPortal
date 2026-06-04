@@ -1,10 +1,29 @@
 <div class="sync-container">
   <h2>Google Sheet Sync</h2>
 
-  <!-- Status Banner -->
-  @if (!status?.sheetConfigured) {
+  <!-- Sheet connection -->
+  @if (status?.sheetConfigured) {
+    <div class="connection-banner" [class.connection-ok]="sheetConnected" [class.connection-bad]="!sheetConnected">
+      <span class="connection-icon">{{ sheetConnected ? '✓' : '✗' }}</span>
+      <div class="connection-text">
+        @if (sheetConnected) {
+          <strong>Google Sheet connected</strong>
+          <span> — "{{ status!.sheetConnection!.spreadsheetTitle }}" ({{ status!.sheetConnection!.worksheetTitle }})</span>
+          @if (status!.sheetConnection!.spreadsheetUrl) {
+            <a class="sheet-link" [href]="status!.sheetConnection!.spreadsheetUrl" target="_blank" rel="noopener">Open sheet</a>
+          }
+        } @else {
+          <strong>Google Sheet not connected</strong>
+          <span> — {{ status?.sheetConnectionError || 'Check credentials and share the sheet with the service account.' }}</span>
+        }
+      </div>
+    </div>
+    @if (status?.sheetConnection?.openInBrowserHint) {
+      <p class="connection-hint">{{ status!.sheetConnection!.openInBrowserHint }}</p>
+    }
+  } @else {
     <div class="alert alert-warning">
-      ⚠️ Google Sheets not configured. Set <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code>,
+      ✗ Google Sheets not configured. Set <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code>,
       <code>GOOGLE_PRIVATE_KEY</code>, and <code>GOOGLE_SPREADSHEET_ID</code> in .env
     </div>
   }
@@ -50,19 +69,63 @@
     <button class="btn btn-secondary" (click)="runOcrAll()" [disabled]="ocrLoading">
       {{ ocrLoading ? 'Processing...' : 'Run OCR for All Students' }}
     </button>
-    <button class="btn btn-secondary" (click)="openStudentPicker()" [disabled]="ocrLoading">
-      Run OCR for Selected
+    <button class="btn btn-secondary" (click)="runOcrForTableSelection()" [disabled]="ocrLoading || selectedTableIds.size === 0">
+      {{ selectedTableIds.size ? ('Run OCR for Selected (' + selectedTableIds.size + ')') : 'Run OCR for Selected' }}
     </button>
     <button class="btn btn-outline" (click)="loadStatus()" [disabled]="loading">
       Refresh Status
     </button>
   </div>
 
+  <!-- Activity log -->
+  <div class="activity-log-panel">
+    <div class="activity-log-header">
+      <h3>Activity log</h3>
+      @if (activityJob?.running) {
+        <span class="job-badge job-badge--running">
+          {{ activityJob!.type === 'sync' ? 'Syncing' : 'OCR' }}
+          @if (activityJob!.total) {
+            — {{ activityJob!.current }} / {{ activityJob!.total }} ({{ activityProgressPercent }}%)
+          }
+        </span>
+      } @else if (activityJob && !activityJob.running) {
+        <span class="job-badge job-badge--done">Finished</span>
+      }
+      <button type="button" class="btn btn-sm btn-outline" (click)="clearActivityLog()">Clear</button>
+    </div>
+    @if (activityJob?.running && activityJob!.total) {
+      <div class="activity-progress">
+        <div class="activity-progress-fill" [style.width.%]="activityProgressPercent"></div>
+      </div>
+    }
+    <div class="activity-log-body" #activityLogBody>
+      @if (activityLogs.length === 0) {
+        <p class="activity-empty">No activity yet. Run Sync or OCR to see live progress (✓ success, ✗ error).</p>
+      } @else {
+        @for (entry of activityLogs; track entry.id) {
+          <div class="log-line" [class.log-success]="entry.level === 'success'"
+               [class.log-error]="entry.level === 'error'"
+               [class.log-warn]="entry.level === 'warn'">
+            <span class="log-icon">{{ logIcon(entry.level) }}</span>
+            <span class="log-time">{{ entry.at | date:'HH:mm:ss' }}</span>
+            <span class="log-msg">{{ entry.message }}</span>
+          </div>
+        }
+      }
+    </div>
+  </div>
+
   <!-- Last Sync Result -->
   @if (lastResult) {
     <div class="result-box" [class.has-errors]="lastResult.errors.length">
       <h3>Sync Result</h3>
-      <p>{{ lastResult.synced }} / {{ lastResult.totalStudents }} students synced</p>
+      <p>
+        <span class="result-icon">✓</span>
+        {{ lastResult.synced }} / {{ lastResult.totalStudents }} students synced
+        @if (lastResult.rowsWritten != null) {
+          — {{ lastResult.rowsWritten }} rows on "{{ lastResult.worksheetTitle || 'sheet' }}"
+        }
+      </p>
       @if (lastResult.errors.length) {
         <div class="errors-list">
           <h4>Errors ({{ lastResult.errors.length }})</h4>
@@ -145,28 +208,45 @@
       <table class="extractions-table">
         <thead>
           <tr>
+            <th class="col-check">
+              <input type="checkbox" [checked]="isAllTableSelected()" (change)="toggleAllTableRows()" title="Select all on this page" />
+            </th>
             <th>Student</th>
             <th>Reg No</th>
             <th>Email</th>
-            <th>OCR Status</th>
-            <th>Documents Used</th>
+            <th>OCR</th>
+            <th>Sheet</th>
+            <th>Documents</th>
             <th>Last Synced</th>
           </tr>
         </thead>
         <tbody>
           @for (ext of extractions; track ext._id) {
-            <tr>
+            <tr [class.row-selected]="isTableRowSelected(ext)">
+              <td class="col-check">
+                @if (getExtractionStudentId(ext); as sid) {
+                  <input type="checkbox" [checked]="selectedTableIds.has(sid)" (change)="toggleTableRow(sid)" />
+                }
+              </td>
               <td>{{ getCandidateName(ext) }}</td>
               <td>{{ ext.studentId?.regNo || ext.regNo }}</td>
               <td>{{ ext.studentId?.email || '-' }}</td>
               <td>
-                <span class="badge" [class.badge-ok]="ext.ocrStatus === 'COMPLETED'"
-                      [class.badge-pending]="ext.ocrStatus === 'PENDING'"
-                      [class.badge-failed]="ext.ocrStatus === 'FAILED'">
-                  {{ ext.ocrStatus }}
+                <span class="status-icon" [class.status-ok]="ext.ocrStatus === 'COMPLETED'"
+                      [class.status-pending]="ext.ocrStatus === 'PENDING'"
+                      [class.status-fail]="ext.ocrStatus === 'FAILED'"
+                      [title]="ext.ocrStatus">
+                  {{ ext.ocrStatus === 'COMPLETED' ? '✓' : (ext.ocrStatus === 'FAILED' ? '✗' : '…') }}
                 </span>
               </td>
-              <td>{{ ext.documentsUsed.length || 0 }}</td>
+              <td>
+                <span class="status-icon" [class.status-ok]="!!ext.lastSyncedToSheet"
+                      [class.status-fail]="!ext.lastSyncedToSheet"
+                      [title]="ext.lastSyncedToSheet ? 'Synced to sheet' : 'Not synced yet'">
+                  {{ ext.lastSyncedToSheet ? '✓' : '✗' }}
+                </span>
+              </td>
+              <td>{{ ext.documentsUsed?.length || 0 }}</td>
               <td>{{ ext.lastSyncedToSheet ? (ext.lastSyncedToSheet | date:'short') : '-' }}</td>
             </tr>
           }

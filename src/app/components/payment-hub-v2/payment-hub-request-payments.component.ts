@@ -403,8 +403,8 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
     const openDialog = (item: ApprovalQueueItem) => {
       const ref = this.dialog.open(PaymentApprovalDecisionDialogComponent, {
-        width: '520px',
-        maxWidth: '100vw',
+        width: '580px',
+        maxWidth: '96vw',
         panelClass: 'lm-dialog-panel',
         autoFocus: false,
         data: {
@@ -418,9 +418,9 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       ref.afterClosed().subscribe((result) => {
         if (!result) return;
         if (result.action === 'approve') {
-          this.approve(item, result.paidAmount, result.adminRemarks);
+          this.approve(item, result.paidAmount, result.adminRemarks, result.reviewUpdates);
         } else {
-          this.reject(item, result.rejectionReason);
+          this.reject(item, result.rejectionReason, result.reviewUpdates);
         }
       });
     };
@@ -443,13 +443,21 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     });
   }
 
-  approve(sub: ApprovalQueueItem, paidAmount?: number, adminRemarks?: string): void {
+  approve(
+    sub: ApprovalQueueItem,
+    paidAmount?: number,
+    adminRemarks?: string,
+    reviewUpdates?: Record<string, unknown>,
+  ): void {
     this.loadingActionId = sub._id;
-    const body: { adminRemarks?: string; paidAmount?: number } = {
+    const body: { adminRemarks?: string; paidAmount?: number; reviewUpdates?: Record<string, unknown> } = {
       adminRemarks: (adminRemarks ?? this.adminRemarks) || undefined,
     };
     if (paidAmount != null) {
       body.paidAmount = paidAmount;
+    }
+    if (reviewUpdates) {
+      body.reviewUpdates = reviewUpdates;
     }
     this.api.approveSubmission(sub._id, body).subscribe({
       next: (res) => {
@@ -467,11 +475,15 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     });
   }
 
-  reject(sub: ApprovalQueueItem, reason?: string): void {
+  reject(sub: ApprovalQueueItem, reason?: string, reviewUpdates?: Record<string, unknown>): void {
     const rejectionReason = (reason ?? this.rejectReason).trim();
     if (!rejectionReason) { this.snack.open('Enter a rejection reason', 'OK', { duration: 3000 }); return; }
     this.loadingActionId = sub._id;
-    this.api.rejectSubmission(sub._id, { rejectionReason }).subscribe({
+    const body: { rejectionReason: string; reviewUpdates?: Record<string, unknown> } = { rejectionReason };
+    if (reviewUpdates) {
+      body.reviewUpdates = reviewUpdates;
+    }
+    this.api.rejectSubmission(sub._id, body).subscribe({
       next: () => {
         this.loadingActionId = null;
         this.snack.open('Rejected. The student has been emailed with your reason.', 'OK', { duration: 5000 });

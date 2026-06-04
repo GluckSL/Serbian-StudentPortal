@@ -79,6 +79,8 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   get jLessonsByLevel() { return this.journeyData?.lessonsByLevel || {}; }
   get jPayments() {
     const p = this.journeyData?.payments || {};
+    const hubRequests = p.hubRequests || [];
+    const ledgerRows = p.payments || [];
     return {
       source: p.source || 'invoices',
       currency: p.currency || 'LKR',
@@ -87,8 +89,43 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
       totalAmount: p.totalAmount || p.totalPackageAmount || 0,
       paidAmount: p.paidAmount || 0,
       pendingAmount: p.pendingAmount || 0,
-      paymentHistory: p.payments || []
+      totalPaidLKR: p.totalPaidLKR ?? 0,
+      totalPaidINR: p.totalPaidINR ?? 0,
+      totalPaidUSD: p.totalPaidUSD ?? 0,
+      requestCount: p.requestCount ?? hubRequests.length ?? 0,
+      paymentHistory: hubRequests.length ? hubRequests : ledgerRows,
+      isHub: p.source === 'payment_hub',
     };
+  }
+
+  paymentHubUrl(): string {
+    return this.studentId ? `/admin/payment-hub/student/${this.studentId}` : '/admin/payment-hub';
+  }
+
+  formatPayStatus(status: string): string {
+    const map: Record<string, string> = {
+      FULLY_PAID: 'Fully paid',
+      APPROVED: 'Approved',
+      SUBMITTED: 'Submitted',
+      UNDER_REVIEW: 'Under review',
+      REQUESTED: 'Requested',
+      OVERDUE: 'Overdue',
+      REJECTED: 'Rejected',
+    };
+    return map[status] || status || '—';
+  }
+
+  payStatusClass(status: string): string {
+    if (status === 'FULLY_PAID' || status === 'APPROVED') return 'sp-pay-status--ok';
+    if (status === 'OVERDUE' || status === 'REJECTED') return 'sp-pay-status--bad';
+    if (status === 'SUBMITTED' || status === 'UNDER_REVIEW') return 'sp-pay-status--pending';
+    return 'sp-pay-status--neutral';
+  }
+
+  hasMultiCurrencyPaid(): boolean {
+    const p = this.jPayments;
+    const n = [p.totalPaidLKR, p.totalPaidINR, p.totalPaidUSD].filter((v) => v > 0).length;
+    return n > 1;
   }
   get jVisa() {
     return this.journeyData?.visa || { steps: [], stages: [], currentStep: 0, totalSteps: 0, route: '', history: [], dates: {} };
@@ -125,7 +162,10 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
     return lp.length ? Math.round((c / lp.length) * 100) : 0;
   }
   get jPayPct(): number {
-    return this.jPayments.totalAmount ? Math.round((this.jPayments.paidAmount / this.jPayments.totalAmount) * 100) : 0;
+    const p = this.jPayments;
+    if (p.totalAmount > 0) return Math.min(100, Math.round((p.paidAmount / p.totalAmount) * 100));
+    if (p.paidAmount > 0 || p.totalPaidLKR > 0 || p.totalPaidINR > 0 || p.totalPaidUSD > 0) return 100;
+    return 0;
   }
   get jVisaPct(): number {
     return this.jVisa.steps.length > 1 ? Math.round((this.jVisa.currentStep / (this.jVisa.steps.length - 1)) * 100) : 0;
