@@ -30,6 +30,11 @@ const {
   computeBalanceDueFromRequests,
 } = require('../utils/currencyBreakdownHelper');
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
+const {
+  getFilteredStudentIds,
+  filterSummaryLabel,
+  hasActiveFilters,
+} = require('../helpers/paymentHubStudentFilter');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 // ─── Helper to get admin name from user model ──────────────────────────────
@@ -139,43 +144,74 @@ const getAllRequests = async (req, res) => {
 // ─── Dashboard summary stats ───────────────────────────────────────────────
 const getDashboardStats = async (req, res) => {
   try {
-    const raw = await paymentService.getPaymentDashboardStats();
+    const { filters, studentIds } = await getFilteredStudentIds(req.query);
+    const raw = await paymentService.getPaymentDashboardStats({
+      studentIds,
+      currency: filters.currency || null,
+    });
 
-    // Pull per-currency totals from nested structure
     const g = (map, cur) => (map && map[cur] && map[cur].total) || 0;
+    const pick = (lkr, inr, usd) => {
+      if (filters.currency === 'LKR') return { lkr, inr: 0, usd: 0 };
+      if (filters.currency === 'INR') return { lkr: 0, inr, usd: 0 };
+      if (filters.currency === 'USD') return { lkr: 0, inr: 0, usd };
+      return { lkr, inr, usd };
+    };
 
-    // Student counts: total from User; payment-state from profiles where they exist
+    const received = pick(
+      g(raw.totalReceived?.overall, 'LKR'),
+      g(raw.totalReceived?.overall, 'INR'),
+      g(raw.totalReceived?.overall, 'USD'),
+    );
+    const pending = pick(
+      g(raw.pendingApproval?.byCurrency, 'LKR'),
+      g(raw.pendingApproval?.byCurrency, 'INR'),
+      g(raw.pendingApproval?.byCurrency, 'USD'),
+    );
+    const expected = pick(
+      g(raw.expectedThisMonth, 'LKR'),
+      g(raw.expectedThisMonth, 'INR'),
+      g(raw.expectedThisMonth, 'USD'),
+    );
+    const overdue = pick(
+      g(raw.overdue?.byCurrency, 'LKR'),
+      g(raw.overdue?.byCurrency, 'INR'),
+      g(raw.overdue?.byCurrency, 'USD'),
+    );
+
     const User = mongoose.model('User');
+    const profileScope = studentIds === null ? {} : { studentId: { $in: studentIds } };
+
     const [totalStudents, fullyPaidStudents, activeStudents] = await Promise.all([
-      User.countDocuments({ role: 'STUDENT' }),
-      StudentPaymentProfile.countDocuments({ overallStatus: 'CLEAR' }),
+      studentIds === null ?
+        User.countDocuments({ role: 'STUDENT' }) :
+        studentIds.length,
+      StudentPaymentProfile.countDocuments({ ...profileScope, overallStatus: 'CLEAR' }),
       StudentPaymentProfile.countDocuments({
+        ...profileScope,
         overallStatus: { $in: ['REQUESTED', 'PENDING_REVIEW', 'OVERDUE'] },
       }),
     ]);
 
     const data = {
-      // Total received (all time)
-      totalReceivedLKR: g(raw.totalReceived?.overall, 'LKR'),
-      totalReceivedINR: g(raw.totalReceived?.overall, 'INR'),
-      totalReceivedUSD: g(raw.totalReceived?.overall, 'USD'),
-      // Pending approval (submitted but not yet approved)
-      pendingApprovalAmountLKR: g(raw.pendingApproval?.byCurrency, 'LKR'),
-      pendingApprovalAmountINR: g(raw.pendingApproval?.byCurrency, 'INR'),
-      pendingApprovalAmountUSD: g(raw.pendingApproval?.byCurrency, 'USD'),
-      // Expected this month (due but not yet paid)
-      totalExpectedThisMonthLKR: g(raw.expectedThisMonth, 'LKR'),
-      totalExpectedThisMonthINR: g(raw.expectedThisMonth, 'INR'),
-      totalExpectedThisMonthUSD: g(raw.expectedThisMonth, 'USD'),
-      // Overdue
-      totalOverdueLKR: g(raw.overdue?.byCurrency, 'LKR'),
-      totalOverdueINR: g(raw.overdue?.byCurrency, 'INR'),
-      totalOverdueUSD: g(raw.overdue?.byCurrency, 'USD'),
+      totalReceivedLKR: received.lkr,
+      totalReceivedINR: received.inr,
+      totalReceivedUSD: received.usd,
+      pendingApprovalAmountLKR: pending.lkr,
+      pendingApprovalAmountINR: pending.inr,
+      pendingApprovalAmountUSD: pending.usd,
+      totalExpectedThisMonthLKR: expected.lkr,
+      totalExpectedThisMonthINR: expected.inr,
+      totalExpectedThisMonthUSD: expected.usd,
+      totalOverdueLKR: overdue.lkr,
+      totalOverdueINR: overdue.inr,
+      totalOverdueUSD: overdue.usd,
       overdueCount: raw.overdue?.studentCount || 0,
-      // Student summary
       totalStudents,
       fullyPaidStudents,
       activeStudents,
+      filtered: hasActiveFilters(filters),
+      filterSummary: filterSummaryLabel(filters),
     };
 
     res.json({ success: true, data });
@@ -217,6 +253,11 @@ const getStudentTable = async (req, res) => {
         { name: { $regex: q, $options: 'i' } },
         { email: { $regex: q, $options: 'i' } },
       ];
+    }
+    if (req.query.dateFrom || req.query.dateTo) {
+      userMatch.enrollmentDate = {};
+      if (req.query.dateFrom) userMatch.enrollmentDate.$gte = new Date(req.query.dateFrom);
+      if (req.query.dateTo) userMatch.enrollmentDate.$lte = new Date(req.query.dateTo);
     }
 
     let sortStage = { name: 1 };

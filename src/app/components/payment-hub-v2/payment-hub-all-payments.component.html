@@ -120,76 +120,103 @@
 
 <!-- Stat cards -->
 <div class="ph-cards-section" *ngIf="!loadingStats; else statsSpinner">
+  <div class="ph-cards-scope" *ngIf="stats">
+    <span class="ph-cards-scope-label">Summary for</span>
+    <span class="ph-cards-scope-value" [class.ph-cards-scope-value--filtered]="hasActiveFilters">
+      {{ activeFilterLabel }}
+    </span>
+    <span class="ph-cards-scope-hint" *ngIf="!hasActiveFilters">Apply filters above to see batch-specific totals</span>
+  </div>
+
   <div class="ph-cards-grid" *ngIf="stats">
     <mat-card class="ph-card ph-card-green">
-      <div class="ph-card-header">
-        <mat-icon>check_circle</mat-icon>
-        <span>Total Received</span>
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--green"><mat-icon>check_circle</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Total Received</span>
+          <span class="ph-card-desc">All approved payments</span>
+        </div>
       </div>
       <mat-card-content class="ph-card-body">
         <app-payment-currency-totals
           [lkr]="stats.totalReceivedLKR"
           [inr]="stats.totalReceivedINR"
           [usd]="stats.totalReceivedUSD"
+          [hideZero]="!!filterCurrency"
         ></app-payment-currency-totals>
       </mat-card-content>
-      <div class="ph-card-footer">All approved payments</div>
     </mat-card>
 
     <mat-card class="ph-card ph-card-amber">
-      <div class="ph-card-header">
-        <mat-icon>hourglass_empty</mat-icon>
-        <span>Pending</span>
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--amber"><mat-icon>hourglass_empty</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Pending</span>
+          <span class="ph-card-desc">Submitted, not yet approved</span>
+        </div>
       </div>
       <mat-card-content class="ph-card-body">
         <app-payment-currency-pending-totals
           [lkr]="stats.pendingApprovalAmountLKR"
           [inr]="stats.pendingApprovalAmountINR"
           [usd]="stats.pendingApprovalAmountUSD"
-          [hideZero]="false"
+          [hideZero]="!!filterCurrency"
         ></app-payment-currency-pending-totals>
       </mat-card-content>
-      <div class="ph-card-footer">Submitted, not yet approved</div>
     </mat-card>
 
     <mat-card class="ph-card ph-card-blue">
-      <div class="ph-card-header">
-        <mat-icon>calendar_today</mat-icon>
-        <span>Expected This Month</span>
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--blue"><mat-icon>calendar_today</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Expected This Month</span>
+          <span class="ph-card-desc">Due by end of current month</span>
+        </div>
       </div>
       <mat-card-content class="ph-card-body">
         <app-payment-currency-totals
           [lkr]="stats.totalExpectedThisMonthLKR"
           [inr]="stats.totalExpectedThisMonthINR"
           [usd]="stats.totalExpectedThisMonthUSD"
+          [hideZero]="!!filterCurrency"
         ></app-payment-currency-totals>
       </mat-card-content>
-      <div class="ph-card-footer">Due by end of current month</div>
     </mat-card>
 
     <mat-card class="ph-card ph-card-red">
-      <div class="ph-card-header">
-        <mat-icon>error_outline</mat-icon>
-        <span>Overdue</span>
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--red"><mat-icon>error_outline</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Overdue</span>
+          <span class="ph-card-desc">Past due, not paid · {{ stats.overdueCount }} requests</span>
+        </div>
       </div>
       <mat-card-content class="ph-card-body">
         <app-payment-currency-overdue-totals
           [lkr]="stats.totalOverdueLKR"
           [inr]="stats.totalOverdueINR"
           [usd]="stats.totalOverdueUSD"
-          [hideZero]="false"
+          [hideZero]="!!filterCurrency"
         ></app-payment-currency-overdue-totals>
       </mat-card-content>
-      <div class="ph-card-footer">Past due date, not paid ({{ stats.overdueCount }} requests)</div>
     </mat-card>
   </div>
 
   <div class="ph-summary-row" *ngIf="stats">
-    <div class="ph-summary-item"><span class="ph-summary-label">Total Students</span><span class="ph-summary-val">{{ stats.totalStudents }}</span></div>
+    <div class="ph-summary-item">
+      <span class="ph-summary-label">Students in view</span>
+      <span class="ph-summary-val">{{ stats.totalStudents }}</span>
+    </div>
     <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item"><span class="ph-summary-label">Fully Paid</span><span class="ph-summary-val ph-val-green">{{ stats.fullyPaidStudents }}</span></div>
+    <div class="ph-summary-item">
+      <span class="ph-summary-label">Fully Paid</span>
+      <span class="ph-summary-val ph-val-green">{{ stats.fullyPaidStudents }}</span>
+    </div>
     <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item"><span class="ph-summary-label">Active</span><span class="ph-summary-val ph-val-blue">{{ stats.activeStudents }}</span></div>
+    <div class="ph-summary-item">
+      <span class="ph-summary-label">Active</span>
+      <span class="ph-summary-val ph-val-blue">{{ stats.activeStudents }}</span>
+    </div>
   </div>
 </div>
 <ng-template #statsSpinner>

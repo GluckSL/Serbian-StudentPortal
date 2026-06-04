@@ -61,6 +61,9 @@ export interface DashboardStats {
   fullyPaidStudents: number;
   activeStudents: number;
   overdueCount: number;
+  /** True when dashboard stats respect current hub filters */
+  filtered?: boolean;
+  filterSummary?: string;
 }
 
 /** Row returned by GET /students/browse — User-primary with optional profile data */

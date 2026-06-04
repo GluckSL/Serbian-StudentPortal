@@ -106,6 +106,40 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   /** Student `_id`s selected for bulk language fee (may span pages). */
   private selectedStudentIds = new Set<string>();
 
+  get hasActiveFilters(): boolean {
+    return !!(
+      this.filterBatch ||
+      this.filterLevel ||
+      this.filterCurrency ||
+      this.filterLanguageFeeStatus ||
+      this.filterStudentStatus ||
+      this.filterSubscription ||
+      this.filterDateFrom ||
+      this.filterDateTo
+    );
+  }
+
+  get activeFilterLabel(): string {
+    if (this.stats?.filterSummary) return this.stats.filterSummary;
+    const parts: string[] = [];
+    if (this.filterBatch) parts.push(`Batch ${this.filterBatch}`);
+    if (this.filterLevel) parts.push(`Level ${this.filterLevel}`);
+    if (this.filterSubscription) {
+      const o = this.subscriptionOptions.find((x) => x.value === this.filterSubscription);
+      parts.push(o?.label || this.filterSubscription);
+    }
+    if (this.filterStudentStatus) {
+      const o = this.studentStatusOptions.find((x) => x.value === this.filterStudentStatus);
+      parts.push(o?.label || this.filterStudentStatus);
+    }
+    if (this.filterLanguageFeeStatus) {
+      const o = this.languageFeeStatusOptions.find((x) => x.value === this.filterLanguageFeeStatus);
+      parts.push(o?.label || this.filterLanguageFeeStatus);
+    }
+    if (this.filterCurrency) parts.push(this.filterCurrency);
+    return parts.length ? parts.join(' · ') : 'All students';
+  }
+
   constructor(
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
