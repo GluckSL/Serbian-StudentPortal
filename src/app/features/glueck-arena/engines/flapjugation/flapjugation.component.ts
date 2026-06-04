@@ -50,7 +50,10 @@ export interface FJResult {
       <div class="fj__header" #header [style.display]="phase === 'idle' ? 'none' : ''">
         <div class="fj__header-left">
           <div class="fj__pronoun">{{ currentPronoun }}</div>
-          <div class="fj__infinitive">{{ currentInfinitive }}</div>
+          <div class="fj__verb-group">
+            <div class="fj__infinitive">{{ currentInfinitive }}</div>
+            <div class="fj__translation" *ngIf="currentTranslation">{{ currentTranslation }}</div>
+          </div>
         </div>
         <div class="fj__header-center">
           <div class="fj__score">{{ score }}</div>
@@ -94,11 +97,16 @@ export interface FJResult {
   styles: [`
     .fj { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 450px; border-radius: 12px; overflow: hidden; outline: none; }
     .fj__header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: rgba(0,0,0,.45); backdrop-filter: blur(6px); min-height: 52px; gap: 12px; z-index: 10; flex-shrink: 0; }
-    .fj__header-left { display: flex; align-items: center; gap: 10px; }
+    .fj__header-left { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+    .fj__verb-group { display: flex; align-items: center; gap: 8px; }
+    @media (max-width: 640px) {
+      .fj__verb-group { flex-direction: column; align-items: flex-start; gap: 2px; }
+    }
     .fj__header-center { display: flex; align-items: center; gap: 12px; }
     .fj__header-right { display: flex; align-items: center; }
     .fj__pronoun { font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.5); background: rgba(255,255,255,.12); padding: 2px 14px; border-radius: 8px; }
-    .fj__infinitive { font-size: 13px; color: #e0e0e0; background: rgba(255,255,255,.08); padding: 2px 10px; border-radius: 6px; }
+    .fj__infinitive { font-size: 13px; color: #fff; background: rgba(255,255,255,.08); padding: 2px 10px; border-radius: 6px; }
+    .fj__translation { font-size: 12px; color: #fff; background: rgba(255,255,255,.08); padding: 2px 10px; border-radius: 6px; font-style: italic; }
     .fj__score { font-size: 20px; font-weight: 700; color: #fdd835; }
     .fj__lives { display: flex; gap: 2px; }
     .fj__progress-bar { width: 100px; height: 5px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
@@ -123,6 +131,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
   phase: 'idle' | 'playing' | 'gameover' | 'complete' = 'idle';
   currentPronoun = 'ich';
   currentInfinitive = '';
+  currentTranslation = '';
   score = 0;
   accuracy = 0;
   livesArr: number[] = [];
@@ -217,6 +226,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     const q = this.questions[this.questionIndex];
     if (!q) { this.endGame(); return; }
     this.currentInfinitive = q.word;
+    this.currentTranslation = q.translation || '';
     this.pronounCycleIndex = 0;
     this.currentPronoun = PRONOUN_CYCLE[0];
     this.hitsThisPronoun = 0;
