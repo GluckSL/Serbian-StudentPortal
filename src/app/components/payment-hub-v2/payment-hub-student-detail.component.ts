@@ -251,7 +251,35 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   }
 
   balanceDue(req: PaymentRequest): number {
-    return Math.max(0, req.amountRemaining ?? 0);
+    return this.openBalanceForRequest(req);
+  }
+
+  /** Same rules as backend openBalanceForRequest / slot Balance rows. */
+  private openBalanceForRequest(req: PaymentRequest): number {
+    if (req.status === 'REJECTED') return 0;
+    const remaining = Number(req.amountRemaining);
+    if (Number.isFinite(remaining) && remaining > 0) return remaining;
+    const approved = this.getSubmissions(req).filter((s) => s.status === 'APPROVED');
+    const paid = approved.reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
+    return Math.max(0, (req.amount ?? 0) - paid);
+  }
+
+  /** Pending = outstanding balance on mapped payments (same as slot Balance rows). */
+  pendingBalanceTotals(): Record<CurrencyKey, number> {
+    const fromSlots: Record<CurrencyKey, number> = { LKR: 0, INR: 0, USD: 0 };
+    for (const slot of this.paymentSlots) {
+      const bal = this.slotSummary(slot.key).balance;
+      fromSlots.LKR += bal.LKR;
+      fromSlots.INR += bal.INR;
+      fromSlots.USD += bal.USD;
+    }
+    const slotTotal = fromSlots.LKR + fromSlots.INR + fromSlots.USD;
+    if (slotTotal > 0) return fromSlots;
+    return {
+      LKR: this.history?.profile?.pendingApprovalAmountLKR ?? 0,
+      INR: this.history?.profile?.pendingApprovalAmountINR ?? 0,
+      USD: this.history?.profile?.pendingApprovalAmountUSD ?? 0,
+    };
   }
 
   getSubmissions(req: PaymentRequest): ApprovalQueueItem[] {
@@ -392,14 +420,12 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     for (const req of rows) {
       const currency = this.normCurrency(req.currency);
       const requested = Math.max(0, req.amount ?? 0);
-      // Trust approved/full-paid status over stale amountRemaining values.
-      const isSettled = req.status === 'FULLY_PAID' || req.status === 'APPROVED';
-      const balance = isSettled ? 0 : Math.max(0, req.amountRemaining ?? 0);
+      const balance = this.openBalanceForRequest(req);
       const paid = Math.max(0, requested - balance);
       summary.requested[currency] += requested;
       summary.paid[currency] += paid;
       summary.balance[currency] += balance;
-      if (balance === 0 || isSettled) {
+      if (balance === 0) {
         summary.settledCount += 1;
       }
     }

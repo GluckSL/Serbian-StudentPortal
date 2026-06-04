@@ -102,19 +102,36 @@ async function buildLegacyJourneyPayments(studentId, email, { includeTotalInvoic
 const StudentPayment = require('../models/StudentPayment');
 const VisaTracking = require('../models/VisaTracking');
 
+function documentRequirementAppliesToService(requirement, service = '') {
+  const scopedServices = [
+    ...(Array.isArray(requirement.applicableServices) ? requirement.applicableServices : []),
+    ...(Array.isArray(requirement.programKeys) ? requirement.programKeys : [])
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+
+  if (scopedServices.length === 0) return true;
+
+  const trimmedService = String(service || '').trim();
+  if (!trimmedService) return false;
+
+  const normalized = trimmedService.replace(/[\s\-]+/g, '[\\s\\-]*');
+  const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+  return scopedServices.some((s) => serviceRegex.test(String(s).trim()));
+}
+
 // Helper: build documents list cross-referencing requirements with uploads
 async function buildDocumentsList(studentId, servicesOpted) {
   const uploadedDocs = await StudentDocument.find({ studentId }).lean();
   const studentService = servicesOpted || '';
   let docRequirements = [];
   if (studentService && studentService !== 'German Language Only') {
-    // Normalize service name for flexible matching (e.g. "Au Pair" vs "Au-pair")
-    const normalized = studentService.trim().replace(/[\s\-]+/g, '[\\s\\-]*');
-    const serviceRegex = new RegExp('^' + normalized + '$', 'i');
-    docRequirements = await DocumentRequirement.find({
-      active: true,
-      $or: [{ applicableServices: { $size: 0 } }, { applicableServices: serviceRegex }]
-    }).sort({ order: 1 }).lean();
+    const allRequirements = await DocumentRequirement.find({ active: true }).sort({ order: 1 }).lean();
+    docRequirements = allRequirements.map((r) => {
+      const applies = documentRequirementAppliesToService(r, studentService);
+      const baseRequired = typeof r.isRequired === 'boolean' ? r.isRequired : !!r.required;
+      return { ...r, required: applies && baseRequired };
+    });
   }
   const documents = docRequirements.map(r => {
     const uploaded = uploadedDocs.find(d => d.documentType === r.type);

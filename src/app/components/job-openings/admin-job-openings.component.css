@@ -1,0 +1,1060 @@
+:host {
+  --ajo-amber: #f59e0b;
+  --ajo-surface: #ffffff;
+  --ajo-bg: #f0f4f8;
+  --ajo-border: #e2e8f0;
+  --ajo-text: #1e293b;
+  --ajo-muted: #64748b;
+  --ajo-radius: 14px;
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.ajo-page {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--jp-page-gutter) var(--jp-page-gutter) 32px;
+  min-height: 100%;
+  color: var(--ajo-text);
+  box-sizing: border-box;
+  background: var(--ajo-bg);
+}
+
+.ajo-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: var(--jp-gradient-hero);
+  border-radius: var(--jp-radius-xl);
+  padding: 24px 28px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px var(--jp-shadow-sm);
+  overflow: hidden;
+}
+
+.ajo-hero__content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ajo-hero__icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ajo-hero__icon-wrap .material-icons {
+  font-size: 28px;
+  color: #fff;
+}
+
+.ajo-hero h1 {
+  margin: 0 0 6px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.ajo-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.92rem;
+  max-width: 48ch;
+}
+
+.ajo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--ajo-border);
+  background: var(--ajo-surface);
+  border-radius: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--ajo-text);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.ajo-btn:hover:not(.ajo-btn--submit):not(.ajo-btn--accent):not(.ajo-btn--primary) {
+  background: #f8fafc;
+}
+
+.ajo-btn .material-icons {
+  font-size: 18px;
+}
+
+.ajo-btn--primary {
+  background: #fff;
+  border-color: #fff;
+  color: var(--jp-accent-dark);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ajo-btn--primary:hover {
+  background: var(--jp-accent-soft);
+  transform: translateY(-1px);
+}
+
+.ajo-btn--accent {
+  background: var(--jp-accent);
+  border-color: var(--jp-accent);
+  color: #fff;
+}
+
+.ajo-btn--accent:hover {
+  background: var(--jp-accent-dark);
+}
+
+.ajo-btn--danger {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.ajo-settings,
+.ajo-section {
+  background: var(--ajo-surface);
+  border: 1px solid var(--ajo-border);
+  border-radius: var(--jp-radius-lg);
+  padding: 22px 28px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.ajo-settings__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.ajo-settings h2,
+.ajo-section__title {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.ajo-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ajo-muted);
+}
+
+.ajo-stat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ajo-chip {
+  background: var(--jp-accent-light);
+  color: var(--jp-accent-dark);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.ajo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .ajo-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ajo-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ajo-muted);
+}
+
+.ajo-grid input,
+.ajo-grid select,
+.ajo-grid textarea {
+  font-weight: 400;
+  padding: 10px 12px;
+  border: 1px solid var(--ajo-border);
+  border-radius: 10px;
+  color: var(--ajo-text);
+  background: #fafbfc;
+}
+
+.ajo-grid input:focus,
+.ajo-grid select:focus,
+.ajo-grid textarea:focus {
+  outline: none;
+  border-color: var(--jp-accent);
+  box-shadow: 0 0 0 3px var(--jp-focus-ring);
+}
+
+.ajo-full {
+  grid-column: 1 / -1;
+}
+
+.ajo-check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  color: var(--ajo-text) !important;
+}
+
+.ajo-settings__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ajo-border);
+}
+
+.ajo-section__intro {
+  margin: 0 0 14px;
+}
+
+.ajo-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  background: #f8fafc;
+  border: 1px solid var(--ajo-border);
+  border-radius: 12px;
+}
+
+.ajo-tabs__btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 14px !important;
+  border: none !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: var(--ajo-muted) !important;
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.ajo-tabs__btn--active {
+  background: var(--jp-gradient-hero) !important;
+  color: #fff !important;
+}
+
+.ajo-tab-panel {
+  margin-top: 4px;
+}
+
+.ajo-modal--compact {
+  width: min(640px, 94vw);
+}
+
+.ajo-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.ajo-section__head .ajo-section__title {
+  margin-bottom: 4px;
+}
+
+.ajo-btn--sm {
+  padding: 7px 12px;
+  font-size: 0.82rem;
+}
+
+.ajo-btn--sm .material-icons {
+  font-size: 17px;
+}
+
+.ajo-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ajo-border);
+  border-radius: 12px;
+  background: #fafbfc;
+}
+
+.ajo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.ajo-table thead {
+  background: linear-gradient(180deg, #f1f5f9 0%, #e8eef4 100%);
+}
+
+.ajo-table th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ajo-muted);
+  border-bottom: 1px solid var(--ajo-border);
+  white-space: nowrap;
+}
+
+.ajo-table td {
+  padding: 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--ajo-border);
+  color: var(--ajo-text);
+  background: #fff;
+}
+
+.ajo-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ajo-table__row:hover td {
+  background: #f8fafc;
+}
+
+.ajo-table__company-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 140px;
+}
+
+.ajo-table__logo,
+.ajo-table__logo-fallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--ajo-border);
+  flex-shrink: 0;
+}
+
+.ajo-table__logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--jp-accent);
+  font-size: 1rem;
+}
+
+.ajo-table__company-name {
+  font-weight: 600;
+  color: var(--ajo-text);
+}
+
+.ajo-table__role {
+  font-weight: 700;
+  min-width: 120px;
+}
+
+.ajo-table__details {
+  min-width: 160px;
+}
+
+.ajo-table__detail-line {
+  display: block;
+  font-weight: 600;
+  color: var(--ajo-text);
+}
+
+.ajo-table__detail-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--ajo-muted);
+}
+
+.ajo-table__deadline {
+  font-size: 0.82rem;
+  color: var(--ajo-muted);
+  white-space: nowrap;
+}
+
+.ajo-table__apps {
+  text-align: center;
+}
+
+.ajo-table__status {
+  white-space: nowrap;
+}
+
+.ajo-table__action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.ajo-table-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ajo-table-skeleton {
+  height: 52px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: ajo-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ajo-pulse {
+  0%, 100% { background-position: 100% 0; }
+  50% { background-position: -100% 0; }
+}
+
+.ajo-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: var(--ajo-muted);
+  flex-shrink: 0;
+}
+
+.ajo-status--live {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.ajo-status--draft {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.ajo-status--off {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.ajo-empty-card {
+  text-align: center;
+  padding: 48px 24px;
+  border: 2px dashed var(--ajo-border);
+  border-radius: 12px;
+  color: var(--ajo-muted);
+}
+
+.ajo-empty-card .material-icons {
+  font-size: 48px;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.ajo-empty-card p {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ajo-text);
+}
+
+.ajo-empty-card span {
+  display: block;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+}
+
+.ajo-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+}
+
+.ajo-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1100px, 94vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 18px;
+  z-index: 1001;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+
+.ajo-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 28px;
+  border-bottom: 1px solid var(--ajo-border);
+  background: linear-gradient(135deg, var(--jp-accent-soft) 0%, #fff 50%, #fff 100%);
+  flex-shrink: 0;
+}
+
+.ajo-modal__head-text h2 {
+  margin: 6px 0 4px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--jp-accent-dark);
+  letter-spacing: -0.02em;
+}
+
+.ajo-modal__head-text p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ajo-muted);
+}
+
+.ajo-modal__badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--jp-accent-dark);
+  background: var(--jp-accent-light);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.ajo-modal__close {
+  background: #fff;
+  border: 1px solid var(--ajo-border);
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ajo-muted);
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.ajo-modal__close:hover {
+  border-color: var(--jp-accent);
+  color: var(--jp-accent-dark);
+}
+
+.ajo-modal__body {
+  padding: 20px 28px 28px;
+  overflow-y: auto;
+  flex: 1;
+  background: #f8fafc;
+}
+
+.ajo-form-section {
+  background: #fff;
+  border: 1px solid var(--ajo-border);
+  border-radius: 14px;
+  padding: 18px 20px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ajo-form-section--inline .ajo-toggles {
+  margin-top: 4px;
+}
+
+.ajo-form-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ajo-text);
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ajo-form-section__title .material-icons {
+  font-size: 20px;
+  color: var(--jp-accent);
+}
+
+.ajo-form-grid {
+  display: grid;
+  gap: 14px 16px;
+}
+
+.ajo-form-grid--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.ajo-form-grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 900px) {
+  .ajo-form-grid--3,
+  .ajo-form-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ajo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ajo-field--wide {
+  grid-column: 1 / -1;
+}
+
+.ajo-field__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ajo-muted);
+}
+
+.ajo-field__label em {
+  color: #dc2626;
+  font-style: normal;
+}
+
+.ajo-field__hint {
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.ajo-field input,
+.ajo-field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  border: 1px solid var(--ajo-border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: var(--ajo-text);
+  background: #fafbfc;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ajo-field input:focus,
+.ajo-field select:focus {
+  outline: none;
+  border-color: var(--jp-accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--jp-focus-ring);
+}
+
+.ajo-field input::placeholder {
+  color: #94a3b8;
+}
+
+.ajo-logo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--ajo-border);
+}
+
+.ajo-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 16px;
+  background: var(--jp-accent-light);
+  color: var(--jp-accent-dark);
+  border: 1px dashed var(--jp-accent);
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ajo-file-btn:hover {
+  background: var(--jp-accent-hover);
+}
+
+.ajo-file-btn .material-icons {
+  font-size: 20px;
+}
+
+.ajo-file-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.ajo-logo-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--ajo-muted);
+  font-weight: 600;
+}
+
+.ajo-logo-preview {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid var(--ajo-border);
+  background: #fff;
+  padding: 4px;
+}
+
+.ajo-toggles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 640px) {
+  .ajo-toggles {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ajo-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid var(--ajo-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ajo-switch:hover {
+  border-color: var(--jp-accent-hover);
+  background: var(--jp-accent-soft);
+}
+
+.ajo-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.ajo-switch__ui {
+  width: 44px;
+  height: 24px;
+  background: #cbd5e1;
+  border-radius: 999px;
+  flex-shrink: 0;
+  position: relative;
+  margin-top: 2px;
+  transition: background 0.2s;
+}
+
+.ajo-switch__ui::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.ajo-switch input:checked + .ajo-switch__ui {
+  background: var(--jp-accent);
+}
+
+.ajo-switch input:checked + .ajo-switch__ui::after {
+  transform: translateX(20px);
+}
+
+.ajo-switch__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ajo-switch__text strong {
+  font-size: 0.9rem;
+  color: var(--ajo-text);
+}
+
+.ajo-switch__text small {
+  font-size: 0.78rem;
+  color: var(--ajo-muted);
+  line-height: 1.35;
+}
+
+.ajo-editor {
+  display: block;
+}
+
+.ajo-editor ::ng-deep .ql-toolbar.ql-snow {
+  border: 1px solid var(--ajo-border);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.ajo-editor ::ng-deep .ql-container.ql-snow {
+  border: 1px solid var(--ajo-border);
+  border-radius: 0 0 12px 12px;
+  background: #fff;
+  font-family: inherit;
+}
+
+.ajo-editor ::ng-deep .ql-editor {
+  min-height: 220px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ajo-text);
+}
+
+.ajo-editor ::ng-deep .ql-editor.ql-blank::before {
+  color: #94a3b8;
+  font-style: normal;
+}
+
+.ajo-modal__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 28px;
+  border-top: 1px solid var(--ajo-border);
+  background: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.ajo-modal__foot-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ajo-muted);
+}
+
+.ajo-modal__foot-note .material-icons {
+  font-size: 18px;
+  color: var(--jp-accent);
+}
+
+.ajo-modal__foot-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.ajo-btn--ghost {
+  background: transparent;
+  border-color: var(--ajo-border);
+  color: var(--ajo-muted);
+}
+
+.ajo-btn--ghost:hover {
+  background: #f1f5f9;
+  color: var(--ajo-text);
+}
+
+.ajo-btn--submit {
+  background: var(--jp-accent) !important;
+  background-image: var(--jp-gradient) !important;
+  border: none !important;
+  color: #fff !important;
+  padding: 11px 22px;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 14px var(--jp-shadow);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ajo-btn--submit:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  color: #fff !important;
+  background: var(--jp-accent-dark) !important;
+  background-image: var(--jp-gradient) !important;
+}
+
+.ajo-btn--submit:active:not(:disabled),
+.ajo-btn--submit:focus-visible:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.95);
+  color: #fff !important;
+  background: var(--jp-accent-dark) !important;
+  background-image: var(--jp-gradient) !important;
+  outline: 2px solid var(--jp-accent);
+  outline-offset: 2px;
+}
+
+.ajo-btn--submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+
+.ajo-btn--submit .material-icons {
+  font-size: 20px;
+}
+
+.ajo-btn--apps {
+  background: var(--jp-accent-soft);
+  border-color: var(--jp-accent-hover);
+  color: var(--jp-accent-dark);
+}
+
+.ajo-btn--apps .material-icons {
+  font-size: 18px;
+}
+
+.ajo-section-note {
+  margin: -8px 0 14px;
+  font-size: 0.85rem;
+  color: var(--ajo-muted);
+  line-height: 1.45;
+}
+
+.ajo-modal--apps {
+  width: min(900px, 94vw);
+}
+
+.ajo-apps-body {
+  background: #f8fafc;
+}
+
+.ajo-apps-loading,
+.ajo-apps-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--ajo-muted);
+}
+
+.ajo-apps-empty .material-icons {
+  font-size: 48px;
+  opacity: 0.4;
+}
+
+.ajo-app-card {
+  background: #fff;
+  border: 1px solid var(--ajo-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+
+.ajo-app-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ajo-app-card__head h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.ajo-app-card__head p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ajo-muted);
+}
+
+.ajo-app-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 20px;
+  margin: 0 0 14px;
+}
+
+.ajo-app-details div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ajo-app-details dt {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ajo-muted);
+}
+
+.ajo-app-details dd {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ajo-text);
+}
+
+.ajo-app-details a {
+  color: var(--jp-accent);
+  word-break: break-all;
+}
+
+.ajo-app-cover strong {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ajo-muted);
+  margin-bottom: 8px;
+}
+
+.ajo-app-cover p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #334155;
+  white-space: pre-wrap;
+}

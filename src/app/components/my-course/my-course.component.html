@@ -453,15 +453,18 @@
     </div>
 
     <div class="mc-day-pills">
-      <button
-        type="button"
+      <span
         class="mc-day-pill"
         *ngFor="let d of filteredJourneyDays"
         [class.mc-day-pill--on]="selectedJourneyDay === d"
         (click)="selectJourneyDay(d)"
+        role="button"
+        tabindex="0"
+        (keydown.enter)="selectJourneyDay(d)"
+        (keydown.space)="selectJourneyDay(d); $event.preventDefault()"
       >
         Day {{ d }}
-      </button>
+      </span>
     </div>
 
     <div class="mc-day-summary">

@@ -27,6 +27,7 @@ const {
   mongoOverdueFieldsFromProfile,
   emptyCurrencyBucket,
   addToCurrencyBucket,
+  computeBalanceDueFromRequests,
 } = require('../utils/currencyBreakdownHelper');
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -413,10 +414,16 @@ const getStudentTable = async (req, res) => {
 
     const data = rawRows.map((row) => {
       const sid = String(row._id);
+      const studentRequests = requestsByStudent[sid] || [];
       const live = computeLiveTotalsFromData(
-        requestsByStudent[sid] || [],
+        studentRequests,
         approvedByStudent[sid] || [],
         pendingByStudent[sid] || [],
+      );
+
+      const balanceDue = computeBalanceDueFromRequests(
+        studentRequests,
+        approvedByStudent[sid] || [],
       );
 
       const inferredCurrency = inferCurrencyFromPhone(row?.studentId?.phoneNumber);
@@ -424,67 +431,66 @@ const getStudentTable = async (req, res) => {
       const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
       const targetFee = Number(levelPrice[inferredCurrency] || 0);
       const paidForTargetCurrency = amountForCurrency(inferredCurrency, live);
-      const balance = Math.max(0, targetFee - paidForTargetCurrency);
+      const catalogGaps = {
+        LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
+        INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
+        USD: Math.max(0, (levelPrice.USD || 0) - (Number(live.totalPaidUSD) || 0)),
+      };
+      const catalogBalance = catalogGaps.LKR + catalogGaps.INR + catalogGaps.USD;
+      const hasMappedPayments = studentRequests.some(
+        (r) => !r.isArchived && r.status !== 'REJECTED',
+      );
       const journeyDayRaw = Number(row?.studentId?.currentCourseDay);
       const journeyDay = Number.isFinite(journeyDayRaw)
         ? Math.min(200, Math.max(1, Math.floor(journeyDayRaw)))
         : 1;
 
-      const isDue = balance > 0 && journeyDay >= JOURNEY_DUE_FROM_DAY;
-      const base = {
+      const effectiveBalance =
+        balanceDue.total > 0
+          ? balanceDue.total
+          : hasMappedPayments
+            ? 0
+            : catalogBalance;
+      const pendingFields =
+        balanceDue.total > 0
+          ? {
+              pendingApprovalAmount: balanceDue.total,
+              pendingApprovalAmountLKR: balanceDue.pendingApprovalAmountLKR,
+              pendingApprovalAmountINR: balanceDue.pendingApprovalAmountINR,
+              pendingApprovalAmountUSD: balanceDue.pendingApprovalAmountUSD,
+            }
+          : !hasMappedPayments && catalogBalance > 0
+            ? {
+                pendingApprovalAmount: catalogBalance,
+                pendingApprovalAmountLKR: catalogGaps.LKR,
+                pendingApprovalAmountINR: catalogGaps.INR,
+                pendingApprovalAmountUSD: catalogGaps.USD,
+                overdueAmountLKR: 0,
+                overdueAmountINR: 0,
+                overdueAmountUSD: 0,
+              }
+            : {
+                pendingApprovalAmount: 0,
+                pendingApprovalAmountLKR: 0,
+                pendingApprovalAmountINR: 0,
+                pendingApprovalAmountUSD: 0,
+              };
+
+      return {
         ...row,
         totalPaid: live.totalPaid,
         totalPaidLKR: live.totalPaidLKR,
         totalPaidINR: live.totalPaidINR,
         totalPaidUSD: live.totalPaidUSD,
-        pendingApprovalAmount: live.pendingApprovalAmount,
-        pendingApprovalAmountLKR: live.pendingApprovalAmountLKR,
-        pendingApprovalAmountINR: live.pendingApprovalAmountINR,
-        pendingApprovalAmountUSD: live.pendingApprovalAmountUSD,
+        ...pendingFields,
         overdueAmount: live.overdueAmount,
         overdueAmountLKR: live.overdueAmountLKR,
         overdueAmountINR: live.overdueAmountINR,
         overdueAmountUSD: live.overdueAmountUSD,
         overallStatus: live.overallStatus,
         inferredCurrency,
-        languageFeeBalance: balance,
-        languageFeeStatus: computeLanguageFeeStatus(balance, journeyDay),
-      };
-
-      if (balance <= 0) {
-        return {
-          ...base,
-          pendingApprovalAmount: 0,
-          overdueAmount: 0,
-          pendingApprovalAmountLKR: 0,
-          pendingApprovalAmountINR: 0,
-          pendingApprovalAmountUSD: 0,
-          overdueAmountLKR: 0,
-          overdueAmountINR: 0,
-          overdueAmountUSD: 0,
-        };
-      }
-
-      if (!isDue) {
-        const pendingFields = currencyFieldsForBalance(inferredCurrency, balance);
-        return {
-          ...base,
-          pendingApprovalAmount: balance,
-          overdueAmount: 0,
-          ...pendingFields,
-        };
-      }
-
-      return {
-        ...base,
-        pendingApprovalAmount: 0,
-        overdueAmount: balance,
-        pendingApprovalAmountLKR: 0,
-        pendingApprovalAmountINR: 0,
-        pendingApprovalAmountUSD: 0,
-        overdueAmountLKR: inferredCurrency === 'LKR' ? balance : 0,
-        overdueAmountINR: inferredCurrency === 'INR' ? balance : 0,
-        overdueAmountUSD: inferredCurrency === 'USD' ? balance : 0,
+        languageFeeBalance: effectiveBalance,
+        languageFeeStatus: computeLanguageFeeStatus(effectiveBalance, journeyDay),
       };
     });
 
@@ -545,16 +551,16 @@ const getStudentPaymentHistory = async (req, res) => {
       .select('name email batch level enrollmentDate createdAt currentCourseDay studentStatus subscription regNo')
       .lean();
 
-    const langFeeRows = await PaymentRequest.find({
-      studentId,
-      paymentType: 'LANGUAGE_FEE',
-      isArchived: false,
-      amountRemaining: { $gt: 0 },
-      status: { $nin: ['REJECTED', 'FULLY_PAID'] },
-    })
-      .select('amountRemaining')
-      .lean();
-    const languageFeeBalance = langFeeRows.reduce((s, r) => s + (Number(r.amountRemaining) || 0), 0);
+    const [allActiveRequests, allApprovedSubs] = await Promise.all([
+      PaymentRequest.find({ studentId, isArchived: false })
+        .select('currency amount amountRemaining status isArchived')
+        .lean(),
+      PaymentFlowSubmission.find({ studentId, status: 'APPROVED', isArchived: false })
+        .select('paymentRequestId paidAmount')
+        .lean(),
+    ]);
+    const balanceDue = computeBalanceDueFromRequests(allActiveRequests, allApprovedSubs);
+    const languageFeeBalance = balanceDue.total;
     const journeyDay = studentDoc?.currentCourseDay;
     const languageFeeStatus = computeLanguageFeeStatus(languageFeeBalance, journeyDay);
 
@@ -568,6 +574,10 @@ const getStudentPaymentHistory = async (req, res) => {
     if (enrichedProfile) {
       enrichedProfile.languageFeeBalance = languageFeeBalance;
       enrichedProfile.languageFeeStatus = languageFeeStatus;
+      enrichedProfile.pendingApprovalAmount = balanceDue.pendingApprovalAmount;
+      enrichedProfile.pendingApprovalAmountLKR = balanceDue.pendingApprovalAmountLKR;
+      enrichedProfile.pendingApprovalAmountINR = balanceDue.pendingApprovalAmountINR;
+      enrichedProfile.pendingApprovalAmountUSD = balanceDue.pendingApprovalAmountUSD;
     }
 
     res.json({

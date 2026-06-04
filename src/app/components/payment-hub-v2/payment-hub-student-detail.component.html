@@ -104,11 +104,11 @@
           <div class="sd-stat sd-stat--pending">
             <span class="sd-stat__icon material-icons" aria-hidden="true">hourglass_top</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Pending approval</span>
+              <span class="sd-stat__label">Pending</span>
               <app-payment-currency-pending-totals
-                [lkr]="history.profile?.pendingApprovalAmountLKR ?? 0"
-                [inr]="history.profile?.pendingApprovalAmountINR ?? 0"
-                [usd]="history.profile?.pendingApprovalAmountUSD ?? 0"
+                [lkr]="pendingBalanceTotals().LKR"
+                [inr]="pendingBalanceTotals().INR"
+                [usd]="pendingBalanceTotals().USD"
                 [compact]="true"
                 [hideZero]="false"
               ></app-payment-currency-pending-totals>

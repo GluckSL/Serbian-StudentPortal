@@ -92,7 +92,7 @@ interface MatchPair {
     </div>
   `,
   styles: [`
-    .mc { position: relative; max-width: 600px; margin: 0 auto; padding: 16px; }
+    .mc { position: relative; max-width: 600px; margin: 0 auto; }
     .mc__hud { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #fff; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .mc__score { font-size: 24px; font-weight: 800; color: #f59e0b; }
     .mc__timer { font-size: 14px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 6px 14px; border-radius: 999px; }

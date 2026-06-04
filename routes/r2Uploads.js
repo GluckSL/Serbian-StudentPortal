@@ -49,6 +49,7 @@ router.post(
         'glueck-arena/game-audio',
         'glueck-arena/game-images',
         'glueck-arena/game-thumbnails',
+        'job-openings/logos',
       ];
       const prefix = allowedPrefixes.includes(p) ? p : 'listening-media';
 

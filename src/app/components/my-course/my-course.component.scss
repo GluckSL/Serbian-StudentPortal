@@ -307,7 +307,7 @@
     /* Minimum height; cards may grow so quote/subtext are never clipped (My class + other tabs). */
     --mc-mobile-upper-card-height: 248px;
     /* Exercises / Modules / Journey: slightly taller so quotes never clip. */
-    --mc-mobile-tab-profile-min-height: 284px;
+
   }
 
   /* My class — welcome hero */
@@ -423,10 +423,10 @@
     justify-content: flex-start;
     overflow: visible;
     height: auto;
-    min-height: var(--mc-mobile-tab-profile-min-height);
     max-height: none;
     max-width: 100%;
     min-width: 0;
+    gap: 8px;
   }
 
   .mc-tab-profile__photo {
@@ -480,6 +480,11 @@
     -webkit-box-orient: unset;
     word-break: break-word;
     overflow-wrap: anywhere;
+  }
+
+  .mc-tab-profile__row {
+    flex-direction: column;
+    align-items: center;
   }
 
   .mc-tab-profile__level {
@@ -593,6 +598,10 @@
 }
 
 @media (min-width: 901px) {
+  .mc-tab-profile__row {
+    gap: 10px;
+  }
+
   .mc-tabs {
     width: max-content;
     max-width: 100%;
@@ -649,7 +658,6 @@
   justify-content: space-between;
   gap: 20px 24px;
   width: 100%;
-  min-height: calc(var(--mc-hero-visual-height) * 0.6);
   padding: 14px 20px;
   box-sizing: border-box;
   background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 35%, #f0f4ff 70%, #f8fafc 100%);
@@ -658,14 +666,6 @@
   box-shadow:
     0 1px 3px rgba(15, 23, 42, 0.06),
     0 12px 40px rgba(99, 102, 241, 0.1);
-}
-
-/* Fixed-height clip is desktop-only; mobile rules above must not be overridden (quote + level stay visible). */
-@media (min-width: 901px) {
-  .mc-tab-profile {
-    max-height: calc(var(--mc-hero-visual-height) * 0.6);
-    overflow: hidden;
-  }
 }
 
 .mc-tab-profile__main {
@@ -689,10 +689,9 @@
   overflow-wrap: anywhere;
 }
 
-mc-tab-profile__row {
+.mc-tab-profile__row {
   display: flex;
   align-items: center;
-  gap: 10px;
 }
 
 .mc-tab-profile__quote {
@@ -751,7 +750,7 @@ mc-tab-profile__row {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  padding: 14px 12px 22px;
+  padding: 0;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   max-width: 100%;
   min-width: 0;
@@ -760,7 +759,7 @@ mc-tab-profile__row {
 }
 
 .mc-panel:has(app-gluck-buddy-hub) {
-  padding-top: 10px;
+  padding: 0;
   background: transparent;
   border: none;
   box-shadow: none;
@@ -768,7 +767,7 @@ mc-tab-profile__row {
 
 @media (min-width: 480px) {
   .mc-panel {
-    padding-inline: 12px;
+    padding: 0;
   }
 }
 
@@ -1907,6 +1906,8 @@ mc-tab-profile__row {
   padding-bottom: 4px;
 }
 .mc-day-pill {
+  display: inline-flex;
+  align-items: center;
   border: 1px solid #cbd5e1;
   background: #fff;
   color: #334155;
@@ -2474,15 +2475,15 @@ mc-tab-profile__row {
     overflow: visible;
     width: 100%;
     min-width: 0;
-    gap: 8px;
+    gap: 6px;
     padding-bottom: 2px;
   }
 
   .mc-day-pill {
     flex: 0 1 auto;
     min-width: 0;
-    padding: 8px 12px;
-    font-size: 0.8rem;
+    padding: 3px 8px;
+    font-size: 0.72rem;
     box-sizing: border-box;
   }
 

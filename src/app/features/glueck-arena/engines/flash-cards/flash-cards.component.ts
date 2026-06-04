@@ -74,7 +74,7 @@ export interface FCResult {
     </div>
   `,
   styles: [`
-    .fc { position: relative; display: flex; flex-direction: column; gap: 16px; max-width: 600px; margin: 0 auto; padding: 16px; }
+    .fc { position: relative; display: flex; flex-direction: column; gap: 16px; max-width: 600px; margin: 0 auto; }
     .fc__card { background: linear-gradient(145deg, #fff, #f8fafc); border-radius: 24px; padding: 32px 24px; text-align: center; box-shadow: 0 8px 32px rgba(15,23,42,0.1); border: 1px solid #e2e8f0; min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
     .fc__card-inner { display: flex; flex-direction: column; gap: 12px; width: 100%; }
     .fc__prompt { font-size: 16px; color: #64748b; font-weight: 600; }
@@ -90,7 +90,7 @@ export interface FCResult {
     .fc__stat { display: flex; flex-direction: column; align-items: center; }
     .fc__stat-val { font-size: 28px; font-weight: 800; color: #405980; }
     .fc__stat-lbl { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-    @media (max-width: 480px) { .fc { padding: 12px; } .fc__word-display { font-size: 24px; } .fc__reveal { font-size: 28px; } }
+    @media (max-width: 480px) { .fc__word-display { font-size: 24px; } .fc__reveal { font-size: 28px; } }
   `]
 })
 export class FlashCardsComponent implements OnInit, OnDestroy {
