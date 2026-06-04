@@ -165,6 +165,28 @@ function studentJourneyDay(student) {
   return 1;
 }
 
+/** Date-only YYYY-MM-DD → end of that calendar day (server local); ISO/datetime passed through */
+function parseApplyBefore(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (dateOnly) {
+    const end = new Date(
+      Number(dateOnly[1]),
+      Number(dateOnly[2]) - 1,
+      Number(dateOnly[3]),
+      23,
+      59,
+      59,
+      999
+    );
+    if (!Number.isNaN(end.getTime())) return end;
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
 function studentVisibleFilter() {
   const now = new Date();
   return {
@@ -803,8 +825,7 @@ router.post(
     try {
       const companyName = String(req.body.companyName || '').trim();
       const jobTitle = String(req.body.jobTitle || '').trim();
-      const applyBeforeRaw = String(req.body.applyBefore || '').trim();
-      const applyBefore = applyBeforeRaw ? new Date(applyBeforeRaw) : null;
+      const applyBefore = parseApplyBefore(req.body.applyBefore);
 
       if (!companyName || !jobTitle) {
         return res.status(400).json({ success: false, message: 'Company name and job title are required.' });
@@ -875,8 +896,8 @@ router.put(
       if (req.body.skills !== undefined) opening.skills = parseSkills(req.body.skills);
       if (req.body.description !== undefined) opening.description = sanitizeDescription(req.body.description);
       if (req.body.applyBefore !== undefined) {
-        const d = new Date(String(req.body.applyBefore));
-        if (!Number.isNaN(d.getTime())) opening.applyBefore = d;
+        const d = parseApplyBefore(req.body.applyBefore);
+        if (d) opening.applyBefore = d;
       }
       if (req.body.isPublished !== undefined) opening.isPublished = String(req.body.isPublished) !== 'false';
       if (req.body.isActive !== undefined) opening.isActive = String(req.body.isActive) !== 'false';

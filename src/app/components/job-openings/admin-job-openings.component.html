@@ -117,7 +117,7 @@
               <span class="ajo-table__detail-line">{{ job.jobType || '—' }}</span>
               <span class="ajo-table__detail-sub">{{ job.experience || '—' }} · {{ job.location || '—' }}</span>
             </td>
-            <td class="ajo-table__deadline" data-label="Apply before">{{ formatDeadline(job.applyBefore) }}</td>
+            <td class="ajo-table__deadline" data-label="Apply before">{{ formatApplyDeadline(job.applyBefore) }}</td>
             <td class="ajo-table__apps" data-label="Applications">
               <button type="button" class="ajo-btn ajo-btn--apps ajo-btn--sm" (click)="viewApplications(job)">
                 <span class="material-icons">groups</span>
@@ -449,7 +449,7 @@
         <div class="ajo-form-grid ajo-form-grid--2">
           <label class="ajo-field">
             <span class="ajo-field__label">Apply before <em>*</em></span>
-            <input type="datetime-local" [(ngModel)]="form.applyBefore" />
+            <input type="date" [(ngModel)]="form.applyBefore" />
           </label>
         </div>
       </section>

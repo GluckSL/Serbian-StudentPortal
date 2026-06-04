@@ -232,11 +232,7 @@ export class AdminJobOpeningsComponent implements OnInit {
     this.editingId = job._id;
     this.logoFile = null;
     this.logoPreview = this.resolveLogoUrl(job.companyLogoUrl);
-    const d = job.applyBefore ? new Date(job.applyBefore) : null;
-    const applyBefore =
-      d && !Number.isNaN(d.getTime())
-        ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-        : '';
+    const applyBefore = job.applyBefore ? this.toDateInput(job.applyBefore) : '';
     this.form = {
       companyName: job.companyName,
       companyLogoUrl: job.companyLogoUrl || '',
@@ -289,7 +285,7 @@ export class AdminJobOpeningsComponent implements OnInit {
         .filter(Boolean)
     ));
     fd.append('description', this.form.description);
-    fd.append('applyBefore', this.form.applyBefore);
+    fd.append('applyBefore', this.applyBeforeForApi(this.form.applyBefore));
     fd.append('isPublished', String(this.form.isPublished));
     fd.append('isActive', String(this.form.isActive));
     if (this.logoFile) {
@@ -347,6 +343,23 @@ export class AdminJobOpeningsComponent implements OnInit {
   formatDate(dateStr: string): string {
     const d = new Date(dateStr);
     return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  }
+
+  /** YYYY-MM-DD for date input */
+  toDateInput(dateStr: string): string {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '';
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+
+  /** End of selected calendar day (local) as ISO for the API */
+  applyBeforeForApi(dateOnly: string): string {
+    const s = String(dateOnly || '').trim();
+    if (!s) return '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return s;
+    const end = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
+    return end.toISOString();
   }
 
   toDatetimeLocal(dateStr: string): string {
@@ -599,6 +612,16 @@ export class AdminJobOpeningsComponent implements OnInit {
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
+    });
+  }
+
+  formatApplyDeadline(dateStr: string): string {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString(undefined, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
     });
   }
 
