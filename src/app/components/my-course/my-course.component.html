@@ -155,7 +155,7 @@
     </div>
   </div>
 
-  <div class="mc-classes-layout" *ngIf="activeTab === 'classes'" role="tabpanel">
+  <div class="mc-classes-layout" [hidden]="activeTab !== 'classes'" role="tabpanel">
     <div class="mc-classes-layout__main">
       <section class="mc-classes-card mc-classes-card--live" *ngIf="userProfile.subscription === 'PLATINUM'" aria-label="Live and scheduled classes">
         <app-student-meetings [embedded]="true"></app-student-meetings>
@@ -310,20 +310,20 @@
     </aside>
   </div>
 
-  <div class="mc-panel" *ngIf="activeTab === 'exercises'" role="tabpanel">
+  <div class="mc-panel" [hidden]="activeTab !== 'exercises'" role="tabpanel">
     <app-digital-exercises [embedded]="true"></app-digital-exercises>
   </div>
 
   <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->
 
-  <div class="mc-panel" *ngIf="activeTab === 'talk-buddy'" role="tabpanel">
+  <div class="mc-panel" [hidden]="activeTab !== 'talk-buddy'" role="tabpanel">
     <p class="mc-dg-week-hint" *ngIf="allowsDgBot && !allowsLearningContent">
       Complete all Glück Buddy modules in your current week to unlock the next week of practice.
     </p>
     <app-gluck-buddy-hub></app-gluck-buddy-hub>
   </div>
 
-  <div class="mc-panel mc-journey" *ngIf="activeTab === 'journey'" role="tabpanel">
+  <div class="mc-panel mc-journey" [hidden]="activeTab !== 'journey'" role="tabpanel">
     <div class="mc-journey-head">
       <div>
         <h3>Journey to Germany</h3>
@@ -701,7 +701,7 @@
     </div>
   </div>
 
-  <div class="mc-panel" *ngIf="activeTab === 'gluck-exam'" role="tabpanel">
+  <div class="mc-panel" [hidden]="activeTab !== 'gluck-exam'" role="tabpanel">
     <div class="tab-row" role="tablist" aria-label="Gluck Exam type">
       <button
         type="button"

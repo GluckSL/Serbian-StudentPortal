@@ -765,9 +765,21 @@
   box-shadow: none;
 }
 
+.mc-panel[hidden],
+.mc-classes-layout[hidden],
+.mc-journey[hidden] {
+  display: none !important;
+}
+
 @media (min-width: 480px) {
   .mc-panel {
     padding: 0;
+  }
+
+  .mc-panel[hidden],
+  .mc-classes-layout[hidden],
+  .mc-journey[hidden] {
+    display: none !important;
   }
 }
 

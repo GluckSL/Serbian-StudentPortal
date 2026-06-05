@@ -414,6 +414,7 @@ export class MyCourseComponent implements OnInit {
 
   private _journeyTabDataLoaded = false;
   private _journeyGamesLoaded = false;
+  private _gluckExamDataLoaded = false;
 
   private loadJourneyTabData(): void {
     if (this._journeyTabDataLoaded) return;
@@ -536,7 +537,8 @@ export class MyCourseComponent implements OnInit {
   }
 
   private loadGluckExamData(): void {
-    if (this.gluckExamLoading) return;
+    if (this.gluckExamLoading || this._gluckExamDataLoaded) return;
+    this._gluckExamDataLoaded = true;
     this.gluckExamLoading = true;
     this.gluckExamLoadError = '';
 
