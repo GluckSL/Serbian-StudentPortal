@@ -277,6 +277,13 @@ router.get('/', verifyToken, async (req, res) => {
       plan: { $in: allowedRecordingPlansForStudent(student) }
     };
 
+    if (req.query.courseDay) {
+      const cd = parseInt(String(req.query.courseDay), 10);
+      if (Number.isFinite(cd) && cd >= 1 && cd <= 200) {
+        baseFilter.courseDay = cd;
+      }
+    }
+
     const recordings = await ClassRecording.find(baseFilter)
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 }).lean();
@@ -416,6 +423,7 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     })
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 })
+      .limit(200)
       .lean();
 
     const manualFiltered = batchKeys.length
@@ -481,6 +489,7 @@ router.get('/student-feed', verifyToken, async (req, res) => {
       isPublished: { $ne: false }
     })
       .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
+      .limit(200)
       .lean();
 
     const approvedGrants = await RecordingAccessRequest.find({

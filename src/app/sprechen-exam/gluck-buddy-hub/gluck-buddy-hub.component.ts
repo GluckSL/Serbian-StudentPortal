@@ -32,11 +32,16 @@ export class GluckBuddyHubComponent implements OnInit, OnChanges {
   examModuleCount = 0;
   studentCourseDay = 1;
 
+  /** Raw practice response metadata, passed to child DgBotHubComponent so it skips its own API call. */
+  practiceUnlockMode: 'daily' | 'weekly' | 'none' = 'daily';
+  practiceDgUnlockedWeek = 1;
+  practiceDgWeekHint: string | null = null;
+
   private readonly route = inject(ActivatedRoute);
   private readonly dgApi = inject(DgApiService);
   private readonly sprechenApi = inject(SprechenApiService);
 
-  private practiceAll: DgModuleSummary[] = [];
+  practiceAll: DgModuleSummary[] = [];
   private examAll: SprechenExamModuleSummary[] = [];
 
   get showPracticeTab(): boolean {
@@ -81,6 +86,9 @@ export class GluckBuddyHubComponent implements OnInit, OnChanges {
         }
 
         this.practiceAll = practice?.modules || [];
+        this.practiceUnlockMode = practice?.unlockMode === 'weekly' ? 'weekly' : practice?.unlockMode === 'none' ? 'none' : 'daily';
+        this.practiceDgUnlockedWeek = Number.isFinite(Number(practice?.dgUnlockedWeek)) && Number(practice?.dgUnlockedWeek) >= 1 ? Math.floor(Number(practice?.dgUnlockedWeek)) : 1;
+        this.practiceDgWeekHint = practice?.dgWeekHint?.trim() || null;
         this.examAll = exam?.modules || [];
         this.recalculateModuleCounts();
         this.loadingAvailability = false;

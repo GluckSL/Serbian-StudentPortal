@@ -125,9 +125,13 @@ export class ClassRecordingsService {
 
   constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
-  getRecordings(): Observable<{ success: boolean; recordings: ClassRecording[] }> {
+  getRecordings(courseDay?: number): Observable<{ success: boolean; recordings: ClassRecording[] }> {
     const sep = this.url.includes('?') ? '&' : '?';
-    return this.http.get<any>(`${this.url}${sep}_=${Date.now()}`);
+    let query = `${this.url}${sep}_=${Date.now()}`;
+    if (courseDay != null && Number.isFinite(Number(courseDay))) {
+      query += `&courseDay=${Math.floor(courseDay)}`;
+    }
+    return this.http.get<any>(query);
   }
 
   /** Paginated merged manual + Zoom list for student My Course (7 per page). */
