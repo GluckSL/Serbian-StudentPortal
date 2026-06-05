@@ -136,7 +136,16 @@ const findLevelSlotRequests = async ({ studentId, slotKey, currency, session }) 
  * Consolidate level-slot requests to a single quoted total (e.g. A1 = LKR 75,000).
  * Merges approved submissions onto the primary request and archives duplicates.
  */
-const reconcileLevelSlotQuote = async ({ studentId, adminId, slotKey, currency, quotedTotal, session }) => {
+const reconcileLevelSlotQuote = async ({
+  studentId,
+  adminId,
+  slotKey,
+  currency,
+  quotedTotal,
+  paymentDate,
+  remarks,
+  session,
+}) => {
   const slot = String(slotKey || '').trim().toUpperCase();
   if (!LEVEL_SLOTS.has(slot)) {
     return { updated: false, skipped: true };
@@ -147,9 +156,68 @@ const reconcileLevelSlotQuote = async ({ studentId, adminId, slotKey, currency, 
   }
 
   const requests = await findLevelSlotRequests({ studentId, slotKey: slot, currency, session });
+  const now = new Date();
+  const dueDate = paymentDate ? new Date(paymentDate) : now;
 
   if (!requests.length) {
-    return { updated: false, noRequests: true, quotedTotal: total };
+    const [request] = await PaymentRequest.create(
+      [{
+        studentId,
+        requestedBy: adminId,
+        amount: total,
+        currency,
+        paymentType: 'CUSTOM_PAYMENT',
+        customType: slot,
+        dueDate,
+        remarks: remarks?.trim() || `Quoted total for ${slot} — ${currency} ${total}`,
+        installmentAllowed: false,
+        totalInstallments: 1,
+        amountRemaining: total,
+        status: dueDate < now ? 'OVERDUE' : 'REQUESTED',
+        source: SOURCE,
+        isImported: true,
+        legacyImportedAt: now,
+        legacyImportedBy: adminId,
+      }],
+      { session },
+    );
+
+    await PaymentAuditLog.create(
+      [{
+        entityType: 'PaymentRequest',
+        entityId: request._id,
+        action: 'LEGACY_MAPPED',
+        performedBy: adminId,
+        performedByRole: 'ADMIN',
+        newState: { status: request.status, amount: total, currency, slot, quoteOnly: true },
+        studentId,
+      }],
+      { session, ordered: true },
+    );
+
+    await PaymentTimelineEvent.create(
+      [{
+        paymentRequestId: request._id,
+        studentId,
+        eventType: 'LEGACY_PAYMENT_MAPPED',
+        actor: adminId,
+        actorRole: 'ADMIN',
+        description: `Level quote set: ${slot} ${currency} ${total} (balance pending)`,
+        metadata: { source: SOURCE, slot, quotedTotal: total, currency, quoteOnly: true },
+      }],
+      { session, ordered: true },
+    );
+
+    return {
+      updated: true,
+      created: true,
+      primaryRequestId: request._id,
+      quotedTotal: total,
+      totalPaid: 0,
+      previousQuoted: 0,
+      amountRemaining: total,
+      archivedCount: 0,
+    };
   }
 
   const requestIds = requests.map((r) => r._id);
@@ -164,7 +232,6 @@ const reconcileLevelSlotQuote = async ({ studentId, adminId, slotKey, currency, 
 
   const primary = requests[0];
   const extras = requests.slice(1);
-  const now = new Date();
 
   for (const sub of submissions) {
     const parentId = String(sub.paymentRequestId);
@@ -411,6 +478,8 @@ const mapLegacyPayments = async ({ studentId, adminId, languagePayment, docsPaym
             slotKey: custom.paymentType,
             currency: custom.currency,
             quotedTotal,
+            paymentDate: custom.paymentDate,
+            remarks: custom.remarks,
             session,
           });
         }

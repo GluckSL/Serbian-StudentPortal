@@ -59,6 +59,7 @@ router.patch('/approvals/:submissionId/correct-amount', requireFinanceAdmin, app
 router.post('/legacy/map-payment', requireFinanceAdmin, legacyCtrl.mapLegacyPaymentsHandler);
 router.post('/legacy/bulk-language-paid', requireFinanceAdmin, legacyCtrl.bulkMapLegacyLanguageFeesHandler);
 router.post('/legacy/level-full-paid', requireFinanceAdmin, legacyCtrl.markLevelSlotFullPaidHandler);
+router.post('/students/:studentId/reset-slot', requireFinanceAdmin, legacyCtrl.resetPaymentSlotHandler);
 router.patch('/legacy/requests/:requestId', requireFinanceAdmin, legacyCtrl.updateLegacyPaymentRequestHandler);
 
 // ─── Catalog / pricing settings ──────────────────────────────────────────────

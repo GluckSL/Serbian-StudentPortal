@@ -228,6 +228,8 @@ export interface WordSearchQuestion {
   _id: string;
   gameType: 'word_search';
   order: number;
+  gridRows: number;
+  gridCols: number;
   gridSize: number;
   grid: string[][];
   placements: WordSearchPlacement[];

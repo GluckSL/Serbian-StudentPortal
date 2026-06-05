@@ -20,7 +20,6 @@ const {
   pendingTotalsFromBreakdown,
   overdueTotalsFromBreakdown,
   enrichProfileCurrencyTotals,
-  computeLiveTotalsFromData,
   groupDocsByStudentId,
   mongoPaidFieldsFromProfile,
   mongoPendingFieldsFromProfile,
@@ -29,6 +28,7 @@ const {
   addToCurrencyBucket,
   computeBalanceDueFromRequests,
 } = require('../utils/currencyBreakdownHelper');
+const { computeTotalsForStudentLevel } = require('../utils/levelSlotHelper');
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
 const {
   getFilteredStudentIds,
@@ -40,6 +40,9 @@ const {
 const {
   aggregateHubDashboardStats,
   aggregateBatchPaymentInsights,
+  buildLevelPriceMap,
+  pendingTotalsForStudent,
+  effectiveOutstandingBalance,
 } = require('../helpers/paymentHubStatsAggregator');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -427,50 +430,27 @@ const getStudentTable = async (req, res) => {
       });
     }
 
-    const amountForCurrency = (currency, row) => {
-      if (currency === 'INR') return Number(row?.totalPaidINR) || 0;
-      if (currency === 'LKR') return Number(row?.totalPaidLKR) || 0;
-      return Number(row?.totalPaidUSD) || 0;
-    };
-
-    const currencyFieldsForBalance = (currency, amount) => {
-      const balance = Math.max(0, Number(amount) || 0);
-      return {
-        pendingApprovalAmountLKR: currency === 'LKR' ? balance : 0,
-        pendingApprovalAmountINR: currency === 'INR' ? balance : 0,
-        pendingApprovalAmountUSD: currency === 'USD' ? balance : 0,
-        overdueAmountLKR: 0,
-        overdueAmountINR: 0,
-        overdueAmountUSD: 0,
-      };
-    };
-
     const data = rawRows.map((row) => {
       const sid = String(row._id);
       const studentRequests = requestsByStudent[sid] || [];
-      const live = computeLiveTotalsFromData(
+      const studentLevel = row?.studentId?.level;
+      const { live, balanceDue, levelRequests } = computeTotalsForStudentLevel(
         studentRequests,
         approvedByStudent[sid] || [],
         pendingByStudent[sid] || [],
-      );
-
-      const balanceDue = computeBalanceDueFromRequests(
-        studentRequests,
-        approvedByStudent[sid] || [],
+        studentLevel,
       );
 
       const inferredCurrency = inferCurrencyFromPhone(row?.studentId?.phoneNumber);
-      const level = String(row?.studentId?.level || '').trim().toUpperCase();
+      const level = String(studentLevel || '').trim().toUpperCase();
       const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
-      const targetFee = Number(levelPrice[inferredCurrency] || 0);
-      const paidForTargetCurrency = amountForCurrency(inferredCurrency, live);
       const catalogGaps = {
         LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
         INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
         USD: Math.max(0, (levelPrice.USD || 0) - (Number(live.totalPaidUSD) || 0)),
       };
       const catalogBalance = catalogGaps.LKR + catalogGaps.INR + catalogGaps.USD;
-      const hasMappedPayments = studentRequests.some(
+      const hasMappedPayments = levelRequests.some(
         (r) => !r.isArchived && r.status !== 'REJECTED',
       );
       const journeyDayRaw = Number(row?.studentId?.currentCourseDay);
@@ -481,9 +461,9 @@ const getStudentTable = async (req, res) => {
       const effectiveBalance =
         balanceDue.total > 0
           ? balanceDue.total
-          : hasMappedPayments
-            ? 0
-            : catalogBalance;
+          : !hasMappedPayments && catalogBalance > 0
+            ? catalogBalance
+            : 0;
       const pendingFields =
         balanceDue.total > 0
           ? {
@@ -548,15 +528,13 @@ const getStudentPaymentHistory = async (req, res) => {
 
     await paymentService.recalculateStudentProfile(studentId);
 
-    const [requests, total, profile] = await Promise.all([
+    const [allRequests, profile] = await Promise.all([
       PaymentRequest.find({ studentId, isArchived: false })
         .populate('requestedBy', 'name')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(Number(limit)),
-      PaymentRequest.countDocuments({ studentId, isArchived: false }),
+        .sort({ createdAt: -1 }),
       StudentPaymentProfile.findOne({ studentId }).populate('studentId', 'name email batch level enrollmentDate'),
     ]);
+    const total = allRequests.length;
 
     const PaymentFlowSubmission = require('../models/PaymentSubmission');
     const allSubmissions = await PaymentFlowSubmission.find({ studentId, isArchived: false })
@@ -571,11 +549,18 @@ const getStudentPaymentHistory = async (req, res) => {
       submissionsMap[key].push(sub);
     }
 
+    const attachSubmissions = (req) => ({
+      ...(typeof req.toObject === 'function' ? req.toObject() : req),
+      submissions: submissionsMap[String(req._id)] || [],
+    });
+
+    const slotRequests = allRequests.map(attachSubmissions);
+
     const combined = await Promise.all(
-      requests.map(async (req) => {
-        const subs = submissionsMap[String(req._id)] || [];
+      allRequests.slice(skip, skip + Number(limit)).map(async (req) => {
+        const base = attachSubmissions(req);
         const installments = await installmentService.getInstallmentsForRequest(req._id);
-        return { ...req.toObject(), submissions: subs, installments };
+        return { ...base, installments };
       })
     );
 
@@ -584,16 +569,38 @@ const getStudentPaymentHistory = async (req, res) => {
       .select('name email batch level enrollmentDate createdAt currentCourseDay studentStatus subscription regNo')
       .lean();
 
-    const [allActiveRequests, allApprovedSubs] = await Promise.all([
+    const [allActiveRequests, allApprovedSubs, allPendingSubs, catalog] = await Promise.all([
       PaymentRequest.find({ studentId, isArchived: false })
-        .select('currency amount amountRemaining status isArchived')
+        .select('currency amount amountRemaining status isArchived paymentType customType')
         .lean(),
       PaymentFlowSubmission.find({ studentId, status: 'APPROVED', isArchived: false })
         .select('paymentRequestId paidAmount')
         .lean(),
+      PaymentFlowSubmission.find({
+        studentId,
+        status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
+        isArchived: false,
+      })
+        .select('paymentRequestId paidAmount currency')
+        .lean(),
+      PaymentHubCatalog.getOrCreate(),
     ]);
-    const balanceDue = computeBalanceDueFromRequests(allActiveRequests, allApprovedSubs);
-    const languageFeeBalance = balanceDue.total;
+    const levelPriceMap = buildLevelPriceMap(catalog);
+    const pendingBucket = pendingTotalsForStudent(
+      allActiveRequests,
+      allApprovedSubs,
+      allPendingSubs,
+      studentDoc,
+      levelPriceMap,
+    );
+    const languageFeeBalance = effectiveOutstandingBalance(
+      allActiveRequests,
+      allApprovedSubs,
+      allPendingSubs,
+      studentDoc,
+      levelPriceMap,
+    );
+    const pendingTotal = (pendingBucket.LKR || 0) + (pendingBucket.INR || 0) + (pendingBucket.USD || 0);
     const journeyDay = studentDoc?.currentCourseDay;
     const languageFeeStatus = computeLanguageFeeStatus(languageFeeBalance, journeyDay);
 
@@ -607,10 +614,10 @@ const getStudentPaymentHistory = async (req, res) => {
     if (enrichedProfile) {
       enrichedProfile.languageFeeBalance = languageFeeBalance;
       enrichedProfile.languageFeeStatus = languageFeeStatus;
-      enrichedProfile.pendingApprovalAmount = balanceDue.pendingApprovalAmount;
-      enrichedProfile.pendingApprovalAmountLKR = balanceDue.pendingApprovalAmountLKR;
-      enrichedProfile.pendingApprovalAmountINR = balanceDue.pendingApprovalAmountINR;
-      enrichedProfile.pendingApprovalAmountUSD = balanceDue.pendingApprovalAmountUSD;
+      enrichedProfile.pendingApprovalAmount = pendingTotal;
+      enrichedProfile.pendingApprovalAmountLKR = pendingBucket.LKR;
+      enrichedProfile.pendingApprovalAmountINR = pendingBucket.INR;
+      enrichedProfile.pendingApprovalAmountUSD = pendingBucket.USD;
     }
 
     res.json({
@@ -620,6 +627,7 @@ const getStudentPaymentHistory = async (req, res) => {
         profile: enrichedProfile,
         languageFeeBalance,
         languageFeeStatus,
+        slotRequests,
         requests: combined,
         total,
         page: Number(page),

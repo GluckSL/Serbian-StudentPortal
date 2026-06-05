@@ -287,9 +287,50 @@ const markLevelSlotFullPaidHandler = async (req, res) => {
   }
 };
 
+const resetPaymentSlotHandler = async (req, res) => {
+  try {
+    const adminId = getAuthUserId(req);
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+
+    const { studentId } = req.params;
+    const { slotKey, reason } = req.body;
+    if (!studentId || !mongoose.isValidObjectId(studentId)) {
+      return res.status(400).json({ success: false, message: 'Valid studentId is required' });
+    }
+    const slot = String(slotKey || '').trim().toUpperCase();
+    if (!['A1', 'A2', 'B1', 'B2', 'DOCS', 'VISA'].includes(slot)) {
+      return res.status(400).json({ success: false, message: 'slotKey must be A1, A2, B1, B2, DOCS, or VISA' });
+    }
+
+    const paymentService = require('../services/paymentService');
+    const result = await paymentService.resetPaymentSlot({
+      studentId,
+      slotKey: slot,
+      adminId,
+      adminRole: req.user.role,
+      reason,
+    });
+
+    const cleared = result.requestsArchived > 0;
+    return res.json({
+      success: true,
+      message: cleared
+        ? `${slot} payments cleared — paid and balance are now 0 (${result.requestsArchived} record${result.requestsArchived === 1 ? '' : 's'} archived)`
+        : `${slot} was already empty — nothing to reset`,
+      data: result,
+    });
+  } catch (err) {
+    console.error('[SlotReset]', err);
+    return res.status(400).json({ success: false, message: err.message || 'Failed to reset payment slot' });
+  }
+};
+
 module.exports = {
   mapLegacyPaymentsHandler,
   bulkMapLegacyLanguageFeesHandler,
   updateLegacyPaymentRequestHandler,
   markLevelSlotFullPaidHandler,
+  resetPaymentSlotHandler,
 };

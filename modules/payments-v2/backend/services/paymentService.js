@@ -14,6 +14,9 @@ const timelineService = require('./timelineService');
 const installmentService = require('./installmentService');
 const receiptService = require('./receiptService');
 const { computeLiveTotalsFromData } = require('../utils/currencyBreakdownHelper');
+const { slotForRequest } = require('../utils/levelSlotHelper');
+
+const VALID_SLOT_KEYS = new Set(['A1', 'A2', 'B1', 'B2', 'DOCS', 'VISA']);
 
 const getEmailService = () => require('./emailService');
 
@@ -796,6 +799,57 @@ const bulkResetStudentPayments = async ({ studentIds, adminId, adminRole, reason
   };
 };
 
+// ─── Reset one payment mapping slot (A1 / A2 / Docs / Visa, etc.) ───────────
+
+const resetPaymentSlot = async ({ studentId, slotKey, adminId, adminRole, reason }) => {
+  const slot = String(slotKey || '').trim().toUpperCase();
+  if (!VALID_SLOT_KEYS.has(slot)) {
+    throw new Error('slotKey must be A1, A2, B1, B2, DOCS, or VISA');
+  }
+
+  const User = mongoose.model('User');
+  const student = await User.findOne({ _id: studentId, role: 'STUDENT' }).select('level').lean();
+  if (!student) throw new Error('Student not found');
+
+  const allRequests = await PaymentRequest.find({ studentId, isArchived: false }).lean();
+  const toArchive = allRequests.filter((req) => slotForRequest(req, student.level) === slot);
+
+  if (!toArchive.length) {
+    return { slot, requestsArchived: 0, submissionsArchived: 0 };
+  }
+
+  const requestIds = toArchive.map((r) => r._id);
+  const archivedAt = new Date();
+  const archiveReason = reason?.trim() || `${slot} payment slot reset by admin`;
+
+  await PaymentRequest.updateMany(
+    { _id: { $in: requestIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId, archiveReason } },
+  );
+
+  const subResult = await PaymentFlowSubmission.updateMany(
+    { paymentRequestId: { $in: requestIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+  );
+
+  await recalculateStudentProfile(studentId);
+  await logAudit({
+    entityType: 'StudentPaymentProfile',
+    entityId: studentId,
+    action: 'SLOT_RESET',
+    performedBy: adminId,
+    performedByRole: adminRole,
+    studentId,
+    metadata: { slot, reason: archiveReason, requestsArchived: toArchive.length },
+  });
+
+  return {
+    slot,
+    requestsArchived: toArchive.length,
+    submissionsArchived: subResult.modifiedCount,
+  };
+};
+
 module.exports = {
   createPaymentRequests,
   submitPayment,
@@ -813,4 +867,5 @@ module.exports = {
   correctApprovedSubmissionAmount,
   correctStudentTotalPaid,
   bulkResetStudentPayments,
+  resetPaymentSlot,
 };
