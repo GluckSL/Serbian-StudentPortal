@@ -6,12 +6,11 @@ const PaymentRequest = require('../models/PaymentRequest');
 const PaymentFlowSubmission = require('../models/PaymentSubmission');
 const PaymentHubCatalog = require('../models/PaymentHubCatalog');
 const {
-  computeLiveTotalsFromData,
-  computeBalanceDueFromRequests,
   groupDocsByStudentId,
   emptyCurrencyBucket,
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
+const { computeTotalsForStudentLevel } = require('../utils/levelSlotHelper');
 const { computeLanguageFeeStatus } = require('./languageFeeStatus');
 const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
 
@@ -31,14 +30,18 @@ function buildLevelPriceMap(catalog) {
   return levelPriceMap;
 }
 
-/** Same pending LKR/INR/USD as one student table row. */
+/** Same pending LKR/INR/USD as one student table row (current level only). */
 function pendingTotalsForStudent(studentRequests, approvedSubs, pendingSubs, student, levelPriceMap) {
-  const live = computeLiveTotalsFromData(studentRequests, approvedSubs, pendingSubs);
-  const balanceDue = computeBalanceDueFromRequests(studentRequests, approvedSubs);
-  const hasMappedPayments = studentRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
+  const { live, balanceDue, levelRequests, level } = computeTotalsForStudentLevel(
+    studentRequests,
+    approvedSubs,
+    pendingSubs,
+    student?.level,
+  );
+  const hasMappedPayments = levelRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
 
-  const level = String(student?.level || '').trim().toUpperCase();
-  const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
+  const levelKey = level || String(student?.level || '').trim().toUpperCase();
+  const levelPrice = levelPriceMap.get(levelKey) || { LKR: 0, INR: 0, USD: 0 };
   const catalogGaps = {
     LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
     INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
@@ -123,13 +126,17 @@ function hasApprovedPaymentForType(studentRequests, approvedSubs, paymentType) {
   return reqs.some((r) => ['APPROVED', 'FULLY_PAID'].includes(r.status));
 }
 
-/** Matches Payment Hub table language-fee / pending column rules. */
+/** Matches Payment Hub table language-fee / pending column rules (current level only). */
 function effectiveOutstandingBalance(studentRequests, approved, pendingSubs, student, levelPriceMap) {
-  const live = computeLiveTotalsFromData(studentRequests, approved, pendingSubs);
-  const balanceDue = computeBalanceDueFromRequests(studentRequests, approved);
-  const hasMappedPayments = studentRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
-  const level = String(student?.level || 'A1').trim().toUpperCase();
-  const levelPrice = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
+  const { live, balanceDue, levelRequests, level } = computeTotalsForStudentLevel(
+    studentRequests,
+    approved,
+    pendingSubs,
+    student?.level,
+  );
+  const hasMappedPayments = levelRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
+  const levelKey = level || String(student?.level || 'A1').trim().toUpperCase();
+  const levelPrice = levelPriceMap.get(levelKey) || { LKR: 0, INR: 0, USD: 0 };
   const catalogGaps = {
     LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
     INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
@@ -226,7 +233,12 @@ async function aggregateHubDashboardStats(studentIds = null, options = {}) {
     const approved = approvedByStudent[sid] || [];
     const pendingSubmissions = pendingByStudent[sid] || [];
 
-    const live = computeLiveTotalsFromData(studentRequests, approved, pendingSubmissions);
+    const { live } = computeTotalsForStudentLevel(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student.level,
+    );
     addBuckets(received, {
       LKR: live.totalPaidLKR,
       INR: live.totalPaidINR,
@@ -449,7 +461,12 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     const approved = approvedByStudent[sid] || [];
     const pendingSubmissions = pendingByStudent[sid] || [];
 
-    const live = computeLiveTotalsFromData(studentRequests, approved, pendingSubmissions);
+    const { live } = computeTotalsForStudentLevel(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student.level,
+    );
     const receivedStudent = {
       LKR: live.totalPaidLKR,
       INR: live.totalPaidINR,
@@ -546,4 +563,10 @@ async function aggregateBatchPaymentInsights(filters = {}) {
   };
 }
 
-module.exports = { aggregateHubDashboardStats, aggregateBatchPaymentInsights };
+module.exports = {
+  aggregateHubDashboardStats,
+  aggregateBatchPaymentInsights,
+  buildLevelPriceMap,
+  pendingTotalsForStudent,
+  effectiveOutstandingBalance,
+};

@@ -1,10 +1,24 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 const SupportTicket = require('../models/SupportTicket');
 const User = require('../models/User');
 const upload = require('../config/supportTicketUpload');
 const transporter = require('../config/emailConfig');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, checkRole, extractBearerToken } = require('../middleware/auth');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+function resolveUserIdFromRequest(req, bodyUserId = null) {
+  const token = extractBearerToken(req);
+  if (!token) return bodyUserId || null;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded?.id || bodyUserId || null;
+  } catch {
+    return bodyUserId || null;
+  }
+}
 
 const R2_PUBLIC_BASE = (process.env.R2_PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 
@@ -93,7 +107,7 @@ router.post('/tickets', upload.single('screenshot'), async (req, res) => {
     }
 
     const ticket = new SupportTicket({
-      userId: userId || null,
+      userId: resolveUserIdFromRequest(req, userId),
       name,
       email,
       subject,
@@ -129,7 +143,20 @@ router.get('/tickets/my', verifyToken, async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ success: false, message: 'Authentication required.' });
 
-    const tickets = await SupportTicket.find({ userId }).sort({ createdAt: -1 });
+    const user = await User.findById(userId).select('email').lean();
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    const emailLower = String(user.email || '').trim().toLowerCase();
+    const filter = emailLower
+      ? {
+          $or: [
+            { userId },
+            { $expr: { $eq: [{ $toLower: '$email' }, emailLower] } }
+          ]
+        }
+      : { userId };
+
+    const tickets = await SupportTicket.find(filter).sort({ createdAt: -1 });
     return res.json({ success: true, data: tickets });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to load tickets.' });

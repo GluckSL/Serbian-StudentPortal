@@ -76,6 +76,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   fullPaidDate = new Date().toISOString().slice(0, 10);
   fullPaidRemarks = '';
   fullPaidSaving = false;
+  resettingSlotKey: PaymentSlotKey | null = null;
   private catalogCefrRows: Array<{ code: string; lkr: number; inr: number }> | null = null;
 
   editingRequestId: string | null = null;
@@ -197,7 +198,12 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   languageFeeStatusKey(): LanguageFeeStatus {
     const fromApi = this.history?.languageFeeStatus || this.history?.profile?.languageFeeStatus;
     if (fromApi === 'FULL_PAID' || fromApi === 'BALANCE' || fromApi === 'DUE') return fromApi;
-    const bal = this.history?.languageFeeBalance ?? this.history?.profile?.languageFeeBalance ?? 0;
+    const pending = this.pendingBalanceTotals();
+    const bal =
+      (pending.LKR || 0) + (pending.INR || 0) + (pending.USD || 0)
+      || this.history?.languageFeeBalance
+      || this.history?.profile?.languageFeeBalance
+      || 0;
     const day = currentJourneyDayFromStudent(this.history?.student ?? null);
     return computeLanguageFeeStatus(bal, day);
   }
@@ -264,22 +270,98 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return Math.max(0, (req.amount ?? 0) - paid);
   }
 
-  /** Pending = outstanding balance on mapped payments (same as slot Balance rows). */
-  pendingBalanceTotals(): Record<CurrencyKey, number> {
-    const fromSlots: Record<CurrencyKey, number> = { LKR: 0, INR: 0, USD: 0 };
-    for (const slot of this.paymentSlots) {
-      const bal = this.slotSummary(slot.key).balance;
-      fromSlots.LKR += bal.LKR;
-      fromSlots.INR += bal.INR;
-      fromSlots.USD += bal.USD;
+  /** Student's current CEFR level (A1–B2). */
+  currentLevelSlot(): LanguageLevelSlot | null {
+    return this.normalizeLevel(this.history?.student?.level);
+  }
+
+  /** Label suffix for summary cards, e.g. " (A2)". */
+  currentLevelLabelSuffix(): string {
+    const lv = this.currentLevelSlot();
+    return lv ? ` (${lv})` : '';
+  }
+
+  /** Total received for the student's current level only. */
+  currentLevelReceivedTotals(): Record<CurrencyKey, number> {
+    const lv = this.currentLevelSlot();
+    if (!lv) {
+      return {
+        LKR: this.history?.profile?.totalPaidLKR ?? 0,
+        INR: this.history?.profile?.totalPaidINR ?? 0,
+        USD: this.history?.profile?.totalPaidUSD ?? 0,
+      };
     }
-    const slotTotal = fromSlots.LKR + fromSlots.INR + fromSlots.USD;
-    if (slotTotal > 0) return fromSlots;
+    return this.slotSummary(lv).paid;
+  }
+
+  /** Infer currency from payments already on file (e.g. A1 paid in LKR → A2 pending in LKR). */
+  private studentPrimaryCurrency(): CurrencyKey {
+    for (const slot of this.paymentSlots) {
+      if (!this.isLevelSlot(slot.key)) continue;
+      const p = this.slotSummary(slot.key).paid;
+      if (p.LKR > 0) return 'LKR';
+      if (p.INR > 0) return 'INR';
+      if (p.USD > 0) return 'USD';
+    }
+    return 'LKR';
+  }
+
+  /** Catalog fee for a level when nothing is mapped yet (from hub pricing settings). */
+  catalogFeeForLevel(slotKey: LanguageLevelSlot): Record<CurrencyKey, number> {
+    const c = this.studentPrimaryCurrency();
+    const fee = this.standardLevelFee(slotKey, c);
+    return { LKR: c === 'LKR' ? fee : 0, INR: c === 'INR' ? fee : 0, USD: c === 'USD' ? fee : 0 };
+  }
+
+  /**
+   * Balance on a slot card — mapped request balance, or catalog fee for the student's
+   * current level when not mapped yet (student hasn't paid for this level).
+   */
+  slotBalanceDisplay(slotKey: PaymentSlotKey): Record<CurrencyKey, number> {
+    const bal = this.slotSummary(slotKey).balance;
+    const balTotal = (bal.LKR || 0) + (bal.INR || 0) + (bal.USD || 0);
+    if (balTotal > 0) return bal;
+    if (
+      this.slotSummary(slotKey).requestCount === 0
+      && this.isLevelSlot(slotKey)
+      && slotKey === this.currentLevelSlot()
+    ) {
+      return this.catalogFeeForLevel(slotKey);
+    }
+    return bal;
+  }
+
+  /** Pending = mapped balance, or catalog level fee when current level is not mapped yet. */
+  pendingBalanceTotals(): Record<CurrencyKey, number> {
+    const lv = this.currentLevelSlot();
+    if (lv) {
+      const slotBal = this.slotBalanceDisplay(lv);
+      const slotTotal = (slotBal.LKR || 0) + (slotBal.INR || 0) + (slotBal.USD || 0);
+      if (slotTotal > 0) return slotBal;
+    }
     return {
       LKR: this.history?.profile?.pendingApprovalAmountLKR ?? 0,
       INR: this.history?.profile?.pendingApprovalAmountINR ?? 0,
       USD: this.history?.profile?.pendingApprovalAmountUSD ?? 0,
     };
+  }
+
+  /** Overdue amounts for the current level only. */
+  currentLevelOverdueTotals(): Record<CurrencyKey, number> {
+    const lv = this.currentLevelSlot();
+    const totals: Record<CurrencyKey, number> = { LKR: 0, INR: 0, USD: 0 };
+    if (!lv) {
+      totals.LKR = this.history?.profile?.overdueAmountLKR ?? 0;
+      totals.INR = this.history?.profile?.overdueAmountINR ?? 0;
+      totals.USD = this.history?.profile?.overdueAmountUSD ?? 0;
+      return totals;
+    }
+    for (const req of this.requestsForSlot(lv)) {
+      if (req.status !== 'OVERDUE') continue;
+      const c = this.normCurrency(req.currency);
+      totals[c] += Number(req.amountRemaining) || Number(req.amount) || 0;
+    }
+    return totals;
   }
 
   getSubmissions(req: PaymentRequest): ApprovalQueueItem[] {
@@ -408,8 +490,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     });
   }
 
+  /** All active requests for slot mapping (not limited to history table page). */
+  private mappingRequests(): PaymentRequest[] {
+    return (this.history?.slotRequests || this.history?.requests || []) as PaymentRequest[];
+  }
+
   slotSummary(slotKey: PaymentSlotKey): PaymentSlotSummary {
-    const rows = (this.history?.requests || []).filter((req) => this.slotForRequest(req) === slotKey);
+    const rows = this.mappingRequests().filter((req) => this.slotForRequest(req) === slotKey);
     const summary: PaymentSlotSummary = {
       requestCount: rows.length,
       settledCount: 0,
@@ -487,6 +574,43 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return !(s.settledCount === s.requestCount && balanceTotal <= 0);
   }
 
+  canResetSlot(slotKey: PaymentSlotKey): boolean {
+    return this.slotSummary(slotKey).requestCount > 0;
+  }
+
+  isResettingSlot(slotKey: PaymentSlotKey): boolean {
+    return this.resettingSlotKey === slotKey;
+  }
+
+  resetSlotPayments(slotKey: PaymentSlotKey): void {
+    if (!this.history?.student?._id || !this.canResetSlot(slotKey)) return;
+    const label = this.paymentSlots.find((s) => s.key === slotKey)?.label || slotKey;
+    const msg =
+      `Reset all payments for ${label}?\n\n` +
+      'Paid and balance on this card will become 0. Payment records for this level/category are archived. This cannot be undone.';
+    if (!window.confirm(msg)) return;
+
+    this.resettingSlotKey = slotKey;
+    this.api
+      .resetPaymentSlot(this.history.student._id, {
+        slotKey,
+        reason: `Admin reset ${slotKey} payment slot`,
+      })
+      .subscribe({
+        next: (res) => {
+          this.resettingSlotKey = null;
+          if (this.activeMapSlot === slotKey) this.cancelMap();
+          if (this.activeFullPaidSlot === slotKey) this.cancelFullPaid();
+          this.snack.open(res.message || `${label} reset`, 'OK', { duration: 5000 });
+          this.load();
+        },
+        error: (e) => {
+          this.resettingSlotKey = null;
+          this.snack.open(e?.error?.message || 'Could not reset payments', 'Dismiss', { duration: 5000 });
+        },
+      });
+  }
+
   /** Template handler — narrows level slot before opening full-paid form. */
   onMarkFullPaidClick(slotKey: PaymentSlotKey): void {
     if (!this.isLevelSlot(slotKey)) return;
@@ -494,7 +618,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   }
 
   requestsForSlot(slotKey: PaymentSlotKey): PaymentRequest[] {
-    return (this.history?.requests || []).filter((req) => this.slotForRequest(req) === slotKey);
+    return this.mappingRequests().filter((req) => this.slotForRequest(req) === slotKey);
   }
 
   private slotForRequest(req: PaymentRequest): PaymentSlotKey | null {
@@ -681,9 +805,17 @@ export class PaymentHubStudentDetailComponent implements OnInit {
         let msg = `${slotKey} payment mapped successfully`;
         if (custom?.reconciled?.updated) {
           const q = custom.reconciled.quotedTotal ?? 0;
-          msg = `${slotKey} quote updated to ${this.mappingCurrency} ${this.fmt(q)}`;
-          if ((custom.reconciled.amountRemaining ?? 0) <= 0) {
-            msg += ' — fully settled';
+          const remaining = custom.reconciled.amountRemaining ?? 0;
+          const paidSoFar = custom.reconciled.totalPaid ?? 0;
+          if (remaining > 0 && paidSoFar <= 0) {
+            msg = `${slotKey} quoted at ${this.mappingCurrency} ${this.fmt(q)} — ${this.mappingCurrency} ${this.fmt(remaining)} pending`;
+          } else {
+            msg = `${slotKey} quote updated to ${this.mappingCurrency} ${this.fmt(q)}`;
+            if (remaining <= 0) {
+              msg += ' — fully settled';
+            } else if (remaining > 0) {
+              msg += ` — ${this.mappingCurrency} ${this.fmt(remaining)} pending`;
+            }
           }
         } else if (custom?.alreadyMapped) {
           msg = `${slotKey} payment was already on file; totals refreshed`;
