@@ -687,7 +687,8 @@ export class SpinWheelComponent implements OnInit, OnDestroy {
     const tangY = Math.cos(midRad);
     const x = 200 + r * Math.cos(midRad) + dy * tangX;
     const y = 200 + r * Math.sin(midRad) + dy * tangY;
-    const rotate = midAngle + 90;
+    const actualAngle = (90 + Math.atan2(y - 200, x - 200) * 180 / Math.PI + 360) % 360;
+    const rotate = actualAngle + 90;
     return `translate(${x}, ${y}) rotate(${rotate})`;
   }
 
