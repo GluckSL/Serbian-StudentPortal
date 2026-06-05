@@ -1606,6 +1606,8 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           'totalCompletions',
           'averageScore',
           'courseDay',
+          'weeklyTestEnabled',
+          'examEnabled',
           'sequenceLetter',
           'splitLineage',
           'createdAt',
