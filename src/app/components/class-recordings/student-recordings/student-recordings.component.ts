@@ -168,7 +168,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['courseDayFilter'] || changes['refreshToken']) {
+    if ((changes['courseDayFilter'] && !changes['courseDayFilter'].firstChange) ||
+        (changes['refreshToken'] && !changes['refreshToken'].firstChange)) {
       this.recordingsPage = 1;
       this.loadRecordingsPage(1);
     }
@@ -201,7 +202,6 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
             1,
             Number(res?.totalPages) || Math.ceil(this.recordingsTotal / this.recordingsPageSize)
           );
-          this.prefetchFirst5Zoom();
           this.loading = false;
         },
         error: () => {

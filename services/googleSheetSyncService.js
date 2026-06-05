@@ -231,8 +231,12 @@ async function extractAndWriteSelectedStudents(studentIds) {
     const { sheet, meta } = await connectSpreadsheet({ quiet: true });
     const headers = getSheetHeaders();
     const total = students.length;
+    const sheetName = sheet.title.includes(' ') || /[!@#$%^&*()+=,;'"]/.test(sheet.title)
+      ? `'${sheet.title}'`
+      : sheet.title;
+    log(`Target spreadsheet=${meta.spreadsheetId} sheet=${sheetName}`);
 
-    const existingRange = encodeURIComponent(`${sheet.title}!1:1`);
+    const existingRange = encodeURIComponent(`${sheetName}!1:1`);
     let existingData;
     try {
       existingData = await sheetsApiRequest(`/values/${existingRange}`);
@@ -240,8 +244,8 @@ async function extractAndWriteSelectedStudents(studentIds) {
     const existingHeaders = (existingData?.values?.[0] || []).filter(c => String(c || '').trim() !== '');
     if (existingHeaders.length === 0) {
       await sheetsApiRequest(
-        `/values/${encodeURIComponent(`${sheet.title}!A1`)}?valueInputOption=USER_ENTERED`,
-        { method: 'PUT', body: { range: `${sheet.title}!A1`, values: [headers] } },
+        `/values/${encodeURIComponent(`${sheetName}!A1`)}?valueInputOption=USER_ENTERED`,
+        { method: 'PUT', body: { range: `${sheetName}!A1`, values: [headers] } },
       );
       activityLog.append('info', `Headers written (${headers.length} cols)`);
     }
@@ -288,11 +292,12 @@ async function extractAndWriteSelectedStudents(studentIds) {
 
         const row = mapToSheetRow(merged, student, docs);
         const values = [row.map(v => String(v ?? ''))];
-        const appendRange = `${sheet.title}!A:ZZ`;
-        await sheetsApiRequest(
+        const appendRange = `${sheetName}!A:ZZ`;
+        const appendResult = await sheetsApiRequest(
           `/values/${encodeURIComponent(appendRange)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-          { method: 'POST', body: { range: appendRange, values } },
+          { method: 'POST', body: { values } },
         );
+        log(`Appended to spreadsheet=${meta.spreadsheetId} sheet=${sheetName} updatedRange=${appendResult?.updates?.updatedRange || '?'}`);
 
         results.push({ studentId: student._id, regNo: student.regNo, status: 'ok', documentsProcessed: docsProcessed, extracted: merged });
         activityLog.append('success', `${student.regNo || student._id} ✓ (${docsProcessed} docs)`);

@@ -220,13 +220,6 @@ export class MyCourseComponent implements OnInit {
           });
         }
       });
-    this.authService.getUserProfile().subscribe({
-      next: (u) => {
-        this.setAuthProfilePicFromUser(u);
-        this.userProfile = u;
-      },
-      error: () => {}
-    });
 
     // Instant advance: Silver GO students promoted immediately after completing all day tasks.
     this.progressService.journeyInstantAdvance$
@@ -235,6 +228,7 @@ export class MyCourseComponent implements OnInit {
         this.progressService.getStudentJourney().subscribe({
           next: (j) => {
             this.journey = j;
+            this._journeyGamesLoaded = false;
             this.loadQuickAccess();
             if (!this.journeyCongratsDialogRef) {
               const data: JourneyPendingCelebrationData = {
@@ -259,17 +253,13 @@ export class MyCourseComponent implements OnInit {
         });
       });
 
-    // Journey first: unlock the page as soon as progress API returns (fastest paint).
-    // Meetings load in parallel and patch preview when ready — avoids waiting on the slower hop.
+    // Fire journey fetch async — page renders immediately; data populates when it arrives.
     this.progressService
       .getStudentJourney()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (journey) => {
           this.journey = journey;
-          this.loadQuickAccess();
-          this.pickTabHeaderQuote();
-          this.loading = false;
           setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
           if (!this._tourChecked) {
             this._tourChecked = true;
@@ -281,11 +271,10 @@ export class MyCourseComponent implements OnInit {
             });
           }
         },
-        error: () => {
-          this.pickTabHeaderQuote();
-          this.loading = false;
-        },
+        error: () => {},
       });
+    this.loading = false;
+    this.pickTabHeaderQuote();
 
     this.loadLanguageFeeDue();
 
@@ -379,19 +368,8 @@ export class MyCourseComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.journeyDayExercises = Array.isArray(res?.exercises) ? res.exercises : [];
-        },
-        error: () => {
-          this.journeyDayExercises = [];
-        }
-      });
-
-    this.exerciseService
-      .getExercises({ page: 1, limit: 24 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
           const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
+          this.journeyDayExercises = items;
           const unlocked = items.filter((ex) => {
             const noAttempt = !ex.studentAttempt;
             if (!noAttempt) return false;
@@ -400,20 +378,9 @@ export class MyCourseComponent implements OnInit {
           });
           unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
           this.nextNewDigitalExercise = unlocked[0] || null;
-        }
-      });
-
-    this.interactiveGameService
-      .getJourneyGames()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.hasJourneyArenaAccess = !!res?.hasArenaAccess;
-          this.journeyDayGameSets = Array.isArray(res?.items) ? res.items : [];
         },
         error: () => {
-          this.hasJourneyArenaAccess = false;
-          this.journeyDayGameSets = [];
+          this.journeyDayExercises = [];
         }
       });
 
@@ -433,7 +400,7 @@ export class MyCourseComponent implements OnInit {
 
     // Fetch manual recordings for the current journey day (completion badge)
     this.recordingsService
-      .getRecordings()
+      .getRecordings(courseDay)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
@@ -442,6 +409,33 @@ export class MyCourseComponent implements OnInit {
           );
         },
         error: () => { this.currentDayManualRecs = []; }
+      });
+  }
+
+  private _journeyTabDataLoaded = false;
+  private _journeyGamesLoaded = false;
+
+  private loadJourneyTabData(): void {
+    if (this._journeyTabDataLoaded) return;
+    this._journeyTabDataLoaded = true;
+    this.loadQuickAccess();
+  }
+
+  private loadJourneyGames(): void {
+    if (this._journeyGamesLoaded) return;
+    this._journeyGamesLoaded = true;
+    this.interactiveGameService
+      .getJourneyGames()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.hasJourneyArenaAccess = !!res?.hasArenaAccess;
+          this.journeyDayGameSets = Array.isArray(res?.items) ? res.items : [];
+        },
+        error: () => {
+          this.hasJourneyArenaAccess = false;
+          this.journeyDayGameSets = [];
+        }
       });
   }
 
@@ -525,6 +519,10 @@ export class MyCourseComponent implements OnInit {
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
+    if (tab === 'journey') {
+      this.loadJourneyTabData();
+      this.loadJourneyGames();
+    }
     if (tab === 'classes') {
       this.refreshJourneyForPendingCelebration();
     }
@@ -646,7 +644,6 @@ export class MyCourseComponent implements OnInit {
       .subscribe({
         next: (j) => {
           this.journey = j;
-          this.loadQuickAccess();
           setTimeout(() => this.maybeShowJourneyCongratulations(), 350);
         },
         error: () => {}

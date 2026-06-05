@@ -35,17 +35,21 @@ function silverGoCompletionOptions(student) {
  * Scans backward from currentCourseDay for the first incomplete prior day.
  */
 async function resolveSilverGoContentUnlock(student) {
+  if (student?._resolveSilverGoCache) return student._resolveSilverGoCache;
+
   const batchKeys = allStudentBatchStringsForContent(student);
   const currentCourseDay = normalizeCourseDay(student?.currentCourseDay);
   const studentId = student?._id || student?.id;
 
   if (!isSilverGoStudent(student) || !batchKeys.length || !studentId) {
-    return {
+    const result = {
       isSilverGo: false,
       currentCourseDay,
       maxUnlockedContentDay: currentCourseDay,
       batchKeys
     };
+    if (student) student._resolveSilverGoCache = result;
+    return result;
   }
 
   let maxUnlockedContentDay = currentCourseDay;
@@ -59,12 +63,14 @@ async function resolveSilverGoContentUnlock(student) {
     }
   }
 
-  return {
+  const result = {
     isSilverGo: true,
     currentCourseDay,
     maxUnlockedContentDay,
     batchKeys
   };
+  if (student) student._resolveSilverGoCache = result;
+  return result;
 }
 
 /** Pull inflated currentCourseDay back to the first incomplete day (never increases). */

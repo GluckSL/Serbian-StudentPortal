@@ -66,11 +66,30 @@ function convertPdfToImages(pdfBuffer) {
   const inputPath = path.join(tmpDir, 'input.pdf');
   const outputPrefix = path.join(tmpDir, 'page');
   fs.writeFileSync(inputPath, pdfBuffer);
+  let converted = false;
   try {
     execSync(`pdftoppm -png -r 300 "${inputPath}" "${outputPrefix}"`, { timeout: 60000 });
-  } catch (e) {
-    log(`pdftoppm failed, trying ImageMagick...`);
-    execSync(`convert -density 300 "${inputPath}" -quality 90 "${outputPrefix}.png"`, { timeout: 60000 });
+    converted = true;
+  } catch {
+    log(`pdftoppm not available, trying ImageMagick...`);
+  }
+  if (!converted) {
+    try {
+      execSync(`magick -density 300 "${inputPath}" -quality 90 "${outputPrefix}.png"`, { timeout: 60000 });
+      converted = true;
+    } catch {
+      log(`magick (IMv7) failed, trying convert...`);
+    }
+  }
+  if (!converted) {
+    try {
+      execSync(`convert -density 300 "${inputPath}" -quality 90 "${outputPrefix}.png"`, { timeout: 60000 });
+      converted = true;
+    } catch (e) {
+      log(`All PDF renderers failed: ${e.message}`);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      return { tmpDir: null, files: [] };
+    }
   }
   const files = fs.readdirSync(tmpDir)
     .filter(f => f.startsWith('page') && f.endsWith('.png'))
@@ -192,12 +211,6 @@ function mergeStructuredResults(merged, structured) {
     }
   }
 
-  const DOC_ID_FIELDS = ['passportNumber', 'aadhaarNumber', 'epicNumber', 'documentNumber', 'studentId', 'rollNo', 'employeeId', 'certificateNo'];
-  for (const k of DOC_ID_FIELDS) {
-    if (structured[k] && !merged.candidate[k]) {
-      merged.candidate[k] = structured[k];
-    }
-  }
 }
 
 module.exports = {
