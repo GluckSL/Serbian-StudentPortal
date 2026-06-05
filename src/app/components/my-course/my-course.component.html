@@ -702,12 +702,12 @@
   </div>
 
   <div class="mc-panel" *ngIf="activeTab === 'gluck-exam'" role="tabpanel">
-    <div class="mc-gluck-exam-tabs" role="tablist" aria-label="Gluck Exam type">
+    <div class="tab-row" role="tablist" aria-label="Gluck Exam type">
       <button
         type="button"
         role="tab"
-        class="mc-gluck-exam-tab"
-        [class.mc-gluck-exam-tab--on]="gluckExamSubTab === 'weekly-test'"
+        class="tab-btn"
+        [class.active]="gluckExamSubTab === 'weekly-test'"
         [attr.aria-selected]="gluckExamSubTab === 'weekly-test'"
         (click)="setGluckExamSubTab('weekly-test')"
       >
@@ -716,8 +716,8 @@
       <button
         type="button"
         role="tab"
-        class="mc-gluck-exam-tab"
-        [class.mc-gluck-exam-tab--on]="gluckExamSubTab === 'exams'"
+        class="tab-btn"
+        [class.active]="gluckExamSubTab === 'exams'"
         [attr.aria-selected]="gluckExamSubTab === 'exams'"
         (click)="setGluckExamSubTab('exams')"
       >

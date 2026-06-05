@@ -1513,41 +1513,39 @@
   max-width: 100%;
 }
 
-.mc-gluck-exam-tabs {
+.tab-row {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  margin: 4px auto 14px;
-  max-width: 340px;
-  width: 100%;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 
-.mc-gluck-exam-tab {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 7px 14px;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
+.tab-btn {
+  border: 0;
+  background: transparent;
   color: #64748b;
-  font-size: 0.78rem;
+  border-radius: 999px;
+  padding: 0 10px;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  line-height: 1 !important;
+  font-size: 11px;
   font-weight: 600;
-  line-height: 1.2;
-  text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
 }
 
-.mc-gluck-exam-tab:hover {
-  border-color: #a5b4fc;
-  color: #4f46e5;
+.tab-btn:hover {
+  color: #0f172a;
 }
 
-.mc-gluck-exam-tab--on {
-  border-color: #6366f1;
-  background: #eef2ff;
-  color: #4338ca;
+.tab-btn.active {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
 }
 
 /* Primary CTA — open report */
@@ -2435,15 +2433,9 @@
     font-size: 0.78rem;
   }
 
-  .mc-gluck-exam-tabs {
-    gap: 8px;
-    margin-bottom: 12px;
-    max-width: 100%;
-  }
-
-  .mc-gluck-exam-tab {
-    padding: 7px 10px;
-    font-size: 0.75rem;
+  .tab-btn {
+    font-size: 10px;
+    padding: 0 8px;
   }
 
   .mc-progress-cards {
