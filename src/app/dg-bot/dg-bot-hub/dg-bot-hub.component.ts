@@ -34,6 +34,19 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   /** Hide the Gluck Buddy title strip (parent supplies a section heading, e.g. Journey day). */
   @Input() hideEmbeddedHeader = false;
 
+  /**
+   * Pre-loaded modules + metadata from a parent that already called
+   * `listStudentModules()`. When provided, the component skips its own API
+   * call in `ngOnInit` and uses these values directly.
+   */
+  @Input() preloadedData: {
+    modules: DgModuleSummary[];
+    studentCourseDay?: number;
+    unlockMode?: 'daily' | 'weekly' | 'none';
+    dgUnlockedWeek?: number;
+    dgWeekHint?: string | null;
+  } | null = null;
+
   /** Raw list from API before optional `journeyFixedDay` filter. */
   private allModules: DgModuleSummary[] = [];
   /** Set after first successful load — used for journey-day empty copy. */
@@ -93,7 +106,24 @@ export class DgBotHubComponent implements OnInit, OnChanges {
       });
       return;
     }
-    this.loadModules();
+    if (this.preloadedData) {
+      this.allModules = this.preloadedData.modules || [];
+      this.rawModuleCount = this.allModules.length;
+      const d = Number(this.preloadedData?.studentCourseDay);
+      if (Number.isFinite(d) && d >= 1) {
+        this.studentCourseDay = Math.min(200, Math.floor(d));
+      }
+      this.unlockMode = this.preloadedData?.unlockMode === 'weekly' ? 'weekly' : this.preloadedData?.unlockMode === 'none' ? 'none' : 'daily';
+      const w = Number(this.preloadedData?.dgUnlockedWeek);
+      if (Number.isFinite(w) && w >= 1) {
+        this.dgUnlockedWeek = Math.floor(w);
+      }
+      this.apiWeekHint = this.preloadedData?.dgWeekHint?.trim() || null;
+      this.loading = false;
+      this.applyDayScope();
+    } else {
+      this.loadModules();
+    }
   }
 
   loadModules(): void {

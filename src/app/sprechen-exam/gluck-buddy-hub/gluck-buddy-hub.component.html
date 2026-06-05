@@ -49,6 +49,13 @@
         [embedded]="true"
         [hideEmbeddedHeader]="true"
         [journeyFixedDay]="journeyFixedDay"
+        [preloadedData]="{
+          modules: practiceAll,
+          studentCourseDay,
+          unlockMode: practiceUnlockMode,
+          dgUnlockedWeek: practiceDgUnlockedWeek,
+          dgWeekHint: practiceDgWeekHint
+        }"
       ></app-dg-bot-hub>
 
       <app-sprechen-exam-hub
