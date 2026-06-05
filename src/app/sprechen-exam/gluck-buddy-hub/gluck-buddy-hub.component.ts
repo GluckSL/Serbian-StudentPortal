@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, inject } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { forkJoin } from 'rxjs';
@@ -18,7 +18,7 @@ export type GluckBuddySubTab = 'practice' | 'exam';
   templateUrl: './gluck-buddy-hub.component.html',
   styleUrl: './gluck-buddy-hub.component.scss',
 })
-export class GluckBuddyHubComponent implements OnInit {
+export class GluckBuddyHubComponent implements OnInit, OnChanges {
   @Input() journeyFixedDay: number | null = null;
   @Input() hideEmbeddedHeader = false;
   @Input() showSubTabs = true;
@@ -35,6 +35,9 @@ export class GluckBuddyHubComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly dgApi = inject(DgApiService);
   private readonly sprechenApi = inject(SprechenApiService);
+
+  private practiceAll: DgModuleSummary[] = [];
+  private examAll: SprechenExamModuleSummary[] = [];
 
   get showPracticeTab(): boolean {
     return this.practiceModuleCount > 0;
@@ -57,6 +60,12 @@ export class GluckBuddyHubComponent implements OnInit {
     this.loadModuleAvailability();
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['journeyFixedDay'] && !changes['journeyFixedDay'].firstChange) {
+      this.recalculateModuleCounts();
+    }
+  }
+
   private loadModuleAvailability(): void {
     this.loadingAvailability = true;
     this.availabilityError = null;
@@ -71,11 +80,9 @@ export class GluckBuddyHubComponent implements OnInit {
           this.studentCourseDay = Math.min(200, Math.floor(day));
         }
 
-        const practiceAll = practice?.modules || [];
-        const examAll = exam?.modules || [];
-        this.practiceModuleCount = this.scopePracticeModules(practiceAll).length;
-        this.examModuleCount = this.scopeExamModules(examAll).length;
-        this.subTab = this.resolveInitialSubTab();
+        this.practiceAll = practice?.modules || [];
+        this.examAll = exam?.modules || [];
+        this.recalculateModuleCounts();
         this.loadingAvailability = false;
       },
       error: () => {
@@ -85,6 +92,12 @@ export class GluckBuddyHubComponent implements OnInit {
         this.loadingAvailability = false;
       },
     });
+  }
+
+  private recalculateModuleCounts(): void {
+    this.practiceModuleCount = this.scopePracticeModules(this.practiceAll).length;
+    this.examModuleCount = this.scopeExamModules(this.examAll).length;
+    this.subTab = this.resolveInitialSubTab();
   }
 
   private resolveInitialSubTab(): GluckBuddySubTab {

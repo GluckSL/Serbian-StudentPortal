@@ -67,7 +67,15 @@ export class MyCourseComponent implements OnInit {
   activeTab: MyCourseTab = 'classes';
   journeyFilter: JourneyFilter = 'all';
   journeySearch = '';
-  selectedJourneyDay = 1;
+  private _selectedJourneyDay: number | null = null;
+
+  get selectedJourneyDay(): number {
+    return this._selectedJourneyDay ?? this.journeyCourseDay;
+  }
+
+  set selectedJourneyDay(day: number) {
+    this._selectedJourneyDay = day;
+  }
   showProgressReport = false;
   progressRange: ProgressRange = 'weekly';
 
