@@ -56,6 +56,9 @@ const GameQuestionSchema = new mongoose.Schema({
 
   /** Word search: hidden words placed in generated grid */
   searchWords: [{ type: String }],
+  /** Word search: optional grid size (rows × columns). Omitted = auto-sized. */
+  gridRows: { type: Number, min: 4, max: 20, default: null },
+  gridCols: { type: Number, min: 4, max: 20, default: null },
 
   // ── Multiple Choice fields ──────────────────────────────────────────────────
   questionText: { type: String, default: '' },

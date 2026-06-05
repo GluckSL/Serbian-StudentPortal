@@ -1428,8 +1428,25 @@ exports.adminUpsertQuestions = async (req, res) => {
         if (words.length > 20) {
           return badRequest(res, `Puzzle ${i + 1}: maximum 20 words per puzzle`);
         }
+        const hasRows = q.gridRows != null && q.gridRows !== '';
+        const hasCols = q.gridCols != null && q.gridCols !== '';
+        if (hasRows !== hasCols) {
+          return badRequest(res, `Puzzle ${i + 1}: set both grid rows and grid columns, or leave both blank for automatic sizing`);
+        }
+        if (hasRows) {
+          const dims = wordSearchService.normalizeGridDimensions(q.gridRows, q.gridCols);
+          if (!dims) {
+            return badRequest(
+              res,
+              `Puzzle ${i + 1}: grid must be between ${wordSearchService.MIN_ROWS}×${wordSearchService.MIN_COLS} and ${wordSearchService.MAX_ROWS}×${wordSearchService.MAX_COLS}`,
+            );
+          }
+        }
         try {
-          wordSearchService.generatePuzzle(words, `validate-${i}`);
+          wordSearchService.generatePuzzle(words, `validate-${i}`, {
+            gridRows: q.gridRows,
+            gridCols: q.gridCols,
+          });
         } catch (err) {
           return badRequest(res, `Puzzle ${i + 1}: ${err.message}`);
         }
@@ -1529,6 +1546,9 @@ exports.adminUpsertQuestions = async (req, res) => {
         doc.searchWords = (q.searchWords || [])
           .map(w => wordSearchService.normalizeSearchWord(w))
           .filter(w => w.length >= 2);
+        const dims = wordSearchService.normalizeGridDimensions(q.gridRows, q.gridCols);
+        doc.gridRows = dims ? dims.rows : null;
+        doc.gridCols = dims ? dims.cols : null;
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';

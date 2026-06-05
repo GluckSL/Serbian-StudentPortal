@@ -113,7 +113,7 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'multiple_choice'">Read the question and choose the correct answer from the options. Each correct answer earns points — answer as many as you can before time runs out!</p>
               <p *ngIf="set.gameType === 'spin_wheel'">Spin the wheel to land on a German phrase. After each spin, choose <strong>Eliminate</strong> to remove that phrase from the wheel or <strong>Resume</strong> to keep it and spin again. Narrow the wheel until one phrase remains!</p>
               <p *ngIf="set.gameType === 'tap_boxes'">Tap a numbered box on the classroom grid. The view zooms in cinematically and peels back to reveal the hidden German phrase. Open every box to finish!</p>
-              <p *ngIf="set.gameType === 'word_search'">Find hidden words in the letter grid. Tap any letter that belongs to a word — the whole word highlights when you are correct. Wrong taps cost a life!</p>
+              <p *ngIf="set.gameType === 'word_search'">Find hidden words across, down, or diagonally. Drag from the first letter to the last, or tap each letter in order. Wrong selections cost a life!</p>
             </section>
           </aside>
 

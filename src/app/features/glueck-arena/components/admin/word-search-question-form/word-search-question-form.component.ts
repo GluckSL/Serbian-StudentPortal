@@ -15,7 +15,7 @@ import { NotificationService } from '../../../../../services/notification.servic
         <mat-icon>grid_on</mat-icon>
         <div>
           <h3>Word search puzzles</h3>
-          <p>Add hidden words for each puzzle. Students tap any letter in a word to highlight the whole word — like Wordwall word search.</p>
+          <p>Add hidden words for each puzzle. Set grid rows × columns (e.g. 6×8) or leave blank for automatic sizing.</p>
         </div>
       </div>
 
@@ -42,6 +42,19 @@ import { NotificationService } from '../../../../../services/notification.servic
               </button>
             </mat-card-header>
             <mat-card-content>
+              <div class="wsf__grid-size">
+                <mat-form-field appearance="outline" class="wsf__dim">
+                  <mat-label>Grid rows</mat-label>
+                  <input matInput type="number" formControlName="gridRows" min="4" max="20" placeholder="Auto">
+                  <mat-hint>4–20, or blank for auto</mat-hint>
+                </mat-form-field>
+                <span class="wsf__dim-x">×</span>
+                <mat-form-field appearance="outline" class="wsf__dim">
+                  <mat-label>Grid columns</mat-label>
+                  <input matInput type="number" formControlName="gridCols" min="4" max="20" placeholder="Auto">
+                  <mat-hint>4–20, or blank for auto</mat-hint>
+                </mat-form-field>
+              </div>
               <div formArrayName="words" class="wsf__words">
                 <div class="wsf__word-row" *ngFor="let w of wordsAt(pi).controls; let wi = index" [formGroupName]="wi">
                   <mat-form-field appearance="outline" class="wsf__field">
@@ -93,6 +106,16 @@ import { NotificationService } from '../../../../../services/notification.servic
     .wsf__toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
     .wsf__list { display: flex; flex-direction: column; gap: 16px; }
     .wsf__card mat-card-header { display: flex; justify-content: space-between; align-items: center; }
+    .wsf__grid-size {
+      display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 16px; padding: 12px 14px;
+      background: #fffbeb; border-radius: 12px; border: 1px solid #fde68a;
+    }
+    .wsf__dim { width: 140px; }
+    .wsf__dim-x {
+      align-self: center; margin-top: 8px;
+      font-size: 20px; font-weight: 700; color: #92400e;
+    }
     .wsf__words { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
     .wsf__word-row { display: flex; align-items: flex-start; gap: 4px; }
     .wsf__field { flex: 1; }
@@ -145,6 +168,8 @@ export class WordSearchQuestionFormComponent implements OnInit, OnChanges {
     this.puzzles.push(this.fb.group({
       _id: [''],
       order: [this.puzzles.length],
+      gridRows: [null as number | null, [Validators.min(4), Validators.max(20)]],
+      gridCols: [null as number | null, [Validators.min(4), Validators.max(20)]],
       words,
     }));
   }
@@ -178,7 +203,12 @@ export class WordSearchQuestionFormComponent implements OnInit, OnChanges {
           (a: { order?: number }, b: { order?: number }) => (a.order ?? 0) - (b.order ?? 0),
         );
         for (const q of qs) {
-          const raw = q as { searchWords?: string[]; word?: string };
+          const raw = q as {
+            searchWords?: string[];
+            word?: string;
+            gridRows?: number | null;
+            gridCols?: number | null;
+          };
           const list = Array.isArray(raw.searchWords) && raw.searchWords.length
             ? raw.searchWords
             : (raw.word ? [raw.word] : []);
@@ -191,6 +221,8 @@ export class WordSearchQuestionFormComponent implements OnInit, OnChanges {
           this.puzzles.push(this.fb.group({
             _id: [q._id || ''],
             order: [q.order ?? 0],
+            gridRows: [raw.gridRows ?? null, [Validators.min(4), Validators.max(20)]],
+            gridCols: [raw.gridCols ?? null, [Validators.min(4), Validators.max(20)]],
             words,
           }));
         }
@@ -203,20 +235,50 @@ export class WordSearchQuestionFormComponent implements OnInit, OnChanges {
     });
   }
 
+  private parseGridDim(value: unknown): number | null {
+    if (value == null || value === '') return null;
+    const n = parseInt(String(value), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
   save(): void {
     if (!this.gameSetId || this.form.invalid || this.puzzles.length === 0) return;
     this.saving = true;
-    const questions = this.puzzles.controls.map((ctrl, i) => {
-      const v = ctrl.value;
-      const searchWords = (v.words || [])
-        .map((w: { text: string }) => String(w.text || '').trim().toUpperCase())
-        .filter((w: string) => w.length >= 2);
-      return {
-        _id: v._id || undefined,
-        order: i,
-        searchWords,
-      };
-    });
+    let questions: Array<{
+      _id?: string;
+      order: number;
+      searchWords: string[];
+      gridRows: number | null;
+      gridCols: number | null;
+    }>;
+    try {
+      questions = this.puzzles.controls.map((ctrl, i) => {
+        const v = ctrl.value;
+        const searchWords = (v.words || [])
+          .map((w: { text: string }) => String(w.text || '').trim().toUpperCase())
+          .filter((w: string) => w.length >= 2);
+        const gridRows = this.parseGridDim(v.gridRows);
+        const gridCols = this.parseGridDim(v.gridCols);
+        if ((gridRows == null) !== (gridCols == null)) {
+          throw new Error('GRID_DIM_MISMATCH');
+        }
+        return {
+          _id: v._id || undefined,
+          order: i,
+          searchWords,
+          gridRows,
+          gridCols,
+        };
+      });
+    } catch (err) {
+      this.saving = false;
+      if ((err as Error)?.message === 'GRID_DIM_MISMATCH') {
+        this.notify.error('Set both grid rows and columns, or leave both blank for automatic sizing');
+      } else {
+        this.notify.error('Could not save puzzles');
+      }
+      return;
+    }
     this.svc.adminUpsertQuestions(this.gameSetId, questions).subscribe({
       next: () => {
         this.saving = false;

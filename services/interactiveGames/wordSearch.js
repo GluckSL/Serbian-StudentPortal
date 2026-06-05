@@ -3,9 +3,11 @@
 
 const { germanUppercase } = require('../../utils/germanText');
 
-const DEFAULT_SIZE = 11;
-const MAX_SIZE = 15;
-const MIN_SIZE = 8;
+const DEFAULT_SIZE = 10;
+const MAX_ROWS = 20;
+const MAX_COLS = 20;
+const MIN_ROWS = 4;
+const MIN_COLS = 4;
 
 const DIRECTIONS = [
   [0, 1], [1, 0], [1, 1], [1, -1],
@@ -26,6 +28,16 @@ function collectWords(question) {
   return single.length >= 2 ? [single] : [];
 }
 
+function normalizeGridDimensions(gridRows, gridCols) {
+  const rows = parseInt(gridRows, 10);
+  const cols = parseInt(gridCols, 10);
+  if (!Number.isFinite(rows) || !Number.isFinite(cols)) return null;
+  if (rows < MIN_ROWS || rows > MAX_ROWS || cols < MIN_COLS || cols > MAX_COLS) {
+    return null;
+  }
+  return { rows, cols };
+}
+
 /** Simple LCG for reproducible grids per question id */
 function createRng(seed) {
   let s = Math.abs(parseInt(String(seed).replace(/\D/g, '').slice(-9), 10) || 1) % 2147483646;
@@ -36,17 +48,25 @@ function createRng(seed) {
   };
 }
 
-function pickGridSize(wordCount, longestWordLen) {
-  const base = Math.max(DEFAULT_SIZE, Math.ceil(Math.sqrt(wordCount * 12)));
-  return Math.min(MAX_SIZE, Math.max(MIN_SIZE, base, longestWordLen + 3));
+function pickAutoGridSize(wordCount, longestWordLen) {
+  const base = Math.max(DEFAULT_SIZE, Math.ceil(Math.sqrt(wordCount * 10)));
+  const size = Math.min(MAX_ROWS, Math.max(MIN_ROWS, base, longestWordLen + 2));
+  return { rows: size, cols: size };
+}
+
+function resolveGridDimensions(question, wordCount, longestWordLen) {
+  const custom = normalizeGridDimensions(question?.gridRows, question?.gridCols);
+  if (custom) return custom;
+  return pickAutoGridSize(wordCount, longestWordLen);
 }
 
 function canPlace(grid, word, row, col, dr, dc) {
-  const size = grid.length;
+  const rows = grid.length;
+  const cols = grid[0]?.length || 0;
   for (let i = 0; i < word.length; i++) {
     const r = row + dr * i;
     const c = col + dc * i;
-    if (r < 0 || c < 0 || r >= size || c >= size) return false;
+    if (r < 0 || c < 0 || r >= rows || c >= cols) return false;
     const cell = grid[r][c];
     if (cell && cell !== word[i]) return false;
   }
@@ -75,46 +95,51 @@ function fillEmpty(grid, rng) {
 }
 
 /**
- * Build an 11×11 (or larger) letter grid with words placed in 8 directions.
+ * Build a letter grid with words placed in 8 directions.
  * @param {string[]} words
  * @param {string|number} seed
+ * @param {{ gridRows?: number, gridCols?: number }} [options]
  */
-function generatePuzzle(words, seed = '0') {
+function generatePuzzle(words, seed = '0', options = {}) {
   const cleaned = [...new Set(words.map(normalizeSearchWord).filter(w => w.length >= 2))]
     .sort((a, b) => b.length - a.length);
   if (!cleaned.length) {
-    return { gridSize: DEFAULT_SIZE, grid: [], placements: [] };
+    return { gridRows: DEFAULT_SIZE, gridCols: DEFAULT_SIZE, gridSize: DEFAULT_SIZE, grid: [], placements: [] };
   }
 
   const rng = createRng(seed);
   const longest = Math.max(...cleaned.map(w => w.length));
-  const size = pickGridSize(cleaned.length, longest);
-  const grid = Array.from({ length: size }, () => Array(size).fill(''));
+  const { rows, cols } = resolveGridDimensions(options, cleaned.length, longest);
+  const grid = Array.from({ length: rows }, () => Array(cols).fill(''));
   const placements = [];
 
   for (let wi = 0; wi < cleaned.length; wi++) {
     const word = cleaned[wi];
     let placed = false;
-    const attempts = size * size * 8 * 4;
+    const attempts = rows * cols * 8 * 4;
     for (let a = 0; a < attempts && !placed; a++) {
       const dir = DIRECTIONS[Math.floor(rng() * DIRECTIONS.length)];
       const [dr, dc] = dir;
-      const row = Math.floor(rng() * size);
-      const col = Math.floor(rng() * size);
+      const row = Math.floor(rng() * rows);
+      const col = Math.floor(rng() * cols);
       if (!canPlace(grid, word, row, col, dr, dc)) continue;
       const cells = placeWord(grid, word, row, col, dr, dc);
       placements.push({ id: String(wi), cells });
       placed = true;
     }
     if (!placed) {
-      throw new Error(`Could not place word "${word}" on the grid — try fewer or shorter words`);
+      throw new Error(
+        `Could not place word "${word}" on a ${rows}×${cols} grid — try fewer or shorter words, or use a larger grid`,
+      );
     }
   }
 
   fillEmpty(grid, rng);
 
   return {
-    gridSize: size,
+    gridRows: rows,
+    gridCols: cols,
+    gridSize: Math.max(rows, cols),
     grid: grid.map(row => row.map(ch => ch || ' ')),
     placements,
     wordCount: cleaned.length,
@@ -124,11 +149,16 @@ function generatePuzzle(words, seed = '0') {
 function attachPuzzle(question) {
   const words = collectWords(question);
   const seed = question._id ? String(question._id) : String(question.order ?? 0);
-  const puzzle = generatePuzzle(words, seed);
+  const puzzle = generatePuzzle(words, seed, {
+    gridRows: question.gridRows,
+    gridCols: question.gridCols,
+  });
   const { searchWords: _sw, word: _w, ...safe } = question;
   return {
     ...safe,
     gameType: 'word_search',
+    gridRows: puzzle.gridRows,
+    gridCols: puzzle.gridCols,
     gridSize: puzzle.gridSize,
     grid: puzzle.grid,
     placements: puzzle.placements,
@@ -143,7 +173,12 @@ function sanitizeQuestions(questions) {
 module.exports = {
   normalizeSearchWord,
   collectWords,
+  normalizeGridDimensions,
   generatePuzzle,
   attachPuzzle,
   sanitizeQuestions,
+  MIN_ROWS,
+  MIN_COLS,
+  MAX_ROWS,
+  MAX_COLS,
 };
