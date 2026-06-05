@@ -205,7 +205,7 @@ const VALID_REVIEW_METHODS = new Set(['Bank Transfer', 'UPI', 'Cash', 'Card', 'O
 const VALID_REVIEW_LEVELS = new Set(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
 
 /** Admin edits on approval queue review modal (batch, type, amounts, submission fields). */
-const applySubmissionReviewDetails = async ({ submissionId, adminId, adminRole, updates }) => {
+const applySubmissionReviewDetails = async ({ submissionId, adminId, adminRole, updates, skipCreditValidation = false }) => {
   if (!updates || typeof updates !== 'object') return null;
 
   const submission = await PaymentFlowSubmission.findById(submissionId).populate('paymentRequestId');
@@ -284,17 +284,19 @@ const applySubmissionReviewDetails = async ({ submissionId, adminId, adminRole, 
     submission.paymentDateTime = d;
   }
 
-  const otherApproved = await PaymentFlowSubmission.find({
-    paymentRequestId: request._id,
-    status: 'APPROVED',
-    isArchived: false,
-    _id: { $ne: submission._id },
-  }).lean();
-  const otherPaid = otherApproved.reduce((s, sub) => s + (Number(sub.paidAmount) || 0), 0);
-  if (otherPaid + submission.paidAmount > request.amount + 0.01) {
-    throw new Error(
-      `Declared/credit amount cannot exceed request total (${request.currency} ${request.amount})`,
-    );
+  if (!skipCreditValidation) {
+    const otherApproved = await PaymentFlowSubmission.find({
+      paymentRequestId: request._id,
+      status: 'APPROVED',
+      isArchived: false,
+      _id: { $ne: submission._id },
+    }).lean();
+    const otherPaid = otherApproved.reduce((s, sub) => s + (Number(sub.paidAmount) || 0), 0);
+    if (otherPaid + submission.paidAmount > request.amount + 0.01) {
+      throw new Error(
+        `Declared/credit amount cannot exceed request total (${request.currency} ${request.amount})`,
+      );
+    }
   }
 
   await student.save();
@@ -417,7 +419,13 @@ const approveSubmission = async ({
 
 const rejectSubmission = async ({ submissionId, adminId, adminRole, adminName, rejectionReason, reviewUpdates }) => {
   if (reviewUpdates) {
-    await applySubmissionReviewDetails({ submissionId, adminId, adminRole, updates: reviewUpdates });
+    await applySubmissionReviewDetails({
+      submissionId,
+      adminId,
+      adminRole,
+      updates: reviewUpdates,
+      skipCreditValidation: true,
+    });
   }
 
   const submission = await PaymentFlowSubmission.findById(submissionId).populate('studentId', 'name email');

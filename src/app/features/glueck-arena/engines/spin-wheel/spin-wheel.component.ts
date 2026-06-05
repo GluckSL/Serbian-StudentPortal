@@ -72,26 +72,21 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
         <div class="sw__play" *ngIf="phase !== 'done'">
           <div class="sw__arena">
-            <div class="sw__pointer-slot" aria-hidden="true">
-              <div class="sw__pointer">
-                <svg viewBox="0 0 56 56" class="sw__pointer-svg">
-                  <defs>
-                    <linearGradient id="ptr-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stop-color="#64748b"/>
-                      <stop offset="100%" stop-color="#334155"/>
-                    </linearGradient>
-                  </defs>
-                  <circle cx="28" cy="28" r="26" fill="#fff" stroke="#e2e8f0" stroke-width="2"/>
-                  <path d="M38 28 L14 18 L14 38 Z" fill="url(#ptr-grad)"/>
-                </svg>
+            <div class="sw__wheel-outer" [class.sw__wheel-outer--spinning]="phase === 'spinning'">
+              <div class="sw__pointer-slot" aria-hidden="true">
+                <div class="sw__pointer">
+                  <svg viewBox="0 0 56 56" class="sw__pointer-svg">
+                    <defs>
+                      <linearGradient id="ptr-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#64748b"/>
+                        <stop offset="100%" stop-color="#334155"/>
+                      </linearGradient>
+                    </defs>
+                    <circle cx="10" cy="28" r="10" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+                    <path d="M46 28 L10 12 L10 44 Z" fill="url(#ptr-grad)" stroke="#1e293b" stroke-width="1.5"/>
+                  </svg>
+                </div>
               </div>
-            </div>
-
-            <div
-              class="sw__wheel-outer"
-              [class.sw__wheel-outer--spinning]="phase === 'spinning'"
-              [class.sw__wheel-outer--dense]="segments.length > 12"
-            >
               <div class="sw__wheel-ring"></div>
               <svg
                 class="sw__wheel"
@@ -111,14 +106,6 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                       <stop offset="100%" [attr.stop-color]="seg.colorDark"/>
                     </linearGradient>
                   </ng-container>
-                  <ng-container *ngFor="let seg of segments; let i = index">
-                    <path
-                      *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
-                      [attr.id]="'sw-arc-' + i + '-' + li"
-                      [attr.d]="segmentArcPath(i, li)"
-                      fill="none"
-                    />
-                  </ng-container>
                 </defs>
                 <circle cx="200" cy="200" r="199" fill="#f8fafc"/>
                 <g *ngFor="let seg of segments; let i = index">
@@ -132,40 +119,37 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                   />
                 </g>
                 <g *ngFor="let seg of segments; let i = index">
-                  <text
-                    *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
-                    [attr.font-size]="segmentFontSize(i)"
-                    class="sw__seg-text"
-                    [class.sw__seg-text--selected]="isHighlighted(i)"
-                  >
-                    <textPath
-                      [attr.href]="'#sw-arc-' + i + '-' + li"
-                      startOffset="50%"
-                      text-anchor="middle"
-                    >{{ line }}</textPath>
-                  </text>
-                </g>
+                    <text
+                      *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
+                      [attr.transform]="segmentTextTransform(i, li)"
+                      [attr.font-size]="segmentFontSize(i)"
+                      class="sw__seg-text"
+                      text-anchor="start"
+                      dominant-baseline="middle"
+                      [class.sw__seg-text--selected]="isHighlighted(i)"
+                    >{{ line }}</text>
+                  </g>
               </svg>
               <div class="sw__hub" [class.sw__hub--pulse]="phase === 'spinning'">
                 <mat-icon class="sw__hub-icon">casino</mat-icon>
                 <span class="sw__hub-text">{{ centerLabel }}</span>
               </div>
-              <div class="sw__spin-overlay" *ngIf="phase === 'spinning'">
-                <span class="sw__spin-overlay-text">Spinning…</span>
-              </div>
             </div>
           </div>
 
-          <div class="sw__result" *ngIf="phase === 'result' && selectedSegment">
-            <span class="sw__result-chip" [style.background]="selectedSegment.color">Landed</span>
-            <p class="sw__result-phrase">{{ selectedSegment.phrase }}</p>
-            <p class="sw__result-hint">Keep this phrase on the wheel or remove it?</p>
+          <div class="sw__info">
+            <div class="sw__result" *ngIf="phase === 'result' && selectedSegment">
+              <span class="sw__result-chip" [style.background]="selectedSegment.color">Landed</span>
+              <p class="sw__result-phrase">{{ selectedSegment.phrase }}</p>
+              <p class="sw__result-hint">Keep this phrase on the wheel or remove it?</p>
+            </div>
+
+            <div class="sw__idle-hint" *ngIf="phase !== 'result' && activeCount > 1">
+              <mat-icon>touch_app</mat-icon>
+              <span>Tap <strong>Spin</strong> to pick a random phrase</span>
+            </div>
           </div>
 
-          <div class="sw__idle-hint" *ngIf="phase === 'idle' && activeCount > 1">
-            <mat-icon>touch_app</mat-icon>
-            <span>Tap <strong>Spin</strong> to pick a random phrase</span>
-          </div>
         </div>
 
         <div class="sw__winner" *ngIf="phase === 'done'">
@@ -179,12 +163,13 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
         <footer class="sw__controls">
           <button
-            *ngIf="phase === 'idle' && activeCount > 1"
+            *ngIf="activeCount > 1 && phase !== 'result'"
             type="button"
             class="sw__btn sw__btn--spin"
             (click)="spin()"
+            [disabled]="phase !== 'idle'"
           >
-            <span class="sw__btn-row"><mat-icon>casino</mat-icon> Spin</span>
+            <span class="sw__btn-row"><mat-icon>casino</mat-icon> {{ phase === 'spinning' ? 'Spinning' : 'Spin' }}</span>
           </button>
 
           <ng-container *ngIf="phase === 'result'">
@@ -204,9 +189,8 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
   styles: [`
     .sw {
       width: 100%;
-      max-width: 640px;
-      margin: 0 auto;
-      padding: 0 8px 16px;
+      margin: 0;
+      padding: 0 0 16px;
     }
 
     .sw__board {
@@ -268,23 +252,30 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       50% { opacity: 0.6; }
     }
 
-    .sw__play { padding: 20px 16px 8px; }
+    .sw__play { padding: 20px; }
+
+    .sw__info {
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 20px;
+    }
 
     .sw__arena {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0;
-      margin: 0 auto;
-      max-width: 100%;
       position: relative;
     }
 
     .sw__pointer-slot {
-      flex-shrink: 0;
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translate(-50%, -50%);
       z-index: 4;
-      margin-right: -12px;
-      padding: 4px 0;
     }
     .sw__pointer {
       width: clamp(44px, 12vw, 56px);
@@ -399,30 +390,8 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       max-width: 90%;
     }
 
-    .sw__spin-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 5;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.35);
-      backdrop-filter: blur(2px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
-    .sw__spin-overlay-text {
-      font-size: 15px;
-      font-weight: 800;
-      color: #1e3a5f;
-      padding: 8px 16px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.9);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    }
-
     .sw__result {
-      margin-top: 20px;
+      width: 100%;
       padding: 18px 20px;
       text-align: center;
       border-radius: 16px;
@@ -465,7 +434,6 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       align-items: center;
       justify-content: center;
       gap: 8px;
-      margin-top: 16px;
       font-size: 13px;
       color: #64748b;
     }
@@ -702,23 +670,30 @@ export class SpinWheelComponent implements OnInit, OnDestroy {
     return this.describeWedge(cx, cy, r, start, end);
   }
 
-  segmentArcPath(index: number, lineIndex: number): string {
+  segmentTextTransform(index: number, lineIndex: number): string {
     const n = this.segments.length;
+    if (!n) return '';
     const seg = 360 / n;
-    const pad = seg * 0.1;
-    const start = index * seg + pad;
-    const end = (index + 1) * seg - pad;
-    const outerR = n <= 6 ? 156 : n <= 10 ? 162 : n <= 14 ? 168 : 172;
-    const lineGap = n <= 14 ? 12 : 11;
-    const radius = outerR - lineIndex * lineGap;
-    const p1 = this.polar(200, 200, radius, end);
-    const p2 = this.polar(200, 200, radius, start);
-    return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 0 0 ${p2.x} ${p2.y}`;
+    const midAngle = (index + 0.5) * seg;
+    const midRad = ((midAngle - 90) * Math.PI) / 180;
+    const outerR = n <= 6 ? 158 : n <= 10 ? 163 : n <= 14 ? 168 : 172;
+    const r = outerR;
+    const lineGap = 16;
+    const lines = this.phraseLines(this.segments[index].phrase, index);
+    const numLines = lines.length;
+    const mid = (numLines - 1) / 2;
+    const dy = numLines > 1 ? (lineIndex - mid) * lineGap : 0;
+    const tangX = -Math.sin(midRad);
+    const tangY = Math.cos(midRad);
+    const x = 200 + r * Math.cos(midRad) + dy * tangX;
+    const y = 200 + r * Math.sin(midRad) + dy * tangY;
+    const actualAngle = (90 + Math.atan2(y - 200, x - 200) * 180 / Math.PI + 360) % 360;
+    const rotate = actualAngle + 90;
+    return `translate(${x}, ${y}) rotate(${rotate})`;
   }
 
   segmentFontSize(index: number): number {
-    const n = this.segments.length;
-    return n <= 6 ? 11.5 : n <= 10 ? 10 : n <= 14 ? 9 : 8.5;
+    return 12;
   }
 
   phraseLines(phrase: string, index: number): string[] {

@@ -1,5 +1,5 @@
 import {
-  Component, Input, Output, EventEmitter, OnInit, OnDestroy,
+  Component, Input, Output, EventEmitter, OnInit, OnDestroy, HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../../../shared/material.module';
@@ -97,8 +97,7 @@ const DEFAULT_SESSION_SECONDS = 300;
             >
               <ng-container *ngFor="let row of grid; let ri = index; trackBy: trackRow">
                 <ng-container *ngFor="let letter of row; let ci = index; trackBy: trackCol">
-                  <button
-                    type="button"
+                  <span
                     class="ws__cell"
                     *ngIf="isPlayable(letter)"
                     [attr.data-ws-row]="ri"
@@ -106,14 +105,13 @@ const DEFAULT_SESSION_SECONDS = 300;
                     [class.ws__cell--found]="cellHighlight(ri, ci)"
                     [class.ws__cell--selecting]="cellSelecting(ri, ci)"
                     [style.--ws-highlight]="cellDisplayColor(ri, ci)"
-                    [style.--ws-highlight-fg]="cellDisplayTextColor(ri, ci)"
-                    [disabled]="feedback !== 'idle' || cellHighlight(ri, ci)"
+                    [style.color]="cellDisplayTextColor(ri, ci)"
+                    [attr.aria-label]="'Letter ' + letter"
                     (pointerdown)="onCellPointerDown($event, ri, ci)"
                     (click)="onCellClick(ri, ci)"
-                    [attr.aria-label]="'Letter ' + letter"
                   >
                     <span>{{ letter }}</span>
-                  </button>
+                  </span>
                   <span
                     class="ws__gap"
                     *ngIf="!isPlayable(letter)"
@@ -156,13 +154,6 @@ const DEFAULT_SESSION_SECONDS = 300;
           <p>Score <strong>{{ score }}</strong></p>
         </div>
 
-        <footer class="ws__footer" *ngIf="phase === 'playing'" aria-hidden="true">
-          <mat-icon>menu</mat-icon>
-          <div class="ws__footer-right">
-            <mat-icon>volume_up</mat-icon>
-            <mat-icon>fullscreen</mat-icon>
-          </div>
-        </footer>
       </div>
 
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
@@ -173,7 +164,6 @@ const DEFAULT_SESSION_SECONDS = 300;
       width: 100%;
       display: flex;
       justify-content: center;
-      padding: 8px 12px 20px;
     }
 
     .ws__canvas {
@@ -307,7 +297,6 @@ const DEFAULT_SESSION_SECONDS = 300;
     }
 
     .ws__grid-shell {
-      position: relative;
       width: 100%;
       max-width: 100%;
       display: flex;
@@ -317,8 +306,9 @@ const DEFAULT_SESSION_SECONDS = 300;
     .ws__grid {
       display: grid;
       grid-template-columns: repeat(var(--ws-cols, 11), var(--ws-cell, 40px));
-      gap: 5px;
+      gap: 3px;
       justify-content: center;
+      overflow: hidden;
       touch-action: none;
       user-select: none;
     }
@@ -358,12 +348,12 @@ const DEFAULT_SESSION_SECONDS = 300;
       line-height: 1;
     }
 
-    .ws__cell:hover:not(:disabled):not(.ws__cell--found) {
+    .ws__cell:hover:not(.ws__cell--found) {
       background: #52525b;
       transform: translateY(-1px);
     }
 
-    .ws__cell:active:not(:disabled) {
+    .ws__cell:active {
       transform: scale(0.96);
     }
 
@@ -392,8 +382,9 @@ const DEFAULT_SESSION_SECONDS = 300;
 
     .ws__fx {
       position: absolute;
-      top: 8%;
-      right: 6%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       width: clamp(88px, 28vw, 130px);
       height: clamp(88px, 28vw, 130px);
       pointer-events: none;
@@ -402,10 +393,10 @@ const DEFAULT_SESSION_SECONDS = 300;
     }
 
     .ws__fx--wrong {
-      top: auto;
-      bottom: 18%;
-      left: 12%;
+      top: 50%;
+      left: 50%;
       right: auto;
+      bottom: auto;
     }
 
     .ws__fx-icon {
@@ -415,32 +406,9 @@ const DEFAULT_SESSION_SECONDS = 300;
     }
 
     @keyframes wsFxPop {
-      0% { opacity: 0; transform: scale(0.35) rotate(-8deg); }
-      55% { opacity: 1; transform: scale(1.12) rotate(2deg); }
-      100% { transform: scale(1) rotate(0); }
-    }
-
-    .ws__footer {
-      position: relative;
-      z-index: 2;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 18px 14px;
-      margin-top: 4px;
-    }
-
-    .ws__footer mat-icon,
-    .ws__footer-right mat-icon {
-      font-size: 22px;
-      width: 22px;
-      height: 22px;
-      color: rgba(61, 41, 20, 0.55);
-    }
-
-    .ws__footer-right {
-      display: flex;
-      gap: 12px;
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35) rotate(-8deg); }
+      55% { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(2deg); }
+      100% { transform: translate(-50%, -50%) scale(1) rotate(0); }
     }
 
     .ws__complete {
@@ -486,6 +454,12 @@ const DEFAULT_SESSION_SECONDS = 300;
       .ws__lives mat-icon,
       .ws__score mat-icon { font-size: 18px; width: 18px; height: 18px; }
       .ws__score { font-size: 17px; }
+      .ws__play { padding: 0 0 10px; }
+      .ws__grid { gap: 2.5px; }
+    }
+
+    @media (min-width: 500px) {
+      .ws__grid { gap: 5px; }
     }
   `],
 })
@@ -529,6 +503,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
   private feedbackTimer: ReturnType<typeof setTimeout> | null = null;
   private totalWordsInGame = 0;
   private wordsFoundInGame = 0;
+  private audioUnlocked = false;
 
   constructor(private audio: GameAudioService) {}
 
@@ -558,15 +533,11 @@ export class WordSearchComponent implements OnInit, OnDestroy {
   }
 
   private updateCellSize(): void {
-    const cols = Math.max(this.gridCols, 4);
-    const rows = Math.max(this.gridRows, 4);
-    const maxBoardW = 480;
-    const maxBoardH = 400;
-    const gap = 5;
-    const byWidth = Math.floor((maxBoardW - gap * (cols - 1)) / cols);
-    const byHeight = Math.floor((maxBoardH - gap * (rows - 1)) / rows);
-    this.cellPx = Math.min(42, byWidth, byHeight);
-    this.cellPx = Math.max(24, this.cellPx);
+    const cols = Math.max(this.gridCols, 8);
+    const gap = window.innerWidth >= 500 ? 5 : 2.5;
+    const availWidth = Math.min(480, window.innerWidth - 48);
+    this.cellPx = Math.min(42, Math.floor((availWidth - gap * (cols - 1)) / cols));
+    this.cellPx = Math.max(22, this.cellPx);
   }
 
   private loadPuzzle(index: number): void {
@@ -615,6 +586,11 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     if (this.feedbackTimer) clearTimeout(this.feedbackTimer);
   }
 
+  @HostListener('window:resize')
+  onResize(): void {
+    this.updateCellSize();
+  }
+
   cellKey(row: number, col: number): string {
     return `${row},${col}`;
   }
@@ -641,6 +617,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
   onCellPointerDown(event: PointerEvent, row: number, col: number): void {
     if (this.feedback !== 'idle' || this.phase !== 'playing') return;
+    if (!this.audioUnlocked) { this.audio.unlock(); this.audioUnlocked = true; }
     if (this.cellHighlight(row, col)) return;
 
     event.preventDefault();
@@ -884,6 +861,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     this.wordsFoundInGame++;
     this.foundCount = this.wordsFoundInGame;
     this.score += POINTS_PER_WORD;
+    this.audio.playXpGain();
 
     this.feedbackTimer = setTimeout(() => {
       this.feedback = 'idle';

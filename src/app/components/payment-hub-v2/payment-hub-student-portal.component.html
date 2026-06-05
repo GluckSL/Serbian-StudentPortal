@@ -322,8 +322,13 @@
                   <span class="sp-status-badge" [ngClass]="statusClass(req)">{{ displayStatus(req) }}</span>
                 </td>
                 <td class="sp-cell-actions">
-                  <button mat-icon-button color="primary" matTooltip="Download Invoice" (click)="downloadInvoice(req)">
-                    <mat-icon>receipt_long</mat-icon>
+                  <button
+                    mat-icon-button
+                    color="primary"
+                    matTooltip="Download Proforma Invoice"
+                    [disabled]="downloadingInvoiceId === req._id"
+                    (click)="downloadInvoice(req)">
+                    <mat-icon>{{ downloadingInvoiceId === req._id ? 'hourglass_top' : 'receipt_long' }}</mat-icon>
                   </button>
                   <!--<button mat-flat-button
                     *ngIf="canUpload(req)"

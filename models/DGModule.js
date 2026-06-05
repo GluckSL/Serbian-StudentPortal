@@ -75,6 +75,14 @@ const DGModuleSchema = new mongoose.Schema(
     scenes: { type: [DGSceneSchema], default: [] },
     level: { type: String, default: 'A1' },
     visibleToStudents: { type: Boolean, default: false },
+    /**
+     * Exam bucket flags (mutually exclusive).
+     * - weeklyTestEnabled: visible under Student → My Course → Gluck Exam → Weekly Test
+     * - examEnabled:       visible under Student → My Course → Gluck Exam → Exams
+     * Default: both false (not shown under Gluck Exam).
+     */
+    weeklyTestEnabled: { type: Boolean, default: false },
+    examEnabled: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -116,6 +124,10 @@ DGModuleSchema.pre('validate', function dgValidatePracticeWindow(next) {
     this.maxPracticeMinutes < this.minPracticeMinutes
   ) {
     this.invalidate('maxPracticeMinutes', 'Max practice minutes must be greater than or equal to min practice minutes.');
+  }
+  if (this.weeklyTestEnabled && this.examEnabled) {
+    this.invalidate('examEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+    this.invalidate('weeklyTestEnabled', 'Only one of Weekly Test or Exam can be enabled.');
   }
   next();
 });

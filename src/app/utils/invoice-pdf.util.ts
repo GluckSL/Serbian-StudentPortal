@@ -51,6 +51,10 @@ export interface InvoiceData {
   customType?: string;
   currency: string;
   totalAmount: number;
+  /** Line-item amount shown in Description / Rate / Amount / totals (defaults to totalAmount). */
+  lineAmount?: number;
+  /** Explicit description for the single invoice line item. */
+  lineDescription?: string;
   paidAmount: number;
   amountRemaining: number;
   percentPaid: number;
@@ -67,6 +71,13 @@ export interface InvoiceData {
   submission?: InvoiceSubmission;
   installments?: InvoiceInstallment[];
 }
+
+/** A4 portrait dimensions for PDF rendering */
+const A4_WIDTH_MM = 210;
+const A4_HEIGHT_MM = 297;
+const A4_MARGIN_MM = 10;
+const MM_TO_PX = 96 / 25.4;
+const A4_WIDTH_PX = Math.round(A4_WIDTH_MM * MM_TO_PX);
 
 const fmt = (val: number | undefined | null): string => {
   if (val === undefined || val === null) return "0";
@@ -108,7 +119,54 @@ function renderBankDetailsBlock(currency: string): string {
     </div>`;
 }
 
-export function renderInvoiceHTML(data: InvoiceData): string {
+/** Stable GGP_INV### number from a payment request id (matches legacy proforma format). */
+export function formatProformaNumber(requestId: string): string {
+  const n = (parseInt(requestId.slice(-4), 16) % 900) + 100;
+  return `GGP_INV${n}`;
+}
+
+let cachedLogoDataUrl: string | null = null;
+
+/** Load the Glück ü logo with black background removed for white invoice pages. */
+export async function loadInvoiceLogoDataUrl(): Promise<string> {
+  if (cachedLogoDataUrl) return cachedLogoDataUrl;
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = `${window.location.origin}/assets/gluck-logo.png`;
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Logo failed to load"));
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] < 40 && pixels[i + 1] < 40 && pixels[i + 2] < 40) {
+      pixels[i + 3] = 0;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  cachedLogoDataUrl = canvas.toDataURL("image/png");
+  return cachedLogoDataUrl;
+}
+
+function renderGluckLogoSvg(): string {
+  return `<svg viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="56" height="45" aria-hidden="true">
+    <circle cx="22" cy="13" r="9" fill="#F5C800"/>
+    <circle cx="58" cy="13" r="9" fill="#F5C800"/>
+    <path d="M14 26 C14 54 26 56 40 56 C54 56 66 54 66 26" stroke="#F5C800" stroke-width="16" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+
+export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): string {
   const formatAmount = (amount: number, currency: string) =>
     `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -119,181 +177,273 @@ export function renderInvoiceHTML(data: InvoiceData): string {
   };
 
   const si = data.studentInfo;
+  const lineAmount = data.lineAmount ?? data.totalAmount;
 
   /* ── Description line ── */
   const descriptionParts = [
-    si.servicesOpted ?? "Language Learning",
-    si.level ? `${si.level} Level` : null,
+    si.servicesOpted ?? "German Language",
+    si.level ? si.level : null,
     data.installmentAllowed && data.activeInstallmentNumber != null
       ? `(Instalment number: ${data.activeInstallmentNumber})`
       : null,
   ].filter(Boolean);
-  const description = descriptionParts.join(" ");
+  const description = data.lineDescription ?? descriptionParts.join(" ");
 
   /* ── Tax (always 0 for now) ── */
   const tax = 0;
 
-  /* ── Installments rows ── */
-  const installmentRows =
-    data.installments && data.installments.length > 0
-      ? data.installments
-          .map(
-            (inst) => `
-        <tr>
-          <td>Instalment ${inst.installmentNumber}
-            <span style="margin-left:8px;font-size:13px;padding:2px 8px;border-radius:10px;
-              background:${inst.status === "paid" ? "#d1fae5" : inst.status === "overdue" ? "#fee2e2" : "#fef9c3"};
-              color:${inst.status === "paid" ? "#065f46" : inst.status === "overdue" ? "#991b1b" : "#854d0e"};">
-              ${inst.status}
-            </span>
-          </td>
-          <td>1</td>
-          <td>${inst.currency}<br/>${inst.requestedAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-          <td>${inst.currency}<br/>${inst.requestedAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-        </tr>
-        ${
-          inst.paidAmount != null && inst.paidAmount > 0
-            ? `<tr style="background:#f9fafb;">
-                <td style="padding-left:24px;color:#555;font-size:14px;">↳ Paid</td>
-                <td></td>
-                <td></td>
-                <td style="color:#16a34a;font-size:14px;">${inst.currency} ${inst.paidAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-               </tr>`
-            : ""
-        }
-        ${
-          inst.remainingAmount != null && inst.remainingAmount > 0
-            ? `<tr style="background:#f9fafb;">
-                <td style="padding-left:24px;color:#555;font-size:14px;">↳ Remaining</td>
-                <td></td>
-                <td></td>
-                <td style="color:#dc2626;font-size:14px;">${inst.currency} ${inst.remainingAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-               </tr>`
-            : ""
-        }`,
-          )
-          .join("")
-      : `<tr>
-          <td>${description}</td>
-          <td>1</td>
-          <td>${data.currency}<br/>${data.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-          <td>${data.currency}<br/>${data.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-        </tr>`;
+  const lineItemRow = `<tr>
+    <td>${description}</td>
+    <td>1</td>
+    <td>${formatAmount(lineAmount, data.currency)}</td>
+    <td>${formatAmount(lineAmount, data.currency)}</td>
+  </tr>`;
 
-  /* ── Submission block ── */
-  const submissionBlock = data.submission
-    ? `
-    <hr class="divider"/>
-    <div class="section">
-      <h3>Payment Submission</h3>
-      <div class="bank-grid">
-        ${data.submission.transactionId ? `<div class="bank-item"><strong>Transaction ID:</strong> ${data.submission.transactionId}</div>` : ""}
-        <div class="bank-item"><strong>Method:</strong> ${data.submission.paymentMethod ?? "—"}</div>
-        <div class="bank-item"><strong>Submitted:</strong> ${formatDate(data.submission.submittedAt)}</div>
-        ${data.submission.approvedAt ? `<div class="bank-item"><strong>Approved:</strong> ${formatDate(data.submission.approvedAt)}</div>` : ""}
-        <div class="bank-item"><strong>Amount Paid:</strong> ${formatAmount(data.submission.paidAmount, data.submission.currency)}</div>
-        <div class="bank-item"><strong>Status:</strong>
-          <span style="padding:2px 8px;border-radius:10px;font-size:13px;
-            background:${data.submission.status === "approved" ? "#d1fae5" : data.submission.status === "rejected" ? "#fee2e2" : "#fef9c3"};
-            color:${data.submission.status === "approved" ? "#065f46" : data.submission.status === "rejected" ? "#991b1b" : "#854d0e"};">
-            ${data.submission.status}
-          </span>
-        </div>
-        ${data.submission.adminRemarks ? `<div class="bank-item" style="grid-column:1/-1"><strong>Remarks:</strong> ${data.submission.adminRemarks}</div>` : ""}
-        ${data.submission.rejectionReason ? `<div class="bank-item" style="grid-column:1/-1"><strong>Rejection Reason:</strong> ${data.submission.rejectionReason}</div>` : ""}
-      </div>
-    </div>`
+  const planLabel = si.subscription
+    ? si.subscription.charAt(0).toUpperCase() + si.subscription.slice(1).toLowerCase()
     : "";
 
-  /* ── Remarks block ── */
-  const remarksBlock = data.remarks
-    ? `<hr class="divider"/>
-       <div class="section">
-         <h3>Remarks</h3>
-         <p style="font-size:15px;color:#444;line-height:1.7;">${data.remarks}</p>
-       </div>`
-    : "";
-
-  /* ── Progress bar ── */
-  const progressBar = `
-    <div style="margin-bottom:28px;">
-      <div style="display:flex;justify-content:space-between;font-size:14px;color:#555;margin-bottom:6px;">
-        <span>Payment Progress</span>
-        <span style="font-weight:600;">${data.percentPaid.toFixed(1)}% paid</span>
-      </div>
-      <div style="background:#e5e7eb;border-radius:999px;height:8px;overflow:hidden;">
-        <div style="height:100%;width:${Math.min(data.percentPaid, 100)}%;background:${data.progressColor};border-radius:999px;transition:width 0.4s;"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px;margin-top:6px;">
-        <span style="color:#16a34a;">Paid: ${formatAmount(data.paidAmount, data.currency)}</span>
-        <span style="color:${data.balanceColor};">Balance: ${formatAmount(data.amountRemaining, data.currency)}</span>
-      </div>
-    </div>`;
+  const logoMarkup = logoDataUrl
+    ? `<img src="${logoDataUrl}" alt="Glück Global" class="logo-img" />`
+    : `<div class="logo-fallback">${renderGluckLogoSvg()}</div>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=${A4_WIDTH_PX}, initial-scale=1.0"/>
   <title>Proforma Invoice – ${data.invoiceNumber}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+    @page { size: A4 portrait; margin: 0; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'DM Sans', sans-serif;
+    html, body {
+      width: ${A4_WIDTH_MM}mm;
+      max-width: ${A4_WIDTH_MM}mm;
       margin: 0;
       padding: 0;
+      background: #ffffff;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
       color: #1a1a1a;
+      -webkit-font-smoothing: antialiased;
     }
 
     .page {
+      width: ${A4_WIDTH_MM}mm;
+      padding: 10mm 14mm 8mm;
       background: #ffffff;
+      box-sizing: border-box;
     }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
-    .company-info { text-align: right; font-size: 15px; line-height: 1.7; color: #333; }
-    .company-info .company-name { font-weight: 700; font-size: 17px; color: #111; }
-    .title-block { margin-bottom: 28px; }
-    .title-block h1 { font-size: 31px; font-weight: 800; letter-spacing: 0.02em; color: #111; text-transform: uppercase; margin-bottom: 4px; }
-    .title-block .subtitle { font-size: 14px; color: #777; }
-    hr.divider { border: none; border-top: 1.5px solid #e0e0e0; margin: 20px 0; }
-    .bill-meta { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
-    .bill-to h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: #111; }
-    .bill-to p { font-size: 15px; line-height: 1.7; color: #333; }
-    .invoice-meta { min-width: 320px; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 15px; line-height: 1.9; color: #333; }
-    .meta-row .label { font-weight: 600; color: #111; margin-right: 24px; }
-    .meta-row .value { text-align: right; min-width: 120px; }
-    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    .items-table thead tr { border-top: 1.5px solid #222; border-bottom: 1.5px solid #222; }
-    .items-table thead th { font-size: 15px; font-weight: 700; padding: 10px 8px; text-align: left; color: #111; }
-    .items-table thead th:not(:first-child) { text-align: right; }
-    .items-table tbody tr { border-bottom: 1px solid #e8e8e8; }
-    .items-table tbody td { font-size: 15px; padding: 12px 8px; vertical-align: top; color: #222; }
-    .items-table tbody td:not(:first-child) { text-align: right; }
-    .totals { display: flex; justify-content: flex-end; margin-bottom: 28px; }
-    .totals-block { width: 260px; }
-    .total-row { display: flex; justify-content: space-between; font-size: 15px; padding: 5px 8px; color: #333; }
-    .total-row.grand { border-top: 1.5px solid #222; margin-top: 4px; padding-top: 8px; font-weight: 700; font-size: 16px; color: #111; }
-    .section { margin-bottom: 24px; }
-    .section h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; color: #111; }
-    .bank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 32px; }
-    .bank-item { font-size: 14px; line-height: 1.75; color: #333; }
-    .bank-item strong { font-weight: 600; color: #111; }
-    .info-list { list-style: none; padding: 0; counter-reset: item; }
-    .info-list li { font-size: 14px; color: #444; line-height: 1.75; padding-left: 14px; position: relative; counter-increment: item; }
-    .info-list li::before { content: counter(item) "."; position: absolute; left: 0; font-weight: 500; }
-    .footer { margin-top: 36px; text-align: center; border-top: 1px solid #e8e8e8; padding-top: 20px; }
-    .footer p { font-size: 14px; color: #888; line-height: 1.7; }
-    .footer .thank-you { font-size: 15px; color: #444; font-weight: 500; margin-bottom: 4px; }
-    .status-badge {
-      display: inline-block;
-      padding: 2px 10px;
-      border-radius: 10px;
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .logo {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: flex-start;
+    }
+    .logo-img {
+      display: block;
+      width: 54px;
+      height: auto;
+      object-fit: contain;
+    }
+    .logo-fallback svg { display: block; }
+
+    .company-info {
+      flex: 1;
+      text-align: right;
+      font-size: 14px;
+      line-height: 1.65;
+      color: #333;
+    }
+    .company-info .company-name {
+      font-weight: 700;
+      font-size: 16px;
+      color: #111;
+      margin-bottom: 2px;
+    }
+
+    .title-block { margin-bottom: 12px; }
+    .title-block h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: #111;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+      line-height: 1.1;
+    }
+    .title-block .subtitle { font-size: 12px; color: #777; }
+
+    hr.divider { border: none; border-top: 1px solid #d8d8d8; margin: 12px 0; }
+
+    .bill-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 14px;
+    }
+    .bill-to {
+      flex: 1;
+      min-width: 0;
+    }
+    .bill-to h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #111;
+    }
+    .bill-to p {
       font-size: 13px;
+      line-height: 1.5;
+      color: #333;
+    }
+
+    .invoice-meta {
+      flex: 0 0 46%;
+      max-width: 280px;
+      margin-left: auto;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .meta-row .label {
       font-weight: 600;
-      background: ${data.statusColor}22;
-      color: ${data.statusColor};
-      border: 1px solid ${data.statusColor}44;
+      color: #111;
+      white-space: nowrap;
+    }
+    .meta-row .value {
+      text-align: right;
+      flex: 1;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 6px;
+      table-layout: fixed;
+    }
+    .items-table thead tr {
+      border-top: 1.5px solid #222;
+      border-bottom: 1.5px solid #222;
+    }
+    .items-table thead th {
+      font-size: 13px;
+      font-weight: 700;
+      padding: 7px 6px;
+      text-align: left;
+      color: #111;
+    }
+    .items-table thead th:nth-child(1) { width: 46%; }
+    .items-table thead th:nth-child(2) { width: 12%; text-align: center; }
+    .items-table thead th:nth-child(3),
+    .items-table thead th:nth-child(4) { width: 21%; text-align: right; }
+    .items-table tbody tr { border-bottom: 1px solid #e8e8e8; }
+    .items-table tbody td {
+      font-size: 13px;
+      padding: 8px 6px;
+      vertical-align: top;
+      color: #222;
+      word-wrap: break-word;
+    }
+    .items-table tbody td:nth-child(2) { text-align: center; }
+    .items-table tbody td:nth-child(3),
+    .items-table tbody td:nth-child(4) { text-align: right; white-space: nowrap; }
+
+    .totals {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 12px;
+    }
+    .totals-block { width: 250px; }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      padding: 4px 6px;
+      color: #333;
+    }
+    .total-row.grand {
+      border-top: 1.5px solid #222;
+      margin-top: 4px;
+      padding-top: 8px;
+      font-weight: 700;
+      font-size: 15px;
+      color: #111;
+    }
+
+    .section { margin-bottom: 10px; }
+    .section h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 5px;
+      color: #111;
+    }
+    .bank-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 28px;
+    }
+    .bank-item {
+      font-size: 12px;
+      line-height: 1.55;
+      color: #333;
+    }
+    .bank-item strong { font-weight: 600; color: #111; }
+
+    .info-list {
+      list-style: none;
+      padding: 0;
+      counter-reset: item;
+    }
+    .info-list li {
+      font-size: 12px;
+      color: #444;
+      line-height: 1.5;
+      padding-left: 16px;
+      position: relative;
+      counter-increment: item;
+      margin-bottom: 1px;
+    }
+    .info-list li::before {
+      content: counter(item) ".";
+      position: absolute;
+      left: 0;
+      font-weight: 500;
+    }
+
+    .note-text {
+      font-size: 12px;
+      color: #444;
+      line-height: 1.5;
+    }
+
+    .footer {
+      margin-top: 10px;
+      text-align: center;
+      border-top: 1px solid #e8e8e8;
+      padding-top: 10px;
+    }
+    .footer p { font-size: 12px; color: #888; line-height: 1.5; }
+    .footer .thank-you {
+      font-size: 13px;
+      color: #555;
+      font-weight: 500;
+      margin-bottom: 2px;
     }
   </style>
 </head>
@@ -301,13 +451,7 @@ export function renderInvoiceHTML(data: InvoiceData): string {
 <div class="page">
 
   <div class="header">
-    <div class="logo">
-      <svg viewBox="0 0 52 44" fill="none" xmlns="http://www.w3.org/2000/svg" width="52" height="44">
-        <rect x="0" y="0" width="10" height="10" rx="5" fill="#F5C800"/>
-        <rect x="30" y="0" width="10" height="10" rx="5" fill="#F5C800"/>
-        <path d="M0 8 Q0 38 20 38 Q40 38 40 8" stroke="#F5C800" stroke-width="9" fill="none" stroke-linecap="round"/>
-      </svg>
-    </div>
+    <div class="logo">${logoMarkup}</div>
     <div class="company-info">
       <div class="company-name">Glück Global Pvt Ltd</div>
       <div>450/73, Srimavo Bandaranayaka Mawatha,</div>
@@ -338,12 +482,10 @@ export function renderInvoiceHTML(data: InvoiceData): string {
       </p>
     </div>
     <div class="invoice-meta">
-      ${si.subscription ? `<div class="meta-row"><span class="label">Plan:</span><span class="value">${si.subscription}</span></div>` : ""}
+      ${planLabel ? `<div class="meta-row"><span class="label">Plan:</span><span class="value">${planLabel}</span></div>` : ""}
       <div class="meta-row"><span class="label">Proforma Number:</span><span class="value">${data.invoiceNumber}</span></div>
       <div class="meta-row"><span class="label">Proforma Date:</span><span class="value">${formatDate(data.invoiceDate)}</span></div>
-      <div class="meta-row"><span class="label">Due Date:</span><span class="value" style="color:${data.dueDateColor};">${formatDate(data.dueDate)}</span></div>
-      <div class="meta-row"><span class="label">Status:</span><span class="value"><span class="status-badge">${data.status}</span></span></div>
-      ${data.paymentDate ? `<div class="meta-row"><span class="label">Payment Date:</span><span class="value">${formatDate(data.paymentDate)}</span></div>` : ""}
+      <div class="meta-row"><span class="label">Due Date:</span><span class="value">${formatDate(data.dueDate)}</span></div>
     </div>
   </div>
 
@@ -357,19 +499,17 @@ export function renderInvoiceHTML(data: InvoiceData): string {
       </tr>
     </thead>
     <tbody>
-      ${installmentRows}
+      ${lineItemRow}
     </tbody>
   </table>
 
   <div class="totals">
     <div class="totals-block">
-      <div class="total-row"><span>Subtotal:</span><span>${formatAmount(data.totalAmount, data.currency)}</span></div>
+      <div class="total-row"><span>Subtotal:</span><span>${formatAmount(lineAmount, data.currency)}</span></div>
       <div class="total-row"><span>Tax (0%):</span><span>${formatAmount(tax, data.currency)}</span></div>
-      <div class="total-row grand"><span>Total:</span><span>${formatAmount(data.totalAmount, data.currency)}</span></div>
+      <div class="total-row grand"><span>Total:</span><span>${formatAmount(lineAmount, data.currency)}</span></div>
     </div>
   </div>
-
-  ${progressBar}
 
   <hr class="divider"/>
 
@@ -377,11 +517,6 @@ export function renderInvoiceHTML(data: InvoiceData): string {
     <h3>Bank Details</h3>
     ${renderBankDetailsBlock(data.currency)}
   </div>
-
-  ${submissionBlock}
-  ${remarksBlock}
-
-  <hr class="divider"/>
 
   <div class="section">
     <h3>Proforma Information</h3>
@@ -391,6 +526,7 @@ export function renderInvoiceHTML(data: InvoiceData): string {
       <li>All bank charges are to be borne by the remitter.</li>
       <li>A final invoice will be issued upon receipt of payment.</li>
     </ol>
+    <p class="note-text" style="margin-top:6px;"><strong>Note:</strong> Thank you for choosing our services.</p>
   </div>
 
   <div class="footer">
@@ -407,18 +543,16 @@ export async function generatePdfFromHtml(
   html: string,
   filename: string,
 ): Promise<void> {
-  // 1. Use an off-screen iframe so the invoice's own <style> (including body
-  //    styles) renders in full isolation without fighting the host page.
   const iframe = document.createElement("iframe");
   Object.assign(iframe.style, {
-    position:     "absolute",
-    top:          "0",
-    left:         "0",
-    width:        "100%",       // fill available width — jsPDF controls page size
-    height:       "1px",
-    border:       "none",
-    opacity:      "0",
-    pointerEvents:"none",
+    position:      "absolute",
+    top:           "0",
+    left:          "0",
+    width:         `${A4_WIDTH_PX}px`,
+    height:        "1px",
+    border:        "none",
+    opacity:       "0",
+    pointerEvents: "none",
   });
   document.body.appendChild(iframe);
 
@@ -427,18 +561,33 @@ export async function generatePdfFromHtml(
     iframe.srcdoc = html;
   });
 
-  // 2. Expand iframe to full content height so nothing is clipped
-  const iframeDoc  = iframe.contentDocument!;
-  const scrollH    = iframeDoc.documentElement.scrollHeight;
+  const iframeDoc = iframe.contentDocument!;
+  const pageEl = iframeDoc.querySelector(".page") as HTMLElement;
+  const captureTarget = pageEl ?? iframeDoc.body;
+  const scrollH = captureTarget.scrollHeight;
   iframe.style.height = `${scrollH}px`;
 
-  // Give fonts/images an extra tick to finish rendering
-  await new Promise((r) => setTimeout(r, 500));
+  const images = Array.from(iframeDoc.images);
+  await Promise.all(
+    images.map(
+      (img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            }),
+    ),
+  );
+  await new Promise((r) => setTimeout(r, 300));
 
   try {
-    // 3. Rasterise the iframe's body at 2× scale
-    const canvas = await html2canvas(iframeDoc.body, {
+    const canvas = await html2canvas(captureTarget, {
       scale:           2,
+      width:           A4_WIDTH_PX,
+      windowWidth:     A4_WIDTH_PX,
+      height:          scrollH,
+      windowHeight:    scrollH,
       useCORS:         true,
       allowTaint:      true,
       backgroundColor: "#ffffff",
@@ -446,37 +595,20 @@ export async function generatePdfFromHtml(
       scrollY:         0,
     });
 
-    // 4. Slice canvas into A4 pages
-    const pdf    = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageW  = pdf.internal.pageSize.getWidth();   // 210 mm
-    const pageH  = pdf.internal.pageSize.getHeight();  // 297 mm
-    const margin = 10;
-    const printW = pageW - margin * 2;                 // 190 mm
-    const printH = pageH - margin * 2;                 // 277 mm
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const imgData = canvas.toDataURL("image/jpeg", 0.97);
 
-    // canvas px that fit in one printed page height
-    const pxPerMm    = canvas.width / printW;
-    const sliceH     = Math.floor(printH * pxPerMm);
-    const totalPages = Math.ceil(canvas.height / sliceH);
+    const naturalHeightMm = (canvas.height / canvas.width) * A4_WIDTH_MM;
+    let drawW = A4_WIDTH_MM;
+    let drawH = naturalHeightMm;
 
-    for (let page = 0; page < totalPages; page++) {
-      if (page > 0) pdf.addPage();
-
-      const srcY = page * sliceH;
-      const srcH = Math.min(sliceH, canvas.height - srcY);
-
-      const pageCanvas         = document.createElement("canvas");
-      pageCanvas.width         = canvas.width;
-      pageCanvas.height        = sliceH;
-      const ctx                = pageCanvas.getContext("2d")!;
-      ctx.fillStyle            = "#ffffff";
-      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-
-      const imgData = pageCanvas.toDataURL("image/jpeg", 0.97);
-      pdf.addImage(imgData, "JPEG", margin, margin, printW, printH);
+    if (drawH > A4_HEIGHT_MM) {
+      const scale = A4_HEIGHT_MM / drawH;
+      drawW = drawW * scale;
+      drawH = A4_HEIGHT_MM;
     }
 
+    pdf.addImage(imgData, "JPEG", 0, 0, drawW, drawH);
     pdf.save(filename);
   } finally {
     document.body.removeChild(iframe);
