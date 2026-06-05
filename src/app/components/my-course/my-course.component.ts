@@ -415,6 +415,7 @@ export class MyCourseComponent implements OnInit {
   private _journeyTabDataLoaded = false;
   private _journeyGamesLoaded = false;
   private _gluckExamDataLoaded = false;
+  private _journeyClassesRefreshed = false;
 
   private loadJourneyTabData(): void {
     if (this._journeyTabDataLoaded) return;
@@ -640,6 +641,8 @@ export class MyCourseComponent implements OnInit {
 
   /** Refetch journey so attendance → pending flags show in Updates + dialog. */
   refreshJourneyForPendingCelebration(): void {
+    if (this._journeyClassesRefreshed) return;
+    this._journeyClassesRefreshed = true;
     this.progressService
       .getStudentJourney()
       .pipe(takeUntilDestroyed(this.destroyRef))

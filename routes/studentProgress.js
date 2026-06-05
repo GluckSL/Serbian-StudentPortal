@@ -720,8 +720,8 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     const allVocab = new Set();
     filteredSessions.forEach(s => { if (s.summary?.vocabularyUsed) s.summary.vocabularyUsed.forEach(w => allVocab.add(w)); });
 
-    const overallDone = classAttended + dgBotCompleted + exerciseCompleted;
-    const overallTotal = classTotal + dgBotTotal + exerciseTotal;
+    const overallDone = currentDay;
+    const overallTotal = journeyLength;
     const overallCompletionPct = overallTotal
       ? Math.min(100, Math.round((overallDone / overallTotal) * 100))
       : 0;
