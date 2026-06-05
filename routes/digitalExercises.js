@@ -1732,6 +1732,95 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
   }
 });
 
+// GET /api/digital-exercises/gluck-exam — Lightweight list for Student → Gluck Exam tab
+router.get('/gluck-exam', verifyToken, blockVisaDocsOnly, async (req, res) => {
+  try {
+    if (req.user.role !== 'STUDENT') {
+      return res.json({ exercises: [] });
+    }
+
+    const access = await getStudentExerciseAccess(req.user.id);
+    if (!access.enabled || access.learningEnabled === false) {
+      return res.json({
+        exercises: [],
+        studentCourseDay: access.courseDay,
+        studentLevel: access.studentLevel,
+        accessibleLevels: access.accessibleLevels
+      });
+    }
+
+    const andClauses = [
+      { isActive: true },
+      { isDeleted: { $ne: true } },
+      { visibleToStudents: true },
+      { $or: [{ weeklyTestEnabled: true }, { examEnabled: true }] },
+      {
+        $or: [
+          { courseDay: null },
+          { courseDay: { $exists: false } },
+          { courseDay: { $lte: access.courseDay } }
+        ]
+      },
+      { level: { $in: access.accessibleLevels } }
+    ];
+    appendNotBlockedToAndClauses(andClauses, access.student?.blockedJourneyLevels);
+
+    const exercises = await DigitalExercise.find({ $and: andClauses })
+      .select('_id title level category courseDay weeklyTestEnabled examEnabled')
+      .sort({ courseDay: 1, title: 1 })
+      .lean();
+
+    if (!exercises.length) {
+      return res.json({
+        exercises: [],
+        studentCourseDay: access.courseDay,
+        studentLevel: access.studentLevel,
+        accessibleLevels: access.accessibleLevels
+      });
+    }
+
+    const exerciseIds = exercises.map((e) => e._id);
+    const studentOid = mongoose.Types.ObjectId.isValid(String(req.user.id))
+      ? new mongoose.Types.ObjectId(String(req.user.id))
+      : req.user.id;
+
+    const attempts = await ExerciseAttempt.aggregate([
+      {
+        $match: {
+          studentId: studentOid,
+          exerciseId: { $in: exerciseIds },
+          status: 'completed'
+        }
+      },
+      { $sort: { exerciseId: 1, scorePercentage: -1, completedAt: -1, attemptNumber: -1, _id: -1 } },
+      {
+        $group: {
+          _id: '$exerciseId',
+          scorePercentage: { $first: '$scorePercentage' }
+        }
+      }
+    ]);
+
+    const attemptMap = {};
+    attempts.forEach((a) => {
+      attemptMap[a._id.toString()] = { scorePercentage: a.scorePercentage };
+    });
+    exercises.forEach((ex) => {
+      ex.studentAttempt = attemptMap[ex._id.toString()] || null;
+    });
+
+    res.json({
+      exercises,
+      studentCourseDay: access.courseDay,
+      studentLevel: access.studentLevel,
+      accessibleLevels: access.accessibleLevels
+    });
+  } catch (err) {
+    console.error('GET /digital-exercises/gluck-exam error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
 router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {

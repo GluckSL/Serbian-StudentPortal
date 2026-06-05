@@ -153,15 +153,27 @@ exports.seedFromPlaceholder = async (req, res) => {
 
 exports.listStudent = async (req, res) => {
   try {
+    const gluckExamOnly =
+      String(req.query.gluckExamOnly) === 'true' || String(req.query.gluckExamOnly) === '1';
     const access = await getStudentSprechenJourneyAccess(req.user.id);
     if (!access.enabled) {
       return res.status(403).json({ message: 'Journey not active.', code: 'JOURNEY_NOT_ACTIVE' });
     }
 
-    const mods = await SprechenExamModule.find({ isActive: true, visibleToStudents: true })
-      .sort({ courseDay: 1, createdAt: 1 })
-      .populate('characterId', 'name avatarUrl voice')
-      .lean();
+    const moduleFilter = { isActive: true, visibleToStudents: true };
+    if (gluckExamOnly) {
+      moduleFilter.$or = [{ weeklyTestEnabled: true }, { examEnabled: true }];
+    }
+
+    let moduleQuery = SprechenExamModule.find(moduleFilter).sort({ courseDay: 1, createdAt: 1 });
+    if (gluckExamOnly) {
+      moduleQuery = moduleQuery.select(
+        'title level passThreshold courseDay weeklyTestEnabled examEnabled'
+      );
+    } else {
+      moduleQuery = moduleQuery.populate('characterId', 'name avatarUrl voice');
+    }
+    const mods = await moduleQuery.lean();
 
     const visible = mods.filter((m) =>
       sprechenModuleUnlockedForStudentDay(m.courseDay, access.courseDay)
@@ -169,12 +181,14 @@ exports.listStudent = async (req, res) => {
 
     // Attach attempt counts per module
     const moduleIds = visible.map((m) => m._id);
-    const sessions = await SprechenExamSession.find({
-      studentId: req.user.id,
-      moduleId: { $in: moduleIds },
-    })
-      .select('moduleId completed scores')
-      .lean();
+    const sessions = moduleIds.length
+      ? await SprechenExamSession.find({
+          studentId: req.user.id,
+          moduleId: { $in: moduleIds },
+        })
+          .select('moduleId completed scores')
+          .lean()
+      : [];
 
     const sessionMap = {};
     for (const s of sessions) {
@@ -189,10 +203,14 @@ exports.listStudent = async (req, res) => {
 
     const result = visible.map((m) => ({
       ...m,
-      studentProgress: sessionMap[String(m._id)] || { attempts: 0, bestTotal: 0, lastCompleted: false },
+      studentProgress: gluckExamOnly
+        ? { lastCompleted: !!(sessionMap[String(m._id)]?.lastCompleted) }
+        : sessionMap[String(m._id)] || { attempts: 0, bestTotal: 0, lastCompleted: false },
     }));
 
-    await resignMediaInObjects(result);
+    if (!gluckExamOnly) {
+      await resignMediaInObjects(result);
+    }
 
     res.json({ modules: result, studentCourseDay: access.courseDay });
   } catch (e) {

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import type {
@@ -21,10 +21,15 @@ export class SprechenApiService {
 
   // ── Module ─────────────────────────────────────────────────────────────────
 
-  listStudentModules(): Observable<{ modules: SprechenExamModuleSummary[]; studentCourseDay?: number }> {
+  listStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<{
+    modules: SprechenExamModuleSummary[];
+    studentCourseDay?: number;
+  }> {
+    let params = new HttpParams();
+    if (opts.gluckExamOnly) params = params.set('gluckExamOnly', 'true');
     return this.http.get<{ modules: SprechenExamModuleSummary[]; studentCourseDay?: number }>(
       `${this.base}/modules/student`,
-      this.httpOpts,
+      { ...this.httpOpts, params },
     );
   }
 

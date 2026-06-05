@@ -462,6 +462,21 @@ export class DigitalExerciseService {
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
   }
 
+  /** Lightweight list for Student → Gluck Exam tab (no questions / media). */
+  getGluckExamExercises(): Observable<{
+    exercises: DigitalExercise[];
+    studentCourseDay?: number;
+    studentLevel?: string;
+    accessibleLevels?: string[];
+  }> {
+    return this.http.get<{
+      exercises: DigitalExercise[];
+      studentCourseDay?: number;
+      studentLevel?: string;
+      accessibleLevels?: string[];
+    }>(`${this.apiUrl}/gluck-exam`, { withCredentials: true });
+  }
+
   getExercise(id: string, opts: { asStudent?: boolean } = {}): Observable<DigitalExercise> {
     let params = new HttpParams();
     if (opts.asStudent) params = params.set('asStudent', 'true');

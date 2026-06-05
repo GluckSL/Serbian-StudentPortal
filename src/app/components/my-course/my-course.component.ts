@@ -551,28 +551,26 @@ export class MyCourseComponent implements OnInit {
     };
 
     this.exerciseService
-      .getExercises({ page: 1, limit: 500 })
+      .getGluckExamExercises()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          const list: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
-          this.gluckExamExercises = list.filter((x) => !!x.weeklyTestEnabled || !!x.examEnabled);
+          this.gluckExamExercises = Array.isArray(res?.exercises) ? res.exercises : [];
           finish();
         },
         error: (e) => {
-          this.gluckExamLoadError = e?.error?.message || 'Failed to load exam exercises.';
+          this.gluckExamLoadError = e?.error?.message || e?.error?.error || 'Failed to load exam exercises.';
           this.gluckExamExercises = [];
           finish();
         },
       });
 
     this.dgApiService
-      .listStudentModules()
+      .listStudentModules({ gluckExamOnly: true })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          const list: DgModuleSummary[] = Array.isArray(res?.modules) ? res.modules : [];
-          this.gluckExamDgModules = list.filter((x) => !!x.weeklyTestEnabled || !!x.examEnabled);
+          this.gluckExamDgModules = Array.isArray(res?.modules) ? res.modules : [];
           finish();
         },
         error: (e) => {
@@ -583,12 +581,11 @@ export class MyCourseComponent implements OnInit {
       });
 
     this.sprechenApi
-      .listStudentModules()
+      .listStudentModules({ gluckExamOnly: true })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          const list: SprechenExamModuleSummary[] = Array.isArray(res?.modules) ? res.modules : [];
-          this.gluckExamSprechenModules = list.filter((x) => !!x.weeklyTestEnabled || !!x.examEnabled);
+          this.gluckExamSprechenModules = Array.isArray(res?.modules) ? res.modules : [];
           finish();
         },
         error: (e) => {
