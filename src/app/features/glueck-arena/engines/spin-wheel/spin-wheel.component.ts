@@ -106,14 +106,6 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                       <stop offset="100%" [attr.stop-color]="seg.colorDark"/>
                     </linearGradient>
                   </ng-container>
-                  <ng-container *ngFor="let seg of segments; let i = index">
-                    <path
-                      *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
-                      [attr.id]="'sw-arc-' + i + '-' + li"
-                      [attr.d]="segmentArcPath(i, li)"
-                      fill="none"
-                    />
-                  </ng-container>
                 </defs>
                 <circle cx="200" cy="200" r="199" fill="#f8fafc"/>
                 <g *ngFor="let seg of segments; let i = index">
@@ -127,19 +119,16 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                   />
                 </g>
                 <g *ngFor="let seg of segments; let i = index">
-                  <text
-                    *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
-                    [attr.font-size]="segmentFontSize(i)"
-                    class="sw__seg-text"
-                    [class.sw__seg-text--selected]="isHighlighted(i)"
-                  >
-                    <textPath
-                      [attr.href]="'#sw-arc-' + i + '-' + li"
-                      startOffset="50%"
-                      text-anchor="middle"
-                    >{{ line }}</textPath>
-                  </text>
-                </g>
+                    <text
+                      *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
+                      [attr.transform]="segmentTextTransform(i, li)"
+                      [attr.font-size]="segmentFontSize(i)"
+                      class="sw__seg-text"
+                      text-anchor="start"
+                      dominant-baseline="middle"
+                      [class.sw__seg-text--selected]="isHighlighted(i)"
+                    >{{ line }}</text>
+                  </g>
               </svg>
               <div class="sw__hub" [class.sw__hub--pulse]="phase === 'spinning'">
                 <mat-icon class="sw__hub-icon">casino</mat-icon>
@@ -283,9 +272,9 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
     .sw__pointer-slot {
       position: absolute;
-      left: -6px;
+      left: 0;
       top: 50%;
-      transform: translateY(-50%);
+      transform: translate(-50%, -50%);
       z-index: 4;
     }
     .sw__pointer {
@@ -681,23 +670,29 @@ export class SpinWheelComponent implements OnInit, OnDestroy {
     return this.describeWedge(cx, cy, r, start, end);
   }
 
-  segmentArcPath(index: number, lineIndex: number): string {
+  segmentTextTransform(index: number, lineIndex: number): string {
     const n = this.segments.length;
+    if (!n) return '';
     const seg = 360 / n;
-    const pad = seg * 0.1;
-    const start = index * seg + pad;
-    const end = (index + 1) * seg - pad;
-    const outerR = n <= 6 ? 156 : n <= 10 ? 162 : n <= 14 ? 168 : 172;
-    const lineGap = n <= 14 ? 12 : 11;
-    const radius = outerR - lineIndex * lineGap;
-    const p1 = this.polar(200, 200, radius, end);
-    const p2 = this.polar(200, 200, radius, start);
-    return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 0 0 ${p2.x} ${p2.y}`;
+    const midAngle = (index + 0.5) * seg;
+    const midRad = ((midAngle - 90) * Math.PI) / 180;
+    const outerR = n <= 6 ? 158 : n <= 10 ? 163 : n <= 14 ? 168 : 172;
+    const r = outerR;
+    const lineGap = 16;
+    const lines = this.phraseLines(this.segments[index].phrase, index);
+    const numLines = lines.length;
+    const mid = (numLines - 1) / 2;
+    const dy = numLines > 1 ? (lineIndex - mid) * lineGap : 0;
+    const tangX = -Math.sin(midRad);
+    const tangY = Math.cos(midRad);
+    const x = 200 + r * Math.cos(midRad) + dy * tangX;
+    const y = 200 + r * Math.sin(midRad) + dy * tangY;
+    const rotate = midAngle + 90;
+    return `translate(${x}, ${y}) rotate(${rotate})`;
   }
 
   segmentFontSize(index: number): number {
-    const n = this.segments.length;
-    return n <= 6 ? 11.5 : n <= 10 ? 10 : n <= 14 ? 9 : 8.5;
+    return 12;
   }
 
   phraseLines(phrase: string, index: number): string[] {
