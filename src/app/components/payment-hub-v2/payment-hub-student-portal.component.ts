@@ -11,10 +11,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { PaymentHubApiService, PaymentRequestItem as PaymentRequest, StudentCatalog, CefrRow, InstallmentRow, ApprovalQueueItem } from './payment-hub-api.service';
+import { PaymentHubApiService, PaymentRequestItem as PaymentRequest, StudentCatalog, CefrRow, InstallmentRow } from './payment-hub-api.service';
 import { PaymentUploadDialogComponent } from './payment-upload-dialog.component';
 import { AuthService } from '../../services/auth.service';
-import { InvoiceData, renderInvoiceHTML, generatePdfFromHtml } from '../../utils/invoice-pdf.util';
+import { InvoiceData, renderInvoiceHTML, generatePdfFromHtml, formatProformaNumber, loadInvoiceLogoDataUrl } from '../../utils/invoice-pdf.util';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 @Component({
   selector: 'app-payment-hub-student-portal',
@@ -52,6 +52,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   inferredCurrency = 'LKR';
 
   userProfile: any = null;
+  downloadingInvoiceId: string | null = null;
   expandedInstallments = new Set<string>();
   readonly paymentSlots: Array<{ key: PortalPaymentSlotKey; label: string }> = [
     { key: 'A1', label: 'A1' },
@@ -702,84 +703,126 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   }
 
   async downloadInvoice(req: PaymentRequest): Promise<void> {
-    const student = req.studentId;
-    const paidAmount = req.amount - (req.amountRemaining ?? 0);
-    const submission = req.submissions?.[0] as ApprovalQueueItem | undefined;
-    const paymentDate = (req.status === 'APPROVED' || req.status === 'FULLY_PAID') && submission
-      ? (submission as any).approvedAt || submission.submittedAt
-      : req.dueDate;
+    if (this.downloadingInvoiceId) return;
+    this.downloadingInvoiceId = req._id;
 
-    const statusLabel = this.displayStatus(req);
-    const percentPaid = req.amount > 0 ? Math.round((paidAmount / req.amount) * 100) : 0;
-    const isOverdue = req.status !== 'APPROVED' && req.status !== 'FULLY_PAID' && new Date(req.dueDate) < new Date();
+    try {
+      const student = req.studentId;
+      const paidAmount = req.amount - (req.amountRemaining ?? 0);
+      const invoiceNumber = formatProformaNumber(req._id);
+      const { lineAmount, lineDescription, dueDate, installmentNumber } = this.resolveInvoiceLine(req);
+      const level = (req.customType || this.catalog?.studentLevel || student?.level || this.userProfile?.level || '').trim();
+      const percentPaid = req.amount > 0 ? Math.round((paidAmount / req.amount) * 100) : 0;
 
-    const balanceColor = percentPaid >= 100 ? '#16a085' : '#000000';
-    const progressColor = this.getProgressColorHex(percentPaid);
-    const dueDateColor = isOverdue ? '#e74c3c' : '#000000';
+      const invoiceData: InvoiceData = {
+        invoiceNumber,
+        invoiceDate: req.createdAt || new Date().toISOString(),
+        status: this.displayStatus(req),
+        statusColor: this.getStatusColorHex(req.status),
+        requestId: req._id,
+        source: req.source,
+        isImported: req.isImported,
+        studentInfo: {
+          name: this.userProfile?.name || student?.name,
+          email: this.userProfile?.email || student?.email,
+          level,
+          batch: this.userProfile?.batch || student?.batch,
+          studentStatus: this.userProfile?.studentStatus,
+          subscription: this.userProfile?.subscription,
+          phoneNumber: this.userProfile?.phoneNumber || this.userProfile?.phone,
+          address: this.userProfile?.address,
+          servicesOpted: this.resolveInvoiceServiceName(req),
+          regNo: this.userProfile?.regNo,
+        },
+        paymentType: this.formatPaymentType(req.paymentType, req.customType),
+        customType: req.customType,
+        currency: req.currency,
+        totalAmount: req.amount,
+        lineAmount,
+        lineDescription,
+        paidAmount,
+        amountRemaining: req.amountRemaining ?? 0,
+        percentPaid,
+        progressColor: this.getProgressColorHex(percentPaid),
+        balanceColor: '#000000',
+        dueDate,
+        dueDateColor: '#000000',
+        isOverdue: req.status !== 'APPROVED' && req.status !== 'FULLY_PAID' && new Date(dueDate) < new Date(),
+        installmentAllowed: req.installmentAllowed,
+        totalInstallments: req.totalInstallments,
+        activeInstallmentNumber: installmentNumber,
+      };
 
-    const invoiceData: InvoiceData = {
-      invoiceNumber: `INV-${req._id.slice(-8).toUpperCase()}`,
-      invoiceDate: new Date().toISOString(),
-      status: statusLabel,
-      statusColor: this.getStatusColorHex(req.status),
-      requestId: req._id,
-      source: req.source,
-      isImported: req.isImported,
-      studentInfo: {
-        name: this.userProfile?.name || student?.name,
-        email: this.userProfile?.email || student?.email,
-        level: this.userProfile?.level || student?.level,
-        batch: this.userProfile?.batch || student?.batch,
-        studentStatus: this.userProfile?.studentStatus,
-        subscription: this.userProfile?.subscription,
-        phoneNumber: this.userProfile?.phoneNumber,
-        address: this.userProfile?.address,
-        servicesOpted: this.userProfile?.servicesOpted,
-        regNo: this.userProfile?.regNo,
-      },
-      paymentType: this.formatPaymentType(req.paymentType, req.customType),
-      customType: req.customType,
-      currency: req.currency,
-      totalAmount: req.amount,
-      paidAmount: paidAmount,
-      amountRemaining: req.amountRemaining ?? 0,
-      percentPaid: percentPaid,
-      progressColor: progressColor,
-      balanceColor: balanceColor,
+      const logoDataUrl = await loadInvoiceLogoDataUrl().catch(() => undefined);
+      const html = renderInvoiceHTML(invoiceData, logoDataUrl);
+      await generatePdfFromHtml(html, `${invoiceNumber}.pdf`);
+      this.snack.open('Proforma invoice downloaded', 'OK', { duration: 3000 });
+    } catch {
+      this.snack.open('Could not generate invoice. Please try again.', 'Dismiss', { duration: 5000 });
+    } finally {
+      this.downloadingInvoiceId = null;
+    }
+  }
+
+  /** Service label used in the invoice description line (e.g. German Language). */
+  private resolveInvoiceServiceName(req: PaymentRequest): string {
+    switch (req.paymentType) {
+      case 'LANGUAGE_FEE':
+        return 'German Language';
+      case 'DOCS_PAYMENT':
+        return 'Documentation Fee';
+      case 'VISA_PAYMENT':
+        return 'Visa Fee';
+      case 'CUSTOM_PAYMENT':
+        return req.customType?.trim() || 'Custom Payment';
+      default:
+        return this.formatPaymentType(req.paymentType, req.customType);
+    }
+  }
+
+  /** Amount, description, due date, and installment index for the proforma line item. */
+  private resolveInvoiceLine(req: PaymentRequest): {
+    lineAmount: number;
+    lineDescription: string;
+    dueDate: string;
+    installmentNumber?: number;
+  } {
+    const service = this.resolveInvoiceServiceName(req);
+    const level = (req.customType || this.catalog?.studentLevel || req.studentId?.level || '').trim();
+
+    if (req.installmentAllowed && req.installments?.length) {
+      const sorted = this.sortedInstallments(req);
+      const view = req.studentInstallmentView;
+      const activeNum = view?.activeInstallmentNumber;
+      const activeInst =
+        (activeNum != null ? sorted.find(i => i.installmentNumber === activeNum) : null) ??
+        sorted.find(i => (i.remainingAmount ?? 0) > 0) ??
+        sorted[sorted.length - 1];
+
+      const installmentNumber = activeInst?.installmentNumber ?? activeNum ?? undefined;
+      const lineAmount = activeInst?.requestedAmount ?? (req.amountRemaining > 0 ? req.amountRemaining : req.amount);
+
+      const descParts = [service, level].filter(Boolean);
+      const base = descParts.join(' ');
+      const lineDescription = installmentNumber != null
+        ? `${base} (Instalment number: ${installmentNumber})`
+        : base;
+
+      return {
+        lineAmount,
+        lineDescription,
+        dueDate: activeInst?.dueDate || view?.displayDueDate || req.dueDate,
+        installmentNumber,
+      };
+    }
+
+    const descParts = [service, level].filter(Boolean);
+    const lineAmount = req.amountRemaining > 0 ? req.amountRemaining : req.amount;
+    return {
+      lineAmount,
+      lineDescription: descParts.join(' ') || this.formatPaymentType(req.paymentType, req.customType),
       dueDate: req.dueDate,
-      dueDateColor: dueDateColor,
-      isOverdue: isOverdue,
-      paymentDate: paymentDate,
-      installmentAllowed: req.installmentAllowed,
-      totalInstallments: req.totalInstallments,
-      activeInstallmentNumber: req.studentInstallmentView?.activeInstallmentNumber ?? undefined,
-      remarks: req.remarks,
-      submission: submission ? {
-        _id: submission._id,
-        paymentMethod: submission.paymentMethod,
-        paidAmount: submission.paidAmount,
-        currency: submission.currency,
-        status: submission.status,
-        submittedAt: submission.submittedAt,
-        approvedAt: (submission as any).approvedAt,
-        transactionId: submission.transactionId,
-        rejectionReason: submission.rejectionReason,
-        reuploadNote: submission.reuploadNote,
-        adminRemarks: submission.adminRemarks,
-      } : undefined,
-      installments: req.installments?.map(inst => ({
-        installmentNumber: inst.installmentNumber,
-        currency: inst.currency,
-        requestedAmount: inst.requestedAmount,
-        status: inst.status,
-        dueDate: inst.dueDate,
-        paidAmount: inst.paidAmount,
-        remainingAmount: inst.remainingAmount,
-      })),
     };
-
-    const html = renderInvoiceHTML(invoiceData)
-    await generatePdfFromHtml(html, `Invoice-${req._id.slice(-8)}.pdf`)
   }
 
   private getStatusColorHex(status: string): string {

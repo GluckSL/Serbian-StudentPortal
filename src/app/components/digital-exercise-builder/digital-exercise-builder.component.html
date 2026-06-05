@@ -154,6 +154,36 @@
               title="Single letter a–z. Students must complete earlier letters first."
             />
           </div>
+          <div class="field-group field-group--day">
+            <label class="field-label">Gluck Exam bucket</label>
+            <div class="d-flex gap-3 flex-wrap align-items-center">
+              <label class="visibility-toggle" title="Show this exercise under Weekly Test">
+                <input
+                  type="checkbox"
+                  [ngModel]="weeklyTestEnabled"
+                  (ngModelChange)="onWeeklyTestToggle($event)"
+                />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">
+                  Weekly Test
+                </span>
+              </label>
+              <label class="visibility-toggle" title="Show this exercise under Exams">
+                <input
+                  type="checkbox"
+                  [ngModel]="examEnabled"
+                  (ngModelChange)="onExamToggle($event)"
+                />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">
+                  Exam
+                </span>
+              </label>
+              <small class="text-muted" style="flex-basis:100%">
+                Only one can be ON. Default is both OFF (not shown under Gluck Exam tab).
+              </small>
+            </div>
+          </div>
           <div class="field-group field-group--desc">
             <label class="field-label required" for="ex-desc">Description</label>
             <div class="field-input-wrap">

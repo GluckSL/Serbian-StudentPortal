@@ -234,6 +234,8 @@ export interface DigitalExercise {
   isActive?: boolean;
   visibleToStudents?: boolean;
   publishedAt?: Date;
+  weeklyTestEnabled?: boolean;
+  examEnabled?: boolean;
   createdBy?: any;
   totalAttempts?: number;
   totalCompletions?: number;
@@ -419,6 +421,8 @@ export type DigitalExerciseBulkMetadata = Partial<
     | 'targetLanguage'
     | 'nativeLanguage'
     | 'estimatedDuration'
+    | 'weeklyTestEnabled'
+    | 'examEnabled'
   >
 >;
 
@@ -456,6 +460,21 @@ export class DigitalExerciseService {
       params = params.set(key, val.toString());
     });
     return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
+  }
+
+  /** Lightweight list for Student → Gluck Exam tab (no questions / media). */
+  getGluckExamExercises(): Observable<{
+    exercises: DigitalExercise[];
+    studentCourseDay?: number;
+    studentLevel?: string;
+    accessibleLevels?: string[];
+  }> {
+    return this.http.get<{
+      exercises: DigitalExercise[];
+      studentCourseDay?: number;
+      studentLevel?: string;
+      accessibleLevels?: string[];
+    }>(`${this.apiUrl}/gluck-exam`, { withCredentials: true });
   }
 
   getExercise(id: string, opts: { asStudent?: boolean } = {}): Observable<DigitalExercise> {

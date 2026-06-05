@@ -19,12 +19,34 @@ interface Placement {
   cells: { row: number; col: number }[];
 }
 
+interface CellPos {
+  row: number;
+  col: number;
+}
+
 type Feedback = 'idle' | 'correct' | 'wrong';
 
-/** Wordwall-style highlight palette */
-const HIGHLIGHT_COLORS = [
-  '#22c55e', '#8B6914', '#374151', '#16a34a', '#a16207',
-  '#15803d', '#7c2d12', '#0f766e', '#4ade80', '#92400e',
+const SELECTING_COLOR = '#fbbf24';
+
+interface WordHighlight {
+  bg: string;
+  fg: string;
+}
+
+/** Each found word gets the next colour in order */
+const HIGHLIGHT_COLORS: WordHighlight[] = [
+  { bg: '#22c55e', fg: '#ffffff' }, // green
+  { bg: '#7dd3fc', fg: '#0c4a6e' }, // light blue
+  { bg: '#d1d5db', fg: '#374151' }, // light grey
+  { bg: '#c4b5fd', fg: '#4c1d95' }, // lavender
+  { bg: '#fda4af', fg: '#9f1239' }, // rose
+  { bg: '#fcd34d', fg: '#78350f' }, // gold
+  { bg: '#5eead4', fg: '#134e4a' }, // mint
+  { bg: '#fdba74', fg: '#7c2d12' }, // peach
+  { bg: '#a5b4fc', fg: '#312e81' }, // periwinkle
+  { bg: '#86efac', fg: '#14532d' }, // light green
+  { bg: '#f9a8d4', fg: '#831843' }, // pink
+  { bg: '#93c5fd', fg: '#1e3a8a' }, // sky blue
 ];
 
 const TOTAL_LIVES = 5;
@@ -67,14 +89,19 @@ const DEFAULT_SESSION_SECONDS = 300;
           <div class="ws__grid-shell">
             <div
               class="ws__grid"
-              [style.--ws-cols]="gridSize"
+              [style.--ws-cols]="gridCols"
               [style.--ws-cell]="cellPx + 'px'"
+              (pointermove)="onGridPointerMove($event)"
+              (pointerup)="onGridPointerUp($event)"
+              (pointercancel)="onGridPointerUp($event)"
             >
               <ng-container *ngFor="let row of grid; let ri = index; trackBy: trackRow">
                 <ng-container *ngFor="let letter of row; let ci = index; trackBy: trackCol">
                   <span
                     class="ws__cell"
                     *ngIf="isPlayable(letter)"
+                    [attr.data-ws-row]="ri"
+                    [attr.data-ws-col]="ci"
                     [class.ws__cell--found]="cellHighlight(ri, ci)"
                     [style.--ws-highlight]="cellColor(ri, ci)"
                     [attr.aria-label]="'Letter ' + letter"
@@ -279,6 +306,8 @@ const DEFAULT_SESSION_SECONDS = 300;
       gap: 3px;
       justify-content: center;
       overflow: hidden;
+      touch-action: none;
+      user-select: none;
     }
 
     .ws__cell,
@@ -325,9 +354,17 @@ const DEFAULT_SESSION_SECONDS = 300;
       transform: scale(0.96);
     }
 
+    .ws__cell--selecting {
+      background: var(--ws-highlight, #fbbf24) !important;
+      color: #1c1917;
+      box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+
     .ws__cell--found {
       background: var(--ws-highlight, #22c55e) !important;
-      color: #fff;
+      color: var(--ws-highlight-fg, #fff);
       cursor: default;
       box-shadow:
         0 2px 6px rgba(0, 0, 0, 0.22),
@@ -431,14 +468,20 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
   phase: 'playing' | 'complete' = 'playing';
   feedback: Feedback = 'idle';
-  promptText = 'Tap a hidden word';
+  promptText = 'Find words across, down, or diagonally';
 
   grid: string[][] = [];
-  gridSize = 11;
+  gridRows = 10;
+  gridCols = 10;
   cellPx = 40;
   placements: Placement[] = [];
   foundIds = new Set<string>();
-  highlightByCell = new Map<string, string>();
+  highlightByCell = new Map<string, WordHighlight>();
+  selection: CellPos[] = [];
+  private isPointerDown = false;
+  private didDrag = false;
+  private suppressClick = false;
+  private pointerAnchor: CellPos | null = null;
 
   score = 0;
   foundCount = 0;
@@ -501,7 +544,8 @@ export class WordSearchComponent implements OnInit, OnDestroy {
       return;
     }
     this.grid = q.grid.map(row => [...row]);
-    this.gridSize = q.gridSize || q.grid.length;
+    this.gridRows = q.gridRows || q.grid.length;
+    this.gridCols = q.gridCols || q.grid[0]?.length || q.grid.length;
     this.updateCellSize();
     this.placements = (q.placements || []).map(p => ({
       id: p.id,
@@ -509,9 +553,10 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     }));
     this.foundIds.clear();
     this.highlightByCell.clear();
+    this.clearSelection();
     this.foundCount = this.wordsFoundInGame;
     this.feedback = 'idle';
-    this.promptText = 'Tap a hidden word';
+    this.promptText = 'Find words across, down, or diagonally';
   }
 
   private startTimers(): void {
@@ -551,23 +596,254 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     return this.highlightByCell.has(this.cellKey(row, col));
   }
 
-  cellColor(row: number, col: number): string {
-    return this.highlightByCell.get(this.cellKey(row, col)) || '';
+  cellSelecting(row: number, col: number): boolean {
+    return this.selection.some(c => c.row === row && c.col === col);
   }
 
-  onCellTap(row: number, col: number): void {
+  cellDisplayColor(row: number, col: number): string {
+    const key = this.cellKey(row, col);
+    const found = this.highlightByCell.get(key);
+    if (found) return found.bg;
+    if (this.cellSelecting(row, col)) return SELECTING_COLOR;
+    return '';
+  }
+
+  cellDisplayTextColor(row: number, col: number): string {
+    return this.highlightByCell.get(this.cellKey(row, col))?.fg || '';
+  }
+
+  onCellPointerDown(event: PointerEvent, row: number, col: number): void {
     if (this.feedback !== 'idle' || this.phase !== 'playing') return;
     if (!this.audioUnlocked) { this.audio.unlock(); this.audioUnlocked = true; }
+    if (this.cellHighlight(row, col)) return;
 
-    const match = this.placements.find(
-      p => !this.foundIds.has(p.id) && p.cells.some(c => c.row === row && c.col === col),
-    );
+    event.preventDefault();
+    (event.currentTarget as HTMLElement)?.setPointerCapture?.(event.pointerId);
+    this.isPointerDown = true;
+    this.didDrag = false;
+    this.suppressClick = false;
+    this.pointerAnchor = { row, col };
+  }
 
-    if (!match) {
-      this.showWrong();
+  onGridPointerMove(event: PointerEvent): void {
+    if (!this.isPointerDown || this.feedback !== 'idle' || this.phase !== 'playing') return;
+    if (!this.pointerAnchor) return;
+
+    const cell = this.cellAtPoint(event.clientX, event.clientY);
+    if (!cell) return;
+    this.updateDragSelection(cell.row, cell.col);
+  }
+
+  onGridPointerUp(event: PointerEvent): void {
+    if (!this.isPointerDown) return;
+    (event.target as HTMLElement)?.releasePointerCapture?.(event.pointerId);
+    this.isPointerDown = false;
+
+    if (this.didDrag) {
+      this.suppressClick = true;
+      this.tryCompleteSelection();
+    }
+    this.pointerAnchor = null;
+  }
+
+  private cellAtPoint(clientX: number, clientY: number): CellPos | null {
+    const el = document.elementFromPoint(clientX, clientY)?.closest('.ws__cell') as HTMLElement | null;
+    if (!el) return null;
+    const row = parseInt(el.getAttribute('data-ws-row') || '', 10);
+    const col = parseInt(el.getAttribute('data-ws-col') || '', 10);
+    if (!Number.isFinite(row) || !Number.isFinite(col)) return null;
+    if (this.cellHighlight(row, col)) return null;
+    return { row, col };
+  }
+
+  private updateDragSelection(row: number, col: number): void {
+    if (!this.pointerAnchor) return;
+    if (this.pointerAnchor.row === row && this.pointerAnchor.col === col) {
+      this.selection = [{ ...this.pointerAnchor }];
       return;
     }
-    this.showCorrect(match);
+
+    const line = this.getStraightLine(this.pointerAnchor, { row, col });
+    if (!line) return;
+
+    this.didDrag = true;
+    this.selection = line;
+  }
+
+  onCellClick(row: number, col: number): void {
+    if (this.suppressClick) {
+      this.suppressClick = false;
+      return;
+    }
+    if (this.feedback !== 'idle' || this.phase !== 'playing') return;
+    if (this.cellHighlight(row, col)) return;
+
+    if (this.selection.length === 0) {
+      this.selection = [{ row, col }];
+      return;
+    }
+
+    const last = this.selection[this.selection.length - 1];
+    if (last.row === row && last.col === col) return;
+
+    if (this.selection.length === 1) {
+      const line = this.getStraightLine(this.selection[0], { row, col });
+      if (line && line.length >= 2) {
+        this.selection = line;
+        const match = this.findMatchingPlacement(this.selection);
+        if (match) {
+          this.clearSelection();
+          this.showCorrect(match);
+          return;
+        }
+        if (this.isFailedWordAttempt(this.selection)) {
+          this.clearSelection();
+          this.showWrong();
+          return;
+        }
+        return;
+      }
+    }
+
+    if (this.selection.length >= 2) {
+      const prev = this.selection[this.selection.length - 2];
+      if (prev.row === row && prev.col === col) {
+        this.selection.pop();
+        return;
+      }
+    }
+
+    if (!this.extendSelection(row, col)) {
+      this.clearSelection();
+      this.selection = [{ row, col }];
+      return;
+    }
+
+    const match = this.findMatchingPlacement(this.selection);
+    if (match) {
+      this.clearSelection();
+      this.showCorrect(match);
+      return;
+    }
+
+    if (this.isFailedWordAttempt(this.selection)) {
+      this.clearSelection();
+      this.showWrong();
+    }
+  }
+
+  private isFailedWordAttempt(path: CellPos[]): boolean {
+    const len = path.length;
+    const hasUnfoundOfLen = this.placements.some(
+      p => !this.foundIds.has(p.id) && p.cells.length === len,
+    );
+    return hasUnfoundOfLen && !this.findMatchingPlacement(path);
+  }
+
+  private clearSelection(): void {
+    this.selection = [];
+    this.isPointerDown = false;
+    this.didDrag = false;
+    this.pointerAnchor = null;
+  }
+
+  /** All cells on a straight horizontal, vertical, or diagonal line. */
+  private getStraightLine(start: CellPos, end: CellPos): CellPos[] | null {
+    const dr = end.row - start.row;
+    const dc = end.col - start.col;
+    if (dr === 0 && dc === 0) return [start];
+
+    const ndr = dr === 0 ? 0 : Math.sign(dr);
+    const ndc = dc === 0 ? 0 : Math.sign(dc);
+    const steps = Math.max(Math.abs(dr), Math.abs(dc));
+
+    if (start.row + ndr * steps !== end.row || start.col + ndc * steps !== end.col) {
+      return null;
+    }
+
+    const rows = this.grid.length;
+    const cols = this.grid[0]?.length ?? 0;
+    const line: CellPos[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const row = start.row + ndr * i;
+      const col = start.col + ndc * i;
+      if (row < 0 || col < 0 || row >= rows || col >= cols) return null;
+      line.push({ row, col });
+    }
+    return line;
+  }
+
+  private cellDirection(from: CellPos, to: CellPos): [number, number] | null {
+    const dr = to.row - from.row;
+    const dc = to.col - from.col;
+    if (dr === 0 && dc === 0) return null;
+    if (Math.abs(dr) > 1 || Math.abs(dc) > 1) return null;
+    const ndr = dr === 0 ? 0 : dr / Math.abs(dr);
+    const ndc = dc === 0 ? 0 : dc / Math.abs(dc);
+    return [ndr, ndc];
+  }
+
+  private canExtendSelection(path: CellPos[], cell: CellPos): boolean {
+    if (!path.length) return true;
+    const last = path[path.length - 1];
+    if (last.row === cell.row && last.col === cell.col) return false;
+
+    if (path.length === 1) {
+      return this.cellDirection(path[0], cell) !== null;
+    }
+
+    const [dr, dc] = this.cellDirection(path[0], path[1])!;
+    return last.row + dr === cell.row && last.col + dc === cell.col;
+  }
+
+  private extendSelection(row: number, col: number): boolean {
+    const cell = { row, col };
+    const last = this.selection[this.selection.length - 1];
+    if (last?.row === row && last?.col === col) return true;
+
+    if (this.selection.length >= 2) {
+      const prev = this.selection[this.selection.length - 2];
+      if (prev.row === row && prev.col === col) {
+        this.selection.pop();
+        return true;
+      }
+    }
+
+    if (!this.canExtendSelection(this.selection, cell)) {
+      return false;
+    }
+
+    this.selection = [...this.selection, cell];
+    return true;
+  }
+
+  private pathsMatch(a: CellPos[], b: CellPos[]): boolean {
+    if (a.length !== b.length) return false;
+    return a.every((c, i) => c.row === b[i].row && c.col === b[i].col);
+  }
+
+  private findMatchingPlacement(path: CellPos[]): Placement | null {
+    if (path.length < 2) return null;
+    const reversed = [...path].reverse();
+    return this.placements.find(
+      p => !this.foundIds.has(p.id)
+        && (this.pathsMatch(path, p.cells) || this.pathsMatch(reversed, p.cells)),
+    ) || null;
+  }
+
+  private tryCompleteSelection(): void {
+    if (this.selection.length < 2) {
+      this.clearSelection();
+      return;
+    }
+
+    const match = this.findMatchingPlacement(this.selection);
+    this.clearSelection();
+    if (match) {
+      this.showCorrect(match);
+      return;
+    }
+    this.showWrong();
   }
 
   private showCorrect(placement: Placement): void {
@@ -586,7 +862,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
     this.feedbackTimer = setTimeout(() => {
       this.feedback = 'idle';
-      this.promptText = 'Tap a hidden word';
+      this.promptText = 'Find words across, down, or diagonally';
       if (this.foundIds.size >= this.placements.length) {
         this.advancePuzzle();
       }
@@ -601,7 +877,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
     this.feedbackTimer = setTimeout(() => {
       this.feedback = 'idle';
-      this.promptText = 'Tap a hidden word';
+      this.promptText = 'Find words across, down, or diagonally';
       if (this.remainingLives <= 0) {
         this.finishGame();
       }

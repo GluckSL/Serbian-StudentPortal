@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
@@ -71,15 +71,18 @@ export class DgApiService {
 
   constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
-  listStudentModules(): Observable<{
+  listStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<{
     modules: DgModuleSummary[];
     studentCourseDay?: number;
     unlockMode?: 'daily' | 'weekly' | 'none';
     dgUnlockedWeek?: number;
     dgWeekHint?: string | null;
   }> {
+    let params = new HttpParams();
+    if (opts.gluckExamOnly) params = params.set('gluckExamOnly', 'true');
     return this.http.get<{ modules: DgModuleSummary[]; studentCourseDay?: number }>(
       `${this.base}/modules/student`,
+      { params },
     );
   }
 

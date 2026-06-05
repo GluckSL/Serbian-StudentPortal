@@ -92,11 +92,11 @@
           <div class="sd-stat sd-stat--received">
             <span class="sd-stat__icon material-icons" aria-hidden="true">check_circle</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Total received</span>
+              <span class="sd-stat__label">Total received{{ currentLevelLabelSuffix() }}</span>
               <app-payment-currency-totals
-                [lkr]="history.profile?.totalPaidLKR ?? 0"
-                [inr]="history.profile?.totalPaidINR ?? 0"
-                [usd]="history.profile?.totalPaidUSD ?? 0"
+                [lkr]="currentLevelReceivedTotals().LKR"
+                [inr]="currentLevelReceivedTotals().INR"
+                [usd]="currentLevelReceivedTotals().USD"
                 [compact]="true"
               ></app-payment-currency-totals>
             </div>
@@ -104,7 +104,7 @@
           <div class="sd-stat sd-stat--pending">
             <span class="sd-stat__icon material-icons" aria-hidden="true">hourglass_top</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Pending</span>
+              <span class="sd-stat__label">Pending{{ currentLevelLabelSuffix() }}</span>
               <app-payment-currency-pending-totals
                 [lkr]="pendingBalanceTotals().LKR"
                 [inr]="pendingBalanceTotals().INR"
@@ -117,11 +117,11 @@
           <div class="sd-stat sd-stat--overdue">
             <span class="sd-stat__icon material-icons" aria-hidden="true">warning_amber</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Overdue</span>
+              <span class="sd-stat__label">Overdue{{ currentLevelLabelSuffix() }}</span>
               <app-payment-currency-overdue-totals
-                [lkr]="history.profile?.overdueAmountLKR ?? 0"
-                [inr]="history.profile?.overdueAmountINR ?? 0"
-                [usd]="history.profile?.overdueAmountUSD ?? 0"
+                [lkr]="currentLevelOverdueTotals().LKR"
+                [inr]="currentLevelOverdueTotals().INR"
+                [usd]="currentLevelOverdueTotals().USD"
                 [compact]="true"
                 [hideZero]="false"
               ></app-payment-currency-overdue-totals>
@@ -167,6 +167,18 @@
                   <button
                     mat-stroked-button
                     type="button"
+                    class="sd-slot-reset-btn"
+                    *ngIf="canResetSlot(slot.key)"
+                    (click)="resetSlotPayments(slot.key)"
+                    [disabled]="isResettingSlot(slot.key)"
+                    matTooltip="Clear all payments for this level — paid and balance become 0"
+                  >
+                    <mat-icon>restart_alt</mat-icon>
+                    {{ isResettingSlot(slot.key) ? 'Resetting…' : 'Reset' }}
+                  </button>
+                  <button
+                    mat-stroked-button
+                    type="button"
                     class="sd-slot-fullpaid-btn"
                     *ngIf="canMarkFullPaid(slot.key)"
                     (click)="onMarkFullPaidClick(slot.key)"
@@ -196,9 +208,9 @@
               <div class="sd-slot-card__line">
                 <span class="sd-slot-card__label">Balance</span>
                 <app-payment-currency-overdue-totals
-                  [lkr]="slotSummary(slot.key).balance.LKR"
-                  [inr]="slotSummary(slot.key).balance.INR"
-                  [usd]="slotSummary(slot.key).balance.USD"
+                  [lkr]="slotBalanceDisplay(slot.key).LKR"
+                  [inr]="slotBalanceDisplay(slot.key).INR"
+                  [usd]="slotBalanceDisplay(slot.key).USD"
                   [compact]="true"
                   [hideZero]="true"
                 ></app-payment-currency-overdue-totals>

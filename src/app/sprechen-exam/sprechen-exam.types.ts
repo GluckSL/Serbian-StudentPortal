@@ -131,6 +131,8 @@ export interface SprechenExamModuleSummary {
   level?: string;
   passThreshold?: number;
   visibleToStudents?: boolean;
+  weeklyTestEnabled?: boolean;
+  examEnabled?: boolean;
   courseDay?: number | null;
   targetBatchKeys?: string[];
   characterId?: { _id: string; name: string; avatarUrl?: string; voice?: string } | string | null;

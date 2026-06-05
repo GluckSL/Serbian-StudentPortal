@@ -88,6 +88,8 @@ export interface DgModuleSummary {
   targetBatches?: string[];
   characterId?: string | DgCharacterDoc;
   visibleToStudents?: boolean;
+  weeklyTestEnabled?: boolean;
+  examEnabled?: boolean;
   scenes?: DgScene[];
   updatedAt?: string;
   /** Populated for GET /dg/modules/student (per-student completion). */

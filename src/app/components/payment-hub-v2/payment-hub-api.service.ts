@@ -340,6 +340,7 @@ export interface MapLegacyPaymentsResult {
     submissionId?: string;
     reconciled?: {
       updated?: boolean;
+      created?: boolean;
       quotedTotal?: number;
       totalPaid?: number;
       amountRemaining?: number;
@@ -452,6 +453,8 @@ export interface StudentHistory {
   }) | null;
   languageFeeBalance?: number;
   languageFeeStatus?: string;
+  /** All active requests — used for payment mapping slot cards */
+  slotRequests?: PaymentRequestItem[];
   requests: PaymentRequestItem[];
   total: number;
   page: number;
@@ -699,6 +702,16 @@ export class PaymentHubApiService {
   }): Observable<{ success: boolean; message: string; data: { studentsProcessed: number; requestsArchived: number; submissionsArchived: number } }> {
     return this.http.post<{ success: boolean; message: string; data: { studentsProcessed: number; requestsArchived: number; submissionsArchived: number } }>(
       `${this.base}/students/bulk-reset-payments`,
+      body,
+    );
+  }
+
+  resetPaymentSlot(
+    studentId: string,
+    body: { slotKey: string; reason?: string },
+  ): Observable<{ success: boolean; message: string; data: { slot: string; requestsArchived: number; submissionsArchived: number } }> {
+    return this.http.post<{ success: boolean; message: string; data: { slot: string; requestsArchived: number; submissionsArchived: number } }>(
+      `${this.base}/students/${studentId}/reset-slot`,
       body,
     );
   }

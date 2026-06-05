@@ -10,6 +10,7 @@ const {
   emptyCurrencyBucket,
   normalizeCurrencyCode,
 } = require('./currencyBreakdownHelper');
+const { normalizeLevel, slotForRequest } = require('./levelSlotHelper');
 
 const PAYMENT_TYPE_LABELS = {
   LANGUAGE_FEE: 'Language course fee',
@@ -26,20 +27,6 @@ const formatPaymentLabel = (req) => {
     return `${base} — ${req.customType}`;
   }
   return base;
-};
-
-const normalizeLevel = (level) => {
-  const val = String(level || '').trim().toUpperCase();
-  if (val === 'A1' || val === 'A2' || val === 'B1' || val === 'B2') return val;
-  return null;
-};
-
-const slotForRequest = (req, studentLevel) => {
-  if (req.paymentType === 'DOCS_PAYMENT') return 'DOCS';
-  if (req.paymentType === 'VISA_PAYMENT') return 'VISA';
-  if (req.paymentType === 'CUSTOM_PAYMENT') return normalizeLevel(req.customType);
-  if (req.paymentType !== 'LANGUAGE_FEE') return null;
-  return normalizeLevel(req.customType) || normalizeLevel(studentLevel);
 };
 
 const slotSummaryFromRequests = (requests, studentLevel) => {
