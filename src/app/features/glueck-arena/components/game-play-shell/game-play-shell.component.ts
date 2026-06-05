@@ -385,13 +385,13 @@ export interface IMResult {
     </div>
   `,
   styles: [`
-    .shell { width: 100%; max-width: 1320px; margin: 0 auto; box-sizing: border-box; }
+    .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
     .shell-preview-banner {
       display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px;
       border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
       font-size: 14px; font-weight: 600;
     }
-    .shell-preview-banner mat-icon { color: #2563eb; }
+    .shell-preview-banner mat-icon { color: #2563eb; flex-shrink: 0; }
     .shell__loading { padding: 0; }
     .shell__loading-grid { display: grid; grid-template-columns: 280px 1fr 300px; gap: 16px; width: 100%; margin: 0 auto; padding: 0; }
     .shell__loading-side, .shell__loading-right { display: flex; flex-direction: column; gap: 16px; }
@@ -500,7 +500,9 @@ export interface IMResult {
     .shell-side__back {
       position: absolute; top: 12px; left: 12px;
       display: flex; align-items: center; justify-content: center;
-      width: 36px; height: 36px; border: none; border-radius: 10px;
+      width: 36px; height: 36px; min-width: 36px; min-height: 36px;
+      flex-shrink: 0; aspect-ratio: 1;
+      border: none; border-radius: 10px;
       background: #f1f5f9; cursor: pointer; z-index: 1;
       color: #475569; transition: background 0.15s;
       padding: 0;

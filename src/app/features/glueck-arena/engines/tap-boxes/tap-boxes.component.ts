@@ -639,6 +639,7 @@ function layoutRowSizes(count: number): number[] {
       z-index: 3;
       width: 40px;
       height: 40px;
+      padding: 0;
       border: 3px solid #1a2744;
       border-radius: 10px;
       background: #fff;
@@ -651,7 +652,12 @@ function layoutRowSizes(count: number): number[] {
       transition: transform 0.15s;
     }
     .tb__focus-close:hover { transform: translateY(-2px); }
-    .tb__focus-close mat-icon { font-size: 22px; width: 22px; height: 22px; }
+    .tb__focus-close mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+      line-height: 1;
+    }
 
     /* ── Done & footer ─────────────────────────────────── */
     .tb__done {
