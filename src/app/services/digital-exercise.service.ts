@@ -234,6 +234,8 @@ export interface DigitalExercise {
   isActive?: boolean;
   visibleToStudents?: boolean;
   publishedAt?: Date;
+  weeklyTestEnabled?: boolean;
+  examEnabled?: boolean;
   createdBy?: any;
   totalAttempts?: number;
   totalCompletions?: number;
@@ -419,6 +421,8 @@ export type DigitalExerciseBulkMetadata = Partial<
     | 'targetLanguage'
     | 'nativeLanguage'
     | 'estimatedDuration'
+    | 'weeklyTestEnabled'
+    | 'examEnabled'
   >
 >;
 

@@ -59,6 +59,15 @@ function normalizePracticeWindow(input) {
   return out;
 }
 
+function normalizeExamBucketFlags(input) {
+  const weeklyTestEnabled = input?.weeklyTestEnabled === true || String(input?.weeklyTestEnabled) === 'true';
+  const examEnabled = input?.examEnabled === true || String(input?.examEnabled) === 'true';
+  if (weeklyTestEnabled && examEnabled) {
+    throw new Error('Only one of Weekly Test or Exam can be enabled.');
+  }
+  return { weeklyTestEnabled, examEnabled };
+}
+
 exports.createFromLearning = async (req, res) => {
   try {
     const ids = req.body.learningModuleIds;
@@ -122,8 +131,10 @@ exports.createFromLearning = async (req, res) => {
 
 exports.create = async (req, res) => {
   try {
+    const bucketFlags = normalizeExamBucketFlags(req.body || {});
     const payload = normalizePracticeWindow({
       ...req.body,
+      ...bucketFlags,
       scenes: sortScenes(req.body.scenes || []),
       createdBy: req.user.id,
     });
@@ -146,9 +157,12 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
+    const bucketFlags = normalizeExamBucketFlags(req.body || {});
     const body = normalizePracticeWindow({ ...req.body });
     if (Array.isArray(body.scenes)) body.scenes = sortScenes(body.scenes);
     delete body.createdBy;
+    body.weeklyTestEnabled = bucketFlags.weeklyTestEnabled;
+    body.examEnabled = bucketFlags.examEnabled;
     if (Array.isArray(req.body?.targetBatches)) {
       body.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
     }
@@ -188,7 +202,7 @@ exports.getAdminById = async (req, res) => {
 
 /** Fields for admin grid only — full module (scenes, vocab, role-play, description) loads on GET /modules/:id or /play. */
 const ADMIN_MODULE_LIST_SELECT =
-  'title level language courseDay visibleToStudents characterId targetBatchKeys updatedAt';
+  'title level language courseDay visibleToStudents weeklyTestEnabled examEnabled characterId targetBatchKeys updatedAt';
 
 exports.listAdmin = async (req, res) => {
   try {
@@ -237,7 +251,7 @@ exports.listStudent = async (req, res) => {
     })
       .populate('characterId')
       .select(
-        'title description level characterId visibleToStudents updatedAt createdAt scenes courseDay targetBatchKeys'
+        'title description level characterId visibleToStudents weeklyTestEnabled examEnabled updatedAt createdAt scenes courseDay targetBatchKeys'
       )
       .sort({ title: 1 })
       .lean();

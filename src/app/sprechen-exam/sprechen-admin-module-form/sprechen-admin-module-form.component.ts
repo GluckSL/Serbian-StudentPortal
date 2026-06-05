@@ -47,6 +47,8 @@ export class SprechenAdminModuleFormComponent implements OnInit {
   editCourseDay: string | number | null = '';
   editCharacterId = '';
   editVisible = false;
+  editWeeklyTestEnabled = false;
+  editExamEnabled = false;
 
   keywordsText = '';
   introCardImageUrl = '';
@@ -172,6 +174,8 @@ export class SprechenAdminModuleFormComponent implements OnInit {
       this.editCourseDay = this.courseDayForInput(meta.courseDay);
     }
     if (meta.visibleToStudents !== undefined) this.editVisible = !!meta.visibleToStudents;
+    if (meta.weeklyTestEnabled !== undefined) this.editWeeklyTestEnabled = !!meta.weeklyTestEnabled;
+    if (meta.examEnabled !== undefined) this.editExamEnabled = !!meta.examEnabled;
     if (meta.targetBatchKeys !== undefined) this.targetBatches = [...(meta.targetBatchKeys || [])];
     if (meta.characterId !== undefined) {
       const char = meta.characterId;
@@ -190,6 +194,8 @@ export class SprechenAdminModuleFormComponent implements OnInit {
     this.editPassThreshold = mod.passThreshold ?? 10;
     this.editCourseDay = this.courseDayForInput(mod.courseDay);
     this.editVisible = !!mod.visibleToStudents;
+    this.editWeeklyTestEnabled = !!mod.weeklyTestEnabled;
+    this.editExamEnabled = !!mod.examEnabled;
     this.targetBatches = [...(mod.targetBatchKeys || [])];
     const char = mod.characterId;
     this.editCharacterId =
@@ -356,10 +362,22 @@ export class SprechenAdminModuleFormComponent implements OnInit {
       level: this.editLevel.trim(),
       passThreshold: Number(this.editPassThreshold) || 10,
       visibleToStudents: this.editVisible,
+      weeklyTestEnabled: !!this.editWeeklyTestEnabled && !this.editExamEnabled,
+      examEnabled: !!this.editExamEnabled && !this.editWeeklyTestEnabled,
       courseDay: courseDay as unknown as number | undefined,
       targetBatchKeys: [...this.targetBatches],
       characterId: this.editCharacterId,
     };
+  }
+
+  onWeeklyTestToggle(on: boolean): void {
+    this.editWeeklyTestEnabled = !!on;
+    if (this.editWeeklyTestEnabled) this.editExamEnabled = false;
+  }
+
+  onExamToggle(on: boolean): void {
+    this.editExamEnabled = !!on;
+    if (this.editExamEnabled) this.editWeeklyTestEnabled = false;
   }
 
   private buildFullPayload(): Partial<SprechenExamModuleSummary> {

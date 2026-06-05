@@ -233,6 +233,34 @@
                   <small class="form-text text-muted">When off, the module stays in draft for admins only.</small>
                 </div>
               </div>
+              <div class="col-12 mb-2">
+                <label class="form-label">Gluck Exam bucket</label>
+                <div class="d-flex flex-wrap gap-4 align-items-center">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="dgWeeklyTest"
+                      [ngModel]="editWeeklyTestEnabled"
+                      (ngModelChange)="onWeeklyTestToggle($event)"
+                      name="weeklyTestEnabled"
+                    />
+                    <label class="form-check-label" for="dgWeeklyTest">Weekly Test</label>
+                  </div>
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="dgExam"
+                      [ngModel]="editExamEnabled"
+                      (ngModelChange)="onExamToggle($event)"
+                      name="examEnabled"
+                    />
+                    <label class="form-check-label" for="dgExam">Exam</label>
+                  </div>
+                </div>
+                <small class="form-text text-muted">Only one can be ON. Default is both OFF (not shown under Gluck Exam tab).</small>
+              </div>
             </div>
 
             <div class="row mb-4">

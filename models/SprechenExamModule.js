@@ -76,6 +76,14 @@ const SprechenExamModuleSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     level: { type: String, default: 'A1' },
     visibleToStudents: { type: Boolean, default: false },
+    /**
+     * Exam bucket flags (mutually exclusive).
+     * - weeklyTestEnabled: visible under Student → My Course → Gluck Exam → Weekly Test
+     * - examEnabled:       visible under Student → My Course → Gluck Exam → Exams
+     * Default: both false (not shown under Gluck Exam).
+     */
+    weeklyTestEnabled: { type: Boolean, default: false },
+    examEnabled: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     courseDay: { type: Number, min: 1, max: 200 },
     targetBatchKeys: { type: [String], default: [] },
@@ -108,5 +116,13 @@ const SprechenExamModuleSchema = new mongoose.Schema(
 );
 
 SprechenExamModuleSchema.index({ isActive: 1, visibleToStudents: 1, courseDay: 1, createdAt: 1 });
+
+SprechenExamModuleSchema.pre('validate', function sprechenValidateBucketFlags(next) {
+  if (this.weeklyTestEnabled && this.examEnabled) {
+    this.invalidate('examEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+    this.invalidate('weeklyTestEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+  }
+  next();
+});
 
 module.exports = mongoose.model('SprechenExamModule', SprechenExamModuleSchema);

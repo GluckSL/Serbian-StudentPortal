@@ -317,6 +317,8 @@ function _sanitizeMetadataPayload(body) {
   if (body.description !== undefined) p.description = String(body.description || '');
   if (body.level !== undefined) p.level = body.level || 'A1';
   if (body.visibleToStudents !== undefined) p.visibleToStudents = Boolean(body.visibleToStudents);
+  if (body.weeklyTestEnabled !== undefined) p.weeklyTestEnabled = Boolean(body.weeklyTestEnabled);
+  if (body.examEnabled !== undefined) p.examEnabled = Boolean(body.examEnabled);
   if (body.courseDay !== undefined) {
     p.courseDay =
       body.courseDay == null || body.courseDay === ''
@@ -326,6 +328,9 @@ function _sanitizeMetadataPayload(body) {
   if (body.passThreshold !== undefined) p.passThreshold = Number(body.passThreshold) || 10;
   if (body.characterId !== undefined) p.characterId = body.characterId || undefined;
   if (body.targetBatchKeys !== undefined) p.targetBatchKeys = normalizeBatchKeys(body.targetBatchKeys);
+  if (p.weeklyTestEnabled && p.examEnabled) {
+    throw new Error('Only one of Weekly Test or Exam can be enabled.');
+  }
   return p;
 }
 
@@ -335,6 +340,8 @@ function _sanitizePayload(body, createdBy) {
   if (body.description !== undefined) p.description = String(body.description || '');
   if (body.level !== undefined) p.level = body.level || 'A1';
   if (body.visibleToStudents !== undefined) p.visibleToStudents = Boolean(body.visibleToStudents);
+  if (body.weeklyTestEnabled !== undefined) p.weeklyTestEnabled = Boolean(body.weeklyTestEnabled);
+  if (body.examEnabled !== undefined) p.examEnabled = Boolean(body.examEnabled);
   if (body.courseDay !== undefined) p.courseDay = body.courseDay == null ? undefined : Number(body.courseDay);
   if (body.passThreshold !== undefined) p.passThreshold = Number(body.passThreshold) || 10;
   if (body.characterId !== undefined) p.characterId = body.characterId || undefined;
@@ -353,5 +360,8 @@ function _sanitizePayload(body, createdBy) {
   }
   if (body.rubric !== undefined) p.rubric = body.rubric;
   if (createdBy) p.createdBy = createdBy;
+  if (p.weeklyTestEnabled && p.examEnabled) {
+    throw new Error('Only one of Weekly Test or Exam can be enabled.');
+  }
   return p;
 }

@@ -16,7 +16,9 @@ import { DigitalExercisesComponent } from '../digital-exercises/digital-exercise
 import { GluckBuddyHubComponent } from '../../sprechen-exam/gluck-buddy-hub/gluck-buddy-hub.component';
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
-import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
+import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
+import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
+import { SprechenExamModuleSummary } from '../../sprechen-exam/sprechen-exam.types';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { GameSet } from '../../features/glueck-arena/glueck-arena.types';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
@@ -32,9 +34,10 @@ import {
   PaymentRequestItem,
 } from '../payment-hub-v2/payment-hub-api.service';
 
-type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey';
+type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey' | 'gluck-exam';
 type JourneyFilter = 'all' | 'completed' | 'pending';
 type ProgressRange = 'weekly' | 'overall';
+type GluckExamSubTab = 'weekly-test' | 'exams';
 
 @Component({
   selector: 'app-my-course',
@@ -52,6 +55,8 @@ type ProgressRange = 'weekly' | 'overall';
   styleUrls: ['./my-course.component.scss']
 })
 export class MyCourseComponent implements OnInit {
+  /** Match DigitalExercisesComponent passing threshold. */
+  readonly passScorePercent = 60;
   /** Row placeholders for the loading skeleton (My class tab). */
   readonly skeletonMeetingRows = [0, 1, 2, 3, 4];
   readonly skeletonSideLines = [0, 1, 2];
@@ -65,6 +70,7 @@ export class MyCourseComponent implements OnInit {
   loading = true;
   private _tourChecked = false;
   activeTab: MyCourseTab = 'classes';
+  gluckExamSubTab: GluckExamSubTab = 'weekly-test';
   journeyFilter: JourneyFilter = 'all';
   journeySearch = '';
   private _selectedJourneyDay: number | null = null;
@@ -96,6 +102,13 @@ export class MyCourseComponent implements OnInit {
   private currentDayDgModules: DgModuleSummary[] = [];
   /** Manual recordings tagged to the current journey day (for completion badge). */
   private currentDayManualRecs: ClassRecording[] = [];
+
+  // ── Gluck Exam tab data ────────────────────────────────────────────────────
+  gluckExamLoading = false;
+  gluckExamLoadError = '';
+  private gluckExamExercises: DigitalExercise[] = [];
+  private gluckExamDgModules: DgModuleSummary[] = [];
+  private gluckExamSprechenModules: SprechenExamModuleSummary[] = [];
   /** Whether the day-completion modal is open. */
   showDayCompletionModal = false;
 
@@ -190,6 +203,7 @@ export class MyCourseComponent implements OnInit {
     private recordingsService: ClassRecordingsService,
     private recordingReqService: RecordingAccessRequestService,
     private paymentHubApi: PaymentHubApiService,
+    private sprechenApi: SprechenApiService,
   ) {}
 
   ngOnInit(): void {
@@ -306,6 +320,9 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = t;
       } else if (t === 'journey') {
         this.activeTab = t;
+      } else if (t === 'gluck-exam') {
+        this.activeTab = t;
+        this.loadGluckExamData();
       }
       const d = q.get('day');
       if (d && Number.isFinite(Number(d)) && Number(d) > 0) {
@@ -511,6 +528,117 @@ export class MyCourseComponent implements OnInit {
     if (tab === 'classes') {
       this.refreshJourneyForPendingCelebration();
     }
+    if (tab === 'gluck-exam') {
+      this.loadGluckExamData();
+    }
+  }
+
+  setGluckExamSubTab(tab: GluckExamSubTab): void {
+    this.gluckExamSubTab = tab;
+  }
+
+  private loadGluckExamData(): void {
+    if (this.gluckExamLoading) return;
+    this.gluckExamLoading = true;
+    this.gluckExamLoadError = '';
+
+    // Parallel fetch: exercises, DG modules, Sprechen modules.
+    // Student APIs already include attempt/progress (for Completed vs Pending).
+    let done = 0;
+    const finish = () => {
+      done += 1;
+      if (done >= 3) this.gluckExamLoading = false;
+    };
+
+    this.exerciseService
+      .getExercises({ page: 1, limit: 500 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const list: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
+          this.gluckExamExercises = list.filter((x) => !!x.weeklyTestEnabled || !!x.examEnabled);
+          finish();
+        },
+        error: (e) => {
+          this.gluckExamLoadError = e?.error?.message || 'Failed to load exam exercises.';
+          this.gluckExamExercises = [];
+          finish();
+        },
+      });
+
+    this.dgApiService
+      .listStudentModules()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const list: DgModuleSummary[] = Array.isArray(res?.modules) ? res.modules : [];
+          this.gluckExamDgModules = list.filter((x) => !!x.weeklyTestEnabled || !!x.examEnabled);
+          finish();
+        },
+        error: (e) => {
+          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Failed to load DG exam modules.';
+          this.gluckExamDgModules = [];
+          finish();
+        },
+      });
+
+    this.sprechenApi
+      .listStudentModules()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const list: SprechenExamModuleSummary[] = Array.isArray(res?.modules) ? res.modules : [];
+          this.gluckExamSprechenModules = list.filter((x) => !!x.weeklyTestEnabled || !!x.examEnabled);
+          finish();
+        },
+        error: (e) => {
+          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Failed to load Sprechen exam modules.';
+          this.gluckExamSprechenModules = [];
+          finish();
+        },
+      });
+  }
+
+  get gluckExamWeeklyExercises(): DigitalExercise[] {
+    return this.gluckExamExercises.filter((x) => !!x.weeklyTestEnabled);
+  }
+  get gluckExamExamExercises(): DigitalExercise[] {
+    return this.gluckExamExercises.filter((x) => !!x.examEnabled);
+  }
+  get gluckExamWeeklyDgModules(): DgModuleSummary[] {
+    return this.gluckExamDgModules.filter((x) => !!x.weeklyTestEnabled);
+  }
+  get gluckExamExamDgModules(): DgModuleSummary[] {
+    return this.gluckExamDgModules.filter((x) => !!x.examEnabled);
+  }
+  get gluckExamWeeklySprechen(): SprechenExamModuleSummary[] {
+    return this.gluckExamSprechenModules.filter((x) => !!x.weeklyTestEnabled);
+  }
+  get gluckExamExamSprechen(): SprechenExamModuleSummary[] {
+    return this.gluckExamSprechenModules.filter((x) => !!x.examEnabled);
+  }
+
+  gluckExamExerciseDone(ex: DigitalExercise): boolean {
+    return this.isAttemptPassing(ex.studentAttempt);
+  }
+
+  isAttemptPassing(att: ExerciseAttempt | null | undefined): boolean {
+    const s = att?.scorePercentage;
+    if (s == null || !Number.isFinite(Number(s))) return false;
+    return Number(s) >= this.passScorePercent;
+  }
+
+  gluckExamDgDone(m: DgModuleSummary): boolean {
+    return !!m.studentProgress?.completed;
+  }
+
+  gluckExamSprechenDone(m: SprechenExamModuleSummary): boolean {
+    return !!m.studentProgress?.lastCompleted;
+  }
+
+  openSprechenExamModule(m: SprechenExamModuleSummary): void {
+    if (!m?._id) return;
+    this.router.navigate(['/sprechen-exam', m._id, 'play']);
   }
 
   /** Refetch journey so attendance → pending flags show in Updates + dialog. */
@@ -900,9 +1028,12 @@ export class MyCourseComponent implements OnInit {
     this.router.navigate(['/ai-tutor', mod._id]);
   }
 
-  getModuleHoverDetails(mod: { title?: string; level?: string; category?: string; studentProgress?: { status?: string } }): string {
-    const status = mod.studentProgress?.status === 'completed' ? 'Completed' : 'Not completed';
-    return `${mod.title || 'Module'} · ${mod.level || 'Level N/A'} · ${mod.category || 'General'} · ${status}`;
+  getModuleHoverDetails(mod: DgModuleSummary): string {
+    const completed = !!mod.studentProgress?.completed;
+    const pct = mod.studentProgress?.bestCompletionPercent;
+    const pctLabel = Number.isFinite(Number(pct)) ? ` (${Math.round(Number(pct))}%)` : '';
+    const status = completed ? `Completed${pctLabel}` : 'Not completed';
+    return `${mod.title || 'Module'} · ${mod.level || 'Level N/A'} · ${mod.language || 'German'} · ${status}`;
   }
 
   openGameSet(set: GameSet): void {

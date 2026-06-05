@@ -315,6 +315,15 @@ const DigitalExerciseSchema = new mongoose.Schema({
   publishedAt: { type: Date, default: null },
 
   /**
+   * Exam bucket flags (mutually exclusive).
+   * - weeklyTestEnabled: visible under Student → My Course → Gluck Exam → Weekly Test
+   * - examEnabled:       visible under Student → My Course → Gluck Exam → Exams
+   * Default: both false (not shown under Gluck Exam).
+   */
+  weeklyTestEnabled: { type: Boolean, default: false },
+  examEnabled: { type: Boolean, default: false },
+
+  /**
    * When true, students skip the pronunciation step — they just watch each
    * video clip and tap "Next". Controlled by admin only (default: false).
    */
@@ -351,6 +360,10 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
 DigitalExerciseSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
+  if (this.weeklyTestEnabled && this.examEnabled) {
+    this.invalidate('examEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+    this.invalidate('weeklyTestEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+  }
   next();
 });
 

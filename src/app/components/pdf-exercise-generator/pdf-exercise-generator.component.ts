@@ -339,8 +339,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       this.showError('Only PDF files are accepted.');
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      this.showError('File is too large. Maximum size is 15 MB.');
+    if (file.size > 20 * 1024 * 1024) {
+      this.showError('File is too large. Maximum size is 20 MB.');
       return;
     }
     this.selectedFile = file;

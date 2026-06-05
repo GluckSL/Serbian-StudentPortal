@@ -139,6 +139,18 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   /** Within-day sequence letter (single a–z char). Empty = ungated. */
   sequenceLetter = '';
   visibleToStudents = false;
+  weeklyTestEnabled = false;
+  examEnabled = false;
+
+  onWeeklyTestToggle(on: boolean): void {
+    this.weeklyTestEnabled = !!on;
+    if (this.weeklyTestEnabled) this.examEnabled = false;
+  }
+
+  onExamToggle(on: boolean): void {
+    this.examEnabled = !!on;
+    if (this.examEnabled) this.weeklyTestEnabled = false;
+  }
 
   questions: BuilderQuestion[] = [];
 
@@ -258,6 +270,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
             : '';
         this.sequenceLetter = exercise.sequenceLetter || '';
         this.visibleToStudents = exercise.visibleToStudents || false;
+        this.weeklyTestEnabled = !!exercise.weeklyTestEnabled;
+        this.examEnabled = !!exercise.examEnabled;
         this.questions = (exercise.questions || []).map(q => this.mapQuestionFromApi(q));
         this.videoSuccessFeedbackRows = (exercise.videoSuccessFeedback || []).map((x) => ({
           audioUrl: x.audioUrl,
@@ -1591,6 +1605,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       courseDay,
       sequenceLetter,
       visibleToStudents: this.visibleToStudents,
+      weeklyTestEnabled: !!this.weeklyTestEnabled && !this.examEnabled,
+      examEnabled: !!this.examEnabled && !this.weeklyTestEnabled,
       questions: normalizedQuestions as any,
       videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
       videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows),

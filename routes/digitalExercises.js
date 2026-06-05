@@ -133,7 +133,9 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'tags',
   'courseDay',
   'sequenceLetter',
-  'visibleToStudents'
+  'visibleToStudents',
+  'weeklyTestEnabled',
+  'examEnabled',
 ];
 
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */

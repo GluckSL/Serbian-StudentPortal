@@ -69,6 +69,8 @@ export class DgAdminModuleFormComponent implements OnInit {
   editCourseDay = '';
   editCharacterId = '';
   editVisible = false;
+  editWeeklyTestEnabled = false;
+  editExamEnabled = false;
   editScenes: DgScene[] = [];
 
   cefrLevels: string[] = [];
@@ -257,6 +259,8 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editCharacterId =
       typeof row.characterId === 'string' ? row.characterId : (row.characterId as any)?._id || '';
     this.editVisible = !!row.visibleToStudents;
+    this.editWeeklyTestEnabled = !!row.weeklyTestEnabled;
+    this.editExamEnabled = !!row.examEnabled;
     this.targetBatches = Array.isArray(row.targetBatches) ? [...row.targetBatches] : [];
     this.editScenes = JSON.parse(JSON.stringify(row.scenes || [])).sort(
       (a: DgScene, b: DgScene) => (a.order || 0) - (b.order || 0),
@@ -279,6 +283,8 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editCharacterId =
       this.characters.find((c) => c.isDefault)?._id || this.characters[0]?._id || '';
     this.editVisible = false;
+    this.editWeeklyTestEnabled = false;
+    this.editExamEnabled = false;
     this.targetBatches = [];
     this.editScenes = [
       {
@@ -593,6 +599,8 @@ export class DgAdminModuleFormComponent implements OnInit {
       courseDay: courseDayPayload,
       characterId: this.editCharacterId,
       visibleToStudents: this.editVisible,
+      weeklyTestEnabled: !!this.editWeeklyTestEnabled && !this.editExamEnabled,
+      examEnabled: !!this.editExamEnabled && !this.editWeeklyTestEnabled,
       targetBatches: this.targetBatches,
       rolePlayScenario: this.editRolePlay,
       allowedVocabulary: this.allowedVocabulary,
@@ -610,6 +618,16 @@ export class DgAdminModuleFormComponent implements OnInit {
         order: s.order,
       })),
     };
+  }
+
+  onWeeklyTestToggle(on: boolean): void {
+    this.editWeeklyTestEnabled = !!on;
+    if (this.editWeeklyTestEnabled) this.editExamEnabled = false;
+  }
+
+  onExamToggle(on: boolean): void {
+    this.editExamEnabled = !!on;
+    if (this.editExamEnabled) this.editWeeklyTestEnabled = false;
   }
 
   async save(navigateAfterSave = true): Promise<boolean> {
