@@ -49,7 +49,7 @@ const HEADERS = [
   'Place of Residence',
   'Spouse  First Name',
   'Spouse   Last Name',
-  'Date f Birth',
+  'Date of Birth',
   'Place of Birth',
   'Address',
   'Family Relationship',
