@@ -103,9 +103,12 @@ const DEFAULT_SESSION_SECONDS = 300;
                     [attr.data-ws-row]="ri"
                     [attr.data-ws-col]="ci"
                     [class.ws__cell--found]="cellHighlight(ri, ci)"
-                    [style.--ws-highlight]="cellColor(ri, ci)"
+                    [class.ws__cell--selecting]="cellSelecting(ri, ci)"
+                    [style.--ws-highlight]="cellDisplayColor(ri, ci)"
+                    [style.color]="cellDisplayTextColor(ri, ci)"
                     [attr.aria-label]="'Letter ' + letter"
-                    (click)="onCellTap(ri, ci)"
+                    (pointerdown)="onCellPointerDown($event, ri, ci)"
+                    (click)="onCellClick(ri, ci)"
                   >
                     <span>{{ letter }}</span>
                   </span>
@@ -530,7 +533,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
   }
 
   private updateCellSize(): void {
-    const cols = Math.max(this.gridSize, 8);
+    const cols = Math.max(this.gridCols, 8);
     const gap = window.innerWidth >= 500 ? 5 : 2.5;
     const availWidth = Math.min(480, window.innerWidth - 48);
     this.cellPx = Math.min(42, Math.floor((availWidth - gap * (cols - 1)) / cols));
