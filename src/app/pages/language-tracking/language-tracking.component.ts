@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ElementRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -72,7 +72,8 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   draftTo = todayIso();
   from = todayIso();
   to = todayIso();
-  batch = '';
+  selectedBatches: string[] = [];
+  isBatchDropdownOpen = false;
   level = '';
   searchRaw = '';
   includeTestAccounts = false;
@@ -212,6 +213,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     private readonly api: LanguageTrackingApiService,
     private readonly snackBar: MatSnackBar,
     private readonly router: Router,
+    private readonly elementRef: ElementRef,
   ) {}
 
   ngOnInit(): void {
@@ -267,7 +269,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   }
 
   resetFilters(): void {
-    this.batch = '';
+    this.selectedBatches = [];
     this.level = '';
     this.searchRaw = '';
     this.includeTestAccounts = false;
@@ -280,7 +282,57 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   }
 
   get hasAnyFilter(): boolean {
-    return !!(this.batch || this.level || (this.searchRaw || '').trim() || this.includeTestAccounts);
+    return !!(
+      this.selectedBatches.length ||
+      this.level ||
+      (this.searchRaw || '').trim() ||
+      this.includeTestAccounts
+    );
+  }
+
+  get batchFilterLabel(): string {
+    if (!this.selectedBatches.length) return 'All batches';
+    if (this.selectedBatches.length === 1) return this.selectedBatches[0];
+    return `${this.selectedBatches.length} selected`;
+  }
+
+  toggleBatchDropdown(event?: Event): void {
+    event?.stopPropagation();
+    this.isBatchDropdownOpen = !this.isBatchDropdownOpen;
+  }
+
+  isBatchSelected(batch: string): boolean {
+    return this.selectedBatches.includes(batch);
+  }
+
+  toggleBatch(batch: string, event?: Event): void {
+    event?.stopPropagation();
+    if (this.selectedBatches.includes(batch)) {
+      this.selectedBatches = this.selectedBatches.filter((b) => b !== batch);
+    } else {
+      this.selectedBatches = [...this.selectedBatches, batch];
+    }
+    this.onBatchChange();
+  }
+
+  clearBatchSelection(event?: Event): void {
+    event?.stopPropagation();
+    if (!this.selectedBatches.length) return;
+    this.selectedBatches = [];
+    this.onBatchChange();
+  }
+
+  selectAllBatches(event?: Event): void {
+    event?.stopPropagation();
+    this.selectedBatches = [...this.availableBatches];
+    this.onBatchChange();
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.elementRef.nativeElement.contains(event.target)) {
+      this.isBatchDropdownOpen = false;
+    }
   }
 
   get canApplyCustomRange(): boolean {
@@ -439,7 +491,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
         from: this.from,
         to: this.to,
         cohort: this.cohort,
-        batch: this.batch || undefined,
+        batches: this.selectedBatches.length ? this.selectedBatches : undefined,
         level: this.level || undefined,
         search: this.searchRaw.trim() || undefined,
         includeTestAccounts: this.includeTestAccounts,

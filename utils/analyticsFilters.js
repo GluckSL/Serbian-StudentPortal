@@ -40,4 +40,38 @@ function batchMatchFilter(batchVal) {
   return new RegExp(`^\\s*${escapeRegExp(bn)}\\s*$`, 'i');
 }
 
-module.exports = { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP, batchMatchFilter };
+/**
+ * Normalise batch query input (string, comma-separated string, or repeated query values).
+ */
+function parseBatchList(batchInput) {
+  if (batchInput == null || batchInput === '') return [];
+  const raw = Array.isArray(batchInput) ? batchInput : [batchInput];
+  const out = [];
+  for (const item of raw) {
+    for (const part of String(item || '').split(',')) {
+      const bn = part.trim();
+      if (bn) out.push(bn);
+    }
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * Mongo filter for one or more batches. Returns a RegExp or { $in: RegExp[] }.
+ */
+function batchMatchFilters(batchInput) {
+  const batches = parseBatchList(batchInput);
+  if (!batches.length) return null;
+  const patterns = batches.map((b) => batchMatchFilter(b)).filter(Boolean);
+  if (!patterns.length) return null;
+  if (patterns.length === 1) return patterns[0];
+  return { $in: patterns };
+}
+
+module.exports = {
+  EXCLUDE_TEST,
+  EXCLUDE_TEST_LOOKUP,
+  batchMatchFilter,
+  parseBatchList,
+  batchMatchFilters,
+};

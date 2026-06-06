@@ -16,7 +16,7 @@ const User = require('../models/User');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const DGSession = require('../models/DGSession');
 const GameAttempt = require('../models/GameAttempt');
-const { EXCLUDE_TEST, batchMatchFilter } = require('../utils/analyticsFilters');
+const { EXCLUDE_TEST, batchMatchFilters } = require('../utils/analyticsFilters');
 const { totalSessionMinutes } = require('../utils/dgSessionMetrics');
 const { effectiveTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
 const {
@@ -281,8 +281,8 @@ async function getOverview(opts = {}) {
   };
   if (cohortIds !== null) studentFilter._id = { $in: cohortIds };
 
-  const batchRx = batchMatchFilter(opts.batch);
-  if (batchRx) studentFilter.batch = batchRx;
+  const batchFilter = batchMatchFilters(opts.batch);
+  if (batchFilter) studentFilter.batch = batchFilter;
 
   const searchFilter = buildStudentSearchFilter(opts.search);
   if (searchFilter) Object.assign(studentFilter, searchFilter);
