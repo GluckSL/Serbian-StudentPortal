@@ -144,6 +144,36 @@ export interface SprechenExamModuleSummary {
   createdAt?: string;
 }
 
+export interface SprechenSessionSummary {
+  sessionId: string;
+  moduleId: string;
+  moduleTitle: string;
+  courseDay: number | null;
+  scores: SprechenScores;
+  completedAt: string;
+}
+
+export interface SprechenExamAggregate {
+  total: number;
+  completed: number;
+  missed: number;
+  passed: number;
+  avgTotal: number;
+  bestTotal: number;
+}
+
+export interface SprechenExamSummary {
+  lastSession: SprechenSessionSummary | null;
+  sessions: SprechenSessionSummary[];
+  aggregate: SprechenExamAggregate;
+}
+
+export interface SprechenModuleListResponse {
+  modules: SprechenExamModuleSummary[];
+  studentCourseDay?: number;
+  summary?: SprechenExamSummary;
+}
+
 export interface SprechenPlayPayload {
   module: SprechenExamModuleSummary;
   character: { _id: string; name: string; avatarUrl?: string; voice?: string } | null;

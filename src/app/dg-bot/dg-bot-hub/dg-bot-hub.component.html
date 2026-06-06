@@ -109,7 +109,7 @@
     </div>
 
     <!-- My Course → Gluck Buddy tab: optional title search only -->
-    <div class="dg-hub__toolbar" *ngIf="embedded && modules.length > 0">
+    <div class="dg-hub__toolbar" *ngIf="embedded && !journeyFixedDay && modules.length > 0">
       <div class="dg-hub__search-wrap dg-hub__search-wrap--toolbar">
         <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
         <input type="text" class="dg-hub__search-input" [placeholder]="searchInputPlaceholder" [(ngModel)]="searchQuery" (input)="onSearchInput()" />
@@ -187,11 +187,14 @@
                 {{ hubStatusLabel(m) }}
               </span>
             </div>
-            <a mat-stroked-button class="dg-hub__action-btn" [routerLink]="['/dg-bot', m._id, 'play']"
-               *ngIf="activeTab !== 'completed'">
+            <a mat-stroked-button class="dg-hub__action-btn" *ngIf="!isModuleCompleted(m)" [routerLink]="['/dg-bot', m._id, 'play']">
               <mat-icon>play_arrow</mat-icon>
               Start
             </a>
+            <span class="dg-hub__action-done" *ngIf="isModuleCompleted(m)">
+              <mat-icon>check_circle</mat-icon>
+              Completed
+            </span>
           </div>
         </div>
       </div>

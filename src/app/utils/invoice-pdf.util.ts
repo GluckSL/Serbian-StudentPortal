@@ -214,6 +214,7 @@ export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): stri
   <meta name="viewport" content="width=${A4_WIDTH_PX}, initial-scale=1.0"/>
   <title>Proforma Invoice – ${data.invoiceNumber}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     @page { size: A4 portrait; margin: 0; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -224,16 +225,19 @@ export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): stri
       background: #ffffff;
     }
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: 'Inter', Arial, Helvetica, sans-serif;
       color: #1a1a1a;
       -webkit-font-smoothing: antialiased;
     }
 
     .page {
       width: ${A4_WIDTH_MM}mm;
-      padding: 10mm 14mm 8mm;
+      min-height: ${A4_HEIGHT_MM}mm;
+      padding: 10mm;
       background: #ffffff;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
     }
 
     .header {
@@ -270,10 +274,9 @@ export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): stri
       margin-bottom: 2px;
     }
 
-    .title-block { margin-bottom: 12px; }
     .title-block h1 {
       font-size: 26px;
-      font-weight: 800;
+      font-weight: 650;
       letter-spacing: 0.03em;
       color: #111;
       text-transform: uppercase;
@@ -282,9 +285,10 @@ export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): stri
     }
     .title-block .subtitle { font-size: 12px; color: #777; }
 
-    hr.divider { border: none; border-top: 1px solid #d8d8d8; margin: 12px 0; }
+    hr.divider { border: none; border-top: 1px solid #d8d8d8; margin-top: 6px; margin-bottom: 20px; }
 
     .bill-meta {
+      margin-top: 20px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
@@ -386,7 +390,7 @@ export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): stri
       color: #111;
     }
 
-    .section { margin-bottom: 10px; }
+    .section { margin-bottom: 20px; }
     .section h3 {
       font-size: 14px;
       font-weight: 700;
@@ -433,7 +437,7 @@ export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): stri
     }
 
     .footer {
-      margin-top: 10px;
+      margin-top: auto;
       text-align: center;
       border-top: 1px solid #e8e8e8;
       padding-top: 10px;

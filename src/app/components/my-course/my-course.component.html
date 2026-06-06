@@ -155,7 +155,7 @@
     </div>
   </div>
 
-  <div class="mc-classes-layout" *ngIf="activeTab === 'classes'" role="tabpanel">
+  <div class="mc-classes-layout" [hidden]="activeTab !== 'classes'" role="tabpanel">
     <div class="mc-classes-layout__main">
       <section class="mc-classes-card mc-classes-card--live" *ngIf="userProfile.subscription === 'PLATINUM'" aria-label="Live and scheduled classes">
         <app-student-meetings [embedded]="true"></app-student-meetings>
@@ -310,20 +310,20 @@
     </aside>
   </div>
 
-  <div class="mc-panel" *ngIf="activeTab === 'exercises'" role="tabpanel">
+  <div class="mc-panel" [hidden]="activeTab !== 'exercises'" role="tabpanel">
     <app-digital-exercises [embedded]="true"></app-digital-exercises>
   </div>
 
   <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->
 
-  <div class="mc-panel" *ngIf="activeTab === 'talk-buddy'" role="tabpanel">
+  <div class="mc-panel" [hidden]="activeTab !== 'talk-buddy'" role="tabpanel">
     <p class="mc-dg-week-hint" *ngIf="allowsDgBot && !allowsLearningContent">
       Complete all Glück Buddy modules in your current week to unlock the next week of practice.
     </p>
     <app-gluck-buddy-hub></app-gluck-buddy-hub>
   </div>
 
-  <div class="mc-panel mc-journey" *ngIf="activeTab === 'journey'" role="tabpanel">
+  <div class="mc-panel mc-journey" [hidden]="activeTab !== 'journey'" role="tabpanel">
     <div class="mc-journey-head">
       <div>
         <h3>Journey to Germany</h3>
@@ -701,152 +701,244 @@
     </div>
   </div>
 
-  <div class="mc-panel" *ngIf="activeTab === 'gluck-exam'" role="tabpanel">
-    <div class="mc-gluck-exam-tabs" role="tablist" aria-label="Gluck Exam type">
-      <button
-        type="button"
-        role="tab"
-        class="mc-gluck-exam-tab"
-        [class.mc-gluck-exam-tab--on]="gluckExamSubTab === 'weekly-test'"
-        [attr.aria-selected]="gluckExamSubTab === 'weekly-test'"
-        (click)="setGluckExamSubTab('weekly-test')"
-      >
-        Weekly Test
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="mc-gluck-exam-tab"
-        [class.mc-gluck-exam-tab--on]="gluckExamSubTab === 'exams'"
-        [attr.aria-selected]="gluckExamSubTab === 'exams'"
-        (click)="setGluckExamSubTab('exams')"
-      >
-        Internal Exam
-      </button>
-    </div>
-
-    <div class="mc-jc-empty" *ngIf="gluckExamLoading">
-      Loading Gluck Exam items…
-    </div>
-    <div class="mc-jc-empty" *ngIf="!gluckExamLoading && gluckExamLoadError">
-      {{ gluckExamLoadError }}
-    </div>
-
-    <ng-container *ngIf="!gluckExamLoading && !gluckExamLoadError">
-      <!-- Digital Exercises -->
-      <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises" *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length)">
-        <div class="mc-day-section__head">
-          <h4>Digital exercises</h4>
-          <span class="mc-day-section__count">
-            {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length }}
-          </span>
-        </div>
-        <div class="mc-day-item" *ngFor="let ex of (gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises : gluckExamExamExercises)">
-          <div
-            class="mc-day-item__main mc-day-item__main--clickable"
-            tabindex="0"
-            [title]="getExerciseHoverDetails(ex)"
-            (click)="openExercise(ex)"
-            (keydown.enter)="openExercise(ex)"
-          >
-            <div class="mc-day-item__title">{{ ex.title }}</div>
-            <div class="mc-day-item__sub">{{ ex.level }} · {{ ex.category }}</div>
-            <div class="mc-day-item__hover-hint">{{ getExerciseHoverDetails(ex) }}</div>
-          </div>
-          <div class="mc-day-item__status" [class.done]="gluckExamExerciseDone(ex)" [class.pending]="!gluckExamExerciseDone(ex)">
-            {{ gluckExamExerciseDone(ex) ? 'Completed' : 'Pending' }}
-          </div>
+  <div class="mc-classes-layout" [hidden]="activeTab !== 'gluck-exam'" role="tabpanel">
+    <div class="mc-classes-layout__main">
+      <div class="mc-panel">
+        <div class="tab-row" role="tablist" aria-label="Gluck Exam type">
           <button
             type="button"
-            class="mc-day-item__btn"
-            [class.mc-day-item__btn--start]="!gluckExamExerciseDone(ex)"
-            [class.mc-day-item__btn--retry]="gluckExamExerciseDone(ex)"
-            (click)="openExercise(ex)"
+            role="tab"
+            class="tab-btn"
+            [class.active]="gluckExamSubTab === 'weekly-test'"
+            [attr.aria-selected]="gluckExamSubTab === 'weekly-test'"
+            (click)="setGluckExamSubTab('weekly-test')"
           >
-            <span class="material-icons">{{ gluckExamExerciseDone(ex) ? 'replay' : 'play_arrow' }}</span>
-            {{ gluckExamExerciseDone(ex) ? 'Re-attempt' : 'Start' }}
+            Weekly Test
           </button>
-        </div>
-      </div>
-
-      <!-- DG modules -->
-      <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy" *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length)">
-        <div class="mc-day-section__head">
-          <h4>Gluck Buddy modules</h4>
-          <span class="mc-day-section__count">
-            {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length }}
-          </span>
-        </div>
-        <div class="mc-day-item" *ngFor="let mod of (gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules : gluckExamExamDgModules)">
-          <div
-            class="mc-day-item__main mc-day-item__main--clickable"
-            tabindex="0"
-            [title]="getModuleHoverDetails(mod)"
-            (click)="openModule(mod)"
-            (keydown.enter)="openModule(mod)"
-          >
-            <div class="mc-day-item__title">{{ mod.title }}</div>
-            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
-            <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
-          </div>
-          <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)" [class.pending]="!gluckExamDgDone(mod)">
-            {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
-          </div>
           <button
             type="button"
-            class="mc-day-item__btn"
-            [class.mc-day-item__btn--open]="gluckExamDgDone(mod)"
-            [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)"
-            (click)="openModule(mod)"
+            role="tab"
+            class="tab-btn"
+            [class.active]="gluckExamSubTab === 'exams'"
+            [attr.aria-selected]="gluckExamSubTab === 'exams'"
+            (click)="setGluckExamSubTab('exams')"
           >
-            <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
-            {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+            Internal Exam
           </button>
         </div>
+
+        <div class="mc-gl-exam-body">
+          <div class="mc-jc-empty" *ngIf="gluckExamLoading">
+            Loading Gluck Exam items…
+          </div>
+          <div class="mc-jc-empty" *ngIf="!gluckExamLoading && gluckExamLoadError">
+            {{ gluckExamLoadError }}
+          </div>
+
+          <ng-container *ngIf="!gluckExamLoading && !gluckExamLoadError">
+            <!-- Digital Exercises -->
+          <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises" *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length)">
+            <div class="mc-day-section__head">
+              <h4>Digital exercises</h4>
+              <span class="mc-day-section__count">
+                {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length }}
+              </span>
+            </div>
+            <div class="mc-day-item" *ngFor="let ex of (gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises : gluckExamExamExercises)">
+              <div
+                class="mc-day-item__main mc-day-item__main--clickable"
+                tabindex="0"
+                [title]="getExerciseHoverDetails(ex)"
+                (click)="openExercise(ex)"
+                (keydown.enter)="openExercise(ex)"
+              >
+                <div class="mc-day-item__title">{{ ex.title }}</div>
+                <div class="mc-day-item__sub">{{ ex.level }} · {{ ex.category }}</div>
+                <div class="mc-day-item__hover-hint">{{ getExerciseHoverDetails(ex) }}</div>
+              </div>
+              <div class="mc-day-item__status" [class.done]="gluckExamExerciseDone(ex)" [class.pending]="!gluckExamExerciseDone(ex)">
+                {{ gluckExamExerciseDone(ex) ? 'Completed' : 'Pending' }}
+              </div>
+              <button
+                type="button"
+                class="mc-day-item__btn"
+                [class.mc-day-item__btn--start]="!gluckExamExerciseDone(ex)"
+                [class.mc-day-item__btn--retry]="gluckExamExerciseDone(ex)"
+                (click)="openExercise(ex)"
+              >
+                <span class="material-icons">{{ gluckExamExerciseDone(ex) ? 'replay' : 'play_arrow' }}</span>
+                {{ gluckExamExerciseDone(ex) ? 'Re-attempt' : 'Start' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- DG modules -->
+          <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy" *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length)">
+            <div class="mc-day-section__head">
+              <h4>Gluck Buddy modules</h4>
+              <span class="mc-day-section__count">
+                {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length }}
+              </span>
+            </div>
+            <div class="mc-day-item" *ngFor="let mod of (gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules : gluckExamExamDgModules)">
+              <div
+                class="mc-day-item__main mc-day-item__main--clickable"
+                tabindex="0"
+                [title]="getModuleHoverDetails(mod)"
+                (click)="openModule(mod)"
+                (keydown.enter)="openModule(mod)"
+              >
+                <div class="mc-day-item__title">{{ mod.title }}</div>
+                <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
+                <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
+              </div>
+              <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)" [class.pending]="!gluckExamDgDone(mod)">
+                {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
+              </div>
+              <button
+                type="button"
+                class="mc-day-item__btn"
+                [class.mc-day-item__btn--open]="gluckExamDgDone(mod)"
+                [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)"
+                (click)="openModule(mod)"
+              >
+                <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
+                {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Sprechen exam -->
+          <div class="mc-day-section mc-day-section-card mc-day-section-card--modules" *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length)">
+            <div class="mc-day-section__head">
+              <h4>Sprechen exam</h4>
+              <span class="mc-day-section__count">
+                {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length }}
+              </span>
+            </div>
+            <div class="mc-day-item" *ngFor="let mod of (gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen : gluckExamExamSprechen)">
+              <div
+                class="mc-day-item__main mc-day-item__main--clickable"
+                tabindex="0"
+                (click)="openSprechenExamModule(mod)"
+                (keydown.enter)="openSprechenExamModule(mod)"
+              >
+                <div class="mc-day-item__title">{{ mod.title }}</div>
+                <div class="mc-day-item__sub">{{ mod.level }} · Pass {{ mod.passThreshold || 10 }}/15</div>
+              </div>
+              <div class="mc-day-item__status" [class.done]="gluckExamSprechenDone(mod)" [class.pending]="!gluckExamSprechenDone(mod)">
+                {{ gluckExamSprechenDone(mod) ? 'Completed' : 'Pending' }}
+              </div>
+              <button
+                type="button"
+                class="mc-day-item__btn"
+                [class.mc-day-item__btn--open]="gluckExamSprechenDone(mod)"
+                [class.mc-day-item__btn--start]="!gluckExamSprechenDone(mod)"
+                (click)="openSprechenExamModule(mod)"
+              >
+                <span class="material-icons">{{ gluckExamSprechenDone(mod) ? 'replay' : 'play_arrow' }}</span>
+                {{ gluckExamSprechenDone(mod) ? 'Attempt again' : 'Start' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="mc-jc-empty" *ngIf="
+            gluckExamSubTab === 'weekly-test'
+              ? (gluckExamWeeklyExercises.length + gluckExamWeeklyDgModules.length + gluckExamWeeklySprechen.length) === 0
+              : (gluckExamExamExercises.length + gluckExamExamDgModules.length + gluckExamExamSprechen.length) === 0
+          ">
+            Nothing assigned here yet.
+          </div>
+        </ng-container>
+        </div>
+      </div>
+    </div>
+
+    <aside class="mc-classes-layout__aside" aria-label="Exam scores">
+      <!-- Last exam card -->
+      <div class="mc-side-card mc-side-card--exam-last">
+        <p class="mc-side-card__eyebrow">Last exam</p>
+        <ng-container *ngIf="gluckExamSummary?.lastSession as last; else noLastExam">
+          <div class="mc-exam-score">
+            <div class="mc-exam-score__ring" [class.mc-exam-score__ring--pass]="last.scores.passed" [class.mc-exam-score__ring--fail]="!last.scores.passed">
+              <span class="mc-exam-score__total">{{ last.scores.total }}</span>
+              <span class="mc-exam-score__max">/15</span>
+            </div>
+            <div class="mc-exam-score__info">
+              <span class="mc-exam-score__pass" [class.pass]="last.scores.passed" [class.fail]="!last.scores.passed">
+                {{ last.scores.passed ? 'Passed' : 'Failed' }}
+              </span>
+              <span class="mc-exam-score__module">{{ last.moduleTitle }}</span>
+            </div>
+          </div>
+          <div class="mc-exam-breakdown">
+            <span class="mc-exam-breakdown__item">Teil 1: {{ last.scores.teil1 }}/3</span>
+            <span class="mc-exam-breakdown__item">Teil 2: {{ last.scores.teil2 }}/6</span>
+            <span class="mc-exam-breakdown__item">Teil 3: {{ last.scores.teil3 }}/6</span>
+          </div>
+        </ng-container>
+        <ng-template #noLastExam>
+          <p class="mc-side-card__muted">No exams taken yet.</p>
+        </ng-template>
       </div>
 
-      <!-- Sprechen exam -->
-      <div class="mc-day-section mc-day-section-card mc-day-section-card--modules" *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length)">
-        <div class="mc-day-section__head">
-          <h4>Sprechen exam</h4>
-          <span class="mc-day-section__count">
-            {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length }}
-          </span>
-        </div>
-        <div class="mc-day-item" *ngFor="let mod of (gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen : gluckExamExamSprechen)">
-          <div
-            class="mc-day-item__main mc-day-item__main--clickable"
-            tabindex="0"
-            (click)="openSprechenExamModule(mod)"
-            (keydown.enter)="openSprechenExamModule(mod)"
-          >
-            <div class="mc-day-item__title">{{ mod.title }}</div>
-            <div class="mc-day-item__sub">{{ mod.level }} · Pass {{ mod.passThreshold || 10 }}/15</div>
+      <!-- Overall analytics card -->
+      <div class="mc-side-card mc-side-card--exam-ov">
+        <p class="mc-side-card__eyebrow">Overall</p>
+        <ng-container *ngIf="gluckExamSummary?.aggregate as agg; else noExams">
+          <div class="mc-exam-ov">
+            <div class="mc-exam-ov__stat">
+              <span class="mc-exam-ov__label">Given</span>
+              <strong class="mc-exam-ov__value">{{ agg.total }}</strong>
+            </div>
+            <div class="mc-exam-ov__stat">
+              <span class="mc-exam-ov__label">Completed</span>
+              <strong class="mc-exam-ov__value">{{ agg.completed }}</strong>
+            </div>
+            <div class="mc-exam-ov__stat">
+              <span class="mc-exam-ov__label">Missed</span>
+              <strong class="mc-exam-ov__value">{{ agg.missed }}</strong>
+            </div>
+            <div class="mc-exam-ov__stat">
+              <span class="mc-exam-ov__label">Passed</span>
+              <strong class="mc-exam-ov__value">{{ agg.passed }}</strong>
+            </div>
+            <div class="mc-exam-ov__stat">
+              <span class="mc-exam-ov__label">Avg score</span>
+              <strong class="mc-exam-ov__value">{{ agg.avgTotal }}/15</strong>
+            </div>
+            <div class="mc-exam-ov__stat">
+              <span class="mc-exam-ov__label">Best score</span>
+              <strong class="mc-exam-ov__value">{{ agg.bestTotal }}/15</strong>
+            </div>
           </div>
-          <div class="mc-day-item__status" [class.done]="gluckExamSprechenDone(mod)" [class.pending]="!gluckExamSprechenDone(mod)">
-            {{ gluckExamSprechenDone(mod) ? 'Completed' : 'Pending' }}
-          </div>
-          <button
-            type="button"
-            class="mc-day-item__btn"
-            [class.mc-day-item__btn--open]="gluckExamSprechenDone(mod)"
-            [class.mc-day-item__btn--start]="!gluckExamSprechenDone(mod)"
-            (click)="openSprechenExamModule(mod)"
-          >
-            <span class="material-icons">{{ gluckExamSprechenDone(mod) ? 'replay' : 'play_arrow' }}</span>
-            {{ gluckExamSprechenDone(mod) ? 'Attempt again' : 'Start' }}
-          </button>
-        </div>
+        </ng-container>
+        <ng-template #noExams>
+          <p class="mc-side-card__muted">No exam data yet.</p>
+        </ng-template>
       </div>
 
-      <div class="mc-jc-empty" *ngIf="
-        gluckExamSubTab === 'weekly-test'
-          ? (gluckExamWeeklyExercises.length + gluckExamWeeklyDgModules.length + gluckExamWeeklySprechen.length) === 0
-          : (gluckExamExamExercises.length + gluckExamExamDgModules.length + gluckExamExamSprechen.length) === 0
-      ">
-        Nothing assigned here yet.
-      </div>
-    </ng-container>
+      <!-- Previous exams list -->
+      <ng-container *ngIf="gluckExamSummary?.sessions as sessions">
+        <div class="mc-side-card mc-side-card--exam-list" *ngIf="sessions.length">
+          <p class="mc-side-card__eyebrow">History</p>
+          <div class="mc-exam-history">
+            <div class="mc-exam-history__item" *ngFor="let s of sessions">
+              <div class="mc-exam-history__main">
+                <span class="mc-exam-history__title">{{ s.moduleTitle }}</span>
+                <span class="mc-exam-history__day" *ngIf="s.courseDay != null">Day {{ s.courseDay }}</span>
+              </div>
+              <div class="mc-exam-history__side">
+                <span class="mc-exam-history__score">{{ s.scores.total }}/15</span>
+                <span class="mc-exam-history__badge" [class.pass]="s.scores.passed" [class.fail]="!s.scores.passed">
+                  {{ s.scores.passed ? 'Passed' : 'Failed' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </aside>
   </div>
 </div>
 

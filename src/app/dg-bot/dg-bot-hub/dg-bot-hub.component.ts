@@ -211,7 +211,9 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   private applyFilters(): void {
     const q = this.searchQuery.trim().toLowerCase();
-    let list = this.modules.filter((m) => this.matchesStudentTab(m, this.activeTab));
+    let list = this.journeyFixedDay != null
+      ? [...this.modules]
+      : this.modules.filter((m) => this.matchesStudentTab(m, this.activeTab));
 
     if (q) {
       list = list.filter((m) => {
