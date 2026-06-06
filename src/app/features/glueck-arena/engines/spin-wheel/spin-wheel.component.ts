@@ -72,7 +72,11 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
         <div class="sw__play" *ngIf="phase !== 'done'">
           <div class="sw__arena">
-            <div class="sw__wheel-outer" [class.sw__wheel-outer--spinning]="phase === 'spinning'">
+            <div
+              class="sw__wheel-outer"
+              [class.sw__wheel-outer--spinning]="phase === 'spinning'"
+              [class.sw__wheel-outer--dense]="segments.length > 8"
+            >
               <div class="sw__pointer-slot" aria-hidden="true">
                 <div class="sw__pointer">
                   <svg viewBox="0 0 56 56" class="sw__pointer-svg">
@@ -130,7 +134,17 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                     >{{ line }}</text>
                   </g>
               </svg>
-              <div class="sw__hub" [class.sw__hub--pulse]="phase === 'spinning'">
+              <div
+                class="sw__hub"
+                [class.sw__hub--pulse]="phase === 'spinning'"
+                [class.sw__hub--clickable]="phase === 'idle' && activeCount > 1"
+                role="button"
+                [attr.tabindex]="phase === 'idle' && activeCount > 1 ? 0 : -1"
+                [attr.aria-label]="'Spin the wheel'"
+                (click)="spin()"
+                (keydown.enter)="spin()"
+                (keydown.space)="$event.preventDefault(); spin()"
+              >
                 <mat-icon class="sw__hub-icon">casino</mat-icon>
                 <span class="sw__hub-text">{{ centerLabel }}</span>
               </div>
@@ -146,7 +160,7 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
             <div class="sw__idle-hint" *ngIf="phase !== 'result' && activeCount > 1">
               <mat-icon>touch_app</mat-icon>
-              <span>Tap <strong>Spin</strong> to pick a random phrase</span>
+              <span>Tap <strong>Spin</strong> or the center to pick a random phrase</span>
             </div>
           </div>
 
@@ -252,10 +266,10 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       50% { opacity: 0.6; }
     }
 
-    .sw__play { padding: 20px; }
+    .sw__play { padding: 12px 16px 16px; }
 
     .sw__info {
-      min-height: 140px;
+      min-height: 100px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -285,18 +299,18 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
     .sw__wheel-outer {
       position: relative;
-      width: min(85vw, 380px);
+      width: min(100%, 460px);
       aspect-ratio: 1;
       flex: 1;
-      max-width: 380px;
+      max-width: 460px;
     }
     .sw__wheel-outer--dense {
-      width: min(94vw, 480px);
-      max-width: 480px;
+      width: min(100%, 560px);
+      max-width: 560px;
     }
     .sw__wheel-outer--dense .sw__hub {
       width: 22%;
-      max-width: 84px;
+      max-width: 96px;
     }
     .sw__wheel-ring {
       position: absolute;
@@ -370,6 +384,21 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       z-index: 3;
       pointer-events: none;
       text-align: center;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .sw__hub--clickable {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .sw__hub--clickable:hover {
+      transform: translate(-50%, -50%) scale(1.05);
+      box-shadow:
+        0 6px 28px rgba(79, 70, 229, 0.25),
+        inset 0 0 0 4px #e0e7ff,
+        inset 0 -4px 12px rgba(0, 0, 0, 0.04);
+    }
+    .sw__hub--clickable:active {
+      transform: translate(-50%, -50%) scale(0.97);
     }
     .sw__hub--pulse { animation: sw-hub-pulse 0.6s ease-in-out infinite; }
     @keyframes sw-hub-pulse {
@@ -578,7 +607,8 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
     @media (max-width: 520px) {
       .sw__hud { grid-template-columns: repeat(2, 1fr); }
       .sw__pointer-slot { margin-right: -8px; }
-      .sw__wheel-outer { width: min(88vw, 360px); }
+      .sw__wheel-outer { width: min(96vw, 420px); max-width: 420px; }
+      .sw__wheel-outer--dense { width: min(96vw, 480px); max-width: 480px; }
       .sw__controls { flex-direction: column; }
       .sw__btn { width: 100%; max-width: none; flex-direction: row; justify-content: center; }
       .sw__btn small { display: none; }
