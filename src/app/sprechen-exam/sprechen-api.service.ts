@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import type {
   SprechenExamModuleSummary,
+  SprechenModuleListResponse,
   SprechenPlayPayload,
   SprechenSessionStart,
   SprechenTurnResult,
@@ -21,13 +22,10 @@ export class SprechenApiService {
 
   // ── Module ─────────────────────────────────────────────────────────────────
 
-  listStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<{
-    modules: SprechenExamModuleSummary[];
-    studentCourseDay?: number;
-  }> {
+  listStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<SprechenModuleListResponse> {
     let params = new HttpParams();
     if (opts.gluckExamOnly) params = params.set('gluckExamOnly', 'true');
-    return this.http.get<{ modules: SprechenExamModuleSummary[]; studentCourseDay?: number }>(
+    return this.http.get<SprechenModuleListResponse>(
       `${this.base}/modules/student`,
       { ...this.httpOpts, params },
     );

@@ -18,7 +18,7 @@ import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
-import { SprechenExamModuleSummary } from '../../sprechen-exam/sprechen-exam.types';
+import { SprechenExamModuleSummary, SprechenExamSummary } from '../../sprechen-exam/sprechen-exam.types';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { GameSet } from '../../features/glueck-arena/glueck-arena.types';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
@@ -109,6 +109,7 @@ export class MyCourseComponent implements OnInit {
   private gluckExamExercises: DigitalExercise[] = [];
   private gluckExamDgModules: DgModuleSummary[] = [];
   private gluckExamSprechenModules: SprechenExamModuleSummary[] = [];
+  gluckExamSummary: SprechenExamSummary | null = null;
   /** Whether the day-completion modal is open. */
   showDayCompletionModal = false;
 
@@ -587,6 +588,7 @@ export class MyCourseComponent implements OnInit {
       .subscribe({
         next: (res) => {
           this.gluckExamSprechenModules = Array.isArray(res?.modules) ? res.modules : [];
+          this.gluckExamSummary = res?.summary || null;
           finish();
         },
         error: (e) => {

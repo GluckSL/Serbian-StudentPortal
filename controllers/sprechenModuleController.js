@@ -186,11 +186,13 @@ exports.listStudent = async (req, res) => {
           studentId: req.user.id,
           moduleId: { $in: moduleIds },
         })
-          .select('moduleId completed scores')
+          .select('moduleId completed scores completedAt')
+          .sort({ completedAt: -1, createdAt: -1 })
           .lean()
       : [];
 
     const sessionMap = {};
+    const completedSessions = [];
     for (const s of sessions) {
       const key = String(s.moduleId);
       if (!sessionMap[key]) sessionMap[key] = { attempts: 0, bestTotal: 0, lastCompleted: false };
@@ -198,21 +200,68 @@ exports.listStudent = async (req, res) => {
       if (s.completed) {
         sessionMap[key].lastCompleted = true;
         sessionMap[key].bestTotal = Math.max(sessionMap[key].bestTotal, s.scores?.total || 0);
+        completedSessions.push(s);
       }
     }
 
+    // Build per-module progress (always include attempts + bestTotal)
     const result = visible.map((m) => ({
       ...m,
-      studentProgress: gluckExamOnly
-        ? { lastCompleted: !!(sessionMap[String(m._id)]?.lastCompleted) }
-        : sessionMap[String(m._id)] || { attempts: 0, bestTotal: 0, lastCompleted: false },
+      studentProgress: sessionMap[String(m._id)] || { attempts: 0, bestTotal: 0, lastCompleted: false },
     }));
+
+    // Build student-level summary (latest session + aggregate + session list)
+    const moduleInfoMap = {};
+    for (const m of visible) {
+      moduleInfoMap[String(m._id)] = { title: m.title, courseDay: m.courseDay };
+    }
+    const lastSession = completedSessions.length > 0 ? completedSessions[0] : null;
+    const completedCount = completedSessions.length;
+    const allCount = sessions.length;
+    const summary = {
+      lastSession: lastSession
+        ? {
+            sessionId: lastSession._id,
+            moduleId: lastSession.moduleId,
+            moduleTitle: moduleInfoMap[String(lastSession.moduleId)]?.title || '',
+            courseDay: moduleInfoMap[String(lastSession.moduleId)]?.courseDay ?? null,
+            scores: lastSession.scores,
+            completedAt: lastSession.completedAt,
+          }
+        : null,
+      sessions: completedSessions.map((s) => {
+        const info = moduleInfoMap[String(s.moduleId)] || {};
+        return {
+          sessionId: s._id,
+          moduleId: s.moduleId,
+          moduleTitle: info.title || '',
+          courseDay: info.courseDay != null ? info.courseDay : null,
+          scores: s.scores,
+          completedAt: s.completedAt,
+        };
+      }),
+      aggregate: {
+        total: allCount,
+        completed: completedCount,
+        missed: allCount - completedCount,
+        passed: completedSessions.filter((s) => s.scores?.passed).length,
+        avgTotal:
+          completedCount > 0
+            ? Math.round(
+                (completedSessions.reduce((sum, s) => sum + (s.scores?.total || 0), 0) /
+                  completedCount) *
+                  10,
+              ) / 10
+            : 0,
+        bestTotal: completedCount > 0 ? Math.max(...completedSessions.map((s) => s.scores?.total || 0)) : 0,
+      },
+    };
 
     if (!gluckExamOnly) {
       await resignMediaInObjects(result);
     }
 
-    res.json({ modules: result, studentCourseDay: access.courseDay });
+    res.json({ modules: result, studentCourseDay: access.courseDay, summary });
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
