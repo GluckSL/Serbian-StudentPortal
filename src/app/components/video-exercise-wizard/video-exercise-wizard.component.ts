@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, VideoExerciseFeedbackItem } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { clampAdminCourseDayInput, isValidAdminCourseDay } from '../../utils/journey-day.util';
 import { MaterialModule } from '../../shared/material.module';
 import { resolveMediaUrl } from '../../utils/media-url';
 
@@ -90,7 +91,7 @@ export class VideoExerciseWizardComponent {
     if (v === '' || v === null || v === undefined) { this.courseDayStr = ''; return; }
     const n = typeof v === 'number' ? v : parseInt(String(v), 10);
     if (!Number.isFinite(n)) { this.courseDayStr = ''; return; }
-    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+    this.courseDayStr = String(clampAdminCourseDayInput(n));
   }
 
   isStep1Valid(): boolean {
@@ -251,8 +252,8 @@ export class VideoExerciseWizardComponent {
     const dayTrim = this.courseDayStr.trim();
     if (dayTrim) {
       const p = parseInt(dayTrim, 10);
-      if (!Number.isFinite(p) || p < 1 || p > 200) {
-        this.snackBar.open('Journey day must be 1–200', 'Close', { duration: 3000 });
+      if (!isValidAdminCourseDay(p)) {
+        this.snackBar.open('Journey day must be empty or 0 (Trial) to 200', 'Close', { duration: 3000 });
         this.step = 1;
         return;
       }

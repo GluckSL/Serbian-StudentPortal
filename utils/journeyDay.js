@@ -74,6 +74,12 @@ function formatJourneyDayLabel(day, trialDayEnabled = false) {
   return `Day ${n}`;
 }
 
+/** Admin content tagging: 0 = Trial, 1–200 = journey days. */
+function isValidAdminCourseDay(raw) {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= TRIAL_JOURNEY_DAY && n <= JOURNEY_DAY_MAX;
+}
+
 module.exports = {
   JOURNEY_DAY_MAX,
   STANDARD_JOURNEY_MIN,
@@ -88,5 +94,6 @@ module.exports = {
   isValidJourneyDay,
   isTrialJourneyDay,
   journeyDayRangeStart,
-  formatJourneyDayLabel
+  formatJourneyDayLabel,
+  isValidAdminCourseDay
 };

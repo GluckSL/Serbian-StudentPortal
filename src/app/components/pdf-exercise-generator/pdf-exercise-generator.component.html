@@ -346,13 +346,13 @@
           <input type="text" [(ngModel)]="customTags" class="meta-input" placeholder="e.g. verbs, grammar, present-tense" />
         </div>
         <div class="meta-field meta-field--journey">
-          <label class="meta-label" for="pdf-step4-course-day">Course day (1–200)</label>
+          <label class="meta-label" for="pdf-step4-course-day">Course day (0 = Trial, 1–200)</label>
           <div class="journey-day-input-wrap journey-day-input-wrap--meta">
             <input
               id="pdf-step4-course-day"
               type="number"
               class="journey-day-num-input"
-              min="1"
+              min="0"
               max="200"
               step="1"
               [ngModel]="courseDayAsNumber"
@@ -362,7 +362,7 @@
             />
             <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
           </div>
-          <p class="meta-hint">Students see this exercise from this day onward; empty = general pool.</p>
+          <p class="meta-hint">0 = Trial day; students see this from that day onward; empty = general pool.</p>
         </div>
         <div class="meta-field">
           <label class="meta-label">

@@ -32,6 +32,7 @@ const { recoverExerciseMedia } = require('../utils/exerciseMediaRecover');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { isValidAdminCourseDay } = require('../utils/journeyDay');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 const {
@@ -2073,7 +2074,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       adminAnd.push({ $or: [{ courseDay: null }, { courseDay: { $exists: false } }] });
     } else if (cdRaw && cdRaw !== 'all') {
       const d = parseInt(cdRaw, 10);
-      if (Number.isFinite(d) && d >= 1 && d <= 200) adminAnd.push({ courseDay: d });
+      if (Number.isFinite(d) && isValidAdminCourseDay(d)) adminAnd.push({ courseDay: d });
     }
 
     if (search) {
@@ -2285,8 +2286,8 @@ router.post(
       let courseDay = null;
       if (req.body.courseDay != null && req.body.courseDay !== '') {
         const cd = parseInt(req.body.courseDay, 10);
-        if (!Number.isFinite(cd) || cd < 1 || cd > 200) {
-          return res.status(400).json({ error: 'Journey day must be empty or a number from 1 to 200' });
+        if (!isValidAdminCourseDay(cd)) {
+          return res.status(400).json({ error: 'Journey day must be empty or a number from 0 (Trial) to 200' });
         }
         courseDay = cd;
       }
