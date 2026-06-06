@@ -10,10 +10,13 @@ const { computeJourneyDayCompletion } = require('../services/journeyDayCompletio
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { SILVER_GO_RECORDING_WATCH_RATIO, recordingWatchCountsAsComplete } = require('./recordingWatchCompletion');
 
+const { clampStandardJourneyDay } = require('./journeyDay');
+
 function normalizeCourseDay(d) {
   const n = parseInt(String(d), 10);
   if (!Number.isFinite(n)) return 1;
-  return Math.min(200, Math.max(1, n));
+  if (n === 0) return 0;
+  return clampStandardJourneyDay(n);
 }
 
 function silverGoCompletionOptions(student) {

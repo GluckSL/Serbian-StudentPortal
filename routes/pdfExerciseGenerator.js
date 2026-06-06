@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const OpenAI = require('openai');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { extractBracketMarkers, applyBracketMarkersToExercise } = require('../utils/worksheetBracketMarkers');
 const EXTRACTION_JOB_TTL_MS = 30 * 60 * 1000;
 
 if (!global.__extractionJobs) {
@@ -655,6 +656,16 @@ CRITICAL RULES (MANDATORY)
    - instruction_en (English, copied verbatim if present in source; otherwise "")
    - content: the FULL raw text of this exercise block from the document (every content line for this Übung), verbatim — never summarize or omit (required for downstream deterministic parsing)
 
+4b. BRACKET MARKERS (AUTHOR CONVENTION — HIGHEST PRIORITY)
+   When the source uses explicit bracket markers:
+   - Text inside curly braces {like this} = instruction (NOT a student question)
+     - If {text} contains " / ", split: German before slash → instruction_de, English after → instruction_en
+     - Otherwise the full {text} → instruction_de
+     - Two separate {DE text} {EN text} pairs → first = instruction_de, second = instruction_en
+   - Text inside square brackets [like this] = worked example → "example" field on the FIRST question row only
+   - Do NOT include the {brackets} or [brackets] in output fields
+   - Remove marker text from "content" and "question" fields (metadata only, not graded items)
+
 5. fill_in_blank LINE FORMAT
    In each question's "question" field put ONLY the sentence with underscore blanks — no leading item numbers ("1.", "2)").
    If a line ends with "→ ____" or "-> ____" where ONLY underscores follow the arrow, omit that arrow and gap unless the answer key gives a separate translation answer for it (layout scaffold, not a second graded blank).
@@ -1138,6 +1149,7 @@ function flattenExtractionResult(parsed) {
 
   for (const topic of (parsed.topics || [])) {
     for (const exercise of (topic.exercises || [])) {
+      const bracketParsed = extractBracketMarkers(exercise.content || '');
       const mappedType = EXTRACTION_TYPE_MAP[exercise.type] || 'question-answer';
       const worksheetKind = EXTRACTION_WORKSHEET_KIND[exercise.type] || null;
       const sectionTitle = [topic.title, exercise.exerciseId].filter(Boolean).join(' | ');
@@ -1145,7 +1157,7 @@ function flattenExtractionResult(parsed) {
       let singularPluralBulkDone = false;
       let spPairsFromRaw = null;
       if (mappedType === 'singular_plural') {
-        const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+        const rawEx = bracketParsed.cleanedContent || String(exercise.content || '').trim();
         if (rawEx.length >= 5) {
           console.log('[SP RAW BLOCK]', rawEx.slice(0, 200));
           spPairsFromRaw = extractSingularPluralPairs(rawEx);
@@ -1159,17 +1171,21 @@ function flattenExtractionResult(parsed) {
       let matchingBulkDone = false;
       let matchingDetPairs = null;
       if (mappedType === 'matching') {
-        const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+        const rawEx = bracketParsed.cleanedContent || String(exercise.content || '').trim();
         console.log('[BLOCK]', rawEx);
         matchingDetPairs = rawEx.length >= 5 ? extractMatchingPairs(rawEx) : [];
         console.log('[MATCH PAIRS]', matchingDetPairs);
       }
 
-      const exDe = String(exercise.instruction_de || '').trim();
-      const exEn = String(exercise.instruction_en || '').trim();
+      const exDe = String(exercise.instruction_de || bracketParsed.instruction_de || '').trim();
+      const exEn = String(exercise.instruction_en || bracketParsed.instruction_en || '').trim();
       const exMergedInstr = mergeWorksheetInstructions(exDe, exEn) || null;
+      const blockExample = String(bracketParsed.example || '').trim();
+      let questionRowIndex = 0;
 
       for (const q of (exercise.questions || [])) {
+        const rowExample = String(q.example || '').trim() || (questionRowIndex === 0 ? blockExample : '');
+        questionRowIndex += 1;
         const base = {
           type: mappedType,
           points: 1,
@@ -1191,7 +1207,7 @@ function flattenExtractionResult(parsed) {
             options,
             correctAnswerIndex: isNaN(cai) ? 0 : cai,
             explanation: '',
-            example: String(q.example || '').trim()
+            example: rowExample
           }));
         } else if (mappedType === 'matching') {
           if (matchingDetPairs && matchingDetPairs.length > 0) {
@@ -1229,7 +1245,7 @@ function flattenExtractionResult(parsed) {
             }
             continue;
           }
-          const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+          const rawEx = bracketParsed.cleanedContent || String(exercise.content || '').trim();
           const pairs = pairsFromSingularPluralQuestion(q, rawEx);
           flatQuestions.push(sanitizeQuestion({
             ...base,
@@ -1246,7 +1262,7 @@ function flattenExtractionResult(parsed) {
             ...base,
             sentence: norm.sentence,
             answers: norm.answers,
-            example: String(q.example || '').trim(),
+            example: rowExample,
             hint: String(q.hint || ''),
             caseSensitive: false
           }));
@@ -1268,7 +1284,7 @@ function flattenExtractionResult(parsed) {
             similarityThreshold: threshold,
             scoringMode,
             aiGradingEnabled: true,
-            example: String(q.example || '').trim()
+            example: rowExample
           }));
         }
       }
@@ -1536,7 +1552,8 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
     try {
       const questions = flattenSingleExercise(result, block.content || '', {
         instruction_de: block.instruction_de,
-        instruction_en: block.instruction_en
+        instruction_en: block.instruction_en,
+        example: block.example
       });
       allQuestions.push(...questions);
       extractionLog.push({ exerciseId: block.exerciseId || 'unknown', type: result.type, count: questions.length, ok: true });
@@ -1594,6 +1611,7 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
         instruction_de: ex.instruction_de || '',
         instruction_en: ex.instruction_en || '',
         instruction: mergeWorksheetInstructions(ex.instruction_de || '', ex.instruction_en || ''),
+        example: ex.example || '',
         type,
         questionCount: Math.max(rawQuestions.length, pairs.length, questions.length, 1),
         rawText: rawText || JSON.stringify(ai),
@@ -1635,6 +1653,7 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
       instruction_de: ex.instruction_de || '',
       instruction_en: ex.instruction_en || '',
       instruction: mergedInstruction,
+      example: ex.example || '',
       type,
       questionCount,
       rawText,
@@ -2127,6 +2146,7 @@ CORE RULES (STRICT)
    - instruction_de = EXACT German instruction from INSTRUCTION_DE above (strip any leading "Instruction:" or "Anweisung:" label if present)
    - instruction_en = EXACT English instruction (if present)
    - DO NOT merge or rewrite
+   - BRACKET MARKERS: {curly braces} = instruction (split on " / " for DE/EN); [square brackets] = example on FIRST question row only. Strip markers from CONTENT and question text.
 
 4. QUESTION EXTRACTION — TYPE-BASED SPLITTING (MANDATORY)
    Extract the REAL worksheet item count. Do NOT over-group and do NOT over-split.
@@ -2538,7 +2558,7 @@ function splitWorksheetIntoExercises(text) {
     // Strip explicit "Instruction:" / "Anweisung:" label prefix if present
     instruction_de = instruction_de.replace(/^(?:Instruction|Anweisung)\s*:\s*/i, '').trim();
 
-    exercises.push({
+    exercises.push(applyBracketMarkersToExercise({
       id: exerciseId,
       exerciseId,
       topic: '',
@@ -2548,7 +2568,7 @@ function splitWorksheetIntoExercises(text) {
       sectionType: '',
       content: block,
       solution_key: ''
-    });
+    }));
   }
 
   const solutionBlock = solutionIndex !== -1 ? normalized.slice(solutionIndex) : '';
@@ -2892,13 +2912,15 @@ function normalizeAiJumbleItem(q) {
 }
 
 function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null) {
+  const bracketParsed = extractBracketMarkers(rawExerciseContent);
   const mappedType = EXTRACTION_TYPE_MAP[result.type] || 'question-answer';
   const worksheetKind = EXTRACTION_WORKSHEET_KIND[result.type] || null;
   const sectionTitle = [result.topic, result.exerciseId].filter(Boolean).join(' | ') || null;
-  const raw = String(rawExerciseContent || '').trim();
-  const deInstr = String(result.instruction_de || blockMeta?.instruction_de || '').trim();
-  const enInstr = String(result.instruction_en || blockMeta?.instruction_en || '').trim();
+  const raw = bracketParsed.cleanedContent || String(rawExerciseContent || '').trim();
+  const deInstr = String(result.instruction_de || blockMeta?.instruction_de || bracketParsed.instruction_de || '').trim();
+  const enInstr = String(result.instruction_en || blockMeta?.instruction_en || bracketParsed.instruction_en || '').trim();
   const mergedInstr = mergeWorksheetInstructions(deInstr, enInstr) || null;
+  const blockExample = String(blockMeta?.example || bracketParsed.example || '').trim();
 
   const exerciseBase = () => ({
     type: mappedType,
@@ -2949,8 +2971,9 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
     }
   }
 
-  return (result.questions || []).map(q => {
+  return (result.questions || []).map((q, qi) => {
     const base = exerciseBase();
+    const rowExample = String(q.example || '').trim() || (qi === 0 ? blockExample : '');
 
     if (mappedType === 'jumble-word') {
       const norm = normalizeAiJumbleItem(q);
@@ -3019,7 +3042,7 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
         ? q.options.map(String).filter(Boolean)
         : [];
       const cai = parseInt(q.correctAnswerIndex);
-      return sanitizeQuestion({ ...base, question: String(q.question || ''), options, correctAnswerIndex: isNaN(cai) ? 0 : cai, explanation: '', example: String(q.example || '').trim() });
+      return sanitizeQuestion({ ...base, question: String(q.question || ''), options, correctAnswerIndex: isNaN(cai) ? 0 : cai, explanation: '', example: rowExample });
     }
     if (mappedType === 'matching') {
       const directL = String(q.left != null ? q.left : '').trim();
@@ -3067,7 +3090,7 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
         ...base,
         sentence: norm.sentence,
         answers: norm.answers,
-        example: String(q.example || '').trim(),
+        example: rowExample,
         hint: String(q.hint || ''),
         caseSensitive: false
       });
@@ -3077,7 +3100,7 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
       : (q.correctedText ? [q.correctedText] : []);
     const threshold = result.type === 'true_false' ? 75 : result.type === 'open_writing' ? 60 : 70;
     const scoringMode = (result.type === 'open_writing' || result.type === 'short_answer') ? 'proportional' : 'full';
-    return sanitizeQuestion({ ...base, prompt: String(q.question || ''), sampleAnswers: rawAnswers.map(String).filter(Boolean), similarityThreshold: threshold, scoringMode, aiGradingEnabled: true, example: String(q.example || '').trim() });
+    return sanitizeQuestion({ ...base, prompt: String(q.question || ''), sampleAnswers: rawAnswers.map(String).filter(Boolean), similarityThreshold: threshold, scoringMode, aiGradingEnabled: true, example: rowExample });
   }).filter(Boolean);
 }
 
@@ -3099,13 +3122,19 @@ router.post('/extract-single-exercise',
     }
 
     try {
+      const prepared = applyBracketMarkersToExercise({
+        instruction_de: instruction_de || '',
+        instruction_en: instruction_en || '',
+        content: content.trim()
+      });
+
       const prompt = buildSingleExerciseExtractionPrompt({
         topic: topic || '',
         exerciseId: exerciseId || '',
         level: level || 'easy',
-        instruction_de: instruction_de || '',
-        instruction_en: instruction_en || '',
-        content: content.trim(),
+        instruction_de: prepared.instruction_de || '',
+        instruction_en: prepared.instruction_en || '',
+        content: prepared.content || content.trim(),
         solution_key: solution_key || ''
       });
 
@@ -3119,9 +3148,10 @@ router.post('/extract-single-exercise',
         return res.status(500).json({ error: 'AI returned invalid JSON. Please try again.' });
       }
 
-      const questions = flattenSingleExercise(result, content.trim(), {
-        instruction_de: instruction_de || '',
-        instruction_en: instruction_en || ''
+      const questions = flattenSingleExercise(result, prepared.content || content.trim(), {
+        instruction_de: prepared.instruction_de || '',
+        instruction_en: prepared.instruction_en || '',
+        example: prepared.example || ''
       });
       res.json({ success: true, exerciseId: result.exerciseId, type: result.type, questions });
 

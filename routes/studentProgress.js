@@ -463,9 +463,12 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     let accessibleLevelsForEx = curIdx === -1 ? ['A1'] : levelOrder.slice(0, curIdx + 1);
     accessibleLevelsForEx = filterOutBlockedLevels(accessibleLevelsForEx, student.blockedJourneyLevels);
     const rawCourseDay = student.currentCourseDay;
+    const trialDayEnabled = !!journeyAccess.trialDayEnabled;
     const studentCourseDay = (rawCourseDay != null && Number.isFinite(Number(rawCourseDay)))
-      ? Math.min(200, Math.max(1, Math.floor(Number(rawCourseDay))))
-      : 1;
+      ? (Number(rawCourseDay) === 0 && trialDayEnabled
+        ? 0
+        : Math.min(200, Math.max(trialDayEnabled ? 0 : 1, Math.floor(Number(rawCourseDay)))))
+      : (trialDayEnabled ? 0 : 1);
 
     let nextLockedDigitalExercise = null;
     if (student.role === 'STUDENT' && journeyAccess.learningEnabled !== false) {
@@ -507,10 +510,11 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         dgBotEnabled: journeyAccess.dgBotEnabled !== false,
         dgUnlockMode: journeyAccess.dgUnlockMode || 'none',
         batchType: normalizeBatchType(journeyAccess.batchType),
+        trialDayEnabled: !!journeyAccess.trialDayEnabled,
         pendingJourneyDayAdvance: !!student.pendingJourneyDayAdvance,
         pendingJourneyDayAdvanceForDay:
           student.pendingJourneyDayAdvanceForDay != null
-            ? Math.min(200, Math.max(1, Math.floor(Number(student.pendingJourneyDayAdvanceForDay))))
+            ? Math.min(200, Math.max(journeyAccess.trialDayEnabled ? 0 : 1, Math.floor(Number(student.pendingJourneyDayAdvanceForDay))))
             : null,
         blockedJourneyLevels: normalizeBlockedJourneyLevels(student.blockedJourneyLevels)
       },

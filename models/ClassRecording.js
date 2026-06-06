@@ -22,8 +22,8 @@ const classRecordingSchema = new mongoose.Schema({
     default: null,
     required: false,
     validate: {
-      validator(v) { return v == null || (Number.isFinite(v) && v >= 1 && v <= 200); },
-      message: 'courseDay must be between 1 and 200 or unset'
+      validator(v) { return v == null || (Number.isFinite(v) && v >= 0 && v <= 200); },
+      message: 'courseDay must be between 0 and 200 or unset'
     }
   },
   /** Recording duration in seconds (optional; set when known). */

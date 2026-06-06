@@ -85,7 +85,7 @@ const SprechenExamModuleSchema = new mongoose.Schema(
     weeklyTestEnabled: { type: Boolean, default: false },
     examEnabled: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
-    courseDay: { type: Number, min: 1, max: 200 },
+    courseDay: { type: Number, min: 0, max: 200 },
     targetBatchKeys: { type: [String], default: [] },
     passThreshold: { type: Number, default: 10, min: 0, max: 15 },
     characterId: {

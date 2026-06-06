@@ -114,7 +114,7 @@ const UserSchema = new mongoose.Schema({
   isTestAccount: { type: Boolean, default: false, index: true },
 
   /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
-  currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
+  currentCourseDay: { type: Number, default: 1, min: 0, max: 200, required: false },
 
   /**
    * CEFR levels whose journey content this student cannot access (e.g. ['A1'] blocks days 1–42).
@@ -130,7 +130,7 @@ const UserSchema = new mongoose.Schema({
    * Cleared after midnight rollover when currentCourseDay increments, or when admin changes day.
    */
   pendingJourneyDayAdvance: { type: Boolean, default: false },
-  pendingJourneyDayAdvanceForDay: { type: Number, default: null, min: 1, max: 200, required: false },
+  pendingJourneyDayAdvanceForDay: { type: Number, default: null, min: 0, max: 200, required: false },
 
   // ✅ move these inside schema
   courseProgress: [{

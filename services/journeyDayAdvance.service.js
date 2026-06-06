@@ -83,10 +83,12 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function normalizeCourseDay(d) {
+const { clampJourneyDayForBatch, clampStandardJourneyDay } = require('../utils/journeyDay');
+
+function normalizeCourseDay(d, trialDayEnabled = false) {
   const n = parseInt(String(d), 10);
-  if (!Number.isFinite(n)) return 1;
-  return Math.min(200, Math.max(1, n));
+  if (!Number.isFinite(n)) return trialDayEnabled ? 0 : 1;
+  return clampJourneyDayForBatch(n, 200, trialDayEnabled);
 }
 
 function isSilverGoStudent(student) {

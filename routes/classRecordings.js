@@ -27,6 +27,7 @@ const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
+const { clampJourneyDay, isValidJourneyDay } = require('../utils/journeyDay');
 const RecordingAccessRequest = require('../models/RecordingAccessRequest');
 const {
   listSelfPaceRecordingsForStudent,
@@ -166,7 +167,7 @@ function isSilverGoStudent(student) {
 function normalizedStudentCourseDay(student) {
   const v = student && student.currentCourseDay;
   if (v != null && v !== undefined && Number.isFinite(Number(v))) {
-    return Math.min(200, Math.max(1, Math.floor(Number(v))));
+    return clampJourneyDay(v);
   }
   return 1;
 }
@@ -175,7 +176,7 @@ function normalizedStudentCourseDay(student) {
 function journeyCourseDayUnlockedForStudent(doc, student) {
   const studentDay =
     student?._maxUnlockedContentDay != null && Number.isFinite(Number(student._maxUnlockedContentDay))
-      ? Math.min(200, Math.max(1, Math.floor(Number(student._maxUnlockedContentDay))))
+      ? clampJourneyDay(student._maxUnlockedContentDay)
       : normalizedStudentCourseDay(student);
   const raw = doc && doc.courseDay;
   if (raw == null || raw === undefined) return true;
@@ -279,7 +280,7 @@ router.get('/', verifyToken, async (req, res) => {
 
     if (req.query.courseDay) {
       const cd = parseInt(String(req.query.courseDay), 10);
-      if (Number.isFinite(cd) && cd >= 1 && cd <= 200) {
+      if (isValidJourneyDay(cd)) {
         baseFilter.courseDay = cd;
       }
     }
@@ -329,7 +330,7 @@ router.get('/', verifyToken, async (req, res) => {
     const daySet = new Set(
       filteredRecordings
         .map((r) => Number(r?.courseDay))
-        .filter((d) => Number.isFinite(d) && d >= 1 && d <= 200)
+        .filter((d) => isValidJourneyDay(d))
     );
     let meetingsForDuration = [];
     if (batchKeys.length && daySet.size) {
@@ -346,7 +347,7 @@ router.get('/', verifyToken, async (req, res) => {
       let durationSec = Number.isFinite(Number(r.duration)) ? Number(r.duration) : null;
       if (!durationSec || durationSec <= 0) {
         const recDay = Number(r?.courseDay);
-        if (Number.isFinite(recDay) && recDay >= 1 && recDay <= 200) {
+        if (isValidJourneyDay(recDay)) {
           const recBatches = Array.isArray(r?.batches) ? r.batches : [];
           const match = meetingsForDuration.find((m) =>
             Number(m?.courseDay) === recDay &&
@@ -409,7 +410,7 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     const courseDayParam = req.query.courseDay;
     const courseDayFilter =
       courseDayParam != null && Number.isFinite(Number(courseDayParam))
-        ? Math.min(200, Math.max(1, Math.floor(Number(courseDayParam))))
+        ? clampJourneyDay(Number(courseDayParam))
         : null;
 
     const studentLevel = String(student.level || 'A1').toUpperCase();
@@ -1224,7 +1225,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
       if (courseDay !== null && courseDay !== '') {
         const n = parseInt(String(courseDay), 10);
-        normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        normalizedCourseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
       }
     }
 
@@ -1282,7 +1283,7 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
       if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
         if (courseDay !== null && courseDay !== '') {
           const n = parseInt(String(courseDay), 10);
-          normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+          normalizedCourseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
         }
       }
 
@@ -1373,7 +1374,7 @@ router.post('/upload/prepare', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
     let normalizedCourseDay = null;
     if (courseDay !== null && courseDay !== '' && courseDay !== undefined) {
       const n = parseInt(String(courseDay), 10);
-      normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      normalizedCourseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
     }
 
     const recording = await ClassRecording.create({
@@ -1530,7 +1531,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER'])
         updatePayload.courseDay = null;
       } else {
         const n = parseInt(String(courseDay), 10);
-        updatePayload.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        updatePayload.courseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
       }
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'isPublished')) {
@@ -2381,7 +2382,7 @@ router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHE
         meeting.courseDay = null;
       } else {
         const n = parseInt(String(courseDay), 10);
-        meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        meeting.courseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
       }
     }
 
