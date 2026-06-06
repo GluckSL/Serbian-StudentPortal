@@ -19,6 +19,9 @@
     "upload:arena-sfx": "node tools/upload-arena-sfx-to-r2.js"
   },
   "private": true,
+  "engines": {
+    "node": ">=20.16.0"
+  },
   "dependencies": {
     "@angular/animations": "^19.2.1",
     "@angular/cdk": "^19.2.1",
@@ -69,6 +72,7 @@
     "openai": "^6.17.0",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",
+    "@napi-rs/canvas": "^0.1.80",
     "pdf-parse": "^2.4.5",
     "pdf2json": "^4.0.3",
     "pdfjs-dist": "^5.7.284",

@@ -1,6 +1,7 @@
 // PDF generation for agreement templates.
+const path = require('path');
+const { pathToFileURL } = require('url');
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
-const pdfParse = require('pdf-parse');
 const { sanitizeForWinAnsi } = require('./agreementPdfText');
 const {
   normalizeFieldValues,
@@ -8,6 +9,21 @@ const {
   getTextItemsByPage,
   isBracePlaceholder
 } = require('./agreementPdfFill');
+
+async function loadPdfjs() {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const workerPath = path.join(
+    __dirname,
+    '..',
+    'node_modules',
+    'pdfjs-dist',
+    'legacy',
+    'build',
+    'pdf.worker.mjs'
+  );
+  pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
+  return pdfjs;
+}
 
 /** Fast page count only (no full text extraction) — used on template upload. */
 async function getPdfPageCount(buffer) {
@@ -17,8 +33,13 @@ async function getPdfPageCount(buffer) {
     return pdfDoc.getPageCount();
   } catch (_) {
     try {
-      const data = await pdfParse(buffer);
-      return data.numpages || 1;
+      const pdfjs = await loadPdfjs();
+      const doc = await pdfjs
+        .getDocument({ data: new Uint8Array(buffer), useSystemFonts: true })
+        .promise;
+      const count = doc.numPages || 1;
+      await doc.destroy();
+      return count;
     } catch (__) {
       return 1;
     }
@@ -26,15 +47,24 @@ async function getPdfPageCount(buffer) {
 }
 
 async function extractPagesText(buffer) {
-  const data = await pdfParse(buffer);
-  const fullText = data.text || '';
-  const pageCount = data.numpages || 1;
-  const pageSections = fullText.split(/\f/);
+  const pdfjs = await loadPdfjs();
+  const doc = await pdfjs
+    .getDocument({ data: new Uint8Array(buffer), useSystemFonts: true })
+    .promise;
   const pages = [];
-  for (let i = 0; i < pageCount; i++) {
-    pages.push({ page: i + 1, text: (pageSections[i] || '').trim() });
+
+  for (let pn = 1; pn <= doc.numPages; pn++) {
+    const page = await doc.getPage(pn);
+    const tc = await page.getTextContent();
+    const text = tc.items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ')
+      .trim();
+    pages.push({ page: pn, text });
   }
-  return { pages, pageCount };
+
+  await doc.destroy();
+  return { pages, pageCount: doc.numPages };
 }
 
 /**

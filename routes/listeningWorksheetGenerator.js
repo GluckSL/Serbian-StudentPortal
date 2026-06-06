@@ -16,62 +16,20 @@ const OpenAI = require('openai');
 
 const { verifyToken, checkRole } = require('../middleware/auth');
 
-// Support both pdf-parse APIs:
-// - v1: module exports a function (pdf(buffer) -> { text, numpages, ... })
-// - v2: module exports PDFParse class with getText()
-let PDFParseClass = null;
-let parsePdfBuffer = null;
-try {
-  const _pdfParseLib = require('pdf-parse');
-
-  PDFParseClass = _pdfParseLib.PDFParse || (_pdfParseLib.default && _pdfParseLib.default.PDFParse) || null;
-
-  if (typeof _pdfParseLib === 'function') {
-    parsePdfBuffer = _pdfParseLib;
-  } else if (_pdfParseLib && typeof _pdfParseLib.default === 'function') {
-    parsePdfBuffer = _pdfParseLib.default;
-  }
-
-  if (!parsePdfBuffer && (!PDFParseClass || typeof PDFParseClass !== 'function')) {
-    console.warn('⚠️ pdf-parse loaded, but no compatible parser export found. Listening worksheet generator will be disabled.');
-    PDFParseClass = null;
-  }
-} catch (err) {
-  console.warn('⚠️ pdf-parse failed to load:', err.message, '— Listening worksheet generator will be disabled.');
-}
+const { parsePdfBuffer, isAvailable: isPdfParseAvailable } = require('../services/pdfParseLoader');
 
 async function extractPdfText(filePath) {
-  if (!parsePdfBuffer && !PDFParseClass) {
+  if (!isPdfParseAvailable()) {
     throw new Error('pdf-parse is not available on this server. Listening worksheet generator is disabled.');
   }
   const buffer = fs.readFileSync(filePath);
-
-  if (typeof parsePdfBuffer === 'function') {
-    try {
-      const result = await parsePdfBuffer(buffer);
-      const text = result && typeof result.text === 'string' ? result.text : '';
-      const pages = result && Number.isFinite(Number(result.numpages))
-        ? Number(result.numpages)
-        : (result && Number.isFinite(Number(result.total)) ? Number(result.total) : 1);
-      return { text, pages };
-    } catch (err) {
-      console.error('PDF parse error (function API):', err);
-      throw new Error('Failed to extract text from PDF: ' + err.message);
-    }
-  }
-
-  let parser = null;
   try {
-    parser = new PDFParseClass({ data: buffer });
-    const result = await parser.getText();
-    const text = result && typeof result.text === 'string' ? result.text : '';
-    const pages = result && typeof result.total === 'number' ? result.total : 1;
-    await parser.destroy().catch(() => {});
-    return { text, pages };
+    const result = await parsePdfBuffer(buffer);
+    return {
+      text: result?.text || '',
+      pages: Number.isFinite(Number(result?.numpages)) ? Number(result.numpages) : 1
+    };
   } catch (err) {
-    if (parser && typeof parser.destroy === 'function') {
-      await parser.destroy().catch(() => {});
-    }
     console.error('PDF parse error:', err);
     throw new Error('Failed to extract text from PDF: ' + err.message);
   }
