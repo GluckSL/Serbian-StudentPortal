@@ -453,7 +453,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         rawText: String(e.rawText ?? e.content ?? ''),
         questions: Array.isArray(e.questions) ? e.questions : [],
         pairs: Array.isArray(e.pairs) ? e.pairs : [],
-        extractedItems: [] as any[],
+        extractedItems: Array.isArray(e.extractedItems) ? e.extractedItems : [],
         enabled: true
       };
     });

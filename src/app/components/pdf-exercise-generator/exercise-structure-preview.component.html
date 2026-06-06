@@ -91,7 +91,7 @@
 
     <p><strong>Estimated question count:</strong> {{ ex.questionCount || 0 }}</p>
 
-    <ng-container *ngIf="hasDeterministic(ex)">
+    <ng-container *ngIf="hasDeterministic(ex) && !hasExtracted(ex)">
       <h4 class="preview-section-title">Preview (PDF + answer key)</h4>
       <ul class="pair-list" *ngIf="ex.pairs?.length">
         <li *ngFor="let p of ex.pairs">{{ p.left }} ↔ {{ p.right }}</li>

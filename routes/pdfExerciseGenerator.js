@@ -92,18 +92,22 @@ if (process.env.EXERCISES_OPENAI_API_KEY) {
 
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 
 async function extractPdfText(filePath) {
   try {
-    console.log("🔥 USING PDF-PARSE VERSION");
+    console.log("🔥 USING PDF-PARSE V2");
     const buffer = fs.readFileSync(filePath);
-    const data = await pdfParse(buffer);
-    console.log('📄 PDF parsed:', { pages: data.numpages, length: data.text.length });
-    return {
-      text: data.text || '',
-      pages: data.numpages || 0
-    };
+    const parser = new PDFParse(new Uint8Array(buffer));
+    await parser.load();
+    const result = await parser.getText();
+    const text = (result.text || '')
+      .replace(/^-- \d+ of \d+ --\n?|[\r\n]+-- \d+ of \d+ --[\r\n]*/gm, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    const pages = (result.pages && result.pages.length) || 1;
+    console.log('📄 PDF parsed:', { pages, length: text.length });
+    return { text, pages };
   } catch (err) {
     console.error('PDF parse error:', err);
     throw new Error('Failed to extract text from PDF: ' + err.message);
@@ -1448,13 +1452,20 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
     ? allExercises.filter(ex => selection.has(String(ex.exerciseId || '')))
     : allExercises;
 
-  if (!exercises || exercises.length === 0) {
+  // When the frontend provided a selection (from AI detection in Step 2),
+  // the split-based exercises may lack _aiPreExtracted.  Run AI detection
+  // to get structured data and prefer those results.
+  const needsAi = !exercises || exercises.length === 0
+    || (selection && !exercises.some(ex => ex._aiPreExtracted));
+  if (needsAi) {
     const aiDetected = await detectExercisesWithAI(sourceText);
     const rebuilt = buildExercisesFromAiDetection(sourceText, aiDetected);
-    if (selection) {
-      exercises = rebuilt.filter(ex => selection.has(String(ex.exerciseId || '')));
-    } else {
-      exercises = rebuilt;
+    // Prefer AI-detected exercises that match the selection.
+    const matched = selection
+      ? rebuilt.filter(ex => selection.has(String(ex.exerciseId || '')))
+      : rebuilt;
+    if (matched.length > 0) {
+      exercises = matched;
     }
   }
 
@@ -1507,6 +1518,9 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
       // Normalise type to the internal schema expected by flattenSingleExercise
       const typeMap = {
         matching: 'matching',
+        'true/false': 'true_false',
+        'true-false': 'true_false',
+        true_false: 'true_false',
         jumbled_words: 'jumbled_words',
         jumble_word: 'jumbled_words',
         'jumble-word': 'jumbled_words',
@@ -1519,8 +1533,8 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
         type: typeMap[pre.type] || pre.type || 'short_answer',
         exerciseId: block.exerciseId,
         topic: String(pre.title || '').trim(),
-        instruction_de: block.instruction_de || pre.title || '',
-        instruction_en: block.instruction_en || '',
+        instruction_de: '',
+        instruction_en: '',
         questions: pre.questions || []
       };
     } else {
@@ -1550,11 +1564,10 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
     }
 
     try {
-      const questions = flattenSingleExercise(result, block.content || '', {
-        instruction_de: block.instruction_de,
-        instruction_en: block.instruction_en,
-        example: block.example
-      });
+      const blockMeta = block._aiPreExtracted
+        ? { instruction_de: '', instruction_en: '', example: '' }
+        : { instruction_de: block.instruction_de, instruction_en: block.instruction_en, example: block.example };
+      const questions = flattenSingleExercise(result, block.content || '', blockMeta);
       allQuestions.push(...questions);
       extractionLog.push({ exerciseId: block.exerciseId || 'unknown', type: result.type, count: questions.length, ok: true });
     } catch (err) {
@@ -1582,41 +1595,117 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
     if (ex._aiPreExtracted && typeof ex._aiPreExtracted === 'object') {
       const ai = ex._aiPreExtracted;
       const rawQuestions = Array.isArray(ai.questions) ? ai.questions : [];
+      const bracketParsed = extractBracketMarkers(rawText);
       const aiTypeMap = {
         fill_blank: 'fill_in_blank',
         jumbled_words: 'jumbled_words',
         jumble_word: 'jumbled_words',
         'jumble-word': 'jumbled_words',
         qa: 'short_answer',
-        translation: 'short_answer'
+        translation: 'short_answer',
+        true_false: 'true_false'
       };
       const type = String(aiTypeMap[ai.type] || ai.type || ex.sectionType || '');
+
+      // Deterministic preview rows (fill-in-blank + matching).
       const pairs = type === 'matching'
         ? rawQuestions.map((q) => ({
             left: String(q?.left || '').trim(),
             right: String(q?.right || '').trim()
           })).filter((p) => p.left || p.right)
-        : [];
+        : type === 'singular_plural'
+          ? rawQuestions.map((q) => ({
+              left: String(q?.singular || q?.left || '').trim(),
+              right: String(q?.plural || q?.right || '').trim()
+            })).filter((p) => p.left || p.right)
+          : [];
       const questions = type === 'fill_in_blank'
         ? rawQuestions.map((q) => ({
             sentence: String(q?.sentence || '').trim(),
             answer: q?.answer == null ? '' : String(q.answer).trim()
           })).filter((q) => q.sentence)
         : [];
+
+      // Build extractedItems for the rich template ngSwitch rendering.
+      const bracketInstruction = mergeWorksheetInstructions(bracketParsed.instruction_de || '', bracketParsed.instruction_en || '');
+      const extractedItems = rawQuestions.map((q) => {
+        const itemType = type === 'true_false' ? 'question-answer' : type;
+        const base = { instruction: bracketInstruction || mergeWorksheetInstructions(ex.instruction_de || '', ex.instruction_en || '') };
+
+        switch (itemType) {
+          case 'mcq':
+            return {
+              ...base, type: 'mcq',
+              question: String(q?.question || q?.sentence || '').trim(),
+              options: Array.isArray(q?.options) ? q.options : [],
+              correctAnswerIndex: q?.answer != null
+                ? (() => {
+                    const opt = Array.isArray(q.options) ? q.options : [];
+                    if (typeof q.answer === 'number') return q.answer;
+                    const label = String(q.answer).trim().replace(/[) .]/g, '');
+                    const idx = opt.findIndex((o) => String(o).trim().startsWith(label));
+                    return idx >= 0 ? idx : null;
+                  })()
+                : null
+            };
+          case 'fill_in_blank':
+            return {
+              ...base, type: 'fill-blank',
+              sentence: String(q?.sentence || '').trim(),
+              answers: q?.answer != null ? [String(q.answer).trim()] : (q?.correct_answer ? [String(q.correct_answer).trim()] : [])
+            };
+          case 'matching':
+            return {
+              ...base, type: 'matching',
+              pairs: [{ left: String(q?.left || '').trim(), right: String(q?.right || '').trim() }]
+            };
+          case 'singular_plural':
+            return {
+              ...base, type: 'singular_plural',
+              pairs: [{ singular: String(q?.singular || '').trim(), plural: String(q?.plural || '').trim() }]
+            };
+          case 'jumbled_words':
+            return {
+              ...base, type: 'jumble-word',
+              scrambledText: String(q?.scrambled || q?.scrambled_text || q?.scrambledText || q?.letters || '').trim(),
+              expectedWord: String(q?.correct_word || q?.correctWord || q?.word || '').trim(),
+              categoryTip: String(q?.category_tip || q?.categoryTip || '').trim(),
+              boldLetter: String(q?.bold_letter || q?.boldLetter || '').trim()
+            };
+          case 'translation':
+            return {
+              ...base, type: 'question-answer',
+              prompt: String(q?.source || q?.question || '').trim() + ' → ' + String(q?.target || '').trim(),
+              sampleAnswers: q?.target ? [String(q.target).trim()] : []
+            };
+          case 'short_answer':
+          case 'question-answer':
+            return {
+              ...base, type: 'question-answer',
+              prompt: String(q?.question || '').trim(),
+              sampleAnswers: q?.answer ? [String(q.answer).trim()] : [],
+              worksheetKind: type === 'true_false' ? 'true-false' : ''
+            };
+          default:
+            return { ...base, type: itemType, ...q };
+        }
+      });
+
       return {
         id,
         exerciseId: id,
         topic: ex.topic || '',
         difficulty: ex.difficulty || 'easy',
-        instruction_de: ex.instruction_de || '',
-        instruction_en: ex.instruction_en || '',
-        instruction: mergeWorksheetInstructions(ex.instruction_de || '', ex.instruction_en || ''),
-        example: ex.example || '',
+        instruction_de: bracketParsed.instruction_de || ex.instruction_de || '',
+        instruction_en: bracketParsed.instruction_en || ex.instruction_en || '',
+        instruction: bracketInstruction || mergeWorksheetInstructions(ex.instruction_de || '', ex.instruction_en || ''),
+        example: bracketParsed.example || ex.example || '',
         type,
         questionCount: Math.max(rawQuestions.length, pairs.length, questions.length, 1),
-        rawText: rawText || JSON.stringify(ai),
+        rawText: rawText || (ai ? JSON.stringify(ai) : ''),
         questions,
         pairs,
+        extractedItems,
       };
     }
 
@@ -2612,6 +2701,7 @@ For each block, detect type:
 - "mcq"  → options like a), b), c), d)
 - "translation"  → German ↔ English conversion
 - "qa"  → direct questions/answers
+- "true_false"  → statements marked Richtig/Falsch or True/False
 
 ----------------------------------------
 STEP 3: EXTRACT CONTENT
@@ -2629,6 +2719,8 @@ STEP 3: EXTRACT CONTENT
 5. TRANSLATION — extract source, target
 
 6. QA — extract question, answer (or null)
+
+7. TRUE_FALSE — extract question, answer (True/False)
 
 ----------------------------------------
 IMPORTANT RULES
@@ -2689,7 +2781,8 @@ ${sample}`;
     if (firstQuestion) {
       snippet = String(
         firstQuestion.left || firstQuestion.question ||
-        firstQuestion.scrambled || firstQuestion.source || ''
+        firstQuestion.scrambled || firstQuestion.source ||
+        firstQuestion.sentence || firstQuestion.prompt || ''
       ).trim().slice(0, 60);
     }
     const exerciseId = String(ex.title || (i + 1)).replace(/\s+/g, '_').slice(0, 20) || String(i + 1);
@@ -2704,61 +2797,78 @@ ${sample}`;
 function buildExercisesFromAiDetection(text, detections) {
   if (!detections || !detections.length) return [];
 
-  // When detectExercisesWithAI ran the new full-extraction path it attaches
-  // _aiExtracted with the already-parsed exercise object.  Use that directly
-  // to avoid a second round-trip to the AI in runSequentialWorksheetExtraction.
-  const fullyExtracted = detections.filter(d => d._aiExtracted);
-  if (fullyExtracted.length === detections.length && fullyExtracted.length > 0) {
-    console.log('[buildExercisesFromAiDetection] Using AI-pre-extracted exercises directly.');
-    return fullyExtracted.map(d => {
-      const ex = d._aiExtracted;
-      // Serialize the pre-extracted questions as the content so later flattening
-      // can still run if needed, and mark the block with ai-pre-extracted flag.
-      return {
-        id: d.exerciseId,
-        exerciseId: d.exerciseId,
-        topic: String(ex.title || '').trim(),
-        difficulty: 'easy',
-        instruction_de: String(ex.title || '').trim(),
-        instruction_en: '',
-        sectionType: String(ex.type || ''),
-        content: JSON.stringify(ex),
-        solution_key: '',
-        _aiPreExtracted: ex
-      };
-    });
-  }
-
-  // Legacy path: locate snippets in the source text and slice blocks.
   const source = normalizePdfText(String(text || ''));
-  const starts = detections
-    .map(d => ({ ...d, index: source.indexOf(d.startSnippet) }))
-    .filter(d => d.index >= 0)
-    .sort((a, b) => a.index - b.index);
 
-  if (!starts.length) return [];
+  // Find snippet positions for all detections in the source text.
+  const withIndex = detections
+    .map(d => ({ ...d, index: d.startSnippet ? source.indexOf(d.startSnippet) : -1 }));
+
+  // Detections whose snippet was found — order by position in the source.
+  const found = withIndex.filter(d => d.index >= 0).sort((a, b) => a.index - b.index);
+  // Detections whose snippet was NOT found — keep them but fallback to AI title.
+  const missing = withIndex.filter(d => d.index < 0);
 
   const exercises = [];
   const seenExerciseIds = new Set();
-  for (let i = 0; i < starts.length; i++) {
-    const cur = starts[i];
-    const next = starts[i + 1];
+
+  // Build from snippets found in the source text.
+  for (let i = 0; i < found.length; i++) {
+    const cur = found[i];
+    const next = found[i + 1];
     const end = next ? next.index : source.length;
-    const content = source.slice(cur.index, end).trim();
+    const raw = source.slice(cur.index, end).trim();
     if (!cur.exerciseId || seenExerciseIds.has(cur.exerciseId)) continue;
     seenExerciseIds.add(cur.exerciseId);
+    const ai = cur._aiExtracted || null;
     exercises.push({
       id: cur.exerciseId,
       exerciseId: cur.exerciseId,
-      topic: '',
+      topic: ai ? String(ai.title || '').trim() : '',
       difficulty: 'easy',
       instruction_de: '',
       instruction_en: '',
-      content,
-      solution_key: ''
+      sectionType: ai ? String(ai.type || '') : '',
+      content: raw,
+      solution_key: '',
+      _aiPreExtracted: ai
     });
   }
-  return exercises.filter(ex => ex.content && ex.content.length >= 20);
+
+  // Fallback for detections without a matching snippet.
+  for (const d of missing) {
+    const ai = d._aiExtracted;
+    if (!d.exerciseId || seenExerciseIds.has(d.exerciseId)) continue;
+    seenExerciseIds.add(d.exerciseId);
+    exercises.push({
+      id: d.exerciseId,
+      exerciseId: d.exerciseId,
+      topic: ai ? String(ai.title || '').trim() : '',
+      difficulty: 'easy',
+      instruction_de: '',
+      instruction_en: '',
+      sectionType: ai ? String(ai.type || '') : '',
+      content: (() => {
+        if (!ai) return 'exercise';
+        const base = String(ai.title || ai.type || '').trim();
+        if (base.length >= 20) return base;
+        // Try to find question text in source as content.
+        const q1 = Array.isArray(ai.questions) ? ai.questions[0] : null;
+        if (q1) {
+          const qText = String(q1.sentence || q1.question || q1.left || q1.scrambled || q1.source || q1.prompt || '').trim().slice(0, 60);
+          if (qText) {
+            const qIdx = source.indexOf(qText);
+            if (qIdx >= 0) return source.slice(qIdx, Math.min(source.length, qIdx + 600)).trim();
+            return qText;
+          }
+        }
+        return base || 'exercise';
+      })(),
+      solution_key: '',
+      _aiPreExtracted: ai
+    });
+  }
+
+  return exercises.filter(ex => ex.content && ex.content.length >= 3);
 }
 
 function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionType = '', exerciseId = '') {
