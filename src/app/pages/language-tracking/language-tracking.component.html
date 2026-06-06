@@ -59,12 +59,24 @@
     </div>
 
     <div class="lt-toolbar__filters">
-      <div class="lt-filter-pill">
+      <div class="lt-filter-pill lt-filter-pill--batch">
         <span class="lt-filter-pill__label">Batch</span>
-        <select [(ngModel)]="batch" (ngModelChange)="onBatchChange()" class="lt-filter-select">
-          <option value="">All batches</option>
-          <option *ngFor="let b of availableBatches" [value]="b">{{ b }}</option>
-        </select>
+        <div class="lt-batch-dropdown">
+          <button type="button" class="lt-batch-trigger" (click)="toggleBatchDropdown($event)">
+            <span [class.lt-batch-trigger__placeholder]="!selectedBatches.length">{{ batchFilterLabel }}</span>
+            <mat-icon class="lt-batch-trigger__icon">{{ isBatchDropdownOpen ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+          <div class="lt-batch-menu" *ngIf="isBatchDropdownOpen" (click)="$event.stopPropagation()">
+            <div class="lt-batch-menu__actions">
+              <button type="button" (click)="selectAllBatches($event)">All</button>
+              <button type="button" (click)="clearBatchSelection($event)">Clear</button>
+            </div>
+            <label class="lt-batch-option" *ngFor="let b of availableBatches">
+              <input type="checkbox" [checked]="isBatchSelected(b)" (change)="toggleBatch(b, $event)" />
+              <span>{{ b }}</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <div class="lt-filter-pill">

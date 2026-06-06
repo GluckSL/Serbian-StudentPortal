@@ -199,7 +199,7 @@ export interface LtOverviewParams {
   from: string;
   to: string;
   cohort?: LtCohort;
-  batch?: string;
+  batches?: string[];
   level?: string;
   search?: string;
   includeTestAccounts?: boolean;
@@ -223,7 +223,7 @@ export class LanguageTrackingApiService {
   getOverview(p: LtOverviewParams): Observable<LtOverviewResponse> {
     let params = new HttpParams().set('from', p.from).set('to', p.to);
     if (p.cohort && p.cohort !== 'overall') params = params.set('cohort', p.cohort);
-    if (p.batch) params = params.set('batch', p.batch);
+    if (p.batches?.length) params = params.set('batch', p.batches.join(','));
     if (p.level) params = params.set('level', p.level);
     if (p.search) params = params.set('search', p.search);
     if (p.includeTestAccounts === true) params = params.set('includeTestAccounts', 'true');

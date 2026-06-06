@@ -265,6 +265,11 @@
 
   &--sort { margin-left: auto; }
 
+  &--batch {
+    position: relative;
+    z-index: 20;
+  }
+
   &--check {
     gap: 0.45rem;
     padding: 0.2rem 0.55rem 0.2rem 0.65rem;
@@ -304,6 +309,102 @@
   cursor: pointer;
   padding: 0.15rem 0.25rem;
   min-width: 90px;
+}
+
+.lt-batch-dropdown {
+  position: relative;
+}
+
+.lt-batch-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  padding: 0.15rem 0.1rem;
+  min-width: 90px;
+  max-width: 140px;
+
+  &__placeholder { color: #64748b; }
+
+  &__icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: #94a3b8;
+    flex-shrink: 0;
+  }
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.lt-batch-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 0.35rem;
+  z-index: 100;
+
+  &__actions {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.15rem 0.25rem 0.35rem;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 0.25rem;
+
+    button {
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.15rem 0.55rem;
+      cursor: pointer;
+
+      &:hover {
+        background: #ecfdf5;
+        border-color: #86efac;
+        color: #15803d;
+      }
+    }
+  }
+}
+
+.lt-batch-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.32rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #334155;
+  margin: 0;
+
+  &:hover { background: #f8fafc; }
+
+  input {
+    margin: 0;
+    width: 0.9rem;
+    height: 0.9rem;
+    accent-color: #06b6d4;
+  }
 }
 
 .lt-search-icon {
