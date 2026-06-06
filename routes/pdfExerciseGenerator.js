@@ -2779,18 +2779,10 @@ ${sample}`;
   // (buildExercisesFromAiDetection) can slice the source text correctly.
   return rawExercises.map((ex, i) => {
     const firstQuestion = (ex.questions || [])[0];
-    let snippet = '';
-    if (firstQuestion) {
-      snippet = String(
-        firstQuestion.left || firstQuestion.question ||
-        firstQuestion.scrambled || firstQuestion.source ||
-        firstQuestion.sentence || firstQuestion.prompt || ''
-      ).trim().slice(0, 60);
-    }
     const exerciseId = String(ex.title || (i + 1)).replace(/\s+/g, '_').slice(0, 20) || String(i + 1);
     return {
       exerciseId,
-      startSnippet: snippet || String(ex.title || '').trim().slice(0, 60),
+      startSnippet: String(ex.title || '').trim().slice(0, 60),
       _aiExtracted: ex
     };
   }).filter(item => item.exerciseId);
@@ -2819,7 +2811,7 @@ function buildExercisesFromAiDetection(text, detections) {
     const next = found[i + 1];
     const end = next ? next.index : source.length;
     const prevEnd = i > 0 ? found[i - 1].index : 0;
-    const rawStart = Math.max(prevEnd, Math.max(0, cur.index - 300));
+    const rawStart = cur.index;
     const raw = source.slice(rawStart, end).trim();
     if (!cur.exerciseId || seenExerciseIds.has(cur.exerciseId)) continue;
     seenExerciseIds.add(cur.exerciseId);
@@ -2861,7 +2853,15 @@ function buildExercisesFromAiDetection(text, detections) {
           const qText = String(q1.sentence || q1.question || q1.left || q1.scrambled || q1.source || q1.prompt || '').trim().slice(0, 60);
           if (qText) {
             const qIdx = source.indexOf(qText);
-            if (qIdx >= 0) return source.slice(qIdx, Math.min(source.length, qIdx + 600)).trim();
+            if (qIdx >= 0) {
+              const preText = source.slice(Math.max(0, qIdx - 500), qIdx);
+              const lastBrace = preText.lastIndexOf('{');
+              const rawStart = lastBrace >= 0 ? Math.max(0, qIdx - 500) + lastBrace : Math.max(0, qIdx - 200);
+              const postText = source.slice(qIdx + qText.length, Math.min(source.length, qIdx + 2000));
+              const nextBrace = postText.indexOf('\n{');
+              const rawEnd = nextBrace >= 0 ? qIdx + qText.length + nextBrace : Math.min(source.length, qIdx + 1000);
+              return source.slice(rawStart, rawEnd).trim();
+            }
             return qText;
           }
         }
