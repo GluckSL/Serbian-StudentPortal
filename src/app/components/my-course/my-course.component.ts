@@ -827,12 +827,19 @@ export class MyCourseComponent implements OnInit {
 
   get journeyCourseDay(): number {
     const d = this.profile?.currentCourseDay;
-    if (d == null || !Number.isFinite(Number(d))) return 1;
+    if (d == null || !Number.isFinite(Number(d))) {
+      return this.trialDayEnabled ? 0 : 1;
+    }
     return clampJourneyDayForBatch(d, 200, this.trialDayEnabled);
   }
 
   journeyDayLabel(day: number): string {
     return formatJourneyDayLabel(day, this.trialDayEnabled);
+  }
+
+  /** Sidebar / progress strip, e.g. "Trial / 200" or "Day 1 / 200". */
+  get journeyDayProgressLabel(): string {
+    return `${this.journeyDayLabel(this.journeyCourseDay)} / 200`;
   }
 
   /** Green / yellow / red strip on My class — keyed to teacher-set journey day. */

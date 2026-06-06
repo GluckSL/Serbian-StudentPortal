@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { clampAdminCourseDayInput, isValidAdminCourseDay } from '../../utils/journey-day.util';
 import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 import { ExerciseStructurePreviewComponent, ExercisePreview } from './exercise-structure-preview.component';
@@ -278,7 +279,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     const q = this.route.snapshot.queryParamMap.get('courseDay');
     if (q == null || q === '') return;
     const p = parseInt(String(q).trim(), 10);
-    if (Number.isFinite(p) && p >= 1 && p <= 200) {
+    if (Number.isFinite(p) && isValidAdminCourseDay(p)) {
       this.courseDayStr = String(p);
     }
   }
@@ -302,7 +303,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       this.courseDayStr = '';
       return;
     }
-    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+    this.courseDayStr = String(clampAdminCourseDayInput(n));
   }
 
   ngOnDestroy(): void {
@@ -2127,8 +2128,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     const dayTrim = this.courseDayStr.trim();
     if (dayTrim) {
       const p = parseInt(dayTrim, 10);
-      if (!Number.isFinite(p) || p < 1 || p > 200) {
-        this.showError('Course day must be empty or a number from 1 to 200');
+      if (!isValidAdminCourseDay(p)) {
+        this.showError('Course day must be empty or a number from 0 (Trial) to 200');
         return;
       }
       courseDay = p;

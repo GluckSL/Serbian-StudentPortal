@@ -19,7 +19,7 @@ const BatchConfigSchema = new mongoose.Schema({
   batchCurrentDay: {
     type: Number,
     default: 1,
-    min: 1,
+    min: 0,
     max: 200
   },
   /**
@@ -114,7 +114,7 @@ const BatchConfigSchema = new mongoose.Schema({
   journeyPausedFrozenDay: {
     type: Number,
     default: null,
-    min: 1,
+    min: 0,
     max: 200
   },
   /**

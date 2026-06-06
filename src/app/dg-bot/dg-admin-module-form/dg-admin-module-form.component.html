@@ -191,13 +191,13 @@
                   name="courseDay"
                   inputmode="numeric"
                   autocomplete="off"
-                  placeholder="e.g., 45"
+                  placeholder="0 = Trial, or 1–200"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('courseDay')">
-                  Enter a number between 1 and 200, or leave empty.
+                  Enter 0 (Trial), 1–200, or leave empty.
                 </div>
                 <small class="form-text text-muted" *ngIf="!isInvalid('courseDay')">
-                  📅 Day in the 200-day course journey (1–200). Leave empty for general pool.
+                  0 = Trial day. Leave empty for general pool.
                 </small>
               </div>
               <div class="col-md-6 mb-3">

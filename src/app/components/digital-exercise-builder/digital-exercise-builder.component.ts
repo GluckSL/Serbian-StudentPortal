@@ -13,6 +13,10 @@ import {
 import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import {
+  clampAdminCourseDayInput,
+  isValidAdminCourseDay
+} from '../../utils/journey-day.util';
 import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 
@@ -1577,8 +1581,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     const dayTrim = this.courseDayStr.trim();
     if (dayTrim) {
       const p = parseInt(dayTrim, 10);
-      if (!Number.isFinite(p) || p < 1 || p > 200) {
-        this.showError('Course day must be empty or a number from 1 to 200');
+      if (!isValidAdminCourseDay(p)) {
+        this.showError('Course day must be empty or a number from 0 (Trial) to 200');
         this.activeTab = 'info';
         return;
       }
@@ -1859,12 +1863,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     this.router.navigate(['/admin/digital-exercises']);
   }
 
-  /** For query params when opening AI / Audio wizards (1–200 only). */
+  /** For query params when opening AI / Audio wizards (0 = Trial, 1–200). */
   private courseDayQueryParams(): Record<string, string> {
     const t = this.courseDayStr.trim();
     if (!t) return {};
     const p = parseInt(t, 10);
-    if (!Number.isFinite(p) || p < 1 || p > 200) return {};
+    if (!isValidAdminCourseDay(p)) return {};
     return { courseDay: String(p) };
   }
 
@@ -1887,7 +1891,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       this.courseDayStr = '';
       return;
     }
-    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+    this.courseDayStr = String(clampAdminCourseDayInput(n));
   }
 
   /** DISABLED: PDF worksheet / AI exercise generator — re-enable app route generate-ai + builder HTML. */
@@ -2065,7 +2069,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       this.splitCourseDayStr = '';
       return;
     }
-    this.splitCourseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+    this.splitCourseDayStr = String(clampAdminCourseDayInput(n));
   }
 
   isSplitFormValid(): boolean {
@@ -2122,8 +2126,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     const dayTrim = this.splitCourseDayStr.trim();
     if (dayTrim) {
       const p = parseInt(dayTrim, 10);
-      if (!Number.isFinite(p) || p < 1 || p > 200) {
-        this.showError('Journey day must be empty or a number from 1 to 200');
+      if (!isValidAdminCourseDay(p)) {
+        this.showError('Journey day must be empty or a number from 0 (Trial) to 200');
         return;
       }
       courseDay = p;

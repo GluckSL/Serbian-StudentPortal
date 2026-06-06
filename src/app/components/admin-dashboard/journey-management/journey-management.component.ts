@@ -614,7 +614,7 @@ interface TimelineDay {
                 <span class="j-auto-badge j-auto-badge--sm" *ngIf="editBatchStartDate"><i class="fas fa-magic"></i> Auto</span>
               </label>
               <div *ngIf="editBatchStartDate" class="j-batch-day-inline">
-                <span class="j-day-pill">Day {{ computedDayFromDate() }}</span>
+                <span class="j-day-pill">{{ formatBatchDay(computedDayFromDate()) }}</span>
                 <span class="j-field-hint j-field-hint--inline">{{ daysSinceStart() }}d since {{ editBatchStartDate | date:'dd MMM yyyy' }}</span>
               </div>
               <input *ngIf="!editBatchStartDate"
@@ -846,7 +846,7 @@ interface TimelineDay {
                 <div class="j-day-fill"
                      [style.width.%]="(s.currentCourseDay / selectedBatch!.journeyLength) * 100"></div>
               </div>
-              <span class="j-day-text">Day {{ s.currentCourseDay }} / {{ selectedBatch!.journeyLength }}</span>
+              <span class="j-day-text">{{ formatBatchDay(s.currentCourseDay) }} / {{ selectedBatch!.journeyLength }}</span>
             </td>
             <!-- Batch current day vs student day comparison -->
             <td>
@@ -855,7 +855,7 @@ interface TimelineDay {
                     [class.j-ontrack]="s.currentCourseDay >= selectedBatch!.batchCurrentDay">
                 <i class="fas" [class.fa-exclamation-triangle]="s.currentCourseDay < selectedBatch!.batchCurrentDay"
                                [class.fa-check-circle]="s.currentCourseDay >= selectedBatch!.batchCurrentDay"></i>
-                Day {{ selectedBatch!.batchCurrentDay }}
+                Day {{ formatBatchDay(selectedBatch!.batchCurrentDay) }}
               </span>
               <div class="j-behind-label" *ngIf="s.currentCourseDay < selectedBatch!.batchCurrentDay">
                 {{ selectedBatch!.batchCurrentDay - s.currentCourseDay }} day(s) behind
@@ -888,12 +888,12 @@ interface TimelineDay {
             <!-- Set Day / Advance (admins only) -->
             <td *ngIf="!isJourneyReadOnly">
               <div class="j-student-day-ctrl">
-                <input type="number" [(ngModel)]="s.editDay" min="0" [max]="selectedBatch!.journeyLength"
+                <input type="number" [(ngModel)]="s.editDay" [min]="editTrialDayEnabled ? 0 : 1" [max]="selectedBatch!.journeyLength"
                        class="j-input-sm" placeholder="Day">
                 <button type="button" class="j-btn j-btn-sm j-btn-primary"
                         title="Set to exact day"
                         (click)="setStudentDay(s)"
-                        [disabled]="s.saving || !s.editDay">
+                        [disabled]="s.saving || !isEditDayValueValid(s.editDay)">
                   <i class="fas fa-pen"></i>
                 </button>
                 <button type="button" class="j-btn j-btn-sm"
@@ -1876,7 +1876,7 @@ interface TimelineDay {
             type="number"
             class="j-input-sm gs-day-input"
             [(ngModel)]="goBulkDay"
-            min="1"
+            min="0"
             max="200"
             placeholder="Set day"
           />
@@ -1884,7 +1884,7 @@ interface TimelineDay {
             type="button"
             class="j-btn j-btn-sm j-btn-primary"
             (click)="bulkSetGoDay()"
-            [disabled]="goSelectedCount === 0 || !goBulkDay || goBulkUpdating"
+            [disabled]="goSelectedCount === 0 || !isBulkDayValueValid(goBulkDay) || goBulkUpdating"
           >
             <i class="fas" [class.fa-spinner]="goBulkUpdating" [class.fa-calendar-day]="!goBulkUpdating"></i>
             {{ goBulkUpdating ? 'Updating…' : 'Apply Day' }}
@@ -2027,7 +2027,7 @@ interface TimelineDay {
             type="number"
             class="j-input-sm gs-day-input"
             [(ngModel)]="silverBulkDay"
-            min="1"
+            min="0"
             max="200"
             placeholder="Set day"
           />
@@ -2035,7 +2035,7 @@ interface TimelineDay {
             type="button"
             class="j-btn j-btn-sm j-btn-primary"
             (click)="bulkSetSilverDay()"
-            [disabled]="silverSelectedCount === 0 || !silverBulkDay || silverBulkUpdating"
+            [disabled]="silverSelectedCount === 0 || !isBulkDayValueValid(silverBulkDay) || silverBulkUpdating"
           >
             <i class="fas" [class.fa-spinner]="silverBulkUpdating" [class.fa-calendar-day]="!silverBulkUpdating"></i>
             {{ silverBulkUpdating ? 'Updating…' : 'Apply Day' }}
@@ -5112,6 +5112,21 @@ export class JourneyManagementComponent implements OnInit {
     return formatJourneyDayLabel(day, this.editTrialDayEnabled);
   }
 
+  isEditDayValueValid(raw: unknown): boolean {
+    if (!this.selectedBatch) return false;
+    const min = this.editTrialDayEnabled ? 0 : 1;
+    const max = this.selectedBatch.journeyLength;
+    if (raw === null || raw === undefined || raw === '') return false;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+    return Number.isFinite(n) && n >= min && n <= max;
+  }
+
+  isBulkDayValueValid(raw: unknown): boolean {
+    if (raw === null || raw === undefined || raw === '') return false;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 && n <= 200;
+  }
+
   pauseHistoryEntries(): JourneyPauseHistoryEntry[] {
     const raw = this.selectedBatch?.journeyPauseHistory;
     if (!Array.isArray(raw) || !raw.length) return [];
@@ -5355,8 +5370,7 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   setStudentDay(s: StudentRow): void {
-    const minDay = this.editTrialDayEnabled ? 0 : 1;
-    if (s.editDay == null || s.editDay < minDay) return;
+    if (!this.isEditDayValueValid(s.editDay)) return;
     s.saving = true;
     this.http.patch<any>(`${this.apiUrl}/student/${s._id}/day`, { day: s.editDay }, { withCredentials: true }).subscribe({
       next: r => {
@@ -5364,7 +5378,7 @@ export class JourneyManagementComponent implements OnInit {
         s.editDay = r.student.currentCourseDay;
         s.saving = false;
         s.taskStatus = null;
-        this.notify.success(`Set to Day ${r.student.currentCourseDay}.`);
+        this.notify.success(`Set to ${this.formatBatchDay(r.student.currentCourseDay)}.`);
       },
       error: e => { console.error(e); s.saving = false; this.notify.error('Failed to update student day.'); }
     });
@@ -5472,10 +5486,11 @@ export class JourneyManagementComponent implements OnInit {
   private parsedEditDay(s: StudentRow): number | null {
     if (!this.selectedBatch) return null;
     const max = this.selectedBatch.journeyLength;
+    const min = this.editTrialDayEnabled ? 0 : 1;
     const raw = s.editDay as unknown;
     if (raw === null || raw === undefined || raw === '') return null;
     const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
-    if (!Number.isFinite(n) || n < 1 || n > max) return null;
+    if (!Number.isFinite(n) || n < min || n > max) return null;
     return n;
   }
 
@@ -5486,7 +5501,7 @@ export class JourneyManagementComponent implements OnInit {
     if (jumpTo != null && jumpTo !== s.currentCourseDay) {
       this.notify.confirm(
         'Set journey day',
-        `Set ${s.name} to Day ${jumpTo}? Their scheduled content will follow this day (admin override).`,
+        `Set ${s.name} to ${this.formatBatchDay(jumpTo)}? Their scheduled content will follow this day (admin override).`,
         'Set day',
         'Cancel'
       ).subscribe(ok => {

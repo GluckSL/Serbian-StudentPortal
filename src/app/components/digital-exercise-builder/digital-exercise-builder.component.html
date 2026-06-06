@@ -118,21 +118,21 @@
           <div class="field-group field-group--daybox">
             <label class="field-label field-label--day" for="ex-course-day">
               <span class="material-icons" aria-hidden="true">event_note</span>
-              Journey day (1–200)
+              Journey day (0 = Trial, 1–200)
             </label>
             <div class="field-input-wrap field-input-wrap--day field-input-wrap--day--prominent">
               <input
                 id="ex-course-day"
                 type="number"
                 class="field-input field-input--day"
-                min="1"
+                min="0"
                 max="200"
                 step="1"
                 [ngModel]="courseDayAsNumber"
                 (ngModelChange)="onCourseDayNumberInput($event)"
                 placeholder="Any"
                 autocomplete="off"
-                title="Empty = general pool; number = visible from that day onward"
+                title="Empty = general pool; 0 = Trial; 1–200 = journey day"
               />
               <span class="day-suffix" aria-hidden="true">/200</span>
             </div>
@@ -1707,7 +1707,7 @@
         </div>
         <div class="field-group field-group--sm">
           <label class="field-label">Journey Day</label>
-          <input type="number" class="field-input field-input--sm field-input--day" min="1" max="200" step="1"
+          <input type="number" class="field-input field-input--sm field-input--day" min="0" max="200" step="1"
             [ngModel]="courseDayAsNumber" (ngModelChange)="onCourseDayNumberInput($event)" placeholder="Any" />
         </div>
         <div class="field-group field-group--sm">
@@ -2122,12 +2122,12 @@
           <input id="split-title" type="text" [(ngModel)]="splitTitle" class="field-input field-input--sm" maxlength="120" />
         </div>
         <div class="field-group field-group--daybox">
-          <label class="field-label" for="split-course-day">Journey day (1–200)</label>
+          <label class="field-label" for="split-course-day">Journey day (0 = Trial, 1–200)</label>
           <input
             id="split-course-day"
             type="number"
             class="field-input field-input--day"
-            min="1"
+            min="0"
             max="200"
             [ngModel]="splitCourseDayAsNumber"
             (ngModelChange)="onSplitCourseDayNumberInput($event)"

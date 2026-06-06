@@ -64,7 +64,7 @@ async function isGated(studentId, set) {
     return true;
   }
 
-  if (set.courseDay) {
+  if (set.courseDay != null && set.courseDay !== undefined) {
     try {
       const student = await loadStudent(studentId);
       const access = await getJourneyAccessForStudent(student);

@@ -69,3 +69,22 @@ export function formatJourneyDayLabel(day: number, trialDayEnabled = false): str
 export function isTrialJourneyDay(day: number): boolean {
   return Number(day) === TRIAL_JOURNEY_DAY;
 }
+
+/** Admin content tagging on exercises/modules: 0 = Trial, 1–200 = journey days. */
+export function isValidAdminCourseDay(raw: unknown): boolean {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= TRIAL_JOURNEY_DAY && n <= JOURNEY_DAY_MAX;
+}
+
+export function clampAdminCourseDayInput(raw: unknown): number {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) return TRIAL_JOURNEY_DAY;
+  return Math.min(JOURNEY_DAY_MAX, Math.max(TRIAL_JOURNEY_DAY, n));
+}
+
+export function parseAdminCourseDayOrNull(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Math.floor(Number(raw));
+  if (!isValidAdminCourseDay(n)) return null;
+  return n;
+}

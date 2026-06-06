@@ -94,7 +94,7 @@ export interface IMResult {
               <div class="sb-panel__meta-row"><mat-icon>bolt</mat-icon><span>+{{ set.xpReward }} XP</span></div>
               <div class="sb-panel__meta-row"><mat-icon>schedule</mat-icon><span>~{{ set.estimatedDurationMinutes }} min</span></div>
               <div class="sb-panel__meta-row"><mat-icon>quiz</mat-icon><span>{{ questions.length }} questions</span></div>
-              <div class="sb-panel__meta-row" *ngIf="set.courseDay"><mat-icon>flag</mat-icon><span>Journey day {{ set.courseDay }}</span></div>
+              <div class="sb-panel__meta-row" *ngIf="set.courseDay != null"><mat-icon>flag</mat-icon><span>Journey {{ set.courseDay === 0 ? 'Trial' : ('day ' + set.courseDay) }}</span></div>
             </section>
             <section class="sb-panel__block">
               <h3><mat-icon>info</mat-icon> How it works</h3>
@@ -138,7 +138,7 @@ export interface IMResult {
                 <span class="shell-tag">{{ set.difficulty }}</span>
                 <span class="shell-tag" *ngIf="set.level">{{ set.level }}</span>
                 <span class="shell-tag shell-tag--muted" *ngIf="set.category">{{ set.category }}</span>
-                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay">Day {{ set.courseDay }}</span>
+                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay != null">{{ set.courseDay === 0 ? 'Trial' : ('Day ' + set.courseDay) }}</span>
               </div>
               <h1>{{ set.title }}</h1>
               <p class="shell-intro__desc">{{ set.description || 'Get ready to practice your German skills.' }}</p>

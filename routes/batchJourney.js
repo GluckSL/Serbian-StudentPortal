@@ -961,11 +961,36 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
     const { day } = req.body;
     if (day === undefined || day === null) return res.status(400).json({ message: 'day is required' });
 
-    const targetDay = clampDay(day);
     const existing = await User.findOne({ _id: studentId, role: 'STUDENT' })
       .select('goStatus batch subscription level')
       .lean();
     if (!existing) return res.status(404).json({ message: 'Student not found' });
+
+    const batchName = String(existing.batch || '').trim();
+    let trialDayEnabled = false;
+    let maxDay = 200;
+    if (batchName) {
+      const cfg = await BatchConfig.findOne({ batchName })
+        .select('trialDayEnabled journeyLength')
+        .lean();
+      if (cfg) {
+        trialDayEnabled = !!cfg.trialDayEnabled;
+        maxDay =
+          cfg.journeyLength >= 1 ? Math.min(Math.floor(cfg.journeyLength), 200) : 200;
+      }
+    }
+
+    const minDay = journeyDayRangeStart(trialDayEnabled);
+    const n = Math.floor(Number(day));
+    if (!Number.isFinite(n) || n < minDay || n > maxDay) {
+      return res.status(400).json({
+        message: trialDayEnabled
+          ? `day must be between 0 (Trial) and ${maxDay}`
+          : `day must be between 1 and ${maxDay}`
+      });
+    }
+
+    const targetDay = clampDay(n, maxDay, trialDayEnabled);
 
     const student = await User.findOneAndUpdate(
       { _id: studentId, role: 'STUDENT' },
