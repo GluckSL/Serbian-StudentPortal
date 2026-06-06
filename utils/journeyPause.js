@@ -42,7 +42,7 @@ function computeBatchDay(cfg) {
   if (isNewBatchPaused(cfg)) {
     const frozen = cfg.journeyPausedFrozenDay;
     if (frozen != null && Number.isFinite(Number(frozen))) {
-      return clampDay(frozen, cfg.journeyLength);
+      return clampDay(frozen, cfg.journeyLength, !!cfg.trialDayEnabled);
     }
   }
   return computeBatchDayFromCalendar(cfg);
