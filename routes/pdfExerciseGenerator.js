@@ -1466,6 +1466,8 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
       : rebuilt;
     if (matched.length > 0) {
       exercises = matched;
+    } else if (rebuilt.length > 0) {
+      exercises = rebuilt;
     }
   }
 
@@ -2816,7 +2818,9 @@ function buildExercisesFromAiDetection(text, detections) {
     const cur = found[i];
     const next = found[i + 1];
     const end = next ? next.index : source.length;
-    const raw = source.slice(cur.index, end).trim();
+    const prevEnd = i > 0 ? found[i - 1].index : 0;
+    const rawStart = Math.max(prevEnd, Math.max(0, cur.index - 300));
+    const raw = source.slice(rawStart, end).trim();
     if (!cur.exerciseId || seenExerciseIds.has(cur.exerciseId)) continue;
     seenExerciseIds.add(cur.exerciseId);
     const ai = cur._aiExtracted || null;
