@@ -7,6 +7,7 @@
  */
 
 const User = require('../models/User');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const MeetingLink = require('../models/MeetingLink');
 const BatchConfig = require('../models/BatchConfig');
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
@@ -306,6 +307,7 @@ async function applyJourneyDayRollovers() {
         )
       }
     );
+    await SilverGoUnlockCache.deleteOne({ studentId: s._id });
     advanced++;
   }
 

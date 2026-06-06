@@ -4,6 +4,7 @@
  */
 
 const User = require('../models/User');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const { allStudentBatchStringsForContent } = require('./effectiveStudentBatch');
 const { isSilverGoStudent } = require('./goSilverTrack');
 const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
@@ -55,6 +56,18 @@ async function resolveSilverGoContentUnlock(student) {
     return result;
   }
 
+  const cached = await SilverGoUnlockCache.findOne({ studentId }).lean();
+  if (cached?.maxUnlockedContentDay != null) {
+    const result = {
+      isSilverGo: true,
+      currentCourseDay,
+      maxUnlockedContentDay: cached.maxUnlockedContentDay,
+      batchKeys
+    };
+    if (student) student._resolveSilverGoCache = result;
+    return result;
+  }
+
   let maxUnlockedContentDay = currentCourseDay;
   const opts = silverGoCompletionOptions(student);
 
@@ -65,6 +78,12 @@ async function resolveSilverGoContentUnlock(student) {
       break;
     }
   }
+
+  await SilverGoUnlockCache.updateOne(
+    { studentId },
+    { $set: { maxUnlockedContentDay } },
+    { upsert: true }
+  );
 
   const result = {
     isSilverGo: true,

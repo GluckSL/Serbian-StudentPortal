@@ -34,6 +34,7 @@ const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { isValidAdminCourseDay } = require('../utils/journeyDay');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 const {
   attachInheritedAttemptsForStudent,
@@ -2916,6 +2917,9 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
         totalCompletions: completedCount,
         averageScore: avgResult[0]?.avg ? Math.round(avgResult[0].avg) : 0
       });
+      if (req.user.role === 'STUDENT') {
+        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
+      }
     }
     await attempt.save();
 
@@ -3224,6 +3228,7 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
     let previousCourseDay = null;
     if (req.user.role === 'STUDENT') {
       try {
+        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
         const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
         if (advResult.advanced) {
           journeyAdvanced = true;

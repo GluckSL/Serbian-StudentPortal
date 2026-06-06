@@ -3,6 +3,7 @@
 
 const express = require('express');
 const mongoose = require('mongoose');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const User = require('../models/User');
 const BatchConfig = require('../models/BatchConfig');
 const DigitalExercise = require('../models/DigitalExercise');
@@ -558,6 +559,7 @@ function createGoStudentsRouter(trackKey) {
 
         let journeyAdvanced = false;
         if (isSilverGoStudent(student)) {
+          await SilverGoUnlockCache.deleteOne({ studentId });
           const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
           journeyAdvanced = !!adv?.advanced;
         }
@@ -613,6 +615,7 @@ function createGoStudentsRouter(trackKey) {
 
         let journeyAdvanced = false;
         if (isSilverGoStudent(student)) {
+          await SilverGoUnlockCache.deleteOne({ studentId });
           const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
           journeyAdvanced = !!adv?.advanced;
         }
