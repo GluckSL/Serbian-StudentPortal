@@ -11,6 +11,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { AuthService } from '../../services/auth.service';
 import { DgApiService } from '../dg-api.service';
 import type { DgModuleSummary } from '../dg-bot.types';
+import { clampJourneyDay } from '../../utils/journey-day.util';
 
 type HubTab = 'completed' | 'pending' | 'new';
 
@@ -200,7 +201,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   applyDayScope(): void {
     if (this.journeyFixedDay != null && Number.isFinite(Number(this.journeyFixedDay))) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       this.modules = this.allModules.filter((m) => this.moduleCourseDayNum(m) === d);
     } else {
       this.modules = [...this.allModules];
@@ -294,7 +295,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     if (cd == null || cd === undefined) return null;
     const n = Number(cd);
     if (!Number.isFinite(n)) return null;
-    return Math.min(200, Math.max(1, Math.floor(n)));
+    return clampJourneyDay(n);
   }
 
   isModuleCompleted(m: DgModuleSummary): boolean {
@@ -333,7 +334,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     const cur = this.studentCourseDay;
 
     if (this.journeyFixedDay != null) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       if (tab === 'completed') {
         return completed;
       }

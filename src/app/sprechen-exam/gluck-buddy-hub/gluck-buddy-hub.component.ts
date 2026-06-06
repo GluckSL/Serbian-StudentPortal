@@ -8,6 +8,7 @@ import { DgApiService } from '../../dg-bot/dg-api.service';
 import { SprechenApiService } from '../sprechen-api.service';
 import type { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import type { SprechenExamModuleSummary } from '../sprechen-exam.types';
+import { clampJourneyDay } from '../../utils/journey-day.util';
 
 export type GluckBuddySubTab = 'practice' | 'exam';
 
@@ -81,7 +82,7 @@ export class GluckBuddyHubComponent implements OnInit, OnChanges {
     }).subscribe({
       next: ({ practice, exam }) => {
         const day = Number(practice?.studentCourseDay ?? exam?.studentCourseDay);
-        if (Number.isFinite(day) && day >= 1) {
+        if (Number.isFinite(day) && day >= 0) {
           this.studentCourseDay = Math.min(200, Math.floor(day));
         }
 
@@ -121,7 +122,7 @@ export class GluckBuddyHubComponent implements OnInit, OnChanges {
 
   private scopePracticeModules(all: DgModuleSummary[]): DgModuleSummary[] {
     if (this.journeyFixedDay != null && Number.isFinite(Number(this.journeyFixedDay))) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       return all.filter((m) => this.moduleCourseDayNum(m) === d);
     }
     return all;
@@ -129,7 +130,7 @@ export class GluckBuddyHubComponent implements OnInit, OnChanges {
 
   private scopeExamModules(all: SprechenExamModuleSummary[]): SprechenExamModuleSummary[] {
     if (this.journeyFixedDay != null && Number.isFinite(Number(this.journeyFixedDay))) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       return all.filter((m) => this.examModuleCourseDayNum(m) === d);
     }
     return all.filter(
@@ -143,13 +144,13 @@ export class GluckBuddyHubComponent implements OnInit, OnChanges {
     const cd = m.courseDay;
     if (cd == null) return null;
     const n = Number(cd);
-    return Number.isFinite(n) ? Math.min(200, Math.max(1, Math.floor(n))) : null;
+    return Number.isFinite(n) ? clampJourneyDay(n) : null;
   }
 
   private examModuleCourseDayNum(m: SprechenExamModuleSummary): number | null {
     const cd = m.courseDay;
     if (cd == null) return null;
     const n = Number(cd);
-    return Number.isFinite(n) ? Math.min(200, Math.max(1, Math.floor(n))) : null;
+    return Number.isFinite(n) ? clampJourneyDay(n) : null;
   }
 }

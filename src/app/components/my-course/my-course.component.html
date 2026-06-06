@@ -183,7 +183,7 @@
         <div class="mc-side-card__foot">
           <span class="material-icons" aria-hidden="true">flag</span>
           <span
-            >Journey day <strong>{{ journeyCourseDay }}</strong> / 200
+            >Journey {{ journeyDayLabel(journeyCourseDay) }} / 200
             <span class="mc-side-card__foot-hint">(set by your teacher)</span></span
           >
         </div>
@@ -345,7 +345,7 @@
         >
           <span class="material-icons">monitoring</span>Full performance history
         </button>
-        <div class="mc-journey-meta">Day <strong>{{ journeyCourseDay }}</strong> / 200</div>
+        <div class="mc-journey-meta">{{ journeyDayLabel(journeyCourseDay) }} / 200</div>
       </div>
     </div>
 
@@ -472,12 +472,12 @@
         (keydown.enter)="selectJourneyDay(d)"
         (keydown.space)="selectJourneyDay(d); $event.preventDefault()"
       >
-        Day {{ d }}
+        {{ journeyDayLabel(d) }}
       </span>
     </div>
 
     <div class="mc-day-summary">
-      <span>Day {{ selectedJourneyDay }}</span>
+      <span>{{ journeyDayLabel(selectedJourneyDay) }}</span>
       <span>{{ selectedDayCompletedCount }} / {{ selectedDayTotalCount }} completed</span>
     </div>
 

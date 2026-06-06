@@ -293,7 +293,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
    * Omit or null = general pool (any student who can see published exercises).
    * If set, students only see it when currentCourseDay >= courseDay (browse + play).
    */
-  courseDay: { type: Number, default: null, min: 1, max: 200 },
+  courseDay: { type: Number, default: null, min: 0, max: 200 },
 
   /**
    * Optional within-day sequence letter (a, b, c …).

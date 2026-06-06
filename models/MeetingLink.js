@@ -16,7 +16,7 @@ const meetingLinkSchema = new mongoose.Schema({
   timezone: { type: String, default: 'Asia/Colombo' },
   
   // Optional: day in the 200-day course journey
-  courseDay: { type: Number, default: null, min: 1, max: 200 },
+  courseDay: { type: Number, default: null, min: 0, max: 200 },
 
   /** Groups rows created in one bulk journey scheduling run (optional). */
   bulkScheduleId: { type: String, default: null, index: true },

@@ -15,11 +15,13 @@ function weekDayRange(week) {
   return { start: (w - 1) * 7 + 1, end: w * 7 };
 }
 
+const { clampJourneyDay } = require('./journeyDay');
+
 function normalizeCourseDay(cd) {
   if (cd == null || cd === undefined) return null;
   const n = Number(cd);
-  if (!Number.isFinite(n) || n < 1) return null;
-  return Math.min(200, Math.max(1, Math.floor(n)));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return clampJourneyDay(n);
 }
 
 /**

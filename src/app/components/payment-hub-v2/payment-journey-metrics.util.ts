@@ -19,7 +19,8 @@ const JOURNEY_LEVEL_RANGES: { min: number; max: number; level: string }[] = [
 ];
 
 export function levelForJourneyDay(day: number | null | undefined): string {
-  const d = Math.min(200, Math.max(1, Math.floor(Number(day) || 1)));
+  const d = Math.min(200, Math.max(0, Math.floor(Number(day) || 0)));
+  if (d === 0) return 'A1';
   for (const r of JOURNEY_LEVEL_RANGES) {
     if (d >= r.min && d <= r.max) return r.level;
   }

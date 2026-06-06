@@ -4,20 +4,15 @@
  */
 
 const { isLearningEnabled } = require('./batchType');
+const {
+  clampJourneyDayForBatch,
+  utcMidnightMs,
+  daysSinceJourneyStart,
+  MS_PER_DAY
+} = require('./journeyDay');
 
-const MS_PER_DAY = 86_400_000;
-
-function clampDay(d, max = 200) {
-  const n = parseInt(String(d), 10);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  const cap = max != null ? max : 200;
-  if (n > cap) return cap;
-  return n;
-}
-
-function utcMidnightMs(date) {
-  const d = date instanceof Date ? date : new Date(date);
-  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+function clampDay(d, max = 200, trialDayEnabled = false) {
+  return clampJourneyDayForBatch(d, max, trialDayEnabled);
 }
 
 /**
@@ -25,14 +20,13 @@ function utcMidnightMs(date) {
  */
 function computeBatchDayFromCalendar(cfg) {
   if (!cfg) return 1;
+  const trial = !!cfg.trialDayEnabled;
   if (!cfg.batchStartDate) {
-    return clampDay(cfg.batchCurrentDay, cfg.journeyLength);
+    return clampDay(cfg.batchCurrentDay, cfg.journeyLength, trial);
   }
-  const now = new Date();
-  const todayUTC = utcMidnightMs(now);
-  const startUTC = utcMidnightMs(new Date(cfg.batchStartDate));
-  const elapsed = Math.floor((todayUTC - startUTC) / MS_PER_DAY);
-  return clampDay(elapsed + 1, cfg.journeyLength);
+  const elapsed = daysSinceJourneyStart(cfg.batchStartDate);
+  if (trial) return clampDay(elapsed, cfg.journeyLength, true);
+  return clampDay(elapsed + 1, cfg.journeyLength, false);
 }
 
 function isNewBatchPaused(cfg) {

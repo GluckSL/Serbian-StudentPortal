@@ -23,9 +23,8 @@ const BatchConfigSchema = new mongoose.Schema({
     max: 200
   },
   /**
-   * When set, the batch's current day is automatically computed as:
-   *   currentDay = daysSinceStart + 1   (capped to journeyLength)
-   * batchCurrentDay is then ignored for display purposes.
+   * When set, the batch's current day is automatically computed from batchStartDate
+   * (Day 1 on start date, or Trial/day 0 when trialDayEnabled).
    */
   batchStartDate: {
     type: Date,
@@ -53,6 +52,16 @@ const BatchConfigSchema = new mongoose.Schema({
   oldBatchDgBotAccess: {
     type: Boolean,
     default: false
+  },
+  /**
+   * When true (new batches only): batch start date is a one-day Trial/orientation
+   * before Day 1. Tag trial recordings, exercises, etc. with courseDay 0.
+   * Default off — existing batches unchanged.
+   */
+  trialDayEnabled: {
+    type: Boolean,
+    default: false,
+    index: true
   },
   /**
    * When false (default), students move to the next journey day on the daily rollover
@@ -115,7 +124,7 @@ const BatchConfigSchema = new mongoose.Schema({
   journeyPauseHistory: {
     type: [
       {
-        day: { type: Number, min: 1, max: 200 },
+        day: { type: Number, min: 0, max: 200 },
         pausedAt: { type: Date },
         resumedAt: { type: Date },
         pauseDays: { type: Number, min: 0 }

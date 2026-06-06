@@ -33,6 +33,7 @@ import {
   PaymentHubApiService,
   PaymentRequestItem,
 } from '../payment-hub-v2/payment-hub-api.service';
+import { clampJourneyDayForBatch, journeyDaysThrough, formatJourneyDayLabel } from '../../utils/journey-day.util';
 
 type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey' | 'gluck-exam';
 type JourneyFilter = 'all' | 'completed' | 'pending';
@@ -314,8 +315,10 @@ export class MyCourseComponent implements OnInit {
         this.loadGluckExamData();
       }
       const d = q.get('day');
-      if (d && Number.isFinite(Number(d)) && Number(d) > 0) {
-        this.selectedJourneyDay = Number(d);
+      if (d != null && d !== '' && Number.isFinite(Number(d))) {
+        const n = Number(d);
+        const min = this.trialDayEnabled ? 0 : 1;
+        if (n >= min && n <= 200) this.selectedJourneyDay = n;
       }
     });
   }
@@ -811,10 +814,18 @@ export class MyCourseComponent implements OnInit {
     return this.allowsLearningContent || this.allowsDgBot;
   }
 
+  get trialDayEnabled(): boolean {
+    return !!this.profile?.trialDayEnabled;
+  }
+
   get journeyCourseDay(): number {
     const d = this.profile?.currentCourseDay;
     if (d == null || !Number.isFinite(Number(d))) return 1;
-    return Math.min(200, Math.max(1, Math.floor(Number(d))));
+    return clampJourneyDayForBatch(d, 200, this.trialDayEnabled);
+  }
+
+  journeyDayLabel(day: number): string {
+    return formatJourneyDayLabel(day, this.trialDayEnabled);
   }
 
   /** Green / yellow / red strip on My class — keyed to teacher-set journey day. */
@@ -837,8 +848,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   get journeyDays(): number[] {
-    const n = this.journeyCourseDay;
-    return Array.from({ length: n }, (_, i) => i + 1);
+    return journeyDaysThrough(this.journeyCourseDay, this.trialDayEnabled);
   }
 
   get filteredJourneyDays(): number[] {
@@ -1116,13 +1126,14 @@ export class MyCourseComponent implements OnInit {
 
   private getMeetingJourneyDay(meeting: any): number | null {
     const direct = Number(meeting?.courseDay);
-    if (Number.isFinite(direct) && direct >= 1 && direct <= 200) return direct;
+    if (Number.isFinite(direct) && direct >= (this.trialDayEnabled ? 0 : 1) && direct <= 200) return direct;
 
     const topic = String(meeting?.topic || '');
     const m = topic.match(/\bday\s*[:\-]?\s*(\d{1,3})\b/i);
     if (!m) return null;
     const parsed = Number(m[1]);
-    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 200 ? parsed : null;
+    const minDay = this.trialDayEnabled ? 0 : 1;
+    return Number.isFinite(parsed) && parsed >= minDay && parsed <= 200 ? parsed : null;
   }
 
   private matchesSelectedJourneyDay(meeting: any): boolean {
@@ -1153,7 +1164,7 @@ export class MyCourseComponent implements OnInit {
   private isInWeeklyJourneyWindow(day: number | null | undefined): boolean {
     if (!Number.isFinite(Number(day))) return false;
     const d = Number(day);
-    const min = Math.max(1, this.journeyCourseDay - 6);
+    const min = Math.max(this.trialDayEnabled ? 0 : 1, this.journeyCourseDay - 6);
     return d >= min && d <= this.journeyCourseDay;
   }
 

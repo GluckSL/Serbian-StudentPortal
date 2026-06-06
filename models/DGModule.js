@@ -96,7 +96,7 @@ const DGModuleSchema = new mongoose.Schema(
     minPracticeMinutes: { type: Number, default: 10, min: 5, max: 120 },
     maxPracticeMinutes: { type: Number, default: null, min: 5, max: 180 },
     /** 1–200 day in course journey; unset = general pool */
-    courseDay: { type: Number, min: 1, max: 200 },
+    courseDay: { type: Number, min: 0, max: 200 },
     /**
      * Optional batch targeting.
      * Empty / missing = visible to all batches (subject to other gating like journey day).
