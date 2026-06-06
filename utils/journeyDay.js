@@ -80,6 +80,13 @@ function isValidAdminCourseDay(raw) {
   return Number.isFinite(n) && n >= TRIAL_JOURNEY_DAY && n <= JOURNEY_DAY_MAX;
 }
 
+function parseAdminCourseDay(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Math.floor(Number(raw));
+  if (!isValidAdminCourseDay(n)) return null;
+  return n;
+}
+
 module.exports = {
   JOURNEY_DAY_MAX,
   STANDARD_JOURNEY_MIN,
@@ -95,5 +102,6 @@ module.exports = {
   isTrialJourneyDay,
   journeyDayRangeStart,
   formatJourneyDayLabel,
-  isValidAdminCourseDay
+  isValidAdminCourseDay,
+  parseAdminCourseDay
 };

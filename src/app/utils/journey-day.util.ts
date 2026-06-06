@@ -81,3 +81,10 @@ export function clampAdminCourseDayInput(raw: unknown): number {
   if (!Number.isFinite(n)) return TRIAL_JOURNEY_DAY;
   return Math.min(JOURNEY_DAY_MAX, Math.max(TRIAL_JOURNEY_DAY, n));
 }
+
+export function parseAdminCourseDayOrNull(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Math.floor(Number(raw));
+  if (!isValidAdminCourseDay(n)) return null;
+  return n;
+}

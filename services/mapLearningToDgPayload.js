@@ -199,7 +199,7 @@ async function buildDgModulePayloadFromLearning(lm, characterId) {
   let courseDay = lm.courseDay;
   if (courseDay != null) {
     const cd = Number(courseDay);
-    courseDay = Number.isFinite(cd) && cd >= 1 && cd <= 200 ? cd : undefined;
+    courseDay = Number.isFinite(cd) && cd >= 0 && cd <= 200 ? cd : undefined;
   } else {
     courseDay = undefined;
   }

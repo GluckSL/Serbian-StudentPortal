@@ -363,7 +363,8 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   journeyDayLabel(m: DgModuleSummary): string {
     const d = this.moduleCourseDayNum(m);
-    return d == null ? 'Any day' : `Day ${d}`;
+    if (d == null) return 'Any day';
+    return d === 0 ? 'Trial' : `Day ${d}`;
   }
 
   trackModule = (_: number, m: DgModuleSummary): string => m._id;

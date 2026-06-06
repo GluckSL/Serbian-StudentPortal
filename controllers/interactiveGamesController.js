@@ -35,6 +35,7 @@ const wordSearchService = require('../services/interactiveGames/wordSearch');
 const cacheService = require('../services/interactiveGames/cache');
 const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
+const { parseAdminCourseDay } = require('../utils/journeyDay');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
 const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice', 'spin_wheel', 'tap_boxes', 'word_search'];
@@ -144,7 +145,7 @@ exports.getJourneyGames = async (req, res) => {
     const access = await journeyFilterService.hasArenaAccess(req.user.id);
     const filter = await journeyFilterService.buildStudentFilter(req.user.id);
     Object.assign(filter, {
-      courseDay: { $ne: null, $gte: 1, $lte: 200 },
+      courseDay: { $ne: null, $gte: 0, $lte: 200 },
       targetLanguage: 'German',
     });
 
@@ -1148,7 +1149,7 @@ exports.adminCreateSet = async (req, res) => {
       spinWheelSettings: normalizeSpinWheelSettings(spinWheelSettings),
       tapBoxesSettings: normalizeTapBoxesSettings(tapBoxesSettings),
       visibleToStudents: !!visibleToStudents,
-      courseDay: courseDay ? Number(courseDay) : null,
+      courseDay: parseAdminCourseDay(courseDay),
       sequenceLetter: sequenceLetter || null,
       targetLanguage: ['English', 'German'].includes(targetLanguage) ? targetLanguage : 'German',
       icon: icon || 'sports_esports',
@@ -1205,6 +1206,9 @@ exports.adminUpdateSet = async (req, res) => {
     }
     if (req.body.targetBatches !== undefined) {
       updates.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
+    }
+    if (updates.courseDay !== undefined) {
+      updates.courseDay = parseAdminCourseDay(updates.courseDay);
     }
     updates.updatedBy = req.user.id;
 

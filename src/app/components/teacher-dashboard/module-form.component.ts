@@ -57,12 +57,12 @@ import { NotificationService } from '../../services/notification.service';
                   <div class="col-md-6 mb-3">
                     <label class="form-label">Course Day (Optional)</label>
                     <input type="number" class="form-control" formControlName="courseDay" 
-                           placeholder="e.g., 45" min="1" max="200">
+                           placeholder="0 = Trial, or 1–200" min="0" max="200">
                     <div class="text-danger" *ngIf="moduleForm.get('courseDay')?.invalid && moduleForm.get('courseDay')?.touched">
-                      Must be between 1 and 200
+                      Must be 0 (Trial) or between 1 and 200
                     </div>
                     <small class="form-text text-muted">
-                      Day in the 200-day course journey (1–200). Leave empty for general pool.
+                      0 = Trial day. Leave empty for general pool.
                     </small>
                   </div>
                   
@@ -448,7 +448,7 @@ export class ModuleFormComponent implements OnInit {
         culturalNotes: [[]]
       }),
       tags: [[]],
-      courseDay: [null, [Validators.min(1), Validators.max(200)]]
+      courseDay: [null, [Validators.min(0), Validators.max(200)]]
     });
   }
 
@@ -704,7 +704,7 @@ export class ModuleFormComponent implements OnInit {
     const n = Number(raw);
     if (!Number.isFinite(n)) return null;
     const r = Math.round(n);
-    if (r < 1 || r > 200) return null;
+    if (r < 0 || r > 200) return null;
     return r;
   }
 

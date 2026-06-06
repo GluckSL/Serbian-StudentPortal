@@ -28,6 +28,7 @@ import { SentenceQuestionFormComponent } from '../sentence-question-form/sentenc
 import { SimpleQuestionFormComponent } from '../simple-question-form/simple-question-form.component';
 import { LevelEditorComponent } from '../level-editor/level-editor.component';
 import { GameImportPanelComponent } from '../game-import-panel/game-import-panel.component';
+import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util';
 
 @Component({
   selector: 'app-game-set-editor',
@@ -182,8 +183,8 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
                 <mat-label>Journey day</mat-label>
-                <input matInput type="number" formControlName="courseDay" min="1" max="200">
-                <mat-hint>Maps to Journey to Germany (My Course). Leave empty for arena-only (no day pill).</mat-hint>
+                <input matInput type="number" formControlName="courseDay" min="0" max="200">
+                <mat-hint>0 = Trial. Maps to Journey to Germany (My Course). Leave empty for arena-only.</mat-hint>
               </mat-form-field>
 
               <div class="ga-toggle-group">
@@ -495,7 +496,7 @@ export class GameSetEditorComponent implements OnInit {
       icon: ['sports_esports'],
       visibleToStudents: [false],
       isPublished: [false],
-      courseDay: [null],
+      courseDay: [null, [Validators.min(0), Validators.max(200)]],
       sessionLimitSeconds: [null],
       perQuestionSeconds: [null],
       gsSpawnIntervalSeconds: [4, [Validators.min(3), Validators.max(5)]],
@@ -609,7 +610,7 @@ export class GameSetEditorComponent implements OnInit {
     const payload: any = {
       ...v,
       level: v.level || null,
-      courseDay: v.courseDay ? Number(v.courseDay) : null,
+      courseDay: parseAdminCourseDayOrNull(v.courseDay),
       targetBatches: this.targetBatches,
       timerSettings: {
         sessionLimitSeconds: v.sessionLimitSeconds ? Number(v.sessionLimitSeconds) : null,
