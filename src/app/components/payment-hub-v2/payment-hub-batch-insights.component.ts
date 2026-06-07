@@ -112,7 +112,7 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
   selectedBatches = new Set<string>();
   showDetailsPanel = false;
 
-  readonly skeletonCards = [1, 2, 3, 4, 5, 6];
+  readonly skeletonCards = [1, 2, 3, 4, 5, 6, 7, 8];
   readonly skeletonTableRows = [1, 2, 3, 4, 5, 6, 7, 8];
 
   private summaryRows: BatchPaymentSummaryRow[] = [];
@@ -262,6 +262,20 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
     if (rate >= 80) return 'ph-collection--good';
     if (rate >= 50) return 'ph-collection--mid';
     return 'ph-collection--low';
+  }
+
+  collectedPctClass(rate: number | null | undefined): string {
+    if (rate == null) return 'ph-pct--na';
+    if (rate >= 80) return 'ph-pct--good';
+    if (rate >= 50) return 'ph-pct--mid';
+    return 'ph-pct--low';
+  }
+
+  outstandingPctClass(rate: number | null | undefined): string {
+    if (rate == null) return 'ph-pct--na';
+    if (rate <= 20) return 'ph-pct--good';
+    if (rate <= 50) return 'ph-pct--mid';
+    return 'ph-pct--low';
   }
 
   studentPct(count: number, total: number): string {
@@ -638,6 +652,26 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
       overdueAmountINR: t.totalOverdueINR ?? 0,
       overdueAmountUSD: t.totalOverdueUSD ?? 0,
     };
+  }
+
+  /** Received LKR ÷ expected LKR for the current view. */
+  get cardAmountCollectedPct(): number | null {
+    const t = this.viewTotals;
+    if (t.collectionRateLKR != null && Number.isFinite(t.collectionRateLKR)) {
+      return t.collectionRateLKR;
+    }
+    const expected = t.totalExpectedLKR ?? 0;
+    if (expected <= 0) return null;
+    return Math.min(100, Math.round(((t.totalPaidLKR ?? 0) / expected) * 100));
+  }
+
+  /** (Pending + overdue) LKR ÷ expected LKR for the current view. */
+  get cardAmountOutstandingPct(): number | null {
+    const t = this.viewTotals;
+    const expected = t.totalExpectedLKR ?? 0;
+    if (expected <= 0) return null;
+    const outstanding = (t.totalPendingLKR ?? 0) + (t.totalOverdueLKR ?? 0);
+    return Math.min(100, Math.round((outstanding / expected) * 100));
   }
 
   get cardLargestBatch(): string {
