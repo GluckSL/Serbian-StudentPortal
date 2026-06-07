@@ -216,6 +216,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private currentlyPlayingAudio: HTMLAudioElement | null = null;
   showFinishSummary = false;
   finishingAll = false;
+  /** Countdown seconds before auto-advancing after image pin match is complete. */
+  imagePinAutoAdvanceSeconds = 0;
+  private imagePinAutoAdvanceInterval: ReturnType<typeof setInterval> | null = null;
+  private imagePinAutoAdvanceQuestionIndex: number | null = null;
   private imagePinCaptureTarget: HTMLElement | null = null;
   private imagePinCapturePointerId: number | null = null;
   private imagePinDrag: {
@@ -492,6 +496,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.clearPronProcessingSlowTimer();
     try { this.pronunciation.cancelRecording(); } catch { /* noop */ }
     this.closeMicTest();
+    this.cancelImagePinAutoAdvance();
     this.clearImagePinInteractionState();
   }
 
@@ -1777,6 +1782,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   prevQuestion(): void {
     this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
     this.clearImagePinInteractionState();
     if (this.currentIndex > 0) {
       this.stopCurrentAudio();
@@ -1789,6 +1795,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   nextQuestion(): void {
     this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
     this.clearImagePinInteractionState();
     if (this.currentIndex < this.playerQuestions.length - 1) {
       this.stopCurrentAudio();
@@ -1801,6 +1808,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   goToQuestion(index: number): void {
     this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
     this.clearImagePinInteractionState();
     this.stopCurrentAudio();
     this.currentIndex = index;
@@ -1815,6 +1823,90 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const targetIndex = this.batchQuestionIndices[batchPosition];
       this.goToQuestion(targetIndex);
     }
+  }
+
+  navPrev(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isFirstQuestion || this.finishingAll) return;
+    this.cancelImagePinAutoAdvance();
+    this.prevQuestion();
+  }
+
+  navNext(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.finishingAll || this.isLastQuestion) return;
+    this.cancelImagePinAutoAdvance();
+    this.nextQuestion();
+  }
+
+  navFinish(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.finishingAll || !this.canCompleteByAttemptRate) return;
+    this.cancelImagePinAutoAdvance();
+    this.openFinishSummary();
+  }
+
+  showImagePinAutoAdvance(): boolean {
+    return (
+      this.imagePinAutoAdvanceSeconds > 0 &&
+      !this.isLastQuestion &&
+      (this.currentQuestion?.data?.type as string) === 'image_pin_match'
+    );
+  }
+
+  cancelImagePinAutoAdvance(): void {
+    if (this.imagePinAutoAdvanceInterval) {
+      clearInterval(this.imagePinAutoAdvanceInterval);
+      this.imagePinAutoAdvanceInterval = null;
+    }
+    this.imagePinAutoAdvanceQuestionIndex = null;
+    this.imagePinAutoAdvanceSeconds = 0;
+  }
+
+  skipImagePinAutoAdvance(): void {
+    const idx = this.imagePinAutoAdvanceQuestionIndex;
+    this.cancelImagePinAutoAdvance();
+    if (idx != null && this.currentIndex === idx && !this.isLastQuestion) {
+      this.nextQuestion();
+    }
+  }
+
+  private maybeScheduleImagePinAutoAdvance(pq: PlayerQuestion): void {
+    if ((pq.data.type as string) !== 'image_pin_match') return;
+    if (this.state === 'submitted' || this.finishingAll || this.hasCurrentSubmitted) return;
+    if (!this.isQuestionAnswered(pq) || this.isLastQuestion) {
+      this.cancelImagePinAutoAdvance();
+      return;
+    }
+    if (
+      this.imagePinAutoAdvanceInterval &&
+      this.imagePinAutoAdvanceQuestionIndex === pq.index
+    ) {
+      return;
+    }
+
+    this.cancelImagePinAutoAdvance();
+    this.imagePinAutoAdvanceQuestionIndex = pq.index;
+    this.imagePinAutoAdvanceSeconds = 5;
+    this.imagePinAutoAdvanceInterval = setInterval(() => {
+      this.imagePinAutoAdvanceSeconds--;
+      if (this.imagePinAutoAdvanceSeconds <= 0) {
+        const questionIndex = this.imagePinAutoAdvanceQuestionIndex;
+        this.cancelImagePinAutoAdvance();
+        if (
+          questionIndex != null &&
+          this.currentIndex === questionIndex &&
+          this.currentIndex < this.playerQuestions.length - 1
+        ) {
+          this.nextQuestion();
+        }
+      }
+      this.zone.run(() => {});
+    }, 1000);
+    this.zone.run(() => {});
   }
 
   isQuestionAnswered(pq: PlayerQuestion): boolean {
@@ -2315,6 +2407,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     ];
     pq.selectedLabelId = null;
     this.markAttempted(pq);
+    this.maybeScheduleImagePinAutoAdvance(pq);
   }
 
   getImagePinConnection(pq: PlayerQuestion, labelId: string): string {
@@ -2494,6 +2587,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       ];
       pq.selectedLabelId = null;
       this.markAttempted(pq);
+      this.maybeScheduleImagePinAutoAdvance(pq);
     }
     this.resetImagePinDrag();
     this.zone.run(() => {});
