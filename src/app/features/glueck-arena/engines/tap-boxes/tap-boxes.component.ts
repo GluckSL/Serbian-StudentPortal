@@ -80,7 +80,7 @@ function layoutRowSizes(count: number): number[] {
             class="tb__play"
             [class.tb__play--focus]="phase === 'zoom' || phase === 'reveal'"
           >
-          <div class="tb__grid-panel" *ngIf="phase !== 'done'">
+          <div class="tb__grid-panel" *ngIf="phase !== 'done'" [ngStyle]="gridPanelStyle">
             <div class="tb__grid">
               <div
                 class="tb__row"
@@ -278,7 +278,8 @@ function layoutRowSizes(count: number): number[] {
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 16px 20px 20px;
+      padding: 12px clamp(8px, 2vw, 20px) 16px;
+      overflow: hidden;
     }
     .tb__play--focus .tb__grid-panel {
       filter: blur(3px) brightness(0.75);
@@ -290,29 +291,46 @@ function layoutRowSizes(count: number): number[] {
     .tb__grid-panel {
       width: 100%;
       max-width: 100%;
-      padding: 8px 4px;
+      padding: 4px 0;
+      box-sizing: border-box;
+      --tb-gap: clamp(6px, 1.6vw, 18px);
+      --tb-cols: 6;
+      --tb-stagger: 0;
+      --tb-tile: min(
+        136px,
+        max(
+          52px,
+          calc(
+            (100% - (var(--tb-cols) - 1) * var(--tb-gap) - var(--tb-stagger) * 6px)
+            / (var(--tb-cols) + var(--tb-stagger) * 0.5)
+          )
+        )
+      );
       transition: filter 0.4s ease, opacity 0.4s ease;
     }
     .tb__grid {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 18px;
+      gap: clamp(10px, 2.2vw, 22px);
+      width: 100%;
+      max-width: 100%;
     }
     .tb__row {
       display: flex;
       flex-wrap: nowrap;
       justify-content: center;
       align-items: center;
-      gap: 16px;
+      gap: var(--tb-gap);
+      max-width: 100%;
     }
     .tb__row--stagger {
-      padding-left: calc(var(--tb-tile) / 2 + 6px);
+      padding-left: calc(var(--tb-tile) * 0.5 + 6px);
+      box-sizing: border-box;
     }
 
     /* ── Tile button ───────────────────────────────────── */
     .tb__tile {
-      --tb-tile: 124px;
       position: relative;
       width: var(--tb-tile);
       height: var(--tb-tile);
@@ -320,7 +338,9 @@ function layoutRowSizes(count: number): number[] {
       border: none;
       background: none;
       cursor: pointer;
-      flex-shrink: 0;
+      flex: 0 1 var(--tb-tile);
+      min-width: 0;
+      max-width: var(--tb-tile);
       -webkit-tap-highlight-color: transparent;
       transition: transform 0.22s cubic-bezier(0.34, 1.25, 0.64, 1), opacity 0.3s ease, filter 0.3s ease;
     }
@@ -421,7 +441,7 @@ function layoutRowSizes(count: number): number[] {
 
     .tb__num {
       font-family: 'Segoe UI', system-ui, sans-serif;
-      font-size: clamp(44px, 9vw, 58px);
+      font-size: calc(var(--tb-tile) * 0.42);
       font-weight: 700;
       color: #0a0a0a;
       line-height: 1;
@@ -540,7 +560,7 @@ function layoutRowSizes(count: number): number[] {
     .tb__open-label {
       position: relative;
       z-index: 1;
-      font-size: clamp(10px, 1.8vw, 13px);
+      font-size: calc(var(--tb-tile) * 0.105);
       font-weight: 700;
       line-height: 1.3;
       color: #0f172a;
@@ -706,28 +726,21 @@ function layoutRowSizes(count: number): number[] {
     .tb__bar-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
     @media (max-width: 900px) {
-      .tb__tile { --tb-tile: 108px; }
       .tb__stage { min-height: 520px; }
       .tb__board { inset: 10px; border-width: 10px; }
     }
     @media (max-width: 720px) {
-      .tb__tile { --tb-tile: 92px; }
-      .tb__row { gap: 12px; }
-      .tb__grid { gap: 14px; }
       .tb__instruction { font-size: 16px; }
-      .tb__hud { grid-template-columns: 72px 1fr 56px; padding: 12px 14px 10px; }
+      .tb__hud { grid-template-columns: 72px 1fr 56px; padding: 12px 10px 10px; }
       .tb__timer-val { font-size: 20px; }
+      .tb__board { inset: 8px; border-width: 8px; }
     }
     @media (max-width: 480px) {
-      .tb__tile { --tb-tile: 80px; }
-      .tb__row { gap: 10px; }
-      .tb__row--stagger { padding-left: calc(var(--tb-tile) / 2 + 4px); }
       .tb__stage { min-height: 460px; }
+      .tb__board { inset: 6px; border-width: 6px; }
+      .tb__hud { padding: 10px 8px 8px; }
     }
     @media (min-width: 1100px) {
-      .tb__tile { --tb-tile: 136px; }
-      .tb__row { gap: 20px; }
-      .tb__grid { gap: 22px; }
       .tb__stage { min-height: 660px; }
     }
   `],
@@ -769,6 +782,15 @@ export class TapBoxesComponent implements OnInit, OnDestroy {
       return 'Tap one to open';
     }
     return 'Tap one to open';
+  }
+
+  get gridPanelStyle(): Record<string, string> {
+    const maxCount = Math.max(1, ...this.rows.map(r => r.length));
+    const hasStagger = this.rows.length > 1;
+    return {
+      '--tb-cols': String(maxCount),
+      '--tb-stagger': hasStagger ? '1' : '0',
+    };
   }
 
   ngOnInit(): void {

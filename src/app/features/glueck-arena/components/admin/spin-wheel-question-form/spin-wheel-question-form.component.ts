@@ -45,7 +45,7 @@ import { NotificationService } from '../../../../../services/notification.servic
               <mat-form-field appearance="outline" class="swf__field">
                 <mat-label>Phrase on wheel *</mat-label>
                 <textarea matInput formControlName="phrase" rows="2"
-                  placeholder="e.g. Obwohl es regnet,"></textarea>
+                  placeholder="e.g. What is your name?? — press Enter to split lines"></textarea>
                 <mat-error *ngIf="ctrl.get('phrase')?.hasError('required')">Required</mat-error>
               </mat-form-field>
             </mat-card-content>

@@ -128,7 +128,7 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                       [attr.transform]="segmentTextTransform(i, li)"
                       [attr.font-size]="segmentFontSize(i)"
                       class="sw__seg-text"
-                      text-anchor="start"
+                      text-anchor="middle"
                       dominant-baseline="middle"
                       [class.sw__seg-text--selected]="isHighlighted(i)"
                     >{{ line }}</text>
@@ -342,6 +342,7 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
     }
 
     .sw__seg-path--selected {
+      fill: #ffffff !important;
       stroke: #fef08a !important;
       stroke-width: 5 !important;
     }
@@ -357,8 +358,9 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       letter-spacing: 0.02em;
     }
     .sw__seg-text--selected {
-      stroke: rgba(255, 255, 255, 0.85);
-      stroke-width: 2.5px;
+      fill: #0f172a;
+      stroke: rgba(255, 255, 255, 0.35);
+      stroke-width: 1.5px;
     }
 
     .sw__hub {
@@ -707,18 +709,24 @@ export class SpinWheelComponent implements OnInit, OnDestroy {
     const midAngle = (index + 0.5) * seg;
     const midRad = ((midAngle - 90) * Math.PI) / 180;
     const outerR = n <= 6 ? 158 : n <= 10 ? 163 : n <= 14 ? 168 : 172;
-    const r = outerR;
-    const lineGap = 16;
+    const lineGap = 14;
     const lines = this.phraseLines(this.segments[index].phrase, index);
     const numLines = lines.length;
-    const mid = (numLines - 1) / 2;
-    const dy = numLines > 1 ? (lineIndex - mid) * lineGap : 0;
-    const tangX = -Math.sin(midRad);
-    const tangY = Math.cos(midRad);
-    const x = 200 + r * Math.cos(midRad) + dy * tangX;
-    const y = 200 + r * Math.sin(midRad) + dy * tangY;
-    const actualAngle = (90 + Math.atan2(y - 200, x - 200) * 180 / Math.PI + 360) % 360;
-    const rotate = actualAngle + 90;
+
+    // Keep text upright on the lower half of the wheel.
+    const flipped = midAngle > 90 && midAngle < 270;
+    // First phrase line sits on the outer rim so reading order matches the sentence.
+    const readOrderIndex = flipped ? (numLines - 1 - lineIndex) : lineIndex;
+    const r = numLines > 1
+      ? outerR - readOrderIndex * lineGap
+      : outerR;
+
+    const x = 200 + r * Math.cos(midRad);
+    const y = 200 + r * Math.sin(midRad);
+
+    let rotate = midAngle + 90;
+    if (flipped) rotate += 180;
+
     return `translate(${x}, ${y}) rotate(${rotate})`;
   }
 
@@ -729,6 +737,10 @@ export class SpinWheelComponent implements OnInit, OnDestroy {
   phraseLines(phrase: string, index: number): string[] {
     const trimmed = phrase.trim();
     if (!trimmed) return [''];
+
+    if (/\n/.test(trimmed)) {
+      return trimmed.split(/\n/).map(l => l.trim()).filter(Boolean).slice(0, 2);
+    }
 
     const parenMatch = trimmed.match(/^(.+?)\s+(\([^)]+\))$/);
     if (parenMatch) {
