@@ -2337,6 +2337,7 @@
 }
 .mc-day-item__status.done { color: #166534; background: #dcfce7; }
 .mc-day-item__status.pending { color: #92400e; background: #fef3c7; }
+.mc-day-item__status.locked { color: #6b7280; background: #f3f4f6; }
 .mc-day-item__btn {
   border: 1px solid #c7d2fe;
   background: #eef2ff;
@@ -2380,6 +2381,15 @@
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   color: #334155;
+}
+
+.mc-day-item__btn--locked {
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  color: #4b5563;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  text-align: left;
 }
 
 .mc-journey-classes {

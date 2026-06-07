@@ -10,6 +10,7 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
 import { MaterialModule } from '../../shared/material.module';
+import { parseAdminCourseDayOrNull } from '../../utils/journey-day.util';
 
 type TabType = 'completed' | 'pending' | 'new';
 
@@ -152,13 +153,9 @@ export class DigitalExercisesComponent implements OnInit {
     this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
   }
 
-  /** Normalized journey day 1–200, or null if unassigned. */
+  /** Normalized journey day 0 (Trial)–200, or null if unassigned. */
   exerciseCourseDayNum(ex: DigitalExercise): number | null {
-    const cd = ex.courseDay;
-    if (cd == null || cd === undefined) return null;
-    const n = Number(cd);
-    if (!Number.isFinite(n)) return null;
-    return Math.min(200, Math.max(1, Math.floor(n)));
+    return parseAdminCourseDayOrNull(ex.courseDay);
   }
 
   /**

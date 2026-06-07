@@ -1395,7 +1395,9 @@ function exerciseUnlockedForStudentDay(exercise, studentDay) {
  */
 async function checkSequenceLock(studentId, exercise) {
   const sl = exercise.sequenceLetter;
-  if (!sl || !exercise.courseDay) return { locked: false, previousLetter: null, previousTitle: null };
+  if (!sl || exercise.courseDay == null || exercise.courseDay === undefined) {
+    return { locked: false, previousLetter: null, previousTitle: null };
+  }
 
   // Find all exercises on the same day with a letter strictly before ours
   const priorExercises = await DigitalExercise.find({

@@ -509,14 +509,22 @@
             (click)="openExercise(ex)"
             (keydown.enter)="openExercise(ex)"
           >
-            <div class="mc-day-item__title">{{ ex.title }}</div>
+            <div class="mc-day-item__title">
+              <ng-container *ngIf="ex.sequenceLetter">{{ ex.sequenceLetter | uppercase }} · </ng-container>{{ ex.title }}
+            </div>
             <div class="mc-day-item__sub">{{ ex.level }} · {{ ex.category }}</div>
             <div class="mc-day-item__hover-hint">{{ getExerciseHoverDetails(ex) }}</div>
           </div>
-          <div class="mc-day-item__status" [class.done]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
-            {{ ex.studentAttempt ? 'Completed' : 'Pending' }}
+          <div
+            class="mc-day-item__status"
+            [class.done]="ex.studentAttempt && !isExerciseSequenceLocked(ex)"
+            [class.pending]="!ex.studentAttempt && !isExerciseSequenceLocked(ex)"
+            [class.locked]="isExerciseSequenceLocked(ex)"
+          >
+            {{ isExerciseSequenceLocked(ex) ? 'Locked' : (ex.studentAttempt ? 'Completed' : 'Pending') }}
           </div>
           <button
+            *ngIf="!isExerciseSequenceLocked(ex)"
             type="button"
             class="mc-day-item__btn"
             [class.mc-day-item__btn--start]="!ex.studentAttempt"
@@ -524,6 +532,14 @@
             (click)="openExercise(ex)"
           >
             <span class="material-icons">{{ ex.studentAttempt ? 'replay' : 'play_arrow' }}</span>{{ ex.studentAttempt ? 'Re-attempt' : 'Start' }}
+          </button>
+          <button
+            *ngIf="isExerciseSequenceLocked(ex)"
+            type="button"
+            class="mc-day-item__btn mc-day-item__btn--locked"
+            (click)="openExercise(ex)"
+          >
+            <span class="material-icons">lock</span>{{ exerciseSequenceUnlockLabel(ex) }}
           </button>
         </div>
       </div>

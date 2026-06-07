@@ -33,7 +33,13 @@ import {
   PaymentHubApiService,
   PaymentRequestItem,
 } from '../payment-hub-v2/payment-hub-api.service';
-import { clampJourneyDayForBatch, journeyDaysThrough, formatJourneyDayLabel } from '../../utils/journey-day.util';
+import {
+  clampJourneyDayForBatch,
+  journeyDaysThrough,
+  formatJourneyDayLabel,
+  parseAdminCourseDayOrNull,
+  TRIAL_JOURNEY_DAY
+} from '../../utils/journey-day.util';
 
 type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey' | 'gluck-exam';
 type JourneyFilter = 'all' | 'completed' | 'pending';
@@ -946,10 +952,12 @@ export class MyCourseComponent implements OnInit {
   }
 
   get selectedDayExercises(): DigitalExercise[] {
-    let list = this.journeyDayExercises.filter((ex) => Number(ex.courseDay || 0) === this.selectedJourneyDay);
+    let list = this.journeyDayExercises.filter(
+      (ex) => ex.courseDay != null && Number(ex.courseDay) === this.selectedJourneyDay
+    );
     if (this.journeyFilter === 'completed') list = list.filter((x) => this.exerciseDone(x));
     if (this.journeyFilter === 'pending') list = list.filter((x) => !this.exerciseDone(x));
-    return list;
+    return [...list].sort((a, b) => this.compareJourneyExerciseOrder(a, b));
   }
 
   get selectedDayModules(): any[] {
@@ -975,6 +983,49 @@ export class MyCourseComponent implements OnInit {
     const seqB = (b.sequenceLetter || '').toUpperCase();
     if (seqA !== seqB) return seqA.localeCompare(seqB);
     return (a.title || '').localeCompare(b.title || '');
+  }
+
+  private compareJourneyExerciseOrder(a: DigitalExercise, b: DigitalExercise): number {
+    const seqA = (a.sequenceLetter || '').toUpperCase();
+    const seqB = (b.sequenceLetter || '').toUpperCase();
+    if (seqA !== seqB) {
+      if (!seqA) return 1;
+      if (!seqB) return -1;
+      return seqA.localeCompare(seqB);
+    }
+    return (a.title || '').localeCompare(b.title || '');
+  }
+
+  private exerciseCourseDayNum(ex: DigitalExercise): number | null {
+    return parseAdminCourseDayOrNull(ex.courseDay);
+  }
+
+  isExerciseSequenceLocked(ex: DigitalExercise): boolean {
+    return !!ex?.sequenceLocked;
+  }
+
+  private getPrerequisiteExercise(ex: DigitalExercise): DigitalExercise | null {
+    if (!this.isExerciseSequenceLocked(ex) || !ex.previousSequenceLetter) return null;
+    const prev = String(ex.previousSequenceLetter || '').trim().toLowerCase();
+    if (!prev) return null;
+    const day = this.exerciseCourseDayNum(ex);
+    return (
+      this.journeyDayExercises.find((item) => {
+        return (
+          this.exerciseCourseDayNum(item) === day &&
+          String(item.sequenceLetter || '').trim().toLowerCase() === prev
+        );
+      }) || null
+    );
+  }
+
+  exerciseSequenceUnlockLabel(ex: DigitalExercise): string {
+    if (!this.isExerciseSequenceLocked(ex) || !ex.previousSequenceLetter) return '';
+    const prev = String(ex.previousSequenceLetter || '').trim().toUpperCase();
+    const day = this.exerciseCourseDayNum(ex);
+    if (day === TRIAL_JOURNEY_DAY && this.trialDayEnabled) return `Complete Trial-${prev} first`;
+    if (day != null) return `Complete ${day}-${prev} first`;
+    return `Complete ${prev} first`;
   }
 
   get selectedDayHasItems(): boolean {
@@ -1013,9 +1064,9 @@ export class MyCourseComponent implements OnInit {
 
   /** Exercises tagged to the current journey day. */
   get currentDayExercisesForBadge(): DigitalExercise[] {
-    return this.journeyDayExercises.filter(
-      (ex) => Number(ex.courseDay) === this.journeyCourseDay
-    );
+    return this.journeyDayExercises
+      .filter((ex) => ex.courseDay != null && Number(ex.courseDay) === this.journeyCourseDay)
+      .sort((a, b) => this.compareJourneyExerciseOrder(a, b));
   }
 
   get currentDayGameSetsForBadge(): GameSet[] {
@@ -1082,6 +1133,21 @@ export class MyCourseComponent implements OnInit {
 
   openExercise(ex: DigitalExercise): void {
     if (!ex?._id) return;
+    if (this.isExerciseSequenceLocked(ex)) {
+      const prerequisite = this.getPrerequisiteExercise(ex);
+      const prevLetter = String(ex.previousSequenceLetter || '').trim().toUpperCase();
+      if (prerequisite?._id) {
+        this.notify.info(
+          prevLetter
+            ? `Complete exercise ${prevLetter} first. Opening the previous item.`
+            : 'Complete the previous exercise in sequence first.'
+        );
+        this.router.navigate(['/digital-exercises', prerequisite._id, 'play']);
+        return;
+      }
+      this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
+      return;
+    }
     this.router.navigate(['/digital-exercises', ex._id, 'play']);
   }
 
@@ -1116,8 +1182,14 @@ export class MyCourseComponent implements OnInit {
 
   getExerciseHoverDetails(ex: DigitalExercise): string {
     const status = this.exerciseDone(ex) ? 'Completed' : 'Not completed';
-    const day = Number.isFinite(Number(ex?.courseDay)) ? `Day ${ex.courseDay}` : 'No fixed day';
-    return `${day} | ${ex?.level || 'Level N/A'} | ${ex?.category || 'General'} | ${status}`;
+    const dayNum = this.exerciseCourseDayNum(ex);
+    const day =
+      dayNum != null
+        ? formatJourneyDayLabel(dayNum, this.trialDayEnabled)
+        : 'No fixed day';
+    const seq = ex.sequenceLetter ? ` · ${String(ex.sequenceLetter).toUpperCase()}` : '';
+    const lock = this.isExerciseSequenceLocked(ex) ? ' · Locked' : '';
+    return `${day}${seq}${lock} | ${ex?.level || 'Level N/A'} | ${ex?.category || 'General'} | ${status}`;
   }
 
   ordinalSuffix(n: number): string {
