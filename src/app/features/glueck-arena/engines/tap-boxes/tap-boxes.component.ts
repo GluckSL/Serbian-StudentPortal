@@ -1,5 +1,6 @@
 import {
-  Component, Input, Output, EventEmitter, OnInit, OnDestroy,
+  Component, Input, Output, EventEmitter, OnInit, OnDestroy, AfterViewInit,
+  ElementRef, ViewChild, ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../../../shared/material.module';
@@ -80,7 +81,7 @@ function layoutRowSizes(count: number): number[] {
             class="tb__play"
             [class.tb__play--focus]="phase === 'zoom' || phase === 'reveal'"
           >
-          <div class="tb__grid-panel" *ngIf="phase !== 'done'" [ngStyle]="gridPanelStyle">
+          <div class="tb__grid-panel" #gridPanel *ngIf="phase !== 'done'" [ngStyle]="gridPanelStyle">
             <div class="tb__grid">
               <div
                 class="tb__row"
@@ -279,7 +280,8 @@ function layoutRowSizes(count: number): number[] {
       align-items: center;
       justify-content: center;
       padding: 12px clamp(8px, 2vw, 20px) 16px;
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
     .tb__play--focus .tb__grid-panel {
       filter: blur(3px) brightness(0.75);
@@ -293,19 +295,8 @@ function layoutRowSizes(count: number): number[] {
       max-width: 100%;
       padding: 4px 0;
       box-sizing: border-box;
-      --tb-gap: clamp(6px, 1.6vw, 18px);
-      --tb-cols: 6;
-      --tb-stagger: 0;
-      --tb-tile: min(
-        136px,
-        max(
-          52px,
-          calc(
-            (100% - (var(--tb-cols) - 1) * var(--tb-gap) - var(--tb-stagger) * 6px)
-            / (var(--tb-cols) + var(--tb-stagger) * 0.5)
-          )
-        )
-      );
+      --tb-gap: 14px;
+      --tb-tile: 112px;
       transition: filter 0.4s ease, opacity 0.4s ease;
     }
     .tb__grid {
@@ -338,9 +329,7 @@ function layoutRowSizes(count: number): number[] {
       border: none;
       background: none;
       cursor: pointer;
-      flex: 0 1 var(--tb-tile);
-      min-width: 0;
-      max-width: var(--tb-tile);
+      flex: 0 0 var(--tb-tile);
       -webkit-tap-highlight-color: transparent;
       transition: transform 0.22s cubic-bezier(0.34, 1.25, 0.64, 1), opacity 0.3s ease, filter 0.3s ease;
     }
@@ -745,11 +734,12 @@ function layoutRowSizes(count: number): number[] {
     }
   `],
 })
-export class TapBoxesComponent implements OnInit, OnDestroy {
+export class TapBoxesComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input() attempt!: GameAttempt;
   @Input() gameSet!: GameSet;
   @Input() questions: TapBoxesQuestion[] = [];
   @Output() onComplete = new EventEmitter<TBResult>();
+  @ViewChild('gridPanel') gridPanel?: ElementRef<HTMLElement>;
 
   boxes: BoxItem[] = [];
   rows: BoxItem[][] = [];
@@ -762,8 +752,13 @@ export class TapBoxesComponent implements OnInit, OnDestroy {
   elapsedSeconds = 0;
   sessionLimitSeconds: number | null = null;
   remainingSeconds = 0;
+  tileSizePx = 112;
+  gapPx = 14;
   private timerId: ReturnType<typeof setInterval> | null = null;
   private elapsedId: ReturnType<typeof setInterval> | null = null;
+  private gridResizeObserver: ResizeObserver | null = null;
+
+  constructor(private cdr: ChangeDetectorRef) {}
 
   get boardBackgroundUrl(): string | null {
     const url = this.gameSet?.tapBoxesSettings?.backgroundUrl;
@@ -785,12 +780,57 @@ export class TapBoxesComponent implements OnInit, OnDestroy {
   }
 
   get gridPanelStyle(): Record<string, string> {
+    return {
+      '--tb-tile': `${this.tileSizePx}px`,
+      '--tb-gap': `${this.gapPx}px`,
+    };
+  }
+
+  ngAfterViewInit(): void {
+    this.attachGridObserver();
+  }
+
+  ngOnDestroy(): void {
+    if (this.timerId) clearInterval(this.timerId);
+    if (this.elapsedId) clearInterval(this.elapsedId);
+    this.detachGridObserver();
+  }
+
+  private attachGridObserver(): void {
+    this.detachGridObserver();
+    const el = this.gridPanel?.nativeElement;
+    if (!el) return;
+    this.gridResizeObserver = new ResizeObserver(() => {
+      this.updateTileSize(el);
+    });
+    this.gridResizeObserver.observe(el);
+    this.updateTileSize(el);
+  }
+
+  private detachGridObserver(): void {
+    if (this.gridResizeObserver) {
+      this.gridResizeObserver.disconnect();
+      this.gridResizeObserver = null;
+    }
+  }
+
+  private updateTileSize(container: HTMLElement): void {
+    const width = container.clientWidth;
+    if (!width) return;
+
     const maxCount = Math.max(1, ...this.rows.map(r => r.length));
     const hasStagger = this.rows.length > 1;
-    return {
-      '--tb-cols': String(maxCount),
-      '--tb-stagger': hasStagger ? '1' : '0',
-    };
+    const gap = width < 420 ? 8 : width < 640 ? 10 : width < 900 ? 12 : 16;
+    const staggerPad = hasStagger ? 6 : 0;
+    const divisor = maxCount + (hasStagger ? 0.5 : 0);
+    const usable = width - (maxCount - 1) * gap - staggerPad;
+    const nextTile = Math.min(136, Math.max(72, Math.floor(usable / divisor)));
+
+    if (nextTile !== this.tileSizePx || gap !== this.gapPx) {
+      this.tileSizePx = nextTile;
+      this.gapPx = gap;
+      this.cdr.markForCheck();
+    }
   }
 
   ngOnInit(): void {
@@ -818,11 +858,6 @@ export class TapBoxesComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {
-    if (this.timerId) clearInterval(this.timerId);
-    if (this.elapsedId) clearInterval(this.elapsedId);
-  }
-
   buildRows(): void {
     const sizes = layoutRowSizes(this.boxes.length);
     this.rows = [];
@@ -831,6 +866,10 @@ export class TapBoxesComponent implements OnInit, OnDestroy {
       this.rows.push(this.boxes.slice(idx, idx + size));
       idx += size;
     }
+    queueMicrotask(() => {
+      const el = this.gridPanel?.nativeElement;
+      if (el) this.updateTileSize(el);
+    });
   }
 
   openBox(box: BoxItem): void {
