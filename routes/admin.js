@@ -1003,7 +1003,6 @@ router.post('/bulk-delete', verifyToken, isAdmin, async (req, res) => {
 // Email Change Requests (first-login setup — admin approval flow)
 // ─────────────────────────────────────────────────────────────────────
 const EmailChangeRequest = require('../models/EmailChangeRequest');
-const { decryptPassword: decryptPwd } = require('../utils/passwordRecoverable');
 const { setUserPassword } = require('../utils/setUserPassword');
 const nodemailer = require('nodemailer');
 
@@ -1033,10 +1032,13 @@ router.post('/email-change-requests/:id/approve', verifyToken, checkRole(['ADMIN
     const user = await User.findById(ecr.userId);
     if (!user) return res.status(404).json({ success: false, message: 'Student account not found.' });
 
-    // Decrypt and apply the password they chose during setup
-    const plainPassword = decryptPwd(ecr.newPasswordEncrypted);
+    // Read password chosen during setup (AES-encrypted or legacy plain text)
+    const plainPassword = readRecoverablePassword(ecr.newPasswordEncrypted);
     if (!plainPassword) {
-      return res.status(500).json({ success: false, message: 'Could not decrypt stored password.' });
+      return res.status(500).json({
+        success: false,
+        message: 'Could not decrypt stored password. If encryption is enabled, verify PASSWORD_RECOVERABLE_KEY matches the key used when the student submitted this request.',
+      });
     }
 
     user.email = ecr.newEmail;
