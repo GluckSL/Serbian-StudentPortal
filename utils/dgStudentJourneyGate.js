@@ -12,8 +12,9 @@ const {
 async function getStudentDgJourneyAccess(userId) {
   const { reconcileSilverGoCourseDay } = require('./silverGoSequentialUnlock');
   await reconcileSilverGoCourseDay(userId);
+  const { SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
   const u = await User.findById(userId)
-    .select('currentCourseDay role level batch goStatus subscription')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!u || String(u.role || '').toUpperCase() !== 'STUDENT') {
     return {

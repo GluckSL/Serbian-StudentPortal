@@ -168,6 +168,7 @@
           [refreshToken]="recordingsRefreshToken"
           (reqRecordingClick)="openRecordingReqPanel()"
           (recordingRequestChanged)="onRecordingRequestChanged()"
+          (watchProgressUpdated)="onRecordingWatchProgress()"
         ></app-student-recordings>
       </section>
     </div>
@@ -188,9 +189,13 @@
           >
         </div>
 
-        <!-- Day completion badge -->
-        <div class="mc-day-badge-wrap" *ngIf="dayHasTrackableContent">
-          <ng-container *ngIf="isDayComplete">
+        <!-- Day completion badge (Silver GO: always visible on My class) -->
+        <div class="mc-day-badge-wrap" *ngIf="showDayCompletionBadge">
+          <span class="mc-day-badge mc-day-badge--loading" *ngIf="dayCompletionLoading" aria-busy="true">
+            <span class="material-icons">hourglass_top</span>
+            Checking Day {{ journeyCourseDay }}…
+          </span>
+          <ng-container *ngIf="!dayCompletionLoading && isDayComplete">
             <span class="mc-day-badge mc-day-badge--complete">
               <span class="material-icons">check_circle</span>
               Day {{ journeyCourseDay }} Completed
@@ -203,11 +208,11 @@
           <button
             type="button"
             class="mc-day-badge mc-day-badge--incomplete"
-            *ngIf="!isDayComplete"
+            *ngIf="!dayCompletionLoading && !isDayComplete"
             (click)="openDayCompletionModal()"
           >
             <span class="material-icons">pending</span>
-            Day {{ journeyCourseDay }} Incomplete
+            Day {{ journeyCourseDay }} Incomplete — tap to see what's left
           </button>
         </div>
       </div>
@@ -1101,9 +1106,15 @@
       <!-- Nothing left (edge-case: modal opened but actually done) -->
       <p
         class="mc-completion-modal__empty"
-        *ngIf="!currentDayIncompleteExercises.length && !currentDayIncompleteDg.length && !currentDayIncompleteGameSets.length && !currentDayIncompleteRecs.length"
+        *ngIf="!currentDayIncompleteExercises.length && !currentDayIncompleteDg.length && !currentDayIncompleteGameSets.length && !currentDayIncompleteRecs.length && dayHasTrackableContent"
       >
         All tasks for Day {{ journeyCourseDay }} are completed!
+      </p>
+      <p
+        class="mc-completion-modal__empty"
+        *ngIf="!dayHasTrackableContent && !dayCompletionLoading"
+      >
+        No exercises, Glück Buddy, or recordings are assigned to Day {{ journeyCourseDay }} yet.
       </p>
     </div>
   </div>

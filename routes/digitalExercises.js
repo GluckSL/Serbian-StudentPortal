@@ -1323,7 +1323,10 @@ const {
 async function getStudentExerciseAccess(userId) {
   const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
   await reconcileSilverGoCourseDay(userId);
-  const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription blockedJourneyLevels').lean();
+  const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
+  const u = await User.findById(userId)
+    .select(`${SILVER_GO_STUDENT_SELECT} blockedJourneyLevels`)
+    .lean();
   if (!u || u.role !== 'STUDENT') {
     return {
       enabled: true,

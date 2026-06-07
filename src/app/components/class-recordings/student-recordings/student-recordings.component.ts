@@ -89,6 +89,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   @Output() reqRecordingClick = new EventEmitter<void>();
   /** Fired after submit/cancel so parent can refresh quota UI. */
   @Output() recordingRequestChanged = new EventEmitter<void>();
+  /** Fired when watch progress is saved (parent can refresh day-completion badge). */
+  @Output() watchProgressUpdated = new EventEmitter<void>();
 
   @ViewChild('srVideoEl') srVideoEl?: ElementRef<HTMLVideoElement>;
 
@@ -781,7 +783,10 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     if (recDuration && recDuration > 0) {
       seconds = Math.min(seconds, recDuration);
     }
-    this.service.updateViewDuration(this.activeViewId, seconds).subscribe({ error: () => {} });
+    this.service.updateViewDuration(this.activeViewId, seconds).subscribe({
+      next: () => this.watchProgressUpdated.emit(),
+      error: () => {},
+    });
   }
 
   private stopTracking(): void {
@@ -808,7 +813,10 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   private updateZoomDuration(): void {
     if (!this.activeZoomViewId) return;
     const seconds = Math.round((Date.now() - this.zoomWatchStartTime) / 1000);
-    this.service.updateZoomViewDuration(this.activeZoomViewId, seconds).subscribe({ error: () => {} });
+    this.service.updateZoomViewDuration(this.activeZoomViewId, seconds).subscribe({
+      next: () => this.watchProgressUpdated.emit(),
+      error: () => {},
+    });
   }
 
   private stopZoomTracking(): void {

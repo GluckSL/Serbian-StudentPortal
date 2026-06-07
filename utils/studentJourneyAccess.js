@@ -121,8 +121,9 @@ async function getJourneyAccessForStudent(student) {
 }
 
 async function getJourneyAccessForStudentId(UserModel, studentId) {
+  const { SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
   const student = await UserModel.findById(studentId)
-    .select('role batch goStatus subscription currentCourseDay')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student) {
     return {

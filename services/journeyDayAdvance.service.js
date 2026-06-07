@@ -20,6 +20,7 @@ const {
   silverGoCompletionOptions,
   allPriorJourneyDaysComplete
 } = require('../utils/silverGoSequentialUnlock');
+const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
 
 /**
  * Check if a Silver GO student has completed all tasks for their current journey day
@@ -33,7 +34,7 @@ const {
  */
 async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
   const student = await User.findById(studentId)
-    .select('role batch goStatus subscription level currentCourseDay')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return { advanced: false };
   if (!isSilverGoStudent(student)) return { advanced: false };
@@ -115,7 +116,7 @@ async function syncPendingFlagsFromMeeting(meetingDoc) {
 
 async function tryMarkStudentPending(studentId, meetingBatch, meetingCourseDay) {
   const student = await User.findById(studentId)
-    .select('role batch goStatus subscription currentCourseDay pendingJourneyDayAdvance')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return;
   const keys = allStudentBatchStringsForContent(student);
@@ -149,7 +150,7 @@ async function markPendingAdvanceForStudentDay(studentId, batchName, courseDay) 
  */
 async function recomputePendingForStudent(studentId) {
   const student = await User.findById(studentId)
-    .select('role batch goStatus subscription currentCourseDay pendingJourneyDayAdvance')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return;
   const keys = allStudentBatchStringsForContent(student);
@@ -190,7 +191,7 @@ async function recomputePendingForStudent(studentId) {
  */
 async function applyJourneyDayRollovers() {
   const students = await User.find({ role: 'STUDENT' })
-    .select('batch goStatus subscription level currentCourseDay pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
 
   const configCache = new Map();
