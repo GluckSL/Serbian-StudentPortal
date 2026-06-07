@@ -553,7 +553,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * In Watch Only Mode: mark the current clip as "watched" (score 0) and advance,
+   * In Watch Only Mode: mark the current clip as watched/completed and advance,
    * without requiring the student to speak.
    */
   skipWatchOnlyClip(): void {
@@ -562,8 +562,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!pq) return;
 
     pq.vpSpokenText = '';
-    pq.pronunciationScore = 0;
-    pq.vpResult = 'idle';
+    pq.pronunciationScore = 100;
+    pq.vpResult = 'correct';
+    pq.isCorrect = true;
     pq.hasRecorded = true;
     pq.isAnswered = true;
     pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
@@ -934,7 +935,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const pq = this.playerQuestions[i];
     const parts: string[] = ['vp-clip-cell'];
     if (i === this.currentIndex) parts.push('vp-clip-cell--current');
-    if (pq.isCorrect === true) {
+    const watchOnlyCompleted = this.watchOnlyMode && pq.isAnswered;
+    if (pq.isCorrect === true || watchOnlyCompleted) {
       parts.push('vp-clip-cell--passed');
     } else if (pq.isCorrect === false) {
       parts.push('vp-clip-cell--failed');
@@ -1563,7 +1565,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   private applyPerQuestionSubmitResult(pq: PlayerQuestion, res: SubmitQuestionResult): void {
-    pq.isCorrect = res.isCorrect;
+    const watchOnlyClipCompleted =
+      this.watchOnlyMode && pq.data?.type === 'video-pronunciation' && pq.isAnswered;
+    pq.isCorrect = watchOnlyClipCompleted ? true : res.isCorrect;
+    if (watchOnlyClipCompleted) {
+      pq.vpResult = 'correct';
+    }
     pq.feedback = this.buildFeedbackFromCorrectAnswer(pq.data, res.correctAnswer, pq);
     if (pq.data.type === 'fill-blank' && res.correctAnswer?.answers) {
       pq.data._correctAnswers = res.correctAnswer.answers;
@@ -3371,7 +3378,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     result.answerDetails.forEach(detail => {
       const pq = this.playerQuestions[detail.questionIndex];
       if (pq) {
-        pq.isCorrect = detail.isCorrect;
+        const watchOnlyClipCompleted =
+          this.watchOnlyMode && pq.data?.type === 'video-pronunciation' && pq.isAnswered;
+        pq.isCorrect = watchOnlyClipCompleted ? true : detail.isCorrect;
+        if (watchOnlyClipCompleted) {
+          pq.vpResult = 'correct';
+        }
         pq.feedback = this.buildFeedback(pq.data, detail.correctAnswer, pq);
         // Store correct answers for display
         if (pq.data.type === 'fill-blank' && detail.correctAnswer?.answers) {

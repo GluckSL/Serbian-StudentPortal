@@ -76,6 +76,7 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
               class="sw__wheel-outer"
               [class.sw__wheel-outer--spinning]="phase === 'spinning'"
               [class.sw__wheel-outer--dense]="segments.length > 8"
+              [class.sw__wheel-outer--extra-dense]="segments.length > 14"
             >
               <div class="sw__pointer-slot" aria-hidden="true">
                 <div class="sw__pointer">
@@ -109,6 +110,9 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                       <stop offset="0%" [attr.stop-color]="seg.color"/>
                       <stop offset="100%" [attr.stop-color]="seg.colorDark"/>
                     </linearGradient>
+                    <clipPath [attr.id]="'sw-clip-' + i">
+                      <path [attr.d]="segmentPath(i)"/>
+                    </clipPath>
                   </ng-container>
                 </defs>
                 <circle cx="200" cy="200" r="199" fill="#f8fafc"/>
@@ -122,16 +126,23 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                     [attr.filter]="isHighlighted(i) ? 'url(#sw-shadow)' : null"
                   />
                 </g>
-                <g *ngFor="let seg of segments; let i = index">
+                <g *ngFor="let seg of segments; let i = index" [attr.clip-path]="'url(#sw-clip-' + i + ')'">
                     <text
-                      *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
-                      [attr.transform]="segmentTextTransform(i, li)"
-                      [attr.font-size]="segmentFontSize(i)"
+                      [attr.transform]="segmentTextTransform(i)"
+                      [attr.font-size]="segmentFontSize(i, seg.phrase)"
                       class="sw__seg-text"
+                      [class.sw__seg-text--dense]="segments.length > 10"
+                      [class.sw__seg-text--selected]="isHighlighted(i)"
                       text-anchor="middle"
                       dominant-baseline="middle"
-                      [class.sw__seg-text--selected]="isHighlighted(i)"
-                    >{{ line }}</text>
+                    >
+                      <tspan
+                        *ngFor="let line of wheelLines(seg.phrase, i); let li = index"
+                        x="0"
+                        [attr.dy]="li === 0 ? firstLineDy(seg.phrase, i) : '1.2em'"
+                        text-anchor="middle"
+                      >{{ line }}</tspan>
+                    </text>
                   </g>
               </svg>
               <div
@@ -312,6 +323,10 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       width: 22%;
       max-width: 96px;
     }
+    .sw__wheel-outer--extra-dense .sw__hub {
+      width: 17%;
+      max-width: 72px;
+    }
     .sw__wheel-ring {
       position: absolute;
       inset: -6px;
@@ -349,18 +364,23 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
     .sw__seg-text {
       fill: #fff;
-      font-weight: 800;
+      font-weight: 700;
       font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
       pointer-events: none;
       paint-order: stroke fill;
-      stroke: rgba(0, 0, 0, 0.4);
-      stroke-width: 2.5px;
-      letter-spacing: 0.02em;
+      stroke: rgba(15, 23, 42, 0.35);
+      stroke-width: 1.5px;
+      letter-spacing: 0;
+      text-rendering: optimizeLegibility;
+    }
+    .sw__seg-text--dense {
+      stroke-width: 1px;
     }
     .sw__seg-text--selected {
       fill: #0f172a;
-      stroke: rgba(255, 255, 255, 0.35);
-      stroke-width: 1.5px;
+      stroke: rgba(255, 255, 255, 0.4);
+      stroke-width: 1px;
+      font-weight: 800;
     }
 
     .sw__hub {
@@ -702,67 +722,101 @@ export class SpinWheelComponent implements OnInit, OnDestroy {
     return this.describeWedge(cx, cy, r, start, end);
   }
 
-  segmentTextTransform(index: number, lineIndex: number): string {
+  segmentTextTransform(index: number): string {
     const n = this.segments.length;
     if (!n) return '';
     const seg = 360 / n;
     const midAngle = (index + 0.5) * seg;
     const midRad = ((midAngle - 90) * Math.PI) / 180;
-    const outerR = n <= 6 ? 158 : n <= 10 ? 163 : n <= 14 ? 168 : 172;
-    const lineGap = 14;
-    const lines = this.phraseLines(this.segments[index].phrase, index);
-    const numLines = lines.length;
-
-    // Keep text upright on the lower half of the wheel.
-    const flipped = midAngle > 90 && midAngle < 270;
-    // First phrase line sits on the outer rim so reading order matches the sentence.
-    const readOrderIndex = flipped ? (numLines - 1 - lineIndex) : lineIndex;
-    const r = numLines > 1
-      ? outerR - readOrderIndex * lineGap
-      : outerR;
+    const r = this.segmentTextRadius(n);
 
     const x = 200 + r * Math.cos(midRad);
     const y = 200 + r * Math.sin(midRad);
 
-    let rotate = midAngle + 90;
-    if (flipped) rotate += 180;
+    const highlighted = this.isHighlighted(index);
+    const flipped = midAngle > 90 && midAngle < 270;
+    let rotate: number;
+    if (highlighted) {
+      const snap = Math.round(((this.rotationDeg % 360) + 360) % 360);
+      rotate = -snap;
+    } else {
+      rotate = midAngle + 90;
+      if (flipped) rotate += 180;
+    }
 
     return `translate(${x}, ${y}) rotate(${rotate})`;
   }
 
-  segmentFontSize(index: number): number {
-    return 12;
+  segmentFontSize(index: number, phrase = ''): number {
+    const n = this.segments.length;
+    const lines = phrase ? this.wheelLines(phrase, index) : [];
+    const len = lines.reduce((max, l) => Math.max(max, l.length), 0);
+    const maxW = this.segmentTextMaxWidth(index);
+    let size = n <= 6 ? 15 : n <= 8 ? 13 : n <= 12 ? 11 : n <= 14 ? 10 : 9;
+    while (len * size * 0.58 > maxW && size > 7) size -= 1;
+    return size;
   }
 
-  phraseLines(phrase: string, index: number): string[] {
+  segmentTextMaxWidth(index: number): number {
+    const n = this.segments.length;
+    const r = this.segmentTextRadius(n);
+    const wedgeRad = (2 * Math.PI) / n;
+    return 2 * r * Math.sin(wedgeRad / 2) * 0.82;
+  }
+
+  private segmentTextRadius(n: number): number {
+    return n <= 6 ? 156 : n <= 10 ? 146 : n <= 14 ? 136 : 130;
+  }
+
+  firstLineDy(phrase: string, index: number): string {
+    const count = this.wheelLines(phrase, index).length;
+    if (count <= 1) return '0';
+    return `${-((count - 1) / 2) * 1.2}em`;
+  }
+
+  /** Wrap the full phrase across up to 3 lines inside each wedge. */
+  wheelLines(phrase: string, index: number): string[] {
     const trimmed = phrase.trim();
     if (!trimmed) return [''];
 
     if (/\n/.test(trimmed)) {
-      return trimmed.split(/\n/).map(l => l.trim()).filter(Boolean).slice(0, 2);
-    }
-
-    const parenMatch = trimmed.match(/^(.+?)\s+(\([^)]+\))$/);
-    if (parenMatch) {
-      return [parenMatch[1].trim(), parenMatch[2].trim()];
+      return trimmed.split(/\n/).map(l => l.trim()).filter(Boolean).slice(0, 3);
     }
 
     const n = this.segments.length;
-    const maxPerLine = n <= 6 ? 18 : n <= 10 ? 14 : n <= 14 ? 12 : 11;
+    const maxLines = 3;
+    const baseSize = n <= 6 ? 15 : n <= 8 ? 13 : n <= 12 ? 11 : 10;
+    const maxW = this.segmentTextMaxWidth(index);
+    const maxChars = Math.max(7, Math.floor(maxW / (baseSize * 0.52)));
+
+    if (trimmed.length <= maxChars) return [trimmed];
+
     const words = trimmed.split(/\s+/);
     const lines: string[] = [];
     let current = '';
-    for (const word of words) {
+    let wordIdx = 0;
+
+    while (wordIdx < words.length && lines.length < maxLines) {
+      const word = words[wordIdx];
       const next = current ? `${current} ${word}` : word;
-      if (next.length <= maxPerLine || !current) {
+
+      if (next.length <= maxChars || !current) {
         current = next;
-      } else {
-        lines.push(current);
-        current = word;
+        wordIdx += 1;
+        continue;
+      }
+
+      lines.push(current);
+      current = '';
+
+      if (lines.length === maxLines - 1) {
+        lines.push(words.slice(wordIdx).join(' '));
+        return lines;
       }
     }
+
     if (current) lines.push(current);
-    return lines.slice(0, 2);
+    return lines.length ? lines : [trimmed];
   }
 
   spin(): void {

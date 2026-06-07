@@ -344,6 +344,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         autoRecordingEnabled: !!(cfg && cfg.autoRecordingEnabled),
         journeyActive: !!(cfg && cfg.journeyActive),
         trialDayEnabled: !!(cfg && cfg.trialDayEnabled),
+        trialAccessStartDate: cfg.trialAccessStartDate || null,
         ...journeyPauseFieldsForApi(cfg),
         studentCount: countMap[name] || 0,
         teacherId: teacherByBatch[name]?.teacherId ?? null,
@@ -517,6 +518,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         batchType: normalizeBatchType(cfg.batchType),
         oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
         trialDayEnabled: trial,
+        trialAccessStartDate: cfg.trialAccessStartDate || null,
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
@@ -629,6 +631,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       journeyActive,
       journeyPaused,
       trialDayEnabled,
+      trialAccessStartDate,
       newBatchName
     } = req.body || {};
 
@@ -660,6 +663,23 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     }
     if (trialDayEnabled !== undefined) {
       cfg.trialDayEnabled = !!trialDayEnabled;
+      if (!cfg.trialDayEnabled) {
+        cfg.trialAccessStartDate = null;
+      }
+      if (cfg.batchStartDate) {
+        cfg.batchCurrentDay = computeBatchDay(cfg);
+      }
+    }
+    if (trialAccessStartDate !== undefined) {
+      if (!trialAccessStartDate || trialAccessStartDate === '') {
+        cfg.trialAccessStartDate = null;
+      } else {
+        const parsedTrial = new Date(trialAccessStartDate);
+        if (isNaN(parsedTrial.getTime())) {
+          return res.status(400).json({ message: 'Invalid trialAccessStartDate' });
+        }
+        cfg.trialAccessStartDate = parsedTrial;
+      }
       if (cfg.batchStartDate) {
         cfg.batchCurrentDay = computeBatchDay(cfg);
       }

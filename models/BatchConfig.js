@@ -24,7 +24,7 @@ const BatchConfigSchema = new mongoose.Schema({
   },
   /**
    * When set, the batch's current day is automatically computed from batchStartDate
-   * (Day 1 on start date, or Trial/day 0 when trialDayEnabled).
+   * (Day 1 on start date, or Trial/day 0 when trialDayEnabled without trialAccessStartDate).
    */
   batchStartDate: {
     type: Date,
@@ -52,6 +52,14 @@ const BatchConfigSchema = new mongoose.Schema({
   oldBatchDgBotAccess: {
     type: Boolean,
     default: false
+  },
+  /**
+   * When trialDayEnabled: first calendar date students enter Trial (journey day 0).
+   * If set with batchStartDate, batchStartDate is Day 1 (not trial).
+   */
+  trialAccessStartDate: {
+    type: Date,
+    default: null
   },
   /**
    * When true (new batches only): batch start date is a one-day Trial/orientation

@@ -84,7 +84,7 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const { clampJourneyDayForBatch, clampStandardJourneyDay } = require('../utils/journeyDay');
+const { clampJourneyDayForBatch, clampStandardJourneyDay, computeJourneyDayFromBatchConfig } = require('../utils/journeyDay');
 
 function normalizeCourseDay(d, trialDayEnabled = false) {
   const n = parseInt(String(d), 10);
@@ -223,8 +223,10 @@ async function applyJourneyDayRollovers() {
     if (shouldSkipStudentRollover(cfg)) {
       continue;
     }
-    const cur = normalizeCourseDay(s.currentCourseDay);
+    const trialEnabled = !!cfg?.trialDayEnabled;
+    const cur = normalizeCourseDay(s.currentCourseDay, trialEnabled);
     const maxDay = cfg?.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
+    const calendarDay = cfg?.batchStartDate ? computeJourneyDayFromBatchConfig(cfg) : null;
 
     if (!cfg || cur >= maxDay) {
       if (s.pendingJourneyDayAdvance) {
@@ -290,7 +292,17 @@ async function applyJourneyDayRollovers() {
       continue;
     }
 
-    const next = Math.min(maxDay, cur + 1);
+    let next;
+    if (calendarDay != null && !strictForStudent) {
+      // Auto-scheduled lenient batches: sync to calendar (supports multi-day trial windows).
+      if (calendarDay <= cur) continue;
+      next = Math.min(maxDay, calendarDay);
+    } else if (calendarDay != null && strictForStudent) {
+      next = Math.min(maxDay, cur + 1, calendarDay);
+      if (next <= cur) continue;
+    } else {
+      next = Math.min(maxDay, cur + 1);
+    }
     if (next === cur) continue;
 
     await User.updateOne(

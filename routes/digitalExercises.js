@@ -142,6 +142,22 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
 const VIDEO_PRONUNCIATION_PASS_SCORE = 20;
 
+function isWatchOnlyVideoClip(exercise, q) {
+  return !!exercise?.watchOnlyMode && q?.type === 'video-pronunciation';
+}
+
+/** In Watch Only mode, watching a clip counts as a full pass (no speaking required). */
+function applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer) {
+  if (!isWatchOnlyVideoClip(exercise, q)) {
+    return { isCorrect, pointsEarned, correctAnswer };
+  }
+  return {
+    isCorrect: true,
+    pointsEarned: q.points || 1,
+    correctAnswer: { ...(correctAnswer || {}), score: 100, watchOnlyPass: true },
+  };
+}
+
 function normalizeQuestionContexts(rawQuestions) {
   if (!Array.isArray(rawQuestions)) return rawQuestions;
   // Sanitize HTML in text fields, then normalise context whitespace
@@ -710,7 +726,7 @@ function migrateAttemptFillBlankResponses(exercise, responses) {
 }
 
 /** Grade one question response (same rules as POST /submit). */
-function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap) {
+function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap, exercise = null) {
   const useAdvancedGrading = isAdvancedGradingEnabled(q);
   let isCorrect = false;
   let pointsEarned = 0;
@@ -900,6 +916,12 @@ function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap) {
       return g;
     });
   }
+
+  ({
+    isCorrect,
+    pointsEarned,
+    correctAnswer
+  } = applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer));
 
   return {
     isCorrect,
@@ -1249,7 +1271,7 @@ async function regradeCompletedAttempt(exercise, attemptDoc) {
   for (let i = 0; i < exercise.questions.length; i++) {
     const q = exercise.questions[i];
     const resp = migrated.find((r) => Number(r.questionIndex) === i) || { questionIndex: i };
-    const graded = gradeQuestionResponseCore(q, resp, i, qaScoreMap);
+    const graded = gradeQuestionResponseCore(q, resp, i, qaScoreMap, exercise);
     earnedPoints += graded.pointsEarned;
     gradedResponses.push(graded.gradedResp);
   }
@@ -1336,7 +1358,7 @@ async function getStudentExerciseAccess(userId) {
     };
   }
   const journeyAccess = await getJourneyAccessForStudent(u);
-  const courseDay = journeyAccess.courseDay;
+  const courseDay = journeyAccess.contentUnlockDay ?? journeyAccess.courseDay;
   const studentLevel = u.level || 'A1';
   const accessibleLevels = getEffectiveAccessibleLevels(studentLevel, u.blockedJourneyLevels);
   return {
@@ -2850,6 +2872,12 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
       subQuestionGrades
     } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
 
+    ({
+      isCorrect,
+      pointsEarned,
+      correctAnswer
+    } = applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer));
+
     const gradedResp = {
       questionIndex: idx,
       questionType: q.type,
@@ -3161,6 +3189,12 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
         correctAnswer,
         subQuestionGrades
       } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
+
+      ({
+        isCorrect,
+        pointsEarned,
+        correctAnswer
+      } = applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer));
 
       earnedPoints += pointsEarned;
 

@@ -39,8 +39,12 @@ export function computeJourneyDayFromStartDate(
   startDate: string | Date | null | undefined,
   now: Date = new Date(),
   max = JOURNEY_DAY_MAX,
-  trialDayEnabled = false
+  trialDayEnabled = false,
+  trialAccessStartDate?: string | Date | null
 ): number {
+  if (trialDayEnabled && trialAccessStartDate && startDate) {
+    return computeJourneyDayWithTrialWindow(trialAccessStartDate, startDate, now, max);
+  }
   if (!startDate) return trialDayEnabled ? TRIAL_JOURNEY_DAY : STANDARD_JOURNEY_MIN;
   const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   let startUTC: number;
@@ -52,6 +56,28 @@ export function computeJourneyDayFromStartDate(
   }
   const elapsed = Math.max(0, Math.floor((todayUTC - startUTC) / 86_400_000));
   if (trialDayEnabled) return clampJourneyDayForBatch(elapsed, max, true);
+  return clampStandardJourneyDay(elapsed + 1, max);
+}
+
+export function computeJourneyDayWithTrialWindow(
+  trialAccessStartDate: string | Date,
+  dayOneStartDate: string | Date,
+  now: Date = new Date(),
+  max = JOURNEY_DAY_MAX
+): number {
+  const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const toUtc = (d: string | Date) => {
+    if (typeof d === 'string') {
+      const parts = d.split('-').map(Number);
+      return Date.UTC(parts[0], parts[1] - 1, parts[2]);
+    }
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  };
+  const trialStart = toUtc(trialAccessStartDate);
+  const dayOneStart = toUtc(dayOneStartDate);
+  if (todayUTC < trialStart) return TRIAL_JOURNEY_DAY;
+  if (todayUTC < dayOneStart) return TRIAL_JOURNEY_DAY;
+  const elapsed = Math.max(0, Math.floor((todayUTC - dayOneStart) / 86_400_000));
   return clampStandardJourneyDay(elapsed + 1, max);
 }
 
