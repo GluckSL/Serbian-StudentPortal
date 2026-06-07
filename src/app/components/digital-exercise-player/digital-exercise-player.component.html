@@ -4134,6 +4134,7 @@
           <!-- Navigation Buttons (inside card) -->
           <div class="question-nav-btns">
             <button
+              type="button"
               class="btn-nav btn-prev"
               (click)="prevQuestion()"
               [disabled]="isFirstQuestion || finishingAll"
@@ -4141,6 +4142,7 @@
               <span class="material-icons">arrow_back</span> Previous
             </button>
             <button
+              type="button"
               class="btn-nav btn-next"
               *ngIf="!isLastQuestion"
               (click)="nextQuestion()"
@@ -4149,6 +4151,7 @@
               Next <span class="material-icons">arrow_forward</span>
             </button>
             <button
+              type="button"
               class="btn-submit btn-finish"
               *ngIf="isLastQuestion"
               (click)="openFinishSummary()"
