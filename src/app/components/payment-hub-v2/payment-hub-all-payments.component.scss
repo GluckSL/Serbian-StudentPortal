@@ -30,9 +30,35 @@
 }
 
 .ph-filters-row--secondary {
-  padding-bottom: 4px;
-  margin-bottom: 14px;
-  border-bottom: 1px dashed rgba(226, 232, 240, 0.95);
+  padding-bottom: 0;
+  margin-bottom: 10px;
+}
+
+.ph-filters-lang-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748b;
+
+  mat-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    color: #94a3b8;
+  }
+
+  span {
+    min-width: 0;
+  }
 }
 
 .ph-filter-field {
@@ -63,7 +89,7 @@
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  padding-top: 4px;
+  padding-top: 14px;
   border-top: 1px solid rgba(226, 232, 240, 0.9);
 }
 
@@ -402,49 +428,280 @@
   white-space: normal !important;
 }
 
-
-// ── Summary row ─────────────────────────────────────────────────────────────
-.ph-summary-row {
+.ph-paid-slots {
   display: flex;
-  align-items: center;
-  gap: 0;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
-  padding: 14px 16px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: flex-end;
 }
 
-.ph-summary-item {
+.ph-paid-slot {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.ph-paid-slot--all {
+  color: #4338ca;
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.28);
+  text-transform: uppercase;
+}
+
+.ph-paid-slot--a1 {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.ph-paid-slot--a2 {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.28);
+}
+
+.ph-paid-slot--b1 {
+  color: #7c3aed;
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.28);
+}
+
+.ph-paid-slot--b2 {
+  color: #c2410c;
+  background: rgba(249, 115, 22, 0.14);
+  border-color: rgba(249, 115, 22, 0.28);
+}
+
+.ph-paid-slot--docs {
+  color: #0e7490;
+  background: rgba(6, 182, 212, 0.14);
+  border-color: rgba(6, 182, 212, 0.28);
+}
+
+.ph-paid-slot--visa {
+  color: #be185d;
+  background: rgba(236, 72, 153, 0.14);
+  border-color: rgba(236, 72, 153, 0.28);
+}
+
+
+// ── Student health cards (clickable summary) ───────────────────────────────
+.ph-health-grid {
+  margin-top: 4px;
+}
+
+.ph-health-grid-heading {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+}
+
+.ph-health-cards {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.ph-health-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 14px;
+  border-radius: 18px;
+  border: 1.5px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    background 0.22s ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  &--active {
+    border-color: rgba(79, 70, 229, 0.55);
+    background: linear-gradient(145deg, rgba(238, 242, 255, 0.95), rgba(255, 255, 255, 1));
+    box-shadow: 0 8px 26px rgba(79, 70, 229, 0.16);
+  }
+}
+
+.ph-health-card-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.ph-health-card-body {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  flex: 0 0 auto;
-  padding: 0 16px;
-  min-width: 88px;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
-.ph-summary-label {
-  font-size: 12px;
+.ph-health-card-label {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: #64748b;
-  margin-bottom: 2px;
-  font-weight: 500;
 }
 
-.ph-summary-val {
-  font-size: 22px;
+.ph-health-card-value {
+  font-size: 1.65rem;
   font-weight: 800;
-  color: #0f172a;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
-.ph-summary-divider {
-  width: 1px;
-  height: 40px;
-  background: #e2e8f0;
+.ph-health-card-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.ph-health-card-chevron {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  color: #4f46e5;
+}
+
+.ph-health-card--slate {
+  .ph-health-card-icon {
+    background: rgba(100, 116, 139, 0.12);
+    color: #475569;
+  }
+  .ph-health-card-value { color: #0f172a; }
+}
+
+.ph-health-card--green {
+  .ph-health-card-icon {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+  }
+  .ph-health-card-value { color: #047857; }
+}
+
+.ph-health-card--amber {
+  .ph-health-card-icon {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+  }
+  .ph-health-card-value { color: #b45309; }
+}
+
+.ph-health-card--red {
+  .ph-health-card-icon {
+    background: rgba(244, 63, 94, 0.12);
+    color: #e11d48;
+  }
+  .ph-health-card-value { color: #be123c; }
+}
+
+.ph-health-card--teal {
+  .ph-health-card-icon {
+    background: rgba(13, 148, 136, 0.12);
+    color: #0d9488;
+  }
+  .ph-health-card-value { color: #0f766e; }
+}
+
+.ph-health-card--indigo {
+  .ph-health-card-icon {
+    background: rgba(99, 102, 241, 0.12);
+    color: #4f46e5;
+  }
+  .ph-health-card-value { color: #4338ca; }
+}
+
+.ph-insight-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #4338ca;
+  background: rgba(99, 102, 241, 0.12);
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+
+  > mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+  }
+}
+
+.ph-insight-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #6366f1;
+  line-height: 0;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background: rgba(99, 102, 241, 0.15);
+  }
 }
 
 // ── Table ───────────────────────────────────────────────────────────────────

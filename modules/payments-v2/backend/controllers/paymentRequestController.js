@@ -28,7 +28,11 @@ const {
   addToCurrencyBucket,
   computeBalanceDueFromRequests,
 } = require('../utils/currencyBreakdownHelper');
-const { computeTotalsForStudentLevel } = require('../utils/levelSlotHelper');
+const {
+  computeTotalsForStudentLevel,
+  computeTotalsForAllPayments,
+  computePaidSlotBadges,
+} = require('../utils/levelSlotHelper');
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
 const {
   getFilteredStudentIds,
@@ -43,6 +47,8 @@ const {
   buildLevelPriceMap,
   pendingTotalsForStudent,
   effectiveOutstandingBalance,
+  VALID_STUDENT_INSIGHTS,
+  filterStudentsByInsight,
 } = require('../helpers/paymentHubStatsAggregator');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -254,6 +260,24 @@ const getStudentTable = async (req, res) => {
       if (req.query.dateTo) userMatch.enrollmentDate.$lte = new Date(req.query.dateTo);
     }
 
+    const studentInsight = String(hubFilters.studentInsight || '').trim().toLowerCase();
+    let pipelineMatch = userMatch;
+    if (studentInsight && VALID_STUDENT_INSIGHTS.includes(studentInsight)) {
+      const candidates = await mongoose.model('User')
+        .find(userMatch)
+        .select('_id level currentCourseDay')
+        .lean();
+      const matched = await filterStudentsByInsight(candidates, studentInsight);
+      const matchedIds = matched.map((s) => s._id);
+      pipelineMatch = {
+        _id: {
+          $in: matchedIds.length
+            ? matchedIds
+            : [new mongoose.Types.ObjectId('000000000000000000000000')],
+        },
+      };
+    }
+
     let sortStage = { name: 1 };
     if (sort === '-lastRebuiltAt' || sort === 'lastRebuiltAt') {
       sortStage = { sortDate: sort === '-lastRebuiltAt' ? -1 : 1 };
@@ -264,7 +288,7 @@ const getStudentTable = async (req, res) => {
     }
 
     const pipeline = [
-      { $match: userMatch },
+      { $match: pipelineMatch },
       {
         $lookup: {
           from: 'studentpaymentprofiles',
@@ -434,6 +458,12 @@ const getStudentTable = async (req, res) => {
       const sid = String(row._id);
       const studentRequests = requestsByStudent[sid] || [];
       const studentLevel = row?.studentId?.level;
+      const { live: allLive } = computeTotalsForAllPayments(
+        studentRequests,
+        approvedByStudent[sid] || [],
+        pendingByStudent[sid] || [],
+        studentLevel,
+      );
       const { live, balanceDue, levelRequests } = computeTotalsForStudentLevel(
         studentRequests,
         approvedByStudent[sid] || [],
@@ -489,12 +519,15 @@ const getStudentTable = async (req, res) => {
                 pendingApprovalAmountUSD: 0,
               };
 
+      const approvedForStudent = approvedByStudent[sid] || [];
+
       return {
         ...row,
-        totalPaid: live.totalPaid,
-        totalPaidLKR: live.totalPaidLKR,
-        totalPaidINR: live.totalPaidINR,
-        totalPaidUSD: live.totalPaidUSD,
+        totalPaid: allLive.totalPaid,
+        totalPaidLKR: allLive.totalPaidLKR,
+        totalPaidINR: allLive.totalPaidINR,
+        totalPaidUSD: allLive.totalPaidUSD,
+        paidSlots: computePaidSlotBadges(studentRequests, approvedForStudent, studentLevel),
         ...pendingFields,
         overdueAmount: live.overdueAmount,
         overdueAmountLKR: live.overdueAmountLKR,

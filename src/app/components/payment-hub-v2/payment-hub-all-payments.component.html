@@ -35,12 +35,11 @@
   </div>
 
   <div class="ph-filters-row ph-filters-row--secondary">
-    <mat-form-field appearance="outline" class="ph-filter-field ph-filter-field--wide">
+    <mat-form-field appearance="outline" class="ph-filter-field">
       <mat-label>Language fee status</mat-label>
       <mat-select [(ngModel)]="filterLanguageFeeStatus">
         <mat-option *ngFor="let o of languageFeeStatusOptions" [value]="o.value">{{ o.label }}</mat-option>
       </mat-select>
-      <mat-hint>Full paid = no language fee balance · Balance if journey day &lt; 10 · Due from day 10</mat-hint>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
@@ -74,6 +73,11 @@
       </mat-checkbox>
     </div>
   </div>
+
+  <p class="ph-filters-lang-hint">
+    <mat-icon aria-hidden="true">info</mat-icon>
+    <span>Full paid = no language fee balance · Balance if journey day &lt; 10 · Due from day 10</span>
+  </p>
 
   <div class="ph-actions-row">
     <button mat-flat-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-primary ph-anim-btn" (click)="applyFilters()">
@@ -269,35 +273,31 @@
     </mat-card>
   </div>
 
-  <div class="ph-summary-row" *ngIf="stats">
-    <div class="ph-summary-item">
-      <span class="ph-summary-label">Total students</span>
-      <span class="ph-summary-val">{{ stats.totalStudents }}</span>
-    </div>
-    <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item">
-      <span class="ph-summary-label">Paid full</span>
-      <span class="ph-summary-val ph-val-green">{{ stats.fullyPaidStudents }}</span>
-    </div>
-    <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item">
-      <span class="ph-summary-label">Have balance</span>
-      <span class="ph-summary-val ph-val-amber">{{ stats.balanceStudents }}</span>
-    </div>
-    <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item">
-      <span class="ph-summary-label">Overdue</span>
-      <span class="ph-summary-val ph-val-red">{{ stats.overdueStudents }}</span>
-    </div>
-    <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item">
-      <span class="ph-summary-label">Paid docs</span>
-      <span class="ph-summary-val ph-val-teal">{{ stats.docsPaidStudents }}</span>
-    </div>
-    <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item">
-      <span class="ph-summary-label">Paid visa</span>
-      <span class="ph-summary-val ph-val-indigo">{{ stats.visaPaidStudents }}</span>
+  <div class="ph-health-grid" *ngIf="stats">
+    <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
+    <div class="ph-health-cards">
+      <button
+        type="button"
+        class="ph-health-card ph-health-card--{{ opt.color }}"
+        *ngFor="let opt of studentInsightOptions"
+        [class.ph-health-card--active]="isInsightActive(opt.value)"
+        [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
+        (click)="applyInsightFilter(opt.value)"
+        [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+      >
+        <div class="ph-health-card-icon">
+          <mat-icon>{{ opt.icon }}</mat-icon>
+        </div>
+        <div class="ph-health-card-body">
+          <span class="ph-health-card-label">{{ opt.label }}</span>
+          <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
+          <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In current view</span>
+          <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
+            {{ studentPct(insightCount(opt.key), stats.totalStudents) }} of students
+          </span>
+        </div>
+        <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
+      </button>
     </div>
   </div>
 </div>
@@ -306,10 +306,17 @@
 </ng-template>
 
 <!-- Table -->
-<section class="ph-table-section ph-surface">
+<section class="ph-table-section ph-surface" id="ph-students-table">
   <div class="ph-table-toolbar">
     <div class="ph-table-toolbar-left">
       <h2 class="ph-section-title">Students</h2>
+      <span class="ph-insight-filter-chip" *ngIf="hasTableInsightFilter">
+        <mat-icon>filter_alt</mat-icon>
+        {{ activeInsightLabel() }}
+        <button type="button" class="ph-insight-filter-clear" (click)="clearInsightFilter()" matTooltip="Clear category filter">
+          <mat-icon>close</mat-icon>
+        </button>
+      </span>
       <span class="ph-select-meta" *ngIf="selectedCount > 0">{{ selectedCount }} selected</span>
       <button
         mat-button
@@ -377,6 +384,13 @@
               [compact]="true"
               [hideZero]="true"
             ></app-payment-currency-totals>
+            <div class="ph-paid-slots" *ngIf="paidSlots(row).length">
+              <span
+                class="ph-paid-slot"
+                *ngFor="let slot of paidSlots(row)"
+                [ngClass]="paidSlotClass(slot)"
+              >{{ paidSlotLabel(slot) }}</span>
+            </div>
           </td>
           <td class="ph-num ph-val-amber ph-paid-cell">
             <app-payment-currency-pending-totals

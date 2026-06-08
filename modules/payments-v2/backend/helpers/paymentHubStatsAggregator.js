@@ -10,7 +10,7 @@ const {
   emptyCurrencyBucket,
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
-const { computeTotalsForStudentLevel } = require('../utils/levelSlotHelper');
+const { computeTotalsForStudentLevel, computeTotalsForAllPayments } = require('../utils/levelSlotHelper');
 const { computeLanguageFeeStatus } = require('./languageFeeStatus');
 const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
 
@@ -233,6 +233,12 @@ async function aggregateHubDashboardStats(studentIds = null, options = {}) {
     const approved = approvedByStudent[sid] || [];
     const pendingSubmissions = pendingByStudent[sid] || [];
 
+    const { live: allLive } = computeTotalsForAllPayments(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student.level,
+    );
     const { live } = computeTotalsForStudentLevel(
       studentRequests,
       approved,
@@ -240,9 +246,9 @@ async function aggregateHubDashboardStats(studentIds = null, options = {}) {
       student.level,
     );
     addBuckets(received, {
-      LKR: live.totalPaidLKR,
-      INR: live.totalPaidINR,
-      USD: live.totalPaidUSD,
+      LKR: allLive.totalPaidLKR,
+      INR: allLive.totalPaidINR,
+      USD: allLive.totalPaidUSD,
     });
     const overdueStudent = {
       LKR: live.overdueAmountLKR,
@@ -461,6 +467,12 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     const approved = approvedByStudent[sid] || [];
     const pendingSubmissions = pendingByStudent[sid] || [];
 
+    const { live: allLive } = computeTotalsForAllPayments(
+      studentRequests,
+      approved,
+      pendingSubmissions,
+      student.level,
+    );
     const { live } = computeTotalsForStudentLevel(
       studentRequests,
       approved,
@@ -468,9 +480,9 @@ async function aggregateBatchPaymentInsights(filters = {}) {
       student.level,
     );
     const receivedStudent = {
-      LKR: live.totalPaidLKR,
-      INR: live.totalPaidINR,
-      USD: live.totalPaidUSD,
+      LKR: allLive.totalPaidLKR,
+      INR: allLive.totalPaidINR,
+      USD: allLive.totalPaidUSD,
     };
     const overdueStudent = {
       LKR: live.overdueAmountLKR,
@@ -563,10 +575,107 @@ async function aggregateBatchPaymentInsights(filters = {}) {
   };
 }
 
+const VALID_STUDENT_INSIGHTS = ['paid_full', 'have_balance', 'overdue', 'paid_docs', 'paid_visa'];
+
+function studentMatchesInsight(student, studentRequests, approved, pendingSubs, levelPriceMap, insight) {
+  if (!insight || !VALID_STUDENT_INSIGHTS.includes(insight)) return true;
+
+  const outstanding = effectiveOutstandingBalance(
+    studentRequests,
+    approved,
+    pendingSubs,
+    student,
+    levelPriceMap,
+  );
+  const journeyDay = journeyDayForStudent(student);
+  const langStatus = computeLanguageFeeStatus(outstanding, journeyDay);
+  const pendingStudent = pendingTotalsForStudent(
+    studentRequests,
+    approved,
+    pendingSubs,
+    student,
+    levelPriceMap,
+  );
+  const { live } = computeTotalsForStudentLevel(
+    studentRequests,
+    approved,
+    pendingSubs,
+    student?.level,
+  );
+  const overdueStudent = {
+    LKR: live.overdueAmountLKR || 0,
+    INR: live.overdueAmountINR || 0,
+    USD: live.overdueAmountUSD || 0,
+  };
+
+  switch (insight) {
+    case 'paid_full':
+      return langStatus === 'FULL_PAID';
+    case 'have_balance':
+      return langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0;
+    case 'overdue':
+      return (
+        langStatus === 'DUE'
+        || bucketTotal(overdueStudent) > 0
+        || (studentRequests || []).some((r) => r.status === 'OVERDUE')
+      );
+    case 'paid_docs':
+      return hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT');
+    case 'paid_visa':
+      return hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT');
+    default:
+      return true;
+  }
+}
+
+/**
+ * Filter candidate students by Payment Hub summary insight (same rules as dashboard KPI counts).
+ * @param {object[]} students lean User docs with _id, level, currentCourseDay
+ */
+async function filterStudentsByInsight(students, insight) {
+  if (!insight || !VALID_STUDENT_INSIGHTS.includes(insight) || !students?.length) {
+    return students || [];
+  }
+
+  const PaymentFlowSubmission = require('../models/PaymentSubmission');
+  const ids = students.map((s) => s._id);
+
+  const [catalog, allRequests, allApproved, allPending] = await Promise.all([
+    PaymentHubCatalog.getOrCreate(),
+    PaymentRequest.find({ studentId: { $in: ids }, isArchived: false }).lean(),
+    PaymentFlowSubmission.find({ studentId: { $in: ids }, status: 'APPROVED', isArchived: false }).lean(),
+    PaymentFlowSubmission.find({
+      studentId: { $in: ids },
+      status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
+      isArchived: false,
+    }).lean(),
+  ]);
+
+  const levelPriceMap = buildLevelPriceMap(catalog);
+  const requestsByStudent = groupDocsByStudentId(allRequests);
+  const approvedByStudent = groupDocsByStudentId(allApproved);
+  const pendingByStudent = groupDocsByStudentId(allPending);
+
+  return students.filter((student) => {
+    const sid = String(student._id);
+    return studentMatchesInsight(
+      student,
+      requestsByStudent[sid] || [],
+      approvedByStudent[sid] || [],
+      pendingByStudent[sid] || [],
+      levelPriceMap,
+      insight,
+    );
+  });
+}
+
 module.exports = {
   aggregateHubDashboardStats,
   aggregateBatchPaymentInsights,
   buildLevelPriceMap,
   pendingTotalsForStudent,
   effectiveOutstandingBalance,
+  VALID_STUDENT_INSIGHTS,
+  studentMatchesInsight,
+  filterStudentsByInsight,
 };

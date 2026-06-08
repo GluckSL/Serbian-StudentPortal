@@ -92,11 +92,21 @@
           <div class="sd-stat sd-stat--received">
             <span class="sd-stat__icon material-icons" aria-hidden="true">check_circle</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Total received{{ currentLevelLabelSuffix() }}</span>
+              <div class="sd-stat__label-row">
+                <span class="sd-stat__label-text">Total received</span>
+                <mat-select
+                  class="sd-stat__level-select"
+                  [(ngModel)]="receivedLevelFilter"
+                  aria-label="Filter total received by level"
+                  panelClass="sd-stat-level-panel"
+                >
+                  <mat-option *ngFor="let opt of statLevelOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+                </mat-select>
+              </div>
               <app-payment-currency-totals
-                [lkr]="currentLevelReceivedTotals().LKR"
-                [inr]="currentLevelReceivedTotals().INR"
-                [usd]="currentLevelReceivedTotals().USD"
+                [lkr]="receivedTotalsForFilter(receivedLevelFilter).LKR"
+                [inr]="receivedTotalsForFilter(receivedLevelFilter).INR"
+                [usd]="receivedTotalsForFilter(receivedLevelFilter).USD"
                 [compact]="true"
               ></app-payment-currency-totals>
             </div>
@@ -104,11 +114,21 @@
           <div class="sd-stat sd-stat--pending">
             <span class="sd-stat__icon material-icons" aria-hidden="true">hourglass_top</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Pending{{ currentLevelLabelSuffix() }}</span>
+              <div class="sd-stat__label-row">
+                <span class="sd-stat__label-text">Pending</span>
+                <mat-select
+                  class="sd-stat__level-select"
+                  [(ngModel)]="pendingLevelFilter"
+                  aria-label="Filter pending by level"
+                  panelClass="sd-stat-level-panel"
+                >
+                  <mat-option *ngFor="let opt of statLevelOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+                </mat-select>
+              </div>
               <app-payment-currency-pending-totals
-                [lkr]="pendingBalanceTotals().LKR"
-                [inr]="pendingBalanceTotals().INR"
-                [usd]="pendingBalanceTotals().USD"
+                [lkr]="pendingTotalsForFilter(pendingLevelFilter).LKR"
+                [inr]="pendingTotalsForFilter(pendingLevelFilter).INR"
+                [usd]="pendingTotalsForFilter(pendingLevelFilter).USD"
                 [compact]="true"
                 [hideZero]="false"
               ></app-payment-currency-pending-totals>
@@ -117,11 +137,21 @@
           <div class="sd-stat sd-stat--overdue">
             <span class="sd-stat__icon material-icons" aria-hidden="true">warning_amber</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Overdue{{ currentLevelLabelSuffix() }}</span>
+              <div class="sd-stat__label-row">
+                <span class="sd-stat__label-text">Overdue</span>
+                <mat-select
+                  class="sd-stat__level-select"
+                  [(ngModel)]="overdueLevelFilter"
+                  aria-label="Filter overdue by level"
+                  panelClass="sd-stat-level-panel"
+                >
+                  <mat-option *ngFor="let opt of statLevelOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+                </mat-select>
+              </div>
               <app-payment-currency-overdue-totals
-                [lkr]="currentLevelOverdueTotals().LKR"
-                [inr]="currentLevelOverdueTotals().INR"
-                [usd]="currentLevelOverdueTotals().USD"
+                [lkr]="overdueTotalsForFilter(overdueLevelFilter).LKR"
+                [inr]="overdueTotalsForFilter(overdueLevelFilter).INR"
+                [usd]="overdueTotalsForFilter(overdueLevelFilter).USD"
                 [compact]="true"
                 [hideZero]="false"
               ></app-payment-currency-overdue-totals>

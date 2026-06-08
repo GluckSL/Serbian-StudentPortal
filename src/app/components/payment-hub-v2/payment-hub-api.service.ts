@@ -133,6 +133,8 @@ export interface StudentBrowseRow extends CurrencyPaidTotals, CurrencyPendingTot
   lastPaymentDate?: string;
 }
 
+export type PaymentPaidSlotBadge = 'ALL' | 'A1' | 'A2' | 'B1' | 'B2' | 'DOCS' | 'VISA';
+
 /** Legacy table row (profile-primary, All Payments hub) */
 export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {
   _id: string;
@@ -160,6 +162,8 @@ export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTota
   lastRebuiltAt?: string;
   /** LKR / INR / USD from phone prefix (server-side). */
   inferredCurrency?: string;
+  /** Settled payment slots for Total received badges (ALL = every slot paid). */
+  paidSlots?: PaymentPaidSlotBadge[];
 }
 
 export interface BulkLegacyLanguageRow {

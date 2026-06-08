@@ -8,6 +8,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSelectModule } from '@angular/material/select';
 import { PaymentHubApiService, StudentHistory, PaymentRequestItem as PaymentRequest, ApprovalQueueItem } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
@@ -35,6 +36,7 @@ import { LEVEL_PAYMENT_CONFIG, suggestInrForLevel } from './level-payment-config
     MatIconModule,
     MatChipsModule,
     MatTooltipModule,
+    MatSelectModule,
     PaymentCurrencyTotalsComponent,
     PaymentCurrencyPendingTotalsComponent,
     PaymentCurrencyOverdueTotalsComponent,
@@ -59,6 +61,16 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     { key: 'DOCS', label: 'Docs' },
     { key: 'VISA', label: 'Visa' },
   ];
+  readonly statLevelOptions: Array<{ value: StatLevelFilter; label: string }> = [
+    { value: 'ALL', label: 'All' },
+    { value: 'A1', label: 'A1' },
+    { value: 'A2', label: 'A2' },
+    { value: 'B1', label: 'B1' },
+    { value: 'B2', label: 'B2' },
+  ];
+  receivedLevelFilter: StatLevelFilter = 'ALL';
+  pendingLevelFilter: StatLevelFilter = 'ALL';
+  overdueLevelFilter: StatLevelFilter = 'ALL';
   activeMapSlot: PaymentSlotKey | null = null;
   mappingAmount: number | null = null;
   mappingTotal: number | null = null;
@@ -114,6 +126,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     this.api.getStudentHistory(this.studentId, { limit: 100, page: 1 }).subscribe({
       next: (res) => {
         this.history = res.data;
+        this.initStatLevelFilters();
         this.loading = false;
       },
       error: () => {
@@ -275,23 +288,24 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return this.normalizeLevel(this.history?.student?.level);
   }
 
-  /** Label suffix for summary cards, e.g. " (A2)". */
-  currentLevelLabelSuffix(): string {
-    const lv = this.currentLevelSlot();
-    return lv ? ` (${lv})` : '';
+  /** Reset summary-card level filters when student history loads. */
+  private initStatLevelFilters(): void {
+    const current = this.currentLevelSlot();
+    this.receivedLevelFilter = 'ALL';
+    this.pendingLevelFilter = current || 'ALL';
+    this.overdueLevelFilter = current || 'ALL';
   }
 
-  /** Total received for the student's current level only. */
-  currentLevelReceivedTotals(): Record<CurrencyKey, number> {
-    const lv = this.currentLevelSlot();
-    if (!lv) {
+  /** Total received for the selected summary-card level filter. */
+  receivedTotalsForFilter(filter: StatLevelFilter): Record<CurrencyKey, number> {
+    if (filter === 'ALL') {
       return {
         LKR: this.history?.profile?.totalPaidLKR ?? 0,
         INR: this.history?.profile?.totalPaidINR ?? 0,
         USD: this.history?.profile?.totalPaidUSD ?? 0,
       };
     }
-    return this.slotSummary(lv).paid;
+    return this.slotSummary(filter).paid;
   }
 
   /** Infer currency from payments already on file (e.g. A1 paid in LKR → A2 pending in LKR). */
@@ -334,35 +348,49 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   /** Pending = mapped balance, or catalog level fee when current level is not mapped yet. */
   pendingBalanceTotals(): Record<CurrencyKey, number> {
     const lv = this.currentLevelSlot();
-    if (lv) {
-      const slotBal = this.slotBalanceDisplay(lv);
-      const slotTotal = (slotBal.LKR || 0) + (slotBal.INR || 0) + (slotBal.USD || 0);
-      if (slotTotal > 0) return slotBal;
-    }
-    return {
-      LKR: this.history?.profile?.pendingApprovalAmountLKR ?? 0,
-      INR: this.history?.profile?.pendingApprovalAmountINR ?? 0,
-      USD: this.history?.profile?.pendingApprovalAmountUSD ?? 0,
-    };
+    return this.pendingTotalsForFilter(lv || 'ALL');
   }
 
-  /** Overdue amounts for the current level only. */
-  currentLevelOverdueTotals(): Record<CurrencyKey, number> {
-    const lv = this.currentLevelSlot();
-    const totals: Record<CurrencyKey, number> = { LKR: 0, INR: 0, USD: 0 };
-    if (!lv) {
-      totals.LKR = this.history?.profile?.overdueAmountLKR ?? 0;
-      totals.INR = this.history?.profile?.overdueAmountINR ?? 0;
-      totals.USD = this.history?.profile?.overdueAmountUSD ?? 0;
-      return totals;
+  /** Pending for the selected summary-card level filter. */
+  pendingTotalsForFilter(filter: StatLevelFilter): Record<CurrencyKey, number> {
+    if (filter === 'ALL') {
+      const totals: Record<CurrencyKey, number> = { LKR: 0, INR: 0, USD: 0 };
+      for (const slot of this.levelSlots) {
+        const bal = this.slotBalanceDisplay(slot);
+        totals.LKR += bal.LKR || 0;
+        totals.INR += bal.INR || 0;
+        totals.USD += bal.USD || 0;
+      }
+      const total = (totals.LKR || 0) + (totals.INR || 0) + (totals.USD || 0);
+      if (total > 0) return totals;
+      return {
+        LKR: this.history?.profile?.pendingApprovalAmountLKR ?? 0,
+        INR: this.history?.profile?.pendingApprovalAmountINR ?? 0,
+        USD: this.history?.profile?.pendingApprovalAmountUSD ?? 0,
+      };
     }
-    for (const req of this.requestsForSlot(lv)) {
+    return this.slotBalanceDisplay(filter);
+  }
+
+  /** Overdue amounts for the selected summary-card level filter. */
+  overdueTotalsForFilter(filter: StatLevelFilter): Record<CurrencyKey, number> {
+    if (filter === 'ALL') {
+      return {
+        LKR: this.history?.profile?.overdueAmountLKR ?? 0,
+        INR: this.history?.profile?.overdueAmountINR ?? 0,
+        USD: this.history?.profile?.overdueAmountUSD ?? 0,
+      };
+    }
+    const totals: Record<CurrencyKey, number> = { LKR: 0, INR: 0, USD: 0 };
+    for (const req of this.requestsForSlot(filter)) {
       if (req.status !== 'OVERDUE') continue;
       const c = this.normCurrency(req.currency);
       totals[c] += Number(req.amountRemaining) || Number(req.amount) || 0;
     }
     return totals;
   }
+
+  private readonly levelSlots: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
 
   getSubmissions(req: PaymentRequest): ApprovalQueueItem[] {
     return (req.submissions as ApprovalQueueItem[]) || [];
@@ -956,6 +984,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 }
 
 type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
+type StatLevelFilter = 'ALL' | LanguageLevelSlot;
 type PaymentSlotKey = LanguageLevelSlot | 'DOCS' | 'VISA';
 type CurrencyKey = 'LKR' | 'INR' | 'USD';
 

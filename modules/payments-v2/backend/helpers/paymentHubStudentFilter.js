@@ -16,6 +16,8 @@ function parseHubFilters(query = {}) {
     dateFrom: query.dateFrom || null,
     dateTo: query.dateTo || null,
     currency: query.currency ? String(query.currency).trim().toUpperCase() : '',
+    /** paid_full | have_balance | overdue | paid_docs | paid_visa */
+    studentInsight: String(query.studentInsight || '').trim().toLowerCase(),
     /** When false (default), students with isTestAccount are excluded from table and totals. */
     includeTestAccounts: query.includeTestAccounts === 'true',
   };
@@ -174,6 +176,16 @@ function filterSummaryLabel(filters) {
   if (filters.subscription) parts.push(filters.subscription.replace(/_/g, ' '));
   if (filters.studentStatus) parts.push(filters.studentStatus);
   if (filters.languageFeeStatus) parts.push(`Lang fee: ${filters.languageFeeStatus}`);
+  if (filters.studentInsight) {
+    const labels = {
+      paid_full: 'Paid full',
+      have_balance: 'Have balance',
+      overdue: 'Overdue',
+      paid_docs: 'Paid docs',
+      paid_visa: 'Paid visa',
+    };
+    parts.push(labels[filters.studentInsight] || filters.studentInsight);
+  }
   if (filters.currency) parts.push(filters.currency);
   if (filters.search) parts.push(`Search "${filters.search}"`);
   if (filters.dateFrom || filters.dateTo) parts.push('Date range');

@@ -15,7 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
-import { PaymentHubApiService, DashboardStats, StudentTableRow } from './payment-hub-api.service';
+import { PaymentHubApiService, DashboardStats, PaymentPaidSlotBadge, StudentTableRow } from './payment-hub-api.service';
 import { fmtPaymentAmount, fmtPaymentAmountCompact } from './payment-currency.util';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
@@ -97,6 +97,17 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   /** Off by default — test accounts excluded from table and summary counts. */
   includeTestAccounts = false;
   searchQuery = '';
+  /** Clickable summary filter: paid_full | have_balance | overdue | paid_docs | paid_visa */
+  filterStudentInsight = '';
+
+  readonly studentInsightOptions = [
+    { value: '', key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all students', color: 'slate' },
+    { value: 'paid_full', key: 'paid_full', label: 'Paid full', icon: 'check_circle', hint: 'Language fee fully paid', color: 'green' },
+    { value: 'have_balance', key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', hint: 'Outstanding balance', color: 'amber' },
+    { value: 'overdue', key: 'overdue', label: 'Overdue', icon: 'warning_amber', hint: 'Past due payments', color: 'red' },
+    { value: 'paid_docs', key: 'paid_docs', label: 'Paid docs', icon: 'description', hint: 'Docs payment approved', color: 'teal' },
+    { value: 'paid_visa', key: 'paid_visa', label: 'Paid visa', icon: 'flight', hint: 'Visa payment approved', color: 'indigo' },
+  ] as const;
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly currencies = ['LKR', 'INR', 'USD'];
@@ -132,6 +143,10 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       this.filterDateTo ||
       this.includeTestAccounts
     );
+  }
+
+  get hasTableInsightFilter(): boolean {
+    return !!this.filterStudentInsight;
   }
 
   fmtCompact = fmtPaymentAmountCompact;
@@ -225,7 +240,61 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       dateFrom: this.filterDateFrom ? this.filterDateFrom.toISOString() : undefined,
       dateTo: this.filterDateTo ? this.filterDateTo.toISOString() : undefined,
       includeTestAccounts: this.includeTestAccounts ? 'true' : undefined,
+      studentInsight: this.filterStudentInsight || undefined,
     };
+  }
+
+  applyInsightFilter(insight: string): void {
+    const next = this.filterStudentInsight === insight ? '' : insight;
+    this.filterStudentInsight = next;
+    this.page = 1;
+    this.loadTable();
+    if (next) {
+      setTimeout(() => {
+        document.getElementById('ph-students-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+    }
+  }
+
+  clearInsightFilter(): void {
+    if (!this.filterStudentInsight) return;
+    this.filterStudentInsight = '';
+    this.page = 1;
+    this.loadTable();
+  }
+
+  insightCount(key: string): number {
+    if (!this.stats) return 0;
+    switch (key) {
+      case 'all':
+        return this.stats.totalStudents;
+      case 'paid_full':
+        return this.stats.fullyPaidStudents;
+      case 'have_balance':
+        return this.stats.balanceStudents;
+      case 'overdue':
+        return this.stats.overdueStudents;
+      case 'paid_docs':
+        return this.stats.docsPaidStudents;
+      case 'paid_visa':
+        return this.stats.visaPaidStudents;
+      default:
+        return 0;
+    }
+  }
+
+  isInsightActive(value: string): boolean {
+    return this.filterStudentInsight === value;
+  }
+
+  activeInsightLabel(): string {
+    const opt = this.studentInsightOptions.find((o) => o.value === this.filterStudentInsight);
+    return opt?.label || this.filterStudentInsight;
+  }
+
+  studentPct(count: number, total: number): string {
+    if (!total) return '0%';
+    return `${Math.round((count / total) * 100)}%`;
   }
 
   applyFilters(): void {
@@ -244,6 +313,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     this.filterDateFrom = null;
     this.filterDateTo = null;
     this.includeTestAccounts = false;
+    this.filterStudentInsight = '';
     this.searchQuery = '';
     this.page = 1;
     this.loadStats();
@@ -612,5 +682,29 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
 
   languageFeePillClass(row: StudentTableRow): string {
     return languageFeeStatusClass(this.rowLanguageFeeStatus(row));
+  }
+
+  paidSlots(row: StudentTableRow): PaymentPaidSlotBadge[] {
+    return row.paidSlots ?? [];
+  }
+
+  paidSlotLabel(slot: PaymentPaidSlotBadge): string {
+    if (slot === 'ALL') return 'All';
+    if (slot === 'DOCS') return 'Docs';
+    if (slot === 'VISA') return 'Visa';
+    return slot.toLowerCase();
+  }
+
+  paidSlotClass(slot: PaymentPaidSlotBadge): string {
+    const map: Record<PaymentPaidSlotBadge, string> = {
+      ALL: 'ph-paid-slot--all',
+      A1: 'ph-paid-slot--a1',
+      A2: 'ph-paid-slot--a2',
+      B1: 'ph-paid-slot--b1',
+      B2: 'ph-paid-slot--b2',
+      DOCS: 'ph-paid-slot--docs',
+      VISA: 'ph-paid-slot--visa',
+    };
+    return map[slot] || 'ph-paid-slot';
   }
 }
