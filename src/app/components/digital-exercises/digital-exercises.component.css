@@ -53,9 +53,9 @@
   background: #eef2ff;
   border: 1px solid #c7d2fe;
   border-radius: 8px;
-  padding: 10px 12px;
-  line-height: 1.35;
-  max-width: 280px;
+  padding: 0 12px;
+  line-height: 44px;
+  white-space: nowrap;
 }
 
 .journey-day-pill {
@@ -248,10 +248,11 @@
 
 .search-input {
   width: 100%;
-  padding: 12px 44px 12px 44px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 0.95rem;
+  height: 44px;
+  padding: 0 44px 0 44px;
+  border: 1px solid #dbe3f0;
+  border-radius: 9px;
+  font-size: 0.8125rem;
   outline: none;
   box-sizing: border-box;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -260,7 +261,7 @@
 
 .search-input:focus {
   border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
 }
 
 .search-input::placeholder {
@@ -297,57 +298,85 @@
   min-width: 0;
 }
 
-/* Material selects — styled to match previous filter “cards” (native <select> cannot style the open menu on mobile) */
-.dex-filter-field {
+/* Custom dropdown filters — matching journey filter style */
+.dex-filter-wrap {
+  position: relative;
   flex: 1 1 140px;
   min-width: 0;
   max-width: 200px;
+}
+
+.dex-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
-  font-family: inherit;
-}
-
-:host ::ng-deep .dex-filter-field.mat-mdc-form-field {
-  --mat-form-field-container-height: 44px;
-  --mat-form-field-container-vertical-padding: 0px;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-text-field-wrapper {
-  background: #fff;
+  height: 44px;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 8px 0;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-form-field-flex {
-  align-items: center;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-form-field-infix {
-  min-height: 0;
-  padding: 0px 4px !important;
-  border-top: 0;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-  padding: 0px 8px !important;
-  box-sizing: border-box;
-  align-items: center;
-}
-
-:host ::ng-deep .dex-filter-field .mat-mdc-select-value-text {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  color: #334155;
   white-space: nowrap;
-  max-width: 100%;
-  letter-spacing: -0.025em;
+  font-family: inherit;
+  line-height: 1;
+}
+.dex-filter:hover {
+  border-color: #c7d2e9;
+}
+.dex-filter:focus-visible {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+}
+.dex-filter__arrow {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: #94a3b8;
+  margin-left: auto;
+  transition: transform 0.2s;
 }
 
-:host ::ng-deep .dex-filter-field .mat-mdc-select-arrow-wrapper {
-  transform: scale(0.88);
+.dex-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 30;
+  padding: 4px;
+  overflow: hidden;
+}
+
+.dex-filter-option {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.8125rem;
+  color: #334155;
+  cursor: pointer;
+  border-radius: 6px;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.dex-filter-option:hover {
+  background: #f1f5f9;
+}
+.dex-filter-option.on {
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 600;
 }
 
 .clear-filters-btn {
@@ -1024,6 +1053,7 @@
   }
 
   .search-input {
+    height: 44px;
     font-size: 16px; /* iOS: avoid zoom on focus */
     padding-left: 38px;
     padding-right: 42px;
@@ -1034,92 +1064,27 @@
     letter-spacing: -0.015em;
   }
 
-  /* Mobile web: 3 selects in one row, journey hint full width on the next row (3:1) */
   .filter-chips {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    gap: 6px;
     align-items: start;
   }
 
-  .dex-filter-field {
+  .dex-filter-wrap {
     max-width: none;
     width: 100%;
   }
 
-  /* One consistent “card” height for all three mat-selects (matches All Levels) */
-  :host ::ng-deep .dex-filter-field.mat-mdc-form-field {
-    --mat-form-field-container-height: 38px;
-    margin-bottom: 0 !important;
+  .dex-filter {
     height: 38px;
-  }
-
-  :host ::ng-deep .dex-filter-field .mat-mdc-text-field-wrapper {
-    border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-    height: 38px;
-    padding: 8px 0;
-    align-self: stretch;
-  }
-
-  :host ::ng-deep .dex-filter-field .mat-mdc-form-field-flex {
-    height: 100%;
-    align-items: center;
-  }
-
-  :host ::ng-deep .dex-filter-field .mat-mdc-form-field-infix {
-    min-height: 0 !important;
-    height: 38px;
-    padding: 0px 0px !important;
-    border-top: 0;
-    display: flex;
-    align-items: center;
-    box-sizing: border-box;
-  }
-
-  :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
-    min-height: 38px !important;
-    height: 38px !important;
-    padding: 0px 8px !important;
-    box-sizing: border-box;
-    align-items: center;
-  }
-
-  /* Reduced font size so “All Categories / All Difficulties” fit in 3 columns without chopping */
-  :host ::ng-deep .dex-filter-field .mat-mdc-select-value,
-  :host ::ng-deep .dex-filter-field .mat-mdc-select-trigger {
     font-size: 10.5px;
     font-weight: 700;
-    max-width: 100%;
+    padding: 0 8px;
+  }
+
+  .dex-filter-menu {
     min-width: 0;
-  }
-
-  :host ::ng-deep .dex-filter-field .mat-mdc-select-value-text {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-    letter-spacing: -0.025em;
-  }
-
-  :host ::ng-deep .dex-filter-field .mat-mdc-select-arrow-wrapper {
-    transform: scale(0.88);
-    margin-right: -2px;
-  }
-
-  /* Grey border like the other filter cards; soft ring shows focus instead of purple outline */
-  :host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__leading,
-  :host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__notch,
-  :host ::ng-deep .dex-filter-field.mat-focused .mdc-notched-outline .mdc-notched-outline__trailing,
-  :host ::ng-deep .dex-filter-field.mat-focused .mat-mdc-notch-piece {
-    border-color: #e5e7eb !important;
-  }
-
-  :host ::ng-deep .dex-filter-field.mat-focused .mat-mdc-text-field-wrapper {
-    box-shadow:
-      0 1px 3px rgba(15, 23, 42, 0.06),
-      0 0 0 2px rgba(124, 58, 237, 0.16);
   }
 
   /* Journey hint: full-width row under the three selects; copy inset from left like the dropdowns */
@@ -1129,19 +1094,19 @@
     width: 100%;
     box-sizing: border-box;
     margin: 0;
-    min-height: 48px;
+    min-height: 40px;
     display: flex;
     align-items: center;
     justify-content: flex-start;
     text-align: left;
     background: linear-gradient(180deg, #fafaff 0%, #f4f4ff 100%);
     border: 1px solid #e0e7ff;
-    border-radius: 10px;
+    border-radius: 8px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-    padding: 14px 16px 14px 18px;
-    font-size: 0.8125rem;
+    padding: 8px 10px;
+    font-size: 0.75rem;
     font-weight: 600;
-    line-height: 1.5;
+    line-height: 1.4;
     letter-spacing: -0.01em;
     color: #4338ca;
     overflow-wrap: anywhere;

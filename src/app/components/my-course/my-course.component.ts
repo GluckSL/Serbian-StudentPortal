@@ -73,6 +73,7 @@ export class MyCourseComponent implements OnInit {
   activeTab: MyCourseTab = 'classes';
   gluckExamSubTab: GluckExamSubTab = 'weekly-test';
   journeyFilter: JourneyFilter = 'all';
+  journeyFilterOpen = false;
   journeySearch = '';
   private _selectedJourneyDay: number | null = null;
 

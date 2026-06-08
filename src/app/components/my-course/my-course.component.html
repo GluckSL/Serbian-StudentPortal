@@ -454,11 +454,36 @@
         placeholder="Search day number..."
         [(ngModel)]="journeySearch"
       />
-      <select class="mc-journey-filter" [(ngModel)]="journeyFilter">
-        <option value="all">All</option>
-        <option value="completed">Completed only</option>
-        <option value="pending">Pending only</option>
-      </select>
+      <div class="mc-journey-filter-wrap">
+        <button
+          type="button"
+          class="mc-journey-filter"
+          (click)="journeyFilterOpen = !journeyFilterOpen"
+        >
+          <span>{{ journeyFilter === 'all' ? 'All' : journeyFilter === 'completed' ? 'Completed only' : 'Pending only' }}</span>
+          <span class="material-icons mc-journey-filter__arrow">expand_{{ journeyFilterOpen ? 'less' : 'more' }}</span>
+        </button>
+        <div class="mc-journey-filter-menu" *ngIf="journeyFilterOpen">
+          <button
+            type="button"
+            class="mc-journey-filter-option"
+            [class.on]="journeyFilter === 'all'"
+            (click)="journeyFilter = 'all'; journeyFilterOpen = false"
+          >All</button>
+          <button
+            type="button"
+            class="mc-journey-filter-option"
+            [class.on]="journeyFilter === 'completed'"
+            (click)="journeyFilter = 'completed'; journeyFilterOpen = false"
+          >Completed only</button>
+          <button
+            type="button"
+            class="mc-journey-filter-option"
+            [class.on]="journeyFilter === 'pending'"
+            (click)="journeyFilter = 'pending'; journeyFilterOpen = false"
+          >Pending only</button>
+        </div>
+      </div>
     </div>
 
     <div class="mc-day-pills">

@@ -9,14 +9,13 @@ import { map } from 'rxjs/operators';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
-import { MaterialModule } from '../../shared/material.module';
 
 type TabType = 'completed' | 'pending' | 'new';
 
 @Component({
   selector: 'app-digital-exercises',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './digital-exercises.component.html',
   styleUrls: ['./digital-exercises.component.css']
 })
@@ -37,6 +36,9 @@ export class DigitalExercisesComponent implements OnInit {
   selectedLevel = '';
   selectedCategory = '';
   selectedDifficulty = '';
+  levelFilterOpen = false;
+  categoryFilterOpen = false;
+  difficultyFilterOpen = false;
 
   /** @deprecated Server now returns the current journey week by default; kept for API compatibility. */
   todayOnly = false;
