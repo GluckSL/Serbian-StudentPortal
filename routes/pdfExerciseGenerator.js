@@ -92,20 +92,17 @@ if (process.env.EXERCISES_OPENAI_API_KEY) {
 
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
-const { PDFParse } = require('pdf-parse');
+const { parsePdfBuffer } = require('../services/pdfParseCompat');
 
 async function extractPdfText(filePath) {
   try {
-    console.log("🔥 USING PDF-PARSE V2");
     const buffer = fs.readFileSync(filePath);
-    const parser = new PDFParse(new Uint8Array(buffer));
-    await parser.load();
-    const result = await parser.getText();
+    const result = await parsePdfBuffer(buffer);
     const text = (result.text || '')
       .replace(/^-- \d+ of \d+ --\n?|[\r\n]+-- \d+ of \d+ --[\r\n]*/gm, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
-    const pages = (result.pages && result.pages.length) || 1;
+    const pages = result.numpages || 1;
     console.log('📄 PDF parsed:', { pages, length: text.length });
     return { text, pages };
   } catch (err) {
