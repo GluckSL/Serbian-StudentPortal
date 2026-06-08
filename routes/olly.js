@@ -12,6 +12,9 @@ const ollyService = require('../services/ollyService');
 const { verifyToken, checkRole, extractBearerToken } = require('../middleware/auth');
 const transporter = require('../config/emailConfig');
 const mediaUpload = require('../config/ollyMediaUpload');
+const { r2Client, R2_BUCKET } = require('../config/r2');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const SUPPORT_EMAIL = process.env.EMAIL_USER || 'languageschool@gluckglobal.com';
@@ -34,6 +37,18 @@ function parseActivityContext(raw) {
   try {
     return JSON.parse(String(raw));
   } catch {
+    return null;
+  }
+}
+
+// ── Helper: generate a presigned R2 URL for Olly media ────────────────────
+async function presignOllyUrl(key) {
+  if (!key) return null;
+  try {
+    const command = new GetObjectCommand({ Bucket: R2_BUCKET, Key: key });
+    return await getSignedUrl(r2Client, command, { expiresIn: 86400 });
+  } catch (err) {
+    console.error('[olly] presign failed for key:', key, err.message);
     return null;
   }
 }
@@ -150,7 +165,8 @@ router.post('/intake', (req, res, next) => {
     }
 
     if (req.file) {
-      const mediaUrl = req.file.location || req.file.path;
+      const presigned = await presignOllyUrl(req.file.key);
+      const mediaUrl = presigned || req.file.location || req.file.path;
       session.messages.push({
         role: 'user',
         content: `[Shared: ${req.file.originalname}]`,
@@ -279,7 +295,8 @@ router.post('/upload', (req, res, next) => {
     const session = await OllySession.findOne({ sessionId });
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
 
-    const mediaUrl = req.file.location || req.file.path;
+    const presigned = await presignOllyUrl(req.file.key);
+    const mediaUrl = presigned || req.file.location || req.file.path;
     const mediaType = req.file.mimetype;
     const mediaOriginalName = req.file.originalname;
 
@@ -366,6 +383,21 @@ router.get('/session/:sessionId', async (req, res) => {
       .select('sessionId status language messages userName userEmail userRole lastActivity intakeComplete issueType initialQuestion')
       .lean();
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+
+    // Presign any stored mediaUrl so the browser can load it
+    if (session.messages?.length) {
+      for (const msg of session.messages) {
+        if (msg.mediaUrl && msg.mediaUrl.includes('r2.cloudflarestorage.com/olly-chat/')) {
+          const parts = msg.mediaUrl.split('/olly-chat/');
+          if (parts[1]) {
+            const key = `olly-chat/${parts[1].split('?')[0]}`;
+            const presigned = await presignOllyUrl(key);
+            if (presigned) msg.mediaUrl = presigned;
+          }
+        }
+      }
+    }
+
     return res.json({ success: true, data: session });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Error fetching session.' });
@@ -420,6 +452,20 @@ router.get('/admin/session/:sessionId', verifyToken, checkRole(['ADMIN', 'TEACHE
   try {
     const session = await OllySession.findOne({ sessionId: req.params.sessionId }).lean();
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+
+    if (session.messages?.length) {
+      for (const msg of session.messages) {
+        if (msg.mediaUrl && msg.mediaUrl.includes('r2.cloudflarestorage.com/olly-chat/')) {
+          const parts = msg.mediaUrl.split('/olly-chat/');
+          if (parts[1]) {
+            const key = `olly-chat/${parts[1].split('?')[0]}`;
+            const presigned = await presignOllyUrl(key);
+            if (presigned) msg.mediaUrl = presigned;
+          }
+        }
+      }
+    }
+
     return res.json({ success: true, data: session });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Error.' });
