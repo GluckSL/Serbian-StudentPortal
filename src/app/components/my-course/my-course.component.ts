@@ -843,9 +843,11 @@ export class MyCourseComponent implements OnInit {
    * (recordings, exercises, DG bot) and is therefore eligible for midnight promotion.
    */
   get showSilverDayCompletePromotion(): boolean {
+    const server = this.journey?.currentDayCompletion;
+    const hasTasks = server ? server.totalTasks > 0 : this.dayHasTrackableContent;
     return (
       this.isSilverGoStudentFrontend &&
-      this.dayHasTrackableContent &&
+      hasTasks &&
       this.isDayComplete &&
       this.journeyCourseDay < 200
     );
@@ -865,6 +867,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   get trialDayEnabled(): boolean {
+    if (this.isSilverGoStudentFrontend) return false;
     return !!this.profile?.trialDayEnabled;
   }
 
@@ -1074,7 +1077,12 @@ export class MyCourseComponent implements OnInit {
   /** Exercises tagged to the current journey day. */
   get currentDayExercisesForBadge(): DigitalExercise[] {
     return this.journeyDayExercises
-      .filter((ex) => ex.courseDay != null && Number(ex.courseDay) === this.journeyCourseDay)
+      .filter((ex) => {
+        if (ex.courseDay == null) return false;
+        const day = Number(ex.courseDay);
+        if (this.isSilverGoStudentFrontend && day === TRIAL_JOURNEY_DAY) return false;
+        return day === this.journeyCourseDay;
+      })
       .sort((a, b) => this.compareJourneyExerciseOrder(a, b));
   }
 
@@ -1118,11 +1126,15 @@ export class MyCourseComponent implements OnInit {
 
   /**
    * True when all required content for the current journey day is completed.
-   * Silver GO: recordings, exercises, and DG Bot only (matches server advance rules).
+   * Silver GO: uses server `currentDayCompletion` (same rules as instant advance).
    */
   get isDayComplete(): boolean {
+    const server = this.journey?.currentDayCompletion;
+    if (this.isSilverGoStudentFrontend && server) {
+      return !!server.complete;
+    }
     if (!this.dayHasTrackableContent) {
-      return this.isSilverGoStudentFrontend;
+      return false;
     }
     const core =
       this.currentDayIncompleteExercises.length === 0 &&
@@ -1130,6 +1142,25 @@ export class MyCourseComponent implements OnInit {
       this.currentDayIncompleteRecs.length === 0;
     if (this.isSilverGoStudentFrontend) return core;
     return core && this.currentDayIncompleteGameSets.length === 0;
+  }
+
+  /** Server-side incomplete tasks (Silver GO) when client lists miss locked day content. */
+  get serverIncompleteExercises(): { title: string }[] {
+    const tasks = this.journey?.currentDayCompletion?.incompleteTasks;
+    if (!Array.isArray(tasks)) return [];
+    return tasks.filter((t) => t?.kind === 'exercise');
+  }
+
+  get serverIncompleteDg(): { title: string }[] {
+    const tasks = this.journey?.currentDayCompletion?.incompleteTasks;
+    if (!Array.isArray(tasks)) return [];
+    return tasks.filter((t) => t?.kind === 'dg-bot');
+  }
+
+  get serverIncompleteRecordings(): { title: string }[] {
+    const tasks = this.journey?.currentDayCompletion?.incompleteTasks;
+    if (!Array.isArray(tasks)) return [];
+    return tasks.filter((t) => t?.kind === 'recording');
   }
 
   openDayCompletionModal(): void {

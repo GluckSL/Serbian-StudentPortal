@@ -31,6 +31,14 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
+  // Admin: Olly live chat
+  {
+    path: 'admin/olly-chat',
+    loadComponent: () => import('./components/olly-admin/olly-admin.component').then(m => m.OllyAdminComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
+  },
+
   // Login and Signup routes
   { path: 'login', loadComponent: () => import('./components/login/login.component').then(m => m.LoginComponent) },
   { path: 'register', loadComponent: () => import('./components/register/register.component').then(m => m.RegisterComponent) },
@@ -268,6 +276,7 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] },
   },
+  { path: 'admin/finance-dashboard', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-insights.component').then(m => m.PaymentHubBatchInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches/:batch/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-students.component').then(m => m.PaymentHubBatchStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/revenue', loadComponent: () => import('./components/payment-hub-v2/payment-hub-revenue-insights.component').then(m => m.PaymentHubRevenueInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },

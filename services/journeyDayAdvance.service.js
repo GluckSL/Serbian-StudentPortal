@@ -75,6 +75,7 @@ async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
   );
 
   if (result.modifiedCount) {
+    await SilverGoUnlockCache.deleteOne({ studentId });
     console.log(`🚀 [Instant Advance] Silver GO student ${studentId}: Day ${currentDay} → ${nextDay}`);
     return { advanced: true, previousDay: currentDay, newDay: nextDay };
   }

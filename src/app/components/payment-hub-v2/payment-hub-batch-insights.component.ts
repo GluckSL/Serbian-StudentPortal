@@ -63,10 +63,26 @@ export interface BatchPaymentRow extends CurrencyPaidTotals {
   overdueStudents: number;
   docsPaidStudents: number;
   visaPaidStudents: number;
+  insightPaidFullLKR: number;
+  insightPaidFullINR: number;
+  insightPaidFullUSD: number;
+  insightBalanceLKR: number;
+  insightBalanceINR: number;
+  insightBalanceUSD: number;
+  insightOverdueLKR: number;
+  insightOverdueINR: number;
+  insightOverdueUSD: number;
+  insightDocsLKR: number;
+  insightDocsINR: number;
+  insightDocsUSD: number;
+  insightVisaLKR: number;
+  insightVisaINR: number;
+  insightVisaUSD: number;
   currentJourneyDay: number | null;
   avgJourneyDay: number | null;
   totalJourneyDays: number | null;
   collectionRateLKR: number | null;
+  overdueSince: string | null;
 }
 
 function normBatchKey(name: string): string {
@@ -323,10 +339,26 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
       overdueStudents: row.overdueStudents ?? 0,
       docsPaidStudents: row.docsPaidStudents ?? 0,
       visaPaidStudents: row.visaPaidStudents ?? 0,
+      insightPaidFullLKR: row.insightPaidFullLKR ?? 0,
+      insightPaidFullINR: row.insightPaidFullINR ?? 0,
+      insightPaidFullUSD: row.insightPaidFullUSD ?? 0,
+      insightBalanceLKR: row.insightBalanceLKR ?? 0,
+      insightBalanceINR: row.insightBalanceINR ?? 0,
+      insightBalanceUSD: row.insightBalanceUSD ?? 0,
+      insightOverdueLKR: row.insightOverdueLKR ?? 0,
+      insightOverdueINR: row.insightOverdueINR ?? 0,
+      insightOverdueUSD: row.insightOverdueUSD ?? 0,
+      insightDocsLKR: row.insightDocsLKR ?? 0,
+      insightDocsINR: row.insightDocsINR ?? 0,
+      insightDocsUSD: row.insightDocsUSD ?? 0,
+      insightVisaLKR: row.insightVisaLKR ?? 0,
+      insightVisaINR: row.insightVisaINR ?? 0,
+      insightVisaUSD: row.insightVisaUSD ?? 0,
       currentJourneyDay,
       avgJourneyDay: row.avgJourneyDay ?? null,
       totalJourneyDays: batchLevel ? totalJourneyDaysForLevel(batchLevel) : null,
       collectionRateLKR: row.collectionRateLKR ?? null,
+      overdueSince: row.overdueSince ?? null,
     };
   }
 

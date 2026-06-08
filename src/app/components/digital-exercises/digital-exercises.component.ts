@@ -9,7 +9,7 @@ import { map } from 'rxjs/operators';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
-import { parseAdminCourseDayOrNull } from '../../utils/journey-day.util';
+import { parseAdminCourseDayOrNull, TRIAL_JOURNEY_DAY } from '../../utils/journey-day.util';
 
 type TabType = 'completed' | 'pending' | 'new';
 
@@ -134,6 +134,9 @@ export class DigitalExercisesComponent implements OnInit {
     let list: DigitalExercise[];
     if (isStudent) {
       list = this.exercises.filter((ex) => this.matchesStudentTab(ex, this.activeTab));
+      if (this.isSilverGoStudent()) {
+        list = list.filter((ex) => this.exerciseCourseDayNum(ex) !== TRIAL_JOURNEY_DAY);
+      }
       // Sort: within the same courseDay, order by sequenceLetter (null last)
       list = [...list].sort((a, b) => {
         const dayA = a.courseDay ?? 9999;
@@ -330,12 +333,21 @@ export class DigitalExercisesComponent implements OnInit {
     return !!(this.searchQuery || this.selectedLevel || this.selectedCategory || this.selectedDifficulty || this.todayOnly);
   }
 
+  private isSilverGoStudent(): boolean {
+    const u = this.authService.getSnapshotUser();
+    return (
+      String(u?.goStatus || '').toUpperCase() === 'GO' &&
+      String(u?.subscription || '').toUpperCase() === 'SILVER'
+    );
+  }
+
   isExerciseDayLocked(ex: DigitalExercise): boolean {
     const role = this.authService.getSnapshotUser()?.role || this.userRole;
     if (role !== 'STUDENT') return false;
     const cd = ex.courseDay;
     if (cd == null || cd === undefined) return false;
     const n = Number(cd);
+    if (this.isSilverGoStudent() && n === TRIAL_JOURNEY_DAY) return true;
     return Number.isFinite(n) && n > this.studentCourseDay;
   }
 

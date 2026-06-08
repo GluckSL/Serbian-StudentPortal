@@ -6,6 +6,7 @@ const User = require('../models/User');
 const upload = require('../config/supportTicketUpload');
 const transporter = require('../config/emailConfig');
 const { verifyToken, checkRole, extractBearerToken } = require('../middleware/auth');
+const supportAssistantService = require('../services/supportAssistantService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -268,6 +269,54 @@ router.post('/tickets/:id/reply', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
     return res.json({ success: true, data: ticket });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to add reply.' });
+  }
+});
+
+// POST /api/support/assistant/chat (public; optional auth enriches context)
+router.post('/assistant/chat', async (req, res) => {
+  try {
+    const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    const hasUserMessage = messages.some(
+      (m) => m?.role === 'user' && String(m.content || '').trim()
+    );
+    if (!hasUserMessage) {
+      return res.status(400).json({ success: false, message: 'At least one user message is required.' });
+    }
+
+    let userContext = {};
+    const token = extractBearerToken(req);
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded?.id) {
+          const user = await User.findById(decoded.id).select('name email role').lean();
+          if (user) {
+            userContext = {
+              name: user.name,
+              email: user.email,
+              role: user.role
+            };
+          }
+        }
+      } catch {
+        // Ignore invalid token; chat remains available without auth context.
+      }
+    }
+
+    const result = await supportAssistantService.chat(messages, userContext);
+    return res.json({
+      success: true,
+      data: {
+        reply: result.reply,
+        fallback: !!result.fallback
+      }
+    });
+  } catch (err) {
+    console.error('[support/assistant/chat] error:', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Unable to reach the assistant right now. Please try again or raise a ticket.'
+    });
   }
 });
 

@@ -4041,9 +4041,17 @@
   background: #f0fdf4;
   color: #15803d;
 }
+.review-q-badge.partial {
+  background: #fffbeb;
+  color: #b45309;
+}
 .review-q-badge.wrong {
   background: #fff5f5;
   color: #c62828;
+}
+
+.review-q-block.partial {
+  border-color: #fbbf24;
 }
 
 .review-q-body {
