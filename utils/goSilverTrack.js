@@ -115,6 +115,22 @@ function primaryGoBatchFromKeys(batchKeys) {
   return keys[0] || '';
 }
 
+/**
+ * Batch keys for Silver GO class-recording completion (this student's class batch, else GO track).
+ * Avoids requiring every GO-SINHALA / GO-SILVER-tagged upload when the student has a class batch.
+ */
+function silverGoRecordingBatchKeys(student) {
+  const legacy = String(student?.batch || '').trim();
+  const goBatch = goBatchForStudent(student);
+  if (legacy) return [legacy];
+  if (goBatch) return [goBatch];
+  return [];
+}
+
+/** Mongoose .select() fields required to resolve Tamil vs Sinhala GO batch keys. */
+const SILVER_GO_STUDENT_SELECT =
+  'role batch goStatus subscription level currentCourseDay goLanguage medium pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay';
+
 module.exports = {
   GO_BATCH_TAMIL,
   GO_BATCH_SINHALA,
@@ -126,5 +142,7 @@ module.exports = {
   isSilverGoStudent,
   goStudentQuery,
   silverPoolQuery,
-  primaryGoBatchFromKeys
+  primaryGoBatchFromKeys,
+  silverGoRecordingBatchKeys,
+  SILVER_GO_STUDENT_SELECT
 };

@@ -21,7 +21,7 @@ async function buildStudentFilter(studentId) {
   try {
     const student = await loadStudent(studentId);
     const access = await getJourneyAccessForStudent(student);
-    const courseDay = access?.courseDay ?? 0;
+    const courseDay = access?.contentUnlockDay ?? access?.courseDay ?? 0;
     const batchKeys = studentTargetBatchKeys(student);
 
     const andClauses = [
@@ -68,7 +68,7 @@ async function isGated(studentId, set) {
     try {
       const student = await loadStudent(studentId);
       const access = await getJourneyAccessForStudent(student);
-      if ((access?.courseDay ?? 0) < set.courseDay) return true;
+      if ((access?.contentUnlockDay ?? access?.courseDay ?? 0) < set.courseDay) return true;
     } catch { /* allow */ }
   }
 

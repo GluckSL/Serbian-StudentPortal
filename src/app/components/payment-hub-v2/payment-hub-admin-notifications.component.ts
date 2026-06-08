@@ -256,6 +256,12 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
     return d != null && Number.isFinite(Number(d)) ? Number(d) : null;
   }
 
+  showJourneyStats(n: PaymentHubNotification): boolean {
+    const m = n.metadata;
+    if (!m) return false;
+    return this.journeyDay(n) != null || !!m.batch || !!m.level;
+  }
+
   get selectedType(): string {
     if (this.category === 'exercises') return 'JOURNEY_EXERCISE_MISSED_TODAY';
     if (this.category === 'classes') return 'JOURNEY_CLASS_ABSENT_TODAY';

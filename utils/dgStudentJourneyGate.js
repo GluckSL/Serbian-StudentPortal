@@ -12,8 +12,9 @@ const {
 async function getStudentDgJourneyAccess(userId) {
   const { reconcileSilverGoCourseDay } = require('./silverGoSequentialUnlock');
   await reconcileSilverGoCourseDay(userId);
+  const { SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
   const u = await User.findById(userId)
-    .select('currentCourseDay role level batch goStatus subscription')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!u || String(u.role || '').toUpperCase() !== 'STUDENT') {
     return {
@@ -32,7 +33,7 @@ async function getStudentDgJourneyAccess(userId) {
   if (unlockMode === 'weekly' && journeyAccess.dgBotEnabled) {
     dgUnlockedWeek = await computeDgUnlockedWeek(userId, journeyAccess.batchKeys || []);
   } else if (unlockMode === 'daily') {
-    dgUnlockedWeek = Math.ceil((journeyAccess.courseDay || 1) / 7);
+    dgUnlockedWeek = Math.ceil((journeyAccess.contentUnlockDay ?? journeyAccess.courseDay ?? 1) / 7);
   }
 
   return {
@@ -41,7 +42,7 @@ async function getStudentDgJourneyAccess(userId) {
     dgBotEnabled: journeyAccess.dgBotEnabled !== false,
     unlockMode,
     dgUnlockedWeek,
-    courseDay: journeyAccess.courseDay,
+    courseDay: journeyAccess.contentUnlockDay ?? journeyAccess.courseDay,
     batchKeys: journeyAccess.batchKeys || [],
   };
 }

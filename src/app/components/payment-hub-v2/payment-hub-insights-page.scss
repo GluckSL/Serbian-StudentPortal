@@ -14,14 +14,14 @@
     #6366f1 100%
   );
   color: #fff;
-  padding: 28px 24px 36px;
+  padding: 28px 3% 36px;
   border-radius: 0 0 32px 32px;
   box-shadow: 0 18px 48px rgba(67, 56, 202, 0.35);
 }
 
 .ph-insights-header-inner {
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .ph-insights-back {
@@ -67,9 +67,9 @@
 }
 
 .ph-insights-body {
-  max-width: 1400px;
-  margin: -24px auto 0;
-  padding: 0 16px;
+  max-width: none;
+  margin: -24px 3% 0;
+  padding: 0;
   position: relative;
   z-index: 1;
 }

@@ -6,7 +6,7 @@
 const User = require('../models/User');
 const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const { allStudentBatchStringsForContent } = require('./effectiveStudentBatch');
-const { isSilverGoStudent } = require('./goSilverTrack');
+const { isSilverGoStudent, silverGoRecordingBatchKeys, SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
 const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { SILVER_GO_RECORDING_WATCH_RATIO, recordingWatchCountsAsComplete } = require('./recordingWatchCompletion');
@@ -27,6 +27,7 @@ function silverGoCompletionOptions(student) {
     includeLiveClasses: false,
     includeLearningModules: false,
     recordingWatchRatio: SILVER_GO_RECORDING_WATCH_RATIO,
+    recordingBatchNames: silverGoRecordingBatchKeys(student),
     studentLevel: student?.level,
     studentPlan: student?.subscription,
     goStatus: student?.goStatus,
@@ -98,7 +99,7 @@ async function resolveSilverGoContentUnlock(student) {
 /** Pull inflated currentCourseDay back to the first incomplete day (never increases). */
 async function reconcileSilverGoCourseDay(studentId) {
   const student = await User.findById(studentId)
-    .select('role batch goStatus subscription level currentCourseDay')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || !isSilverGoStudent(student)) {
     return { adjusted: false };

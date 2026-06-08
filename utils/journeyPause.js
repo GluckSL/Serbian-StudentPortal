@@ -8,6 +8,7 @@ const {
   clampJourneyDayForBatch,
   utcMidnightMs,
   daysSinceJourneyStart,
+  computeJourneyDayFromBatchConfig,
   MS_PER_DAY
 } = require('./journeyDay');
 
@@ -20,13 +21,11 @@ function clampDay(d, max = 200, trialDayEnabled = false) {
  */
 function computeBatchDayFromCalendar(cfg) {
   if (!cfg) return 1;
-  const trial = !!cfg.trialDayEnabled;
-  if (!cfg.batchStartDate) {
-    return clampDay(cfg.batchCurrentDay, cfg.journeyLength, trial);
+  if (cfg.batchStartDate) {
+    return computeJourneyDayFromBatchConfig(cfg);
   }
-  const elapsed = daysSinceJourneyStart(cfg.batchStartDate);
-  if (trial) return clampDay(elapsed, cfg.journeyLength, true);
-  return clampDay(elapsed + 1, cfg.journeyLength, false);
+  const trial = !!cfg.trialDayEnabled;
+  return clampDay(cfg.batchCurrentDay, cfg.journeyLength, trial);
 }
 
 function isNewBatchPaused(cfg) {

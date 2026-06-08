@@ -21,6 +21,7 @@ const {
   silverGoCompletionOptions,
   allPriorJourneyDaysComplete
 } = require('../utils/silverGoSequentialUnlock');
+const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
 
 /**
  * Check if a Silver GO student has completed all tasks for their current journey day
@@ -34,7 +35,7 @@ const {
  */
 async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
   const student = await User.findById(studentId)
-    .select('role batch goStatus subscription level currentCourseDay')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return { advanced: false };
   if (!isSilverGoStudent(student)) return { advanced: false };
@@ -84,7 +85,7 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const { clampJourneyDayForBatch, clampStandardJourneyDay } = require('../utils/journeyDay');
+const { clampJourneyDayForBatch, clampStandardJourneyDay, computeJourneyDayFromBatchConfig } = require('../utils/journeyDay');
 
 function normalizeCourseDay(d, trialDayEnabled = false) {
   const n = parseInt(String(d), 10);
@@ -116,7 +117,7 @@ async function syncPendingFlagsFromMeeting(meetingDoc) {
 
 async function tryMarkStudentPending(studentId, meetingBatch, meetingCourseDay) {
   const student = await User.findById(studentId)
-    .select('role batch goStatus subscription currentCourseDay pendingJourneyDayAdvance')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return;
   const keys = allStudentBatchStringsForContent(student);
@@ -150,7 +151,7 @@ async function markPendingAdvanceForStudentDay(studentId, batchName, courseDay) 
  */
 async function recomputePendingForStudent(studentId) {
   const student = await User.findById(studentId)
-    .select('role batch goStatus subscription currentCourseDay pendingJourneyDayAdvance')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return;
   const keys = allStudentBatchStringsForContent(student);
@@ -191,7 +192,7 @@ async function recomputePendingForStudent(studentId) {
  */
 async function applyJourneyDayRollovers() {
   const students = await User.find({ role: 'STUDENT' })
-    .select('batch goStatus subscription level currentCourseDay pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
 
   const configCache = new Map();
@@ -223,8 +224,10 @@ async function applyJourneyDayRollovers() {
     if (shouldSkipStudentRollover(cfg)) {
       continue;
     }
-    const cur = normalizeCourseDay(s.currentCourseDay);
+    const trialEnabled = !!cfg?.trialDayEnabled;
+    const cur = normalizeCourseDay(s.currentCourseDay, trialEnabled);
     const maxDay = cfg?.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
+    const calendarDay = cfg?.batchStartDate ? computeJourneyDayFromBatchConfig(cfg) : null;
 
     if (!cfg || cur >= maxDay) {
       if (s.pendingJourneyDayAdvance) {
@@ -290,7 +293,17 @@ async function applyJourneyDayRollovers() {
       continue;
     }
 
-    const next = Math.min(maxDay, cur + 1);
+    let next;
+    if (calendarDay != null && !strictForStudent) {
+      // Auto-scheduled lenient batches: sync to calendar (supports multi-day trial windows).
+      if (calendarDay <= cur) continue;
+      next = Math.min(maxDay, calendarDay);
+    } else if (calendarDay != null && strictForStudent) {
+      next = Math.min(maxDay, cur + 1, calendarDay);
+      if (next <= cur) continue;
+    } else {
+      next = Math.min(maxDay, cur + 1);
+    }
     if (next === cur) continue;
 
     await User.updateOne(

@@ -216,6 +216,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private currentlyPlayingAudio: HTMLAudioElement | null = null;
   showFinishSummary = false;
   finishingAll = false;
+  /** Countdown seconds before auto-advancing after image pin match is complete. */
+  imagePinAutoAdvanceSeconds = 0;
+  private imagePinAutoAdvanceInterval: ReturnType<typeof setInterval> | null = null;
+  private imagePinAutoAdvanceQuestionIndex: number | null = null;
   private imagePinCaptureTarget: HTMLElement | null = null;
   private imagePinCapturePointerId: number | null = null;
   private imagePinDrag: {
@@ -492,6 +496,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.clearPronProcessingSlowTimer();
     try { this.pronunciation.cancelRecording(); } catch { /* noop */ }
     this.closeMicTest();
+    this.cancelImagePinAutoAdvance();
+    this.clearImagePinInteractionState();
   }
 
   private checkSpeechSupport(): void {
@@ -547,7 +553,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * In Watch Only Mode: mark the current clip as "watched" (score 0) and advance,
+   * In Watch Only Mode: mark the current clip as watched/completed and advance,
    * without requiring the student to speak.
    */
   skipWatchOnlyClip(): void {
@@ -556,8 +562,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!pq) return;
 
     pq.vpSpokenText = '';
-    pq.pronunciationScore = 0;
-    pq.vpResult = 'idle';
+    pq.pronunciationScore = 100;
+    pq.vpResult = 'correct';
+    pq.isCorrect = true;
     pq.hasRecorded = true;
     pq.isAnswered = true;
     pq.vpAdvanceSeq = (pq.vpAdvanceSeq || 0) + 1;
@@ -928,7 +935,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const pq = this.playerQuestions[i];
     const parts: string[] = ['vp-clip-cell'];
     if (i === this.currentIndex) parts.push('vp-clip-cell--current');
-    if (pq.isCorrect === true) {
+    const watchOnlyCompleted = this.watchOnlyMode && pq.isAnswered;
+    if (pq.isCorrect === true || watchOnlyCompleted) {
       parts.push('vp-clip-cell--passed');
     } else if (pq.isCorrect === false) {
       parts.push('vp-clip-cell--failed');
@@ -1557,7 +1565,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   private applyPerQuestionSubmitResult(pq: PlayerQuestion, res: SubmitQuestionResult): void {
-    pq.isCorrect = res.isCorrect;
+    const watchOnlyClipCompleted =
+      this.watchOnlyMode && pq.data?.type === 'video-pronunciation' && pq.isAnswered;
+    pq.isCorrect = watchOnlyClipCompleted ? true : res.isCorrect;
+    if (watchOnlyClipCompleted) {
+      pq.vpResult = 'correct';
+    }
     pq.feedback = this.buildFeedbackFromCorrectAnswer(pq.data, res.correctAnswer, pq);
     if (pq.data.type === 'fill-blank' && res.correctAnswer?.answers) {
       pq.data._correctAnswers = res.correctAnswer.answers;
@@ -1776,6 +1789,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   prevQuestion(): void {
     this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
+    this.clearImagePinInteractionState();
     if (this.currentIndex > 0) {
       this.stopCurrentAudio();
       this.currentIndex--;
@@ -1787,6 +1802,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   nextQuestion(): void {
     this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
+    this.clearImagePinInteractionState();
     if (this.currentIndex < this.playerQuestions.length - 1) {
       this.stopCurrentAudio();
       this.currentIndex++;
@@ -1798,6 +1815,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   goToQuestion(index: number): void {
     this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
+    this.clearImagePinInteractionState();
     this.stopCurrentAudio();
     this.currentIndex = index;
     this.preloadImagesAroundCurrentQuestion();
@@ -1811,6 +1830,90 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const targetIndex = this.batchQuestionIndices[batchPosition];
       this.goToQuestion(targetIndex);
     }
+  }
+
+  navPrev(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isFirstQuestion || this.finishingAll) return;
+    this.cancelImagePinAutoAdvance();
+    this.prevQuestion();
+  }
+
+  navNext(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.finishingAll || this.isLastQuestion) return;
+    this.cancelImagePinAutoAdvance();
+    this.nextQuestion();
+  }
+
+  navFinish(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.finishingAll || !this.canCompleteByAttemptRate) return;
+    this.cancelImagePinAutoAdvance();
+    this.openFinishSummary();
+  }
+
+  showImagePinAutoAdvance(): boolean {
+    return (
+      this.imagePinAutoAdvanceSeconds > 0 &&
+      !this.isLastQuestion &&
+      (this.currentQuestion?.data?.type as string) === 'image_pin_match'
+    );
+  }
+
+  cancelImagePinAutoAdvance(): void {
+    if (this.imagePinAutoAdvanceInterval) {
+      clearInterval(this.imagePinAutoAdvanceInterval);
+      this.imagePinAutoAdvanceInterval = null;
+    }
+    this.imagePinAutoAdvanceQuestionIndex = null;
+    this.imagePinAutoAdvanceSeconds = 0;
+  }
+
+  skipImagePinAutoAdvance(): void {
+    const idx = this.imagePinAutoAdvanceQuestionIndex;
+    this.cancelImagePinAutoAdvance();
+    if (idx != null && this.currentIndex === idx && !this.isLastQuestion) {
+      this.nextQuestion();
+    }
+  }
+
+  private maybeScheduleImagePinAutoAdvance(pq: PlayerQuestion): void {
+    if ((pq.data.type as string) !== 'image_pin_match') return;
+    if (this.state === 'submitted' || this.finishingAll || this.hasCurrentSubmitted) return;
+    if (!this.isQuestionAnswered(pq) || this.isLastQuestion) {
+      this.cancelImagePinAutoAdvance();
+      return;
+    }
+    if (
+      this.imagePinAutoAdvanceInterval &&
+      this.imagePinAutoAdvanceQuestionIndex === pq.index
+    ) {
+      return;
+    }
+
+    this.cancelImagePinAutoAdvance();
+    this.imagePinAutoAdvanceQuestionIndex = pq.index;
+    this.imagePinAutoAdvanceSeconds = 5;
+    this.imagePinAutoAdvanceInterval = setInterval(() => {
+      this.imagePinAutoAdvanceSeconds--;
+      if (this.imagePinAutoAdvanceSeconds <= 0) {
+        const questionIndex = this.imagePinAutoAdvanceQuestionIndex;
+        this.cancelImagePinAutoAdvance();
+        if (
+          questionIndex != null &&
+          this.currentIndex === questionIndex &&
+          this.currentIndex < this.playerQuestions.length - 1
+        ) {
+          this.nextQuestion();
+        }
+      }
+      this.zone.run(() => {});
+    }, 1000);
+    this.zone.run(() => {});
   }
 
   isQuestionAnswered(pq: PlayerQuestion): boolean {
@@ -2311,6 +2414,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     ];
     pq.selectedLabelId = null;
     this.markAttempted(pq);
+    this.maybeScheduleImagePinAutoAdvance(pq);
   }
 
   getImagePinConnection(pq: PlayerQuestion, labelId: string): string {
@@ -2490,6 +2594,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       ];
       pq.selectedLabelId = null;
       this.markAttempted(pq);
+      this.maybeScheduleImagePinAutoAdvance(pq);
     }
     this.resetImagePinDrag();
     this.zone.run(() => {});
@@ -2507,6 +2612,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   onImagePinResize(): void {
     if (this.imagePinDrag.active) {
       this.imagePinDrag = { ...this.imagePinDrag };
+    }
+  }
+
+  /** Release any stuck pin drag so Next/Previous stay tappable on mobile. */
+  private clearImagePinInteractionState(): void {
+    if (this.imagePinDrag.active) {
+      this.resetImagePinDrag();
     }
   }
 
@@ -3266,7 +3378,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     result.answerDetails.forEach(detail => {
       const pq = this.playerQuestions[detail.questionIndex];
       if (pq) {
-        pq.isCorrect = detail.isCorrect;
+        const watchOnlyClipCompleted =
+          this.watchOnlyMode && pq.data?.type === 'video-pronunciation' && pq.isAnswered;
+        pq.isCorrect = watchOnlyClipCompleted ? true : detail.isCorrect;
+        if (watchOnlyClipCompleted) {
+          pq.vpResult = 'correct';
+        }
         pq.feedback = this.buildFeedback(pq.data, detail.correctAnswer, pq);
         // Store correct answers for display
         if (pq.data.type === 'fill-blank' && detail.correctAnswer?.answers) {

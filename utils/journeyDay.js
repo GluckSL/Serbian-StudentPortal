@@ -42,16 +42,58 @@ function daysSinceJourneyStart(startDate, now = new Date()) {
   return Math.max(0, Math.floor((todayUTC - startUTC) / MS_PER_DAY));
 }
 
+/**
+ * Trial batches with trialAccessStartDate: trial window begins on that date;
+ * batchStartDate is Day 1 (not trial). Legacy trial: batchStartDate is the single Trial day.
+ */
+function computeJourneyDayWithTrialWindow(trialAccessStartDate, dayOneStartDate, now = new Date(), max = JOURNEY_DAY_MAX) {
+  const today = utcMidnightMs(now);
+  const trialStart = utcMidnightMs(new Date(trialAccessStartDate));
+  const dayOneStart = utcMidnightMs(new Date(dayOneStartDate));
+  if (today < trialStart) return TRIAL_JOURNEY_DAY;
+  if (today < dayOneStart) return TRIAL_JOURNEY_DAY;
+  const elapsed = daysSinceJourneyStart(dayOneStartDate, now);
+  return clampStandardJourneyDay(elapsed + 1, max);
+}
+
+function computeJourneyDayFromBatchConfig(cfg, now = new Date()) {
+  if (!cfg) return STANDARD_JOURNEY_MIN;
+  const max = cfg.journeyLength != null ? cfg.journeyLength : JOURNEY_DAY_MAX;
+  const trial = !!cfg.trialDayEnabled;
+  const batchStartDate = cfg.batchStartDate;
+  const trialAccessStartDate = cfg.trialAccessStartDate;
+
+  if (!trial) {
+    return computeJourneyDayFromStartDate(batchStartDate, now, max, false);
+  }
+
+  if (trialAccessStartDate && batchStartDate) {
+    return computeJourneyDayWithTrialWindow(trialAccessStartDate, batchStartDate, now, max);
+  }
+
+  return computeJourneyDayFromStartDate(batchStartDate, now, max, true);
+}
+
 function computeJourneyDayFromStartDate(
   startDate,
   now = new Date(),
   max = JOURNEY_DAY_MAX,
-  trialDayEnabled = false
+  trialDayEnabled = false,
+  trialAccessStartDate = null
 ) {
+  if (trialDayEnabled && trialAccessStartDate && startDate) {
+    return computeJourneyDayWithTrialWindow(trialAccessStartDate, startDate, now, max);
+  }
   if (!startDate) return trialDayEnabled ? TRIAL_JOURNEY_DAY : STANDARD_JOURNEY_MIN;
   const elapsed = daysSinceJourneyStart(startDate, now);
   if (trialDayEnabled) return clampJourneyDayForBatch(elapsed, max, true);
   return clampStandardJourneyDay(elapsed + 1, max);
+}
+
+function contentUnlockDayForJourney(courseDay, trialDayEnabled = false) {
+  const n = Number(courseDay);
+  if (trialDayEnabled && n === TRIAL_JOURNEY_DAY) return STANDARD_JOURNEY_MIN;
+  return n;
 }
 
 function isValidJourneyDay(raw, trialDayEnabled = false) {
@@ -98,6 +140,9 @@ module.exports = {
   utcMidnightMs,
   daysSinceJourneyStart,
   computeJourneyDayFromStartDate,
+  computeJourneyDayFromBatchConfig,
+  computeJourneyDayWithTrialWindow,
+  contentUnlockDayForJourney,
   isValidJourneyDay,
   isTrialJourneyDay,
   journeyDayRangeStart,

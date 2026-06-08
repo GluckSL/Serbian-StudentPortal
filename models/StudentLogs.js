@@ -12,7 +12,7 @@ const StudentLogsSchema = new mongoose.Schema({
         required: false
     },
     statusAtUpdate: { type: String, enum: ["UNCERTAIN", "ONGOING", "COMPLETED", "WITHDREW"], required: true },
-    subscriptionAtUpdate: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: true },
+    subscriptionAtUpdate: { type: String, enum: ["SILVER", "PLATINUM", "DOCS_RECOGNITION", "VISA_DOC", "POST_LANDING", "VISA_DOC_ONLY"], required: true },
     mediumAtUpdate: { type: [String], required: true },
     updatedAt: { type: Date, default: Date.now }
 });

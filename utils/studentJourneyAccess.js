@@ -3,7 +3,7 @@ const { allStudentBatchStringsForContent, normalizeBatch } = require('./effectiv
 const { BATCH_TYPE_NEW, normalizeBatchType, isLearningEnabled, isOldBatchType } = require('./batchType');
 const { isSilverGoStudent } = require('./goSilverTrack');
 const { resolveSilverGoContentUnlock } = require('./silverGoSequentialUnlock');
-const { clampJourneyDayForBatch, clampStandardJourneyDay } = require('./journeyDay');
+const { clampJourneyDayForBatch, clampStandardJourneyDay, contentUnlockDayForJourney } = require('./journeyDay');
 
 function normalizeJourneyDay(rawDay, trialDayEnabled = false) {
   if (rawDay != null && Number.isFinite(Number(rawDay))) {
@@ -16,6 +16,14 @@ function resolveTrialDayEnabled(matchedConfigs) {
   return matchedConfigs.some((cfg) => !!cfg.trialDayEnabled);
 }
 
+function attachContentUnlock(access) {
+  if (!access) return access;
+  return {
+    ...access,
+    contentUnlockDay: contentUnlockDayForJourney(access.courseDay, access.trialDayEnabled),
+  };
+}
+
 /**
  * Content access rule for STUDENT users:
  * - GO students always have journey content access.
@@ -24,7 +32,7 @@ function resolveTrialDayEnabled(matchedConfigs) {
  */
 async function getJourneyAccessForStudent(student) {
   if (!student || String(student.role || '').toUpperCase() !== 'STUDENT') {
-    return {
+    return attachContentUnlock({
       enabled: true,
       learningEnabled: true,
       dgBotEnabled: true,
@@ -33,7 +41,7 @@ async function getJourneyAccessForStudent(student) {
       trialDayEnabled: false,
       batchKeys: [],
       batchType: BATCH_TYPE_NEW,
-    };
+    });
   }
 
   const batchKeys = allStudentBatchStringsForContent(student);
@@ -47,7 +55,7 @@ async function getJourneyAccessForStudent(student) {
       maxUnlockedContentDay = unlock.maxUnlockedContentDay;
       courseDay = maxUnlockedContentDay;
     }
-    return {
+    return attachContentUnlock({
       enabled: true,
       learningEnabled: true,
       dgBotEnabled: true,
@@ -58,7 +66,7 @@ async function getJourneyAccessForStudent(student) {
       batchKeys,
       batchType: BATCH_TYPE_NEW,
       reason: 'GO_STUDENT',
-    };
+    });
   }
 
   const activeBatchConfigs = await BatchConfig.find({ journeyActive: true })
@@ -77,7 +85,7 @@ async function getJourneyAccessForStudent(student) {
   let courseDay = normalizeJourneyDay(student.currentCourseDay, trialDayEnabled);
 
   if (!batchKeys.length) {
-    return {
+    return attachContentUnlock({
       enabled: false,
       learningEnabled: false,
       dgBotEnabled: false,
@@ -87,7 +95,7 @@ async function getJourneyAccessForStudent(student) {
       batchKeys,
       batchType: BATCH_TYPE_NEW,
       reason: 'NO_BATCH',
-    };
+    });
   }
 
   const enabled = matchedConfigs.length > 0;
@@ -101,7 +109,7 @@ async function getJourneyAccessForStudent(student) {
   const primaryCfg = matchedConfigs[0] || null;
   const batchType = primaryCfg ? normalizeBatchType(primaryCfg.batchType) : BATCH_TYPE_NEW;
 
-  return {
+  return attachContentUnlock({
     enabled,
     learningEnabled,
     dgBotEnabled,
@@ -117,15 +125,16 @@ async function getJourneyAccessForStudent(student) {
         : dgBotEnabled
           ? 'OLD_BATCH_DG_BOT'
           : 'OLD_BATCH_LEARNING_DISABLED',
-  };
+  });
 }
 
 async function getJourneyAccessForStudentId(UserModel, studentId) {
+  const { SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
   const student = await UserModel.findById(studentId)
-    .select('role batch goStatus subscription currentCourseDay')
+    .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student) {
-    return {
+    return attachContentUnlock({
       enabled: false,
       learningEnabled: false,
       dgBotEnabled: false,
@@ -135,13 +144,14 @@ async function getJourneyAccessForStudentId(UserModel, studentId) {
       batchKeys: [],
       batchType: BATCH_TYPE_NEW,
       reason: 'STUDENT_NOT_FOUND',
-    };
+    });
   }
   return getJourneyAccessForStudent(student);
 }
 
 module.exports = {
   normalizeJourneyDay,
+  contentUnlockDayForJourney,
   getJourneyAccessForStudent,
   getJourneyAccessForStudentId,
 };

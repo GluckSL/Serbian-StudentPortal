@@ -30,8 +30,10 @@ interface BatchSummary {
   autoRecordingEnabled?: boolean;
   /** Shown on home table only when true; false batches appear under “upcoming”. */
   journeyActive?: boolean;
-  /** One-day Trial on batch start before Day 1 (new batches). */
+  /** One-day or multi-day Trial before Day 1 (new batches). */
   trialDayEnabled?: boolean;
+  /** When set with batchStartDate: trial begins here; batchStartDate is Day 1. */
+  trialAccessStartDate?: string | null;
   /** New batch only: journey day frozen until admin resumes. */
   journeyPaused?: boolean;
   journeyPausedAt?: string | null;
@@ -605,8 +607,12 @@ interface TimelineDay {
               </div>
             </div>
             <div class="j-config-field">
-              <label class="j-field-label">Batch start date</label>
+              <label class="j-field-label">{{ editTrialDayEnabled && editTrialAccessStartDate ? 'Day 1 starts' : 'Batch start date' }}</label>
               <input type="date" [(ngModel)]="editBatchStartDate" class="j-input j-input--compact">
+            </div>
+            <div class="j-config-field" *ngIf="editBatchType === 'new' && editTrialDayEnabled">
+              <label class="j-field-label">Trial access starts</label>
+              <input type="date" [(ngModel)]="editTrialAccessStartDate" class="j-input j-input--compact">
             </div>
             <div class="j-config-field">
               <label class="j-field-label">
@@ -615,7 +621,7 @@ interface TimelineDay {
               </label>
               <div *ngIf="editBatchStartDate" class="j-batch-day-inline">
                 <span class="j-day-pill">{{ formatBatchDay(computedDayFromDate()) }}</span>
-                <span class="j-field-hint j-field-hint--inline">{{ daysSinceStart() }}d since {{ editBatchStartDate | date:'dd MMM yyyy' }}</span>
+                <span class="j-field-hint j-field-hint--inline">{{ batchScheduleHint() }}</span>
               </div>
               <input *ngIf="!editBatchStartDate"
                      type="number" [(ngModel)]="editBatchDay"
@@ -675,7 +681,8 @@ interface TimelineDay {
                 </label>
               </div>
               <p class="j-field-hint j-field-hint--toggle" *ngIf="editTrialDayEnabled">
-                Batch start date = <strong>Trial</strong>. Tag orientation recordings/exercises as journey day <strong>0</strong>. Next calendar day = Day 1.
+                Set <strong>Trial access starts</strong> for orientation (e.g. 7 Jun). Set <strong>Day 1 starts</strong> for the first journey day (e.g. 10 Jun).
+                Tag trial recordings, exercises, and games as journey day <strong>0</strong>.
               </p>
             </div>
 
@@ -739,7 +746,7 @@ interface TimelineDay {
         <i class="fas fa-calendar-check"></i>
         <div>
           <strong>Auto-schedule active.</strong>
-          Batch started on <strong>{{ editBatchStartDate | date:'dd MMM yyyy' }}</strong><span *ngIf="editTrialDayEnabled"> (Trial day)</span>.
+          Batch schedule: <strong>{{ scheduleSummaryText() }}</strong>.
           Today is automatically <strong>{{ formatBatchDay(computedDayFromDate()) }}</strong>.
           {{ editStrictJourneyRule ? 'Strict rule is on: students only move to the next day when they meet the completion % for their current day (checked at daily rollover).' : 'Lenient mode: student journey days advance on the daily rollover even if tasks are not finished.' }}
           <ul class="j-pause-history j-pause-history--inline" *ngIf="pauseHistoryEntries().length">
@@ -4174,6 +4181,7 @@ export class JourneyManagementComponent implements OnInit {
   editJourneyLength = 200;
   editBatchDay = 1;
   editTrialDayEnabled = false;
+  editTrialAccessStartDate = '';
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
   editBatchType: 'new' | 'old' = 'old';
@@ -5104,8 +5112,39 @@ export class JourneyManagementComponent implements OnInit {
       this.editBatchStartDate || null,
       new Date(),
       this.editJourneyLength,
-      this.editTrialDayEnabled
+      this.editTrialDayEnabled,
+      this.editTrialAccessStartDate || null
     );
+  }
+
+  batchScheduleHint(): string {
+    if (!this.editBatchStartDate) return '';
+    const day = this.computedDayFromDate();
+    if (this.editTrialDayEnabled && this.editTrialAccessStartDate) {
+      if (day === 0) {
+        return `Trial until ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+      }
+      return `Day 1 since ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+    }
+    return `${this.daysSinceStart()}d since ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+  }
+
+  scheduleSummaryText(): string {
+    if (!this.editBatchStartDate) return 'Manual mode';
+    if (this.editTrialDayEnabled && this.editTrialAccessStartDate) {
+      return `Trial from ${this.formatIsoDateLabel(this.editTrialAccessStartDate)} · Day 1 from ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+    }
+    if (this.editTrialDayEnabled) {
+      return `Trial on ${this.formatIsoDateLabel(this.editBatchStartDate)}, then Day 1 next calendar day`;
+    }
+    return `Started ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+  }
+
+  private formatIsoDateLabel(iso: string): string {
+    if (!iso) return '';
+    const parts = iso.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   formatBatchDay(day: number): string {
@@ -5152,6 +5191,9 @@ export class JourneyManagementComponent implements OnInit {
       ? new Date(b.batchStartDate).toISOString().slice(0, 10)
       : '';
     this.editTrialDayEnabled = !!b.trialDayEnabled;
+    this.editTrialAccessStartDate = b.trialAccessStartDate
+      ? new Date(b.trialAccessStartDate).toISOString().slice(0, 10)
+      : '';
     this.editNotes = b.notes;
     this.editBatchType = b.batchType === 'old' ? 'old' : 'new';
     this.editOldBatchDgBotAccess = !!b.oldBatchDgBotAccess;
@@ -5323,7 +5365,11 @@ export class JourneyManagementComponent implements OnInit {
       strictJourneyThresholdPercent: this.editStrictThresholdPercent,
       autoRecordingEnabled: this.editAutoRecordingEnabled,
       journeyPaused: this.editBatchType === 'new' ? !!this.editJourneyPaused : false,
-      trialDayEnabled: this.editBatchType === 'new' ? !!this.editTrialDayEnabled : false
+      trialDayEnabled: this.editBatchType === 'new' ? !!this.editTrialDayEnabled : false,
+      trialAccessStartDate:
+        this.editBatchType === 'new' && this.editTrialDayEnabled && this.editTrialAccessStartDate
+          ? this.editTrialAccessStartDate
+          : null
     };
   }
 
@@ -5348,6 +5394,10 @@ export class JourneyManagementComponent implements OnInit {
     this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
     this.selectedBatch.trialDayEnabled = !!config.trialDayEnabled;
     this.editTrialDayEnabled = !!config.trialDayEnabled;
+    this.selectedBatch.trialAccessStartDate = config.trialAccessStartDate || null;
+    this.editTrialAccessStartDate = config.trialAccessStartDate
+      ? new Date(config.trialAccessStartDate).toISOString().slice(0, 10)
+      : '';
     this.editJourneyPaused = !!(config.journeyPaused && config.batchType !== 'old');
     this.selectedBatch.journeyPaused = this.editJourneyPaused;
     this.selectedBatch.journeyPausedFrozenDay = config.journeyPausedFrozenDay ?? null;

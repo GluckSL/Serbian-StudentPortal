@@ -93,11 +93,6 @@
         <div class="ph-notif__copy">
           <p class="ph-notif__title">{{ n.title }}</p>
           <p class="ph-notif__msg">{{ n.message }}</p>
-          <p class="ph-notif__meta" *ngIf="n.metadata && n.type !== 'JOURNEY_CLASS_ABSENT_TODAY'">
-            <span *ngIf="journeyDay(n) as jd">Journey day {{ jd }}</span>
-            <span *ngIf="n.metadata.batch"> · Batch {{ n.metadata.batch }}</span>
-            <span *ngIf="n.metadata.level"> · {{ n.metadata.level }}</span>
-          </p>
           <ul
             *ngIf="n.type === 'JOURNEY_CLASS_ABSENT_TODAY' && classAbsentItems(n).length"
             class="ph-notif__class-list">
@@ -130,6 +125,20 @@
               </dl>
             </li>
           </ul>
+        </div>
+        <div class="ph-notif__stats" *ngIf="showJourneyStats(n)">
+          <div class="ph-notif__stat">
+            <span class="ph-notif__stat-label">Current day</span>
+            <strong class="ph-notif__stat-value">{{ journeyDay(n) ?? '—' }}</strong>
+          </div>
+          <div class="ph-notif__stat">
+            <span class="ph-notif__stat-label">Batch</span>
+            <strong class="ph-notif__stat-value">{{ n.metadata?.batch || '—' }}</strong>
+          </div>
+          <div class="ph-notif__stat">
+            <span class="ph-notif__stat-label">Level</span>
+            <strong class="ph-notif__stat-value">{{ n.metadata?.level || '—' }}</strong>
+          </div>
         </div>
         <div class="ph-notif__due">
           <span class="ph-notif__due-label">{{ statusColumnLabel(n) }}</span>

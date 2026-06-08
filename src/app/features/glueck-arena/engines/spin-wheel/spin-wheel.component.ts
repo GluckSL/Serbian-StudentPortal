@@ -21,6 +21,10 @@ interface WheelSegment {
 
 /** Pointer sits on the left (9 o'clock); winning wedge center aligns here. */
 const POINTER_DEG = 270;
+const TEXT_LINE_HEIGHT = 1.32;
+const TEXT_HUB_R = 76;
+const TEXT_OUTER_R = 170;
+const TEXT_MAX_LINES = 3;
 const WHEEL_PALETTE: { base: string; dark: string }[] = [
   { base: '#ef4444', dark: '#b91c1c' },
   { base: '#f97316', dark: '#c2410c' },
@@ -71,11 +75,12 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
         </header>
 
         <div class="sw__play" *ngIf="phase !== 'done'">
-          <div class="sw__arena">
+          <div class="sw__arena" [class.sw__arena--dimmed]="phase === 'result'">
             <div
               class="sw__wheel-outer"
               [class.sw__wheel-outer--spinning]="phase === 'spinning'"
               [class.sw__wheel-outer--dense]="segments.length > 8"
+              [class.sw__wheel-outer--extra-dense]="segments.length > 14"
             >
               <div class="sw__pointer-slot" aria-hidden="true">
                 <div class="sw__pointer">
@@ -109,6 +114,9 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                       <stop offset="0%" [attr.stop-color]="seg.color"/>
                       <stop offset="100%" [attr.stop-color]="seg.colorDark"/>
                     </linearGradient>
+                    <clipPath [attr.id]="'sw-clip-' + i">
+                      <path [attr.d]="segmentPath(i)"/>
+                    </clipPath>
                   </ng-container>
                 </defs>
                 <circle cx="200" cy="200" r="199" fill="#f8fafc"/>
@@ -122,16 +130,25 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                     [attr.filter]="isHighlighted(i) ? 'url(#sw-shadow)' : null"
                   />
                 </g>
-                <g *ngFor="let seg of segments; let i = index">
-                    <text
-                      *ngFor="let line of phraseLines(seg.phrase, i); let li = index"
-                      [attr.transform]="segmentTextTransform(i, li)"
-                      [attr.font-size]="segmentFontSize(i)"
-                      class="sw__seg-text"
-                      text-anchor="start"
-                      dominant-baseline="middle"
-                      [class.sw__seg-text--selected]="isHighlighted(i)"
-                    >{{ line }}</text>
+                <g *ngFor="let seg of segments; let i = index" [attr.clip-path]="'url(#sw-clip-' + i + ')'">
+                    <ng-container *ngIf="getSegmentText(seg.phrase, i) as txt">
+                      <text
+                        [attr.transform]="segmentTextTransform(i)"
+                        [attr.font-size]="txt.size"
+                        class="sw__seg-text"
+                        [class.sw__seg-text--dense]="segments.length > 10"
+                        [class.sw__seg-text--selected]="isHighlighted(i)"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                      >
+                        <tspan
+                          *ngFor="let line of txt.lines; let li = index"
+                          x="0"
+                          [attr.dy]="li === 0 ? txt.firstDy : txt.lineDy"
+                          text-anchor="middle"
+                        >{{ line }}</tspan>
+                      </text>
+                    </ng-container>
                   </g>
               </svg>
               <div
@@ -151,16 +168,26 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
             </div>
           </div>
 
-          <div class="sw__info">
-            <div class="sw__result" *ngIf="phase === 'result' && selectedSegment">
+          <div class="sw__idle-hint" *ngIf="phase === 'idle' && activeCount > 1">
+            <mat-icon>touch_app</mat-icon>
+            <span>Tap <strong>Spin</strong> or the center to pick a random phrase</span>
+          </div>
+
+          <div class="sw__result-overlay" *ngIf="phase === 'result' && selectedSegment">
+            <div class="sw__result-modal">
               <span class="sw__result-chip" [style.background]="selectedSegment.color">Landed</span>
               <p class="sw__result-phrase">{{ selectedSegment.phrase }}</p>
               <p class="sw__result-hint">Keep this phrase on the wheel or remove it?</p>
-            </div>
-
-            <div class="sw__idle-hint" *ngIf="phase !== 'result' && activeCount > 1">
-              <mat-icon>touch_app</mat-icon>
-              <span>Tap <strong>Spin</strong> or the center to pick a random phrase</span>
+              <div class="sw__result-actions">
+                <button type="button" class="sw__btn sw__btn--resume" (click)="resume()">
+                  <span class="sw__btn-row"><mat-icon>replay</mat-icon> Resume</span>
+                  <small>Keep on wheel</small>
+                </button>
+                <button type="button" class="sw__btn sw__btn--eliminate" (click)="eliminate()" [disabled]="activeCount <= 1">
+                  <span class="sw__btn-row"><mat-icon>close</mat-icon> Eliminate</span>
+                  <small>Remove phrase</small>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -175,9 +202,9 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
           <p class="sw__winner-score">Final score: <strong>{{ score }}</strong></p>
         </div>
 
-        <footer class="sw__controls">
+        <footer class="sw__controls" *ngIf="phase !== 'result'">
           <button
-            *ngIf="activeCount > 1 && phase !== 'result'"
+            *ngIf="activeCount > 1"
             type="button"
             class="sw__btn sw__btn--spin"
             (click)="spin()"
@@ -185,17 +212,6 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
           >
             <span class="sw__btn-row"><mat-icon>casino</mat-icon> {{ phase === 'spinning' ? 'Spinning' : 'Spin' }}</span>
           </button>
-
-          <ng-container *ngIf="phase === 'result'">
-            <button type="button" class="sw__btn sw__btn--resume" (click)="resume()">
-              <span class="sw__btn-row"><mat-icon>replay</mat-icon> Resume</span>
-              <small>Keep on wheel</small>
-            </button>
-            <button type="button" class="sw__btn sw__btn--eliminate" (click)="eliminate()" [disabled]="activeCount <= 1">
-              <span class="sw__btn-row"><mat-icon>close</mat-icon> Eliminate</span>
-              <small>Remove phrase</small>
-            </button>
-          </ng-container>
         </footer>
       </div>
     </div>
@@ -266,15 +282,10 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       50% { opacity: 0.6; }
     }
 
-    .sw__play { padding: 12px 16px 16px; }
-
-    .sw__info {
-      min-height: 100px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      margin-top: 20px;
+    .sw__play {
+      position: relative;
+      padding: 12px 16px 16px;
+      min-height: 380px;
     }
 
     .sw__arena {
@@ -282,6 +293,11 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       align-items: center;
       justify-content: center;
       position: relative;
+      transition: opacity 0.3s ease;
+    }
+    .sw__arena--dimmed {
+      opacity: 0.28;
+      pointer-events: none;
     }
 
     .sw__pointer-slot {
@@ -311,6 +327,10 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
     .sw__wheel-outer--dense .sw__hub {
       width: 22%;
       max-width: 96px;
+    }
+    .sw__wheel-outer--extra-dense .sw__hub {
+      width: 17%;
+      max-width: 72px;
     }
     .sw__wheel-ring {
       position: absolute;
@@ -342,23 +362,31 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
     }
 
     .sw__seg-path--selected {
+      fill: #ffffff !important;
       stroke: #fef08a !important;
       stroke-width: 5 !important;
     }
 
     .sw__seg-text {
       fill: #fff;
-      font-weight: 800;
+      font-weight: 700;
       font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
       pointer-events: none;
       paint-order: stroke fill;
-      stroke: rgba(0, 0, 0, 0.4);
-      stroke-width: 2.5px;
-      letter-spacing: 0.02em;
+      stroke: rgba(15, 23, 42, 0.3);
+      stroke-width: 1.25px;
+      letter-spacing: 0.01em;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    .sw__seg-text--dense {
+      stroke-width: 0.85px;
     }
     .sw__seg-text--selected {
-      stroke: rgba(255, 255, 255, 0.85);
-      stroke-width: 2.5px;
+      fill: #0f172a;
+      stroke: rgba(255, 255, 255, 0.35);
+      stroke-width: 0.85px;
+      font-weight: 800;
     }
 
     .sw__hub {
@@ -419,43 +447,67 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       max-width: 90%;
     }
 
-    .sw__result {
-      width: 100%;
-      padding: 18px 20px;
-      text-align: center;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #faf5ff 0%, #eef2ff 100%);
-      border: 2px solid #c4b5fd;
-      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.12);
+    .sw__result-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(6px);
       animation: sw-fade-in 0.35s ease;
     }
     @keyframes sw-fade-in {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .sw__result-modal {
+      width: min(94%, 520px);
+      padding: 32px 28px 28px;
+      text-align: center;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #faf5ff 0%, #eef2ff 100%);
+      border: 2px solid #c4b5fd;
+      box-shadow: 0 16px 48px rgba(99, 102, 241, 0.22);
     }
     .sw__result-chip {
       display: inline-block;
-      padding: 4px 12px;
+      padding: 6px 16px;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: #fff;
-      margin-bottom: 10px;
+      margin-bottom: 16px;
     }
     .sw__result-phrase {
-      margin: 0 0 8px;
-      font-size: clamp(17px, 4.5vw, 22px);
+      margin: 0 0 12px;
+      font-size: clamp(22px, 5.5vw, 34px);
       font-weight: 800;
       color: #0f172a;
-      line-height: 1.45;
+      line-height: 1.35;
+      word-break: break-word;
     }
     .sw__result-hint {
       margin: 0;
-      font-size: 13px;
+      font-size: clamp(13px, 3.2vw, 15px);
       color: #64748b;
       font-weight: 500;
+    }
+    .sw__result-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 28px;
+    }
+    .sw__result-actions .sw__btn {
+      flex: 1;
+      min-width: 140px;
+      max-width: 200px;
     }
 
     .sw__idle-hint {
@@ -463,6 +515,7 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       align-items: center;
       justify-content: center;
       gap: 8px;
+      margin-top: 20px;
       font-size: 13px;
       color: #64748b;
     }
@@ -609,6 +662,18 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
       .sw__pointer-slot { margin-right: -8px; }
       .sw__wheel-outer { width: min(96vw, 420px); max-width: 420px; }
       .sw__wheel-outer--dense { width: min(96vw, 480px); max-width: 480px; }
+      .sw__seg-text { stroke-width: 1px; }
+      .sw__seg-text--dense { stroke-width: 0.75px; }
+      .sw__play { min-height: 340px; }
+      .sw__result-modal { padding: 24px 18px 20px; }
+      .sw__result-actions { flex-direction: column; }
+      .sw__result-actions .sw__btn {
+        width: 100%;
+        max-width: none;
+        flex-direction: row;
+        justify-content: center;
+      }
+      .sw__result-actions .sw__btn small { display: none; }
       .sw__controls { flex-direction: column; }
       .sw__btn { width: 100%; max-width: none; flex-direction: row; justify-content: center; }
       .sw__btn small { display: none; }
@@ -700,57 +765,118 @@ export class SpinWheelComponent implements OnInit, OnDestroy {
     return this.describeWedge(cx, cy, r, start, end);
   }
 
-  segmentTextTransform(index: number, lineIndex: number): string {
+  getSegmentText(phrase: string, index: number): {
+    size: number;
+    lines: string[];
+    firstDy: number;
+    lineDy: number;
+  } {
+    const fit = this.fitWheelText(phrase, index);
+    const lineDy = fit.size * TEXT_LINE_HEIGHT;
+    const firstDy = fit.lines.length <= 1 ? 0 : -((fit.lines.length - 1) / 2) * lineDy;
+    return { ...fit, firstDy, lineDy };
+  }
+
+  segmentTextTransform(index: number): string {
     const n = this.segments.length;
     if (!n) return '';
     const seg = 360 / n;
     const midAngle = (index + 0.5) * seg;
     const midRad = ((midAngle - 90) * Math.PI) / 180;
-    const outerR = n <= 6 ? 158 : n <= 10 ? 163 : n <= 14 ? 168 : 172;
-    const r = outerR;
-    const lineGap = 16;
-    const lines = this.phraseLines(this.segments[index].phrase, index);
-    const numLines = lines.length;
-    const mid = (numLines - 1) / 2;
-    const dy = numLines > 1 ? (lineIndex - mid) * lineGap : 0;
-    const tangX = -Math.sin(midRad);
-    const tangY = Math.cos(midRad);
-    const x = 200 + r * Math.cos(midRad) + dy * tangX;
-    const y = 200 + r * Math.sin(midRad) + dy * tangY;
-    const actualAngle = (90 + Math.atan2(y - 200, x - 200) * 180 / Math.PI + 360) % 360;
-    const rotate = actualAngle + 90;
+    const r = (TEXT_HUB_R + TEXT_OUTER_R) / 2;
+    const x = 200 + r * Math.cos(midRad);
+    const y = 200 + r * Math.sin(midRad);
+
+    const flipped = midAngle > 90 && midAngle < 270;
+    const highlighted = this.isHighlighted(index);
+    let rotate: number;
+    if (highlighted) {
+      rotate = -Math.round(((this.rotationDeg % 360) + 360) % 360);
+    } else {
+      rotate = midAngle + 90 + (flipped ? 180 : 0);
+    }
+
     return `translate(${x}, ${y}) rotate(${rotate})`;
   }
 
-  segmentFontSize(index: number): number {
-    return 12;
+  private segmentTextMaxWidth(index: number): number {
+    const n = this.segments.length;
+    const r = (TEXT_HUB_R + TEXT_OUTER_R) / 2;
+    const wedgeRad = (2 * Math.PI) / n;
+    const chord = 2 * r * Math.sin(wedgeRad / 2);
+    return chord * 0.84;
   }
 
-  phraseLines(phrase: string, index: number): string[] {
-    const trimmed = phrase.trim();
-    if (!trimmed) return [''];
+  private segmentTextMaxHeight(): number {
+    return TEXT_OUTER_R - TEXT_HUB_R - 18;
+  }
 
-    const parenMatch = trimmed.match(/^(.+?)\s+(\([^)]+\))$/);
-    if (parenMatch) {
-      return [parenMatch[1].trim(), parenMatch[2].trim()];
-    }
-
+  private baseFontSize(): number {
     const n = this.segments.length;
-    const maxPerLine = n <= 6 ? 18 : n <= 10 ? 14 : n <= 14 ? 12 : 11;
-    const words = trimmed.split(/\s+/);
-    const lines: string[] = [];
-    let current = '';
-    for (const word of words) {
-      const next = current ? `${current} ${word}` : word;
-      if (next.length <= maxPerLine || !current) {
-        current = next;
-      } else {
-        lines.push(current);
-        current = word;
+    if (n <= 6) return 14;
+    if (n <= 8) return 12;
+    if (n <= 12) return 11;
+    if (n <= 14) return 10;
+    return 9;
+  }
+
+  private fitWheelText(phrase: string, index: number): { size: number; lines: string[] } {
+    const trimmed = phrase.trim();
+    if (!trimmed) return { size: this.baseFontSize(), lines: [''] };
+
+    const maxW = this.segmentTextMaxWidth(index);
+    const maxH = this.segmentTextMaxHeight();
+    let size = this.baseFontSize();
+
+    while (size >= 7) {
+      const lines = this.wrapWheelPhrase(trimmed, index, size);
+      const longest = lines.reduce((max, l) => Math.max(max, l.length), 0);
+      const fitsWidth = longest * size * 0.54 <= maxW;
+      const fitsHeight = lines.length * size * TEXT_LINE_HEIGHT <= maxH;
+      if (fitsWidth && fitsHeight) {
+        return { size, lines };
       }
+      size -= 1;
     }
-    if (current) lines.push(current);
-    return lines.slice(0, 2);
+
+    return {
+      size: 7,
+      lines: this.wrapWheelPhrase(trimmed, index, 7),
+    };
+  }
+
+  /** Word-wrap into 2–3 centered lines; prefer two words per line. */
+  private wrapWheelPhrase(phrase: string, index: number, fontSize: number): string[] {
+    if (/\n/.test(phrase)) {
+      return phrase.split(/\n/).map(l => l.trim()).filter(Boolean).slice(0, TEXT_MAX_LINES);
+    }
+
+    const maxW = this.segmentTextMaxWidth(index);
+    const maxChars = Math.max(8, Math.floor(maxW / (fontSize * 0.5)));
+    if (phrase.length <= maxChars) return [phrase];
+
+    const words = phrase.split(/\s+/);
+    const lines: string[] = [];
+    let idx = 0;
+
+    while (idx < words.length && lines.length < TEXT_MAX_LINES) {
+      if (lines.length === TEXT_MAX_LINES - 1) {
+        lines.push(words.slice(idx).join(' '));
+        break;
+      }
+
+      let line = words[idx++];
+      if (idx < words.length) {
+        const paired = `${line} ${words[idx]}`;
+        if (paired.length <= maxChars) {
+          line = paired;
+          idx++;
+        }
+      }
+      lines.push(line);
+    }
+
+    return lines.length ? lines : [phrase];
   }
 
   spin(): void {

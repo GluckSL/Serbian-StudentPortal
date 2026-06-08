@@ -48,6 +48,10 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     : batchNameOrNames
       ? [String(batchNameOrNames).trim()]
       : [];
+  const recordingBatchNames =
+    Array.isArray(options.recordingBatchNames) && options.recordingBatchNames.length
+      ? options.recordingBatchNames.map((b) => String(b || '').trim()).filter(Boolean)
+      : batchNames;
   const studentObjectId = mongoose.Types.ObjectId.isValid(String(studentId))
     ? new mongoose.Types.ObjectId(String(studentId))
     : null;
@@ -90,9 +94,10 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     }));
 
   let classes = [];
-  const needsMeetings = (includeLiveClasses || includeRecordings) && batchNames.length;
+  const meetingBatchNames = includeRecordings ? recordingBatchNames : batchNames;
+  const needsMeetings = (includeLiveClasses || includeRecordings) && meetingBatchNames.length;
   if (needsMeetings) {
-    const batchOr = batchNames.map((n) => ({
+    const batchOr = meetingBatchNames.map((n) => ({
       batch: new RegExp(`^${escapeRegExp(n)}$`, 'i')
     }));
     classes = await MeetingLink.find({
@@ -144,8 +149,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       .lean();
     const visibleManual = manualRecordings.filter((r) => {
       const recBatches = Array.isArray(r.batches) ? r.batches : [];
-      if (!recBatches.length || !batchNames.length) return false;
-      return recBatches.some((rb) => batchNames.some((sb) => batchesAlign(sb, rb)));
+      if (!recBatches.length || !recordingBatchNames.length) return false;
+      return recBatches.some((rb) => recordingBatchNames.some((sb) => batchesAlign(sb, rb)));
     });
     if (visibleManual.length) {
       const manualIds = visibleManual.map((r) => r._id);
@@ -192,8 +197,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
         const planOk = plan === 'ALL' || !studentPlan || plan === studentPlan;
         if (!levelOk || !planOk) return false;
         const recBatches = Array.isArray(zr.accessBatches) ? zr.accessBatches : [];
-        if (!recBatches.length || !batchNames.length) return false;
-        return recBatches.some((rb) => batchNames.some((sb) => batchesAlign(sb, rb)));
+        if (!recBatches.length || !recordingBatchNames.length) return false;
+        return recBatches.some((rb) => recordingBatchNames.some((sb) => batchesAlign(sb, rb)));
       });
       if (visibleZoom.length) {
         const zoomMeetingIds = visibleZoom.map((z) => z.meetingLinkId);

@@ -46,6 +46,11 @@ const {
   reconcileSilverGoCourseDay,
   silverGoCompletionOptions
 } = require('../utils/silverGoSequentialUnlock');
+const {
+  isSilverGoStudent: isSilverGoStudentTrack,
+  silverGoRecordingBatchKeys,
+  SILVER_GO_STUDENT_SELECT
+} = require('../utils/goSilverTrack');
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -269,7 +274,8 @@ router.get('/', verifyToken, async (req, res) => {
     // STUDENT — filter by their batch, level, plan, journey day
     await reconcileSilverGoCourseDay(req.user.id);
     const student = await User.findById(req.user.id)
-      .select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
+      .select(`${SILVER_GO_STUDENT_SELECT} blockedJourneyLevels`)
+      .lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
     await applySilverGoContentUnlockToStudent(student);
     const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
@@ -297,12 +303,15 @@ router.get('/', verifyToken, async (req, res) => {
       .sort({ createdAt: -1 }).lean();
 
     const batchKeys = allStudentBatchStringsForContent(student);
-    // Match legacy User.batch and GO-SILVER tags (Silver GO often has both).
-    const filteredRecordings = batchKeys.length
+    const recordingBatchKeys = isSilverGoStudentTrack(student)
+      ? silverGoRecordingBatchKeys(student)
+      : batchKeys;
+    // Silver GO: class batch recording only (same rule as instant day advance).
+    const filteredRecordings = recordingBatchKeys.length
       ? recordings.filter(
           (r) =>
             Array.isArray(r.batches) &&
-            r.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b))) &&
+            r.batches.some((b) => recordingBatchKeys.some((k) => batchesAlign(k, b))) &&
             journeyCourseDayUnlockedForStudent(r, student)
         )
       : [];
@@ -394,7 +403,8 @@ router.get('/student-feed', verifyToken, async (req, res) => {
 
     await reconcileSilverGoCourseDay(userId);
     const student = await User.findById(userId)
-      .select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
+      .select(`${SILVER_GO_STUDENT_SELECT} blockedJourneyLevels`)
+      .lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
     await applySilverGoContentUnlockToStudent(student);
 
@@ -1710,10 +1720,7 @@ router.put('/view/:viewId', verifyToken, async (req, res) => {
         const recording = await ClassRecording.findById(view.recording)
           .select('active courseDay duration batches level plan')
           .lean();
-        const studentLean = await User.findById(view.student)
-          .select('batch goStatus subscription level currentCourseDay')
-          .lean();
-        const isSilverGo = isSilverGoStudent(studentLean);
+        const isSilverGo = isSilverGoStudent(req.user);
         const recDurationSec = Number(recording?.duration || 0);
         const watchRatio = isSilverGo ? 0.9 : 0.75;
         const watchedEnough = recDurationSec > 0 && watchDurationSec >= Math.ceil(recDurationSec * watchRatio);
@@ -1856,7 +1863,7 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
       );
       const day = Number(meeting?.courseDay);
       const studentLean = await User.findById(view.student)
-        .select('batch goStatus subscription level currentCourseDay')
+        .select(SILVER_GO_STUDENT_SELECT)
         .lean();
       const isSilverGo = isSilverGoStudent(studentLean);
       const completionWatchRatio = isSilverGo ? 0.9 : 0.75;
@@ -1871,53 +1878,52 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
 
       if (isEligibleGate) {
         const dayInt = Math.floor(day);
-        const nextDay = Math.min(200, dayInt + 1);
-        const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
-        const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
-        const primary = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
-        const cfgDoc = primary
-          ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
-          : null;
 
-        let allowInstantAdvance = true;
         if (isSilverGo) {
-          await SilverGoUnlockCache.deleteOne({ studentId: view.student });
-          const comp = await computeJourneyDayCompletion(
-            view.student,
-            batchKeys,
-            dayInt,
-            {
-              ...silverGoCompletionOptions(studentLean),
-              creditMeetings: meeting?._id ? [meeting._id] : []
-            }
-          );
-          allowInstantAdvance = !!comp.complete;
-        } else if (cfgDoc && cfgDoc.strictJourneyRule) {
-          const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
-            creditMeetings: meeting?._id ? [meeting._id] : []
-          });
-          allowInstantAdvance = meetsStrictThreshold(comp, cfgDoc);
-        }
+          const advResult = await checkAndInstantlyAdvanceSilverGoStudent(String(view.student));
+          if (advResult.advanced) {
+            return res.json({
+              success: true,
+              journeyAdvanced: true,
+              previousCourseDay: advResult.previousDay,
+              newCourseDay: advResult.newDay
+            });
+          }
+        } else {
+          const nextDay = Math.min(200, dayInt + 1);
+          const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
+          const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+          const primary = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
+          const cfgDoc = primary
+            ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
+            : null;
 
-        if (allowInstantAdvance) {
-          const advancedNow = await User.updateOne(
-            { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
-            {
-              $set: withJourneyLevelInSet(
-                nextDay,
-                {
-                  currentCourseDay: nextDay,
-                  pendingJourneyDayAdvance: false,
-                  pendingJourneyDayAdvanceForDay: null
-                },
-                { student: studentLean }
-              )
+          let allowInstantAdvance = true;
+          if (cfgDoc && cfgDoc.strictJourneyRule) {
+            const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
+              creditMeetings: meeting?._id ? [meeting._id] : []
+            });
+            allowInstantAdvance = meetsStrictThreshold(comp, cfgDoc);
+          }
+
+          if (allowInstantAdvance) {
+            const advancedNow = await User.updateOne(
+              { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
+              {
+                $set: withJourneyLevelInSet(
+                  nextDay,
+                  {
+                    currentCourseDay: nextDay,
+                    pendingJourneyDayAdvance: false,
+                    pendingJourneyDayAdvanceForDay: null
+                  },
+                  { student: studentLean }
+                )
+              }
+            );
+            if (advancedNow?.modifiedCount) {
+              return res.json({ success: true, journeyAdvanced: true, previousCourseDay: dayInt, newCourseDay: nextDay });
             }
-          );
-          if (advancedNow?.modifiedCount) {
-            console.log(`🚀 [Instant Advance] Zoom recording Silver GO student ${view.student}: Day ${dayInt} → ${nextDay}`);
-            return res.json({ success: true, journeyAdvanced: true, previousCourseDay: dayInt, newCourseDay: nextDay });
-          } else {
             await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
           }
         }

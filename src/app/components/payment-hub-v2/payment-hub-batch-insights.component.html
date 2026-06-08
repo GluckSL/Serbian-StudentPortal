@@ -88,6 +88,20 @@
             [compact]="true"
           ></app-payment-currency-overdue-totals>
         </div>
+        <div class="ph-insight-card ph-insight-card--pct">
+          <div class="ph-insight-card-label">Amount collected</div>
+          <div class="ph-insight-card-value" [ngClass]="collectedPctClass(cardAmountCollectedPct)">
+            {{ collectionLabel(cardAmountCollectedPct) }}
+          </div>
+          <div class="ph-insight-card-hint">Received ÷ expected (LKR)</div>
+        </div>
+        <div class="ph-insight-card ph-insight-card--pct">
+          <div class="ph-insight-card-label">Balance / overdue</div>
+          <div class="ph-insight-card-value" [ngClass]="outstandingPctClass(cardAmountOutstandingPct)">
+            {{ collectionLabel(cardAmountOutstandingPct) }}
+          </div>
+          <div class="ph-insight-card-hint">Pending + overdue ÷ expected (LKR)</div>
+        </div>
       </div>
 
       <div class="ph-insights-cards ph-insights-cards--health">
@@ -203,27 +217,66 @@
         <div class="ph-selected-cards">
           <div class="ph-selected-card" *ngFor="let r of selectedBatchRows">
             <div class="ph-selected-card-head">
-              <strong>Batch {{ r.batch }}</strong>
+              <strong class="ph-selected-card-title">Batch {{ r.batch }}</strong>
               <span class="ph-batch-type-pill"
                 [class.ph-batch-type-pill--old]="r.batchType === 'old'"
                 [class.ph-batch-type-pill--new]="r.batchType === 'new'"
               >{{ batchTypeLabel(r.batchType) }}</span>
             </div>
-            <div class="ph-selected-card-grid">
-              <div><span class="ph-sc-label">Students</span><span class="ph-sc-val">{{ r.studentCount }}</span></div>
-              <div><span class="ph-sc-label">Collection (LKR)</span>
-                <span class="ph-sc-val" [ngClass]="collectionClass(r.collectionRateLKR)">{{ collectionLabel(r.collectionRateLKR) }}</span>
+
+            <div class="ph-selected-card-hero">
+              <div class="ph-selected-stat">
+                <span class="ph-selected-stat__label">Students</span>
+                <span class="ph-selected-stat__value">{{ r.studentCount }}</span>
               </div>
-              <div class="ph-sc-paid">
-                <span class="ph-sc-label">Received</span>
-                <app-payment-currency-totals [lkr]="r.totalPaidLKR" [inr]="r.totalPaidINR" [usd]="r.totalPaidUSD" [compact]="true" [hideZero]="true"></app-payment-currency-totals>
+              <div class="ph-selected-stat ph-selected-stat--collection">
+                <span class="ph-selected-stat__label">LKR collected</span>
+                <span class="ph-collection-pill ph-selected-stat__pill" [ngClass]="collectionClass(r.collectionRateLKR)">
+                  {{ collectionLabel(r.collectionRateLKR) }}
+                </span>
               </div>
-              <div><span class="ph-sc-label">Paid full / balance / overdue</span>
-                <span class="ph-sc-val ph-sc-val-sm">{{ r.fullyPaidStudents }} / {{ r.balanceStudents }} / {{ r.overdueStudents }}</span>
-              </div>
-              <div><span class="ph-sc-label">Journey day</span><span class="ph-sc-val">{{ journeyDayRatio(r) }}</span></div>
-              <div><span class="ph-sc-label">Levels</span><span class="ph-sc-val ph-sc-val-sm">{{ r.levelSummary }}</span></div>
             </div>
+
+            <div class="ph-selected-card-section">
+              <span class="ph-selected-section-label">Received</span>
+              <app-payment-currency-totals
+                [lkr]="r.totalPaidLKR"
+                [inr]="r.totalPaidINR"
+                [usd]="r.totalPaidUSD"
+                [compact]="true"
+                [hideZero]="true"
+              ></app-payment-currency-totals>
+            </div>
+
+            <div class="ph-selected-card-section">
+              <span class="ph-selected-section-label">Payment status</span>
+              <div class="ph-health-chips ph-health-chips--card">
+                <span class="ph-health-chip ph-health-chip--green" matTooltip="Paid in full">
+                  <mat-icon>check_circle</mat-icon>{{ r.fullyPaidStudents }}
+                  <span class="ph-health-chip__text">Full</span>
+                </span>
+                <span class="ph-health-chip ph-health-chip--amber" matTooltip="Have balance">
+                  <mat-icon>hourglass_empty</mat-icon>{{ r.balanceStudents }}
+                  <span class="ph-health-chip__text">Balance</span>
+                </span>
+                <span class="ph-health-chip ph-health-chip--red" matTooltip="Overdue">
+                  <mat-icon>warning</mat-icon>{{ r.overdueStudents }}
+                  <span class="ph-health-chip__text">Overdue</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="ph-selected-card-footer">
+              <div class="ph-selected-meta">
+                <span class="ph-selected-meta__label">Journey day</span>
+                <span class="ph-day-badge">{{ journeyDayRatio(r) }}</span>
+              </div>
+              <div class="ph-selected-meta ph-selected-meta--levels" *ngIf="r.levelSummary !== '—'">
+                <span class="ph-selected-meta__label">Levels</span>
+                <span class="ph-selected-meta__val">{{ r.levelSummary }}</span>
+              </div>
+            </div>
+
             <button mat-stroked-button color="primary" type="button" class="ph-selected-card-btn" (click)="openBatchStudents(r.batch)">
               <mat-icon>groups</mat-icon> Student breakdown
             </button>
