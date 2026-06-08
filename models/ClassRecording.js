@@ -36,5 +36,6 @@ const classRecordingSchema = new mongoose.Schema({
 
 classRecordingSchema.index({ active: 1, level: 1, batches: 1 });
 classRecordingSchema.index({ courseDay: 1, active: 1, isPublished: 1 });
+classRecordingSchema.index({ active: 1, isPublished: 1, level: 1, plan: 1, batches: 1, createdAt: -1 });
 
 module.exports = mongoose.model('ClassRecording', classRecordingSchema);

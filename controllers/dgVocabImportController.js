@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const { parsePdfBuffer } = require('../services/pdfParseLoader');
+const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const OpenAI = require('openai');
 
@@ -44,7 +44,7 @@ function dgOpenAi() {
 async function readDocumentText(filePath, mimetype) {
   if (mimetype === 'application/pdf') {
     const buffer = fs.readFileSync(filePath);
-    const data = await parsePdfBuffer(buffer);
+    const data = await pdfParse(buffer);
     return String(data.text || '').trim();
   }
   if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {

@@ -4,6 +4,7 @@ const router = express.Router();
 const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const { requireRecordingApprovalStaff } = require('../middleware/recordingStaffAccess');
 const ClassRecording = require('../models/ClassRecording');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
 const ZoomRecordingView = require('../models/ZoomRecordingView');
@@ -16,7 +17,7 @@ const { r2Client, R2_BUCKET, R2_CONFIG_OK, r2ConfigIssues } = require('../config
 const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
 const { processManualRecordingUpload, processManualRecordingFromR2 } = require('../services/recordingProcessor');
 const manualRecordingUpload = require('../config/manualRecordingUpload');
-const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
+const { allStudentBatchStringsForContent, batchesAlign, normalizeBatch } = require('../utils/effectiveStudentBatch');
 const { markPendingAdvanceForStudentDay, checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 const BatchConfig = require('../models/BatchConfig');
 const {
@@ -51,6 +52,16 @@ const {
   SILVER_GO_STUDENT_SELECT
 } = require('../utils/goSilverTrack');
 
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Build a case-insensitive regex that matches a normalized batch key (exact or prefix with separator). */
+function batchRegex(batchKey) {
+  const nk = normalizeBatch(batchKey);
+  return new RegExp(`^${escapeRegExp(nk)}(\\s*[-:|]\\s|$)`, 'i');
+}
+
 /** Returns true when a student has an APPROVED recording-access grant for a class. */
 async function hasApprovedGrant(studentId, meetingLinkId) {
   if (!studentId || !meetingLinkId) return false;
@@ -59,10 +70,6 @@ async function hasApprovedGrant(studentId, meetingLinkId) {
     meetingLinkId,
     status: 'APPROVED',
   }));
-}
-
-function escapeRegExp(str) {
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Staff who manage or preview class recordings (includes sub-admins with tab access). */
@@ -426,11 +433,15 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     const studentLevel = String(student.level || 'A1').toUpperCase();
     const batchKeys = allStudentBatchStringsForContent(student);
 
+    const manualBatchFilter = batchKeys.length
+      ? { $or: batchKeys.map(bk => ({ batches: { $regex: batchRegex(bk) } })) }
+      : {};
     const manualBase = await ClassRecording.find({
       active: true,
       isPublished: { $ne: false },
       level: studentLevel,
-      plan: { $in: allowedRecordingPlansForStudent(student) }
+      plan: { $in: allowedRecordingPlansForStudent(student) },
+      ...manualBatchFilter
     })
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 })
@@ -440,8 +451,6 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     const manualFiltered = batchKeys.length
       ? manualBase.filter(
           (r) =>
-            Array.isArray(r.batches) &&
-            r.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b))) &&
             journeyCourseDayUnlockedForStudent(r, student) &&
             !isContentBlockedForStudent(student, { courseDay: r.courseDay, level: r.level })
         )
@@ -495,20 +504,29 @@ router.get('/student-feed', verifyToken, async (req, res) => {
       watchedSeconds: watchedSecondsByRecording.get(String(r._id)) ?? 0
     }));
 
+    const zoomBatchFilter = batchKeys.length
+      ? { $or: batchKeys.map(bk => ({ accessBatches: { $regex: batchRegex(bk) } })) }
+      : {};
     const zoomRecordings = await ZoomRecording.find({
       status: 'ready',
-      isPublished: { $ne: false }
+      isPublished: { $ne: false },
+      ...zoomBatchFilter
     })
       .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
       .limit(200)
       .lean();
 
-    const approvedGrants = await RecordingAccessRequest.find({
+    const allAccessRequests = await RecordingAccessRequest.find({
       studentId: userId,
-      status: 'APPROVED'
-    }).select('meetingLinkId').lean();
+    })
+      .select('_id meetingLinkId status classTopic classDate studentBatch requestedAt')
+      .lean();
+
+    const approvedGrants = allAccessRequests.filter((r) => r.status === 'APPROVED');
     const grantedMeetingLinkIds = approvedGrants.map((g) => String(g.meetingLinkId));
     const grantedSet = new Set(grantedMeetingLinkIds);
+
+    const accessRequests = allAccessRequests;
 
     if (grantedMeetingLinkIds.length) {
       const grantedRecs = await ZoomRecording.find({
@@ -523,13 +541,6 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         if (!existingIds.has(String(gr.meetingLinkId))) zoomRecordings.push(gr);
       }
     }
-
-    const accessRequests = await RecordingAccessRequest.find({
-      studentId: userId,
-      status: { $in: ['PENDING', 'APPROVED', 'DECLINED'] },
-    })
-      .select('_id meetingLinkId status classTopic classDate studentBatch requestedAt')
-      .lean();
 
     const requestStatusPriority = { APPROVED: 3, PENDING: 2, DECLINED: 1 };
     const requestStatusByMeeting = new Map();
@@ -551,6 +562,7 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     for (const z of zoomRecordings) {
       zoomRecByMeeting.set(String(z.meetingLinkId), z);
     }
+    let allZoomMeetingIds = zoomRecordings.map((z) => z.meetingLinkId);
     if (accessRequests.length) {
       const requestMeetingIds = accessRequests.map((a) => a.meetingLinkId);
       const requestZoomRecs = await ZoomRecording.find({
@@ -563,36 +575,38 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         const mid = String(z.meetingLinkId);
         if (!zoomRecByMeeting.has(mid)) zoomRecByMeeting.set(mid, z);
       }
+      allZoomMeetingIds = [...new Set([...allZoomMeetingIds, ...requestMeetingIds])];
     }
 
     let zoomItems = [];
-    if (zoomRecordings.length) {
-      const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
-      const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
-        .select('_id topic batch startTime duration status attendance assignedTeacher courseDay')
-        .populate('assignedTeacher', 'name')
-        .lean();
-      const watchedByMeeting = new Map();
-      const watchAgg = await ZoomRecordingView.aggregate([
-        {
-          $match: {
-            student: new mongoose.Types.ObjectId(String(userId)),
-            meetingLinkId: { $in: meetingLinkIds },
-            watchDuration: { $gt: 0 }
-          }
-        },
-        {
-          $group: {
-            _id: '$meetingLinkId',
-            maxWatchSeconds: { $max: '$watchDuration' }
-          }
+    const meetingLinks = await MeetingLink.find({ _id: { $in: allZoomMeetingIds } })
+      .select('_id topic batch startTime duration status attendance assignedTeacher courseDay')
+      .populate('assignedTeacher', 'name')
+      .lean();
+    const meetingMap = {};
+    meetingLinks.forEach((m) => { meetingMap[String(m._id)] = m; });
+
+    const watchAgg = await ZoomRecordingView.aggregate([
+      {
+        $match: {
+          student: new mongoose.Types.ObjectId(String(userId)),
+          meetingLinkId: { $in: allZoomMeetingIds },
+          watchDuration: { $gt: 0 }
         }
-      ]);
-      for (const row of watchAgg) {
-        watchedByMeeting.set(String(row._id), Math.max(0, Math.round(Number(row?.maxWatchSeconds || 0) / 60)));
+      },
+      {
+        $group: {
+          _id: '$meetingLinkId',
+          maxWatchSeconds: { $max: '$watchDuration' }
+        }
       }
-      const meetingMap = {};
-      meetingLinks.forEach((m) => { meetingMap[String(m._id)] = m; });
+    ]);
+    const watchedByMeeting = new Map();
+    for (const row of watchAgg) {
+      watchedByMeeting.set(String(row._id), Math.max(0, Math.round(Number(row?.maxWatchSeconds || 0) / 60)));
+    }
+
+    if (zoomRecordings.length) {
 
       zoomItems = zoomRecordings
         .filter((rec) => {
@@ -683,17 +697,9 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     );
 
     if (missingRequests.length) {
-      const missingIds = missingRequests.map((ar) => ar.meetingLinkId);
-      const extraMeetings = await MeetingLink.find({ _id: { $in: missingIds } })
-        .select('_id topic batch startTime duration assignedTeacher courseDay')
-        .populate('assignedTeacher', 'name')
-        .lean();
-      const extraMeetingMap = {};
-      extraMeetings.forEach((m) => { extraMeetingMap[String(m._id)] = m; });
-
       for (const ar of missingRequests) {
         const mid = String(ar.meetingLinkId);
-        const meeting = extraMeetingMap[mid] || {};
+        const meeting = meetingMap[mid] || {};
         const zoomRec = zoomRecByMeeting.get(mid);
         merged.push({
           type: 'zoom',
@@ -1720,6 +1726,7 @@ router.put('/view/:viewId', verifyToken, async (req, res) => {
         const watchedEnough = recDurationSec > 0 && watchDurationSec >= Math.ceil(recDurationSec * watchRatio);
 
         if (recording?.active && watchedEnough) {
+          await SilverGoUnlockCache.deleteOne({ studentId: view.student });
           const advResult = await checkAndInstantlyAdvanceSilverGoStudent(String(view.student));
           if (advResult.advanced) {
             journeyAdvanced = true;

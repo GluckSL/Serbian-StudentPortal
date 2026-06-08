@@ -228,10 +228,20 @@ router.get('/student', verifyToken, async (req, res) => {
       return res.json({ success: true, data: [] });
     }
 
-    const allItems = await Announcement.find({
-      channel: 'website',
-      isActive: true
-    })
+    const normalizedTargets = [];
+    if (isGoStudent) {
+      normalizedTargets.push(GO_STUDENTS_TARGET_NORMALIZED);
+    }
+    if (batch) {
+      normalizedTargets.push(normalizeBatchKey(batch));
+    }
+
+    const query = { channel: 'website', isActive: true };
+    if (normalizedTargets.length) {
+      query.normalizedBatches = { $in: normalizedTargets };
+    }
+
+    const allItems = await Announcement.find(query)
       .sort({ createdAt: -1 })
       .populate('createdBy', 'name role')
       .lean();
@@ -348,10 +358,13 @@ router.post(
         fileSize: file.size
       }));
 
+      const normalizedBatches = targetBatches.map(normalizeBatchKey).filter(Boolean);
+
       const announcement = new Announcement({
         channel,
         deliveryType,
         targetBatches,
+        normalizedBatches,
         title,
         body,
         attachments,
@@ -417,6 +430,8 @@ router.put(
         return res.status(400).json({ success: false, message: 'Email subject and email body are required for website + email.' });
       }
 
+      const normalizedBatches = targetBatches.map(normalizeBatchKey).filter(Boolean);
+
       const updated = await Announcement.findOneAndUpdate(
         { _id: id, channel: 'website' },
         {
@@ -425,6 +440,7 @@ router.put(
             title,
             body,
             targetBatches,
+            normalizedBatches,
             emailSubject: deliveryType === 'website_email' ? emailSubject : '',
             emailBody: deliveryType === 'website_email' ? emailBody : ''
           }

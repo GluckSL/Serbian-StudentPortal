@@ -1,3 +1,4 @@
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const DGSession = require('../models/DGSession');
 const DGModule = require('../models/DGModule');
 const {
@@ -208,6 +209,7 @@ exports.complete = async (req, res) => {
     let previousCourseDay = null;
     if (req.user && req.user.role === 'STUDENT') {
       try {
+        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
         const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
         if (advResult.advanced) {
           journeyAdvanced = true;

@@ -26,9 +26,25 @@ export class GameAudioService {
   private lostSrc = '/assets/audios/lost.mp3';
   private xpGainSrc = '/assets/audios/xp-gain.mp3';
 
+  /** Cached blob URLs for SFX — avoids any network request on subsequent plays. */
+  private blobUrls = new Map<string, string>();
+
   constructor() {
     this.loadMutePreference();
     this.loadSfxFromApi();
+    this.prefetchSfx(this.correctSrc);
+    this.prefetchSfx(this.wrongSrc);
+    this.prefetchSfx(this.lostSrc);
+    this.prefetchSfx(this.xpGainSrc);
+  }
+
+  /** Eagerly fetch each SFX file once and store as an in-memory blob URL. */
+  private prefetchSfx(src: string): void {
+    if (!src || this.blobUrls.has(src)) return;
+    fetch(src)
+      .then(r => r.blob())
+      .then(blob => { this.blobUrls.set(src, URL.createObjectURL(blob)); })
+      .catch(() => {});
   }
 
   isMuted(): boolean { return this.muted; }
@@ -53,10 +69,10 @@ export class GameAudioService {
       next: (res) => {
         const sfx = res?.sfx;
         if (!sfx) return;
-        if (sfx.correct) this.correctSrc = sfx.correct;
-        if (sfx.wrong) this.wrongSrc = sfx.wrong;
-        if (sfx.lost) this.lostSrc = sfx.lost;
-        if (sfx.xpGain) this.xpGainSrc = sfx.xpGain;
+        if (sfx.correct) { this.correctSrc = sfx.correct; this.prefetchSfx(sfx.correct); }
+        if (sfx.wrong) { this.wrongSrc = sfx.wrong; this.prefetchSfx(sfx.wrong); }
+        if (sfx.lost) { this.lostSrc = sfx.lost; this.prefetchSfx(sfx.lost); }
+        if (sfx.xpGain) { this.xpGainSrc = sfx.xpGain; this.prefetchSfx(sfx.xpGain); }
       },
       error: () => { /* keep local /assets fallback for dev without R2 */ },
     });
@@ -85,24 +101,35 @@ export class GameAudioService {
     a.play().catch(() => { /* autoplay blocked */ });
   }
 
-  playCorrect(): void {
+  private playCached(src: string, fallbackFreq: number, fallbackDuration: number): void {
     if (this.muted || !this.unlocked) return;
-    this.createAudio(this.correctSrc).play().catch(() => this.beep(880, 0.12));
+    const blobUrl = this.blobUrls.get(src);
+    if (blobUrl) {
+      const a = new Audio(blobUrl);
+      a.volume = 0.7;
+      a.play().catch(() => this.beep(fallbackFreq, fallbackDuration));
+    } else {
+      this.prefetchSfx(src);
+      const a = new Audio(src);
+      a.volume = 0.7;
+      a.play().catch(() => this.beep(fallbackFreq, fallbackDuration));
+    }
+  }
+
+  playCorrect(): void {
+    this.playCached(this.correctSrc, 880, 0.12);
   }
 
   playWrong(): void {
-    if (this.muted || !this.unlocked) return;
-    this.createAudio(this.wrongSrc).play().catch(() => this.beep(220, 0.15));
+    this.playCached(this.wrongSrc, 220, 0.15);
   }
 
   playLost(): void {
-    if (this.muted || !this.unlocked) return;
-    this.createAudio(this.lostSrc).play().catch(() => this.beep(180, 0.4));
+    this.playCached(this.lostSrc, 180, 0.4);
   }
 
   playXpGain(): void {
-    if (this.muted || !this.unlocked) return;
-    this.createAudio(this.xpGainSrc).play().catch(() => this.beep(660, 0.2));
+    this.playCached(this.xpGainSrc, 660, 0.2);
   }
 
   private beep(freq: number, duration: number): void {

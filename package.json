@@ -19,9 +19,6 @@
     "upload:arena-sfx": "node tools/upload-arena-sfx-to-r2.js"
   },
   "private": true,
-  "engines": {
-    "node": ">=20.16.0"
-  },
   "dependencies": {
     "@angular/animations": "^19.2.1",
     "@angular/cdk": "^19.2.1",
@@ -37,7 +34,6 @@
     "@aws-sdk/lib-storage": "^3.1029.0",
     "@aws-sdk/s3-request-presigner": "^3.1027.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@napi-rs/canvas": "^0.1.100",
     "@ngneat/tailwind": "^7.0.3",
     "@socket.io/redis-adapter": "^8.3.0",
     "angular-germanbuddy": "file:",

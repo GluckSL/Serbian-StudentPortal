@@ -52,12 +52,15 @@ const announcementSchema = new mongoose.Schema(
     },
     /** When set, announcement stays hidden and emails are not sent until this time (see publish job). */
     scheduledPublishAt: { type: Date, default: null, index: true },
-    isActive: { type: Boolean, default: true, index: true }
+    isActive: { type: Boolean, default: true, index: true },
+    /** Pre-normalized target batches for efficient DB-level matching. */
+    normalizedBatches: { type: [String], default: [] }
   },
   { timestamps: true }
 );
 
 announcementSchema.index({ targetBatches: 1, createdAt: -1 });
 announcementSchema.index({ channel: 1, isActive: 1, scheduledPublishAt: 1 });
+announcementSchema.index({ channel: 1, isActive: 1, normalizedBatches: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Announcement', announcementSchema);

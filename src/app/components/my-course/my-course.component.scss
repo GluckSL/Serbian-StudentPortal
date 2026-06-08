@@ -2161,7 +2161,7 @@
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
-.mc-journey-search, .mc-journey-filter {
+.mc-journey-search {
   height: 36px;
   border: 1px solid #dbe3f0;
   border-radius: 9px;
@@ -2169,12 +2169,88 @@
   font-size: 0.8125rem;
   background: #fff;
   transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 200px;
+  flex: 1 1 220px;
 }
-.mc-journey-search { min-width: 200px; flex: 1 1 220px; }
-.mc-journey-search:focus, .mc-journey-filter:focus {
+.mc-journey-search:focus {
   outline: none;
   border-color: #7c3aed;
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+}
+
+.mc-journey-filter-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.mc-journey-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  border: 1px solid #dbe3f0;
+  border-radius: 9px;
+  padding: 0 10px;
+  font-size: 0.8125rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  color: #334155;
+  white-space: nowrap;
+  font-family: inherit;
+  line-height: 1;
+}
+.mc-journey-filter:hover {
+  border-color: #c7d2e9;
+}
+.mc-journey-filter:focus-visible {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+}
+.mc-journey-filter__arrow {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: #94a3b8;
+  transition: transform 0.2s;
+}
+
+.mc-journey-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  z-index: 30;
+  padding: 4px;
+  overflow: hidden;
+}
+
+.mc-journey-filter-option {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.8125rem;
+  color: #334155;
+  cursor: pointer;
+  border-radius: 6px;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.mc-journey-filter-option:hover {
+  background: #f1f5f9;
+}
+.mc-journey-filter-option.on {
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 600;
 }
 
 .mc-day-pills {
@@ -2756,13 +2832,26 @@
     min-width: 0;
   }
 
-  .mc-journey-search,
-  .mc-journey-filter {
+  .mc-journey-search {
     width: 100%;
     max-width: 100%;
     min-width: 0;
     flex: none;
     box-sizing: border-box;
+  }
+
+  .mc-journey-filter-wrap {
+    width: 100%;
+  }
+
+  .mc-journey-filter {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mc-journey-filter-menu {
+    right: 0;
+    left: 0;
   }
 
   .mc-day-pills {

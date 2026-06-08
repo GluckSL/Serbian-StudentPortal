@@ -1,11 +1,11 @@
 // services/pdf.service.js
 
 const fs = require("fs");
-const { parsePdfBuffer } = require("./pdfParseLoader");
+const pdf = require("pdf-parse");
 
 async function extractTextFromPdf(filePath) {
   const buffer = fs.readFileSync(filePath);
-  const data = await parsePdfBuffer(buffer);
+  const data = await pdf(buffer);
   return data.text;
 }
 

@@ -92,13 +92,12 @@ if (process.env.EXERCISES_OPENAI_API_KEY) {
 
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
-const { getPDFParseClass } = require('../services/pdfParseLoader');
+const { PDFParse } = require('pdf-parse');
 
 async function extractPdfText(filePath) {
   try {
     console.log("🔥 USING PDF-PARSE V2");
     const buffer = fs.readFileSync(filePath);
-    const PDFParse = getPDFParseClass();
     const parser = new PDFParse(new Uint8Array(buffer));
     await parser.load();
     const result = await parser.getText();
