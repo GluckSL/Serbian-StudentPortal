@@ -1,9 +1,14 @@
 <div class="sf-wrap" [class.open]="open">
+
+  <!-- ── Launcher Panel ──────────────────────────────────────── -->
   <div class="sf-panel" *ngIf="open" role="dialog" aria-label="Help and support quick actions">
     <div class="sf-panel__hdr">
-      <div class="sf-panel__title">
-        <i class="fas fa-headset"></i>
-        Help &amp; Support
+      <div class="sf-panel__brand">
+        <span class="sf-fox-icon">🦊</span>
+        <div>
+          <div class="sf-panel__name">Olly</div>
+          <div class="sf-panel__sub">24/7 Portal Assistant</div>
+        </div>
       </div>
       <button class="sf-panel__close" type="button" (click)="close()" aria-label="Close">
         <span aria-hidden="true">×</span>
@@ -11,14 +16,31 @@
     </div>
 
     <div class="sf-panel__body">
-      <button class="sf-action primary" type="button" (click)="openModal('submit')">
-        <i class="fas fa-ticket-alt"></i>
-        Raise Ticket
+      <button class="sf-action sf-action--primary" type="button" (click)="openModal('olly')">
+        <span class="sf-action__icon">🦊</span>
+        <span class="sf-action__text">
+          <span class="sf-action__title">Chat with Olly</span>
+          <span class="sf-action__sub">AI help — instant answers</span>
+        </span>
+        <span class="sf-online-dot"></span>
       </button>
+
+      <button class="sf-action" type="button" (click)="openModal('ticket')">
+        <span class="sf-action__icon">🎫</span>
+        <span class="sf-action__text">
+          <span class="sf-action__title">Raise a Ticket</span>
+          <span class="sf-action__sub">Get human support</span>
+        </span>
+      </button>
+
       <button class="sf-action" type="button" [disabled]="!isLoggedIn" (click)="openModal('tickets')">
-        <i class="fas fa-list-alt"></i>
-        My Tickets
+        <span class="sf-action__icon">📋</span>
+        <span class="sf-action__text">
+          <span class="sf-action__title">My Tickets</span>
+          <span class="sf-action__sub">Track your requests</span>
+        </span>
       </button>
+
       <button
         *ngIf="showAnnouncementsTab"
         class="sf-action"
@@ -26,159 +48,362 @@
         type="button"
         (click)="openModal('announcements')"
       >
-        <i class="fas fa-bullhorn"></i>
-        Announcements
-        <span *ngIf="announcementBadgeCount > 0" class="sf-badge" aria-label="New announcements">
+        <span class="sf-action__icon">📣</span>
+        <span class="sf-action__text">
+          <span class="sf-action__title">Announcements</span>
+          <span class="sf-action__sub">Portal updates</span>
+        </span>
+        <span *ngIf="announcementBadgeCount > 0" class="sf-badge">
           {{ announcementBadgeCount > 9 ? '9+' : announcementBadgeCount }}
         </span>
       </button>
-      <a class="sf-action link" href="mailto:support@gluckglobal.com" (click)="close()">
-        <i class="fas fa-envelope"></i>
-        Email Support
+
+      <a class="sf-action sf-action--link" href="mailto:support@gluckglobal.com" (click)="close()">
+        <span class="sf-action__icon">✉️</span>
+        <span class="sf-action__text">
+          <span class="sf-action__title">Email Support</span>
+          <span class="sf-action__sub">support&#64;gluckglobal.com</span>
+        </span>
       </a>
     </div>
   </div>
 
-  <button class="sf-fab" type="button" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open help and support">
-    <i class="fas" [class.fa-comment-dots]="!open" [class.fa-times]="open"></i>
-    <span
-      *ngIf="showAnnouncementsTab && announcementBadgeCount > 0"
-      class="sf-fab__badge"
-      [attr.aria-label]="'New announcements (' + announcementBadgeCount + ')'"
-    ></span>
+  <!-- ── FAB Button ─────────────────────────────────────────── -->
+  <button class="sf-fab" type="button" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open Olly assistant">
+    <span class="sf-fab__icon" *ngIf="!open">🦊</span>
+    <span class="sf-fab__icon sf-fab__icon--close" *ngIf="open">✕</span>
+    <span *ngIf="showAnnouncementsTab && announcementBadgeCount > 0" class="sf-fab__badge"></span>
   </button>
 </div>
 
-<!-- Modal -->
+<!-- ── Modal Overlay ──────────────────────────────────────────────── -->
 <div class="sf-modalOverlay" *ngIf="modalOpen" (click)="closeModal()"></div>
-<div class="sf-modal" *ngIf="modalOpen" role="dialog" aria-label="Help and support" [class.sf-modal--announcement]="activeTab==='announcements'">
+
+<!-- ── Modal ─────────────────────────────────────────────────────── -->
+<div class="sf-modal" *ngIf="modalOpen" role="dialog"
+  [class.sf-modal--olly]="activeTab==='olly'"
+  [class.sf-modal--announcement]="activeTab==='announcements'">
+
+  <!-- Header -->
   <div class="sf-modal__hdr">
-    <div class="sf-modal__title" *ngIf="activeTab !== 'announcements'">
-      <i class="fas fa-headset"></i> Help &amp; Support
-    </div>
-    <div class="sf-ann-hdr-title" *ngIf="activeTab === 'announcements'">Announcement</div>
+    <ng-container [ngSwitch]="activeTab">
+      <div class="sf-modal__title" *ngSwitchCase="'olly'">
+        <span class="sf-fox-sm">🦊</span>
+        <span>Olly</span>
+        <span class="sf-online-badge">Online</span>
+      </div>
+      <div class="sf-modal__title" *ngSwitchCase="'ticket'">
+        <span>🎫</span> Raise a Ticket
+      </div>
+      <div class="sf-modal__title" *ngSwitchCase="'tickets'">
+        <span>📋</span> My Tickets
+      </div>
+      <div class="sf-ann-hdr-title" *ngSwitchCase="'announcements'">Announcement</div>
+    </ng-container>
+
     <button class="sf-modal__x" type="button" (click)="closeModal()" aria-label="Close">
       <span aria-hidden="true">×</span>
     </button>
   </div>
 
-  <div class="sf-modal__tabs" *ngIf="activeTab !== 'announcements'">
-    <button class="sf-tab" [class.active]="activeTab==='submit'" (click)="setTab('submit')">Raise Ticket</button>
-    <button class="sf-tab" [class.active]="activeTab==='tickets'" (click)="setTab('tickets')" [disabled]="!isLoggedIn">My Tickets</button>
-    <button *ngIf="showAnnouncementsTab" class="sf-tab" (click)="setTab('announcements')">Announcements</button>
+  <!-- Tab bar (ticket / my-tickets views only) -->
+  <div class="sf-modal__tabs" *ngIf="activeTab === 'ticket' || activeTab === 'tickets'">
+    <button class="sf-tab" [class.active]="activeTab === 'ticket'" (click)="setTab('ticket')">
+      🎫 Raise Ticket
+    </button>
+    <button class="sf-tab" [class.active]="activeTab === 'tickets'" (click)="setTab('tickets')" [disabled]="!isLoggedIn">
+      📋 My Tickets
+    </button>
+    <button *ngIf="showAnnouncementsTab" class="sf-tab" (click)="setTab('announcements')">
+      📣 Announcements
+    </button>
+    <button class="sf-tab" (click)="setTab('olly')">🦊 Olly</button>
   </div>
 
-  <div class="sf-modal__body">
-    <!-- Submit -->
-    <div *ngIf="activeTab==='submit'">
-      <div *ngIf="submitSuccess" class="sf-success">
-        <i class="fas fa-check-circle"></i>
-        Ticket submitted successfully.
+  <!-- ╔══════════════════════════════════════════╗ -->
+  <!-- ║  OLLY CHAT                               ║ -->
+  <!-- ╚══════════════════════════════════════════╝ -->
+  <div class="sf-olly" *ngIf="activeTab==='olly'">
+
+    <!-- ── Pre-chat intake ─────────────────────────────────── -->
+    <div class="sf-olly-intake" *ngIf="ollyShowIntake">
+      <div class="sf-olly-intake__hero">
+        <span class="sf-olly-intake__fox">🦊</span>
+        <div>
+          <div class="sf-olly-intake__title">Start a chat with Olly</div>
+          <div class="sf-olly-intake__sub">Tell us what you need help with — Olly will assist you right away.</div>
+        </div>
       </div>
-      <div *ngIf="submitError" class="sf-error">
-        <i class="fas fa-exclamation-circle"></i> {{ submitError }}
+
+      <div class="sf-olly-intake__lang">
+        <span class="sf-olly__lang-label">Language:</span>
+        <button *ngFor="let l of ['en','ta','si']"
+          class="sf-lang-btn"
+          [class.active]="ollyLanguage === l"
+          (click)="switchLanguage(l === 'en' ? 'en' : l === 'ta' ? 'ta' : 'si')"
+          type="button">
+          {{ langLabels[l === 'en' ? 'en' : l === 'ta' ? 'ta' : 'si'] }}
+        </button>
       </div>
 
-      <form [formGroup]="ticketForm" (ngSubmit)="submitTicket()" class="sf-form" novalidate>
-        <div class="sf-grid">
-          <div class="sf-field">
-            <label>Your Name <span class="req">*</span></label>
-            <input type="text" formControlName="name" placeholder="Full name">
-          </div>
-          <div class="sf-field">
-            <label>Email <span class="req">*</span></label>
-            <input type="email" formControlName="email" placeholder="you@example.com">
-          </div>
-        </div>
-
-        <div class="sf-grid">
-          <div class="sf-field">
-            <label>Category <span class="req">*</span></label>
-            <select formControlName="category">
-              <option value="" disabled>Select…</option>
-              <option *ngFor="let c of categories" [value]="c.value">{{ c.label }}</option>
-            </select>
-          </div>
-          <div class="sf-field">
-            <label>Priority <span class="req">*</span></label>
-            <select formControlName="priority">
-              <option *ngFor="let p of priorities" [value]="p.value">{{ p.label }}</option>
-            </select>
-          </div>
+      <form [formGroup]="ollyIntakeForm" (ngSubmit)="submitOllyIntake()" class="sf-olly-intake__form" novalidate>
+        <div class="sf-field">
+          <label>Type of issue <span class="req">*</span></label>
+          <select formControlName="issueType">
+            <option value="" disabled>Select a type…</option>
+            <option *ngFor="let t of ollyIssueTypes" [value]="t.value">{{ t.label }}</option>
+          </select>
         </div>
 
         <div class="sf-field">
-          <label>Subject <span class="req">*</span></label>
-          <input type="text" formControlName="subject" placeholder="Short summary">
+          <label>Your question <span class="req">*</span>
+            <span class="sf-count">{{ ollyIntakeQuestionLen }}/1000</span>
+          </label>
+          <textarea
+            rows="4"
+            formControlName="question"
+            placeholder="Describe your issue or question in detail…"
+          ></textarea>
         </div>
 
         <div class="sf-field">
-          <label>Description <span class="req">*</span> <span class="sf-count">{{ descriptionLen }}/1000</span></label>
-          <textarea rows="4" formControlName="description" placeholder="Describe the issue…"></textarea>
-        </div>
-
-        <div class="sf-field">
-          <label>Screenshot <span class="req">*</span></label>
-          <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" (change)="onScreenshotSelected($event)">
-          <div class="sf-hint">Required (PNG/JPG/WEBP, max 6MB).</div>
-        </div>
-
-        <div class="sf-actions">
-          <button class="sf-btnPrimary" type="submit" [disabled]="submitting">
-            <span *ngIf="!submitting"><i class="fas fa-paper-plane"></i> Submit</span>
-            <span *ngIf="submitting"><i class="fas fa-spinner fa-spin"></i> Submitting…</span>
+          <label>Attach media <span class="sf-optional">(optional)</span></label>
+          <input #ollyIntakeFileInput type="file" hidden
+            accept="image/*,application/pdf,video/mp4,video/webm"
+            (change)="onIntakeFileSelected($event)" />
+          <button class="sf-olly-intake__upload-btn" type="button" (click)="triggerIntakeFileInput()">
+            📎 Upload image, PDF, or video
           </button>
+          <div class="sf-olly__media-preview" *ngIf="ollyIntakeMediaFile">
+            <img *ngIf="ollyIntakeMediaPreview" [src]="ollyIntakeMediaPreview" class="sf-olly__prev-img" alt="preview" />
+            <span *ngIf="!ollyIntakeMediaPreview" class="sf-olly__prev-file">📎 {{ ollyIntakeMediaFile.name }}</span>
+            <button type="button" class="sf-olly__prev-rm" (click)="clearIntakeMedia()">✕</button>
+          </div>
         </div>
+
+        <div *ngIf="ollyError" class="sf-error">⚠️ {{ ollyError }}</div>
+
+        <button class="sf-olly-intake__start" type="submit" [disabled]="ollyIntakeSubmitting">
+          <span *ngIf="!ollyIntakeSubmitting">🦊 Start Chat</span>
+          <span *ngIf="ollyIntakeSubmitting">⏳ Starting…</span>
+        </button>
       </form>
     </div>
 
-    <!-- Tickets -->
-    <div *ngIf="activeTab==='tickets'">
-      <div *ngIf="!isLoggedIn" class="sf-hint">Please login to view your tickets.</div>
-      <div *ngIf="loadingTickets" class="sf-hint"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
-      <div *ngIf="!loadingTickets && isLoggedIn && tickets.length===0" class="sf-hint">No tickets yet.</div>
+    <!-- ── Chat (after intake) ─────────────────────────────── -->
+    <ng-container *ngIf="!ollyShowIntake">
 
-      <div class="sf-ticket" *ngFor="let t of tickets">
-        <div class="sf-ticket__top">
-          <div class="sf-ticket__num">{{ t.ticketNumber || 'Ticket' }}</div>
-          <div class="sf-ticket__status">{{ t.status || 'open' }}</div>
+    <!-- Language + status bar -->
+    <div class="sf-olly__topbar">
+      <div class="sf-olly__lang-row">
+        <span class="sf-olly__lang-label">Language:</span>
+        <button *ngFor="let l of ['en','ta','si']"
+          class="sf-lang-btn"
+          [class.active]="ollyLanguage === l"
+          (click)="switchLanguage(l === 'en' ? 'en' : l === 'ta' ? 'ta' : 'si')"
+          type="button">
+          {{ langLabels[l === 'en' ? 'en' : l === 'ta' ? 'ta' : 'si'] }}
+        </button>
+      </div>
+      <div class="sf-olly__status">
+        <span>🟢 AI Assistant Active</span>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="sf-olly__messages" #ollyMessagesEl>
+      <div
+        *ngFor="let msg of ollyMessages"
+        class="sf-msg"
+        [class.sf-msg--user]="msg.role === 'user'"
+        [class.sf-msg--bot]="msg.role === 'assistant'"
+      >
+        <!-- Bot avatar -->
+        <div class="sf-msg__avatar" *ngIf="msg.role === 'assistant'">🦊</div>
+
+        <div class="sf-msg__bubble">
+          <!-- Media preview -->
+          <ng-container *ngIf="msg.mediaUrl">
+            <img *ngIf="isImage(msg.mediaType)" [src]="msg.mediaUrl" class="sf-msg__img" alt="Shared image" />
+            <a *ngIf="!isImage(msg.mediaType)" [href]="msg.mediaUrl" target="_blank" class="sf-msg__file">
+              📎 {{ msg.mediaOriginalName || 'View file' }}
+            </a>
+          </ng-container>
+          <div class="sf-msg__text" *ngIf="msg.content">{{ msg.content }}</div>
+          <div class="sf-msg__time">{{ msg.timestamp | date:'shortTime' }}</div>
         </div>
-        <div class="sf-ticket__sub">{{ t.subject }}</div>
-        <div class="sf-ticket__desc">{{ t.description }}</div>
-        <a *ngIf="t.screenshot?.url" class="sf-ticket__shot" [href]="t.screenshot.url" target="_blank" rel="noreferrer">
-          View screenshot
-        </a>
+      </div>
 
-        <div class="sf-replies" *ngIf="t.replies?.length">
-          <div class="sf-reply" *ngFor="let r of t.replies">
-            <div class="sf-reply__meta">
-              <strong>{{ r.authorRole }}</strong>
-              <span *ngIf="r.createdAt">• {{ r.createdAt | date:'short' }}</span>
-            </div>
-            <div class="sf-reply__msg">{{ r.message }}</div>
-          </div>
+      <!-- Typing indicator -->
+      <div class="sf-msg sf-msg--bot sf-msg--typing" *ngIf="ollyLoading">
+        <div class="sf-msg__avatar">🦊</div>
+        <div class="sf-msg__bubble sf-msg__bubble--typing">
+          <span></span><span></span><span></span>
         </div>
       </div>
     </div>
 
-    <div *ngIf="activeTab==='announcements'" class="sf-announcement-only">
-      <div *ngIf="!isLoggedIn && !loadingAnnouncements && (!selectedAnnouncement)" class="sf-hint">
-        Please login to view announcements.
-      </div>
-      <div *ngIf="loadingAnnouncements" class="sf-hint">
-        <i class="fas fa-spinner fa-spin"></i> Loading…
-      </div>
-      <div *ngIf="!loadingAnnouncements && isLoggedIn && !selectedAnnouncement" class="sf-hint">
-        No announcements yet.
-      </div>
+    <!-- Error -->
+    <div *ngIf="ollyError" class="sf-olly__err">⚠️ {{ ollyError }}</div>
 
-      <ng-container *ngIf="selectedAnnouncement as a">
-        <div class="sf-ann-detail sf-ann-detail--announcement">
-          <div class="sf-ann-detail__title">{{ a.title }}</div>
-          <div class="sf-ann-detail__body sf-richtext" [innerHTML]="a.body"></div>
+    <!-- Media preview strip -->
+    <div class="sf-olly__media-preview" *ngIf="ollyMediaFile">
+      <img *ngIf="ollyMediaPreview" [src]="ollyMediaPreview" class="sf-olly__prev-img" alt="preview" />
+      <span *ngIf="!ollyMediaPreview" class="sf-olly__prev-file">📎 {{ ollyMediaFile.name }}</span>
+      <button type="button" class="sf-olly__prev-rm" (click)="clearOllyMedia()">✕</button>
+    </div>
+
+    <!-- Input row -->
+    <div class="sf-olly__input-row">
+      <input #ollyFileInput type="file" hidden
+        accept="image/*,application/pdf,video/mp4,video/webm"
+        (change)="onOllyFileSelected($event)" />
+
+      <button class="sf-olly__attach" type="button" (click)="triggerOllyFileInput()"
+        title="Attach image / PDF / video" [disabled]="ollyLoading">
+        📎
+      </button>
+
+      <textarea
+        class="sf-olly__input"
+        rows="2"
+        [(ngModel)]="ollyInput"
+        [ngModelOptions]="{standalone: true}"
+        (keydown)="onOllyKeydown($event)"
+        [disabled]="ollyLoading"
+        [placeholder]="ollyLanguage === 'ta' ? 'உங்கள் கேள்வியை தட்டச்சு செய்யுங்கள்…' :
+                       ollyLanguage === 'si' ? 'ඔබේ ප්‍රශ්නය ටයිප් කරන්න…' :
+                       'Ask about courses, payments, classes…'"
+      ></textarea>
+
+      <button class="sf-olly__send" type="button"
+        (click)="sendOllyMessage()"
+        [disabled]="ollyLoading || (!ollyInput.trim() && !ollyMediaFile)"
+        aria-label="Send">
+        ➤
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <div class="sf-olly__footer">
+      <button class="sf-olly__ticket-link" type="button" (click)="setTab('ticket')">
+        🎫 Raise a Ticket
+      </button>
+    </div>
+
+    </ng-container>
+  </div>
+  <!-- ╚══════════════════════════════════════════╝ -->
+
+  <!-- ╔══════════════════════════════════════════╗ -->
+  <!-- ║  TICKET FORM                             ║ -->
+  <!-- ╚══════════════════════════════════════════╝ -->
+  <div class="sf-modal__body" *ngIf="activeTab==='ticket'">
+    <div *ngIf="submitSuccess" class="sf-success">
+      <span>✅</span> Ticket submitted successfully!
+    </div>
+    <div *ngIf="submitError" class="sf-error">
+      <span>⚠️</span> {{ submitError }}
+    </div>
+
+    <form *ngIf="!submitSuccess" [formGroup]="ticketForm" (ngSubmit)="submitTicket()" class="sf-form" novalidate>
+      <div class="sf-grid">
+        <div class="sf-field">
+          <label>Your Name <span class="req">*</span></label>
+          <input type="text" formControlName="name" placeholder="Full name">
         </div>
-      </ng-container>
+        <div class="sf-field">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" formControlName="email" placeholder="you&#64;example.com">
+        </div>
+      </div>
+      <div class="sf-grid">
+        <div class="sf-field">
+          <label>Category <span class="req">*</span></label>
+          <select formControlName="category">
+            <option value="" disabled>Select…</option>
+            <option *ngFor="let c of categories" [value]="c.value">{{ c.label }}</option>
+          </select>
+        </div>
+        <div class="sf-field">
+          <label>Priority <span class="req">*</span></label>
+          <select formControlName="priority">
+            <option *ngFor="let p of priorities" [value]="p.value">{{ p.label }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="sf-field">
+        <label>Subject <span class="req">*</span></label>
+        <input type="text" formControlName="subject" placeholder="Short summary">
+      </div>
+      <div class="sf-field">
+        <label>Description <span class="req">*</span> <span class="sf-count">{{ descriptionLen }}/1000</span></label>
+        <textarea rows="4" formControlName="description" placeholder="Describe the issue…"></textarea>
+      </div>
+      <div class="sf-field">
+        <label>Screenshot <span class="req">*</span></label>
+        <input type="file" accept="image/png,image/jpeg,image/jpg,image/webp" (change)="onScreenshotSelected($event)">
+        <div class="sf-hint">Required (PNG/JPG/WEBP, max 6MB).</div>
+      </div>
+      <div class="sf-actions">
+        <button class="sf-btnPrimary" type="submit" [disabled]="submitting">
+          <span *ngIf="!submitting">✉️ Submit Ticket</span>
+          <span *ngIf="submitting">⏳ Submitting…</span>
+        </button>
+      </div>
+    </form>
+  </div>
+  <!-- ╚══════════════════════════════════════════╝ -->
+
+  <!-- ╔══════════════════════════════════════════╗ -->
+  <!-- ║  MY TICKETS                              ║ -->
+  <!-- ╚══════════════════════════════════════════╝ -->
+  <div class="sf-modal__body" *ngIf="activeTab==='tickets'">
+    <div *ngIf="!isLoggedIn" class="sf-hint">Please login to view your tickets.</div>
+    <div *ngIf="loadingTickets" class="sf-hint">⏳ Loading…</div>
+    <div *ngIf="!loadingTickets && isLoggedIn && tickets.length===0" class="sf-hint">No tickets yet.</div>
+
+    <div class="sf-ticket" *ngFor="let t of tickets">
+      <div class="sf-ticket__top">
+        <div class="sf-ticket__num">{{ t.ticketNumber || 'Ticket' }}</div>
+        <div class="sf-ticket__status">{{ t.status || 'open' }}</div>
+      </div>
+      <div class="sf-ticket__sub">{{ t.subject }}</div>
+      <div class="sf-ticket__desc">{{ t.description }}</div>
+      <a *ngIf="t.screenshot?.url" class="sf-ticket__shot" [href]="t.screenshot.url" target="_blank" rel="noreferrer">
+        View screenshot
+      </a>
+      <div class="sf-replies" *ngIf="t.replies?.length">
+        <div class="sf-reply" *ngFor="let r of t.replies">
+          <div class="sf-reply__meta">
+            <strong>{{ r.authorRole }}</strong>
+            <span *ngIf="r.createdAt">• {{ r.createdAt | date:'short' }}</span>
+          </div>
+          <div class="sf-reply__msg">{{ r.message }}</div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
+  <!-- ╚══════════════════════════════════════════╝ -->
 
+  <!-- ╔══════════════════════════════════════════╗ -->
+  <!-- ║  ANNOUNCEMENTS                           ║ -->
+  <!-- ╚══════════════════════════════════════════╝ -->
+  <div class="sf-modal__body sf-announcement-only" *ngIf="activeTab==='announcements'">
+    <div *ngIf="!isLoggedIn && !loadingAnnouncements && !selectedAnnouncement" class="sf-hint">
+      Please login to view announcements.
+    </div>
+    <div *ngIf="loadingAnnouncements" class="sf-hint">⏳ Loading…</div>
+    <div *ngIf="!loadingAnnouncements && isLoggedIn && !selectedAnnouncement" class="sf-hint">
+      No announcements yet.
+    </div>
+    <ng-container *ngIf="selectedAnnouncement as a">
+      <div class="sf-ann-detail sf-ann-detail--announcement">
+        <div class="sf-ann-detail__title">{{ a.title }}</div>
+        <div class="sf-ann-detail__body sf-richtext" [innerHTML]="a.body"></div>
+      </div>
+    </ng-container>
+  </div>
+  <!-- ╚══════════════════════════════════════════╝ -->
+
+</div>

@@ -1061,6 +1061,25 @@
 
     <div class="mc-completion-modal__body">
 
+      <!-- Exercises (server list for Silver GO when day content not in client cache) -->
+      <div class="mc-completion-section" *ngIf="isSilverGoStudentFrontend && serverIncompleteExercises.length && !currentDayIncompleteExercises.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">quiz</span> Exercises
+        </p>
+        <div class="mc-completion-item" *ngFor="let ex of serverIncompleteExercises">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ ex.title }}</span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="setTab('exercises'); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Open Exercises
+          </button>
+        </div>
+      </div>
+
       <!-- Exercises -->
       <div class="mc-completion-section" *ngIf="currentDayIncompleteExercises.length">
         <p class="mc-completion-section__label">
@@ -1077,6 +1096,25 @@
             type="button"
             class="mc-completion-item__btn"
             (click)="openExercise(ex); closeDayCompletionModal()"
+          >
+            <span class="material-icons">play_arrow</span> Start
+          </button>
+        </div>
+      </div>
+
+      <!-- Gluck Buddy (DG) — server list -->
+      <div class="mc-completion-section" *ngIf="isSilverGoStudentFrontend && serverIncompleteDg.length && !currentDayIncompleteDg.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">record_voice_over</span> Gluck Buddy
+        </p>
+        <div class="mc-completion-item" *ngFor="let m of serverIncompleteDg">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ m.title }}</span>
+          </div>
+          <button
+            type="button"
+            class="mc-completion-item__btn"
+            (click)="setTab('talk-buddy'); closeDayCompletionModal()"
           >
             <span class="material-icons">play_arrow</span> Start
           </button>

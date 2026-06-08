@@ -184,15 +184,30 @@
         </div>
         <div
           class="review-q-block"
-          [class.correct]="pq.isCorrect === true"
-          [class.wrong]="pq.isCorrect === false"
+          [class.correct]="hasSubQuestions(pq.data) ? isMultipartFullyCorrect(pq) : pq.isCorrect === true"
+          [class.partial]="hasSubQuestions(pq.data) && isMultipartPartial(pq)"
+          [class.wrong]="hasSubQuestions(pq.data) ? (hasMultipartBeenGraded(pq) && getMultipartPointsEarned(pq) === 0) : pq.isCorrect === false"
         >
           <div class="review-q-head">
             <span class="review-q-num">Question {{ i + 1 }}</span>
             <span class="review-q-type-pill" [class]="'pill-' + pq.data.type">
               {{ getQuestionTypeLabelForDisplay(pq.data) }}
             </span>
-            <span class="review-q-pts">{{ pq.data.points || 1 }} pt</span>
+            <span class="review-q-pts">{{ (hasSubQuestions(pq.data) ? getMultipartMaxPoints(pq) : (pq.data.points || 1)) }} pt</span>
+            <ng-container *ngIf="hasSubQuestions(pq.data); else simpleReviewBadge">
+              <span
+                class="review-q-badge"
+                [class.correct]="isMultipartFullyCorrect(pq)"
+                [class.partial]="isMultipartPartial(pq)"
+                [class.wrong]="hasMultipartBeenGraded(pq) && getMultipartPointsEarned(pq) === 0"
+              >
+                <span class="material-icons">{{
+                  isMultipartFullyCorrect(pq) ? "check_circle" : (getMultipartPointsEarned(pq) > 0 ? "adjust" : "cancel")
+                }}</span>
+                {{ getMultipartPointsEarned(pq) }}/{{ getMultipartMaxPoints(pq) }} pts
+              </span>
+            </ng-container>
+            <ng-template #simpleReviewBadge>
             <span
               class="review-q-badge"
               [class.correct]="pq.isCorrect"
@@ -203,6 +218,7 @@
               }}</span>
               {{ pq.isCorrect ? "Correct" : "Incorrect" }}
             </span>
+            </ng-template>
           </div>
           <div class="review-q-body">
             <div
@@ -438,13 +454,20 @@
             </div>
 
             <ng-container *ngIf="!hasFillBlankReviewItems(pq, i)">
-            <div class="review-answer-row">
+            <div class="review-answer-row" *ngIf="!hasSubQuestions(pq.data) || !isParentAnswerPartEmpty(pq.data)">
               <span class="review-label">Your answer:</span>
-              <span class="review-value" [class.wrong]="!pq.isCorrect">{{
+              <span
+                class="review-value"
+                [class.correct]="hasSubQuestions(pq.data) ? getParentPartIsCorrect(pq) : pq.isCorrect === true"
+                [class.wrong]="hasSubQuestions(pq.data) ? hasMultipartBeenGraded(pq) && !getParentPartIsCorrect(pq) : !pq.isCorrect"
+              >{{
                 getReviewAnswerText(pq)
               }}</span>
             </div>
-            <div class="review-answer-row" *ngIf="!pq.isCorrect">
+            <div
+              class="review-answer-row"
+              *ngIf="hasSubQuestions(pq.data) ? (hasMultipartBeenGraded(pq) && !getParentPartIsCorrect(pq)) : !pq.isCorrect"
+            >
               <span class="review-label">Correct answer:</span>
               <span class="review-value correct">{{
                 getReviewCorrectText(pq)
@@ -491,19 +514,26 @@
                   <!-- Sub-question answer -->
                   <div class="review-sub-q-answer" *ngIf="sq.type !== 'fill-blank' || !hasFillBlankReviewItems(pq, i)">
                     <span class="review-label">Your answer:</span>
-                    <span class="review-value">{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
+                    <span
+                      class="review-value"
+                      [class.correct]="getSubQuestionIsCorrect(pq, sqIndex)"
+                      [class.wrong]="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex)"
+                    >{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
                   </div>
                   <div class="review-sub-q-correct" *ngIf="sq.type === 'fill-blank' && !hasFillBlankReviewItems(pq, i)">
                     <span class="review-label">Correct answer:</span>
                     <span class="review-value correct">{{ getSubCorrectAnswerText(pq, sqIndex) }}</span>
                   </div>
-                  <div class="review-sub-q-correct" *ngIf="sq.type === 'mcq'">
-                    <span class="review-label">Correct:</span>
-                    <span class="review-value correct">{{ sq.options?.[sq.correctAnswerIndex] || '-' }}</span>
-                  </div>
-                  <div class="review-sub-q-correct" *ngIf="sq.type === 'question-answer' && isTrueFalseQuestion(sq)">
+                  <div
+                    class="review-sub-q-correct"
+                    *ngIf="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex) && sq.type !== 'fill-blank'"
+                  >
                     <span class="review-label">Correct answer:</span>
-                    <span class="review-value correct">{{ getSubCorrectAnswerText(pq, sqIndex) }}</span>
+                    <span class="review-value correct">{{
+                      sq.type === 'mcq'
+                        ? (sq.options?.[sq.correctAnswerIndex] || '—')
+                        : getSubCorrectAnswerText(pq, sqIndex)
+                    }}</span>
                   </div>
                 </div>
               </div>
@@ -4120,6 +4150,20 @@
             class="result-banner"
             *ngIf="hasCurrentSubmitted && currentQuestion.isCorrect !== null"
           >
+            <ng-container *ngIf="hasSubQuestions(currentQuestion.data); else simpleResultBanner">
+              <div class="result-correct" *ngIf="getMultipartPointsEarned(currentQuestion) > 0">
+                <span class="material-icons">{{
+                  isMultipartFullyCorrect(currentQuestion) ? "check_circle" : "adjust"
+                }}</span>
+                +{{ getMultipartPointsEarned(currentQuestion) }}/{{ getMultipartMaxPoints(currentQuestion) }}
+                point{{ getMultipartMaxPoints(currentQuestion) !== 1 ? "s" : "" }}
+                <span class="result-partial-hint" *ngIf="isMultipartPartial(currentQuestion)">(partial credit)</span>
+              </div>
+              <div class="result-wrong" *ngIf="getMultipartPointsEarned(currentQuestion) === 0">
+                <span class="material-icons">cancel</span> Incorrect — 0/{{ getMultipartMaxPoints(currentQuestion) }} points
+              </div>
+            </ng-container>
+            <ng-template #simpleResultBanner>
             <div class="result-correct" *ngIf="currentQuestion.isCorrect">
               <span class="material-icons">check_circle</span> Correct! +{{
                 currentQuestion.data.points || 1
@@ -4129,6 +4173,7 @@
             <div class="result-wrong" *ngIf="!currentQuestion.isCorrect">
               <span class="material-icons">cancel</span> Incorrect
             </div>
+            </ng-template>
           </div>
 
         </div>

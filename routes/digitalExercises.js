@@ -562,15 +562,14 @@ function gradeSubQuestionPart(sq, subResp) {
   return { rawScore: 0, correctAnswer: null };
 }
 
-/** Grade sub-questions attached to a parent; merges points and isCorrect with parent result. */
+/** Grade sub-questions attached to a parent; each part earns its own points independently. */
 function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned, parentCorrectAnswer) {
-  let isCorrect = parentIsCorrect;
   let pointsEarned = parentPointsEarned;
   let correctAnswer = parentCorrectAnswer;
   const subResults = [];
   const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
   if (!subs.length) {
-    return { isCorrect, pointsEarned, correctAnswer, subResults };
+    return { isCorrect: parentIsCorrect, pointsEarned, correctAnswer, subResults };
   }
 
   const subResps = Array.isArray(resp.subQuestionResponses) ? resp.subQuestionResponses : [];
@@ -599,7 +598,6 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
       subCorrectOut = { ...(subCorrectAnswer || {}), score: rawScore, aiGradingEnabled: false };
     }
 
-    if (!subIsCorrect) isCorrect = false;
     pointsEarned += subPoints;
     subResults.push({
       questionIndex: si,
@@ -619,6 +617,8 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
   if (subResults.length) {
     correctAnswer = { ...(correctAnswer || {}), subResults };
   }
+  const allSubsCorrect = subResults.every((sub) => sub.isCorrect);
+  const isCorrect = parentIsCorrect && allSubsCorrect;
   return { isCorrect, pointsEarned, correctAnswer, subResults, subQuestionGrades };
 }
 
@@ -1163,6 +1163,39 @@ function getSubQuestionReviewGrade(q, r, sq, si, subResp) {
   return { ...graded, staffOverride: false };
 }
 
+function gradeParentPartRawScore(q, r) {
+  if (!r) return 0;
+  if (q.type === 'mcq') {
+    return r.selectedOptionIndex === q.correctAnswerIndex ? 100 : 0;
+  }
+  if (q.type === 'fill-blank') {
+    return gradeFillBlankRawScore(q, r.fillBlankResponses).rawScore;
+  }
+  if (q.type === 'question-answer') {
+    const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+    if (isTrueFalse) {
+      const expected = parseTrueFalse(expectedRaw);
+      const given = parseTrueFalse(r.qaResponse);
+      return expected !== null && given !== null && given === expected ? 100 : 0;
+    }
+    const filtered = samples.filter(Boolean);
+    const normalizedStudent = normalizeTextForExactCompare(r.qaResponse || '');
+    const exact = filtered.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+    return exact ? 100 : 0;
+  }
+  if (q.type === 'listening') {
+    const studentText = normalizeListeningAnswer(r.listeningText || r.qaResponse || '');
+    const expected = normalizeListeningAnswer(q.expectedTranscript || '');
+    return expected && studentText && studentText === expected ? 100 : 0;
+  }
+  if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
+    return Math.max(0, Math.min(100, Number(r.pronunciationScore) || 0));
+  }
+  return r.isCorrect ? 100 : 0;
+}
+
 function getParentPartReviewGrade(q, r) {
   if (!r) return { isCorrect: false, pointsEarned: 0 };
   const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
@@ -1171,14 +1204,14 @@ function getParentPartReviewGrade(q, r) {
   }
   const subPts = (r.subQuestionGrades || []).reduce((sum, g) => sum + (Number(g.pointsEarned) || 0), 0);
   const parentPts = Math.max(0, (Number(r.pointsEarned) || 0) - subPts);
-  const { rawScore } = q.type === 'fill-blank'
-    ? gradeFillBlankRawScore(q, r.fillBlankResponses)
-    : { rawScore: r.isCorrect ? 100 : 0 };
+  const rawScore = gradeParentPartRawScore(q, r);
   let parentCorrect;
   if (isAdvancedGradingEnabled(q)) {
     parentCorrect = applyThresholdScoring(q, rawScore).isCorrect;
-  } else if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
-    parentCorrect = !!r.isCorrect;
+  } else if (q.type === 'pronunciation') {
+    parentCorrect = rawScore >= 70;
+  } else if (q.type === 'video-pronunciation') {
+    parentCorrect = rawScore >= normalizeThresholdForQuestion(q);
   } else {
     parentCorrect = rawScore >= 100;
   }
@@ -1345,6 +1378,7 @@ const {
 
 async function getStudentExerciseAccess(userId) {
   const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
+  const { minimumAssignedContentDay } = require('../utils/journeyDay');
   await reconcileSilverGoCourseDay(userId);
   const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
   const u = await User.findById(userId)
@@ -1354,18 +1388,21 @@ async function getStudentExerciseAccess(userId) {
     return {
       enabled: true,
       courseDay: 1,
+      minAssignedContentDay: 1,
       accessibleLevels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
       studentLevel: null
     };
   }
   const journeyAccess = await getJourneyAccessForStudent(u);
   const courseDay = journeyAccess.contentUnlockDay ?? journeyAccess.courseDay;
+  const minAssignedContentDay = minimumAssignedContentDay(u, journeyAccess.trialDayEnabled);
   const studentLevel = u.level || 'A1';
   const accessibleLevels = getEffectiveAccessibleLevels(studentLevel, u.blockedJourneyLevels);
   return {
     enabled: journeyAccess.enabled,
     learningEnabled: journeyAccess.learningEnabled !== false,
     courseDay,
+    minAssignedContentDay,
     accessibleLevels,
     studentLevel,
     student: u
@@ -1378,11 +1415,13 @@ function exerciseLevelAllowedForStudent(exerciseLevel, accessibleLevels) {
 }
 
 /** Students: exercise has no day lock, or lock is satisfied. */
-function exerciseUnlockedForStudentDay(exercise, studentDay) {
+function exerciseUnlockedForStudentDay(exercise, studentDay, minCourseDay = 1) {
   const cd = exercise.courseDay;
   if (cd == null || cd === undefined) return true;
   const n = Number(cd);
   if (!Number.isFinite(n)) return true;
+  const min = Number(minCourseDay) || 1;
+  if (n < min) return false;
   return n <= studentDay;
 }
 
@@ -1563,18 +1602,18 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
         });
       }
       const studentCourseDay = studentExerciseAccess.courseDay;
+      const minAssignedDay = studentExerciseAccess.minAssignedContentDay ?? 1;
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
       if (todayOnly) {
-        andClauses.push({ courseDay: studentCourseDay });
+        if (studentCourseDay >= minAssignedDay) {
+          andClauses.push({ courseDay: studentCourseDay });
+        } else {
+          andClauses.push({ courseDay: -1 });
+        }
       } else {
-        // General browse: no courseDay or only journey days reached (no future preview list).
-        andClauses.push({
-          $or: [
-            { courseDay: null },
-            { courseDay: { $exists: false } },
-            { courseDay: { $lte: studentCourseDay } }
-          ]
-        });
+        // General browse: unassigned or journey days in [minAssignedDay, current] (no Trial for Silver GO).
+        const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
+        andClauses.push(studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay));
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
       appendNotBlockedToAndClauses(
@@ -1778,18 +1817,14 @@ router.get('/gluck-exam', verifyToken, blockVisaDocsOnly, async (req, res) => {
       });
     }
 
+    const minAssignedDay = access.minAssignedContentDay ?? 1;
+    const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
     const andClauses = [
       { isActive: true },
       { isDeleted: { $ne: true } },
       { visibleToStudents: true },
       { $or: [{ weeklyTestEnabled: true }, { examEnabled: true }] },
-      {
-        $or: [
-          { courseDay: null },
-          { courseDay: { $exists: false } },
-          { courseDay: { $lte: access.courseDay } }
-        ]
-      },
+      studentAssignedCourseDayOrClause(access.courseDay, minAssignedDay),
       { level: { $in: access.accessibleLevels } }
     ];
     appendNotBlockedToAndClauses(andClauses, access.student?.blockedJourneyLevels);
@@ -1912,7 +1947,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
           code: 'LEARNING_CONTENT_DISABLED'
         });
       }
-      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
+      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED',
@@ -2598,7 +2633,7 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
           code: 'LEARNING_CONTENT_DISABLED'
         });
       }
-      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
+      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED'
@@ -3330,7 +3365,7 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
     if (access.learningEnabled === false) {
       return res.status(403).json({ error: 'Exercises are not available for your batch.' });
     }
-    if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
+    if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
       return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
     }
     if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {

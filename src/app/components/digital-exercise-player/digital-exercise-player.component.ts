@@ -23,6 +23,7 @@ import {
   DigitalExerciseDraftPayload
 } from '../../services/digital-exercise-player-draft.service';
 import { resolveMediaUrl } from '../../utils/media-url';
+import { OllyContextService } from '../../services/olly-context.service';
 import { countFillBlankRuns, splitFillBlankSentence, splitByWords } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MaterialModule } from '../../shared/material.module';
@@ -162,6 +163,10 @@ interface PlayerQuestion {
   // Result state
   isAnswered?: boolean;
   isCorrect?: boolean | null;
+  /** Total points earned for this question row (parent + subs when multipart). */
+  pointsEarned?: number;
+  /** Parent part only — independent of sub-question results. */
+  parentIsCorrect?: boolean;
   feedback?: string;
   /** Attachment audio: play starts used this exercise attempt (when teacher set a cap). */
   attachmentAudioPlaysUsed?: number;
@@ -461,6 +466,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     private pronAnalytics: PronunciationAnalyticsService,
     private zone: NgZone,
     private el: ElementRef,
+    private ollyContext: OllyContextService,
   ) {}
 
   ngOnInit(): void {
@@ -498,6 +504,51 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.closeMicTest();
     this.cancelImagePinAutoAdvance();
     this.clearImagePinInteractionState();
+    this.ollyContext.clearActivityDetail();
+  }
+
+  /** Share live exercise context with Olly so it can give activity-aware support. */
+  private publishOllyActivityContext(): void {
+    if (!this.exercise || this.state !== 'playing') return;
+    const pq = this.currentQuestion;
+    const qType = String(pq?.data?.type || '');
+    const watchOnly = this.watchOnlyMode;
+    const isVp = qType === 'video-pronunciation';
+
+    let micRequired = false;
+    let micVisible = false;
+    if (isVp && watchOnly) {
+      micRequired = false;
+      micVisible = false;
+    } else if (isVp) {
+      micRequired = true;
+      micVisible = !!(pq?.vpPlaybackEnded && !pq?.isRecording && pq?.pronUiState !== 'processing');
+    } else if (/listening|speech|pronunciation|speaking|video-pronunciation/.test(qType)) {
+      micRequired = true;
+      micVisible = true;
+    }
+
+    const d = pq?.data as any;
+    const prompt = String(
+      d?.expectedText || d?.prompt || d?.question || d?.sectionTitle || d?.germanText || ''
+    ).slice(0, 200);
+
+    this.ollyContext.setActivityDetail({
+      activityType: 'digital-exercise',
+      exerciseId: this.exerciseId,
+      exerciseTitle: this.exercise.title,
+      exerciseCategory: (this.exercise as any).category,
+      exerciseLevel: (this.exercise as any).level,
+      exerciseType: qType,
+      watchOnlyMode: watchOnly,
+      micRequired,
+      micVisible,
+      currentQuestionIndex: this.currentIndex,
+      totalQuestions: this.playerQuestions.length,
+      currentQuestionType: qType,
+      currentQuestionPrompt: prompt || undefined,
+      videoPlaybackEnded: pq?.vpPlaybackEnded
+    });
   }
 
   private checkSpeechSupport(): void {
@@ -1328,6 +1379,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           setTimeout(() => this.scrollVpChatToBottom(), 120);
         }
         void this.maybeRestoreDraftAfterStart();
+        this.publishOllyActivityContext();
       },
       error: (err) => {
         const code = err?.error?.code;
@@ -1576,6 +1628,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.data._correctAnswers = res.correctAnswer.answers;
     }
     this.applySubQuestionGradingFromCorrectAnswer(pq, res.correctAnswer);
+    this.applyMultipartGradingMeta(pq, res.pointsEarned);
     if (pq.data.type === 'fill-blank' && !pq.data._correctAnswers?.length && pq.data.answers?.length) {
       pq.data._correctAnswers = pq.data.answers;
     }
@@ -1797,6 +1850,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.preloadImagesAroundCurrentQuestion();
       this.afterVideoOnlyNavigation();
       this.scheduleDraftSave();
+      this.publishOllyActivityContext();
     }
   }
 
@@ -1810,6 +1864,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.preloadImagesAroundCurrentQuestion();
       this.afterVideoOnlyNavigation();
       this.scheduleDraftSave();
+      this.publishOllyActivityContext();
     }
   }
 
@@ -1822,6 +1877,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.preloadImagesAroundCurrentQuestion();
     this.afterVideoOnlyNavigation();
     this.scheduleDraftSave();
+    this.publishOllyActivityContext();
   }
 
   /** Navigate to a batch question by its position in the batch list */
@@ -2129,7 +2185,92 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       return true;
     }
+    if (sq?.type === 'mcq') {
+      const ans = pq.subQuestionAnswers?.[sqIndex];
+      return ans !== undefined && ans !== null && Number(ans) === sq.correctAnswerIndex;
+    }
     return false;
+  }
+
+  getParentPartIsCorrect(pq: PlayerQuestion): boolean {
+    if (pq.parentIsCorrect !== undefined) return pq.parentIsCorrect;
+    if (!this.hasSubQuestions(pq.data)) return pq.isCorrect === true;
+    if (this.isParentAnswerPartEmpty(pq.data)) return true;
+    return this.computeParentPartIsCorrect(pq);
+  }
+
+  getMultipartMaxPoints(pq: PlayerQuestion): number {
+    let pts = this.isParentAnswerPartEmpty(pq.data) ? 0 : (pq.data.points || 1);
+    const subs = pq.data.subQuestions || [];
+    pts += subs.reduce((s: number, sq: any) => s + (sq.points || 1), 0);
+    return pts;
+  }
+
+  getMultipartPointsEarned(pq: PlayerQuestion): number {
+    if (typeof pq.pointsEarned === 'number') return pq.pointsEarned;
+    let earned = 0;
+    if (!this.isParentAnswerPartEmpty(pq.data) && this.getParentPartIsCorrect(pq)) {
+      earned += pq.data.points || 1;
+    }
+    const subs = pq.data.subQuestions || [];
+    subs.forEach((sq: any, i: number) => {
+      if (this.getSubQuestionIsCorrect(pq, i)) earned += sq.points || 1;
+    });
+    return earned;
+  }
+
+  isMultipartFullyCorrect(pq: PlayerQuestion): boolean {
+    return this.getMultipartPointsEarned(pq) >= this.getMultipartMaxPoints(pq);
+  }
+
+  isMultipartPartial(pq: PlayerQuestion): boolean {
+    const earned = this.getMultipartPointsEarned(pq);
+    const max = this.getMultipartMaxPoints(pq);
+    return earned > 0 && earned < max;
+  }
+
+  hasMultipartBeenGraded(pq: PlayerQuestion): boolean {
+    return pq.isCorrect === true || pq.isCorrect === false;
+  }
+
+  private computeParentPartIsCorrect(pq: PlayerQuestion): boolean {
+    const data = pq.data;
+    if (data.type === 'mcq') {
+      const idx = pq.selectedOption;
+      return idx !== undefined && idx !== null && idx === data.correctAnswerIndex;
+    }
+    if (data.type === 'fill-blank') {
+      const count = countFillBlankRuns(data.sentence || '');
+      if (count <= 0) return false;
+      for (let bi = 0; bi < count; bi++) {
+        if (!this.isFillCorrect(pq, bi)) return false;
+      }
+      return true;
+    }
+    if (data.type === 'question-answer' && this.isTrueFalseQuestion(data)) {
+      const expected = this.parseTrueFalseStrictSample(data.sampleAnswers?.[0]);
+      const given = this.parseTrueFalseStrictSample(pq.qaResponse);
+      return expected !== null && given !== null && expected === given;
+    }
+    if (data.type === 'question-answer') {
+      const samples: string[] = (data.sampleAnswers || []).filter(Boolean);
+      const student = String(pq.qaResponse ?? '').trim().toLowerCase();
+      return samples.some((s) => String(s).trim().toLowerCase() === student);
+    }
+    if (data.type === 'listening') {
+      const student = String(pq.listeningText ?? pq.qaResponse ?? '').trim().toLowerCase();
+      const expected = String(data.expectedTranscript ?? '').trim().toLowerCase();
+      return !!expected && student === expected;
+    }
+    return pq.isCorrect === true;
+  }
+
+  private applyMultipartGradingMeta(pq: PlayerQuestion, pointsEarned?: number): void {
+    if (!this.hasSubQuestions(pq.data)) return;
+    if (typeof pointsEarned === 'number') pq.pointsEarned = pointsEarned;
+    if (!this.isParentAnswerPartEmpty(pq.data)) {
+      pq.parentIsCorrect = this.computeParentPartIsCorrect(pq);
+    }
   }
 
   getSubCorrectAnswerText(pq: PlayerQuestion, sqIndex: number): string {
@@ -3390,6 +3531,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           pq.data._correctAnswers = detail.correctAnswer.answers;
         }
         this.applySubQuestionGradingFromCorrectAnswer(pq, detail.correctAnswer);
+        this.applyMultipartGradingMeta(pq, detail.pointsEarned);
         if (pq.data.type === 'fill-blank' && !pq.data._correctAnswers?.length && pq.data.answers?.length) {
           pq.data._correctAnswers = pq.data.answers;
         }
@@ -4708,6 +4850,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       /* ignore */
     }
     this.pushTutorTurnPromptForSpeak(this.speakTargetCaptionForQuestion(pq));
+    this.publishOllyActivityContext();
   }
 
   /** Dim layer over the video so copy + buttons read clearly on top of the last frame. */

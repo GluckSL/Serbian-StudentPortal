@@ -4,6 +4,10 @@
 const GameSet = require('../../models/GameSet');
 const User = require('../../models/User');
 const { getJourneyAccessForStudent } = require('../../utils/studentJourneyAccess');
+const {
+  minimumAssignedContentDay,
+  studentAssignedCourseDayOrClause
+} = require('../../utils/journeyDay');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../../utils/batchTargeting');
 const {
   appendNotBlockedToAndClauses,
@@ -22,10 +26,11 @@ async function buildStudentFilter(studentId) {
     const student = await loadStudent(studentId);
     const access = await getJourneyAccessForStudent(student);
     const courseDay = access?.contentUnlockDay ?? access?.courseDay ?? 0;
+    const minDay = minimumAssignedContentDay(student, access?.trialDayEnabled);
     const batchKeys = studentTargetBatchKeys(student);
 
     const andClauses = [
-      { $or: [{ courseDay: null }, { courseDay: { $exists: false } }, { courseDay: { $lte: courseDay } }] },
+      studentAssignedCourseDayOrClause(courseDay, minDay),
       moduleTargetingQuery(batchKeys)
     ];
     appendNotBlockedToAndClauses(andClauses, student?.blockedJourneyLevels);
@@ -68,6 +73,9 @@ async function isGated(studentId, set) {
     try {
       const student = await loadStudent(studentId);
       const access = await getJourneyAccessForStudent(student);
+      const minDay = minimumAssignedContentDay(student, access?.trialDayEnabled);
+      const n = Number(set.courseDay);
+      if (Number.isFinite(n) && n < minDay) return true;
       if ((access?.contentUnlockDay ?? access?.courseDay ?? 0) < set.courseDay) return true;
     } catch { /* allow */ }
   }

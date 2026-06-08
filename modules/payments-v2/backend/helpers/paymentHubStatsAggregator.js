@@ -11,7 +11,8 @@ const {
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
 const { computeTotalsForStudentLevel, computeTotalsForAllPayments } = require('../utils/levelSlotHelper');
-const { computeLanguageFeeStatus } = require('./languageFeeStatus');
+const { computeLanguageFeeStatus, JOURNEY_DUE_FROM_DAY } = require('./languageFeeStatus');
+const { inferCurrencyFromPhone } = require('../utils/currencyHelper');
 const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -30,6 +31,22 @@ function buildLevelPriceMap(catalog) {
   return levelPriceMap;
 }
 
+function studentInferredCurrency(student) {
+  return inferCurrencyFromPhone(student?.phoneNumber);
+}
+
+/** Catalog fee for one student — only in their inferred currency (INR / LKR / USD from phone). */
+function catalogGapsForStudent(student, levelPriceMap, live) {
+  const levelKey = String(student?.level || 'A1').trim().toUpperCase();
+  const levelPrice = levelPriceMap.get(levelKey) || { LKR: 0, INR: 0, USD: 0 };
+  const ccy = studentInferredCurrency(student);
+  return {
+    LKR: ccy === 'LKR' ? Math.max(0, (levelPrice.LKR || 0) - (Number(live?.totalPaidLKR) || 0)) : 0,
+    INR: ccy === 'INR' ? Math.max(0, (levelPrice.INR || 0) - (Number(live?.totalPaidINR) || 0)) : 0,
+    USD: ccy === 'USD' ? Math.max(0, (levelPrice.USD || 0) - (Number(live?.totalPaidUSD) || 0)) : 0,
+  };
+}
+
 /** Same pending LKR/INR/USD as one student table row (current level only). */
 function pendingTotalsForStudent(studentRequests, approvedSubs, pendingSubs, student, levelPriceMap) {
   const { live, balanceDue, levelRequests, level } = computeTotalsForStudentLevel(
@@ -40,13 +57,7 @@ function pendingTotalsForStudent(studentRequests, approvedSubs, pendingSubs, stu
   );
   const hasMappedPayments = levelRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
 
-  const levelKey = level || String(student?.level || '').trim().toUpperCase();
-  const levelPrice = levelPriceMap.get(levelKey) || { LKR: 0, INR: 0, USD: 0 };
-  const catalogGaps = {
-    LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
-    INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
-    USD: Math.max(0, (levelPrice.USD || 0) - (Number(live.totalPaidUSD) || 0)),
-  };
+  const catalogGaps = catalogGapsForStudent(student, levelPriceMap, live);
   const catalogBalance = catalogGaps.LKR + catalogGaps.INR + catalogGaps.USD;
 
   if (balanceDue.total > 0) {
@@ -68,11 +79,17 @@ function addBuckets(target, source) {
   target.USD += source.USD || 0;
 }
 
-/** Per-student language fee from hub catalog (CEFR level × fee row). */
+/** Per-student language fee from hub catalog (CEFR level × fee in inferred currency only). */
 function catalogFeeForStudent(student, levelPriceMap) {
   const level = String(student?.level || 'A1').trim().toUpperCase();
   const lp = levelPriceMap.get(level) || { LKR: 0, INR: 0, USD: 0 };
-  return { level, LKR: lp.LKR, INR: lp.INR, USD: lp.USD };
+  const ccy = studentInferredCurrency(student);
+  return {
+    level,
+    LKR: ccy === 'LKR' ? (lp.LKR || 0) : 0,
+    INR: ccy === 'INR' ? (lp.INR || 0) : 0,
+    USD: ccy === 'USD' ? (lp.USD || 0) : 0,
+  };
 }
 
 function buildCatalogPaymentBreakdown(students, levelPriceMap) {
@@ -114,16 +131,62 @@ function bucketTotal(bucket) {
 }
 
 function hasApprovedPaymentForType(studentRequests, approvedSubs, paymentType) {
-  const reqs = (studentRequests || []).filter(
-    (r) => !r.isArchived && String(r.paymentType) === paymentType,
+  const bucket = approvedPaidByTypeBucket(studentRequests, approvedSubs, paymentType);
+  if (bucketTotal(bucket) > 0) return true;
+  const type = String(paymentType || '').toUpperCase();
+  return (studentRequests || []).some(
+    (r) => !r.isArchived && String(r.paymentType || '').toUpperCase() === type
+      && ['APPROVED', 'FULLY_PAID'].includes(r.status),
   );
-  if (!reqs.length) return false;
-  const reqIds = new Set(reqs.map((r) => String(r._id)));
-  const paid = (approvedSubs || [])
-    .filter((s) => reqIds.has(String(s.paymentRequestId)))
-    .reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
-  if (paid > 0) return true;
-  return reqs.some((r) => ['APPROVED', 'FULLY_PAID'].includes(r.status));
+}
+
+function approvedPaidByTypeBucket(studentRequests, approvedSubs, paymentType) {
+  const bucket = emptyCurrencyBucket();
+  const type = String(paymentType || '').toUpperCase();
+  const reqs = (studentRequests || []).filter(
+    (r) => !r.isArchived && String(r.paymentType || '').toUpperCase() === type,
+  );
+  if (!reqs.length) return bucket;
+  const reqById = new Map(reqs.map((r) => [String(r._id), r]));
+  for (const sub of approvedSubs || []) {
+    const req = reqById.get(String(sub.paymentRequestId));
+    if (!req) continue;
+    const paid = Number(sub.paidAmount) || 0;
+    if (paid <= 0) continue;
+    addToCurrencyBucket(bucket, sub.currency || req.currency || 'LKR', paid);
+  }
+  return bucket;
+}
+
+function emptyInsightAmounts() {
+  return {
+    paidFullReceived: emptyCurrencyBucket(),
+    balancePending: emptyCurrencyBucket(),
+    overdueAmount: emptyCurrencyBucket(),
+    docsReceived: emptyCurrencyBucket(),
+    visaReceived: emptyCurrencyBucket(),
+  };
+}
+
+function insightAmountsToFields(insightAmounts) {
+  const ia = insightAmounts || emptyInsightAmounts();
+  return {
+    insightPaidFullLKR: ia.paidFullReceived.LKR || 0,
+    insightPaidFullINR: ia.paidFullReceived.INR || 0,
+    insightPaidFullUSD: ia.paidFullReceived.USD || 0,
+    insightBalanceLKR: ia.balancePending.LKR || 0,
+    insightBalanceINR: ia.balancePending.INR || 0,
+    insightBalanceUSD: ia.balancePending.USD || 0,
+    insightOverdueLKR: ia.overdueAmount.LKR || 0,
+    insightOverdueINR: ia.overdueAmount.INR || 0,
+    insightOverdueUSD: ia.overdueAmount.USD || 0,
+    insightDocsLKR: ia.docsReceived.LKR || 0,
+    insightDocsINR: ia.docsReceived.INR || 0,
+    insightDocsUSD: ia.docsReceived.USD || 0,
+    insightVisaLKR: ia.visaReceived.LKR || 0,
+    insightVisaINR: ia.visaReceived.INR || 0,
+    insightVisaUSD: ia.visaReceived.USD || 0,
+  };
 }
 
 /** Matches Payment Hub table language-fee / pending column rules (current level only). */
@@ -135,13 +198,7 @@ function effectiveOutstandingBalance(studentRequests, approved, pendingSubs, stu
     student?.level,
   );
   const hasMappedPayments = levelRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
-  const levelKey = level || String(student?.level || 'A1').trim().toUpperCase();
-  const levelPrice = levelPriceMap.get(levelKey) || { LKR: 0, INR: 0, USD: 0 };
-  const catalogGaps = {
-    LKR: Math.max(0, (levelPrice.LKR || 0) - (Number(live.totalPaidLKR) || 0)),
-    INR: Math.max(0, (levelPrice.INR || 0) - (Number(live.totalPaidINR) || 0)),
-    USD: Math.max(0, (levelPrice.USD || 0) - (Number(live.totalPaidUSD) || 0)),
-  };
+  const catalogGaps = catalogGapsForStudent(student, levelPriceMap, live);
   const catalogBalance = catalogGaps.LKR + catalogGaps.INR + catalogGaps.USD;
   if (balanceDue.total > 0) return balanceDue.total;
   if (!hasMappedPayments && catalogBalance > 0) return catalogBalance;
@@ -154,6 +211,70 @@ function journeyDayForStudent(student) {
     return Math.min(200, Math.max(1, Math.floor(Number(raw))));
   }
   return 1;
+}
+
+function levelStartDateForStudent(student) {
+  const level = String(student?.level || 'A1').trim().toUpperCase();
+  const key = `${level}StartDate`;
+  const fromCourse = student?.courseStartDates?.[key];
+  if (fromCourse) {
+    const d = new Date(fromCourse);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  if (student?.batchStartedOn) {
+    const d = new Date(student.batchStartedOn);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+/** When a payment request was marked overdue (or due date if missing). */
+function overdueConvertedAtForRequest(req) {
+  if (!req || req.status !== 'OVERDUE') return null;
+  const updated = req.updatedAt ? new Date(req.updatedAt) : null;
+  if (updated && !Number.isNaN(updated.getTime())) return updated;
+  const due = req.dueDate ? new Date(req.dueDate) : null;
+  if (due && !Number.isNaN(due.getTime())) return due;
+  return null;
+}
+
+/** Journey day 10+ with language fee owed — overdue since start + (day 10 − 1). */
+function journeyOverdueSinceDate(student) {
+  const jDay = journeyDayForStudent(student);
+  if (jDay < JOURNEY_DUE_FROM_DAY) return null;
+  const start = levelStartDateForStudent(student);
+  if (!start) return null;
+  const dueFrom = new Date(start);
+  dueFrom.setUTCDate(dueFrom.getUTCDate() + JOURNEY_DUE_FROM_DAY - 1);
+  return dueFrom;
+}
+
+function collectOverdueSinceDates(student, studentRequests, approved, pending, levelPriceMap) {
+  const dates = [];
+  for (const req of studentRequests || []) {
+    const converted = overdueConvertedAtForRequest(req);
+    if (converted) dates.push(converted);
+  }
+  const outstanding = effectiveOutstandingBalance(
+    studentRequests,
+    approved,
+    pending,
+    student,
+    levelPriceMap,
+  );
+  const langStatus = computeLanguageFeeStatus(outstanding, journeyDayForStudent(student));
+  if (langStatus === 'DUE' && outstanding > 0) {
+    const journeyDate = journeyOverdueSinceDate(student);
+    if (journeyDate) dates.push(journeyDate);
+  }
+  return dates;
+}
+
+function trackEarliestOverdue(acc, date) {
+  if (!date || Number.isNaN(date.getTime())) return;
+  if (!acc.earliestOverdueAt || date < acc.earliestOverdueAt) {
+    acc.earliestOverdueAt = date;
+  }
 }
 
 /**
@@ -357,10 +478,12 @@ function emptyBatchAccumulator() {
     overdueStudents: 0,
     docsPaidStudents: 0,
     visaPaidStudents: 0,
+    insightAmounts: emptyInsightAmounts(),
     levelCounts: {},
     journeyDaySum: 0,
     journeyDayCount: 0,
     maxStudentDay: null,
+    earliestOverdueAt: null,
   };
 }
 
@@ -405,6 +528,8 @@ function finalizeBatchRow(batch, acc) {
     avgJourneyDay,
     collectionRateLKR:
       expectedLKR > 0 ? Math.min(100, Math.round((receivedLKR / expectedLKR) * 100)) : null,
+    overdueSince: acc.earliestOverdueAt ? acc.earliestOverdueAt.toISOString() : null,
+    ...insightAmountsToFields(acc.insightAmounts),
   };
 }
 
@@ -426,7 +551,7 @@ async function aggregateBatchPaymentInsights(filters = {}) {
   }
 
   const [students, catalog] = await Promise.all([
-    User.find(userQuery).select('_id batch level phoneNumber currentCourseDay').lean(),
+    User.find(userQuery).select('_id batch level phoneNumber currentCourseDay batchStartedOn courseStartDates').lean(),
     PaymentHubCatalog.getOrCreate(),
   ]);
 
@@ -526,17 +651,49 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     );
     const langStatus = computeLanguageFeeStatus(outstanding, jDay);
 
-    if (langStatus === 'FULL_PAID') acc.fullyPaidStudents += 1;
-    if (langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0) acc.balanceStudents += 1;
+    if (bucketTotal(overdueStudent) > 0 || langStatus === 'DUE') {
+      for (const converted of collectOverdueSinceDates(
+        student,
+        studentRequests,
+        approved,
+        pendingSubmissions,
+        levelPriceMap,
+      )) {
+        trackEarliestOverdue(acc, converted);
+        trackEarliestOverdue(totalsAcc, converted);
+      }
+    }
+
+    if (langStatus === 'FULL_PAID') {
+      acc.fullyPaidStudents += 1;
+      addBuckets(acc.insightAmounts.paidFullReceived, receivedStudent);
+    }
+    if (langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0) {
+      acc.balanceStudents += 1;
+      addBuckets(acc.insightAmounts.balancePending, pendingStudent);
+    }
     if (
       langStatus === 'DUE'
       || bucketTotal(overdueStudent) > 0
       || studentRequests.some((r) => r.status === 'OVERDUE')
     ) {
       acc.overdueStudents += 1;
+      addBuckets(acc.insightAmounts.overdueAmount, overdueStudent);
     }
-    if (hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT')) acc.docsPaidStudents += 1;
-    if (hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT')) acc.visaPaidStudents += 1;
+    if (hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT')) {
+      acc.docsPaidStudents += 1;
+      addBuckets(
+        acc.insightAmounts.docsReceived,
+        approvedPaidByTypeBucket(studentRequests, approved, 'DOCS_PAYMENT'),
+      );
+    }
+    if (hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT')) {
+      acc.visaPaidStudents += 1;
+      addBuckets(
+        acc.insightAmounts.visaReceived,
+        approvedPaidByTypeBucket(studentRequests, approved, 'VISA_PAYMENT'),
+      );
+    }
 
     addBuckets(totalsAcc.received, receivedStudent);
     addBuckets(totalsAcc.pending, pendingStudent);
@@ -546,17 +703,36 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     totalsAcc.studentCount += 1;
     totalsAcc.journeyDaySum += jDay;
     totalsAcc.journeyDayCount += 1;
-    if (langStatus === 'FULL_PAID') totalsAcc.fullyPaidStudents += 1;
-    if (langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0) totalsAcc.balanceStudents += 1;
+    if (langStatus === 'FULL_PAID') {
+      totalsAcc.fullyPaidStudents += 1;
+      addBuckets(totalsAcc.insightAmounts.paidFullReceived, receivedStudent);
+    }
+    if (langStatus === 'BALANCE' || bucketTotal(pendingStudent) > 0) {
+      totalsAcc.balanceStudents += 1;
+      addBuckets(totalsAcc.insightAmounts.balancePending, pendingStudent);
+    }
     if (
       langStatus === 'DUE'
       || bucketTotal(overdueStudent) > 0
       || studentRequests.some((r) => r.status === 'OVERDUE')
     ) {
       totalsAcc.overdueStudents += 1;
+      addBuckets(totalsAcc.insightAmounts.overdueAmount, overdueStudent);
     }
-    if (hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT')) totalsAcc.docsPaidStudents += 1;
-    if (hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT')) totalsAcc.visaPaidStudents += 1;
+    if (hasApprovedPaymentForType(studentRequests, approved, 'DOCS_PAYMENT')) {
+      totalsAcc.docsPaidStudents += 1;
+      addBuckets(
+        totalsAcc.insightAmounts.docsReceived,
+        approvedPaidByTypeBucket(studentRequests, approved, 'DOCS_PAYMENT'),
+      );
+    }
+    if (hasApprovedPaymentForType(studentRequests, approved, 'VISA_PAYMENT')) {
+      totalsAcc.visaPaidStudents += 1;
+      addBuckets(
+        totalsAcc.insightAmounts.visaReceived,
+        approvedPaidByTypeBucket(studentRequests, approved, 'VISA_PAYMENT'),
+      );
+    }
   }
 
   const batches = [...batchMap.entries()]

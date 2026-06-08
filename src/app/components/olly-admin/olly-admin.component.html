@@ -1,0 +1,179 @@
+<div class="oa-root">
+
+  <!-- ── Header ──────────────────────────────────────────────── -->
+  <div class="oa-header">
+    <div class="oa-header__brand">
+      <span class="oa-fox">🦊</span>
+      <div>
+        <h1 class="oa-header__title">Olly Live Chat</h1>
+        <p class="oa-header__sub">Real-time student support</p>
+      </div>
+    </div>
+    <div class="oa-header__badges">
+      <span class="oa-badge oa-badge--wait" *ngIf="pendingCount > 0">
+        🟡 {{ pendingCount }} waiting for agent
+      </span>
+    </div>
+  </div>
+
+  <div class="oa-layout">
+
+    <!-- ── Session List ─────────────────────────────────────── -->
+    <div class="oa-sidebar">
+
+      <!-- Filter -->
+      <div class="oa-filter">
+        <select class="oa-select" [(ngModel)]="filterStatus" (change)="loadSessions()">
+          <option *ngFor="let o of statusOptions" [value]="o.value">{{ o.label }}</option>
+        </select>
+        <button class="oa-refresh-btn" type="button" (click)="loadSessions()">⟳</button>
+      </div>
+
+      <!-- Loading -->
+      <div class="oa-loading" *ngIf="loadingSessions">Loading sessions…</div>
+
+      <!-- Empty -->
+      <div class="oa-empty" *ngIf="!loadingSessions && sessions.length === 0">
+        No sessions found.
+      </div>
+
+      <!-- List -->
+      <div class="oa-session-list">
+        <div
+          *ngFor="let s of sessions; trackBy: trackById"
+          class="oa-session-item"
+          [class.oa-session-item--selected]="selectedSession?.sessionId === s.sessionId"
+          [class.oa-session-item--waiting]="s.status === 'waiting_agent'"
+          [class.oa-session-item--live]="s.status === 'with_agent'"
+          (click)="selectSession(s)"
+        >
+          <div class="oa-si__top">
+            <div class="oa-si__name">{{ s.userName }}</div>
+            <div class="oa-si__status">{{ statusLabel(s.status) }}</div>
+          </div>
+          <div class="oa-si__email">{{ s.userEmail }}</div>
+          <div class="oa-si__meta">
+            <span class="oa-si__lang">{{ langLabels[s.language] }}</span>
+            <span class="oa-si__role">{{ s.userRole }}</span>
+            <span class="oa-si__time">{{ s.lastActivity | date:'MMM d, HH:mm' }}</span>
+          </div>
+          <div class="oa-si__preview" *ngIf="s.lastMessage?.content">
+            {{ s.lastMessage!.content | slice:0:60 }}…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Chat Panel ───────────────────────────────────────── -->
+    <div class="oa-chat-pane">
+
+      <!-- No selection -->
+      <div class="oa-no-selection" *ngIf="!selectedSession">
+        <span class="oa-no-sel__icon">🦊</span>
+        <p>Select a session from the left to view the chat.</p>
+        <p class="oa-no-sel__sub">Sessions refresh automatically every 6 seconds.</p>
+      </div>
+
+      <ng-container *ngIf="selectedSession">
+
+        <!-- Chat header -->
+        <div class="oa-chat__hdr">
+          <div class="oa-chat__user">
+            <div class="oa-chat__avatar">{{ (selectedSession.userName || 'G')[0] }}</div>
+            <div>
+              <div class="oa-chat__name">{{ selectedSession.userName }}</div>
+              <div class="oa-chat__email">{{ selectedSession.userEmail }} · {{ selectedSession.userRole }} · {{ langLabels[selectedSession.language] }}</div>
+            </div>
+          </div>
+          <div class="oa-chat__actions">
+            <span class="oa-chat__status-pill" [ngClass]="{
+              'pill--wait': selectedSession.status === 'waiting_agent',
+              'pill--live': selectedSession.status === 'with_agent',
+              'pill--active': selectedSession.status === 'active',
+              'pill--closed': selectedSession.status === 'closed'
+            }">
+              {{ statusLabel(selectedSession.status) }}
+            </span>
+            <button
+              *ngIf="selectedSession.status !== 'closed'"
+              class="oa-close-btn"
+              type="button"
+              (click)="closeSession(selectedSession.sessionId)">
+              ✕ Close
+            </button>
+          </div>
+        </div>
+
+        <!-- Loading messages -->
+        <div class="oa-loading oa-loading--chat" *ngIf="loadingSession">Loading conversation…</div>
+
+        <!-- Messages -->
+        <div class="oa-messages" id="olly-admin-msgs" *ngIf="!loadingSession">
+          <div
+            *ngFor="let msg of selectedSession.messages"
+            class="oa-msg"
+            [class.oa-msg--user]="msg.role === 'user'"
+            [class.oa-msg--bot]="msg.role === 'assistant'"
+            [class.oa-msg--agent]="msg.role === 'agent'"
+          >
+            <div class="oa-msg__avatar">
+              <span *ngIf="msg.role === 'user'">👤</span>
+              <span *ngIf="msg.role === 'assistant'">🦊</span>
+              <span *ngIf="msg.role === 'agent'">🧑‍💼</span>
+            </div>
+            <div class="oa-msg__body">
+              <div class="oa-msg__sender">
+                <span *ngIf="msg.role === 'user'">{{ selectedSession.userName }}</span>
+                <span *ngIf="msg.role === 'assistant'">Olly (AI)</span>
+                <span *ngIf="msg.role === 'agent'">Support Agent</span>
+                <span class="oa-msg__time">{{ msg.timestamp | date:'MMM d, HH:mm:ss' }}</span>
+              </div>
+              <ng-container *ngIf="msg.mediaUrl">
+                <img *ngIf="isImage(msg.mediaType)" [src]="msg.mediaUrl" class="oa-msg__img" alt="attachment" />
+                <a *ngIf="!isImage(msg.mediaType)" [href]="msg.mediaUrl" target="_blank" class="oa-msg__file">
+                  📎 {{ msg.mediaOriginalName || 'Attachment' }}
+                </a>
+              </ng-container>
+              <div class="oa-msg__text" *ngIf="msg.content">{{ msg.content }}</div>
+            </div>
+          </div>
+
+          <div class="oa-empty" *ngIf="selectedSession.messages?.length === 0">
+            No messages yet.
+          </div>
+        </div>
+
+        <!-- Reply box -->
+        <div class="oa-reply-box" *ngIf="selectedSession.status !== 'closed'">
+          <div *ngIf="replyError" class="oa-err">⚠️ {{ replyError }}</div>
+          <div class="oa-reply-row">
+            <textarea
+              class="oa-reply-input"
+              rows="3"
+              [(ngModel)]="replyText"
+              (keydown)="onReplyKeydown($event)"
+              [disabled]="sendingReply"
+              placeholder="Type your reply… (Enter to send, Shift+Enter for new line)"
+            ></textarea>
+            <button
+              class="oa-send-btn"
+              type="button"
+              (click)="sendReply()"
+              [disabled]="sendingReply || !replyText.trim()">
+              {{ sendingReply ? '⏳' : '➤ Send' }}
+            </button>
+          </div>
+          <p class="oa-reply-hint">
+            💡 Replying as a support agent. The student sees your messages instantly (via 4s polling).
+          </p>
+        </div>
+
+        <div class="oa-closed-banner" *ngIf="selectedSession.status === 'closed'">
+          ⚫ This session has been closed.
+        </div>
+
+      </ng-container>
+    </div>
+
+  </div>
+</div>

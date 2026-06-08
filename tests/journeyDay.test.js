@@ -60,4 +60,17 @@ describe('journeyDay', () => {
     assert.equal(contentUnlockDayForJourney(0, false), 0);
     assert.equal(contentUnlockDayForJourney(3, true), 3);
   });
+
+  it('Silver GO students never get Trial (day 0) assigned content', () => {
+    const {
+      minimumAssignedContentDay,
+      studentAssignedCourseDayOrClause
+    } = require('../utils/journeyDay');
+    const silverGo = { goStatus: 'GO', subscription: 'SILVER' };
+    assert.equal(minimumAssignedContentDay(silverGo, true), 1);
+    assert.equal(minimumAssignedContentDay(silverGo, false), 1);
+    assert.equal(minimumAssignedContentDay(null, true), 0);
+    const clause = studentAssignedCourseDayOrClause(8, 1);
+    assert.deepEqual(clause.$or[2], { courseDay: { $gte: 1, $lte: 8 } });
+  });
 });

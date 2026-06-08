@@ -58,11 +58,13 @@ async function resolveSilverGoContentUnlock(student) {
   }
 
   const cached = await SilverGoUnlockCache.findOne({ studentId }).lean();
-  if (cached?.maxUnlockedContentDay != null) {
+  const cachedMax = cached?.maxUnlockedContentDay;
+  // Stale cache (e.g. after teacher advance or instant promotion) must be recomputed.
+  if (cachedMax != null && cachedMax >= currentCourseDay) {
     const result = {
       isSilverGo: true,
       currentCourseDay,
-      maxUnlockedContentDay: cached.maxUnlockedContentDay,
+      maxUnlockedContentDay: cachedMax,
       batchKeys
     };
     if (student) student._resolveSilverGoCache = result;

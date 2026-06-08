@@ -77,6 +77,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ph-overdue-since {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-align: right;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
 .ph-currency-value--compact {
   font-size: 14px;
   font-weight: 700;

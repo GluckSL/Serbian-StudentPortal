@@ -110,6 +110,29 @@ function journeyDayRangeStart(trialDayEnabled = false) {
   return trialDayEnabled ? TRIAL_JOURNEY_DAY : STANDARD_JOURNEY_MIN;
 }
 
+/**
+ * Lowest journey day for assigned content (exercises, DG, games).
+ * Silver GO students never use Trial (day 0); trial batches may use 0.
+ */
+function minimumAssignedContentDay(student, trialDayEnabled = false) {
+  const { isSilverGoStudent } = require('./goSilverTrack');
+  if (student && isSilverGoStudent(student)) return STANDARD_JOURNEY_MIN;
+  return journeyDayRangeStart(trialDayEnabled);
+}
+
+/** Mongo $or: unassigned content or courseDay within [minDay, maxDay]. */
+function studentAssignedCourseDayOrClause(maxDay, minDay = STANDARD_JOURNEY_MIN) {
+  const min = Number.isFinite(Number(minDay)) ? Number(minDay) : STANDARD_JOURNEY_MIN;
+  const max = Math.max(min, Number(maxDay) || min);
+  return {
+    $or: [
+      { courseDay: null },
+      { courseDay: { $exists: false } },
+      { courseDay: { $gte: min, $lte: max } }
+    ]
+  };
+}
+
 function formatJourneyDayLabel(day, trialDayEnabled = false) {
   const n = Number(day);
   if (trialDayEnabled && n === TRIAL_JOURNEY_DAY) return 'Trial';
@@ -146,6 +169,8 @@ module.exports = {
   isValidJourneyDay,
   isTrialJourneyDay,
   journeyDayRangeStart,
+  minimumAssignedContentDay,
+  studentAssignedCourseDayOrClause,
   formatJourneyDayLabel,
   isValidAdminCourseDay,
   parseAdminCourseDay

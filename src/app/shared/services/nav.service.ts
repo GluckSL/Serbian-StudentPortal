@@ -133,6 +133,7 @@ export class NavService {
     {
       group: 'Payments',
       items: [
+        { id: 'finance-dashboard', label: 'Finance Dashboard', icon: 'account_balance_wallet', route: '/admin/finance-dashboard', subGroup: null },
         { id: 'payment-hub', label: 'Payment Hub (New)', icon: 'credit_card', route: '/admin/payment-hub', subGroup: null },
         { id: 'payment-request', label: 'Req Payment', icon: 'send', route: '/admin/payment-request', subGroup: null },
         // Legacy payment tabs hidden — use Payment Hub (New) instead
@@ -160,6 +161,7 @@ export class NavService {
         { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
         { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/admin/job-openings', subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets', icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
+        { id: 'olly-chat', label: 'Olly Live Chat 🦊', icon: 'forum', route: '/admin/olly-chat', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
       ]
     },

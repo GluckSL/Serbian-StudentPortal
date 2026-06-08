@@ -402,10 +402,27 @@ export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
   overdueStudents?: number;
   docsPaidStudents?: number;
   visaPaidStudents?: number;
+  insightPaidFullLKR?: number;
+  insightPaidFullINR?: number;
+  insightPaidFullUSD?: number;
+  insightBalanceLKR?: number;
+  insightBalanceINR?: number;
+  insightBalanceUSD?: number;
+  insightOverdueLKR?: number;
+  insightOverdueINR?: number;
+  insightOverdueUSD?: number;
+  insightDocsLKR?: number;
+  insightDocsINR?: number;
+  insightDocsUSD?: number;
+  insightVisaLKR?: number;
+  insightVisaINR?: number;
+  insightVisaUSD?: number;
   levelCounts: Record<string, number>;
   maxStudentDay: number | null;
   avgJourneyDay?: number | null;
   collectionRateLKR?: number | null;
+  /** Earliest overdue conversion date in this batch (ISO). */
+  overdueSince?: string | null;
 }
 
 export interface BatchPaymentSummaryTotals extends Omit<BatchPaymentSummaryRow, 'batch' | 'levelCounts'> {

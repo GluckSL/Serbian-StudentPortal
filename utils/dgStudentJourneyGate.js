@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { getJourneyAccessForStudent } = require('./studentJourneyAccess');
+const { minimumAssignedContentDay } = require('./journeyDay');
 const {
   computeDgUnlockedWeek,
   dgModuleUnlockedForWeekly,
@@ -43,16 +44,19 @@ async function getStudentDgJourneyAccess(userId) {
     unlockMode,
     dgUnlockedWeek,
     courseDay: journeyAccess.contentUnlockDay ?? journeyAccess.courseDay,
+    minAssignedContentDay: minimumAssignedContentDay(u, journeyAccess.trialDayEnabled),
     batchKeys: journeyAccess.batchKeys || [],
   };
 }
 
 /** Unassigned journey day = always visible once published; otherwise unlocked up to current day. */
-function dgModuleUnlockedForStudentDay(moduleCourseDay, studentCourseDay) {
+function dgModuleUnlockedForStudentDay(moduleCourseDay, studentCourseDay, minCourseDay = 1) {
   const cd = moduleCourseDay;
   if (cd == null || cd === undefined) return true;
   const n = Number(cd);
   if (!Number.isFinite(n)) return true;
+  const min = Number(minCourseDay) || 1;
+  if (n < min) return false;
   return n <= Number(studentCourseDay);
 }
 
@@ -64,7 +68,11 @@ function dgModuleUnlockedForAccess(access, moduleCourseDay) {
   if (access.unlockMode === 'weekly') {
     return dgModuleUnlockedForWeekly(moduleCourseDay, access.dgUnlockedWeek ?? 1);
   }
-  return dgModuleUnlockedForStudentDay(moduleCourseDay, access.courseDay);
+  return dgModuleUnlockedForStudentDay(
+    moduleCourseDay,
+    access.courseDay,
+    access.minAssignedContentDay ?? 1
+  );
 }
 
 function dgWeekLockMessage(access, moduleCourseDay) {

@@ -494,6 +494,33 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       }
     }
 
+    let currentDayCompletion = null;
+    if (student.role === 'STUDENT') {
+      try {
+        const { isSilverGoStudent } = require('../utils/goSilverTrack');
+        const { silverGoCompletionOptions } = require('../utils/silverGoSequentialUnlock');
+        const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
+        if (isSilverGoStudent(student)) {
+          const batchKeys = allStudentBatchStringsForContent(student);
+          const dc = await computeJourneyDayCompletion(
+            studentId,
+            batchKeys,
+            studentCourseDay,
+            silverGoCompletionOptions(student)
+          );
+          currentDayCompletion = {
+            complete: !!dc.complete,
+            completionPercent: dc.completionPercent,
+            doneTasks: dc.doneTasks,
+            totalTasks: dc.totalTasks,
+            incompleteTasks: dc.incompleteTasks || []
+          };
+        }
+      } catch (e) {
+        console.warn('currentDayCompletion:', e.message);
+      }
+    }
+
     res.json({
       profile: {
         regNo: student.regNo, name: student.name, batch: student.batch,
@@ -519,6 +546,7 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         blockedJourneyLevels: normalizeBlockedJourneyLevels(student.blockedJourneyLevels)
       },
       nextLockedDigitalExercise,
+      currentDayCompletion,
       levelProgression, lessonsByLevel,
       totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
