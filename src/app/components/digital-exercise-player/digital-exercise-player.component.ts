@@ -220,8 +220,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   imagePinAutoAdvanceSeconds = 0;
   private imagePinAutoAdvanceInterval: ReturnType<typeof setInterval> | null = null;
   private imagePinAutoAdvanceQuestionIndex: number | null = null;
-  private imagePinCaptureTarget: HTMLElement | null = null;
-  private imagePinCapturePointerId: number | null = null;
   private imagePinDrag: {
     active: boolean;
     questionIndex: number;
@@ -2553,13 +2551,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       hoverPinId: null
     };
 
-    this.imagePinCaptureTarget = handle;
-    this.imagePinCapturePointerId = event.pointerId;
-    try {
-      handle.setPointerCapture(event.pointerId);
-    } catch {
-      // Ignore on unsupported environments
-    }
     this.zone.run(() => {});
   }
 
@@ -2628,15 +2619,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.imagePinDrag.labelId
     );
     handle?.classList.remove('is-dragging');
-    try {
-      if (this.imagePinCaptureTarget && this.imagePinCapturePointerId != null) {
-        this.imagePinCaptureTarget.releasePointerCapture(this.imagePinCapturePointerId);
-      }
-    } catch {
-      // Ignore release errors
-    }
-    this.imagePinCaptureTarget = null;
-    this.imagePinCapturePointerId = null;
     this.imagePinDrag.active = false;
     this.imagePinDrag.questionIndex = -1;
     this.imagePinDrag.labelId = '';

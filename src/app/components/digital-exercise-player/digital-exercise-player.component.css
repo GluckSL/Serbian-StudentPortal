@@ -4243,6 +4243,11 @@
   width: 100%;
   justify-content: center;
 }
+.question-nav-btns--outside .btn-nav,
+.question-nav-btns--outside .btn-submit,
+.question-nav-btns--outside button {
+  touch-action: manipulation;
+}
 .review-screen {
   padding: 16px 16px 40px;
 }
@@ -7228,7 +7233,7 @@
     flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: visible;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     /* Clear fixed support FAB + home indicator so last lines / nav are reachable */
