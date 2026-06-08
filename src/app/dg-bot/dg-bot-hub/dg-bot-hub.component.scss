@@ -685,7 +685,7 @@
 }
 
 .dg-hub__pager-num {
-  min-width: 32px;
+  width: 32px;
   height: 32px;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
@@ -694,6 +694,9 @@
   font-size: 12px;
   cursor: pointer;
   color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dg-hub__pager-num--on {
