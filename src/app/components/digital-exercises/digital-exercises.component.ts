@@ -1,6 +1,6 @@
 // src/app/components/digital-exercises/digital-exercises.component.ts
 
-import { Component, OnInit, Input } from '@angular/core';
+import { Component, OnInit, Input, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -9,7 +9,6 @@ import { map } from 'rxjs/operators';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
-import { MaterialModule } from '../../shared/material.module';
 import { parseAdminCourseDayOrNull } from '../../utils/journey-day.util';
 
 type TabType = 'completed' | 'pending' | 'new';
@@ -240,6 +239,30 @@ export class DigitalExercisesComponent implements OnInit {
 
   onTabChange(): void {
     this.currentPage = 1;
+  }
+
+  toggleFilter(filter: 'level' | 'category' | 'difficulty'): void {
+    const wasOpen = filter === 'level' ? this.levelFilterOpen
+      : filter === 'category' ? this.categoryFilterOpen
+      : this.difficultyFilterOpen;
+    this.levelFilterOpen = false;
+    this.categoryFilterOpen = false;
+    this.difficultyFilterOpen = false;
+    if (!wasOpen) {
+      if (filter === 'level') this.levelFilterOpen = true;
+      else if (filter === 'category') this.categoryFilterOpen = true;
+      else this.difficultyFilterOpen = true;
+    }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.dex-filter-wrap')) {
+      this.levelFilterOpen = false;
+      this.categoryFilterOpen = false;
+      this.difficultyFilterOpen = false;
+    }
   }
 
   clearFilters(): void {

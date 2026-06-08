@@ -42,7 +42,7 @@
         <button
           type="button"
           class="dex-filter"
-          (click)="levelFilterOpen = !levelFilterOpen"
+          (click)="toggleFilter('level')"
         >
           <span>{{ selectedLevel || 'All Levels' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ levelFilterOpen ? 'less' : 'more' }}</span>
@@ -67,7 +67,7 @@
         <button
           type="button"
           class="dex-filter"
-          (click)="categoryFilterOpen = !categoryFilterOpen"
+          (click)="toggleFilter('category')"
         >
           <span>{{ selectedCategory || 'All Categories' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ categoryFilterOpen ? 'less' : 'more' }}</span>
@@ -92,7 +92,7 @@
         <button
           type="button"
           class="dex-filter"
-          (click)="difficultyFilterOpen = !difficultyFilterOpen"
+          (click)="toggleFilter('difficulty')"
         >
           <span>{{ selectedDifficulty || 'All Difficulties' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ difficultyFilterOpen ? 'less' : 'more' }}</span>

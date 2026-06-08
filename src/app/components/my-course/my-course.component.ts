@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, DestroyRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -942,6 +942,14 @@ export class MyCourseComponent implements OnInit {
 
   setProgressRange(range: ProgressRange): void {
     this.progressRange = range;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.mc-journey-filter-wrap')) {
+      this.journeyFilterOpen = false;
+    }
   }
 
   private exerciseDone(ex: DigitalExercise): boolean {
