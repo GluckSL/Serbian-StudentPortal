@@ -4,6 +4,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
 import { AnnouncementItem, AnnouncementService } from '../../services/announcement.service';
@@ -59,6 +60,7 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   private autoOpenedAnnouncementId: string | null = null;
 
   // ── Olly chat ────────────────────────────────────────────────────────────
+  ollyShowResumePrompt = false;
   ollyShowIntake = true;
   ollyIntakeForm!: FormGroup;
   ollyIntakeSubmitting = false;
@@ -76,6 +78,10 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   @ViewChild('ollyMessagesEl') ollyMessagesEl?: ElementRef<HTMLDivElement>;
   @ViewChild('ollyFileInput') ollyFileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('ollyIntakeFileInput') ollyIntakeFileInput?: ElementRef<HTMLInputElement>;
+
+  private userSub?: Subscription;
+  private lastAccountKey: string | null = null;
+  private readonly legacyOllySessionKey = 'olly_session_id';
 
   // ── Language labels ──────────────────────────────────────────────────────
   readonly langLabels = { en: 'English', ta: 'தமிழ்', si: 'සිංහල' };
@@ -153,10 +159,25 @@ export class SupportFabComponent implements OnInit, OnDestroy {
     this.autoOpenedAnnouncementId = this.readAutoOpenedAnnouncementId();
     this.refreshAnnouncementBadge();
     this.announcementBadgeTimer = setInterval(() => this.refreshAnnouncementBadge(), 60000);
+
+    this.removeLegacyOllySessionKey();
+    this.lastAccountKey = this.getAccountStorageKey();
+    this.userSub = this.authService.currentUser$.subscribe((user) => {
+      this.currentUser = user;
+      this.isLoggedIn = !!user;
+      const accountKey = this.getAccountStorageKey();
+      if (accountKey !== this.lastAccountKey) {
+        this.lastAccountKey = accountKey;
+        this.onAccountChanged(user);
+      } else if (user && this.ticketForm) {
+        this.ticketForm.patchValue({ name: user.name || '', email: user.email || '' });
+      }
+    });
   }
 
   ngOnDestroy(): void {
     if (this.announcementBadgeTimer) clearInterval(this.announcementBadgeTimer);
+    this.userSub?.unsubscribe();
   }
 
   // ── Panel ─────────────────────────────────────────────────────────────────
@@ -197,20 +218,91 @@ export class SupportFabComponent implements OnInit, OnDestroy {
 
   // ── Olly Session ──────────────────────────────────────────────────────────
 
-  private ollySessionKey = 'olly_session_id';
+  private getOllySessionStorageKey(): string {
+    return `olly_session_id_${this.currentUser?._id || 'guest'}`;
+  }
+
+  private getAccountStorageKey(): string {
+    return this.currentUser?._id || 'guest';
+  }
+
+  private removeLegacyOllySessionKey(): void {
+    try { localStorage.removeItem(this.legacyOllySessionKey); } catch { /* ignore */ }
+  }
+
+  private onAccountChanged(user: any | null): void {
+    this.clearOllyState();
+    this.tickets = [];
+    this.submitSuccess = false;
+    this.submitError = '';
+    this.screenshotFile = null;
+    if (this.ticketForm) {
+      if (user) {
+        this.ticketForm.reset({
+          name: user.name || '',
+          email: user.email || '',
+          subject: '',
+          category: '',
+          priority: 'medium',
+          description: '',
+          screenshot: null
+        });
+      } else {
+        this.ticketForm.reset({ priority: 'medium', screenshot: null });
+      }
+    }
+    if (this.modalOpen) {
+      this.modalOpen = false;
+      this.activeTab = 'olly';
+    }
+  }
+
+  private clearOllyState(): void {
+    this.ollyShowResumePrompt = false;
+    this.ollyShowIntake = true;
+    this.ollySessionId = null;
+    this.ollyMessages = [];
+    this.ollyInput = '';
+    this.ollyError = '';
+    this.ollyLoading = false;
+    this.ollyIntakeSubmitting = false;
+    this.clearIntakeMedia();
+    this.clearOllyMedia();
+    if (this.ollyIntakeForm) {
+      this.ollyIntakeForm.reset({ issueType: '', question: '' });
+    }
+  }
 
   initOllySession(): void {
     this.ollyError = '';
-    const saved = localStorage.getItem(this.ollySessionKey);
+    const saved = localStorage.getItem(this.getOllySessionStorageKey());
     if (saved) {
       this.ollySessionId = saved;
-      this.loadOllySession();
+      this.ollyShowResumePrompt = true;
+      this.ollyShowIntake = false;
+      this.ollyMessages = [];
     } else {
       this.resetOllyIntake();
     }
   }
 
+  continueOllyChat(): void {
+    this.ollyShowResumePrompt = false;
+    this.loadOllySession();
+  }
+
+  startNewOllyChat(): void {
+    this.clearSavedOllySession();
+    this.resetOllyIntake();
+  }
+
+  private clearSavedOllySession(): void {
+    try { localStorage.removeItem(this.getOllySessionStorageKey()); } catch { /* ignore */ }
+    this.ollySessionId = null;
+  }
+
   private resetOllyIntake(): void {
+    this.ollyShowResumePrompt = false;
     this.ollyShowIntake = true;
     this.ollySessionId = null;
     this.ollyMessages = [];
@@ -235,20 +327,23 @@ export class SupportFabComponent implements OnInit, OnDestroy {
             }));
 
           if (res.data.intakeComplete && msgs.length > 0) {
+            this.ollyShowResumePrompt = false;
             this.ollyShowIntake = false;
             this.ollyMessages = msgs;
             this.scrollOllyToBottom();
           } else {
-            this.ollyShowIntake = true;
-            this.ollyMessages = [];
+            this.clearSavedOllySession();
+            this.resetOllyIntake();
           }
         } else {
-          localStorage.removeItem(this.ollySessionKey);
+          this.clearSavedOllySession();
           this.resetOllyIntake();
         }
       },
-      error: () => {
-        localStorage.removeItem(this.ollySessionKey);
+      error: (err) => {
+        if (err?.status === 403 || err?.status === 404) {
+          this.clearSavedOllySession();
+        }
         this.resetOllyIntake();
       }
     });
@@ -305,7 +400,8 @@ export class SupportFabComponent implements OnInit, OnDestroy {
         this.ollyIntakeSubmitting = false;
         if (res?.success && res.data) {
           this.ollySessionId = res.data.sessionId;
-          localStorage.setItem(this.ollySessionKey, this.ollySessionId!);
+          localStorage.setItem(this.getOllySessionStorageKey(), this.ollySessionId!);
+          this.ollyShowResumePrompt = false;
           this.ollyMessages = (res.data.messages || []).map((m: any) => ({
             ...m,
             timestamp: new Date(m.timestamp)

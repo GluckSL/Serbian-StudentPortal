@@ -41,6 +41,23 @@ function parseActivityContext(raw) {
   }
 }
 
+function normalizeUserId(id) {
+  return id ? String(id) : null;
+}
+
+/** Ensure a stored Olly session is only accessed by the account that owns it. */
+function sessionBelongsToUser(session, decoded) {
+  const sessionUserId = normalizeUserId(session?.userId);
+  const requestUserId = normalizeUserId(decoded?.id);
+  if (!sessionUserId && !requestUserId) return true;
+  if (!sessionUserId || !requestUserId) return false;
+  return sessionUserId === requestUserId;
+}
+
+function denySessionAccess(res) {
+  return res.status(403).json({ success: false, message: 'Session does not belong to this account.' });
+}
+
 // ── Helper: generate a presigned R2 URL for Olly media ────────────────────
 async function presignOllyUrl(key) {
   if (!key) return null;
@@ -63,7 +80,7 @@ router.post('/session', async (req, res) => {
     // If client already has a sessionId, try to resume
     if (sessionId) {
       const existing = await OllySession.findOne({ sessionId }).lean();
-      if (existing && existing.status !== 'closed') {
+      if (existing && existing.status !== 'closed' && sessionBelongsToUser(existing, decoded)) {
         return res.json({
           success: true,
           data: {
@@ -138,6 +155,9 @@ router.post('/intake', (req, res, next) => {
     }
 
     let session = sessionId ? await OllySession.findOne({ sessionId }) : null;
+    if (session && !sessionBelongsToUser(session, decoded)) {
+      return denySessionAccess(res);
+    }
     if (session && session.intakeComplete) {
       return res.status(400).json({ success: false, message: 'Session already started. Continue in chat.' });
     }
@@ -230,6 +250,9 @@ router.post('/chat', async (req, res) => {
 
     const session = await OllySession.findOne({ sessionId });
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+    if (!sessionBelongsToUser(session, resolveUserFromToken(req))) {
+      return denySessionAccess(res);
+    }
 
     // If with live agent, don't call AI
     if (session.status === 'with_agent') {
@@ -294,6 +317,9 @@ router.post('/upload', (req, res, next) => {
 
     const session = await OllySession.findOne({ sessionId });
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+    if (!sessionBelongsToUser(session, resolveUserFromToken(req))) {
+      return denySessionAccess(res);
+    }
 
     const presigned = await presignOllyUrl(req.file.key);
     const mediaUrl = presigned || req.file.location || req.file.path;
@@ -326,6 +352,9 @@ router.post('/escalate', async (req, res) => {
 
     const session = await OllySession.findOne({ sessionId });
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+    if (!sessionBelongsToUser(session, resolveUserFromToken(req))) {
+      return denySessionAccess(res);
+    }
 
     if (session.status === 'waiting_agent' || session.status === 'with_agent') {
       return res.json({ success: true, data: { status: session.status, alreadyRequested: true } });
@@ -383,6 +412,9 @@ router.get('/session/:sessionId', async (req, res) => {
       .select('sessionId status language messages userName userEmail userRole lastActivity intakeComplete issueType initialQuestion')
       .lean();
     if (!session) return res.status(404).json({ success: false, message: 'Session not found.' });
+    if (!sessionBelongsToUser(session, resolveUserFromToken(req))) {
+      return denySessionAccess(res);
+    }
 
     // Presign any stored mediaUrl so the browser can load it
     if (session.messages?.length) {

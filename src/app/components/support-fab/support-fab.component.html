@@ -125,8 +125,26 @@
   <!-- ╚══════════════════════════════════════════╝ -->
   <div class="sf-olly" *ngIf="activeTab==='olly'">
 
+    <!-- ── Resume or start new chat ────────────────────────── -->
+    <div class="sf-olly-resume" *ngIf="ollyShowResumePrompt">
+      <div class="sf-olly-intake__hero">
+        <span class="sf-olly-intake__fox">🦊</span>
+        <div>
+          <div class="sf-olly-intake__title">Welcome back!</div>
+          <div class="sf-olly-intake__sub">You have a previous chat with Olly. Would you like to continue where you left off or start a new conversation?</div>
+        </div>
+      </div>
+
+      <button class="sf-olly-resume__btn sf-olly-resume__btn--primary" type="button" (click)="continueOllyChat()">
+        💬 Continue previous chat
+      </button>
+      <button class="sf-olly-resume__btn" type="button" (click)="startNewOllyChat()">
+        ✨ Start new chat
+      </button>
+    </div>
+
     <!-- ── Pre-chat intake ─────────────────────────────────── -->
-    <div class="sf-olly-intake" *ngIf="ollyShowIntake">
+    <div class="sf-olly-intake" *ngIf="ollyShowIntake && !ollyShowResumePrompt">
       <div class="sf-olly-intake__hero">
         <span class="sf-olly-intake__fox">🦊</span>
         <div>
@@ -191,7 +209,7 @@
     </div>
 
     <!-- ── Chat (after intake) ─────────────────────────────── -->
-    <ng-container *ngIf="!ollyShowIntake">
+    <ng-container *ngIf="!ollyShowIntake && !ollyShowResumePrompt">
 
     <!-- Language + status bar -->
     <div class="sf-olly__topbar">
