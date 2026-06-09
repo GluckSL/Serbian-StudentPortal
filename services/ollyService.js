@@ -5,9 +5,7 @@
  */
 
 const OpenAI = require('openai');
-const User = require('../models/User');
-const StudentPayment = require('../models/StudentPayment');
-const SupportTicket = require('../models/SupportTicket');
+const { buildStudentKnowledgeContext } = require('./ollyStudentContext.service');
 
 let _client = null;
 function getClient() {
@@ -41,7 +39,16 @@ PORTAL TOPICS YOU KNOW:
 - Technical issues (video, audio, browser, app)
 - Job portal, announcements, timetable
 
-When student portal data is provided in the context, use it to give personalised answers.
+When LIVE PORTAL DATA is provided below, you MUST use it to give definitive, personalised answers about THIS student.
+
+PERSONALISED ANSWERS (critical — act like a real support agent who looked up their account):
+- Read the LIVE PORTAL DATA section before replying. State facts from that data — do NOT guess or say "it's possible that" when the data already answers the question.
+- Address the student by their first name when available.
+- For recordings: state their batch assignment (yes/no), whether classes have started, journey day, and how many recordings they have RIGHT NOW from the data.
+- If batch is not assigned, say clearly: "Your batch is not assigned yet" — do not speculate.
+- If recordings count is 0, explain the specific reason given in the data (e.g. classes not started, no uploads yet for their journey day).
+- For payments: cite their actual paid/pending amounts from the data.
+- Never invent batch names, dates, or counts that are not in the portal data.
 
 ACTIVITY-AWARE DIAGNOSIS (critical):
 - When ACTIVITY CONTEXT is provided, read it carefully BEFORE answering.
@@ -61,7 +68,7 @@ ACTIVITY-AWARE DIAGNOSIS (critical):
 5. எப்பொழுதும் அன்பாகவும், ஊக்கமளிக்கும் விதத்திலும் இருக்கவும்.
 6. சிக்கலை தீர்க்க முடியாவிட்டால்: "Support Ticket தாக்கல் செய்யுங்கள்" அல்லது "உண்மையான Agent-ஐ தொடர்பு கொள்ளுங்கள்" என்று பரிந்துரைக்கவும்.
 
-மாணவர் போர்ட்டல் தரவு வழங்கப்பட்டால், தனிப்பட்ட பதில்களை வழங்க அதைப் பயன்படுத்தவும்.`,
+LIVE PORTAL DATA வழங்கப்பட்டால், அந்த தரவிலிருந்து உறுதியான, தனிப்பட்ட பதில்களை வழங்கவும் — "சாத்தியம்" என்று யூகிக்க வேண்டாம். பெயரால் வாழ்த்துங்கள். Recordings, batch, payment பற்றி தரவில் உள்ள உண்மைகளைச் சொல்லுங்கள்.`,
 
   si: `ඔබ Olly, Glück Global ශිෂ්‍ය portal-ට 24/7 සහාය සහකාරය.
 ඔබ හිතවත්, සහාය ලොව 🦊 — සිසුන්, ගුරුවරුන් සහ කාර්ය මණ්ඩලයට සෑම විටම සහාය වීමට සූදානම්.
@@ -74,7 +81,7 @@ ACTIVITY-AWARE DIAGNOSIS (critical):
 5. සෑම විටම ආදරණීයව, දිරිගැන්වීමේ ලෙස ඉන්න.
 6. ගැටළුව විසඳිය නොහැකි නම්: "Support Ticket ඉදිරිපත් කරන්න" හෝ "සැබෑ Agent සමඟ කතා කරන්න" යෝජනා කරන්න.
 
-ශිෂ්‍ය portal දත්ත ලබා දී ඇත්නම්, පුද්ගලාරෝපිත පිළිතුරු ලබා දීමට එය භාවිත කරන්න.`
+LIVE PORTAL DATA ලබා දී ඇත්නම්, එම දත්තවලින් නිශ්චිත, පුද්ගලික පිළිතුරු දෙන්න — "සම්භාව්‍ය" ලෙස අනුමාන නොකරන්න. නමින් සාදරයෙන් සිහිපත් කරන්න. Recordings, batch, payment සඳහා දත්තයේ ඇති සත්‍ය කරුණු පවසන්න.`
 };
 
 const GUARD_PHRASES = {
@@ -98,76 +105,7 @@ function isOffTopic(message) {
 // ── Portal Context Fetcher (read-only) ─────────────────────────────────────
 
 async function fetchPortalContext(userId) {
-  if (!userId) return null;
-  try {
-    const [user, payment, tickets] = await Promise.all([
-      User.findById(userId)
-        .select('name email regNo role subscription level batch medium studentStatus subscriptionExpiry batchStartedOn teacherIncharge currentCourseDay languageExamStatus examScores servicesOpted lastLogin')
-        .lean(),
-      StudentPayment.findOne({ studentId: userId })
-        .select('totalPackageAmount totalPaid totalInvoiced pendingPayment currency currentStatus serviceOpted payments notes')
-        .lean(),
-      SupportTicket.find({ userId })
-        .select('ticketNumber subject status createdAt')
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .lean()
-    ]);
-
-    if (!user) return null;
-
-    const ctx = [];
-    ctx.push(`=== Student Portal Profile ===`);
-    ctx.push(`Name: ${user.name}`);
-    ctx.push(`Registration No: ${user.regNo}`);
-    ctx.push(`Email: ${user.email}`);
-    ctx.push(`Role: ${user.role}`);
-    if (user.role === 'STUDENT') {
-      ctx.push(`Subscription: ${user.subscription || 'N/A'}`);
-      ctx.push(`Level: ${user.level || 'N/A'}`);
-      ctx.push(`Batch: ${user.batch || 'N/A'}`);
-      ctx.push(`Student Status: ${user.studentStatus || 'N/A'}`);
-      ctx.push(`Medium: ${(user.medium || []).join(', ') || 'N/A'}`);
-      ctx.push(`Teacher-in-Charge: ${user.teacherIncharge || 'N/A'}`);
-      ctx.push(`Course Day: ${user.currentCourseDay || 1}`);
-      ctx.push(`Subscription Expiry: ${user.subscriptionExpiry ? new Date(user.subscriptionExpiry).toLocaleDateString() : 'N/A'}`);
-      ctx.push(`Exam Status: ${user.languageExamStatus || 'N/A'}`);
-      if (user.examScores && Object.values(user.examScores).some(v => v !== null)) {
-        const s = user.examScores;
-        ctx.push(`Exam Scores: Reading=${s.reading ?? '-'}, Listening=${s.listening ?? '-'}, Writing=${s.writing ?? '-'}, Speaking=${s.speaking ?? '-'}`);
-      }
-    }
-    ctx.push(`Last Login: ${user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'N/A'}`);
-
-    if (payment) {
-      ctx.push(`\n=== Payment Summary ===`);
-      ctx.push(`Currency: ${payment.currency}`);
-      ctx.push(`Total Package Amount: ${payment.totalPackageAmount}`);
-      ctx.push(`Total Paid: ${payment.totalPaid}`);
-      ctx.push(`Pending Payment: ${payment.pendingPayment}`);
-      ctx.push(`Payment Status: ${payment.currentStatus || 'N/A'}`);
-      ctx.push(`Services Opted: ${payment.serviceOpted || 'N/A'}`);
-      if (payment.payments && payment.payments.length > 0) {
-        const recent = payment.payments.slice(-3);
-        ctx.push(`Recent Payments (last 3):`);
-        recent.forEach((p) => {
-          ctx.push(`  - ${payment.currency} ${p.amount} on ${new Date(p.date).toLocaleDateString()} via ${p.method || 'N/A'}${p.note ? ` (${p.note})` : ''}`);
-        });
-      }
-    }
-
-    if (tickets && tickets.length > 0) {
-      ctx.push(`\n=== Recent Support Tickets ===`);
-      tickets.forEach((t) => {
-        ctx.push(`  Ticket ${t.ticketNumber}: "${t.subject}" — Status: ${t.status}, Raised: ${new Date(t.createdAt).toLocaleDateString()}`);
-      });
-    }
-
-    return ctx.join('\n');
-  } catch (err) {
-    console.error('[olly] fetchPortalContext error:', err.message);
-    return null;
-  }
+  return buildStudentKnowledgeContext(userId);
 }
 
 // ── Main chat function ─────────────────────────────────────────────────────
@@ -262,7 +200,7 @@ async function chat({ messages, language = 'en', userId = null, issueType = null
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     messages: [{ role: 'system', content: systemContent }, ...trimmedHistory],
     max_tokens: 500,
-    temperature: 0.65
+    temperature: 0.45
   });
 
   const reply = (completion.choices[0]?.message?.content || '').trim();
