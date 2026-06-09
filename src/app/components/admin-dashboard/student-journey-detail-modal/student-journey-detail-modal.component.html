@@ -6,7 +6,22 @@
   <div class="jm" (click)="$event.stopPropagation()">
     <div class="jm-head">
       <h3>Student details — {{ displayName }}</h3>
-      <button type="button" class="jm-close" (click)="close()" aria-label="Close">✕</button>
+      <div class="jm-head__actions">
+        <span class="jm-refresh" *ngIf="loadedAt && !loading">{{ formatRelativeTime() }}</span>
+        <button type="button" class="jm-action-btn jm-action-btn--reload" (click)="refresh()" [disabled]="reloading" title="Refresh data">
+          <i class="fas fa-sync" [class.fa-spin]="reloading"></i>
+        </button>
+        <a class="jm-action-btn" *ngIf="studentId" [href]="studentDashboardUrl()" target="_blank" rel="noopener" title="Open student dashboard">
+          <i class="fas fa-external-link-alt"></i>
+        </a>
+        <a class="jm-action-btn" *ngIf="preview?.email" [href]="mailTo()" title="Email student">
+          <i class="fas fa-envelope"></i>
+        </a>
+        <a class="jm-action-btn" *ngIf="studentId" [href]="paymentHubUrl()" target="_blank" rel="noopener" title="Open payment hub">
+          <i class="fas fa-credit-card"></i>
+        </a>
+        <button type="button" class="jm-close" (click)="close()" aria-label="Close">✕</button>
+      </div>
     </div>
     <ng-container *ngTemplateOutlet="journeyBody"></ng-container>
   </div>
@@ -15,85 +30,114 @@
 <ng-template #journeyBody>
 
     <div class="jm-body" [class.jm-body--embedded]="embedded" *ngIf="!loading && journeyData && !loadError">
+
+      <!-- ═══ TOP ROW: Profile + KPI Cards ═══ -->
       <div class="sp-row sp-row--top">
-        <div class="sp-card sp-card--profile">
+        <div class="sp-card">
           <div class="sp-card__head">
             <span class="sp-card__title">Student profile</span>
-            <span
-              class="sp-badge"
+            <span class="sp-badge"
               [class.sp-badge--green]="jProfile.studentStatus === 'ONGOING'"
               [class.sp-badge--gray]="jProfile.studentStatus !== 'ONGOING'"
-            >{{ jProfile.studentStatus === 'ONGOING' ? 'Active' : (jProfile.studentStatus || '—') }}</span>
+            ><i class="fas" [class.fa-check-circle]="jProfile.studentStatus === 'ONGOING'" [class.fa-pause-circle]="jProfile.studentStatus !== 'ONGOING'"></i> {{ jProfile.studentStatus === 'ONGOING' ? 'Active' : (jProfile.studentStatus || '—') }}</span>
           </div>
-          <table class="sp-table"><tbody>
-            <tr>
-              <td class="sp-table__label">Student ID</td>
-              <td>{{ jProfile.regNo || preview?.regNo || '—' }}</td>
-              <td class="sp-table__label">Name</td>
-              <td>
+          <div class="sp-profile-grid">
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Student ID</span>
+              <span class="sp-profile__val">{{ jProfile.regNo || preview?.regNo || '—' }}</span>
+            </div>
+            <div class="sp-profile__item sp-profile__item--wide">
+              <span class="sp-profile__lbl">Name</span>
+              <span class="sp-profile__val">
                 {{ jProfile.name || studentName }}
                 <app-test-account-badge [show]="!!jProfile.isTestAccount"></app-test-account-badge>
-              </td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Email</td>
-              <td colspan="3">{{ preview?.email || '—' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Batch</td>
-              <td>{{ jProfile.batch || preview?.batch || '—' }}</td>
-              <td class="sp-table__label">Medium</td>
-              <td>{{ preview?.medium || '—' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Plan</td>
-              <td>{{ preview?.subscription || '—' }}</td>
-              <td class="sp-table__label">Journey day</td>
-              <td><span class="sp-day-pill">Day {{ jProfile.currentCourseDay || 1 }}</span></td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Teacher</td>
-              <td>{{ jProfile.teacher || '—' }}</td>
-              <td class="sp-table__label">Current level</td>
-              <td>{{ jProfile.currentLevel || preview?.level || '—' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Service</td>
-              <td>{{ jProfile.servicesOpted || '—' }}</td>
-              <td class="sp-table__label">Visa route</td>
-              <td>{{ jVisa.route || 'Not set' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Level path</td>
-              <td>{{ jLevelPath || '—' }}</td>
-              <td class="sp-table__label">Enrolled</td>
-              <td>{{ formatDate(jProfile.enrollmentDate) }}</td>
-            </tr>
-          </tbody></table>
+              </span>
+            </div>
+            <div class="sp-profile__item sp-profile__item--wide">
+              <span class="sp-profile__lbl">Email</span>
+              <span class="sp-profile__val">{{ preview?.email || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Batch</span>
+              <span class="sp-profile__val">{{ jProfile.batch || preview?.batch || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Medium</span>
+              <span class="sp-profile__val">{{ preview?.medium || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Plan</span>
+              <span class="sp-profile__val">{{ preview?.subscription || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Journey day</span>
+              <span class="sp-profile__val"><span class="sp-day-pill">Day {{ jProfile.currentCourseDay || 1 }}</span></span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Teacher</span>
+              <span class="sp-profile__val">{{ jProfile.teacher || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Current level</span>
+              <span class="sp-profile__val">{{ jProfile.currentLevel || preview?.level || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Service</span>
+              <span class="sp-profile__val">{{ jProfile.servicesOpted || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Visa route</span>
+              <span class="sp-profile__val">{{ jVisa.route || 'Not set' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Level path</span>
+              <span class="sp-profile__val">{{ jLevelPath || '—' }}</span>
+            </div>
+            <div class="sp-profile__item">
+              <span class="sp-profile__lbl">Enrolled</span>
+              <span class="sp-profile__val">{{ formatDate(jProfile.enrollmentDate) }}</span>
+            </div>
+          </div>
         </div>
-        <div class="sp-card sp-card--status">
-          <div class="sp-card__head"><span class="sp-card__title">Performance snapshot</span></div>
-          <div class="sp-status-grid">
-            <div class="sp-stat sp-stat--blue">
-              <div class="sp-stat__val">{{ jAttendanceRate }}%</div>
-              <div class="sp-stat__lbl">Attendance</div>
+
+        <!-- KPI Gradient Cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card kpi-card--attendance">
+            <div class="kpi-card__body">
+              <span class="kpi-card__lbl">Attendance</span>
+              <span class="kpi-card__val">{{ jAttendanceRate }}%</span>
+              <span class="kpi-card__sub">{{ jAttendance.attended }}/{{ jAttendance.total }} sessions</span>
             </div>
-            <div class="sp-stat sp-stat--green">
-              <div class="sp-stat__val">{{ jDocsSubmitted }}/{{ jDocuments.length }}</div>
-              <div class="sp-stat__lbl">Docs verified</div>
+            <i class="fas fa-calendar-check"></i>
+          </div>
+          <div class="kpi-card kpi-card--bot">
+            <div class="kpi-card__body">
+              <span class="kpi-card__lbl">AI Bot</span>
+              <span class="kpi-card__val">{{ jBotUsage.weekMinutes }}m</span>
+              <span class="kpi-card__sub">/ {{ jBotUsage.targetMinutesPerWeek }}m / week</span>
             </div>
-            <div class="sp-stat sp-stat--orange">
-              <div class="sp-stat__val">{{ jBotUsage.weekMinutes }}m</div>
-              <div class="sp-stat__lbl">AI bot / week</div>
+            <i class="fas fa-robot"></i>
+          </div>
+          <div class="kpi-card kpi-card--journey">
+            <div class="kpi-card__body">
+              <span class="kpi-card__lbl">Overall journey</span>
+              <span class="kpi-card__val">{{ jOverallPct }}%</span>
+              <span class="kpi-card__sub">Across all activities</span>
             </div>
-            <div class="sp-stat sp-stat--purple">
-              <div class="sp-stat__val">{{ jOverallPct }}%</div>
-              <div class="sp-stat__lbl">Overall journey</div>
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <div class="kpi-card kpi-card--docs">
+            <div class="kpi-card__body">
+              <span class="kpi-card__lbl">Documents</span>
+              <span class="kpi-card__val">{{ jDocsSubmitted }}/{{ jDocuments.length }}</span>
+              <span class="kpi-card__sub">verified</span>
             </div>
+            <i class="fas fa-file-alt"></i>
           </div>
         </div>
       </div>
 
+      <!-- ═══ MID ROW: Language Progress + Overall Breakdown ═══ -->
       <div class="sp-row sp-row--mid">
         <div class="sp-card">
           <div class="sp-card__head">
@@ -124,86 +168,136 @@
           </div>
           <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
         </div>
-        <div class="sp-card sp-card--payments">
+        <div class="sp-card">
           <div class="sp-card__head">
-            <span class="sp-card__title">Payments</span>
-            <span class="sp-pay-source" *ngIf="jPayments.isHub">Synced with Payment Hub</span>
-            <a *ngIf="studentId" class="sp-pay-hub-link" [href]="paymentHubUrl()" target="_blank" rel="noopener">Open hub ↗</a>
+            <span class="sp-card__title">Overall progress</span>
+            <span class="sp-card__meta">{{ jOverallPct }}%</span>
           </div>
+          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jOverallPct"></div></div>
+          <div class="sp-radar-wrap">
+            <canvas baseChart
+              [data]="radarChartData"
+              [options]="radarChartOptions"
+              type="radar">
+            </canvas>
+          </div>
+        </div>
+      </div>
 
-          <div class="sp-pay-totals" *ngIf="hasMultiCurrencyPaid(); else spPaySingleCurrency">
-            <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidLKR > 0">
-              <span class="sp-pay-total-chip__lbl">Paid LKR</span>
-              <strong>{{ jPayments.totalPaidLKR | number:'1.0-0' }}</strong>
-            </div>
-            <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidINR > 0">
-              <span class="sp-pay-total-chip__lbl">Paid INR</span>
-              <strong>{{ jPayments.totalPaidINR | number:'1.0-0' }}</strong>
-            </div>
-            <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidUSD > 0">
-              <span class="sp-pay-total-chip__lbl">Paid USD</span>
-              <strong>{{ jPayments.totalPaidUSD | number:'1.0-0' }}</strong>
-            </div>
+      <!-- ═══ DETAILED METRICS: Attendance + AI Bot ═══ -->
+      <div class="sp-row sp-row--pair">
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Attendance</span>
+            <span class="sp-card__meta">{{ jAttendance.attended }}/{{ jAttendance.total }}</span>
           </div>
-          <ng-template #spPaySingleCurrency>
-            <div class="sp-kv-row"><span>Total quoted</span><span class="sp-kv-val">{{ jPayments.totalAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
-            <div class="sp-kv-row"><span>Paid</span><span class="sp-kv-val sp-kv-val--green">{{ jPayments.paidAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
-            <div class="sp-kv-row">
-              <span>Balance</span>
-              <span class="sp-kv-val" [class.sp-kv-val--green]="jPayments.pendingAmount <= 0" [class.sp-kv-val--red]="jPayments.pendingAmount > 0">
+          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jAttendanceRate"></div></div>
+          <div class="sp-kv-row"><span>Rate</span><span class="sp-kv-val">{{ jAttendanceRate }}%</span></div>
+          <div class="sp-kv-row">
+            <span>Last session</span>
+            <span class="sp-kv-val">{{ jAttendance.lastSessionDate ? formatDate(jAttendance.lastSessionDate) : '—' }}</span>
+          </div>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">AI bot usage</span>
+            <span class="sp-card__meta">{{ jBotUsage.weekMinutes }}/{{ jBotUsage.targetMinutesPerWeek }} min</span>
+          </div>
+          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--purple" [style.width.%]="jBotWeekPct"></div></div>
+          <div class="sp-kv-row"><span>Today</span><span class="sp-kv-val">{{ jBotUsage.todayMinutes }} min</span></div>
+          <div class="sp-kv-row"><span>This week</span><span class="sp-kv-val">{{ jBotUsage.weekMinutes }} min</span></div>
+        </div>
+      </div>
+
+      <!-- ═══ PAYMENTS ═══ -->
+      <div class="sp-card sp-card--payments">
+        <div class="sp-card__head">
+          <span class="sp-card__title">Payments</span>
+          <span class="sp-pay-source" *ngIf="jPayments.isHub">Synced with Payment Hub</span>
+          <a *ngIf="studentId" class="sp-pay-hub-link" [href]="paymentHubUrl()" target="_blank" rel="noopener">Open hub ↗</a>
+        </div>
+
+        <div class="sp-pay-totals" *ngIf="hasMultiCurrencyPaid(); else spPaySingleCurrency">
+          <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidLKR > 0">
+            <span class="sp-pay-total-chip__lbl">Paid LKR</span>
+            <strong>{{ jPayments.totalPaidLKR | number:'1.0-0' }}</strong>
+          </div>
+          <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidINR > 0">
+            <span class="sp-pay-total-chip__lbl">Paid INR</span>
+            <strong>{{ jPayments.totalPaidINR | number:'1.0-0' }}</strong>
+          </div>
+          <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidUSD > 0">
+            <span class="sp-pay-total-chip__lbl">Paid USD</span>
+            <strong>{{ jPayments.totalPaidUSD | number:'1.0-0' }}</strong>
+          </div>
+        </div>
+        <ng-template #spPaySingleCurrency>
+          <div class="sp-pay-summary">
+            <div class="sp-pay-summary__item"><span class="sp-pay-summary__lbl">Total quoted</span><span class="sp-pay-summary__val">{{ jPayments.totalAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
+            <div class="sp-pay-summary__item"><span class="sp-pay-summary__lbl">Paid</span><span class="sp-pay-summary__val sp-pay-summary__val--green">{{ jPayments.paidAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
+            <div class="sp-pay-summary__item">
+              <span class="sp-pay-summary__lbl">Balance</span>
+              <span class="sp-pay-summary__val" [class.sp-pay-summary__val--green]="jPayments.pendingAmount <= 0" [class.sp-pay-summary__val--red]="jPayments.pendingAmount > 0">
                 {{ jPayments.pendingAmount | number:'1.0-0' }} {{ jPayments.currency }}
               </span>
             </div>
-          </ng-template>
-
-          <div class="sp-bar sp-bar--lg sp-pay-progress">
-            <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jPayPct"></div>
           </div>
-          <div class="sp-pay-progress-meta">
-            <span>{{ jPayPct }}% settled</span>
-            <span *ngIf="jPayments.requestCount">{{ jPayments.requestCount }} request(s)</span>
-          </div>
+        </ng-template>
 
-          <div class="sp-pay-list-wrap" *ngIf="jPayments.paymentHistory.length">
-            <div class="sp-pay-list-head">All payments</div>
-            <table class="sp-pay-table sp-pay-table--hub">
+        <div class="sp-bar sp-bar--lg sp-pay-progress">
+          <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jPayPct"></div>
+        </div>
+        <div class="sp-pay-progress-meta">
+          <span>{{ jPayPct }}% settled</span>
+          <span *ngIf="jPayments.requestCount">{{ jPayments.requestCount }} request(s)</span>
+        </div>
+
+        <div class="pay-collapse" *ngIf="jPayments.paymentHistory.length || jPayments.invoices.length">
+          <button type="button" class="pay-collapse__btn" (click)="payTableOpen = !payTableOpen">
+            <span class="pay-collapse__arrow" [class.pay-collapse__arrow--open]="payTableOpen">▶</span>
+            Show payment history ({{ jPayments.paymentHistory.length || jPayments.invoices.length }} record(s))
+          </button>
+          <div class="pay-collapse__body" *ngIf="payTableOpen">
+            <div class="sp-pay-list-wrap" *ngIf="jPayments.paymentHistory.length">
+              <table class="sp-pay-table sp-pay-table--hub">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Paid</th>
+                    <th>Balance</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let p of $any(jPayments.paymentHistory)">
+                    <td class="sp-pay-type">{{ p.label || p.note || '—' }}</td>
+                    <td class="sp-pay-amt">{{ (p.paidAmount ?? p.amount) | number:'1.0-0' }} {{ p.currency || jPayments.currency }}</td>
+                    <td [class.sp-pay-amt--due]="(p.balance ?? 0) > 0">{{ (p.balance ?? 0) | number:'1.0-0' }}</td>
+                    <td><span class="sp-pay-status" [ngClass]="payStatusClass(p.status || p.method)">{{ formatPayStatus(p.status || p.method) }}</span></td>
+                    <td class="sp-pay-date">{{ formatDate(p.createdAt || p.date) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <table class="sp-pay-table" *ngIf="!jPayments.paymentHistory.length && jPayments.invoices.length">
               <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Paid</th>
-                  <th>Balance</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
+                <tr><th>Invoice</th><th>Total</th><th>Status</th></tr>
               </thead>
               <tbody>
-                <tr *ngFor="let p of $any(jPayments.paymentHistory)">
-                  <td class="sp-pay-type">{{ p.label || p.note || '—' }}</td>
-                  <td class="sp-pay-amt">{{ (p.paidAmount ?? p.amount) | number:'1.0-0' }} {{ p.currency || jPayments.currency }}</td>
-                  <td [class.sp-pay-amt--due]="(p.balance ?? 0) > 0">{{ (p.balance ?? 0) | number:'1.0-0' }}</td>
-                  <td><span class="sp-pay-status" [ngClass]="payStatusClass(p.status || p.method)">{{ formatPayStatus(p.status || p.method) }}</span></td>
-                  <td class="sp-pay-date">{{ formatDate(p.createdAt || p.date) }}</td>
+                <tr *ngFor="let inv of $any(jPayments.invoices | slice:0:6)">
+                  <td>{{ inv.invoiceNumber || '—' }}</td>
+                  <td>{{ inv.totalPayable | number:'1.0-0' }}</td>
+                  <td>{{ inv.paymentStatus || '—' }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
-
-          <table class="sp-pay-table" *ngIf="!jPayments.paymentHistory.length && jPayments.invoices.length">
-            <thead>
-              <tr><th>Invoice</th><th>Total</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let inv of $any(jPayments.invoices | slice:0:6)">
-                <td>{{ inv.invoiceNumber || '—' }}</td>
-                <td>{{ inv.totalPayable | number:'1.0-0' }}</td>
-                <td>{{ inv.paymentStatus || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="sp-empty" *ngIf="!jPayments.paymentHistory.length && !jPayments.invoices.length">No payment records yet</div>
         </div>
+        <div class="sp-empty" *ngIf="!jPayments.paymentHistory.length && !jPayments.invoices.length">No payment records yet</div>
       </div>
 
+      <!-- ═══ BOTTOM ROW: Documents + Visa ═══ -->
       <div class="sp-row sp-row--bottom">
         <div class="sp-card">
           <div class="sp-card__head">
@@ -262,41 +356,7 @@
         </div>
       </div>
 
-      <div class="sp-row sp-row--triple">
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Attendance</span>
-            <span class="sp-card__meta">{{ jAttendance.attended }}/{{ jAttendance.total }}</span>
-          </div>
-          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jAttendanceRate"></div></div>
-          <div class="sp-kv-row"><span>Rate</span><span class="sp-kv-val">{{ jAttendanceRate }}%</span></div>
-          <div class="sp-kv-row">
-            <span>Last session</span>
-            <span class="sp-kv-val">{{ jAttendance.lastSessionDate ? formatDate(jAttendance.lastSessionDate) : '—' }}</span>
-          </div>
-        </div>
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">AI bot usage</span>
-            <span class="sp-card__meta">{{ jBotUsage.weekMinutes }}/{{ jBotUsage.targetMinutesPerWeek }} min</span>
-          </div>
-          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--purple" [style.width.%]="jBotWeekPct"></div></div>
-          <div class="sp-kv-row"><span>Today</span><span class="sp-kv-val">{{ jBotUsage.todayMinutes }} min</span></div>
-          <div class="sp-kv-row"><span>This week</span><span class="sp-kv-val">{{ jBotUsage.weekMinutes }} min</span></div>
-        </div>
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Overall journey</span>
-            <span class="sp-card__meta">{{ jOverallPct }}%</span>
-          </div>
-          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jOverallPct"></div></div>
-          <div class="sp-kv-row"><span>Learning</span><span class="sp-kv-val">{{ jLearningPct }}%</span></div>
-          <div class="sp-kv-row"><span>Documents</span><span class="sp-kv-val">{{ jDocsPct }}%</span></div>
-          <div class="sp-kv-row"><span>Payments</span><span class="sp-kv-val">{{ jPayPct }}%</span></div>
-          <div class="sp-kv-row"><span>Visa</span><span class="sp-kv-val">{{ jVisaPct }}%</span></div>
-        </div>
-      </div>
-
+      <!-- ═══ JOURNEY HISTORY ═══ -->
       <div class="sp-card">
         <div class="sp-card__head">
           <span class="sp-card__title">Journey history</span>
@@ -317,9 +377,27 @@
     </div>
 
     <div class="jm-body jm-loading" *ngIf="loading">
-      <div>
-        <div class="jm-spinner"></div>
-        <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading student details…</p>
+      <div class="sk-container">
+        <div class="sk-row sk-row--top">
+          <div class="sk-card"><div class="sk-card__head-shim"></div><div class="sk-card__grid"><div class="sk-card__line"></div><div class="sk-card__line"></div><div class="sk-card__line"></div><div class="sk-card__line"></div></div></div>
+          <div class="sk-grid">
+            <div class="sk-card sk-card--kpi" *ngFor="let _ of [].constructor(4)"><div class="sk-card__line sk-card__line--60"></div><div class="sk-card__line sk-card__line--80"></div></div>
+          </div>
+        </div>
+        <div class="sk-row sk-row--mid">
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--50"></div><div class="sk-card__line sk-card__line--80"></div></div>
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--90" style="height:80px;border-radius:8px;"></div></div>
+        </div>
+        <div class="sk-row sk-row--pair">
+          <div class="sk-card"><div class="sk-card__line sk-card__line--40"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--50"></div></div>
+          <div class="sk-card"><div class="sk-card__line sk-card__line--40"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--50"></div></div>
+        </div>
+        <div class="sk-card"><div class="sk-card__line sk-card__line--40"></div><div class="sk-card__line sk-card__line--80"></div><div class="sk-card__line sk-card__line--30"></div><div class="sk-row sk-row--table"><div class="sk-card__line" *ngFor="let _ of [].constructor(3)"></div></div></div>
+        <div class="sk-row sk-row--bottom">
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--80"></div></div>
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--80"></div></div>
+        </div>
+        <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--90"></div><div class="sk-card__line sk-card__line--70"></div></div>
       </div>
     </div>
 

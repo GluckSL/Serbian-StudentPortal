@@ -1,6 +1,8 @@
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { NgChartsModule } from 'ng2-charts';
+import { ChartConfiguration } from 'chart.js';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
 export interface StudentJourneyPreview {
@@ -15,7 +17,7 @@ export interface StudentJourneyPreview {
 @Component({
   selector: 'app-student-journey-detail-modal',
   standalone: true,
-  imports: [CommonModule, TestAccountBadgeComponent],
+  imports: [CommonModule, NgChartsModule, TestAccountBadgeComponent],
   templateUrl: './student-journey-detail-modal.component.html',
   styleUrls: ['./student-journey-detail-modal.component.css']
 })
@@ -29,8 +31,30 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   @Output() closed = new EventEmitter<void>();
 
   loading = false;
+  reloading = false;
   loadError = '';
   journeyData: any = null;
+  payTableOpen = false;
+  loadedAt: Date | null = null;
+
+  radarChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
+  radarChartOptions: ChartConfiguration['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false }
+    },
+    scales: {
+      r: {
+        beginAtZero: true,
+        max: 100,
+        ticks: { display: false, stepSize: 25 },
+        grid: { color: 'rgba(0,0,0,0.06)' },
+        angleLines: { color: 'rgba(0,0,0,0.06)' },
+        pointLabels: { font: { size: 10, weight: 'bold' }, color: '#64748b' }
+      }
+    }
+  };
 
   constructor(private http: HttpClient) {}
 
@@ -48,21 +72,51 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   load(): void {
     this.loading = true;
     this.loadError = '';
-    this.journeyData = null;
+    if (!this.journeyData) {
+      this.journeyData = null;
+    }
     this.http.get('/api/student-progress/admin/journey/' + this.studentId).subscribe({
       next: (res) => {
         this.journeyData = res;
+        this.loadedAt = new Date();
+        this.buildRadarChart();
         this.loading = false;
+        this.reloading = false;
       },
       error: () => {
         this.loading = false;
+        this.reloading = false;
         this.loadError = 'Could not load student details. Please try again.';
       }
     });
   }
 
+  refresh(): void {
+    this.reloading = true;
+    this.load();
+  }
+
   close(): void {
     this.closed.emit();
+  }
+
+  studentDashboardUrl(): string {
+    return `/student/${this.studentId}`;
+  }
+
+  mailTo(): string {
+    return `mailto:${this.preview?.email || ''}`;
+  }
+
+  formatRelativeTime(): string {
+    if (!this.loadedAt) return '';
+    const diff = Date.now() - this.loadedAt.getTime();
+    const sec = Math.floor(diff / 1000);
+    if (sec < 5) return 'Just now';
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    return `${Math.floor(min / 60)}h ago`;
   }
 
   formatDate(d: string | Date): string {
@@ -178,4 +232,21 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
     const visaPct = this.jVisa.steps.length > 1 ? this.jVisa.currentStep / (this.jVisa.steps.length - 1) : 0;
     return Math.round((learningPct * 0.4 + docsPct * 0.2 + payPct * 0.2 + visaPct * 0.2) * 100);
   }
-}
+
+  private buildRadarChart(): void {
+    this.radarChartData = {
+      labels: ['Learning', 'Documents', 'Payments', 'Visa'],
+      datasets: [
+        {
+          label: 'Progress',
+          data: [this.jLearningPct, this.jDocsPct, this.jPayPct, this.jVisaPct],
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5, 150, 105, 0.15)',
+          pointBackgroundColor: '#059669',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1,
+          pointRadius: 4
+        }
+      ]
+    };
+  }}
