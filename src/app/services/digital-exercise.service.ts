@@ -3,7 +3,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, from, of, throwError } from 'rxjs';
-import { catchError, switchMap, tap, timeout } from 'rxjs/operators';
+import { switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { StudentProgressService } from './student-progress.service';
 
@@ -701,6 +701,7 @@ export class DigitalExerciseService {
 
   uploadPdf(file: File): Observable<any> {
     // Direct R2 PUT bypasses nginx client_max_body_size limits on production.
+    // Never fall back to multipart /upload — nginx rejects files > ~1 MB with HTTP 413.
     return this.http
       .post<{ uploadUrl: string; fileUrl: string }>(
         `${environment.apiUrl}/r2/generate-upload-url`,
@@ -712,22 +713,8 @@ export class DigitalExerciseService {
         { withCredentials: true }
       )
       .pipe(
-        catchError((presignErr) => {
-          if (presignErr?.status === 500 || presignErr?.status === 503) {
-            const formData = new FormData();
-            formData.append('pdf', file);
-            return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/upload`, formData, {
-              withCredentials: true,
-            });
-          }
-          return throwError(() => presignErr);
-        }),
-        switchMap((res: any) => {
-          if (res?.uploadId) {
-            return of(res);
-          }
-          const { uploadUrl, fileUrl } = res as { uploadUrl: string; fileUrl: string };
-          return from(
+        switchMap(({ uploadUrl, fileUrl }) =>
+          from(
             fetch(uploadUrl, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/pdf' },
@@ -736,7 +723,9 @@ export class DigitalExerciseService {
           ).pipe(
             switchMap((response) => {
               if (!response.ok) {
-                return throwError(() => new Error(`R2 upload failed with status ${response.status}`));
+                return throwError(
+                  () => new Error(`Cloud storage upload failed (HTTP ${response.status}). Try again or contact support.`)
+                );
               }
               return this.http.post<any>(
                 `${environment.apiUrl}/pdf-exercises/register-r2-upload`,
@@ -744,8 +733,8 @@ export class DigitalExerciseService {
                 { withCredentials: true }
               );
             })
-          );
-        })
+          )
+        )
       );
   }
 
