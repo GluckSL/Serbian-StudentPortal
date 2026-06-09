@@ -77,7 +77,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   level = '';
   searchRaw = '';
   includeTestAccounts = false;
-  quickRange: 'today' | '7d' | '30d' | 'custom' = 'today';
+  quickRange: 'today' | 'lastday' | '7d' | '30d' | 'custom' = 'today';
 
   availableBatches: string[] = [];
   availableLevels: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -241,11 +241,14 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.load();
   }
 
-  setQuickRange(q: 'today' | '7d' | '30d'): void {
+  setQuickRange(q: 'today' | 'lastday' | '7d' | '30d'): void {
     this.quickRange = q;
     if (q === 'today') {
       this.from = todayIso();
       this.to = todayIso();
+    } else if (q === 'lastday') {
+      this.from = daysAgoIso(1);
+      this.to = daysAgoIso(1);
     } else if (q === '7d') {
       this.from = daysAgoIso(6);
       this.to = todayIso();

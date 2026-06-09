@@ -40,6 +40,7 @@
     <div class="lt-toolbar__top">
       <div class="lt-quick-ranges">
         <button type="button" class="lt-qbtn" [class.lt-qbtn--active]="quickRange === 'today'" (click)="setQuickRange('today')">Today</button>
+        <button type="button" class="lt-qbtn" [class.lt-qbtn--active]="quickRange === 'lastday'" (click)="setQuickRange('lastday')">Last Day</button>
         <button type="button" class="lt-qbtn" [class.lt-qbtn--active]="quickRange === '7d'" (click)="setQuickRange('7d')">7 Days</button>
         <button type="button" class="lt-qbtn" [class.lt-qbtn--active]="quickRange === '30d'" (click)="setQuickRange('30d')">30 Days</button>
       </div>
