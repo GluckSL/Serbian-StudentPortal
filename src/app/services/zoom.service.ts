@@ -377,4 +377,20 @@ export class ZoomService {
       withCredentials: true
     });
   }
+
+  /** Join status for live class reminder modal (ongoing meetings). */
+  getJoinReminderPreview(meetingId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/meeting/${meetingId}/join-reminder-preview`, {
+      withCredentials: true,
+    });
+  }
+
+  /** Send live join reminder emails to selected students. */
+  sendJoinReminder(meetingId: string, studentIds: string[]): Observable<any> {
+    return this.http.post(
+      `${this.apiUrl}/meeting/${meetingId}/send-join-reminder`,
+      { studentIds },
+      { withCredentials: true },
+    );
+  }
 }
