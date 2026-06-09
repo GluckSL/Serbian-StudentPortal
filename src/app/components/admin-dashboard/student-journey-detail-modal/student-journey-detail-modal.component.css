@@ -240,7 +240,12 @@
   margin-bottom: 10px;
 }
 
-.sp-card__title { font-size: 18px; font-weight: 700; color: #0f172a; }
+.sp-card__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: capitalize;
+}
 .sp-card__meta { font-size: 11px; color: #6b7280; }
 
 .sp-badge {

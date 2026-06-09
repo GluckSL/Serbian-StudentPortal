@@ -209,6 +209,65 @@
         </div>
       </div>
 
+      <!-- ═══ BOTTOM ROW: Documents + Visa ═══ -->
+      <div class="sp-row sp-row--bottom">
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Documents</span>
+            <span class="sp-card__meta">{{ jDocsSubmitted }} verified / {{ jDocuments.length }}</span>
+          </div>
+          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--yellow" [style.width.%]="jDocsPct"></div></div>
+          <table class="sp-doc-table">
+            <thead><tr><th>Document</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let doc of $any(jDocuments | slice:0:6)">
+                <td>{{ doc.name }}</td>
+                <td>
+                  <span
+                    class="sp-doc-badge"
+                    [class.sp-doc-badge--ok]="doc.status === 'verified'"
+                    [class.sp-doc-badge--pending]="doc.status !== 'verified'"
+                  >{{ doc.status === 'verified' ? 'Verified' : 'Pending' }}</span>
+                </td>
+              </tr>
+              <tr *ngIf="jDocuments.length > 6"><td colspan="2" class="sp-doc-more">+ {{ jDocuments.length - 6 }} more documents</td></tr>
+              <tr *ngIf="!jDocuments.length"><td colspan="2" class="sp-empty">No documents uploaded yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="sp-card">
+          <div class="sp-card__head">
+            <span class="sp-card__title">Visa stage</span>
+            <span class="sp-card__meta">{{ jVisa.route || 'Not set' }}</span>
+          </div>
+          <div *ngIf="jVisa.steps.length; else noVisaTpl">
+            <div class="sp-visa">
+              <ng-container *ngFor="let step of jVisa.steps; let i = index; let last = last">
+                <div
+                  class="sp-visa__node"
+                  [class.sp-visa__node--active]="i === jVisa.currentStep"
+                  [class.sp-visa__node--done]="i < jVisa.currentStep"
+                >
+                  <div class="sp-visa__dot"></div>
+                  <span class="sp-visa__label">{{ step }}</span>
+                </div>
+                <div class="sp-visa__line" *ngIf="!last" [class.sp-visa__line--done]="i < jVisa.currentStep"></div>
+              </ng-container>
+            </div>
+            <div class="sp-visa-progress">
+              <div class="sp-visa-progress__header">
+                <span class="sp-visa-progress__title">Application progress</span>
+                <span class="sp-visa-progress__pct">{{ jVisa.totalSteps ? (((jVisa.currentStep) / jVisa.totalSteps) * 100 | number:'1.0-0') : 0 }}%</span>
+              </div>
+              <div class="sp-bar sp-bar--lg">
+                <div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jVisa.totalSteps ? ((jVisa.currentStep) / jVisa.totalSteps * 100) : 0"></div>
+              </div>
+            </div>
+          </div>
+          <ng-template #noVisaTpl><div class="sp-empty">No visa tracking record yet.</div></ng-template>
+        </div>
+      </div>
+
       <!-- ═══ PAYMENTS ═══ -->
       <div class="sp-card sp-card--payments">
         <div class="sp-card__head">
@@ -295,65 +354,6 @@
           </div>
         </div>
         <div class="sp-empty" *ngIf="!jPayments.paymentHistory.length && !jPayments.invoices.length">No payment records yet</div>
-      </div>
-
-      <!-- ═══ BOTTOM ROW: Documents + Visa ═══ -->
-      <div class="sp-row sp-row--bottom">
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Documents</span>
-            <span class="sp-card__meta">{{ jDocsSubmitted }} verified / {{ jDocuments.length }}</span>
-          </div>
-          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--yellow" [style.width.%]="jDocsPct"></div></div>
-          <table class="sp-doc-table">
-            <thead><tr><th>Document</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr *ngFor="let doc of $any(jDocuments | slice:0:6)">
-                <td>{{ doc.name }}</td>
-                <td>
-                  <span
-                    class="sp-doc-badge"
-                    [class.sp-doc-badge--ok]="doc.status === 'verified'"
-                    [class.sp-doc-badge--pending]="doc.status !== 'verified'"
-                  >{{ doc.status === 'verified' ? 'Verified' : 'Pending' }}</span>
-                </td>
-              </tr>
-              <tr *ngIf="jDocuments.length > 6"><td colspan="2" class="sp-doc-more">+ {{ jDocuments.length - 6 }} more documents</td></tr>
-              <tr *ngIf="!jDocuments.length"><td colspan="2" class="sp-empty">No documents uploaded yet</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Visa stage</span>
-            <span class="sp-card__meta">{{ jVisa.route || 'Not set' }}</span>
-          </div>
-          <div *ngIf="jVisa.steps.length; else noVisaTpl">
-            <div class="sp-visa">
-              <ng-container *ngFor="let step of jVisa.steps; let i = index; let last = last">
-                <div
-                  class="sp-visa__node"
-                  [class.sp-visa__node--active]="i === jVisa.currentStep"
-                  [class.sp-visa__node--done]="i < jVisa.currentStep"
-                >
-                  <div class="sp-visa__dot"></div>
-                  <span class="sp-visa__label">{{ step }}</span>
-                </div>
-                <div class="sp-visa__line" *ngIf="!last" [class.sp-visa__line--done]="i < jVisa.currentStep"></div>
-              </ng-container>
-            </div>
-            <div class="sp-visa-progress">
-              <div class="sp-visa-progress__header">
-                <span class="sp-visa-progress__title">Application progress</span>
-                <span class="sp-visa-progress__pct">{{ jVisa.totalSteps ? (((jVisa.currentStep) / jVisa.totalSteps) * 100 | number:'1.0-0') : 0 }}%</span>
-              </div>
-              <div class="sp-bar sp-bar--lg">
-                <div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jVisa.totalSteps ? ((jVisa.currentStep) / jVisa.totalSteps * 100) : 0"></div>
-              </div>
-            </div>
-          </div>
-          <ng-template #noVisaTpl><div class="sp-empty">No visa tracking record yet.</div></ng-template>
-        </div>
       </div>
 
       <!-- ═══ JOURNEY HISTORY ═══ -->
