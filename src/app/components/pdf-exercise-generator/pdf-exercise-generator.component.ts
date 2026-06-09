@@ -409,6 +409,12 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.uploading = false;
+        if (err.status === 413) {
+          this.showError(
+            'The server rejected this file as too large (HTTP 413). PDFs up to 20 MB are supported — ask your admin to set nginx client_max_body_size to at least 50m and reload nginx.'
+          );
+          return;
+        }
         this.showError(err.error?.error || 'Upload failed. Please try again.');
       }
     });

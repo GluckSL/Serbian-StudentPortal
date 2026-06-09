@@ -322,6 +322,8 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = t;
       } else if (t === 'journey') {
         this.activeTab = t;
+        this.loadJourneyTabData();
+        this.loadJourneyGames();
       } else if (t === 'gluck-exam') {
         this.activeTab = t;
         this.loadGluckExamData();
@@ -458,6 +460,7 @@ export class MyCourseComponent implements OnInit {
     if (this._journeyTabDataLoaded) return;
     this._journeyTabDataLoaded = true;
     this.loadDayCompletionData(true);
+    this.loadGluckExamData();
   }
 
   private loadJourneyGames(): void {
@@ -959,17 +962,125 @@ export class MyCourseComponent implements OnInit {
     return !!ex?.studentAttempt;
   }
 
+  private isGluckExamExercise(ex: DigitalExercise): boolean {
+    return !!(ex?.weeklyTestEnabled || ex?.examEnabled);
+  }
+
+  private filterJourneyDayGluckExam<
+    T extends { courseDay?: number | null; weeklyTestEnabled?: boolean; examEnabled?: boolean }
+  >(items: T[], kind: 'weekly-test' | 'exam', isDone: (item: T) => boolean): T[] {
+    let list = items.filter(
+      (x) => x.courseDay != null && Number(x.courseDay) === this.selectedJourneyDay
+    );
+    list =
+      kind === 'weekly-test'
+        ? list.filter((x) => !!x.weeklyTestEnabled)
+        : list.filter((x) => !!x.examEnabled);
+    if (this.journeyFilter === 'completed') list = list.filter((x) => isDone(x));
+    if (this.journeyFilter === 'pending') list = list.filter((x) => !isDone(x));
+    return list;
+  }
+
   gameSetDone(set: GameSet): boolean {
     return (set.studentProgress?.timesPlayed ?? 0) > 0;
   }
 
   get selectedDayExercises(): DigitalExercise[] {
     let list = this.journeyDayExercises.filter(
-      (ex) => ex.courseDay != null && Number(ex.courseDay) === this.selectedJourneyDay
+      (ex) =>
+        ex.courseDay != null &&
+        Number(ex.courseDay) === this.selectedJourneyDay &&
+        !this.isGluckExamExercise(ex)
     );
     if (this.journeyFilter === 'completed') list = list.filter((x) => this.exerciseDone(x));
     if (this.journeyFilter === 'pending') list = list.filter((x) => !this.exerciseDone(x));
     return [...list].sort((a, b) => this.compareJourneyExerciseOrder(a, b));
+  }
+
+  get selectedDayWeeklyTestExercises(): DigitalExercise[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamExercises,
+      'weekly-test',
+      (x) => this.gluckExamExerciseDone(x)
+    );
+  }
+
+  get selectedDayExamExercises(): DigitalExercise[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamExercises,
+      'exam',
+      (x) => this.gluckExamExerciseDone(x)
+    );
+  }
+
+  get selectedDayWeeklyTestDgModules(): DgModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamDgModules,
+      'weekly-test',
+      (x) => this.gluckExamDgDone(x)
+    );
+  }
+
+  get selectedDayExamDgModules(): DgModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamDgModules,
+      'exam',
+      (x) => this.gluckExamDgDone(x)
+    );
+  }
+
+  get selectedDayWeeklyTestSprechen(): SprechenExamModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamSprechenModules,
+      'weekly-test',
+      (x) => this.gluckExamSprechenDone(x)
+    );
+  }
+
+  get selectedDayExamSprechen(): SprechenExamModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamSprechenModules,
+      'exam',
+      (x) => this.gluckExamSprechenDone(x)
+    );
+  }
+
+  get selectedDayHasWeeklyTestItems(): boolean {
+    return (
+      this.selectedDayWeeklyTestExercises.length > 0 ||
+      this.selectedDayWeeklyTestDgModules.length > 0 ||
+      this.selectedDayWeeklyTestSprechen.length > 0
+    );
+  }
+
+  get selectedDayHasExamItems(): boolean {
+    return (
+      this.selectedDayExamExercises.length > 0 ||
+      this.selectedDayExamDgModules.length > 0 ||
+      this.selectedDayExamSprechen.length > 0
+    );
+  }
+
+  private selectedDayGluckExamCompletedCount(): number {
+    return (
+      this.selectedDayWeeklyTestExercises.filter((x) => this.gluckExamExerciseDone(x)).length +
+      this.selectedDayExamExercises.filter((x) => this.gluckExamExerciseDone(x)).length +
+      this.selectedDayWeeklyTestDgModules.filter((x) => this.gluckExamDgDone(x)).length +
+      this.selectedDayExamDgModules.filter((x) => this.gluckExamDgDone(x)).length +
+      this.selectedDayWeeklyTestSprechen.filter((x) => this.gluckExamSprechenDone(x)).length +
+      this.selectedDayExamSprechen.filter((x) => this.gluckExamSprechenDone(x)).length
+    );
+  }
+
+  private selectedDayGluckExamTotalCount(): number {
+    return (
+      this.selectedDayWeeklyTestExercises.length +
+      this.selectedDayExamExercises.length +
+      this.selectedDayWeeklyTestDgModules.length +
+      this.selectedDayExamDgModules.length +
+      this.selectedDayWeeklyTestSprechen.length +
+      this.selectedDayExamSprechen.length
+    );
   }
 
   get selectedDayModules(): any[] {
@@ -1043,6 +1154,8 @@ export class MyCourseComponent implements OnInit {
   get selectedDayHasItems(): boolean {
     return (
       this.selectedDayExercises.length > 0 ||
+      this.selectedDayHasWeeklyTestItems ||
+      this.selectedDayHasExamItems ||
       this.selectedDayModules.length > 0 ||
       this.selectedDayGameSets.length > 0 ||
       this.showJourneyArenaSection ||
@@ -1053,6 +1166,7 @@ export class MyCourseComponent implements OnInit {
   get selectedDayCompletedCount(): number {
     return (
       this.selectedDayExercises.filter((x) => this.exerciseDone(x)).length +
+      this.selectedDayGluckExamCompletedCount() +
       this.selectedDayGameSets.filter((x) => this.gameSetDone(x)).length
     );
   }
@@ -1060,6 +1174,7 @@ export class MyCourseComponent implements OnInit {
   get selectedDayTotalCount(): number {
     return (
       this.selectedDayExercises.length +
+      this.selectedDayGluckExamTotalCount() +
       this.selectedDayGameSets.length
     );
   }
@@ -1078,7 +1193,7 @@ export class MyCourseComponent implements OnInit {
   get currentDayExercisesForBadge(): DigitalExercise[] {
     return this.journeyDayExercises
       .filter((ex) => {
-        if (ex.courseDay == null) return false;
+        if (ex.courseDay == null || this.isGluckExamExercise(ex)) return false;
         const day = Number(ex.courseDay);
         if (this.isSilverGoStudentFrontend && day === TRIAL_JOURNEY_DAY) return false;
         return day === this.journeyCourseDay;

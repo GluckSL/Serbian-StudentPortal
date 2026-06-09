@@ -270,6 +270,17 @@ function collectOverdueSinceDates(student, studentRequests, approved, pending, l
   return dates;
 }
 
+/** Earliest overdue conversion date for one student (ISO), or null. */
+function overdueSinceForStudent(student, studentRequests, approved, pending, levelPriceMap) {
+  const dates = collectOverdueSinceDates(student, studentRequests, approved, pending, levelPriceMap);
+  if (!dates.length) return null;
+  let earliest = dates[0];
+  for (const d of dates) {
+    if (d < earliest) earliest = d;
+  }
+  return earliest.toISOString();
+}
+
 function trackEarliestOverdue(acc, date) {
   if (!date || Number.isNaN(date.getTime())) return;
   if (!acc.earliestOverdueAt || date < acc.earliestOverdueAt) {
@@ -499,22 +510,42 @@ function finalizeBatchRow(batch, acc) {
   }
   const avgJourneyDay =
     acc.journeyDayCount > 0 ? Math.round(acc.journeyDaySum / acc.journeyDayCount) : null;
+
+  // If the catalog has no INR/USD price configured for this batch's students, fall back to
+  // deriving the expected total from what has actually been received + pending (so the
+  // "Total payment" column shows INR/USD amounts whenever Indian/international students exist).
+  const receivedINR = acc.received.INR || 0;
+  const pendingINR = acc.pending.INR || 0;
+  const overdueINR = acc.overdue.INR || 0;
+  const catalogExpectedINR = acc.expected.INR || 0;
+  const totalExpectedINR = catalogExpectedINR > 0
+    ? catalogExpectedINR
+    : receivedINR + pendingINR + overdueINR;
+
+  const receivedUSD = acc.received.USD || 0;
+  const pendingUSD = acc.pending.USD || 0;
+  const overdueUSD = acc.overdue.USD || 0;
+  const catalogExpectedUSD = acc.expected.USD || 0;
+  const totalExpectedUSD = catalogExpectedUSD > 0
+    ? catalogExpectedUSD
+    : receivedUSD + pendingUSD + overdueUSD;
+
   return {
     batch,
     studentCount: acc.studentCount,
-    totalPaid: receivedLKR + (acc.received.INR || 0) + (acc.received.USD || 0),
+    totalPaid: receivedLKR + receivedINR + receivedUSD,
     totalPaidLKR: receivedLKR,
-    totalPaidINR: acc.received.INR || 0,
-    totalPaidUSD: acc.received.USD || 0,
+    totalPaidINR: receivedINR,
+    totalPaidUSD: receivedUSD,
     totalPendingLKR: acc.pending.LKR || 0,
-    totalPendingINR: acc.pending.INR || 0,
-    totalPendingUSD: acc.pending.USD || 0,
+    totalPendingINR: pendingINR,
+    totalPendingUSD: pendingUSD,
     totalOverdueLKR: acc.overdue.LKR || 0,
-    totalOverdueINR: acc.overdue.INR || 0,
-    totalOverdueUSD: acc.overdue.USD || 0,
+    totalOverdueINR: overdueINR,
+    totalOverdueUSD: overdueUSD,
     totalExpectedLKR: expectedLKR,
-    totalExpectedINR: acc.expected.INR || 0,
-    totalExpectedUSD: acc.expected.USD || 0,
+    totalExpectedINR,
+    totalExpectedUSD,
     totalDueLKR: acc.due.LKR || 0,
     totalDueINR: acc.due.INR || 0,
     totalDueUSD: acc.due.USD || 0,
@@ -851,6 +882,7 @@ module.exports = {
   buildLevelPriceMap,
   pendingTotalsForStudent,
   effectiveOutstandingBalance,
+  overdueSinceForStudent,
   VALID_STUDENT_INSIGHTS,
   studentMatchesInsight,
   filterStudentsByInsight,

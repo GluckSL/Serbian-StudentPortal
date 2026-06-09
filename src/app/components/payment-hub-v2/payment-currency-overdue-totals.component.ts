@@ -30,7 +30,7 @@ export class PaymentCurrencyOverdueTotalsComponent {
   @Input() compact = false;
   @Input() hideZero = true;
   /** Earliest overdue conversion date for the row (ISO string). */
-  @Input() sinceDate: string | null = null;
+  @Input() sinceDate?: string | null;
 
   get visibleRows() {
     const amounts = { LKR: this.lkr ?? 0, INR: this.inr ?? 0, USD: this.usd ?? 0 };

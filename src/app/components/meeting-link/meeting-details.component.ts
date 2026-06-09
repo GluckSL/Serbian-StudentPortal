@@ -3,10 +3,12 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { MatDialog } from '@angular/material/dialog';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { NotificationService } from '../../services/notification.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import { MeetingRemindDialogComponent } from './meeting-remind-dialog.component';
 
 @Component({
   selector: 'app-meeting-details',
@@ -33,7 +35,8 @@ export class MeetingDetailsComponent implements OnInit {
     private router: Router,
     private zoomService: ZoomService,
     private notify: NotificationService,
-    private joinClassFlow: JoinClassFlowService
+    private joinClassFlow: JoinClassFlowService,
+    private dialog: MatDialog,
   ) {}
 
   ngOnInit(): void {
@@ -70,6 +73,21 @@ export class MeetingDetailsComponent implements OnInit {
     // when the Zoom desktop app is logged into a different host account
     if (!this.meeting) return;
     this.joinClassFlow.openJoin(this.meeting, (msg) => this.notify.error(msg));
+  }
+
+  openRemindDialog(): void {
+    if (!this.meeting?.isOngoing) return;
+    const ref = this.dialog.open(MeetingRemindDialogComponent, {
+      data: { meetingId: this.meetingId, topic: this.meeting.topic },
+      width: '480px',
+      maxWidth: '98vw',
+    });
+    ref.afterClosed().subscribe((result) => {
+      if (result?.sent) {
+        const n = result.sent;
+        this.notify.success(`Reminder email sent to ${n} student${n !== 1 ? 's' : ''}.`);
+      }
+    });
   }
 
   copyJoinUrl(): void {

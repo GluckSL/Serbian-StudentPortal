@@ -379,6 +379,26 @@
   border: 1px solid rgba(99, 102, 241, 0.1);
 }
 
+.ph-finance-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.ph-btn-export {
+  flex-shrink: 0;
+  border-color: #0d9488 !important;
+  color: #0f766e !important;
+  white-space: nowrap;
+
+  mat-icon {
+    color: #0d9488;
+  }
+}
+
 .ph-finance-search-wrap {
   display: flex;
   align-items: center;

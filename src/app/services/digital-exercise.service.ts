@@ -700,9 +700,42 @@ export class DigitalExerciseService {
   // ─── PDF Exercise Generator ───────────────────────────────────────────────
 
   uploadPdf(file: File): Observable<any> {
-    const formData = new FormData();
-    formData.append('pdf', file);
-    return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/upload`, formData, { withCredentials: true });
+    // Direct R2 PUT bypasses nginx client_max_body_size limits on production.
+    // Never fall back to multipart /upload — nginx rejects files > ~1 MB with HTTP 413.
+    return this.http
+      .post<{ uploadUrl: string; fileUrl: string }>(
+        `${environment.apiUrl}/r2/generate-upload-url`,
+        {
+          filename: file.name,
+          contentType: 'application/pdf',
+          prefix: 'pdf-exercises',
+        },
+        { withCredentials: true }
+      )
+      .pipe(
+        switchMap(({ uploadUrl, fileUrl }) =>
+          from(
+            fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/pdf' },
+              body: file,
+            })
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                return throwError(
+                  () => new Error(`Cloud storage upload failed (HTTP ${response.status}). Try again or contact support.`)
+                );
+              }
+              return this.http.post<any>(
+                `${environment.apiUrl}/pdf-exercises/register-r2-upload`,
+                { fileUrl, filename: file.name },
+                { withCredentials: true }
+              );
+            })
+          )
+        )
+      );
   }
 
   detectPdfStructureWithAi(uploadId: string): Observable<any> {
@@ -881,7 +914,7 @@ export class DigitalExerciseService {
 
   uploadBlobToR2(
     file: File,
-    prefix: 'listening-media' | 'exercise-attachments'
+    prefix: 'listening-media' | 'exercise-attachments' | 'pdf-exercises'
   ): Observable<{ success: boolean; url: string }> {
     return this.http
       .post<{ uploadUrl: string; fileUrl: string }>(

@@ -13,6 +13,7 @@ import { NotificationService } from '../../services/notification.service';
 import { AuthService } from '../../services/auth.service';
 import { NavService } from '../../shared/services/nav.service';
 import { BulkEditMeetingsDialogComponent } from './bulk-edit-meetings-dialog.component';
+import { MeetingRemindDialogComponent } from './meeting-remind-dialog.component';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -367,6 +368,28 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   joinMeeting(meeting: any, event: Event): void {
     event.stopPropagation();
     this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
+  }
+
+  canShowRemindButton(meeting: any): boolean {
+    return this.statusTab === 'ongoing' && this.getMeetingStatus(meeting) === 'ongoing';
+  }
+
+  openRemindDialog(meeting: any, event: Event): void {
+    event.stopPropagation();
+    const ref = this.dialog.open(MeetingRemindDialogComponent, {
+      data: { meetingId: meeting._id, topic: meeting.topic },
+      width: '480px',
+      maxWidth: '98vw',
+      disableClose: false,
+    });
+    ref.afterClosed().subscribe((result) => {
+      if (result?.sent) {
+        const n = result.sent;
+        this.notify.success(
+          `Reminder email sent to ${n} student${n !== 1 ? 's' : ''}.`,
+        );
+      }
+    });
   }
 
   /** Hide join for ended (and cancelled) meetings; table/cards use this. */

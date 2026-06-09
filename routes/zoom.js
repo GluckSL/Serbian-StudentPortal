@@ -643,7 +643,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
     const userId = req.user.id || req.user.userId || req.user._id;
 
     // Get user to check role
-    const user = await User.findById(userId).select('role').lean();
+    const user = await User.findById(userId).select('role assignedBatches').lean();
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
@@ -652,12 +652,22 @@ router.get('/meetings', verifyToken, async (req, res) => {
     const andClauses = [];
 
     if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      andClauses.push({
-        $or: [
-          { createdBy: userId },
-          { assignedTeacher: userId }
-        ]
-      });
+      const teacherScopeOr = [
+        { createdBy: userId },
+        { assignedTeacher: userId },
+      ];
+      const batchValues = [];
+      for (const b of user.assignedBatches || []) {
+        const s = String(b || '').trim();
+        if (!s) continue;
+        batchValues.push(s);
+        const asNum = Number(s);
+        if (Number.isFinite(asNum) && String(asNum) === s) batchValues.push(asNum);
+      }
+      if (batchValues.length) {
+        teacherScopeOr.push({ batch: { $in: batchValues } });
+      }
+      andClauses.push({ $or: teacherScopeOr });
     }
 
     if (status) andClauses.push({ status });
@@ -996,6 +1006,221 @@ router.get('/meeting/:id', verifyToken, async (req, res) => {
     });
   }
 });
+
+function meetingLifecycleFromDoc(meeting) {
+  const now = new Date();
+  const meetingStart = new Date(meeting.startTime);
+  const meetingEnd = new Date(meetingStart.getTime() + (meeting.duration || 60) * 60000);
+  let currentStatus = meeting.status;
+  if (now >= meetingStart && now <= meetingEnd && meeting.status === 'scheduled') {
+    currentStatus = 'ongoing';
+  } else if (now > meetingEnd) {
+    currentStatus = 'ended';
+  }
+  return { currentStatus, meetingStart, meetingEnd };
+}
+
+function normBatchKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+async function staffMayManageMeeting(req, meeting) {
+  const role = req.user?.role;
+  if (role === 'ADMIN' || role === 'SUB_ADMIN') return true;
+  if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
+    const uid = String(req.user.id);
+    const createdBy = meeting.createdBy?._id
+      ? String(meeting.createdBy._id)
+      : String(meeting.createdBy || '');
+    const assigned = meeting.assignedTeacher?._id
+      ? String(meeting.assignedTeacher._id)
+      : String(meeting.assignedTeacher || '');
+    if (uid === createdBy || (assigned && uid === assigned)) return true;
+
+    const meetingBatch = normBatchKey(meeting.batch);
+    if (meetingBatch) {
+      const teacher = await User.findById(uid).select('assignedBatches').lean();
+      for (const b of teacher?.assignedBatches || []) {
+        if (normBatchKey(b) === meetingBatch) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * GET /api/zoom/meeting/:id/join-reminder-preview
+ * Lists attendees split by portal join click (JoinLog) for the Remind modal.
+ */
+router.get(
+  '/meeting/:id/join-reminder-preview',
+  verifyToken,
+  checkRole(['ADMIN', 'SUB_ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: 'Invalid meeting id' });
+      }
+
+      const meeting = await MeetingLink.findById(id)
+        .populate('assignedTeacher', 'name email')
+        .populate('createdBy', 'name email')
+        .lean();
+
+      if (!meeting) {
+        return res.status(404).json({ success: false, message: 'Meeting not found' });
+      }
+
+      if (!(await staffMayManageMeeting(req, meeting))) {
+        return res.status(403).json({ success: false, message: 'You can only remind students for your own meetings' });
+      }
+
+      const { currentStatus } = meetingLifecycleFromDoc(meeting);
+      if (currentStatus !== 'ongoing') {
+        return res.status(400).json({
+          success: false,
+          message: 'Reminders can only be sent while the class is in progress',
+        });
+      }
+
+      const joinData = await getJoinLogDataForMeeting(meeting._id);
+      const joinedSet = joinData.hasJoin;
+      const joinedAtMap = joinData.firstJoinByStudent;
+
+      const notJoined = [];
+      const joined = [];
+
+      for (const attendee of meeting.attendees || []) {
+        const sid = attendee.studentId ? String(attendee.studentId) : '';
+        const entry = {
+          studentId: sid,
+          name: attendee.name || 'Student',
+          email: attendee.email || '',
+          hasJoined: sid ? joinedSet.has(sid) : false,
+          joinedAt: sid && joinedAtMap.has(sid) ? joinedAtMap.get(sid) : null,
+        };
+        if (entry.hasJoined) joined.push(entry);
+        else notJoined.push(entry);
+      }
+
+      const teacherName =
+        meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Your teacher';
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          meeting: {
+            _id: meeting._id,
+            topic: meeting.topic,
+            batch: meeting.batch,
+            startTime: meeting.startTime,
+            teacherName,
+          },
+          notJoined,
+          joined,
+          totalStudents: (meeting.attendees || []).length,
+          joinedCount: joined.length,
+          notJoinedCount: notJoined.length,
+        },
+      });
+    } catch (error) {
+      console.error('❌ join-reminder-preview error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to load join status' });
+    }
+  }
+);
+
+/**
+ * POST /api/zoom/meeting/:id/send-join-reminder
+ * Body: { studentIds: string[] }
+ */
+router.post(
+  '/meeting/:id/send-join-reminder',
+  verifyToken,
+  checkRole(['ADMIN', 'SUB_ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { studentIds } = req.body || {};
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: 'Invalid meeting id' });
+      }
+      if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Select at least one student to remind' });
+      }
+
+      const meeting = await MeetingLink.findById(id)
+        .populate('assignedTeacher', 'name email')
+        .populate('createdBy', 'name email');
+
+      if (!meeting) {
+        return res.status(404).json({ success: false, message: 'Meeting not found' });
+      }
+
+      if (!(await staffMayManageMeeting(req, meeting))) {
+        return res.status(403).json({ success: false, message: 'You can only remind students for your own meetings' });
+      }
+
+      const { currentStatus } = meetingLifecycleFromDoc(meeting);
+      if (currentStatus !== 'ongoing') {
+        return res.status(400).json({
+          success: false,
+          message: 'Reminders can only be sent while the class is in progress',
+        });
+      }
+
+      const allowedIds = new Set(
+        (meeting.attendees || [])
+          .map((a) => (a.studentId ? String(a.studentId) : ''))
+          .filter(Boolean)
+      );
+      const selectedIds = [...new Set(studentIds.map((sid) => String(sid)).filter((sid) => allowedIds.has(sid)))];
+
+      if (!selectedIds.length) {
+        return res.status(400).json({ success: false, message: 'No valid students selected' });
+      }
+
+      const recipients = (meeting.attendees || [])
+        .filter((a) => a.studentId && selectedIds.includes(String(a.studentId)))
+        .map((a) => ({ name: a.name, email: a.email }));
+
+      const transporter = require('../config/emailConfig');
+      const { sendLiveJoinReminderEmails } = require('../services/classJoinReminderEmail');
+      const teacherName =
+        meeting.assignedTeacher?.name || meeting.createdBy?.name || '';
+
+      const emailResults = await sendLiveJoinReminderEmails(
+        meeting,
+        transporter,
+        recipients,
+        teacherName
+      );
+
+      console.log('📧 Live join reminders sent:', {
+        meetingId: String(meeting._id),
+        topic: meeting.topic,
+        attempted: emailResults.attempted,
+        successful: emailResults.successful,
+        failed: emailResults.failed,
+        sentBy: req.user.id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message:
+          emailResults.successful > 0
+            ? `Reminder email sent to ${emailResults.successful} student(s)`
+            : 'No emails were sent',
+        data: emailResults,
+      });
+    } catch (error) {
+      console.error('❌ send-join-reminder error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to send reminder emails' });
+    }
+  }
+);
 
 /** Pull saved attendance row for this student (same data as teacher/admin attendance report). */
 function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {

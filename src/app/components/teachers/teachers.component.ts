@@ -3,7 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
-import { HttpClient, HttpClientModule, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../shared/material.module';
@@ -30,11 +30,21 @@ interface Teacher {
   studentCount?: number;
 }
 
+interface PasswordModalState {
+  open: boolean;
+  user: Teacher | null;
+  newPassword: string;
+  confirmPassword: string;
+  showPass: boolean;
+  saving: boolean;
+  generatedPreview: string;
+  error: string;
+}
+
 @Component({
   selector: '',
   standalone: true,
   imports: [
-    HttpClientModule,
     CommonModule,
     FormsModule,
     MaterialModule,
@@ -55,6 +65,17 @@ export class TeachersComponent implements OnInit {
   medium: string[] = ['Sinhala', 'Tamil'];
   course: string[] = ['A1', 'A2', 'B1', 'B2'];
 
+  pwModal: PasswordModalState = {
+    open: false,
+    user: null,
+    newPassword: '',
+    confirmPassword: '',
+    showPass: false,
+    saving: false,
+    generatedPreview: '',
+    error: '',
+  };
+
   constructor(
     private authService: AuthService,
     private router: Router,
@@ -66,14 +87,19 @@ export class TeachersComponent implements OnInit {
     this.fetchTeachers();
   }
 
-fetchTeachers(): void {
+  private authHeaders(): HttpHeaders | undefined {
+    const token = getAuthToken();
+    return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
+  }
+
+  fetchTeachers(): void {
   this.loading = true;
   this.error = '';
 
-  const token = getAuthToken();
-  const headers = token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
-
-  this.http.get<{ success: boolean; data: Teacher[] }>(`${apiUrl}/admin/teachers`, { withCredentials: true, headers }).subscribe({
+  this.http.get<{ success: boolean; data: Teacher[] }>(`${apiUrl}/admin/teachers`, {
+    withCredentials: true,
+    headers: this.authHeaders(),
+  }).subscribe({
     next: res => {
       if (res.success) {
         this.teachers = res.data;
@@ -138,6 +164,87 @@ fetchTeachers(): void {
     window.open(url, '_blank');
   }
 
+  openPasswordModal(teacher: Teacher): void {
+    this.pwModal = {
+      open: true,
+      user: teacher,
+      newPassword: '',
+      confirmPassword: '',
+      showPass: false,
+      saving: false,
+      generatedPreview: '',
+      error: '',
+    };
+  }
+
+  closePasswordModal(): void {
+    this.pwModal.open = false;
+  }
+
+  generateRandomPassword(): void {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+    let pwd = '';
+    for (let i = 0; i < 12; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    this.pwModal.generatedPreview = pwd;
+    this.pwModal.newPassword = pwd;
+    this.pwModal.confirmPassword = pwd;
+    this.pwModal.error = '';
+  }
+
+  copyPassword(): void {
+    if (this.pwModal.generatedPreview) {
+      navigator.clipboard.writeText(this.pwModal.generatedPreview).then(() => {
+        this.notify.success('Password copied to clipboard!');
+      });
+    }
+  }
+
+  savePassword(andEmail: boolean): void {
+    const { newPassword, confirmPassword, user } = this.pwModal;
+
+    if (!newPassword || newPassword.trim().length < 6) {
+      this.pwModal.error = 'Password must be at least 6 characters.';
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      this.pwModal.error = 'Passwords do not match.';
+      return;
+    }
+    if (!user) return;
+
+    this.pwModal.error = '';
+    this.pwModal.saving = true;
+
+    const endpoint = andEmail ? 'admin-set-password-and-email' : 'admin-set-password';
+    const headers = this.authHeaders();
+    if (!headers) {
+      this.pwModal.saving = false;
+      this.pwModal.error = 'Your session has expired. Please log in again.';
+      return;
+    }
+
+    this.http.put(
+      `${apiUrl}/auth/${endpoint}/${user._id}`,
+      { newPassword: newPassword.trim() },
+      { withCredentials: true, headers },
+    ).subscribe({
+      next: () => {
+        this.pwModal.saving = false;
+        if (andEmail) {
+          this.notify.success(`Password updated and emailed to ${user.email}.`);
+        } else {
+          this.notify.success(`Password updated successfully for ${user.name}.`);
+        }
+        this.closePasswordModal();
+      },
+      error: (err) => {
+        this.pwModal.saving = false;
+        this.pwModal.error = err?.error?.message || 'Failed to update password. Please try again.';
+      },
+    });
+  }
 
   trackById(index: number, teacher: Teacher): string {
     return teacher._id;

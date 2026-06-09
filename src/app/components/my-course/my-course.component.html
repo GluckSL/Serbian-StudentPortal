@@ -569,6 +569,178 @@
         </div>
       </div>
 
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--weekly-test" *ngIf="selectedDayHasWeeklyTestItems">
+        <div class="mc-day-section__head">
+          <h4>Weekly Test</h4>
+          <span class="mc-day-section__count">
+            {{ selectedDayWeeklyTestExercises.length + selectedDayWeeklyTestDgModules.length + selectedDayWeeklyTestSprechen.length }}
+          </span>
+        </div>
+        <p class="mc-day-section__intro">Weekly test items assigned to journey day {{ selectedJourneyDay }}.</p>
+        <div class="mc-day-item" *ngFor="let ex of selectedDayWeeklyTestExercises">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getExerciseHoverDetails(ex)"
+            (click)="openExercise(ex)"
+            (keydown.enter)="openExercise(ex)"
+          >
+            <div class="mc-day-item__title">{{ ex.title }}</div>
+            <div class="mc-day-item__sub">{{ ex.level }} · {{ ex.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getExerciseHoverDetails(ex) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gluckExamExerciseDone(ex)" [class.pending]="!gluckExamExerciseDone(ex)">
+            {{ gluckExamExerciseDone(ex) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="!gluckExamExerciseDone(ex)"
+            [class.mc-day-item__btn--retry]="gluckExamExerciseDone(ex)"
+            (click)="openExercise(ex)"
+          >
+            <span class="material-icons">{{ gluckExamExerciseDone(ex) ? 'replay' : 'play_arrow' }}</span>
+            {{ gluckExamExerciseDone(ex) ? 'Re-attempt' : 'Start' }}
+          </button>
+        </div>
+        <div class="mc-day-item" *ngFor="let mod of selectedDayWeeklyTestDgModules">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getModuleHoverDetails(mod)"
+            (click)="openModule(mod)"
+            (keydown.enter)="openModule(mod)"
+          >
+            <div class="mc-day-item__title">{{ mod.title }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
+            <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)" [class.pending]="!gluckExamDgDone(mod)">
+            {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--open]="gluckExamDgDone(mod)"
+            [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)"
+            (click)="openModule(mod)"
+          >
+            <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
+            {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+          </button>
+        </div>
+        <div class="mc-day-item" *ngFor="let mod of selectedDayWeeklyTestSprechen">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            (click)="openSprechenExamModule(mod)"
+            (keydown.enter)="openSprechenExamModule(mod)"
+          >
+            <div class="mc-day-item__title">{{ mod.title }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · Pass {{ mod.passThreshold || 10 }}/15</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gluckExamSprechenDone(mod)" [class.pending]="!gluckExamSprechenDone(mod)">
+            {{ gluckExamSprechenDone(mod) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--open]="gluckExamSprechenDone(mod)"
+            [class.mc-day-item__btn--start]="!gluckExamSprechenDone(mod)"
+            (click)="openSprechenExamModule(mod)"
+          >
+            <span class="material-icons">{{ gluckExamSprechenDone(mod) ? 'replay' : 'play_arrow' }}</span>
+            {{ gluckExamSprechenDone(mod) ? 'Attempt again' : 'Start' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--internal-exam" *ngIf="selectedDayHasExamItems">
+        <div class="mc-day-section__head">
+          <h4>Internal Exam</h4>
+          <span class="mc-day-section__count">
+            {{ selectedDayExamExercises.length + selectedDayExamDgModules.length + selectedDayExamSprechen.length }}
+          </span>
+        </div>
+        <p class="mc-day-section__intro">Internal exam items assigned to journey day {{ selectedJourneyDay }}.</p>
+        <div class="mc-day-item" *ngFor="let ex of selectedDayExamExercises">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getExerciseHoverDetails(ex)"
+            (click)="openExercise(ex)"
+            (keydown.enter)="openExercise(ex)"
+          >
+            <div class="mc-day-item__title">{{ ex.title }}</div>
+            <div class="mc-day-item__sub">{{ ex.level }} · {{ ex.category }}</div>
+            <div class="mc-day-item__hover-hint">{{ getExerciseHoverDetails(ex) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gluckExamExerciseDone(ex)" [class.pending]="!gluckExamExerciseDone(ex)">
+            {{ gluckExamExerciseDone(ex) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--start]="!gluckExamExerciseDone(ex)"
+            [class.mc-day-item__btn--retry]="gluckExamExerciseDone(ex)"
+            (click)="openExercise(ex)"
+          >
+            <span class="material-icons">{{ gluckExamExerciseDone(ex) ? 'replay' : 'play_arrow' }}</span>
+            {{ gluckExamExerciseDone(ex) ? 'Re-attempt' : 'Start' }}
+          </button>
+        </div>
+        <div class="mc-day-item" *ngFor="let mod of selectedDayExamDgModules">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            [title]="getModuleHoverDetails(mod)"
+            (click)="openModule(mod)"
+            (keydown.enter)="openModule(mod)"
+          >
+            <div class="mc-day-item__title">{{ mod.title }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
+            <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)" [class.pending]="!gluckExamDgDone(mod)">
+            {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--open]="gluckExamDgDone(mod)"
+            [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)"
+            (click)="openModule(mod)"
+          >
+            <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
+            {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+          </button>
+        </div>
+        <div class="mc-day-item" *ngFor="let mod of selectedDayExamSprechen">
+          <div
+            class="mc-day-item__main mc-day-item__main--clickable"
+            tabindex="0"
+            (click)="openSprechenExamModule(mod)"
+            (keydown.enter)="openSprechenExamModule(mod)"
+          >
+            <div class="mc-day-item__title">{{ mod.title }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · Pass {{ mod.passThreshold || 10 }}/15</div>
+          </div>
+          <div class="mc-day-item__status" [class.done]="gluckExamSprechenDone(mod)" [class.pending]="!gluckExamSprechenDone(mod)">
+            {{ gluckExamSprechenDone(mod) ? 'Completed' : 'Pending' }}
+          </div>
+          <button
+            type="button"
+            class="mc-day-item__btn"
+            [class.mc-day-item__btn--open]="gluckExamSprechenDone(mod)"
+            [class.mc-day-item__btn--start]="!gluckExamSprechenDone(mod)"
+            (click)="openSprechenExamModule(mod)"
+          >
+            <span class="material-icons">{{ gluckExamSprechenDone(mod) ? 'replay' : 'play_arrow' }}</span>
+            {{ gluckExamSprechenDone(mod) ? 'Attempt again' : 'Start' }}
+          </button>
+        </div>
+      </div>
+
       <div class="mc-day-section mc-day-section-card mc-day-section-card--modules" *ngIf="selectedDayModules.length">
         <div class="mc-day-section__head">
           <h4>Modules</h4>

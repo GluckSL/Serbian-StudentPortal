@@ -159,6 +159,15 @@
                   <td class="text-center">
                     <div class="action-btns">
                       <button
+                        *ngIf="canShowRemindButton(m)"
+                        type="button"
+                        class="tbl-action-btn tbl-action-btn--remind"
+                        (click)="openRemindDialog(m, $event)"
+                        title="Email students who have not joined"
+                      >
+                        <i class="fas fa-bell"></i> Remind
+                      </button>
+                      <button
                         *ngIf="showJoinButton(m)"
                         type="button"
                         class="tbl-action-btn tbl-action-btn--join"

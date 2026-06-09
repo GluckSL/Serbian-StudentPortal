@@ -57,6 +57,11 @@
             Copy Join URL
           </button>
 
+          <button mat-stroked-button color="accent" (click)="openRemindDialog()" *ngIf="meeting.isOngoing">
+            <mat-icon>notifications_active</mat-icon>
+            Remind Students
+          </button>
+
           <button mat-stroked-button (click)="viewAttendance()" *ngIf="meeting.hasEnded">
             <mat-icon>people</mat-icon>
             View Attendance

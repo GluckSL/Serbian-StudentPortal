@@ -225,6 +225,14 @@
                     [disabled]="!canJoinMeeting(meeting)">
               {{ joinButtonLabel(meeting) }}
             </button>
+            <button *ngIf="canShowRemindButton(meeting)"
+                    mat-stroked-button
+                    class="remind-action-btn"
+                    (click)="openRemindDialog(meeting, $event)"
+                    matTooltip="Email students who have not joined">
+              <mat-icon>notifications_active</mat-icon>
+              Remind
+            </button>
             <button mat-icon-button (click)="viewMeeting(meeting._id); $event.stopPropagation()"
                     matTooltip="View details">
               <mat-icon>visibility</mat-icon>
@@ -295,6 +303,14 @@
             [disabled]="!canJoinMeeting(meeting)"
             class="join-button join-action-btn">
             {{ joinButtonLabel(meeting) }}
+          </button>
+          <button
+            *ngIf="canShowRemindButton(meeting)"
+            mat-stroked-button
+            class="remind-action-btn"
+            (click)="openRemindDialog(meeting, $event)">
+            <mat-icon>notifications_active</mat-icon>
+            Remind
           </button>
           <button mat-button (click)="viewMeeting(meeting._id); $event.stopPropagation()">
             <mat-icon>visibility</mat-icon>

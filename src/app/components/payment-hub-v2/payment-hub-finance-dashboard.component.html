@@ -169,15 +169,45 @@
               <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
             </p>
           </div>
-          <div class="ph-finance-search-wrap">
-            <mat-icon class="ph-finance-search-icon" aria-hidden="true">search</mat-icon>
-            <input
-              class="ph-finance-search-input"
-              type="search"
-              [(ngModel)]="tableSearch"
-              placeholder="Search batch or level…"
-              aria-label="Search batch"
-            />
+          <div class="ph-finance-table-actions">
+            <button
+              mat-stroked-button
+              type="button"
+              class="ph-btn-export"
+              [matMenuTriggerFor]="exportMenu"
+              [disabled]="exporting || !batchRows.length"
+            >
+              <mat-icon>download</mat-icon>
+              {{ exporting ? 'Exporting…' : 'Export' }}
+            </button>
+            <mat-menu #exportMenu="matMenu">
+              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
+                <mat-icon>grid_on</mat-icon>
+                <span>Excel — all batches ({{ batchRows.length }})</span>
+              </button>
+              <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
+                <mat-icon>description</mat-icon>
+                <span>CSV — all batches</span>
+              </button>
+              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
+                <mat-icon>filter_list</mat-icon>
+                <span>Excel — table filter ({{ displayBatchRows.length }})</span>
+              </button>
+              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'selected')" [disabled]="!selectedBatches.length">
+                <mat-icon>checklist</mat-icon>
+                <span>Excel — selected ({{ selectedBatches.length }})</span>
+              </button>
+            </mat-menu>
+            <div class="ph-finance-search-wrap">
+              <mat-icon class="ph-finance-search-icon" aria-hidden="true">search</mat-icon>
+              <input
+                class="ph-finance-search-input"
+                type="search"
+                [(ngModel)]="tableSearch"
+                placeholder="Search batch or level…"
+                aria-label="Search batch"
+              />
+            </div>
           </div>
         </div>
 

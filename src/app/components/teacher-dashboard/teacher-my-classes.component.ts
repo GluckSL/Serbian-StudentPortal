@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { TeacherService } from '../../services/teacher.service';
 import { ZoomService } from '../../services/zoom.service';
 import { ClassResourceService } from '../../services/class-resource.service';
@@ -9,11 +10,12 @@ import { ClassDoubtService } from '../../services/class-doubt.service';
 import { ClassSubmissionService } from '../../services/class-submission.service';
 import { NotificationService } from '../../services/notification.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import { MeetingRemindDialogComponent } from '../meeting-link/meeting-remind-dialog.component';
 
 @Component({
   selector: 'app-teacher-my-classes',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatDialogModule],
   templateUrl: './teacher-my-classes.component.html',
   styleUrls: ['./teacher-my-classes.component.css']
 })
@@ -75,6 +77,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     private submissionService: ClassSubmissionService,
     private notify: NotificationService,
     private joinClassFlow: JoinClassFlowService,
+    private dialog: MatDialog,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -267,6 +270,26 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     event.preventDefault();
     this.joinClassFlow.openJoin(m, (msg) => this.notify.error(msg));
+  }
+
+  canShowRemindButton(m: any): boolean {
+    return this.statusTab === 'ongoing' && this.getMeetingStatus(m) === 'ongoing';
+  }
+
+  openRemindDialog(m: any, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    const ref = this.dialog.open(MeetingRemindDialogComponent, {
+      data: { meetingId: m._id, topic: m.topic },
+      width: '480px',
+      maxWidth: '98vw',
+    });
+    ref.afterClosed().subscribe((result) => {
+      if (result?.sent) {
+        const n = result.sent;
+        this.notify.success(`Reminder email sent to ${n} student${n !== 1 ? 's' : ''}.`);
+      }
+    });
   }
 
   joinButtonLabel(m: any): string {
