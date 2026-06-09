@@ -149,6 +149,13 @@
             <p><strong>Expected word:</strong> {{ q.expectedWord || '—' }}</p>
           </div>
 
+          <div *ngSwitchCase="'pronunciation'" class="preview-sub">
+            <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
+            <p><strong>Word:</strong> {{ q.word || '—' }}</p>
+            <p *ngIf="q.phonetic"><strong>Phonetic:</strong> {{ q.phonetic }}</p>
+            <p *ngIf="q.translation"><strong>Translation:</strong> {{ q.translation }}</p>
+          </div>
+
           <div *ngSwitchCase="'question-answer'" class="preview-sub">
             <p *ngIf="q.instruction"><strong>Instruction:</strong> {{ q.instruction }}</p>
             <p><strong>Prompt:</strong> {{ q.prompt }}</p>

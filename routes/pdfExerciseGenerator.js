@@ -766,7 +766,8 @@ const EXTRACTION_TYPE_MAP = {
   qa:               'question-answer',
   mcq:              'mcq',
   matching:         'matching',
-  singular_plural:  'singular_plural'
+  singular_plural:  'singular_plural',
+  pronunciation:    'pronunciation'
 };
 
 const EXTRACTION_WORKSHEET_KIND = {
@@ -1526,7 +1527,8 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
         fill_blank: 'fill_in_blank',
         mcq: 'mcq',
         translation: 'translation',
-        qa: 'short_answer'
+        qa: 'short_answer',
+        pronunciation: 'pronunciation'
       };
       result = {
         type: typeMap[pre.type] || pre.type || 'short_answer',
@@ -1602,7 +1604,8 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
         'jumble-word': 'jumbled_words',
         qa: 'short_answer',
         translation: 'short_answer',
-        true_false: 'true_false'
+        true_false: 'true_false',
+        pronunciation: 'pronunciation'
       };
       const type = String(aiTypeMap[ai.type] || ai.type || ex.sectionType || '');
 
@@ -1670,6 +1673,14 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
               expectedWord: String(q?.correct_word || q?.correctWord || q?.word || '').trim(),
               categoryTip: String(q?.category_tip || q?.categoryTip || '').trim(),
               boldLetter: String(q?.bold_letter || q?.boldLetter || '').trim()
+            };
+          case 'pronunciation':
+            return {
+              ...base, type: 'pronunciation',
+              word: String(q?.word || q?.question || '').trim(),
+              phonetic: String(q?.phonetic || '').trim(),
+              translation: String(q?.translation || '').trim(),
+              acceptedVariants: Array.isArray(q?.acceptedVariants) ? q.acceptedVariants.map(String) : []
             };
           case 'translation':
             return {
@@ -2228,6 +2239,7 @@ CORE RULES (STRICT)
    - transformation → sentence transformation required
    - true_false     → explicitly stated Richtig/Falsch or True/False
    - short_answer   → direct answer expected
+   - pronunciation   → single words or short phrases to speak aloud / Aussprache
    If unsure → leave type as empty string.
 
 3. INSTRUCTION MAPPING
@@ -2313,10 +2325,16 @@ Return ONLY valid JSON in this EXACT shape:
       "correctAnswerIndex": null,
       "answers": [],
       "pairs": [{"singular":"","plural":""}],
-      "correctedText": ""
+      "correctedText": "",
+      "word": "",
+      "phonetic": "",
+      "translation": ""
     }
   ]
 }
+
+NOTE: For type "pronunciation", use "word" for the target word/phrase (not "question"),
+"phonetic" for optional IPA, and "translation" for optional translation.
 
 IMPORTANT JSON RULES:
 - Output MUST be valid JSON
@@ -2701,6 +2719,7 @@ For each block, detect type:
 - "translation"  → German ↔ English conversion
 - "qa"  → direct questions/answers
 - "true_false"  → statements marked Richtig/Falsch or True/False
+- "pronunciation"  → words or phrases for speaking aloud / Aussprache
 
 ----------------------------------------
 STEP 3: EXTRACT CONTENT
@@ -2720,6 +2739,8 @@ STEP 3: EXTRACT CONTENT
 6. QA — extract question, answer (or null)
 
 7. TRUE_FALSE — extract question, answer (True/False)
+
+8. PRONUNCIATION — extract word, phonetic (if available), translation (if available)
 
 ----------------------------------------
 IMPORTANT RULES
@@ -2745,6 +2766,13 @@ Return ONLY this JSON — no markdown, no explanation, no comments:
       "type": "matching",
       "questions": [
         { "left": "", "right": "" }
+      ]
+    },
+    {
+      "title": "Pronunciation exercise",
+      "type": "pronunciation",
+      "questions": [
+        { "word": "der Tisch", "phonetic": "/deːɐ̯ tɪʃ/", "translation": "the table" }
       ]
     }
   ]
@@ -2894,6 +2922,8 @@ function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionTy
     type = 'short_answer';
   } else if (/fehler|korrigieren|correct.*error|find.*error/i.test(instr)) {
     type = 'error_correction';
+  } else if (/aussprache|pronunciation|phonetic|speak\s*aloud|pronounce/i.test(instr)) {
+    type = 'pronunciation';
   } else if (/schreiben|write/i.test(instr)) {
     if (/frage|question/i.test(instr)) {
       type = 'short_answer';
@@ -3204,6 +3234,15 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
         example: rowExample,
         hint: String(q.hint || ''),
         caseSensitive: false
+      });
+    }
+    if (mappedType === 'pronunciation') {
+      return sanitizeQuestion({
+        ...base,
+        word: String(q.word || q.question || '').trim(),
+        phonetic: String(q.phonetic || '').trim(),
+        translation: String(q.translation || '').trim(),
+        acceptedVariants: Array.isArray(q.acceptedVariants) ? q.acceptedVariants.map(String) : []
       });
     }
     const rawAnswers = Array.isArray(q.answers) && q.answers.length
