@@ -51,6 +51,10 @@ export class NavService {
     'go-students-sinhala': [
       '/admin/go-students'
     ],
+    'finance-dashboard': [
+      '/admin/finance-dashboard',
+      '/admin/payment-hub/insights/batches'
+    ],
     'class-recordings': [
       '/class-recordings/approval-requests',
       '/class-recordings/access-recording',
