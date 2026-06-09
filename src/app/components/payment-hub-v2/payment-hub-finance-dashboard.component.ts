@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -22,6 +23,11 @@ import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pendin
 import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
 import { totalJourneyDaysForLevel } from './payment-journey-metrics.util';
 import { BatchPaymentRow } from './payment-hub-batch-insights.component';
+import {
+  batchRowsToCsv,
+  downloadBatchInsightsCsv,
+  downloadBatchInsightsXlsx,
+} from './payment-hub-batch-export.util';
 import { sumBatchPaymentRows } from './payment-hub-batch-totals.util';
 import {
   deleteFinanceBatchPreset,
@@ -53,6 +59,7 @@ function normBatchKey(name: string): string {
     MatFormFieldModule,
     MatSelectModule,
     MatButtonModule,
+    MatMenuModule,
     MatTooltipModule,
     MatInputModule,
     MatProgressSpinnerModule,
@@ -80,6 +87,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   activePresetName = '';
   presetNameInput = '';
   showPresetSaveInput = false;
+  exporting = false;
 
   readonly levels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly levelLabels = ['All levels', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -505,6 +513,40 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       }
       this.selectedBatches = this.batchOptions.filter((b) => preset.batches.includes(b));
     }
+  }
+
+  exportBatches(format: 'xlsx' | 'csv', scope: 'all' | 'selected' | 'visible'): void {
+    if (this.exporting) return;
+    let rows: BatchPaymentRow[];
+    if (scope === 'selected') {
+      if (!this.selectedBatches.length) {
+        this.snack.open('Select at least one batch to export.', 'Dismiss', { duration: 3500 });
+        return;
+      }
+      const selected = new Set(this.selectedBatches);
+      rows = this.batchRows.filter((r) => selected.has(r.batch));
+    } else if (scope === 'visible') {
+      rows = this.displayBatchRows;
+    } else {
+      rows = this.batchRows;
+    }
+    if (!rows.length) {
+      this.snack.open('No batches to export.', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    const formatters = {
+      journeyDay: (r: BatchPaymentRow) => this.journeyDayRatio(r),
+      batchType: (t: 'new' | 'old') => this.batchTypeLabel(t),
+    };
+    const date = new Date().toISOString().slice(0, 10);
+    const slug = [this.filterLevel, this.activePresetName].filter(Boolean).join('-') || 'all';
+    const base = `finance-dashboard-${scope}-${slug}-${date}`;
+    if (format === 'xlsx') {
+      downloadBatchInsightsXlsx(base, rows, formatters);
+    } else {
+      downloadBatchInsightsCsv(base, batchRowsToCsv(rows, formatters));
+    }
+    this.snack.open(`Exported ${rows.length} batch(es)`, 'OK', { duration: 4000 });
   }
 
   openBatchStudents(batch: string): void {

@@ -270,6 +270,17 @@ function collectOverdueSinceDates(student, studentRequests, approved, pending, l
   return dates;
 }
 
+/** Earliest overdue conversion date for one student (ISO), or null. */
+function overdueSinceForStudent(student, studentRequests, approved, pending, levelPriceMap) {
+  const dates = collectOverdueSinceDates(student, studentRequests, approved, pending, levelPriceMap);
+  if (!dates.length) return null;
+  let earliest = dates[0];
+  for (const d of dates) {
+    if (d < earliest) earliest = d;
+  }
+  return earliest.toISOString();
+}
+
 function trackEarliestOverdue(acc, date) {
   if (!date || Number.isNaN(date.getTime())) return;
   if (!acc.earliestOverdueAt || date < acc.earliestOverdueAt) {
@@ -871,6 +882,7 @@ module.exports = {
   buildLevelPriceMap,
   pendingTotalsForStudent,
   effectiveOutstandingBalance,
+  overdueSinceForStudent,
   VALID_STUDENT_INSIGHTS,
   studentMatchesInsight,
   filterStudentsByInsight,

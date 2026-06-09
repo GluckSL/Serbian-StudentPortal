@@ -374,6 +374,8 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   lastPaymentCurrency?: string;
   inferredCurrency?: string;
   openRequestCount: number;
+  /** Earliest overdue conversion date (ISO). */
+  overdueSince?: string | null;
 }
 
 export interface BatchStudentsPaymentDetail {

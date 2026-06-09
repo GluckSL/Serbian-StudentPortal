@@ -49,6 +49,7 @@ const {
   effectiveOutstandingBalance,
   VALID_STUDENT_INSIGHTS,
   filterStudentsByInsight,
+  overdueSinceForStudent,
 } = require('../helpers/paymentHubStatsAggregator');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -1127,7 +1128,7 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
       role: 'STUDENT',
       batch: batchRegex,
     })
-      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay')
+      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates')
       .sort({ name: 1 })
       .lean();
 
@@ -1136,16 +1137,26 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
     }
 
     const studentIds = students.map((s) => s._id);
-    const [profiles, requests, submissions] = await Promise.all([
+    const [catalog, profiles, requests, submissions, pendingSubmissions] = await Promise.all([
+      PaymentHubCatalog.getOrCreate(),
       StudentPaymentProfile.find({ studentId: { $in: studentIds } }).lean(),
       PaymentRequest.find({ studentId: { $in: studentIds }, isArchived: false }).lean(),
       PaymentFlowSubmission.find({
         studentId: { $in: studentIds },
         status: 'APPROVED',
+        isArchived: false,
+      })
+        .select('studentId paymentRequestId paidAmount currency status submittedAt approvedAt paymentDate')
+        .lean(),
+      PaymentFlowSubmission.find({
+        studentId: { $in: studentIds },
+        status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
+        isArchived: false,
       })
         .select('studentId paymentRequestId paidAmount currency status submittedAt approvedAt paymentDate')
         .lean(),
     ]);
+    const levelPriceMap = buildLevelPriceMap(catalog);
 
     const profileByStudent = {};
     for (const p of profiles) {
@@ -1169,6 +1180,13 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
       const sid = String(sub.studentId);
       if (!subsByStudent[sid]) subsByStudent[sid] = [];
       subsByStudent[sid].push(sub);
+    }
+
+    const pendingByStudent = {};
+    for (const sub of pendingSubmissions) {
+      const sid = String(sub.studentId);
+      if (!pendingByStudent[sid]) pendingByStudent[sid] = [];
+      pendingByStudent[sid].push(sub);
     }
 
     const rows = students.map((student) => {
@@ -1225,6 +1243,13 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
       const currentDay = student.currentCourseDay != null
         ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
         : null;
+      const overdueSince = overdueSinceForStudent(
+        student,
+        studentRequests,
+        studentSubs,
+        pendingByStudent[sid] || [],
+        levelPriceMap,
+      );
 
       return {
         studentId: sid,
@@ -1239,6 +1264,7 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         ...overdueTotalsFromBreakdown(profile?.currencyBreakdown),
         pendingApprovalAmount: profile?.pendingApprovalAmount ?? 0,
         overdueAmount: profile?.overdueAmount ?? 0,
+        overdueSince,
         overallStatus: profile?.overallStatus || 'NO_REQUESTS',
         levelPaid,
         docsPaidByCurrency,
