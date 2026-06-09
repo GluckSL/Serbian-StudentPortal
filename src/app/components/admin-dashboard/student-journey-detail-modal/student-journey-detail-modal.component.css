@@ -277,13 +277,13 @@
   gap: 10px;
 }
 
+.kpi-grid--6 {
+  grid-template-columns: repeat(6, 1fr);
+}
+
 .kpi-card {
   border-radius: 12px;
   padding: 14px 12px;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  justify-content: space-between;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   transition: box-shadow 0.15s, transform 0.15s;
   border: none;
@@ -307,8 +307,10 @@
   font-size: 50px;
   opacity: 0.12;
   color: #fff;
-  flex-shrink: 0;
-  align-self: flex-end;
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  pointer-events: none;
 }
 
 .kpi-card__lbl {
@@ -327,14 +329,157 @@
 }
 
 .kpi-card__sub {
-  font-size: 11px;
-  color: rgba(255,255,255,0.65);
+  font-size: 13px;
+  color: rgba(255,255,255,0.85);
 }
 
 .kpi-card--attendance { background: linear-gradient(135deg, #451a03, #d97706); }
-.kpi-card--bot { background: linear-gradient(135deg, #3b0764, #7c3aed); }
-.kpi-card--journey { background: linear-gradient(135deg, #064e3b, #059669); }
+.kpi-card--recordings { background: linear-gradient(135deg, #1e293b, #475569); }
+.kpi-card--exercise { background: linear-gradient(135deg, #1e3a5f, #3b82f6); }
+.kpi-card--dg { background: linear-gradient(135deg, #3b0764, #7c3aed); }
+.kpi-card--payments { background: linear-gradient(135deg, #0f3b3e, #14b8a6); }
 .kpi-card--docs { background: linear-gradient(135deg, #450a0a, #dc2626); }
+.kpi-card--overall { background: linear-gradient(135deg, #0b1a33, #1e3a5f); }
+
+/* ── Payment slot badges ── */
+.kpi-card__lbl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.kpi-pay-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.kpi-pay-badge--paid { background: #166534; }
+.kpi-pay-badge--partial { background: #854d0e; }
+.kpi-pay-badge--pending { background: #7c2d12; }
+.kpi-pay-badge--overdue { background: #991b1b; }
+
+.kpi-pay-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+/* ── Language Learning Detail Grid (white card, 4-col table-like sections) ── */
+.sp-card:has(> .ld-grid) {
+  padding: 0;
+}
+
+.ld-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+.ld-section {
+  padding: 16px;
+}
+
+.ld-section + .ld-section {
+  border-left: 1px solid #f1f5f9;
+}
+
+.ld-heading {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ld-heading i {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.ld-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ld-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ld-lbl {
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.ld-val {
+  font-weight: 600;
+  color: #0f172a;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ld-val--pass { color: #16a34a; }
+.ld-val--fail { color: #dc2626; }
+
+.ld-val--truncate {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ld-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.ld-sub {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+  margin: 8px 0 4px;
+}
+
+.ld-history {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.ld-history__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ld-history__title {
+  color: #475569;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ld-history__score {
+  font-weight: 600;
+}
 
 /* ── Compact Profile Grid ── */
 .sp-profile-grid {
@@ -388,29 +533,65 @@
 }
 
 /* ── Level Pills ── */
-.sp-levels { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
-
-.sp-level {
-  flex: 1;
-  min-width: 40px;
-  text-align: center;
-  padding: 4px 0;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  background: #f1f5f9;
-  color: #94a3b8;
-  border: 1px solid #e2e8f0;
+/* ── Language Progress Grid ── */
+.sp-level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.sp-level--active { background: #dbeafe; color: #03396c; border-color: #6497b1; }
-.sp-level--done { background: #dcfce7; color: #166534; border-color: #4ade80; }
+.sp-level-grid__item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow 0.15s;
+  border-bottom: 1px solid #e2e8f0; /* Added separator */
+}
 
-/* ── Lesson Rows ── */
-.sp-lesson-rows { display: flex; flex-direction: column; gap: 6px; }
-.sp-lesson-row { display: flex; align-items: center; gap: 8px; }
-.sp-lesson-row__lbl { font-size: 11px; color: #475569; min-width: 28px; font-weight: 600; }
-.sp-lesson-row__ct { font-size: 11px; font-weight: 700; color: #334155; min-width: 32px; text-align: right; }
+.sp-level-grid__item:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.sp-level-grid__item--active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.sp-level-grid__item--done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.sp-level-grid__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sp-level-grid__level {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.sp-level-grid__icon {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.sp-level-grid__item--active .sp-level-grid__icon { color: #2563eb; }
+.sp-level-grid__item--done .sp-level-grid__icon { color: #16a34a; }
+
+.sp-level-grid__count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
 
 /* ── Progress Bars ── */
 .sp-bar {
@@ -423,7 +604,12 @@
 }
 
 .sp-bar--lg { height: 9px; margin-bottom: 14px; }
-.sp-bar--sm { height: 5px; margin-bottom: 0; }
+.sp-bar--sm {
+  height: 1px !important;
+  min-height: 1px !important;
+  margin-bottom: 0;
+  background-color: #e2e8f0;
+}
 
 .sp-bar__fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
 .sp-bar__fill--blue { background: linear-gradient(90deg, #03396c, #6497b1); }
@@ -459,7 +645,7 @@
 .sp-kv-val { font-weight: 700; color: #1e293b; }
 
 /* ── Document Table ── */
-.sp-doc-table { width: 100%; border-collapse: collapse; }
+.sp-doc-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .sp-doc-table th {
   font-size: 10px;
   text-transform: uppercase;
@@ -472,12 +658,16 @@
   white-space: nowrap;
 }
 
+.sp-doc-table th:first-child { width: 65%; }
+.sp-doc-table th:last-child { width: 35%; }
+
 .sp-doc-table td {
   padding: 5px 8px;
   font-size: 12px;
   color: #334155;
   border-bottom: 1px solid #f1f5f9;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .sp-doc-badge {
@@ -494,6 +684,17 @@
 .sp-doc-badge--ok { background: #dcfce7; color: #166534; }
 .sp-doc-badge--pending { background: #f9fafb; color: #6b7280; border: 1px dashed #d1d5db; }
 .sp-doc-more { text-align: center; font-size: 11px; color: #6497b1; font-weight: 600; padding: 8px; }
+
+.sp-card--docs {
+  height: 350px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sp-doc-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
 
 /* ── Payment Card ── */
 .sp-card--payments .sp-card__head {
@@ -755,6 +956,12 @@
 }
 
 /* ── Responsive ── */
+@media (max-width: 900px) {
+  .kpi-grid--6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .sp-row--top,
   .sp-row--mid,
@@ -766,8 +973,127 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .ld-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ld-section:nth-child(2) {
+    border-left: none;
+  }
+  .ld-section:nth-child(3),
+  .ld-section:nth-child(4) {
+    border-top: 1px solid #f1f5f9;
+  }
+
   .sp-pay-summary {
     flex-wrap: wrap;
     gap: 10px;
   }
 }
+
+/* ── Detailed Lists within ld-section ── */
+.ld-list-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #475569;
+  margin: 12px 0 6px;
+  letter-spacing: 0.3px;
+}
+
+.ld-list-container {
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 6px;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Custom slim scrollbar for .ld-list-container */
+.ld-list-container::-webkit-scrollbar {
+  width: 4px;
+}
+.ld-list-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ld-list-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.ld-list-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.ld-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  gap: 12px;
+}
+
+.ld-list-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.ld-list-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ld-list-item-title {
+  font-weight: 500;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.ld-list-item-sub {
+  font-size: 9px;
+  color: #94a3b8;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ld-list-item-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 100px;
+}
+
+.ld-badge {
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: inline-block;
+}
+
+.ld-badge--attended { background: #d1fae5; color: #065f46; }
+.ld-badge--absent { background: #fee2e2; color: #991b1b; }
+.ld-badge--completed { background: #d1fae5; color: #065f46; }
+.ld-badge--progress { background: #fef3c7; color: #92400e; }
+.ld-badge--pending { background: #f1f5f9; color: #475569; }
+.ld-badge--score { background: #e0f2fe; color: #075985; }
+.ld-badge--watched { background: #e0f2fe; color: #0369a1; }
+.ld-badge--locked { background: #f1f5f9; color: #94a3b8; }
+

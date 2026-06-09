@@ -7,53 +7,92 @@
       </a>
       <div class="asd-hero__profile">
         <div class="asd-avatar" aria-hidden="true">{{ avatarInitial }}</div>
-        <div>
-          <h1 class="asd-hero__name">{{ studentName || 'Student' }}</h1>
-          <p class="asd-hero__meta" *ngIf="preview?.regNo || preview?.email">
-            <span *ngIf="preview?.regNo" class="asd-mono">{{ preview?.regNo }}</span>
-            <span *ngIf="preview?.regNo && preview?.email"> · </span>
-            <span *ngIf="preview?.email">{{ preview?.email }}</span>
-          </p>
-          <div class="asd-badges" *ngIf="preview">
+        <div class="asd-hero__profile-body">
+          <div class="asd-hero__name-row">
+            <h1 class="asd-hero__name">{{ studentName || 'Student' }}</h1>
+            <span class="asd-status-badge" *ngIf="preview?.studentStatus"
+              [class.asd-status-badge--active]="preview?.studentStatus === 'ONGOING'"
+              [class.asd-status-badge--inactive]="preview?.studentStatus !== 'ONGOING'"
+            ><i class="fas" [class.fa-check-circle]="preview?.studentStatus === 'ONGOING'" [class.fa-pause-circle]="preview?.studentStatus !== 'ONGOING'"></i> {{ preview?.studentStatus === 'ONGOING' ? 'Active' : preview?.studentStatus }}</span>
+            <app-test-account-badge *ngIf="preview?.isTestAccount" [show]="true"></app-test-account-badge>
+            <a
+              *ngIf="studentId"
+              class="asd-edit-badge"
+              [routerLink]="['/signup', studentId]"
+              target="_blank"
+              rel="noopener"
+              title="Edit profile"
+            ><i class="fas fa-external-link-alt"></i> Edit</a>
+          </div>
+          <div class="asd-hero__badges-row" *ngIf="preview">
             <span class="asd-badge asd-badge--plan" *ngIf="preview.subscription">{{ preview.subscription }}</span>
             <span class="asd-badge" *ngIf="preview.level">Level {{ preview.level }}</span>
             <span class="asd-badge" *ngIf="preview.batch">Batch {{ preview.batch }}</span>
             <span class="asd-badge" *ngIf="preview.medium">{{ preview.medium }}</span>
           </div>
+          <div class="asd-hero__grid" *ngIf="preview">
+            <div class="asd-hero__field asd-hero__field--wide">
+              <span class="asd-hero__field-lbl">Email</span>
+              <span class="asd-hero__field-val">{{ preview.email || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Journey day</span>
+              <span class="asd-hero__field-val">Day {{ preview.currentCourseDay || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Teacher</span>
+              <span class="asd-hero__field-val">{{ preview.teacher || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Service</span>
+              <span class="asd-hero__field-val">{{ preview.servicesOpted || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Visa route</span>
+              <span class="asd-hero__field-val">{{ preview.visaRoute || 'Not set' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Level path</span>
+              <span class="asd-hero__field-val">{{ preview.levelPath || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Enrolled</span>
+              <span class="asd-hero__field-val">{{ formatDate(preview.enrollmentDate || '') }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-      <a
-        *ngIf="studentId"
-        class="asd-edit-link"
-        [routerLink]="['/signup', studentId]"
-        target="_blank"
-        rel="noopener"
-      ><i class="fas fa-external-link-alt"></i> Edit profile</a>
+      <div class="asd-hero__actions">
+        <nav class="asd-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="asd-tab"
+            [class.asd-tab--on]="activeTab === 'overview'"
+            [attr.aria-selected]="activeTab === 'overview'"
+            (click)="setTab('overview')"
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="asd-tab"
+            [class.asd-tab--on]="activeTab === 'learning'"
+            [attr.aria-selected]="activeTab === 'learning'"
+            (click)="setTab('learning')"
+          >
+            Learning &amp; journey
+          </button>
+        </nav>
+        <div class="asd-creds" *ngIf="preview?.regNo">
+          <span class="asd-creds__item"><span class="asd-creds__key">Reg No</span> <strong class="asd-creds__val">{{ preview?.regNo }}</strong></span>
+          <span class="asd-creds__sep"></span>
+          <span class="asd-creds__item"><span class="asd-creds__key">Password</span> <strong class="asd-creds__val" [class.asd-creds__val--missing]="!preview?.displayPassword">{{ preview?.displayPassword || '—' }}</strong></span>
+        </div>
+      </div>
   </header>
-
-  <nav class="asd-tabs" role="tablist">
-    <button
-      type="button"
-      role="tab"
-      class="asd-tab"
-      [class.asd-tab--on]="activeTab === 'overview'"
-      [attr.aria-selected]="activeTab === 'overview'"
-      (click)="setTab('overview')"
-    >
-      Overview
-    </button>
-    <button
-      type="button"
-      role="tab"
-      class="asd-tab"
-      [class.asd-tab--on]="activeTab === 'learning'"
-      [attr.aria-selected]="activeTab === 'learning'"
-      (click)="setTab('learning')"
-    >
-      Learning &amp; journey
-    </button>
-  </nav>
 
   <section class="asd-panel" [hidden]="activeTab !== 'overview'">
     <app-student-journey-detail-modal

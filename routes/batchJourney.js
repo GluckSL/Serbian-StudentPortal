@@ -1805,9 +1805,52 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
         startTime: m.startTime,
         duration: m.duration,
         courseDay: m.courseDay,
-        attended: !!(attendEntry?.attended)
+        attended: !!(attendEntry?.attended),
+        attendedDurationMin: attendEntry?.durationMinutes || (attendEntry?.duration ? Math.round(attendEntry.duration / 60) : 0),
+        attendancePercent: attendEntry?.attendancePercent || 0,
+        status: attendEntry?.status || (attendEntry?.attended ? 'attended' : 'absent')
       };
     });
+
+    // --- Glück Buddy (DG Bot) modules ---
+    let modules = [];
+    try {
+      const { getStudentDgJourneyAccess, dgModuleUnlockedForAccess } = require('../utils/dgStudentJourneyGate');
+      const [dgAccess, allDg, dgCompletedIds, dgAnyIds] = await Promise.all([
+        getStudentDgJourneyAccess(studentId),
+        DGModule.find({ isActive: true, visibleToStudents: true })
+          .select('title level courseDay')
+          .sort({ courseDay: 1, title: 1 })
+          .lean(),
+        DGSession.distinct('moduleId', { studentId, completed: true }),
+        DGSession.distinct('moduleId', { studentId })
+      ]);
+
+      const dgCompletedSet = new Set((dgCompletedIds || []).map((id) => String(id)));
+      const dgAnySet = new Set((dgAnyIds || []).map((id) => String(id)));
+
+      modules = (allDg || []).map((m) => {
+        const dayLocked =
+          !dgAccess.enabled ||
+          dgAccess.dgBotEnabled === false ||
+          !dgModuleUnlockedForAccess(dgAccess, m.courseDay);
+        const completed = dgCompletedSet.has(String(m._id));
+        const started = dgAnySet.has(String(m._id));
+        let status = 'not_started';
+        if (completed) status = 'completed';
+        else if (started) status = 'in_progress';
+        return {
+          _id: m._id,
+          title: m.title,
+          level: m.level,
+          courseDay: m.courseDay ?? null,
+          locked: dayLocked,
+          status,
+        };
+      });
+    } catch (dgErr) {
+      console.warn('batch-journey detail: DG module summary skipped', dgErr?.message || dgErr);
+    }
 
     // --- Day-by-day breakdown ---
     const maxDay = student.currentCourseDay != null ? student.currentCourseDay : dayStart;
@@ -1855,6 +1898,7 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
       },
       exercises,
       liveClasses,
+      modules,
       dayBreakdown
     });
   } catch (err) {

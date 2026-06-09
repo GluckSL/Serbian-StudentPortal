@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
-import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
+import { environment } from '../../../../environments/environment';
 
 export interface StudentJourneyPreview {
   email?: string;
@@ -12,12 +12,22 @@ export interface StudentJourneyPreview {
   level?: string;
   regNo?: string;
   batch?: string;
+  studentStatus?: string;
+  servicesOpted?: string;
+  enrollmentDate?: string;
+  isTestAccount?: boolean;
+  teacher?: string;
+  currentCourseDay?: number;
+  displayPassword?: string | null;
+  visaRoute?: string | null;
+  levelPath?: string;
+  goStatus?: string;
 }
 
 @Component({
   selector: 'app-student-journey-detail-modal',
   standalone: true,
-  imports: [CommonModule, NgChartsModule, TestAccountBadgeComponent],
+  imports: [CommonModule, NgChartsModule],
   templateUrl: './student-journey-detail-modal.component.html',
   styleUrls: ['./student-journey-detail-modal.component.css']
 })
@@ -36,6 +46,15 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   journeyData: any = null;
   payTableOpen = false;
   loadedAt: Date | null = null;
+
+  // Detailed data for ld-grid lists
+  liveClasses: any[] = [];
+  recordings: any[] = [];
+  zoomRecordings: any[] = [];
+  exercises: any[] = [];
+  dgModules: any[] = [];
+  arenaGames: any[] = [];
+  detailLoading = false;
 
   radarChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
   radarChartOptions: ChartConfiguration['options'] = {
@@ -82,11 +101,47 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
         this.buildRadarChart();
         this.loading = false;
         this.reloading = false;
+        this.loadDetailData();
       },
       error: () => {
         this.loading = false;
         this.reloading = false;
         this.loadError = 'Could not load student details. Please try again.';
+      }
+    });
+  }
+
+  private loadDetailData(): void {
+    this.detailLoading = true;
+    const isGo = this.isGo;
+    const isSinhala = this.preview?.medium?.toLowerCase() === 'sinhala' || 
+                       this.journeyData?.profile?.medium?.toLowerCase() === 'sinhala';
+
+    let detailUrl: string;
+    if (isGo) {
+      const goApiPath = isSinhala ? 'go-students-sinhala' : 'go-students';
+      detailUrl = `${environment.apiUrl}/${goApiPath}/${this.studentId}/detail`;
+    } else {
+      detailUrl = `${environment.apiUrl}/batch-journey/student/${this.studentId}/full-progress`;
+    }
+
+    this.http.get<any>(detailUrl, { withCredentials: true }).subscribe({
+      next: (res) => {
+        if (isGo) {
+          this.recordings = res.recordings || [];
+          this.zoomRecordings = res.zoomRecordings || [];
+          this.exercises = res.exercises || [];
+          this.dgModules = res.dgModules || [];
+          this.arenaGames = res.arenaGames || [];
+        } else {
+          this.liveClasses = res.liveClasses || [];
+          this.exercises = res.exercises || [];
+          this.dgModules = res.modules || [];
+        }
+        this.detailLoading = false;
+      },
+      error: () => {
+        this.detailLoading = false;
       }
     });
   }
@@ -146,9 +201,14 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
       totalPaidLKR: p.totalPaidLKR ?? 0,
       totalPaidINR: p.totalPaidINR ?? 0,
       totalPaidUSD: p.totalPaidUSD ?? 0,
+      overdueAmountLKR: p.overdueAmountLKR ?? 0,
+      overdueAmountINR: p.overdueAmountINR ?? 0,
+      overdueAmountUSD: p.overdueAmountUSD ?? 0,
       requestCount: p.requestCount ?? hubRequests.length ?? 0,
       paymentHistory: hubRequests.length ? hubRequests : ledgerRows,
       isHub: p.source === 'payment_hub',
+      slotBreakdown: p.slotBreakdown || {},
+      overallStatus: p.overallStatus || 'CLEAR',
     };
   }
 
@@ -249,4 +309,77 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
         }
       ]
     };
-  }}
+  }
+
+  get isPlatinum(): boolean {
+    const sub = this.jProfile.subscription || this.preview?.subscription || '';
+    return sub.toUpperCase().includes('PLATINUM');
+  }
+
+  get isGo(): boolean {
+    const goStatus = this.jProfile.goStatus || (this.preview as any)?.goStatus || '';
+    return goStatus.toUpperCase() === 'GO';
+  }
+
+  get jExerciseProgress() {
+    return this.journeyData?.exerciseProgress || { total: 0, completed: 0, pending: 0 };
+  }
+
+  get jDgModuleProgress() {
+    return this.journeyData?.dgModuleProgress || { total: 0, completed: 0, pending: 0 };
+  }
+
+  get jRecordingProgress() {
+    return this.journeyData?.recordingProgress || { total: 0, watched: 0, remaining: 0 };
+  }
+
+  get jRecordingPct(): number {
+    const r = this.jRecordingProgress;
+    return r.total ? Math.round((r.watched / r.total) * 100) : 0;
+  }
+
+  get jOverallJourneyDay(): number {
+    return this.jProfile.currentCourseDay || 0;
+  }
+
+  get jOverallJourneyPct(): number {
+    return Math.min(100, Math.round((this.jOverallJourneyDay / 200) * 100));
+  }
+
+  get jExamSummary() {
+    return this.journeyData?.examSummary || null;
+  }
+
+  get jSprechenSummary() {
+    return this.jExamSummary?.sprechen || null;
+  }
+
+  get jSprechenLastSession() {
+    return this.jSprechenSummary?.lastSession || null;
+  }
+
+  get jSprechenAggregate() {
+    return this.jSprechenSummary?.aggregate || null;
+  }
+
+  get jExamPct(): number {
+    const e = this.jExamSummary;
+    const total = (e?.totalExercises || 0) + (e?.totalDgModules || 0) + (this.jSprechenAggregate?.total || 0);
+    const done = (e?.completedExercises || 0) + (e?.completedDgModules || 0) + (this.jSprechenAggregate?.completed || 0);
+    return total ? Math.round((done / total) * 100) : 0;
+  }
+
+  get jPaymentSlotKeys(): string[] {
+    return ['A1', 'A2', 'B1', 'B2', 'DOCS', 'VISA'];
+  }
+
+  jPaymentSlotStatus(slot: string): 'paid' | 'partial' | 'pending' | 'none' {
+    const s = this.jPayments.slotBreakdown[slot];
+    if (!s || s.requestCount === 0) return 'none';
+    const paid = s.paid?.LKR || 0;
+    const balance = s.balance?.LKR || 0;
+    if (balance <= 0 && paid > 0) return 'paid';
+    if (paid > 0) return 'partial';
+    return 'pending';
+  }
+}
