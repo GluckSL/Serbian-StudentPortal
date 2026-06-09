@@ -19,15 +19,7 @@ function portalJoinInstructionsHtml() {
                 `;
 }
 
-function buildLiveJoinReminderHtml({
-  studentName,
-  topic,
-  batch,
-  plan,
-  teacherName,
-  timeZone = DEFAULT_TZ,
-  startTime,
-}) {
+function formatMeetingDateTime(startTime, timeZone = DEFAULT_TZ) {
   const st = new Date(startTime);
   const dateStr = st.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -41,10 +33,64 @@ function buildLiveJoinReminderHtml({
     minute: '2-digit',
     timeZone,
   });
+  return { dateStr, timeStr };
+}
 
-  const teacherLine = teacherName
-    ? `<p style="margin:16px 0 0 0; color:#333;">Your teacher <strong>${teacherName}</strong> is in the class and waiting for you.</p>`
-    : `<p style="margin:16px 0 0 0; color:#333;">Your teacher is in the class and waiting for you.</p>`;
+function buildLiveJoinReminderPlainText({
+  studentName,
+  topic,
+  batch,
+  plan,
+  teacherName,
+  timeZone = DEFAULT_TZ,
+  startTime,
+}) {
+  const { dateStr, timeStr } = formatMeetingDateTime(startTime, timeZone);
+  const tutorSignoff = teacherName
+    ? `Your German Tutor,\n${teacherName}`
+    : 'Your German Tutor';
+
+  return `Hello ${studentName},
+
+I hope you're doing well!
+
+Our German class, "${topic}", is currently live, and I noticed that you haven't joined yet.
+
+I'd love to have you in class with us today. We're covering some interesting topics, and I don't want you to miss out on the lesson and activities.
+
+When you have a moment, please join the class through the student portal. If you're experiencing any issues joining, don't worry—just join as soon as you can.
+
+I'm looking forward to learning with you!
+See you soon!
+
+${tutorSignoff}
+
+---
+Class details
+Date: ${dateStr}
+Started at: ${timeStr}
+Batch: ${batch}${plan ? ` — ${plan}` : ''}
+
+How to join now:
+1. Open the Glück Global student portal and sign in.
+2. Go to My Class or Live class.
+3. Find this session and click Join now.
+4. Join using your registered name so attendance is recorded correctly.`;
+}
+
+function buildLiveJoinReminderHtml({
+  studentName,
+  topic,
+  batch,
+  plan,
+  teacherName,
+  timeZone = DEFAULT_TZ,
+  startTime,
+}) {
+  const { dateStr, timeStr } = formatMeetingDateTime(startTime, timeZone);
+  const tutorSignoff = teacherName
+    ? `Your German Tutor,<br><strong>${teacherName}</strong>`
+    : 'Your German Tutor';
 
   return `
               <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
@@ -54,40 +100,40 @@ function buildLiveJoinReminderHtml({
                     <h2 style="color:white; margin:0;">Glück Global — Class in progress</h2>
                   </div>
 
-                  <p style="margin-top:20px;">Hello <strong>${studentName}</strong>,</p>
+                  <div style="text-align:left; margin-top:20px; color:#333; line-height:1.7; font-size:15px;">
+                    <p style="margin:0 0 16px 0;">Hello <strong>${studentName}</strong>,</p>
 
-                  <p style="color:#333; line-height:1.6;">
-                    Your German class <strong>"${topic}"</strong> is <strong>live right now</strong>.
-                    We noticed you have not joined through the student portal yet.
-                  </p>
+                    <p style="margin:0 0 16px 0;">I hope you're doing well! 😊</p>
 
-                  ${teacherLine}
+                    <p style="margin:0 0 16px 0;">
+                      Our German class, <strong>"${topic}"</strong>, is currently live, and I noticed that you haven't joined yet.
+                    </p>
 
-                  <div style="background:#fff3cd; border:1px solid #ffc107; padding:15px; border-radius:8px; margin:20px 0; text-align:left;">
-                    <p style="margin:0; font-size:14px; color:#856404;">
-                      Please join as soon as possible so you do not miss important lesson content.
+                    <p style="margin:0 0 16px 0;">
+                      I'd love to have you in class with us today. We're covering some interesting topics, and I don't want you to miss out on the lesson and activities.
+                    </p>
+
+                    <p style="margin:0 0 16px 0;">
+                      When you have a moment, please join the class through the student portal. If you're experiencing any issues joining, don't worry—just join as soon as you can.
+                    </p>
+
+                    <p style="margin:0 0 16px 0;">
+                      I'm looking forward to learning with you!<br>
+                      See you soon!
+                    </p>
+
+                    <p style="margin:0 0 24px 0;">
+                      ${tutorSignoff}
                     </p>
                   </div>
 
-                  <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0;">
+                  <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0; text-align:left;">
                     <p style="margin:5px 0;"><strong>📅 Date:</strong> ${dateStr}</p>
                     <p style="margin:5px 0;"><strong>🕐 Started at:</strong> ${timeStr}</p>
                     <p style="margin:5px 0;"><strong>👥 Batch:</strong> ${batch}${plan ? ` — ${plan}` : ''}</p>
                   </div>
 
                   ${portalJoinInstructionsHtml()}
-
-                  <p style="margin-top:30px; color:#666; font-size:13px;">
-                    If you are having trouble joining, please contact your teacher or our support team.
-                  </p>
-
-                  <hr style="border:none; border-top:1px solid #ddd; margin:30px 0;">
-
-                  <p style="font-size:13px; color:#888;">
-                    Best regards,<br>
-                    <strong>Glück Global Pvt Ltd</strong><br>
-                    German Language Learning Platform
-                  </p>
                 </div>
               </div>
             `;
@@ -121,7 +167,7 @@ async function sendLiveJoinReminderEmails(meeting, transporter, recipients, teac
 
     emailResults.attempted++;
     try {
-      const html = buildLiveJoinReminderHtml({
+      const reminderPayload = {
         studentName: name,
         topic,
         batch,
@@ -129,13 +175,14 @@ async function sendLiveJoinReminderEmails(meeting, transporter, recipients, teac
         teacherName,
         timeZone,
         startTime: meeting.startTime,
-      });
+      };
 
       await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
-        subject: `⏰ Please join your class now — ${topic} (Glück Global)`,
-        html,
+        subject: `We're live now — please join "${topic}" (Glück Global)`,
+        text: buildLiveJoinReminderPlainText(reminderPayload),
+        html: buildLiveJoinReminderHtml(reminderPayload),
       });
       emailResults.successful++;
     } catch (err) {
@@ -150,5 +197,6 @@ async function sendLiveJoinReminderEmails(meeting, transporter, recipients, teac
 
 module.exports = {
   buildLiveJoinReminderHtml,
+  buildLiveJoinReminderPlainText,
   sendLiveJoinReminderEmails,
 };

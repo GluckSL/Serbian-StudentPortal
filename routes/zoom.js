@@ -643,7 +643,7 @@ router.get('/meetings', verifyToken, async (req, res) => {
     const userId = req.user.id || req.user.userId || req.user._id;
 
     // Get user to check role
-    const user = await User.findById(userId).select('role').lean();
+    const user = await User.findById(userId).select('role assignedBatches').lean();
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
@@ -652,12 +652,22 @@ router.get('/meetings', verifyToken, async (req, res) => {
     const andClauses = [];
 
     if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      andClauses.push({
-        $or: [
-          { createdBy: userId },
-          { assignedTeacher: userId }
-        ]
-      });
+      const teacherScopeOr = [
+        { createdBy: userId },
+        { assignedTeacher: userId },
+      ];
+      const batchValues = [];
+      for (const b of user.assignedBatches || []) {
+        const s = String(b || '').trim();
+        if (!s) continue;
+        batchValues.push(s);
+        const asNum = Number(s);
+        if (Number.isFinite(asNum) && String(asNum) === s) batchValues.push(asNum);
+      }
+      if (batchValues.length) {
+        teacherScopeOr.push({ batch: { $in: batchValues } });
+      }
+      andClauses.push({ $or: teacherScopeOr });
     }
 
     if (status) andClauses.push({ status });
@@ -1010,7 +1020,11 @@ function meetingLifecycleFromDoc(meeting) {
   return { currentStatus, meetingStart, meetingEnd };
 }
 
-function staffMayManageMeeting(req, meeting) {
+function normBatchKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+async function staffMayManageMeeting(req, meeting) {
   const role = req.user?.role;
   if (role === 'ADMIN' || role === 'SUB_ADMIN') return true;
   if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
@@ -1021,7 +1035,15 @@ function staffMayManageMeeting(req, meeting) {
     const assigned = meeting.assignedTeacher?._id
       ? String(meeting.assignedTeacher._id)
       : String(meeting.assignedTeacher || '');
-    return uid === createdBy || (assigned && uid === assigned);
+    if (uid === createdBy || (assigned && uid === assigned)) return true;
+
+    const meetingBatch = normBatchKey(meeting.batch);
+    if (meetingBatch) {
+      const teacher = await User.findById(uid).select('assignedBatches').lean();
+      for (const b of teacher?.assignedBatches || []) {
+        if (normBatchKey(b) === meetingBatch) return true;
+      }
+    }
   }
   return false;
 }
@@ -1050,7 +1072,7 @@ router.get(
         return res.status(404).json({ success: false, message: 'Meeting not found' });
       }
 
-      if (!staffMayManageMeeting(req, meeting)) {
+      if (!(await staffMayManageMeeting(req, meeting))) {
         return res.status(403).json({ success: false, message: 'You can only remind students for your own meetings' });
       }
 
@@ -1137,7 +1159,7 @@ router.post(
         return res.status(404).json({ success: false, message: 'Meeting not found' });
       }
 
-      if (!staffMayManageMeeting(req, meeting)) {
+      if (!(await staffMayManageMeeting(req, meeting))) {
         return res.status(403).json({ success: false, message: 'You can only remind students for your own meetings' });
       }
 
