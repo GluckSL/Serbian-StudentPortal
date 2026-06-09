@@ -9,6 +9,12 @@ const fs = require('fs');
 const OpenAI = require('openai');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { extractBracketMarkers, applyBracketMarkersToExercise } = require('../utils/worksheetBracketMarkers');
+const {
+  isExerciseR2Configured,
+  headExerciseMediaKey,
+  getExerciseMediaBuffer,
+  extractMediaKeyFromUrl,
+} = require('../services/exerciseMediaR2');
 const EXTRACTION_JOB_TTL_MS = 30 * 60 * 1000;
 
 if (!global.__extractionJobs) {
@@ -1762,6 +1768,37 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
   });
 }
 
+function buildPdfUploadResponse(filePath, filename, pdfResult) {
+  const previewText = pdfResult.text.substring(0, 2000);
+  const rawDetected = detectQuestionTypes(pdfResult.text);
+  const { _worksheetMode, ...detectedTypes } = rawDetected;
+  const split = splitWorksheetIntoExercises(pdfResult.text);
+  const exercises = buildDetectedExercisePreview(pdfResult.text, split.exercises || [], split.solutionBlock || '');
+
+  return {
+    success: true,
+    uploadId: path.basename(filePath),
+    filename,
+    pages: pdfResult.pages,
+    totalChars: pdfResult.text.length,
+    previewText,
+    hasContent: pdfResult.text.trim().length > 50,
+    detectedTypes,
+    worksheetMode: _worksheetMode,
+    exercises,
+  };
+}
+
+function savePdfBufferLocally(buffer, filename) {
+  const dir = path.join(__dirname, '..', 'uploads', 'pdf-exercises');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+  const localName = `${unique}-${String(filename || 'upload.pdf').replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  const filePath = path.join(dir, localName);
+  fs.writeFileSync(filePath, buffer);
+  return filePath;
+}
+
 // ─── ROUTE: POST /api/pdf-exercises/upload ────────────────────────────────────
 // Upload PDF, extract text, return preview
 
@@ -1770,39 +1807,64 @@ router.post('/upload',
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
   upload.single('pdf'),
   async (req, res) => {
+    let filePath;
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'No PDF file uploaded' });
       }
 
-      const result = await extractPdfText(req.file.path);
-
-      // Return preview (first 2000 chars of text) and file reference
-      const previewText = result.text.substring(0, 2000);
-      const rawDetected = detectQuestionTypes(result.text);
-      const { _worksheetMode, ...detectedTypes } = rawDetected;
-      const split = splitWorksheetIntoExercises(result.text);
-      const exercises = buildDetectedExercisePreview(result.text, split.exercises || [], split.solutionBlock || '');
-
-      res.json({
-        success: true,
-        uploadId: path.basename(req.file.path),
-        filename: req.file.originalname,
-        pages: result.pages,
-        totalChars: result.text.length,
-        previewText,
-        hasContent: result.text.trim().length > 50,
-        detectedTypes,
-        worksheetMode: _worksheetMode,
-        exercises
-      });
+      filePath = req.file.path;
+      const result = await extractPdfText(filePath);
+      res.json(buildPdfUploadResponse(filePath, req.file.originalname, result));
     } catch (err) {
-      // Clean up on error
-      if (req.file) {
-        try { fs.unlinkSync(req.file.path); } catch {}
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch {}
       }
       console.error('PDF upload error:', err);
       res.status(500).json({ error: err.message || 'Failed to process PDF' });
+    }
+  }
+);
+
+// ─── ROUTE: POST /api/pdf-exercises/register-r2-upload ────────────────────────
+// After browser PUT to R2, pull PDF into local uploads/ and return same preview as /upload.
+
+router.post('/register-r2-upload',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    let filePath;
+    try {
+      if (!isExerciseR2Configured()) {
+        return res.status(503).json({ error: 'R2 is not configured' });
+      }
+
+      const fileUrl = String(req.body?.fileUrl || '').trim();
+      const key = extractMediaKeyFromUrl(fileUrl);
+      if (!key || !key.startsWith('pdf-exercises/')) {
+        return res.status(400).json({ error: 'Invalid PDF storage URL' });
+      }
+
+      const exists = await headExerciseMediaKey(key);
+      if (!exists) {
+        return res.status(404).json({ error: 'Uploaded PDF not found in storage. Try uploading again.' });
+      }
+
+      const buffer = await getExerciseMediaBuffer(key);
+      if (buffer.length > 20 * 1024 * 1024) {
+        return res.status(400).json({ error: 'File is too large. Maximum size is 20 MB.' });
+      }
+
+      const filename = String(req.body?.filename || path.basename(key) || 'upload.pdf');
+      filePath = savePdfBufferLocally(buffer, filename);
+      const result = await extractPdfText(filePath);
+      res.json(buildPdfUploadResponse(filePath, filename, result));
+    } catch (err) {
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch {}
+      }
+      console.error('PDF R2 register error:', err);
+      res.status(500).json({ error: err.message || 'Failed to process PDF from storage' });
     }
   }
 );

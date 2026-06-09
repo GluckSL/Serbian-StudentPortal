@@ -46,6 +46,7 @@ router.post(
       const allowedPrefixes = [
         'listening-media',
         'exercise-attachments',
+        'pdf-exercises',
         'glueck-arena/game-audio',
         'glueck-arena/game-images',
         'glueck-arena/game-thumbnails',

@@ -3,7 +3,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, from, of, throwError } from 'rxjs';
-import { switchMap, tap, timeout } from 'rxjs/operators';
+import { catchError, switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { StudentProgressService } from './student-progress.service';
 
@@ -700,9 +700,53 @@ export class DigitalExerciseService {
   // ─── PDF Exercise Generator ───────────────────────────────────────────────
 
   uploadPdf(file: File): Observable<any> {
-    const formData = new FormData();
-    formData.append('pdf', file);
-    return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/upload`, formData, { withCredentials: true });
+    // Direct R2 PUT bypasses nginx client_max_body_size limits on production.
+    return this.http
+      .post<{ uploadUrl: string; fileUrl: string }>(
+        `${environment.apiUrl}/r2/generate-upload-url`,
+        {
+          filename: file.name,
+          contentType: 'application/pdf',
+          prefix: 'pdf-exercises',
+        },
+        { withCredentials: true }
+      )
+      .pipe(
+        catchError((presignErr) => {
+          if (presignErr?.status === 500 || presignErr?.status === 503) {
+            const formData = new FormData();
+            formData.append('pdf', file);
+            return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/upload`, formData, {
+              withCredentials: true,
+            });
+          }
+          return throwError(() => presignErr);
+        }),
+        switchMap((res: any) => {
+          if (res?.uploadId) {
+            return of(res);
+          }
+          const { uploadUrl, fileUrl } = res as { uploadUrl: string; fileUrl: string };
+          return from(
+            fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/pdf' },
+              body: file,
+            })
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                return throwError(() => new Error(`R2 upload failed with status ${response.status}`));
+              }
+              return this.http.post<any>(
+                `${environment.apiUrl}/pdf-exercises/register-r2-upload`,
+                { fileUrl, filename: file.name },
+                { withCredentials: true }
+              );
+            })
+          );
+        })
+      );
   }
 
   detectPdfStructureWithAi(uploadId: string): Observable<any> {
@@ -881,7 +925,7 @@ export class DigitalExerciseService {
 
   uploadBlobToR2(
     file: File,
-    prefix: 'listening-media' | 'exercise-attachments'
+    prefix: 'listening-media' | 'exercise-attachments' | 'pdf-exercises'
   ): Observable<{ success: boolean; url: string }> {
     return this.http
       .post<{ uploadUrl: string; fileUrl: string }>(
