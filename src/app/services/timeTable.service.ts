@@ -49,7 +49,12 @@ export class TimeTableService {
 
   // Fetch timetable for student
   getTimeTablesbyBatchAndPlan(batch: string, plan: string): Observable<TimeTable[]> {
-    const params = { batch, plan };
+    const params: { batch?: string; plan: string } = {
+      plan: String(plan || '').trim().toUpperCase(),
+    };
+    if (batch) {
+      params.batch = String(batch).trim();
+    }
     return this.http.get<TimeTable[]>(`${this.apiUrl}/forStudent`, { params, withCredentials: true });
   }
 

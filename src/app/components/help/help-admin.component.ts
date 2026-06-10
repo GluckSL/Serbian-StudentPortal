@@ -36,6 +36,7 @@ export class HelpAdminComponent implements OnInit {
   replyDraft: Record<string, string> = {};
   replyingId: string | null = null;
   replyError: string | null = null;
+  aiGeneratingId: string | null = null;
 
   emailChangeRequests: EmailChangeReq[] = [];
   emailChangeLoading = false;
@@ -278,6 +279,37 @@ export class HelpAdminComponent implements OnInit {
     this.selectedTicket = this.selectedTicket?._id === ticket._id ? null : ticket;
   }
 
+  useAiReply(ticket: SupportTicket): void {
+    if (!ticket._id || this.aiGeneratingId) return;
+    this.aiGeneratingId = ticket._id;
+    this.replyError = null;
+    const draft = (this.replyDraft[ticket._id] || '').trim();
+    this.http
+      .post<{ success: boolean; data: { reply: string; fallback?: boolean }; message?: string }>(
+        `${environment.apiUrl}/support/tickets/${ticket._id}/ai-reply`,
+        { draft },
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: (res) => {
+          if (res?.success && res.data?.reply) {
+            this.replyDraft[ticket._id!] = res.data.reply;
+          } else {
+            this.replyError = res?.message || 'Could not generate AI reply.';
+          }
+          this.aiGeneratingId = null;
+        },
+        error: (err) => {
+          this.replyError =
+            err?.error?.message ||
+            err?.error?.msg ||
+            err?.message ||
+            'Could not generate AI reply. Please try again.';
+          this.aiGeneratingId = null;
+        }
+      });
+  }
+
   sendReply(ticket: SupportTicket): void {
     if (!ticket._id) return;
     const msg = (this.replyDraft[ticket._id] || '').trim();
@@ -302,7 +334,8 @@ export class HelpAdminComponent implements OnInit {
               this.tickets[idx] = {
                 ...updated,
                 batch: updated.batch ?? prev.batch ?? null,
-                regNo: updated.regNo ?? prev.regNo ?? null
+                regNo: updated.regNo ?? prev.regNo ?? null,
+                displayPassword: updated.displayPassword ?? prev.displayPassword ?? null
               };
             }
             this.applyFilters();

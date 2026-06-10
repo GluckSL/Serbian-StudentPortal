@@ -413,6 +413,26 @@ router.get('/active-platinum-students', verifyToken, checkRole(['ADMIN', 'TEACHE
   }
 });
 
+// ─── GET /api/batch-journey/student/timetable ───────────────────────────────
+// Automatic timetable from journey schedule (live classes, exercises, DG bot, arena).
+router.get('/student/timetable', verifyToken, checkRole(['STUDENT']), async (req, res) => {
+  try {
+    const student = await User.findById(req.user.id)
+      .select('role batch subscription medium goStatus currentCourseDay studentStatus level')
+      .lean();
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    const { buildStudentJourneyTimetable } = require('../services/studentJourneyTimetable.service');
+    const horizonDays = parseInt(String(req.query.horizonDays || '14'), 10);
+    const payload = await buildStudentJourneyTimetable(student, { horizonDays });
+    res.json({ success: true, ...payload });
+  } catch (err) {
+    console.error('batch-journey GET /student/timetable', err);
+    res.status(500).json({ message: 'Failed to load journey timetable', error: err.message });
+  }
+});
+
 // ─── POST /api/batch-journey/:batchName/journey-activate ────────────────────
 // Add batch to the active journey list (shows on Journey Management home).
 router.post(

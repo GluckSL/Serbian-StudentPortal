@@ -74,14 +74,21 @@ router.get("/", async (req, res) => {
 // ==========================
 // ✅ GET TIMETABLE BY STUDENT QUERY
 // ==========================
+const { batchesAlign } = require('../utils/effectiveStudentBatch');
+
 router.get("/forStudent", async (req, res) => {
   try {
-    const { batch, plan } = req.query; 
+    const { batch, plan } = req.query;
     const query = {};
-    if (batch) query.batch = batch;
-    if (plan) query.plan = plan;
+    if (plan) {
+      query.plan = new RegExp(`^${String(plan).trim()}$`, 'i');
+    }
 
-    const timeTables = await TimeTable.find(query);
+    let timeTables = await TimeTable.find(query);
+    if (batch) {
+      timeTables = timeTables.filter((tt) => batchesAlign(batch, tt.batch));
+    }
+
     res.status(200).json(timeTables);
   } catch (error) {
     res.status(500).json({ message: error.message });

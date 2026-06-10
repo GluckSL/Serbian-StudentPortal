@@ -3,7 +3,7 @@
 import { Injectable } from '@angular/core';
 import { CanActivate, Router, UrlTree } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-import { Observable, map, catchError, of } from 'rxjs';
+import { Observable, map, catchError, of, timeout } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -21,12 +21,14 @@ export class AuthGuard implements CanActivate {
     console.log('⏳ AuthGuard: Checking server session...');
     // If not, try to refresh user profile from server
     return this.authService.refreshUserProfile().pipe(
-      map(user => {
+      timeout(10000),
+      map(() => {
         console.log('✅ AuthGuard: Server session valid');
         return true;
       }),
-      catchError(err => {
+      catchError(() => {
         console.log('❌ AuthGuard: No valid session, redirecting to login');
+        this.authService.clearClientSession();
         return of(this.router.createUrlTree(['/login']));
       })
     );

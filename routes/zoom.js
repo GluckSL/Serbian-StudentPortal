@@ -365,6 +365,7 @@ router.post('/preview-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', '
         schedules: preview.schedules,
         warnings: preview.allWarnings,
         blockingErrors: preview.blockingErrors,
+        studentConflicts: preview.studentConflicts || [],
         totalMeetings: preview.schedules.length,
         totalTeachingHours: Math.round(teachingHours * 100) / 100
       }
@@ -372,6 +373,42 @@ router.post('/preview-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', '
   } catch (err) {
     console.error('preview-bulk-journey-meetings', err);
     res.status(500).json({ success: false, message: err.message || 'Preview failed' });
+  }
+});
+
+/**
+ * Remove specific students from all future scheduled meetings of a given batch.
+ * POST /api/zoom/meetings/remove-students-from-batch
+ * Body: { batchName: string, studentIds: string[] }
+ */
+router.post('/meetings/remove-students-from-batch', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { batchName, studentIds } = req.body || {};
+    if (!batchName || !Array.isArray(studentIds) || !studentIds.length) {
+      return res.status(400).json({ success: false, message: 'batchName and studentIds are required' });
+    }
+    const batchRe = new RegExp(`^${batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    const now = new Date();
+    const meetings = await MeetingLink.find({
+      batch: batchRe,
+      status: { $nin: ['cancelled', 'completed'] },
+      startTime: { $gt: now }
+    }).select('_id attendees');
+
+    let updatedCount = 0;
+    const idSet = new Set(studentIds.map(String));
+    for (const meeting of meetings) {
+      const before = meeting.attendees.length;
+      meeting.attendees = meeting.attendees.filter((a) => !idSet.has(String(a.studentId)));
+      if (meeting.attendees.length !== before) {
+        await meeting.save();
+        updatedCount++;
+      }
+    }
+    return res.json({ success: true, updatedCount, checkedCount: meetings.length });
+  } catch (err) {
+    console.error('remove-students-from-batch', err);
+    res.status(500).json({ success: false, message: err.message || 'Failed to remove students' });
   }
 });
 
@@ -483,7 +520,7 @@ router.post('/create-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', 'T
         continue;
       }
 
-      const blockers = await collectSlotConflicts({
+      const { warnings: blockers } = await collectSlotConflicts({
         batch,
         teacherId,
         zoomHostEmail,

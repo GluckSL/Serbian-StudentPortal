@@ -10,6 +10,12 @@ import { RouterModule } from '@angular/router';
 import { HttpClientModule } from '@angular/common/http';
 import { NotificationService } from '../../services/notification.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import {
+  BatchJourneyService,
+  JourneyTimetableDay,
+  JourneyTimetableLiveClass,
+  JourneyTimetableResponse,
+} from '../../services/batch-journey.service';
 
 interface TimeSlot {
   start: string;
@@ -43,9 +49,10 @@ interface TimeTable {
 interface UserProfile {
   role: string;
   batch?: string;
-  medium?: string;
+  medium?: string | string[];
   subscription?: string;
   studentStatus?: string;
+  goStatus?: string;
   _id?: string;
   [key: string]: any;
 }
@@ -61,6 +68,17 @@ interface ZoomMeeting {
   status: string;
   attendees: any[];
   [key: string]: any;
+}
+
+interface JourneyGridCell {
+  date: Date;
+  dateKey: string;
+  day: JourneyTimetableDay | null;
+}
+
+interface JourneyWeekRow {
+  weekLabel: string;
+  cells: JourneyGridCell[];
 }
 
 @Component({
@@ -84,6 +102,16 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
   // Zoom meetings
   zoomMeetings: ZoomMeeting[] = [];
   meetingsLoaded: boolean = false;
+
+  // Auto journey timetable (students)
+  journeyTimetable: JourneyTimetableResponse | null = null;
+  journeyDays: JourneyTimetableDay[] = [];
+  journeyWeekRows: JourneyWeekRow[] = [];
+  journeyScheduleLoaded = false;
+  journeyScheduleError = '';
+  private journeyScheduleInitialLoad = true;
+  readonly skeletonWeekRows = [0, 1, 2];
+  readonly weekDayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   
   // Auto-refresh timer
   private refreshInterval: any;
@@ -96,6 +124,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     private zoomService: ZoomService,
     private notify: NotificationService,
     private joinClassFlow: JoinClassFlowService,
+    private batchJourneyService: BatchJourneyService,
   ) {}
 
   ngOnInit(): void {
@@ -104,6 +133,9 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     // Auto-refresh every 30 seconds
     this.refreshInterval = setInterval(() => {
       this.loadZoomMeetings();
+      if (this.userRole === 'STUDENT') {
+        this.loadJourneyTimetable();
+      }
     }, 30000);
   }
   
@@ -120,8 +152,8 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
         this.userProfile = profile;
         this.userRole = profile.role;
 
-        if (this.userRole === 'STUDENT' && profile.studentStatus === 'ONGOING') {
-          this.loadTimeTablesforStudent(profile.batch!, profile.subscription!);
+        if (this.userRole === 'STUDENT') {
+          this.loadJourneyTimetable();
         } else if (this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN') {
           this.loadTimeTables();
         } else if (this.userRole === 'TEACHER') {
@@ -185,50 +217,222 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     );
   }
 
-  // Student - only their timetable (✅ filtered by current month)
+  private loadJourneyTimetable(): void {
+    if (this.journeyScheduleInitialLoad) {
+      this.journeyScheduleLoaded = false;
+    }
+    this.batchJourneyService.getStudentTimetable(28).subscribe({
+      next: (data) => {
+        this.journeyTimetable = data;
+        this.journeyDays = data?.days || [];
+        this.buildJourneyWeekGrid();
+        this.journeyScheduleLoaded = true;
+        this.journeyScheduleInitialLoad = false;
+        this.journeyScheduleError = data?.message || '';
+      },
+      error: (error) => {
+        console.error('Error loading journey timetable', error);
+        this.journeyTimetable = null;
+        this.journeyDays = [];
+        this.journeyWeekRows = [];
+        this.journeyScheduleLoaded = true;
+        this.journeyScheduleInitialLoad = false;
+        this.journeyScheduleError = 'Could not load your journey schedule.';
+      },
+    });
+  }
+
+  private buildJourneyWeekGrid(): void {
+    const byDate = new Map<string, JourneyTimetableDay>();
+    for (const day of this.journeyDays) {
+      const key = day.dateKey || this.toIstDateKey(day.calendarDate);
+      if (key) byDate.set(key, day);
+    }
+    if (!byDate.size) {
+      this.journeyWeekRows = [];
+      return;
+    }
+
+    const sortedKeys = [...byDate.keys()].sort();
+    const first = new Date(`${sortedKeys[0]}T12:00:00+05:30`);
+    const last = new Date(`${sortedKeys[sortedKeys.length - 1]}T12:00:00+05:30`);
+    let cursor = this.mondayOfWeek(first);
+    const endMonday = this.mondayOfWeek(last);
+    const rows: JourneyWeekRow[] = [];
+
+    while (cursor.getTime() <= endMonday.getTime()) {
+      const weekCells: JourneyGridCell[] = [];
+      for (let i = 0; i < 7; i++) {
+        const cellDate = new Date(cursor);
+        cellDate.setDate(cursor.getDate() + i);
+        const key = this.toIstDateKey(cellDate);
+        weekCells.push({ date: cellDate, dateKey: key, day: byDate.get(key) || null });
+      }
+      rows.push({ weekLabel: this.formatWeekRange(cursor), cells: weekCells });
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    this.journeyWeekRows = rows;
+  }
+
+  private toIstDateKey(value?: string | Date | null): string {
+    if (!value) return '';
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
+  }
+
+  private mondayOfWeek(date: Date): Date {
+    const d = new Date(date);
+    const wd = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Kolkata' });
+    const map: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+    const mon0 = map[wd] ?? 0;
+    d.setDate(d.getDate() - mon0);
+    return d;
+  }
+
+  private formatWeekRange(weekStartMonday: Date): string {
+    const end = new Date(weekStartMonday);
+    end.setDate(end.getDate() + 6);
+    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' };
+    const y = weekStartMonday.toLocaleDateString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' });
+    return `${weekStartMonday.toLocaleDateString('en-US', opts)} – ${end.toLocaleDateString('en-US', opts)}, ${y}`;
+  }
+
+  formatGridDayName(cell: JourneyGridCell): string {
+    return cell.date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Kolkata' });
+  }
+
+  formatGridDayDate(cell: JourneyGridCell): string {
+    return cell.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' });
+  }
+
+  gridCellHasItems(cell: JourneyGridCell): boolean {
+    const day = cell.day;
+    if (!day) return false;
+    return this.journeyDayHasItems(day);
+  }
+
+  liveCount(day: JourneyTimetableDay): number {
+    return day.liveClasses?.length || 0;
+  }
+
+  exerciseCount(day: JourneyTimetableDay): number {
+    return day.exercises?.length || 0;
+  }
+
+  dgCount(day: JourneyTimetableDay): number {
+    return day.dgModules?.length || 0;
+  }
+
+  arenaCount(day: JourneyTimetableDay): number {
+    return day.arenaGames?.length || 0;
+  }
+
+  liveTimeShort(day: JourneyTimetableDay): string {
+    const live = day.liveClasses?.[0];
+    if (!live?.timeLabel) return '';
+    return live.timeLabel.split(' - ')[0] || live.timeLabel;
+  }
+
+  joinFirstLive(day: JourneyTimetableDay): void {
+    const live = day.liveClasses?.find((c) => this.canJoinLiveClass(c));
+    if (live) this.joinLiveClass(live);
+  }
+
+  canJoinDay(day: JourneyTimetableDay): boolean {
+    return (day.liveClasses || []).some((c) => this.canJoinLiveClass(c));
+  }
+
+  cellDayStatus(cell: JourneyGridCell): 'past' | 'today' | 'upcoming' {
+    const todayKey = this.toIstDateKey(new Date());
+    if (cell.dateKey === todayKey) return 'today';
+    if (cell.dateKey < todayKey) return 'past';
+    return 'upcoming';
+  }
+
+  get isStudentJourneyView(): boolean {
+    return this.userRole === 'STUDENT';
+  }
+
+  get studentScheduleDayCount(): number {
+    return this.journeyDays.length;
+  }
+
+  journeyDayHasItems(day: JourneyTimetableDay): boolean {
+    return !!(
+      day.liveClasses?.length ||
+      day.exercises?.length ||
+      day.dgModules?.length ||
+      day.arenaGames?.length
+    );
+  }
+
+  activityKindLabel(kind?: string): string {
+    if (kind === 'weekly-test') return 'Weekly test';
+    if (kind === 'exam') return 'Exam';
+    if (kind === 'dg-bot') return 'DG Bot';
+    return 'Exercise';
+  }
+
+  joinLiveClass(live: JourneyTimetableLiveClass): void {
+    if (live.joinUrl) {
+      this.joinClassFlow.openJoin({ joinUrl: live.joinUrl }, (msg) => this.notify.error(msg));
+    }
+  }
+
+  getLiveClassStatus(live: JourneyTimetableLiveClass): string {
+    if (!live.startTime) return 'upcoming';
+    const now = new Date();
+    const start = new Date(live.startTime);
+    const end = live.endTime
+      ? new Date(live.endTime)
+      : new Date(start.getTime() + (live.duration || 60) * 60000);
+    if (now < start) return 'upcoming';
+    if (now >= start && now <= end) return 'live';
+    return 'ended';
+  }
+
+  canJoinLiveClass(live: JourneyTimetableLiveClass): boolean {
+    if (!live.joinUrl || !live.startTime) return false;
+    const now = new Date();
+    const start = new Date(live.startTime);
+    const end = live.endTime
+      ? new Date(live.endTime)
+      : new Date(start.getTime() + (live.duration || 60) * 60000);
+    const fifteenMinsBefore = new Date(start.getTime() - 15 * 60000);
+    return now >= fifteenMinsBefore && now <= end;
+  }
+
+  private resolveStudentBatch(profile: UserProfile): string {
+    const direct = String(profile.batch || '').trim();
+    if (direct) return direct;
+
+    const subscription = String(profile.subscription || '').toUpperCase();
+    if (subscription === 'SILVER') {
+      const mediums = Array.isArray(profile.medium) ? profile.medium : [profile.medium];
+      const isSinhala = mediums.some((m) => String(m || '').toLowerCase() === 'sinhala');
+      return isSinhala ? 'GO-SINHALA' : 'GO-SILVER';
+    }
+
+    return direct;
+  }
+
+  // Student - load all timetables for batch/plan; UI shows current + upcoming week
   private loadTimeTablesforStudent(batch: string, subscription: string): void {
     this.timeTableService.getTimeTablesbyBatchAndPlan(batch, subscription).subscribe(
       (data: TimeTable[]) => {
-        
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
-
-        // ✅ Filter timetables for current month only
-        this.timeTables = data.filter((tt: any) => {
-          const startDate = new Date(tt.weekStartDate);
-          const endDate = new Date(tt.weekEndDate);
-          return (
-            (startDate.getMonth() === currentMonth && startDate.getFullYear() === currentYear) ||
-            (endDate.getMonth() === currentMonth && endDate.getFullYear() === currentYear)
-          );
-        });
-
-        this.preloadTeacherNames(this.timeTables); // ✅ also preload for student timetables
+        this.timeTables = data || [];
+        this.preloadTeacherNames(this.timeTables);
       },
       (error) => console.error('Error fetching student timetable', error)
     );
   }
+
   private loadTimeTablesforTeacher(teacherId: string): void {
     this.timeTableService.getTimeTablesByTeacher(teacherId).subscribe({
       next: (data: TimeTable[]) => {
-        //console.log('Teacher timetable fetched:', data);
-
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
-
-        // ✅ Filter timetables for current month only
-        this.timeTables = data.filter((tt: any) => {
-          const startDate = new Date(tt.weekStartDate);
-          const endDate = new Date(tt.weekEndDate);
-          return (
-            (startDate.getMonth() === currentMonth && startDate.getFullYear() === currentYear) ||
-            (endDate.getMonth() === currentMonth && endDate.getFullYear() === currentYear)
-          );
-        });
-
-        this.preloadTeacherNames(this.timeTables); // ✅ also preload teacher names
+        this.timeTables = data || [];
+        this.preloadTeacherNames(this.timeTables);
       },
       error: (error) => console.error('Error fetching teacher timetable', error)
     });
@@ -303,6 +507,50 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     return upcoming[0] || null;
   }
 
+  /** Current week plus the next upcoming week (student/teacher); admin keeps current week only. */
+  get displayableTimeTables(): TimeTable[] {
+    const today = this.startOfToday();
+    const isAdminView = this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN';
+
+    if (isAdminView) {
+      return this.currentWeekTimeTable ? [this.currentWeekTimeTable] : [];
+    }
+
+    const notPast = this.visibleTimeTables
+      .filter((tt) => this.toDate(tt.weekEndDate).getTime() >= today.getTime())
+      .sort((a, b) => this.toDate(a.weekStartDate).getTime() - this.toDate(b.weekStartDate).getTime());
+
+    if (!notPast.length) return [];
+
+    const currentWeeks = notPast.filter(
+      (tt) =>
+        this.toDate(tt.weekStartDate).getTime() <= today.getTime() &&
+        this.toDate(tt.weekEndDate).getTime() >= today.getTime()
+    );
+    const futureWeeks = notPast.filter((tt) => this.toDate(tt.weekStartDate).getTime() > today.getTime());
+
+    const result: TimeTable[] = [...currentWeeks];
+    if (futureWeeks.length) {
+      result.push(futureWeeks[0]);
+    } else if (!currentWeeks.length) {
+      result.push(notPast[0]);
+    }
+
+    return result.sort(
+      (a, b) => this.toDate(a.weekStartDate).getTime() - this.toDate(b.weekStartDate).getTime()
+    );
+  }
+
+  getWeekSectionTitle(tt: TimeTable): string {
+    const today = this.startOfToday();
+    const start = this.toDate(tt.weekStartDate).getTime();
+    const end = this.toDate(tt.weekEndDate).getTime();
+    if (start <= today.getTime() && end >= today.getTime()) {
+      return 'Current Week';
+    }
+    return 'Upcoming Week';
+  }
+
   get pastTimeTables(): TimeTable[] {
     const today = this.startOfToday();
     return this.visibleTimeTables
@@ -371,10 +619,19 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     return date;
   }
 
-  // Get current month and year
-  getCurrentMonthYear(): string {
-    const now = new Date();
-    return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  getScheduleSubtitle(): string {
+    const isAdminView = this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN';
+    if (isAdminView) {
+      const now = new Date();
+      return `${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} Schedule`;
+    }
+    if (this.userRole === 'STUDENT') {
+      const batch = this.journeyTimetable?.batchName;
+      return batch
+        ? `Batch ${batch} · Journey schedule (auto)`
+        : 'Your journey schedule';
+    }
+    return 'Current & Upcoming Weeks';
   }
   
   // Format a meeting's start/end time in IST (India Standard Time)

@@ -317,7 +317,7 @@ async function findDuplicateBatchCourseDay(batch, courseDay) {
 
 /**
  * Run conflict checks for one slot (no Zoom calls).
- * @returns {Promise<string[]>} human-readable warnings
+ * @returns {Promise<{ warnings: string[], studentConflicts: Array<{ conflictingBatch: string, conflictingTopic: string, clashingStudents: Array<{ studentId: string, name: string, email: string }> }> }>}
  */
 async function collectSlotConflicts({
   batch,
@@ -329,6 +329,8 @@ async function collectSlotConflicts({
   courseDay
 }) {
   const warnings = [];
+  const studentConflicts = [];
+
   const meetingStart = new Date(`${slotStartTime16}:00+05:30`);
   if (meetingStart.getTime() < Date.now() - 60000) {
     warnings.push(`Past date skipped or invalid: ${slotStartTime16}`);
@@ -354,9 +356,29 @@ async function collectSlotConflicts({
       ? await findAnyStudentOverlap(studentIds, meetingStart, meetingEnd)
       : null;
   if (stHit) {
-    warnings.push(
-      `Student overlap at ${slotStartTime16} with meeting "${stHit.topic || ''}" (${stHit.batch})`
+    const requestedIds = new Set((studentIds || []).map((id) => String(id)));
+    const clashingAttendees = (stHit.attendees || []).filter(
+      (a) => requestedIds.has(String(a.studentId))
     );
+    const studentDesc = clashingAttendees.length
+      ? clashingAttendees
+          .map((a) => (a.name && a.email ? `${a.name} (${a.email})` : a.name || a.email || String(a.studentId)))
+          .join(', ')
+      : 'unknown students';
+    warnings.push(
+      `Student overlap at ${slotStartTime16} with meeting "${stHit.topic || ''}" (${stHit.batch}): ${studentDesc}`
+    );
+    if (clashingAttendees.length) {
+      studentConflicts.push({
+        conflictingBatch: stHit.batch || '',
+        conflictingTopic: stHit.topic || '',
+        clashingStudents: clashingAttendees.map((a) => ({
+          studentId: String(a.studentId),
+          name: a.name || '',
+          email: a.email || ''
+        }))
+      });
+    }
   }
 
   if (courseDay != null && Number.isFinite(Number(courseDay))) {
@@ -368,7 +390,7 @@ async function collectSlotConflicts({
     }
   }
 
-  return warnings;
+  return { warnings, studentConflicts };
 }
 
 /**
@@ -400,9 +422,10 @@ async function previewJourneyWithConflicts(opts) {
 
   const allWarnings = [...gen.warnings];
   const blockingErrors = [];
+  const allStudentConflicts = [];
 
   for (const row of gen.schedules) {
-    const w = await collectSlotConflicts({
+    const { warnings: slotWarnings, studentConflicts: slotSC } = await collectSlotConflicts({
       batch,
       teacherId,
       zoomHostEmail,
@@ -411,7 +434,8 @@ async function previewJourneyWithConflicts(opts) {
       durationMinutes,
       courseDay: row.journeyDay
     });
-    allWarnings.push(...w.map((x) => `[Day ${row.journeyDay}] ${x}`));
+    allWarnings.push(...slotWarnings.map((x) => `[Day ${row.journeyDay}] ${x}`));
+    allStudentConflicts.push(...slotSC);
   }
 
   const v = validateSchedulePayload(
@@ -430,7 +454,29 @@ async function previewJourneyWithConflicts(opts) {
   );
   if (!v.ok) blockingErrors.push(...v.errors);
 
-  return { schedules: gen.schedules, allWarnings, blockingErrors };
+  return { schedules: gen.schedules, allWarnings, blockingErrors, studentConflicts: deduplicateStudentConflicts(allStudentConflicts) };
+}
+
+/**
+ * Deduplicate student conflicts: merge clashing students per conflicting batch.
+ * @param {Array<{ conflictingBatch: string, conflictingTopic: string, clashingStudents: Array }>} list
+ */
+function deduplicateStudentConflicts(list) {
+  const byBatch = new Map();
+  for (const item of list) {
+    const key = item.conflictingBatch;
+    if (!byBatch.has(key)) {
+      byBatch.set(key, { conflictingBatch: item.conflictingBatch, conflictingTopic: item.conflictingTopic, clashingStudents: new Map() });
+    }
+    for (const s of item.clashingStudents) {
+      byBatch.get(key).clashingStudents.set(s.studentId, s);
+    }
+  }
+  return Array.from(byBatch.values()).map((entry) => ({
+    conflictingBatch: entry.conflictingBatch,
+    conflictingTopic: entry.conflictingTopic,
+    clashingStudents: Array.from(entry.clashingStudents.values())
+  }));
 }
 
 /**
@@ -455,6 +501,7 @@ async function previewCustomJourneySchedules(opts) {
   const rows = Array.isArray(schedules) ? schedules : [];
   const allWarnings = [];
   const blockingErrors = [];
+  const allStudentConflicts = [];
   const dur = Math.max(1, parseInt(String(durationMinutes ?? 120), 10) || 120);
 
   for (let i = 0; i < rows.length; i++) {
@@ -469,7 +516,7 @@ async function previewCustomJourneySchedules(opts) {
       blockingErrors.push(`Row ${i + 1}: invalid start time (use date and time)`);
       continue;
     }
-    const w = await collectSlotConflicts({
+    const { warnings: slotWarnings, studentConflicts: slotSC } = await collectSlotConflicts({
       batch,
       teacherId,
       zoomHostEmail,
@@ -478,7 +525,8 @@ async function previewCustomJourneySchedules(opts) {
       durationMinutes: dur,
       courseDay: jd
     });
-    allWarnings.push(...w.map((x) => `[Day ${jd}] ${x}`));
+    allWarnings.push(...slotWarnings.map((x) => `[Day ${jd}] ${x}`));
+    allStudentConflicts.push(...slotSC);
   }
 
   const v = validateSchedulePayload(
@@ -497,7 +545,7 @@ async function previewCustomJourneySchedules(opts) {
   );
   if (!v.ok) blockingErrors.push(...v.errors);
 
-  return { schedules: rows, allWarnings, blockingErrors };
+  return { schedules: rows, allWarnings, blockingErrors, studentConflicts: deduplicateStudentConflicts(allStudentConflicts) };
 }
 
 module.exports = {

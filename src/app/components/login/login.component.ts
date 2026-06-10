@@ -8,7 +8,8 @@ import {
   OnInit,
   ViewChild
 } from '@angular/core';
-import { AuthService, SKIP_SESSION_RESTORE_KEY } from '../../services/auth.service';
+import { AuthService, getAuthToken, SKIP_SESSION_RESTORE_KEY } from '../../services/auth.service';
+import { catchError, finalize, of, timeout } from 'rxjs';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { isSafeReturnUrl } from '../../services/join-class-flow.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -121,18 +122,30 @@ export class LoginComponent implements OnInit {
       /* ignore */
     }
 
+    // No stored token — show the login form immediately (do not wait on the API).
+    if (!getAuthToken()) {
+      this.checkingExistingSession = false;
+      return;
+    }
+
     this.checkingExistingSession = true;
-    this.authService.refreshUserProfile().subscribe({
-      next: (user) => {
+    this.authService.refreshUserProfile().pipe(
+      timeout(8000),
+      catchError(() => {
+        this.authService.clearClientSession();
+        return of(null);
+      }),
+      finalize(() => {
         this.checkingExistingSession = false;
+      })
+    ).subscribe({
+      next: (user) => {
+        if (!user) return;
         const path = this.authService.getPostLoginPath(user);
         if (path) {
           this.router.navigateByUrl(path);
         }
       },
-      error: () => {
-        this.checkingExistingSession = false;
-      }
     });
   }
 

@@ -62,6 +62,18 @@ export interface ZoomAccount {
   conflicts?: ZoomHostConflict[];
 }
 
+export interface StudentConflictEntry {
+  studentId: string;
+  name: string;
+  email: string;
+}
+
+export interface StudentConflict {
+  conflictingBatch: string;
+  conflictingTopic: string;
+  clashingStudents: StudentConflictEntry[];
+}
+
 export interface Teacher {
   _id: string;
   name: string;
@@ -90,6 +102,13 @@ export class ZoomService {
   /** Server-side journey preview + conflict strings (no Zoom). */
   previewBulkJourneyMeetings(body: Record<string, unknown>): Observable<any> {
     return this.http.post(`${this.apiUrl}/preview-bulk-journey-meetings`, body, {
+      withCredentials: true
+    });
+  }
+
+  /** Remove specific students from all future scheduled meetings of the given batch. */
+  removeStudentsFromBatch(batchName: string, studentIds: string[]): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meetings/remove-students-from-batch`, { batchName, studentIds }, {
       withCredentials: true
     });
   }
