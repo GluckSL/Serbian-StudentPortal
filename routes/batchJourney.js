@@ -365,8 +365,9 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
 // All students in batches that have journeyActive (Platinum journey list).
 router.get('/active-platinum-students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    let activeConfigs = await BatchConfig.find({ journeyActive: true }).select('batchName').lean();
+    let activeConfigs = await BatchConfig.find({ journeyActive: true }).select('batchName trialDayEnabled').lean();
     let batchNames = activeConfigs.map((c) => String(c.batchName || '').trim()).filter(Boolean);
+    const trial = activeConfigs.some((c) => !!c.trialDayEnabled);
 
     if (req.user.role === 'TEACHER' || req.user.role === 'TEACHER_ADMIN') {
       const allowed = await buildTeacherAllowedBatchSet(req.user.id);

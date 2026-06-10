@@ -219,117 +219,134 @@ async function applyJourneyDayRollovers() {
   let advanced = 0;
   let clearedPending = 0;
   let heldStrict = 0;
+  let skippedNoConfig = 0;
 
   for (const s of students) {
-    const cfg = await batchConfigForStudent(s);
-    if (shouldSkipStudentRollover(cfg)) {
-      continue;
-    }
-    const trialEnabled = !!cfg?.trialDayEnabled;
-    const cur = normalizeCourseDay(s.currentCourseDay, trialEnabled);
-    const maxDay = cfg?.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
-    const calendarDay = cfg?.batchStartDate ? computeJourneyDayFromBatchConfig(cfg) : null;
+    try {
+      const cfg = await batchConfigForStudent(s);
+      if (shouldSkipStudentRollover(cfg)) {
+        continue;
+      }
+      const trialEnabled = !!cfg?.trialDayEnabled;
+      const cur = normalizeCourseDay(s.currentCourseDay, trialEnabled);
+      const maxDay = cfg?.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
+      const calendarDay = cfg?.batchStartDate ? computeJourneyDayFromBatchConfig(cfg) : null;
 
-    if (!cfg || cur >= maxDay) {
-      if (s.pendingJourneyDayAdvance) {
+      if (!cfg) {
+        skippedNoConfig++;
+        if (!s.batch) {
+          console.warn(`⚠️ [Journey rollover] Student ${s._id} (${s.name || 'unknown'}) has no batch field — skipping rollover. Set a batch on this student or assign them to an active batch config.`);
+        }
+        if (s.pendingJourneyDayAdvance) {
+          await User.updateOne(
+            { _id: s._id },
+            { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+          );
+          clearedPending++;
+        }
+        continue;
+      }
+
+      if (cur >= maxDay) {
+        if (s.pendingJourneyDayAdvance) {
+          await User.updateOne(
+            { _id: s._id },
+            { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+          );
+          clearedPending++;
+        }
+        continue;
+      }
+
+      const forDay =
+        s.pendingJourneyDayAdvanceForDay != null ? normalizeCourseDay(s.pendingJourneyDayAdvanceForDay) : null;
+      if (forDay != null && forDay !== cur) {
         await User.updateOne(
           { _id: s._id },
           { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
         );
         clearedPending++;
       }
-      continue;
-    }
 
-    const forDay =
-      s.pendingJourneyDayAdvanceForDay != null ? normalizeCourseDay(s.pendingJourneyDayAdvanceForDay) : null;
-    if (forDay != null && forDay !== cur) {
+      const silverGoStrict = isSilverGoStudent(s);
+      const strictForStudent = !!cfg.strictJourneyRule || silverGoStrict;
+      let shouldAdvance = false;
+      if (!strictForStudent) {
+        shouldAdvance = true;
+      } else {
+        const keys = allStudentBatchStringsForContent(s);
+        const completion = await computeJourneyDayCompletion(
+          s._id,
+          keys,
+          cur,
+          silverGoStrict
+            ? silverGoCompletionOptions(s)
+            : {
+                includeRecordings: false,
+                includeDg: false,
+                includeLearningModules: true,
+                studentLevel: s.level,
+                studentPlan: s.subscription,
+                goStatus: s.goStatus,
+                subscription: s.subscription
+              }
+        );
+        if (silverGoStrict) {
+          const priorOk = await allPriorJourneyDaysComplete(s._id, s, cur);
+          shouldAdvance = priorOk && !!completion.complete;
+        } else {
+          shouldAdvance = meetsStrictThreshold(completion, cfg);
+        }
+      }
+
+      if (!shouldAdvance) {
+        if (s.pendingJourneyDayAdvance) {
+          await User.updateOne(
+            { _id: s._id },
+            { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+          );
+          clearedPending++;
+        }
+        heldStrict++;
+        continue;
+      }
+
+      let next;
+      if (calendarDay != null && !strictForStudent) {
+        if (calendarDay <= cur) continue;
+        next = Math.min(maxDay, calendarDay);
+      } else if (calendarDay != null && strictForStudent) {
+        next = Math.min(maxDay, cur + 1, calendarDay);
+        if (next <= cur) continue;
+      } else {
+        next = Math.min(maxDay, cur + 1);
+      }
+      if (next === cur) continue;
+
       await User.updateOne(
         { _id: s._id },
-        { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+        {
+          $set: withJourneyLevelInSet(
+            next,
+            {
+              currentCourseDay: next,
+              pendingJourneyDayAdvance: false,
+              pendingJourneyDayAdvanceForDay: null
+            },
+            { student: s }
+          )
+        }
       );
-      clearedPending++;
+      await SilverGoUnlockCache.deleteOne({ studentId: s._id });
+      advanced++;
+    } catch (err) {
+      console.error(`⚠️ [Journey rollover] Error processing student ${s._id} (${s.name || 'unknown'}): ${err.message}`);
     }
-
-    const silverGoStrict = isSilverGoStudent(s);
-    const strictForStudent = !!cfg.strictJourneyRule || silverGoStrict;
-    let shouldAdvance = false;
-    if (!strictForStudent) {
-      shouldAdvance = true;
-    } else {
-      const keys = allStudentBatchStringsForContent(s);
-      const completion = await computeJourneyDayCompletion(
-        s._id,
-        keys,
-        cur,
-        silverGoStrict
-          ? silverGoCompletionOptions(s)
-          : {
-              includeRecordings: false,
-              includeDg: false,
-              includeLearningModules: true,
-              studentLevel: s.level,
-              studentPlan: s.subscription,
-              goStatus: s.goStatus,
-              subscription: s.subscription
-            }
-      );
-      if (silverGoStrict) {
-        const priorOk = await allPriorJourneyDaysComplete(s._id, s, cur);
-        shouldAdvance = priorOk && !!completion.complete;
-      } else {
-        shouldAdvance = meetsStrictThreshold(completion, cfg);
-      }
-    }
-
-    if (!shouldAdvance) {
-      if (s.pendingJourneyDayAdvance) {
-        await User.updateOne(
-          { _id: s._id },
-          { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
-        );
-        clearedPending++;
-      }
-      heldStrict++;
-      continue;
-    }
-
-    let next;
-    if (calendarDay != null && !strictForStudent) {
-      // Auto-scheduled lenient batches: sync to calendar (supports multi-day trial windows).
-      if (calendarDay <= cur) continue;
-      next = Math.min(maxDay, calendarDay);
-    } else if (calendarDay != null && strictForStudent) {
-      next = Math.min(maxDay, cur + 1, calendarDay);
-      if (next <= cur) continue;
-    } else {
-      next = Math.min(maxDay, cur + 1);
-    }
-    if (next === cur) continue;
-
-    await User.updateOne(
-      { _id: s._id },
-      {
-        $set: withJourneyLevelInSet(
-          next,
-          {
-            currentCourseDay: next,
-            pendingJourneyDayAdvance: false,
-            pendingJourneyDayAdvanceForDay: null
-          },
-          { student: s }
-        )
-      }
-    );
-    await SilverGoUnlockCache.deleteOne({ studentId: s._id });
-    advanced++;
   }
 
-  if (advanced || clearedPending || heldStrict) {
-    console.log(
-      `📅 [Journey rollover] Advanced ${advanced} student(s); held (strict) ${heldStrict}; cleared pending ${clearedPending}.`
-    );
-  }
+  console.log(
+    `📅 [Journey rollover] Advanced ${advanced}; held (strict) ${heldStrict}; cleared pending ${clearedPending}; skipped (no config) ${skippedNoConfig}.`
+  );
 }
 
 module.exports = {
