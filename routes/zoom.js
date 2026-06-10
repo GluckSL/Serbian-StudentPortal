@@ -1498,8 +1498,7 @@ router.get('/students/:batch', verifyToken, async (req, res) => {
 
     const students = await User.find({
       role: 'STUDENT',
-      batch: batch,
-      isActive: true
+      batch: batch
     })
     .select('name email batch level subscription studentStatus')
     .sort({ name: 1 })
@@ -1529,8 +1528,7 @@ router.get('/students', verifyToken, async (req, res) => {
     const { batch, level, subscription } = req.query;
     
     const query = {
-      role: 'STUDENT',
-      isActive: true
+      role: 'STUDENT'
     };
 
     if (batch) query.batch = batch;
