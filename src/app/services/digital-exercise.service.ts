@@ -30,6 +30,7 @@ export interface QuestionCommonFields {
   example?: string;
   /** Per-question attachment URL (image / audio / video / PDF). */
   attachmentUrl?: string;
+  attachmentUrls?: string[];
   /**
    * When the attachment is audio: maximum times the student may start playback
    * during one exercise attempt. Omit, null, or 0 = unlimited (default).

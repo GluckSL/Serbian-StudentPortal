@@ -358,10 +358,11 @@
             <!-- Shared audio above prompts when Q&A has sub-parts -->
             <div
               class="q-attachment-box review-passage-audio-top"
-              *ngIf="shouldShowPassageAudioAtTop(pq.data)"
+              *ngFor="let attUrl of getQuestionAudioAttachmentUrls(pq.data)"
+              [hidden]="!shouldShowPassageAudioAtTop(pq.data)"
             >
               <audio
-                [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                [src]="getMediaFullUrl(attUrl)"
                 controls
                 class="q-attachment-audio"
               ></audio>
@@ -370,18 +371,17 @@
             <!-- Attachment after stem; with sub-questions, non-audio stays after sub-parts -->
             <div
               class="q-attachment-box"
-              *ngIf="
-                pq.data.attachmentUrl &&
-                !shouldShowPassageAudioAtTop(pq.data) &&
-                !shouldShowPassageAttachmentAtBottom(pq.data)
+              *ngFor="let attUrl of getQuestionAttachmentUrls(pq.data)"
+              [hidden]="
+                shouldShowPassageAudioAtTop(pq.data) ||
+                shouldShowPassageAttachmentAtBottom(pq.data) ||
+                (hasSubQuestions(pq.data) && getAttachmentType(attUrl) === 'audio')
               "
             >
-              <ng-container
-                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
-              >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
                 <img
                   *ngSwitchCase="'image'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   alt="Attachment"
                   class="q-attachment-img"
                   loading="lazy"
@@ -389,19 +389,19 @@
                 />
                 <audio
                   *ngSwitchCase="'audio'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-audio"
                 ></audio>
                 <video
                   *ngSwitchCase="'video'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-video"
                 ></video>
                 <a
                   *ngSwitchCase="'pdf'"
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -409,7 +409,7 @@
                 </a>
                 <a
                   *ngSwitchDefault
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -542,14 +542,13 @@
 
             <div
               class="q-attachment-box review-passage-ref"
-              *ngIf="shouldShowPassageAttachmentAtBottom(pq.data)"
+              *ngFor="let attUrl of getQuestionMediaAttachmentUrls(pq.data)"
+              [hidden]="!shouldShowPassageAttachmentAtBottom(pq.data)"
             >
-              <ng-container
-                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
-              >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
                 <img
                   *ngSwitchCase="'image'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   alt="Attachment"
                   class="q-attachment-img"
                   loading="lazy"
@@ -557,19 +556,19 @@
                 />
                 <audio
                   *ngSwitchCase="'audio'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-audio"
                 ></audio>
                 <video
                   *ngSwitchCase="'video'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-video"
                 ></video>
                 <a
                   *ngSwitchCase="'pdf'"
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -577,7 +576,7 @@
                 </a>
                 <a
                   *ngSwitchDefault
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -1966,10 +1965,11 @@
           <ng-template #playerQuestionAudioAttachment>
             <div
               class="q-attachment-box q-attachment-box--audio"
-              *ngIf="shouldShowQuestionAudio(currentQuestion.data)"
+              *ngFor="let attUrl of getQuestionAudioAttachmentUrls(currentQuestion.data); let audioIdx = index"
+              [hidden]="!shouldShowQuestionAudio(currentQuestion.data)"
             >
               <ng-container
-                *ngIf="getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
+                *ngIf="audioIdx === 0 && getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
               >
                     <div class="q-attachment-audio-capped">
                       <p class="q-attachment-audio-capped-hint" role="status">
@@ -1986,7 +1986,7 @@
                       <button
                         type="button"
                         class="btn-q-attachment-audio-play"
-                        (click)="playQuestionAttachmentAudio(currentQuestion)"
+                        (click)="playQuestionAttachmentAudio(currentQuestion, attUrl)"
                         [disabled]="isAttachmentAudioLimitReached(currentQuestion)"
                       >
                         <span class="material-icons" aria-hidden="true">play_arrow</span>
@@ -1996,7 +1996,7 @@
                   </ng-container>
               <ng-template #unlimitedPlayerAttachmentAudio>
                 <audio
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-audio"
                 ></audio>
@@ -2007,28 +2007,25 @@
           <ng-template #playerQuestionMediaAttachment>
             <div
               class="q-attachment-box"
-              *ngIf="hasMediaAttachment(currentQuestion.data)"
+              *ngFor="let attUrl of getQuestionMediaAttachmentUrls(currentQuestion.data)"
+              [hidden]="!hasMediaAttachment(currentQuestion.data)"
             >
-              <ng-container
-                [ngSwitch]="
-                  getAttachmentType(currentQuestion.data.attachmentUrl)
-                "
-              >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
                 <img
                   *ngSwitchCase="'image'"
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   alt="Question attachment"
                   class="q-attachment-img"
                 />
                 <video
                   *ngSwitchCase="'video'"
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-video"
                 ></video>
                 <a
                   *ngSwitchCase="'pdf'"
-                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -2036,7 +2033,7 @@
                 </a>
                 <a
                   *ngSwitchDefault
-                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -3887,10 +3884,10 @@
                     <div *ngIf="sq.type === 'mcq'" class="sub-q-mcq">
                       <div
                         class="q-attachment-box q-attachment-box--audio"
-                        *ngIf="hasSubQuestionOwnAudio(currentQuestion.data, sq)"
+                        *ngFor="let attUrl of getSubQuestionOwnAudioUrls(currentQuestion.data, sq)"
                       >
                         <audio
-                          [src]="getMediaFullUrl(sq.attachmentUrl)"
+                          [src]="getMediaFullUrl(attUrl)"
                           controls
                           class="q-attachment-audio"
                         ></audio>

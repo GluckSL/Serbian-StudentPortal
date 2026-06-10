@@ -2500,6 +2500,7 @@ textarea.field-input.field-input--desc {
   margin-top: 8px;
   flex-wrap: wrap;
 }
+.attachment-preview + .attachment-preview { margin-top: 4px; }
 .attachment-img-preview { max-height: 160px; max-width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; object-fit: contain; }
 .attachment-audio-preview { max-width: 100%; }
 .attachment-video-preview { max-height: 200px; max-width: 100%; border-radius: 8px; border: 1px solid #e2e8f0; }

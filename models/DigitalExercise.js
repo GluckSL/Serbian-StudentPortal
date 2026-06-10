@@ -142,6 +142,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
     points: { type: Number, default: 1 },
     // Per-question attachment (image, audio, PDF, video) visible only for this question
     attachmentUrl: { type: String, default: '' },
+    attachmentUrls: [{ type: String }],
     // When attachment is audio: max play-button presses per exercise attempt (omit/null = unlimited)
     attachmentAudioMaxPlaysPerAttempt: { type: Number, default: null, min: 1, max: 99 },
     // Teacher explanation of why the correct answer is right; shown to students in review
@@ -238,6 +239,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
       // Common
       points: { type: Number, default: 1 },
       attachmentUrl: { type: String, default: '' },
+      attachmentUrls: [{ type: String }],
       attachmentAudioMaxPlaysPerAttempt: { type: Number, default: null, min: 1, max: 99 },
       answerExplanation: { type: String, default: '' },
       sectionTitle: { type: String, default: null },
