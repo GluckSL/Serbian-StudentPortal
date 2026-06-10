@@ -11,6 +11,7 @@ import { ClassSubmissionService } from '../../services/class-submission.service'
 import { NotificationService } from '../../services/notification.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
 import { MeetingRemindDialogComponent } from '../meeting-link/meeting-remind-dialog.component';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-teacher-my-classes',
@@ -41,6 +42,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   private joinLabelTimer?: ReturnType<typeof setInterval>;
 
   filters = { batch: '', date: '', plan: '', status: '' };
+  private teacherUserId = '';
   /** 'all' = no date filter (show every class for this teacher); 'one' = filter by `filters.date` */
   dateFilterType: 'all' | 'one' = 'all';
 
@@ -78,12 +80,23 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     private notify: NotificationService,
     private joinClassFlow: JoinClassFlowService,
     private dialog: MatDialog,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
     this.dateFilterType = 'all';
     this.filters.date = '';
+    const snap = this.authService.getSnapshotUser();
+    this.teacherUserId = String(snap?._id || snap?.id || '');
+    if (!this.teacherUserId) {
+      this.authService.getUserProfile().subscribe({
+        next: (profile) => {
+          this.teacherUserId = String(profile?._id || profile?.id || '');
+          this.cdr.markForCheck();
+        },
+      });
+    }
     this.loadBatchOptions();
     this.loadClasses();
     this.joinLabelTimer = setInterval(() => this.cdr.markForCheck(), 30000);
@@ -262,8 +275,16 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     });
   }
 
-  showJoinButton(_m: any): boolean {
-    return this.statusTab !== 'ended';
+  teacherHostsMeeting(m: any): boolean {
+    const uid = this.teacherUserId;
+    if (!uid) return false;
+    const assigned = String(m?.assignedTeacher?._id || m?.assignedTeacher || '');
+    const created = String(m?.createdBy?._id || m?.createdBy || '');
+    return uid === assigned || uid === created;
+  }
+
+  showJoinButton(m: any): boolean {
+    return this.statusTab !== 'ended' && this.teacherHostsMeeting(m);
   }
 
   joinMeeting(m: any, event: Event): void {
@@ -273,7 +294,11 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   }
 
   canShowRemindButton(m: any): boolean {
-    return this.statusTab === 'ongoing' && this.getMeetingStatus(m) === 'ongoing';
+    return (
+      this.statusTab === 'ongoing' &&
+      this.getMeetingStatus(m) === 'ongoing' &&
+      this.teacherHostsMeeting(m)
+    );
   }
 
   openRemindDialog(m: any, event: Event): void {

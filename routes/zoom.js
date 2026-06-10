@@ -689,22 +689,10 @@ router.get('/meetings', verifyToken, async (req, res) => {
     const andClauses = [];
 
     if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      const teacherScopeOr = [
-        { createdBy: userId },
-        { assignedTeacher: userId },
-      ];
-      const batchValues = [];
-      for (const b of user.assignedBatches || []) {
-        const s = String(b || '').trim();
-        if (!s) continue;
-        batchValues.push(s);
-        const asNum = Number(s);
-        if (Number.isFinite(asNum) && String(asNum) === s) batchValues.push(asNum);
-      }
-      if (batchValues.length) {
-        teacherScopeOr.push({ batch: { $in: batchValues } });
-      }
-      andClauses.push({ $or: teacherScopeOr });
+      // Only classes this teacher hosts — not every meeting in assignedBatches.
+      andClauses.push({
+        $or: [{ createdBy: userId }, { assignedTeacher: userId }],
+      });
     }
 
     if (status) andClauses.push({ status });
@@ -1073,14 +1061,6 @@ async function staffMayManageMeeting(req, meeting) {
       ? String(meeting.assignedTeacher._id)
       : String(meeting.assignedTeacher || '');
     if (uid === createdBy || (assigned && uid === assigned)) return true;
-
-    const meetingBatch = normBatchKey(meeting.batch);
-    if (meetingBatch) {
-      const teacher = await User.findById(uid).select('assignedBatches').lean();
-      for (const b of teacher?.assignedBatches || []) {
-        if (normBatchKey(b) === meetingBatch) return true;
-      }
-    }
   }
   return false;
 }
