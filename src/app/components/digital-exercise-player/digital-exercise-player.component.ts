@@ -23,6 +23,7 @@ import {
   DigitalExerciseDraftPayload
 } from '../../services/digital-exercise-player-draft.service';
 import { resolveMediaUrl } from '../../utils/media-url';
+import { getQuestionAttachmentUrls } from '../../utils/question-attachments';
 import { OllyContextService } from '../../services/olly-context.service';
 import { countFillBlankRuns, splitFillBlankSentence, splitByWords } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -60,6 +61,7 @@ type QuestionRowData = {
   prompt?: string;
   subQuestions?: unknown[];
   attachmentUrl?: string;
+  attachmentUrls?: string[];
 };
 
 interface VpChatMessage {
@@ -4349,8 +4351,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private preloadQuestionImages(pq?: PlayerQuestion): void {
     if (!pq || typeof Image === 'undefined') return;
     this.preloadImageUrl(pq.data?.imageUrl);
-    if (this.getAttachmentType(String(pq.data?.attachmentUrl || '')) === 'image') {
-      this.preloadImageUrl(pq.data?.attachmentUrl);
+    for (const attUrl of this.getQuestionMediaAttachmentUrls(pq.data)) {
+      if (this.getAttachmentType(attUrl) === 'image') {
+        this.preloadImageUrl(attUrl);
+      }
     }
   }
 
@@ -4442,14 +4446,24 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return sqIndex === 0 && !!parent && this.isParentAnswerPartEmpty(parent) && this.hasAudioAttachment(parent);
   }
 
+  getQuestionAttachmentUrls(data: QuestionRowData | null | undefined): string[] {
+    return getQuestionAttachmentUrls(data || undefined);
+  }
+
+  getQuestionAudioAttachmentUrls(data: QuestionRowData | null | undefined): string[] {
+    return this.getQuestionAttachmentUrls(data).filter((u) => this.getAttachmentType(u) === 'audio');
+  }
+
+  getQuestionMediaAttachmentUrls(data: QuestionRowData | null | undefined): string[] {
+    return this.getQuestionAttachmentUrls(data).filter((u) => this.getAttachmentType(u) !== 'audio');
+  }
+
   hasAudioAttachment(data: QuestionRowData | null | undefined): boolean {
-    const att = String(data?.attachmentUrl || '').trim();
-    return !!att && this.getAttachmentType(att) === 'audio';
+    return this.getQuestionAudioAttachmentUrls(data).length > 0;
   }
 
   hasMediaAttachment(data: QuestionRowData | null | undefined): boolean {
-    const att = String(data?.attachmentUrl || '').trim();
-    return !!att && this.getAttachmentType(att) !== 'audio';
+    return this.getQuestionMediaAttachmentUrls(data).length > 0;
   }
 
   /** Audio on the parent row (e.g. Q 24.1) when the question has sub-parts. */
@@ -4486,10 +4500,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     parent: QuestionRowData | null | undefined,
     sq: QuestionRowData | null | undefined
   ): boolean {
-    const subAtt = String(sq?.attachmentUrl || '').trim();
-    if (!subAtt || this.getAttachmentType(subAtt) !== 'audio') return false;
-    const parentAtt = String(parent?.attachmentUrl || '').trim();
-    return !parentAtt || subAtt !== parentAtt;
+    return this.getSubQuestionOwnAudioUrls(parent, sq).length > 0;
+  }
+
+  getSubQuestionOwnAudioUrls(
+    parent: QuestionRowData | null | undefined,
+    sq: QuestionRowData | null | undefined
+  ): string[] {
+    const parentAudios = new Set(this.getQuestionAudioAttachmentUrls(parent));
+    return this.getQuestionAudioAttachmentUrls(sq).filter((u) => !parentAudios.has(u));
   }
 
   /** Non-audio passage attachments stay below sub-questions (reading image, PDF, etc.). */
@@ -4516,8 +4535,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Max attachment-audio play starts this attempt, or null if unlimited / not audio. */
   getAttachmentAudioCap(pq: PlayerQuestion | null | undefined): number | null {
     if (!pq?.data) return null;
-    const att = String(pq.data.attachmentUrl || '').trim();
-    if (!att || this.getAttachmentType(att) !== 'audio') return null;
+    if (!this.getQuestionAudioAttachmentUrls(pq.data).length) return null;
     const raw = pq.data.attachmentAudioMaxPlaysPerAttempt;
     const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '').trim(), 10);
     if (!Number.isFinite(n) || n < 1) return null;
@@ -4541,8 +4559,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return this.getAttachmentAudioPlaysUsed(pq) >= cap;
   }
 
-  playQuestionAttachmentAudio(pq: PlayerQuestion): void {
-    const url = String(pq.data?.attachmentUrl || '').trim();
+  playQuestionAttachmentAudio(pq: PlayerQuestion, attachmentUrl?: string): void {
+    const url = String(
+      attachmentUrl || this.getQuestionAudioAttachmentUrls(pq.data)[0] || ''
+    ).trim();
     if (!url || this.getAttachmentType(url) !== 'audio') return;
     const cap = this.getAttachmentAudioCap(pq);
     const used = this.getAttachmentAudioPlaysUsed(pq);
@@ -4574,8 +4594,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
    */
   getListeningSupplementalAudioUrl(data: any): string {
     if (data?.type !== 'listening') return '';
-    const att = String(data.attachmentUrl || '').trim();
-    if (att && this.getAttachmentType(att) === 'audio') return '';
+    if (this.getQuestionAudioAttachmentUrls(data).length) return '';
     return String(data.mediaUrl || '').trim();
   }
 
@@ -4603,7 +4622,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       add(q['imageUrl'] as string | undefined);
       const optImgs = Array.isArray(q['optionImageUrls']) ? q['optionImageUrls'] as string[] : [];
       for (const u of optImgs) add(u);
-      add(q['attachmentUrl'] as string | undefined);
+      for (const u of getQuestionAttachmentUrls(q as { attachmentUrl?: string; attachmentUrls?: string[] })) {
+        add(u);
+      }
       add(q['mediaUrl'] as string | undefined);
       add(q['audioUrl'] as string | undefined);
       add(q['videoUrl'] as string | undefined);
@@ -4657,10 +4678,27 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         q['imageUrl'] = ni ?? undefined;
         updated++;
       }
-      const na = patchVal(q['attachmentUrl'] as string | undefined);
-      if (na !== q['attachmentUrl']) {
-        q['attachmentUrl'] = na ?? undefined;
-        updated++;
+      const attUrls = Array.isArray(q['attachmentUrls']) ? (q['attachmentUrls'] as string[]) : [];
+      if (attUrls.length) {
+        let attChanged = false;
+        const nextAtt = attUrls
+          .map((u) => {
+            const n = patchVal(u);
+            if (n !== u) attChanged = true;
+            return (n as string) || '';
+          })
+          .filter(Boolean);
+        if (attChanged) {
+          q['attachmentUrls'] = nextAtt;
+          q['attachmentUrl'] = nextAtt[0] || '';
+          updated++;
+        }
+      } else {
+        const na = patchVal(q['attachmentUrl'] as string | undefined);
+        if (na !== q['attachmentUrl']) {
+          q['attachmentUrl'] = na ?? undefined;
+          updated++;
+        }
       }
       const nm = patchVal(q['mediaUrl'] as string | undefined);
       if (nm !== q['mediaUrl']) {

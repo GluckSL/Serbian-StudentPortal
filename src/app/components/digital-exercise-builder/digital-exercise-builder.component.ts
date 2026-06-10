@@ -11,6 +11,12 @@ import {
   VideoExerciseFeedbackItem
 } from '../../services/digital-exercise.service';
 import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
+import {
+  appendQuestionAttachment,
+  getQuestionAttachmentUrls,
+  removeQuestionAttachmentAt,
+  setQuestionAttachmentUrls
+} from '../../utils/question-attachments';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import {
@@ -80,6 +86,7 @@ interface BuilderQuestion {
   imagePinDisplayUrl?: string;
   // Per-question attachment (any file type)
   attachmentUrl?: string;
+  attachmentUrls?: string[];
   /** When attachment is audio: max play starts per student attempt (empty = unlimited). */
   attachmentAudioMaxPlaysPerAttempt?: number | null;
   attachmentUploading?: boolean;
@@ -306,14 +313,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     };
     for (const q of this.questions) {
       add(q.imageUrl);
-      add(q.attachmentUrl);
+      for (const u of getQuestionAttachmentUrls(q)) add(u);
       add(q.videoUrl);
       if (q.type === 'mcq') {
         for (const u of q.optionImageUrls || []) add(u);
       }
       for (const sq of q.subQuestions || []) {
         add(sq.imageUrl);
-        add(sq.attachmentUrl);
+        for (const u of getQuestionAttachmentUrls(sq)) add(u);
         if (sq.type === 'mcq') {
           for (const u of sq.optionImageUrls || []) add(u);
         }
@@ -418,7 +425,10 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       // Persisted on every question type; shown in player banner (non-matching) and editor.
       instruction: q.instruction || '',
       workedExample: q.example || '',
-      attachmentUrl: this.canonicalizeMediaField(q.attachmentUrl),
+      attachmentUrls: getQuestionAttachmentUrls(q).map((u) => this.canonicalizeMediaField(u)),
+      attachmentUrl: this.canonicalizeMediaField(
+        getQuestionAttachmentUrls(q).map((u) => this.canonicalizeMediaField(u))[0]
+      ),
       attachmentAudioMaxPlaysPerAttempt: this.normalizeAttachmentAudioMaxPlays(
         q.attachmentAudioMaxPlaysPerAttempt
       ),
@@ -1061,40 +1071,76 @@ export class DigitalExerciseBuilderComponent implements OnInit {
 
   onAttachmentFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = input.files ? Array.from(input.files) : [];
     input.value = '';
-    if (!file) return;
+    if (!files.length) return;
     if ((this as any)._bulkAttachmentMode) {
       (this as any)._bulkAttachmentMode = false;
-      this.onBulkAttachmentFileSelected(file);
+      this.onBulkAttachmentFileSelected(files[0]);
       return;
     }
     const q = this.currentAttachmentQ;
     this.currentAttachmentQ = null;
     if (!q) return;
+    this.uploadAttachmentFiles(q, files);
+  }
+
+  private uploadAttachmentFiles(q: BuilderQuestion, files: File[]): void {
+    if (!files.length) return;
     q.attachmentUploading = true;
-    this.exerciseService.uploadQuestionAttachment(file).subscribe({
-      next: (res) => {
-        const canonicalUrl = this.canonicalizeMediaField(res.canonicalUrl || res.url);
-        q.attachmentUrl = canonicalUrl;
-        q.attachmentUploading = false;
-        if (this.getAttachmentType(canonicalUrl) !== 'audio') {
-          q.attachmentAudioMaxPlaysPerAttempt = undefined;
-        }
-        this.showSuccess('File uploaded');
-      },
-      error: (err) => {
-        q.attachmentUploading = false;
-        this.showError(err.error?.error || 'Upload failed');
+    let uploaded = 0;
+    let hadError = false;
+    const finish = () => {
+      q.attachmentUploading = false;
+      if (uploaded > 0) {
+        this.showSuccess(uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
       }
-    });
+    };
+    const uploadNext = (index: number) => {
+      if (index >= files.length) {
+        finish();
+        return;
+      }
+      this.exerciseService.uploadQuestionAttachment(files[index]).subscribe({
+        next: (res) => {
+          const canonicalUrl = this.canonicalizeMediaField(res.canonicalUrl || res.url);
+          appendQuestionAttachment(q, canonicalUrl);
+          uploaded += 1;
+          uploadNext(index + 1);
+        },
+        error: (err) => {
+          hadError = true;
+          this.showError(err.error?.error || 'Upload failed');
+          if (uploaded > 0) finish();
+          else q.attachmentUploading = false;
+        }
+      });
+    };
+    uploadNext(0);
+  }
+
+  getQuestionAttachments(q: BuilderQuestion): string[] {
+    return getQuestionAttachmentUrls(q);
+  }
+
+  hasQuestionAudioAttachment(q: BuilderQuestion): boolean {
+    return getQuestionAttachmentUrls(q).some((u) => this.getAttachmentType(u) === 'audio');
+  }
+
+  removeAttachmentAt(q: BuilderQuestion, index: number): void {
+    const qi = this.questionIndexOf(q);
+    if (qi >= 0 && index === 0 && getQuestionAttachmentUrls(q).length <= 1) {
+      this.markMediaCleared(qi, 'attachmentUrl');
+    }
+    const removed = getQuestionAttachmentUrls(q)[index];
+    removeQuestionAttachmentAt(q, index);
+    if (removed && this.getAttachmentType(removed) === 'audio' && !this.hasQuestionAudioAttachment(q)) {
+      q.attachmentAudioMaxPlaysPerAttempt = undefined;
+    }
   }
 
   removeAttachment(q: BuilderQuestion): void {
-    const qi = this.questionIndexOf(q);
-    if (qi >= 0) this.markMediaCleared(qi, 'attachmentUrl');
-    q.attachmentUrl = '';
-    q.attachmentAudioMaxPlaysPerAttempt = undefined;
+    this.removeAttachmentAt(q, 0);
   }
 
   /** Valid cap 1–99, otherwise undefined (unlimited). */
@@ -1172,14 +1218,14 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   /** Listening audio may live on attachment (preferred) or legacy mediaUrl. */
   hasListeningAudio(q: BuilderQuestion): boolean {
     if (q.type !== 'listening') return false;
-    const att = String(q.attachmentUrl || '').trim();
-    if (att && this.getAttachmentType(att) === 'audio') return true;
+    const audioAtt = getQuestionAttachmentUrls(q).find((u) => this.getAttachmentType(u) === 'audio');
+    if (audioAtt) return true;
     return !!(q.mediaUrl || '').trim();
   }
 
   getListeningPreviewAudioUrl(q: BuilderQuestion): string | null {
-    const att = String(q.attachmentUrl || '').trim();
-    if (att && this.getAttachmentType(att) === 'audio') return att;
+    const audioAtt = getQuestionAttachmentUrls(q).find((u) => this.getAttachmentType(u) === 'audio');
+    if (audioAtt) return audioAtt;
     const m = String(q.mediaUrl || '').trim();
     return m || null;
   }
@@ -1254,8 +1300,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   /** Audio URL used to ground AI answer explanations (listening + audio attachments). */
   private getExplanationAudioUrl(q: BuilderQuestion): string | null {
     if (q.type === 'listening') return this.getListeningPreviewAudioUrl(q);
-    const att = String(q.attachmentUrl || '').trim();
-    if (att && this.getAttachmentType(att) === 'audio') return att;
+    const audioAtt = getQuestionAttachmentUrls(q).find((u) => this.getAttachmentType(u) === 'audio');
+    if (audioAtt) return audioAtt;
     const media = String(q.mediaUrl || '').trim();
     if (media) return media;
     return null;
@@ -1733,12 +1779,13 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           allowRetry: q.settings?.allowRetry !== false
         };
       }
-      row.attachmentUrl = this.canonicalizeMediaField(row.attachmentUrl);
+      const attUrls = getQuestionAttachmentUrls(q).map((u) => this.canonicalizeMediaField(u));
+      setQuestionAttachmentUrls(row, attUrls);
       if (q.type === 'video-pronunciation') {
         row.videoUrl = this.canonicalizeMediaField(q.videoUrl);
       }
-      const attUrl = String(row.attachmentUrl || '').trim();
-      if (attUrl && this.getAttachmentType(attUrl) === 'audio') {
+      const hasAudioAtt = attUrls.some((u) => this.getAttachmentType(u) === 'audio');
+      if (hasAudioAtt) {
         const cap = this.normalizeAttachmentAudioMaxPlays(row.attachmentAudioMaxPlaysPerAttempt);
         if (cap !== undefined) {
           row.attachmentAudioMaxPlaysPerAttempt = cap;
@@ -1759,7 +1806,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           subRow.instruction = String(sq.instruction ?? '');
           subRow.example = String(sq.workedExample ?? '');
           subRow.worksheetKind = sq.worksheetKind || null;
-          subRow.attachmentUrl = this.canonicalizeMediaField(sq.attachmentUrl);
+          const subAttUrls = getQuestionAttachmentUrls(sq).map((u) => this.canonicalizeMediaField(u));
+          setQuestionAttachmentUrls(subRow, subAttUrls);
           subRow.answerExplanation = String(sq.answerExplanation || '');
           subRow.similarityThreshold = sq.similarityThreshold ?? 70;
           subRow.scoringMode = sq.scoringMode || 'full';
@@ -2213,7 +2261,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       if (this.bulkEditField === 'audio') {
         q.mediaUrl = this.bulkEditValue;
       } else if (this.bulkEditField === 'attachment') {
-        q.attachmentUrl = this.bulkEditValue;
+        setQuestionAttachmentUrls(q, this.bulkEditValue ? [this.bulkEditValue] : []);
       } else if (this.bulkEditField === 'example') {
         q.workedExample = this.bulkEditValue;
       } else if (this.bulkEditField === 'context') {
@@ -2264,7 +2312,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         for (const idx of this.selectedIndices) {
           const q = this.questions[idx];
           if (!q) continue;
-          q.attachmentUrl = canonicalUrl;
+          setQuestionAttachmentUrls(q, canonicalUrl ? [canonicalUrl] : []);
           if (attType !== 'audio') {
             q.attachmentAudioMaxPlaysPerAttempt = undefined;
           }

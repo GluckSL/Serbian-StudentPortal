@@ -4,6 +4,12 @@ import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/co
 import { throwError } from 'rxjs';
 import { finalize, switchMap } from 'rxjs/operators';
 import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
+import {
+  appendQuestionAttachment,
+  getQuestionAttachmentUrls,
+  removeQuestionAttachmentAt,
+  setQuestionAttachmentUrls
+} from '../../utils/question-attachments';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -94,6 +100,7 @@ interface ReviewQuestion {
   context?: string;
   /** Per-question file (image, audio, PDF, video) */
   attachmentUrl?: string;
+  attachmentUrls?: string[];
   attachmentUploading?: boolean;
   /** When attachment is audio: max play starts per student attempt (empty = unlimited). */
   attachmentAudioMaxPlaysPerAttempt?: number | null;
@@ -1676,37 +1683,69 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   onAttachmentFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = input.files ? Array.from(input.files) : [];
     input.value = '';
-    if (!file) return;
+    if (!files.length) return;
     if ((this as any)._bulkAttachmentMode) {
       (this as any)._bulkAttachmentMode = false;
-      this.onBulkAttachmentFileSelected(file);
+      this.onBulkAttachmentFileSelected(files[0]);
       return;
     }
     const q = this.currentAttachmentQ;
     this.currentAttachmentQ = null;
     if (!q) return;
+    this.uploadAttachmentFiles(q, files);
+  }
+
+  private uploadAttachmentFiles(q: ReviewQuestion, files: File[]): void {
+    if (!files.length) return;
     q.attachmentUploading = true;
-    this.exerciseService.uploadQuestionAttachment(file).subscribe({
-      next: (res) => {
-        q.attachmentUrl = canonicalizeStoredMediaUrl(res.canonicalUrl || res.url);
-        q.attachmentUploading = false;
-        if (this.getAttachmentType(q.attachmentUrl) !== 'audio') {
-          q.attachmentAudioMaxPlaysPerAttempt = undefined;
-        }
-        this.showSuccess('File uploaded');
-      },
-      error: (err: { error?: { error?: string } }) => {
-        q.attachmentUploading = false;
-        this.showError(err.error?.error || 'Upload failed');
+    let uploaded = 0;
+    const finish = () => {
+      q.attachmentUploading = false;
+      if (uploaded > 0) {
+        this.showSuccess(uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
       }
-    });
+    };
+    const uploadNext = (index: number) => {
+      if (index >= files.length) {
+        finish();
+        return;
+      }
+      this.exerciseService.uploadQuestionAttachment(files[index]).subscribe({
+        next: (res) => {
+          appendQuestionAttachment(q, canonicalizeStoredMediaUrl(res.canonicalUrl || res.url));
+          uploaded += 1;
+          uploadNext(index + 1);
+        },
+        error: (err: { error?: { error?: string } }) => {
+          this.showError(err.error?.error || 'Upload failed');
+          if (uploaded > 0) finish();
+          else q.attachmentUploading = false;
+        }
+      });
+    };
+    uploadNext(0);
+  }
+
+  getQuestionAttachments(q: ReviewQuestion): string[] {
+    return getQuestionAttachmentUrls(q);
+  }
+
+  hasQuestionAudioAttachment(q: ReviewQuestion): boolean {
+    return getQuestionAttachmentUrls(q).some((u) => this.getAttachmentType(u) === 'audio');
+  }
+
+  removeAttachmentAt(q: ReviewQuestion, index: number): void {
+    const removed = getQuestionAttachmentUrls(q)[index];
+    removeQuestionAttachmentAt(q, index);
+    if (removed && this.getAttachmentType(removed) === 'audio' && !this.hasQuestionAudioAttachment(q)) {
+      q.attachmentAudioMaxPlaysPerAttempt = undefined;
+    }
   }
 
   removeAttachment(q: ReviewQuestion): void {
-    q.attachmentUrl = '';
-    q.attachmentAudioMaxPlaysPerAttempt = undefined;
+    this.removeAttachmentAt(q, 0);
   }
 
   private stripHtmlPlain(s: string): string {
@@ -1820,7 +1859,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   private getExplanationAudioUrlForReview(q: ReviewQuestion): string | null {
     const media = String(q.mediaUrl || '').trim();
     if (media) return media;
-    const att = String((q as { attachmentUrl?: string }).attachmentUrl || '').trim();
+    const audioAtt = getQuestionAttachmentUrls(q).find((u) => this.getAttachmentType(u) === 'audio');
+    if (audioAtt) return audioAtt;
+    const att = getQuestionAttachmentUrls(q)[0];
     if (att) return att;
     return null;
   }
@@ -2005,7 +2046,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       if (this.bulkEditField === 'audio') {
         q.mediaUrl = this.bulkEditValue;
       } else if (this.bulkEditField === 'attachment') {
-        q.attachmentUrl = this.bulkEditValue;
+        setQuestionAttachmentUrls(q, this.bulkEditValue ? [this.bulkEditValue] : []);
       } else {
         q[this.bulkEditField] = this.bulkEditValue;
       }
@@ -2051,7 +2092,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         for (const idx of this.selectedIndices) {
           const q = this.reviewQuestions[idx];
           if (!q) continue;
-          q.attachmentUrl = canonicalUrl;
+          setQuestionAttachmentUrls(q, canonicalUrl ? [canonicalUrl] : []);
           if (attType !== 'audio') {
             q.attachmentAudioMaxPlaysPerAttempt = undefined;
           }
@@ -2169,15 +2210,19 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
             subRow.instruction = String(sq.instruction || '');
             subRow.example = String(sq.example || '');
             subRow.worksheetKind = sq.worksheetKind || null;
-            subRow.attachmentUrl = String(sq.attachmentUrl || '');
+            const subAttUrls = getQuestionAttachmentUrls(sq).map((u) => canonicalizeStoredMediaUrl(u));
+            setQuestionAttachmentUrls(subRow, subAttUrls);
             subRow.answerExplanation = String(sq.answerExplanation || '');
             subRow.similarityThreshold = sq.similarityThreshold ?? 70;
             subRow.scoringMode = sq.scoringMode || 'full';
             return subRow;
           });
         }
+        const row: any = { ...rest };
+        const attUrls = getQuestionAttachmentUrls(q).map((u) => canonicalizeStoredMediaUrl(u));
+        setQuestionAttachmentUrls(row, attUrls);
         return {
-          ...rest,
+          ...row,
           ...(transformedSubQuestions && transformedSubQuestions.length > 0
             ? { subQuestions: transformedSubQuestions }
             : {})
@@ -2252,15 +2297,19 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
             subRow.instruction = String(sq.instruction || '');
             subRow.example = String(sq.example || '');
             subRow.worksheetKind = sq.worksheetKind || null;
-            subRow.attachmentUrl = String(sq.attachmentUrl || '');
+            const subAttUrls = getQuestionAttachmentUrls(sq).map((u) => canonicalizeStoredMediaUrl(u));
+            setQuestionAttachmentUrls(subRow, subAttUrls);
             subRow.answerExplanation = String(sq.answerExplanation || '');
             subRow.similarityThreshold = sq.similarityThreshold ?? 70;
             subRow.scoringMode = sq.scoringMode || 'full';
             return subRow;
           });
         }
+        const row: any = { ...rest };
+        const attUrls = getQuestionAttachmentUrls(q).map((u) => canonicalizeStoredMediaUrl(u));
+        setQuestionAttachmentUrls(row, attUrls);
         return {
-          ...rest,
+          ...row,
           ...(transformedSubQuestions && transformedSubQuestions.length > 0
             ? { subQuestions: transformedSubQuestions }
             : {})

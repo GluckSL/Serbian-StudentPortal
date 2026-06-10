@@ -3,7 +3,7 @@
   <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
   <input type="file" #videoFileInput accept="video/*" (change)="onVideoFileSelected($event)" class="file-input-hidden" />
   <input type="file" #videoFeedbackFileInput accept="audio/*" (change)="onVideoFeedbackFileSelected($event)" class="file-input-hidden" />
-  <input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #attachmentFileInput multiple accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
   <input type="file" #imagePinFileInput accept="image/*" (change)="onImagePinImageSelected($event)" class="file-input-hidden" />
   <input type="file" #mcqOptionImageFileInput accept="image/*" (change)="onMcqOptionImageSelected($event)" class="file-input-hidden" />
 
@@ -569,36 +569,40 @@
             <label class="field-label">
               <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">attach_file</span>
               Attachment
-              <span *ngIf="q.type !== 'listening'" class="label-optional">(optional — image, audio, PDF, video)</span>
+              <span *ngIf="q.type !== 'listening'" class="label-optional">(optional — image, audio, PDF, video; multiple files allowed)</span>
               <span *ngIf="q.type === 'listening'" class="label-optional">(required — attach audio file here)</span>
             </label>
-            <div *ngIf="!q.attachmentUrl && !q.attachmentUploading" class="attachment-upload-row">
+            <div *ngIf="!q.attachmentUploading" class="attachment-upload-row">
               <button type="button" class="btn-upload-audio" (click)="triggerAttachmentFile(q)">
-                <span class="material-icons">upload_file</span> Upload file
+                <span class="material-icons">upload_file</span>
+                {{ getQuestionAttachments(q).length ? 'Add another file' : 'Upload file' }}
               </button>
             </div>
             <div *ngIf="q.attachmentUploading" class="attachment-uploading">
               <span class="material-icons spin">sync</span> Uploading…
             </div>
             <!-- Preview based on file type -->
-            <div *ngIf="q.attachmentUrl && !q.attachmentUploading" class="attachment-preview">
-              <ng-container [ngSwitch]="getAttachmentType(q.attachmentUrl)">
-                <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(q.attachmentUrl)" alt="Attachment" class="attachment-img-preview" />
-                <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-audio-preview"></audio>
-                <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-video-preview"></video>
-                <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" class="attachment-file-link">
+            <div
+              *ngFor="let attUrl of getQuestionAttachments(q); let attIdx = index"
+              class="attachment-preview"
+            >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
+                <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(attUrl)" alt="Attachment" class="attachment-img-preview" />
+                <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-audio-preview"></audio>
+                <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-video-preview"></video>
+                <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(attUrl)" target="_blank" class="attachment-file-link">
                   <span class="material-icons">picture_as_pdf</span> View PDF
                 </a>
-                <a *ngSwitchDefault [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" class="attachment-file-link">
+                <a *ngSwitchDefault [href]="getMediaFullUrl(attUrl)" target="_blank" class="attachment-file-link">
                   <span class="material-icons">insert_drive_file</span> View file
                 </a>
               </ng-container>
-              <button type="button" class="btn-remove-attachment" (click)="removeAttachment(q)" matTooltip="Remove attachment">
+              <button type="button" class="btn-remove-attachment" (click)="removeAttachmentAt(q, attIdx)" matTooltip="Remove attachment">
                 <span class="material-icons">delete</span>
               </button>
             </div>
             <div
-              *ngIf="q.attachmentUrl && getAttachmentType(q.attachmentUrl) === 'audio'"
+              *ngIf="hasQuestionAudioAttachment(q)"
               class="field-group full attachment-audio-limit-row"
             >
               <label class="field-label">
