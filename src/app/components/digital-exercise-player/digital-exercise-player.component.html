@@ -861,7 +861,13 @@
             class="vp-detail-card vp-detail-card--info vp-detail-card--rich"
           >
             <div class="vp-detail-header">
-              <span class="vp-detail-card-label">Exercise</span>
+              <div class="vp-detail-header-left">
+                <span class="vp-detail-card-label">Exercise</span>
+                <div class="watch-only-indicator" *ngIf="watchOnlyMode">
+                  <span class="material-icons">mic_off</span>
+                  <span>Watch Only</span>
+                </div>
+              </div>
               <button
                 class="btn-icon-back btn-back-nav"
                 (click)="goBack()"
@@ -871,38 +877,39 @@
                 <span class="btn-back-label">Back</span>
               </button>
             </div>
-            <div>
-              <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
-              <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
-                {{ exercise?.description }}
-              </p>
-            </div>
-            <div class="vp-detail-specs-row">
-              <div class="vp-detail-spec-item">Journey to Germany</div>
-              <div class="vp-detail-spec-item" *ngIf="exercise?.category">
-                {{ exercise?.category }}
+            <div class="vp-detail-content-row">
+              <div class="vp-detail-content-left">
+                <div>
+                  <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
+                  <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
+                    {{ exercise?.description }}
+                  </p>
+                  <div class="vp-detail-specs-row">
+                    <div class="vp-detail-spec-item">Journey to Germany</div>
+                    <div class="vp-detail-spec-item" *ngIf="exercise?.category">
+                      {{ exercise?.category }}
+                    </div>
+                    <span
+                      class="vp-detail-pill level vp-detail-pill--inline"
+                      [style.background]="
+                        exerciseService.getLevelColor(exercise?.level || 'A1')
+                      "
+                      >{{ exercise?.level }}</span
+                    >
+                    <div class="vp-detail-spec-item">
+                      ~{{ exercise?.estimatedDuration || 15 }} min
+                    </div>
+                  </div>
+                </div>
+                <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
+                  <span
+                    class="vp-detail-tag"
+                    *ngFor="let t of exercise?.tags || []"
+                    >{{ t }}</span
+                  >
+                </div>
               </div>
-              <div class="vp-detail-spec-item">
-                <span
-                  class="vp-detail-pill level vp-detail-pill--inline"
-                  [style.background]="
-                    exerciseService.getLevelColor(exercise?.level || 'A1')
-                  "
-                  >{{ exercise?.level }}</span
-                >
-              </div>
-              <div class="vp-detail-spec-item">
-                ~{{ exercise?.estimatedDuration || 15 }} min
-              </div>
-            </div>
-            <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
-              <span
-                class="vp-detail-tag"
-                *ngFor="let t of exercise?.tags || []"
-                >{{ t }}</span
-              >
-            </div>
-            <div class="vp-ring-wrap">
+              <div class="vp-ring-wrap">
               <svg class="vp-ring-svg" viewBox="0 0 36 36">
                 <circle
                   class="vp-ring-track"
@@ -927,12 +934,7 @@
               </svg>
               <span class="vp-ring-label">{{ vpRingPercent }}%</span>
             </div>
-
-            <!-- Watch Only Mode indicator (set by admin) -->
-            <div class="watch-only-indicator" *ngIf="watchOnlyMode">
-              <span class="material-icons">mic_off</span>
-              <span>Watch Only Mode</span>
-            </div>
+          </div>
           </div>
           <div class="vp-detail-card vp-detail-card--clips">
             <span class="vp-detail-card-label"
@@ -968,14 +970,14 @@
         <div class="vp-video-col" *ngIf="currentQuestion.data.videoUrl">
             <div class="vp-stage-video-column">
               <div class="vp-stage-video-frame">
-                <div class="vp-stage-clip-badge" aria-label="Current clip">
+                <!-- <div class="vp-stage-clip-badge" aria-label="Current clip">
                   <span class="material-icons">videocam</span>
                   <span
                     >Clip {{ currentIndex + 1 }} · {{ currentIndex + 1 }}/{{
                       playerQuestions.length
                     }}</span
                   >
-                </div>
+                </div> -->
                 <video
                   class="vp-stage-video"
                   [src]="getMediaFullUrl(currentQuestion.data.videoUrl)"
