@@ -1774,38 +1774,63 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
     const studentTrial = !!stBatchCfg?.trialDayEnabled;
     const dayStart = journeyDayRangeStart(studentTrial);
 
-    // --- Exercise attempts with question responses ---
-    const attempts = await ExerciseAttempt.find({ studentId, status: 'completed' })
-      .populate('exerciseId', 'title courseDay category level')
-      .sort({ completedAt: 1 })
-      .lean();
+    // --- Exercises with full catalog (all exercises, mapped with attempt data) ---
+    const exJourneyLength = Math.max(student.currentCourseDay || 0, 200);
 
-    const exercises = attempts.map(a => ({
-      attemptId: a._id,
-      exerciseId: a.exerciseId?._id,
-      title: a.exerciseId?.title || 'Untitled',
-      courseDay: a.exerciseId?.courseDay || null,
-      category: a.exerciseId?.category || null,
-      level: a.exerciseId?.level || null,
-      scorePercent: a.scorePercentage || 0,
-      earnedPoints: a.earnedPoints || 0,
-      totalPoints: a.totalPoints || 0,
-      completedAt: a.completedAt,
-      timeSpentSeconds: a.timeSpentSeconds || 0,
-      responses: (a.responses || []).map(r => ({
-        questionIndex: r.questionIndex,
-        questionType: r.questionType,
-        selectedOptionIndex: r.selectedOptionIndex,
-        matchingResponse: r.matchingResponse,
-        fillBlankResponses: r.fillBlankResponses,
-        spokenText: r.spokenText,
-        pronunciationScore: r.pronunciationScore,
-        qaResponse: r.qaResponse,
-        listeningText: r.listeningText,
-        isCorrect: r.isCorrect,
-        pointsEarned: r.pointsEarned
-      }))
-    }));
+    const [allExercises, exAttempts] = await Promise.all([
+      DigitalExercise.find({
+        isDeleted: { $ne: true },
+        isActive: true,
+        visibleToStudents: true,
+        courseDay: { $gte: 1, $lte: exJourneyLength }
+      })
+        .select('title level category courseDay sequenceLetter')
+        .lean(),
+
+      ExerciseAttempt.find({ studentId })
+        .select('exerciseId status scorePercentage earnedPoints totalPoints completedAt timeSpentSeconds responses')
+        .lean()
+    ]);
+
+    const attemptMap = {};
+    for (const a of exAttempts) {
+      const key = String(a.exerciseId);
+      if (!attemptMap[key] || (a.completedAt > (attemptMap[key].completedAt || 0))) {
+        attemptMap[key] = a;
+      }
+    }
+
+    const exercises = allExercises.map(e => {
+      const attempt = attemptMap[String(e._id)];
+      return {
+        _id: e._id,
+        title: e.title,
+        level: e.level,
+        category: e.category,
+        courseDay: e.courseDay,
+        sequenceLetter: e.sequenceLetter,
+        attempted: !!attempt,
+        status: attempt?.status || 'not_attempted',
+        scorePercent: attempt?.scorePercentage || 0,
+        earnedPoints: attempt?.earnedPoints || 0,
+        totalPoints: attempt?.totalPoints || 0,
+        completedAt: attempt?.completedAt || null,
+        timeSpentSeconds: attempt?.timeSpentSeconds || 0,
+        responses: (attempt?.responses || []).map(r => ({
+          questionIndex: r.questionIndex,
+          questionType: r.questionType,
+          selectedOptionIndex: r.selectedOptionIndex,
+          matchingResponse: r.matchingResponse,
+          fillBlankResponses: r.fillBlankResponses,
+          spokenText: r.spokenText,
+          pronunciationScore: r.pronunciationScore,
+          qaResponse: r.qaResponse,
+          listeningText: r.listeningText,
+          isCorrect: r.isCorrect,
+          pointsEarned: r.pointsEarned
+        }))
+      };
+    });
 
     // --- Live classes ---
     const journeyKeys = allStudentBatchStringsForContent(student);
@@ -1880,17 +1905,19 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
       dayMap[d] = { day: d, exercisesDone: 0, exercisesTotal: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0 };
     }
 
-    // exercises done per day
+    // exercises done per day (attempted only) + total count
     exercises.forEach(e => {
       const d = e.courseDay;
       if (d != null && dayMap[d]) {
-        dayMap[d].exercisesDone += 1;
-        dayMap[d].totalScore += e.scorePercent;
-        dayMap[d].scoreCount += 1;
+        if (e.attempted) {
+          dayMap[d].exercisesDone += 1;
+          dayMap[d].totalScore += e.scorePercent;
+          dayMap[d].scoreCount += 1;
+        }
+        dayMap[d].exercisesTotal += 1;
       }
     });
 
-    // Total exercises available per day from attempts (approximation: count distinct exerciseId per day in exercises)
     // and class info per day
     liveClasses.forEach(c => {
       const d = c.courseDay;

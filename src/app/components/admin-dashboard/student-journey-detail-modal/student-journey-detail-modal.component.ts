@@ -69,10 +69,10 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   setDgFilter(val: string | null) { this.dgFilter = val; }
 
   get filteredLiveClasses(): any[] {
-    if (!this.liveClassFilter) return this.liveClasses;
-    return this.liveClasses.filter(c =>
+    const items = !this.liveClassFilter ? this.liveClasses : this.liveClasses.filter(c =>
       this.liveClassFilter === 'Attended' ? c.attended : !c.attended
     );
+    return [...items].sort((a, b) => (a.courseDay ?? 999) - (b.courseDay ?? 999));
   }
 
   get filteredRecordings(): any[] {
@@ -80,26 +80,26 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
       ...this.recordings.map(r => ({ ...r, _type: 'Recording' })),
       ...this.zoomRecordings.map(z => ({ ...z, _type: 'Zoom' }))
     ];
-    if (!this.recordingFilter) return all;
-    return all.filter(r => {
+    const items = !this.recordingFilter ? all : all.filter(r => {
       const status = r.watched ? 'Watched' : r.watchDuration > 0 ? 'Partial' : 'Unwatched';
       return status === this.recordingFilter;
     });
+    return [...items].sort((a, b) => (a.courseDay ?? 999) - (b.courseDay ?? 999));
   }
 
   get filteredExercises(): any[] {
-    if (!this.exerciseFilter) return this.exercises;
-    return this.exercises.filter(e =>
+    const items = !this.exerciseFilter ? this.exercises : this.exercises.filter(e =>
       this.exerciseFilter === 'Done' ? e.attempted : !e.attempted
     );
+    return [...items].sort((a, b) => (a.courseDay ?? 999) - (b.courseDay ?? 999));
   }
 
   get filteredDgModules(): any[] {
-    if (!this.dgFilter) return this.dgModules;
-    return this.dgModules.filter(dm => {
+    const items = !this.dgFilter ? this.dgModules : this.dgModules.filter(dm => {
       const status = dm.status === 'completed' ? 'Completed' : dm.status === 'in_progress' ? 'In Progress' : 'Not Started';
       return status === this.dgFilter;
     });
+    return [...items].sort((a, b) => (a.courseDay ?? 999) - (b.courseDay ?? 999));
   }
 
   radarChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
@@ -311,6 +311,12 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   }
 
+  isUpcomingLiveClass(c: any): boolean {
+    if (!c.startTime) return false;
+    const end = new Date(c.startTime).getTime() + (c.duration || 60) * 60 * 1000;
+    return end > Date.now();
+  }
+
   get displayName(): string {
     return this.jProfile.name || this.studentName || 'Student';
   }
@@ -446,6 +452,11 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   get isPlatinum(): boolean {
     const sub = this.jProfile.subscription || this.preview?.subscription || '';
     return sub.toUpperCase().includes('PLATINUM');
+  }
+
+  get isSilver(): boolean {
+    const sub = this.jProfile.subscription || this.preview?.subscription || '';
+    return sub.toUpperCase().includes('SILVER');
   }
 
   get isGo(): boolean {
