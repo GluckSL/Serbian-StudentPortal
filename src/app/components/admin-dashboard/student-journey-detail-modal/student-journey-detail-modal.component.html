@@ -112,191 +112,283 @@
 
       </div>
 
+      <!-- ═══ Detail API error banner ═══ -->
+      <div class="ld-error" *ngIf="detailError">
+        <i class="fas fa-exclamation-triangle"></i> {{ detailError }}
+        <button type="button" class="ld-error__retry" (click)="loadDetailData()">Retry</button>
+      </div>
+
       <!-- ═══ LANGUAGE LEARNING DETAIL GRID ═══ -->
       <div class="sp-card">
-        <div class="ld-grid">
-          <!-- Section: Live Class -->
+        <div class="ld-tabular">
+          <!-- ═══ Section: Live Classes ═══ -->
           <div class="ld-section">
-            <h4 class="ld-heading"><i class="fas" [class.fa-chalkboard-teacher]="!isGo" [class.fa-video]="isGo"></i> {{ !isGo ? 'Live Class' : 'Recordings' }}</h4>
-            <div class="ld-table">
-              <ng-container *ngIf="!isGo">
-                <div class="ld-row"><span class="ld-lbl">Attendance</span><span class="ld-val">{{ jAttendanceRate }}%</span></div>
-                <div class="ld-row"><span class="ld-lbl">Sessions</span><span class="ld-val">{{ jAttendance.attended }}/{{ jAttendance.total }}</span></div>
-                <div class="ld-row"><span class="ld-lbl">Last session</span><span class="ld-val">{{ jAttendance.lastSessionDate ? formatDate(jAttendance.lastSessionDate) : '—' }}</span></div>
-              </ng-container>
-              <ng-container *ngIf="isGo">
-                <div class="ld-row"><span class="ld-lbl">Watched</span><span class="ld-val">{{ jRecordingPct }}% ({{ jRecordingProgress.watched }}/{{ jRecordingProgress.total }})</span></div>
-                <div class="ld-row"><span class="ld-lbl">Remaining</span><span class="ld-val">{{ jRecordingProgress.remaining }}</span></div>
-              </ng-container>
+            <h4 class="ld-section__title">
+              <i class="fas fa-chalkboard-teacher"></i> Live Classes
+            </h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Attendance</span>
+                <strong class="ld-strip__val">{{ jAttendanceRate }}%</strong>
+                ({{ jAttendance.attended }}/{{ jAttendance.total }})
+              </span>
+              <span class="ld-strip__item" *ngIf="jAttendance.lastSessionDate">
+                <span class="ld-strip__lbl">Last session</span>
+                <strong class="ld-strip__val">{{ formatDate(jAttendance.lastSessionDate) }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!liveClassFilter" (click)="setLiveClassFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="liveClassFilter === 'Attended'" (click)="setLiveClassFilter('Attended')">Attended</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="liveClassFilter === 'Missed'" (click)="setLiveClassFilter('Missed')">Missed</button>
+              </span>
             </div>
-
-            <!-- Detailed list for Live Classes -->
-            <ng-container *ngIf="!isGo">
-              <div class="ld-list-title" *ngIf="liveClasses?.length">Session History</div>
-              <div class="ld-list-container" *ngIf="liveClasses?.length">
-                <div class="ld-list-item" *ngFor="let item of liveClasses">
-                  <div class="ld-list-item-main">
-                    <span class="ld-list-item-title" [title]="item.topic">{{ item.topic }}</span>
-                    <span class="ld-list-item-sub">{{ formatDate(item.startTime) }} · Day {{ item.courseDay }}</span>
-                    <span class="ld-list-item-sub" *ngIf="item.duration">Duration: {{ item.duration }} min</span>
-                  </div>
-                  <div class="ld-list-item-meta">
-                    <span class="ld-badge" [class.ld-badge--attended]="item.attended" [class.ld-badge--absent]="!item.attended">
-                      {{ item.attended ? 'Attended' : 'Absent' }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </ng-container>
-
-            <!-- Detailed list for Recordings -->
-            <ng-container *ngIf="isGo">
-              <div class="ld-list-title" *ngIf="recordings?.length || zoomRecordings?.length">Watch History</div>
-              <div class="ld-list-container" *ngIf="recordings?.length || zoomRecordings?.length">
-                <!-- Regular class recordings -->
-                <div class="ld-list-item" *ngFor="let item of recordings">
-                  <div class="ld-list-item-main">
-                    <span class="ld-list-item-title" [title]="item.title">{{ item.title }}</span>
-                    <span class="ld-list-item-sub">Day {{ item.courseDay }} · {{ item.level || 'A1' }}</span>
-                    <span class="ld-list-item-sub" *ngIf="item.durationSec">Total: {{ (item.durationSec / 60) | number:'1.0-0' }}m</span>
-                    <span class="ld-list-item-sub" *ngIf="item.watchDuration">Watched: {{ (item.watchDuration / 60) | number:'1.0-0' }}m ({{ item.watchPct || 0 }}%)</span>
-                    <span class="ld-list-item-sub" *ngIf="item.completedAt">Completed: {{ formatDate(item.completedAt) }}</span>
-                  </div>
-                  <div class="ld-list-item-meta">
-                    <span class="ld-badge" [class.ld-badge--attended]="item.watched" [class.ld-badge--watched]="!item.watched && item.watchDuration > 0" [class.ld-badge--pending]="!item.watched && !item.watchDuration">
-                      {{ item.watched ? 'Watched' : item.watchDuration > 0 ? 'Partial' : 'Unwatched' }}
-                    </span>
-                    <span class="ld-badge ld-badge--score" *ngIf="item.watchPct != null">{{ item.watchPct }}%</span>
-                  </div>
-                </div>
-                <!-- Zoom recordings -->
-                <div class="ld-list-item" *ngFor="let item of zoomRecordings">
-                  <div class="ld-list-item-main">
-                    <span class="ld-list-item-title" [title]="item.topic">{{ item.topic }}</span>
-                    <span class="ld-list-item-sub">Zoom · Day {{ item.courseDay }}</span>
-                    <span class="ld-list-item-sub" *ngIf="item.durationSec">Total: {{ (item.durationSec / 60) | number:'1.0-0' }}m</span>
-                    <span class="ld-list-item-sub" *ngIf="item.watchDuration">Watched: {{ (item.watchDuration / 60) | number:'1.0-0' }}m ({{ item.watchPct || 0 }}%)</span>
-                    <span class="ld-list-item-sub" *ngIf="item.completedAt">Completed: {{ formatDate(item.completedAt) }}</span>
-                  </div>
-                  <div class="ld-list-item-meta">
-                    <span class="ld-badge" [class.ld-badge--attended]="item.watched" [class.ld-badge--watched]="!item.watched && item.watchDuration > 0" [class.ld-badge--pending]="!item.watched && !item.watchDuration">
-                      {{ item.watched ? 'Watched' : item.watchDuration > 0 ? 'Partial' : 'Unwatched' }}
-                    </span>
-                    <span class="ld-badge ld-badge--score" *ngIf="item.watchPct != null">{{ item.watchPct }}%</span>
-                  </div>
-                </div>
-              </div>
-            </ng-container>
+            <div class="ld-table-wrap" *ngIf="liveClasses.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Topic</th>
+                      <th>Day</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let c of filteredLiveClasses">
+                      <td class="ld-cell--title" [title]="c.topic">{{ c.topic }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ c.courseDay }}</span></td>
+                    <td>
+                      <span class="ld-badge" [class.ld-badge--ok]="c.attended" [class.ld-badge--no]="!c.attended">
+                        {{ c.attended ? 'Attended' : 'Missed' }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ld-empty" *ngIf="liveClasses.length === 0">No live classes found.</div>
           </div>
 
-          <!-- Section: Exercises -->
+          <!-- ═══ Section: Recordings ═══ -->
           <div class="ld-section">
-            <h4 class="ld-heading"><i class="fas fa-pen"></i> Exercises</h4>
-            <div class="ld-table">
-              <div class="ld-row"><span class="ld-lbl">Completed</span><span class="ld-val">{{ jExerciseProgress.completed }}/{{ jExerciseProgress.total }}</span></div>
-              <div class="ld-row"><span class="ld-lbl">Pending</span><span class="ld-val">{{ jExerciseProgress.pending }}</span></div>
-              <div class="ld-row"><span class="ld-lbl">Completion</span><span class="ld-val">{{ jExerciseProgress.total ? (jExerciseProgress.completed / jExerciseProgress.total * 100 | number:'1.0-0') : 0 }}%</span></div>
-              <div class="ld-row"><span class="ld-lbl">Exam exercises</span><span class="ld-val">{{ jExamSummary?.completedExercises || 0 }}/{{ jExamSummary?.totalExercises || 0 }}</span></div>
+            <h4 class="ld-section__title">
+              <i class="fas fa-video"></i> Class Recordings
+            </h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Watched</span>
+                <strong class="ld-strip__val">{{ jRecordingPct }}%</strong>
+                ({{ jRecordingProgress.watched }}/{{ jRecordingProgress.total }})
+              </span>
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Remaining</span>
+                <strong class="ld-strip__val">{{ jRecordingProgress.remaining }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!recordingFilter" (click)="setRecordingFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="recordingFilter === 'Watched'" (click)="setRecordingFilter('Watched')">Watched</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--partial]="recordingFilter === 'Partial'" (click)="setRecordingFilter('Partial')">Partial</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="recordingFilter === 'Unwatched'" (click)="setRecordingFilter('Unwatched')">Unwatched</button>
+              </span>
             </div>
-
-            <!-- Detailed list for Exercises -->
-            <div class="ld-list-title" *ngIf="exercises?.length">Exercises Done</div>
-            <div class="ld-list-container" *ngIf="exercises?.length">
-              <div class="ld-list-item" *ngFor="let item of exercises">
-                <div class="ld-list-item-main">
-                  <span class="ld-list-item-title" [title]="item.title">{{ item.title }}</span>
-                  <span class="ld-list-item-sub">Day {{ item.courseDay }} · {{ item.level || 'A1' }} · {{ item.type || 'Digital' }}</span>
-                  <span class="ld-list-item-sub" *ngIf="item.attemptsCount">Attempts: {{ item.attemptsCount }}</span>
-                  <span class="ld-list-item-sub" *ngIf="item.timeSpentSec">Time: {{ (item.timeSpentSec / 60) | number:'1.0-0' }}m</span>
-                  <span class="ld-list-item-sub" *ngIf="item.lastAttemptAt">Last attempt: {{ formatDate(item.lastAttemptAt) }}</span>
-                </div>
-                <div class="ld-list-item-meta">
-                  <span class="ld-badge ld-badge--score" *ngIf="item.scorePercent != null">{{ item.scorePercent }}%</span>
-                  <span class="ld-badge ld-badge--score" *ngIf="item.correctCount != null && item.questionCount != null">{{ item.correctCount }}/{{ item.questionCount }}</span>
-                  <span class="ld-badge" [class.ld-badge--completed]="item.attempted || item.completedAt" [class.ld-badge--pending]="!item.attempted && !item.completedAt">
-                    {{ (item.attempted || item.completedAt) ? 'Done' : 'Pending' }}
-                  </span>
-                </div>
-              </div>
+            <div class="ld-table-wrap" *ngIf="recordings.length > 0 || zoomRecordings.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Day</th>
+                      <th>Watched</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of filteredRecordings">
+                      <td class="ld-cell--title" [title]="r.title || r.topic">{{ r.title || r.topic }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ r.courseDay }}</span></td>
+                      <td>{{ r.watchDuration ? (r.watchDuration / 60 | number:'1.0-0') + ' min' : '—' }}</td>
+                      <td>
+                        <span class="ld-badge" [class.ld-badge--ok]="r.watched" [class.ld-badge--partial]="!r.watched && r.watchDuration > 0" [class.ld-badge--no]="!r.watched && !r.watchDuration">
+                          {{ r.watched ? 'Watched' : r.watchDuration > 0 ? 'Partial' : 'Unwatched' }}
+                        </span>
+                      </td>
+                    </tr>
+                </tbody>
+              </table>
             </div>
+            <div class="ld-empty" *ngIf="recordings.length === 0 && zoomRecordings.length === 0">No recordings found.</div>
           </div>
 
-          <!-- Section: DG Bot -->
+          <!-- ═══ Section: Exercises ═══ -->
           <div class="ld-section">
-            <h4 class="ld-heading"><i class="fas fa-robot"></i> DG Bot</h4>
-            <div class="ld-table">
-              <div class="ld-row"><span class="ld-lbl">Modules</span><span class="ld-val">{{ jDgModuleProgress.completed }}/{{ jDgModuleProgress.total }}</span></div>
-              <div class="ld-row"><span class="ld-lbl">Pending</span><span class="ld-val">{{ jDgModuleProgress.pending }}</span></div>
+            <h4 class="ld-section__title"><i class="fas fa-pen"></i> Exercises</h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Completed</span>
+                <strong class="ld-strip__val">{{ jExerciseProgress.completed }}/{{ jExerciseProgress.total }}</strong>
+              </span>
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Pending</span>
+                <strong class="ld-strip__val">{{ jExerciseProgress.pending }}</strong>
+              </span>
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Completion</span>
+                <strong class="ld-strip__val">{{ jExerciseProgress.total ? (jExerciseProgress.completed / jExerciseProgress.total * 100 | number:'1.0-0') : 0 }}%</strong>
+              </span>
+              <span class="ld-strip__item" *ngIf="jExamSummary">
+                <span class="ld-strip__lbl">Exam exercises</span>
+                <strong class="ld-strip__val">{{ jExamSummary?.completedExercises || 0 }}/{{ jExamSummary?.totalExercises || 0 }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!exerciseFilter" (click)="setExerciseFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="exerciseFilter === 'Done'" (click)="setExerciseFilter('Done')">Done</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="exerciseFilter === 'Pending'" (click)="setExerciseFilter('Pending')">Pending</button>
+              </span>
             </div>
-
-            <!-- Detailed list for DG Bot -->
-            <div class="ld-list-title" *ngIf="dgModules?.length">Bot modules</div>
-            <div class="ld-list-container" *ngIf="dgModules?.length">
-              <div class="ld-list-item" *ngFor="let item of dgModules">
-                <div class="ld-list-item-main">
-                  <span class="ld-list-item-title" [title]="item.title">{{ item.title }}</span>
-                  <span class="ld-list-item-sub">Day {{ item.courseDay }} · {{ item.level || 'A1' }}</span>
-                  <span class="ld-list-item-sub" *ngIf="item.timeSpentMin">Time spent: {{ item.timeSpentMin }}m</span>
-                  <span class="ld-list-item-sub" *ngIf="item.score != null">Score: {{ item.score }}%</span>
-                  <span class="ld-list-item-sub" *ngIf="item.completedAt">Completed: {{ formatDate(item.completedAt) }}</span>
-                  <span class="ld-list-item-sub" *ngIf="item.lastActivityAt">Last activity: {{ formatDate(item.lastActivityAt) }}</span>
-                </div>
-                <div class="ld-list-item-meta">
-                  <span class="ld-badge" 
-                    [class.ld-badge--completed]="item.status === 'completed'" 
-                    [class.ld-badge--progress]="item.status === 'in_progress'" 
-                    [class.ld-badge--pending]="item.status === 'not_started' && !item.locked"
-                    [class.ld-badge--locked]="item.locked"
-                  >
-                    {{ item.locked ? 'Locked' : item.status === 'completed' ? 'Completed' : item.status === 'in_progress' ? 'Started' : 'Pending' }}
-                  </span>
-                  <span class="ld-badge ld-badge--score" *ngIf="item.score != null">{{ item.score }}%</span>
-                </div>
-              </div>
+            <div class="ld-table-wrap" *ngIf="exercises.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Day</th>
+                      <th>Score</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let e of filteredExercises">
+                      <td class="ld-cell--title" [title]="e.title">{{ e.title }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ e.courseDay }}</span></td>
+                      <td>
+                        <span *ngIf="e.attempted" class="ld-score" [class.ld-score--good]="e.scorePercent >= 70" [class.ld-score--mid]="e.scorePercent >= 40 && e.scorePercent < 70" [class.ld-score--low]="e.scorePercent < 40">
+                          {{ e.scorePercent }}%
+                        </span>
+                        <span *ngIf="!e.attempted">—</span>
+                      </td>
+                      <td>
+                        <span class="ld-badge" [class.ld-badge--ok]="e.attempted" [class.ld-badge--no]="!e.attempted">
+                          {{ e.attempted ? 'Done' : 'Pending' }}
+                        </span>
+                      </td>
+                    </tr>
+                </tbody>
+              </table>
             </div>
+            <div class="ld-empty" *ngIf="exercises.length === 0">No exercises found.</div>
           </div>
 
-          <!-- Section: Exam -->
+          <!-- ═══ Section: DG Bot ═══ -->
           <div class="ld-section">
-            <h4 class="ld-heading"><i class="fas fa-certificate"></i> Exam</h4>
+            <h4 class="ld-section__title"><i class="fas fa-robot"></i> DG Bot</h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Modules</span>
+                <strong class="ld-strip__val">{{ jDgModuleProgress.completed }}/{{ jDgModuleProgress.total }}</strong>
+              </span>
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Pending</span>
+                <strong class="ld-strip__val">{{ jDgModuleProgress.pending }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!dgFilter" (click)="setDgFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="dgFilter === 'Completed'" (click)="setDgFilter('Completed')">Completed</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--progress]="dgFilter === 'In Progress'" (click)="setDgFilter('In Progress')">In Progress</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="dgFilter === 'Not Started'" (click)="setDgFilter('Not Started')">Not Started</button>
+              </span>
+            </div>
+            <div class="ld-table-wrap" *ngIf="dgModules.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Module</th>
+                      <th>Day</th>
+                      <th>Score</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let dm of filteredDgModules">
+                      <td class="ld-cell--title" [title]="dm.title">{{ dm.title }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ dm.courseDay }}</span></td>
+                      <td>{{ dm.score != null ? dm.score + '%' : '—' }}</td>
+                    <td>
+                      <span class="ld-badge" [class.ld-badge--ok]="dm.status === 'completed'" [class.ld-badge--progress]="dm.status === 'in_progress'" [class.ld-badge--no]="dm.status === 'not_started'">
+                        {{ dm.status === 'completed' ? 'Completed' : dm.status === 'in_progress' ? 'In Progress' : 'Not Started' }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ld-empty" *ngIf="dgModules.length === 0">No DG modules found.</div>
+          </div>
+
+          <!-- ═══ Section: Exam ═══ -->
+          <div class="ld-section">
+            <h4 class="ld-section__title"><i class="fas fa-certificate"></i> Exam (Sprechen)</h4>
             <ng-container *ngIf="jSprechenLastSession; else noExamGrid">
-              <div class="ld-table">
-                <div class="ld-row"><span class="ld-lbl">Last score</span><span class="ld-val">{{ jSprechenLastSession.scores?.total || 0 }}/15</span></div>
-                <div class="ld-row"><span class="ld-lbl">Status</span><span class="ld-val" [class.ld-val--pass]="jSprechenLastSession.scores?.passed" [class.ld-val--fail]="!jSprechenLastSession.scores?.passed">{{ jSprechenLastSession.scores?.passed ? 'Passed' : 'Failed' }}</span></div>
-                <div class="ld-row"><span class="ld-lbl">Module</span><span class="ld-val ld-val--truncate">{{ jSprechenLastSession.moduleTitle }}</span></div>
+              <div class="ld-strip">
+                <span class="ld-strip__item">
+                  <span class="ld-strip__lbl">Last score</span>
+                  <strong class="ld-strip__val">{{ jSprechenLastSession.scores?.total || 0 }}/15</strong>
+                </span>
+                <span class="ld-strip__item">
+                  <span class="ld-strip__lbl">Status</span>
+                  <strong class="ld-strip__val" [class.ld-val--pass]="jSprechenLastSession.scores?.passed" [class.ld-val--fail]="!jSprechenLastSession.scores?.passed">
+                    {{ jSprechenLastSession.scores?.passed ? 'Passed' : 'Failed' }}
+                  </strong>
+                </span>
+                <span class="ld-strip__item">
+                  <span class="ld-strip__lbl">Module</span>
+                  <strong class="ld-strip__val ld-val--truncate" style="max-width:160px">{{ jSprechenLastSession.moduleTitle }}</strong>
+                </span>
               </div>
               <div class="ld-sub">Breakdown</div>
-              <div class="ld-table">
-                <div class="ld-row"><span class="ld-lbl">Teil 1</span><span class="ld-val">{{ jSprechenLastSession.scores?.teil1 || 0 }}/3</span></div>
-                <div class="ld-row"><span class="ld-lbl">Teil 2</span><span class="ld-val">{{ jSprechenLastSession.scores?.teil2 || 0 }}/6</span></div>
-                <div class="ld-row"><span class="ld-lbl">Teil 3</span><span class="ld-val">{{ jSprechenLastSession.scores?.teil3 || 0 }}/6</span></div>
+              <div class="ld-table-wrap">
+                <table class="ld-table ld-table--narrow">
+                  <thead>
+                    <tr><th>Part</th><th>Score</th><th>Max</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Teil 1</td><td>{{ jSprechenLastSession.scores?.teil1 || 0 }}</td><td>3</td></tr>
+                    <tr><td>Teil 2</td><td>{{ jSprechenLastSession.scores?.teil2 || 0 }}</td><td>6</td></tr>
+                    <tr><td>Teil 3</td><td>{{ jSprechenLastSession.scores?.teil3 || 0 }}</td><td>6</td></tr>
+                  </tbody>
+                </table>
               </div>
               <div class="ld-sub">Aggregate</div>
-              <div class="ld-table">
-                <div class="ld-row"><span class="ld-lbl">Given</span><span class="ld-val">{{ jSprechenAggregate?.total || 0 }}</span></div>
-                <div class="ld-row"><span class="ld-lbl">Passed</span><span class="ld-val">{{ jSprechenAggregate?.passed || 0 }}</span></div>
-                <div class="ld-row"><span class="ld-lbl">Missed</span><span class="ld-val">{{ jSprechenAggregate?.missed || 0 }}</span></div>
-                <div class="ld-row"><span class="ld-lbl">Avg score</span><span class="ld-val">{{ jSprechenAggregate?.avgTotal || 0 }}/15</span></div>
-                <div class="ld-row"><span class="ld-lbl">Best score</span><span class="ld-val">{{ jSprechenAggregate?.bestTotal || 0 }}/15</span></div>
+              <div class="ld-table-wrap">
+                <table class="ld-table ld-table--narrow">
+                  <thead>
+                    <tr><th>Metric</th><th>Value</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Given</td><td><strong>{{ jSprechenAggregate?.total || 0 }}</strong></td></tr>
+                    <tr><td>Passed</td><td><strong class="ld-val--pass">{{ jSprechenAggregate?.passed || 0 }}</strong></td></tr>
+                    <tr><td>Missed</td><td><strong class="ld-val--fail">{{ jSprechenAggregate?.missed || 0 }}</strong></td></tr>
+                    <tr><td>Avg score</td><td><strong>{{ jSprechenAggregate?.avgTotal || 0 }}/15</strong></td></tr>
+                    <tr><td>Best score</td><td><strong>{{ jSprechenAggregate?.bestTotal || 0 }}/15</strong></td></tr>
+                  </tbody>
+                </table>
               </div>
-              
-              <!-- Detailed list for Exams / Sprechen sessions -->
-              <div class="ld-list-title" *ngIf="jSprechenSummary?.sessions?.length">Exam History</div>
-              <div class="ld-list-container" *ngIf="jSprechenSummary?.sessions?.length">
-                <div class="ld-list-item" *ngFor="let s of jSprechenSummary.sessions">
-                  <div class="ld-list-item-main">
-                    <span class="ld-list-item-title" [title]="s.moduleTitle">{{ s.moduleTitle }}</span>
-                    <span class="ld-list-item-sub">{{ s.createdAt ? formatDate(s.createdAt) : '' }} · Level {{ s.level || 'A1' }}</span>
-                    <span class="ld-list-item-sub" *ngIf="s.durationMin">Duration: {{ s.durationMin }}m</span>
-                    <span class="ld-list-item-sub">Teil 1: {{ s.scores?.teil1 || 0 }}/3 · Teil 2: {{ s.scores?.teil2 || 0 }}/6 · Teil 3: {{ s.scores?.teil3 || 0 }}/6</span>
-                  </div>
-                  <div class="ld-list-item-meta">
-                    <span class="ld-badge" [class.ld-badge--completed]="s.scores?.passed" [class.ld-badge--absent]="!s.scores?.passed">
-                      {{ s.scores?.passed ? 'Passed' : 'Failed' }}
-                    </span>
-                    <span class="ld-badge ld-badge--score">{{ s.scores?.total }}/15</span>
-                  </div>
-                </div>
+              <div class="ld-sub" *ngIf="jSprechenSummary?.sessions?.length">History</div>
+              <div class="ld-table-wrap" *ngIf="jSprechenSummary?.sessions?.length">
+                <table class="ld-table">
+                  <thead>
+                    <tr><th>Module</th><th>Teil 1</th><th>Teil 2</th><th>Teil 3</th><th>Total</th><th>Status</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let s of jSprechenSummary.sessions">
+                      <td class="ld-cell--title" [title]="s.moduleTitle">{{ s.moduleTitle }}</td>
+                      <td>{{ s.scores?.teil1 || 0 }}/3</td>
+                      <td>{{ s.scores?.teil2 || 0 }}/6</td>
+                      <td>{{ s.scores?.teil3 || 0 }}/6</td>
+                      <td><strong>{{ s.scores?.total || 0 }}/15</strong></td>
+                      <td>
+                        <span class="ld-badge" [class.ld-badge--ok]="s.scores?.passed" [class.ld-badge--no]="!s.scores?.passed">
+                          {{ s.scores?.passed ? 'Passed' : 'Failed' }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </ng-container>
             <ng-template #noExamGrid>
@@ -304,37 +396,6 @@
             </ng-template>
           </div>
         </div>
-      </div>
-
-      <!-- ═══ MID ROW: Language Progress Grid ═══ -->
-      <div class="sp-card">
-        <div class="sp-card__head">
-          <span class="sp-card__title">Language progress</span>
-          <span class="sp-card__meta">{{ jCurrentLevelLabel }}</span>
-        </div>
-        <div class="sp-level-grid">
-          <div
-            class="sp-level-grid__item"
-            *ngFor="let lv of jLevelProgression"
-            [class.sp-level-grid__item--done]="lv.status === 'completed'"
-            [class.sp-level-grid__item--active]="lv.status === 'in-progress'"
-          >
-            <div class="sp-level-grid__top">
-              <span class="sp-level-grid__level">{{ lv.level }}</span>
-              <span class="sp-level-grid__icon">
-                <i class="fas" [class.fa-check-circle]="lv.status === 'completed'" [class.fa-play-circle]="lv.status === 'in-progress'"></i>
-              </span>
-            </div>
-            <div class="sp-bar sp-bar--sm">
-              <div
-                class="sp-bar__fill sp-bar__fill--blue"
-                [style.width.%]="jLessonsByLevel[lv.level]?.total ? (jLessonsByLevel[lv.level].completed / jLessonsByLevel[lv.level].total * 100) : 0"
-              ></div>
-            </div>
-            <span class="sp-level-grid__count">{{ jLessonsByLevel[lv.level]?.completed || 0 }}/{{ jLessonsByLevel[lv.level]?.total || 0 }}</span>
-          </div>
-        </div>
-        <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
       </div>
 
       <!-- ═══ BOTTOM ROW: Documents + Visa ═══ -->
@@ -394,6 +455,37 @@
           </div>
           <ng-template #noVisaTpl><div class="sp-empty">No visa tracking record yet.</div></ng-template>
         </div>
+      </div>
+
+      <!-- ═══ MID ROW: Language Progress Grid ═══ -->
+      <div class="sp-card">
+        <div class="sp-card__head">
+          <span class="sp-card__title">Language progress</span>
+          <span class="sp-card__meta">{{ jCurrentLevelLabel }}</span>
+        </div>
+        <div class="sp-level-grid">
+          <div
+            class="sp-level-grid__item"
+            *ngFor="let lv of jLevelProgression"
+            [class.sp-level-grid__item--done]="lv.status === 'completed'"
+            [class.sp-level-grid__item--active]="lv.status === 'in-progress'"
+          >
+            <div class="sp-level-grid__top">
+              <span class="sp-level-grid__level">{{ lv.level }}</span>
+              <span class="sp-level-grid__icon">
+                <i class="fas" [class.fa-check-circle]="lv.status === 'completed'" [class.fa-play-circle]="lv.status === 'in-progress'"></i>
+              </span>
+            </div>
+            <div class="sp-bar sp-bar--sm">
+              <div
+                class="sp-bar__fill sp-bar__fill--blue"
+                [style.width.%]="jLessonsByLevel[lv.level]?.total ? (jLessonsByLevel[lv.level].completed / jLessonsByLevel[lv.level].total * 100) : 0"
+              ></div>
+            </div>
+            <span class="sp-level-grid__count">{{ jLessonsByLevel[lv.level]?.completed || 0 }}/{{ jLessonsByLevel[lv.level]?.total || 0 }}</span>
+          </div>
+        </div>
+        <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
       </div>
 
       <!-- ═══ PAYMENTS ═══ -->

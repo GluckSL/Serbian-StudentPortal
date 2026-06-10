@@ -55,6 +55,52 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   dgModules: any[] = [];
   arenaGames: any[] = [];
   detailLoading = false;
+  detailError = '';
+
+  // ── Status filter state ──
+  liveClassFilter: string | null = null;
+  recordingFilter: string | null = null;
+  exerciseFilter: string | null = null;
+  dgFilter: string | null = null;
+
+  setLiveClassFilter(val: string | null) { this.liveClassFilter = val; }
+  setRecordingFilter(val: string | null) { this.recordingFilter = val; }
+  setExerciseFilter(val: string | null) { this.exerciseFilter = val; }
+  setDgFilter(val: string | null) { this.dgFilter = val; }
+
+  get filteredLiveClasses(): any[] {
+    if (!this.liveClassFilter) return this.liveClasses;
+    return this.liveClasses.filter(c =>
+      this.liveClassFilter === 'Attended' ? c.attended : !c.attended
+    );
+  }
+
+  get filteredRecordings(): any[] {
+    const all = [
+      ...this.recordings.map(r => ({ ...r, _type: 'Recording' })),
+      ...this.zoomRecordings.map(z => ({ ...z, _type: 'Zoom' }))
+    ];
+    if (!this.recordingFilter) return all;
+    return all.filter(r => {
+      const status = r.watched ? 'Watched' : r.watchDuration > 0 ? 'Partial' : 'Unwatched';
+      return status === this.recordingFilter;
+    });
+  }
+
+  get filteredExercises(): any[] {
+    if (!this.exerciseFilter) return this.exercises;
+    return this.exercises.filter(e =>
+      this.exerciseFilter === 'Done' ? e.attempted : !e.attempted
+    );
+  }
+
+  get filteredDgModules(): any[] {
+    if (!this.dgFilter) return this.dgModules;
+    return this.dgModules.filter(dm => {
+      const status = dm.status === 'completed' ? 'Completed' : dm.status === 'in_progress' ? 'In Progress' : 'Not Started';
+      return status === this.dgFilter;
+    });
+  }
 
   radarChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
   radarChartOptions: ChartConfiguration['options'] = {
@@ -111,38 +157,117 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
     });
   }
 
-  private loadDetailData(): void {
+  loadDetailData(): void {
     this.detailLoading = true;
-    const isGo = this.isGo;
-    const isSinhala = this.preview?.medium?.toLowerCase() === 'sinhala' || 
-                       this.journeyData?.profile?.medium?.toLowerCase() === 'sinhala';
+    this.detailError = '';
 
-    let detailUrl: string;
-    if (isGo) {
-      const goApiPath = isSinhala ? 'go-students-sinhala' : 'go-students';
-      detailUrl = `${environment.apiUrl}/${goApiPath}/${this.studentId}/detail`;
-    } else {
-      detailUrl = `${environment.apiUrl}/batch-journey/student/${this.studentId}/full-progress`;
-    }
+    this.liveClasses = [];
+    this.recordings = [];
+    this.zoomRecordings = [];
+    this.exercises = [];
+    this.dgModules = [];
+    this.arenaGames = [];
 
-    this.http.get<any>(detailUrl, { withCredentials: true }).subscribe({
-      next: (res) => {
-        if (isGo) {
-          this.recordings = res.recordings || [];
-          this.zoomRecordings = res.zoomRecordings || [];
-          this.exercises = res.exercises || [];
-          this.dgModules = res.dgModules || [];
-          this.arenaGames = res.arenaGames || [];
-        } else {
-          this.liveClasses = res.liveClasses || [];
-          this.exercises = res.exercises || [];
-          this.dgModules = res.modules || [];
-        }
-        this.detailLoading = false;
-      },
-      error: () => {
-        this.detailLoading = false;
+    let pending = 0;
+    let hasError = false;
+
+    const trackDone = () => {
+      pending--;
+      if (pending > 0) return;
+      this.detailLoading = false;
+      if (hasError && !this.liveClasses.length && !this.recordings.length
+          && !this.zoomRecordings.length && !this.exercises.length && !this.dgModules.length) {
+        this.detailError = 'Could not load detailed data.';
       }
+    };
+
+    // ── 1. Exercises – admin analytics endpoint (works for any student) ──
+    pending++;
+    this.http.get<any>(
+      `${environment.apiUrl}/digital-exercises/analytics/student/${this.studentId}`,
+      { withCredentials: true }
+    ).subscribe({
+      next: (res) => {
+        // Only use analytics exercises as baseline if no richer data loaded yet
+        if (this.exercises.length === 0) {
+          const raw = Array.isArray(res?.attempts) ? res.attempts : [];
+          this.exercises = raw.map((a: any) => ({
+            title: a.exerciseId?.title || 'Untitled',
+            courseDay: a.exerciseId?.courseDay ?? null,
+            level: a.exerciseId?.level || null,
+            category: a.exerciseId?.category || null,
+            scorePercent: a.scorePercentage || 0,
+            earnedPoints: a.earnedPoints || 0,
+            totalPoints: a.totalPoints || 0,
+            timeSpentSeconds: a.timeSpentSeconds || 0,
+            completedAt: a.completedAt,
+            attempted: true,
+            responses: a.responses || []
+          }));
+        }
+        trackDone();
+      },
+      error: () => { hasError = true; trackDone(); }
+    });
+
+    // ── 2. Live classes + DG modules – batch-journey full-progress ──
+    pending++;
+    this.http.get<any>(
+      `${environment.apiUrl}/batch-journey/student/${this.studentId}/full-progress`,
+      { withCredentials: true }
+    ).subscribe({
+      next: (res) => {
+        this.liveClasses = res.liveClasses || [];
+        if (!this.dgModules.length && Array.isArray(res.modules)) {
+          this.dgModules = res.modules;
+        }
+        // Prefer full-progress exercises (richer data: courseDay, responses)
+        if (Array.isArray(res.exercises) && res.exercises.length > 0) {
+          this.exercises = res.exercises;
+        }
+        trackDone();
+      },
+      error: () => { hasError = true; trackDone(); }
+    });
+
+    // ── 3. Recordings + zoomRecordings + dgModules + arena – GO detail ──
+    pending++;
+    this.http.get<any>(
+      `${environment.apiUrl}/go-students/${this.studentId}/detail`,
+      { withCredentials: true }
+    ).subscribe({
+      next: (res) => {
+        this.recordings = res.recordings || [];
+        this.zoomRecordings = res.zoomRecordings || [];
+        this.arenaGames = res.arenaGames || [];
+        if (!this.dgModules.length && Array.isArray(res.dgModules)) {
+          this.dgModules = res.dgModules;
+        }
+        if (Array.isArray(res.exercises) && res.exercises.length > this.exercises.length) {
+          this.exercises = res.exercises;
+        }
+        trackDone();
+      },
+      error: () => { hasError = true; trackDone(); }
+    });
+
+    // ── 4. Sinhala GO detail (fallback) ──
+    pending++;
+    this.http.get<any>(
+      `${environment.apiUrl}/go-students-sinhala/${this.studentId}/detail`,
+      { withCredentials: true }
+    ).subscribe({
+      next: (res) => {
+        if (!this.recordings.length) this.recordings = res.recordings || [];
+        if (!this.zoomRecordings.length) this.zoomRecordings = res.zoomRecordings || [];
+        if (!this.arenaGames.length) this.arenaGames = res.arenaGames || [];
+        if (!this.dgModules.length && Array.isArray(res.dgModules)) this.dgModules = res.dgModules;
+        if (Array.isArray(res.exercises) && res.exercises.length > this.exercises.length) {
+          this.exercises = res.exercises;
+        }
+        trackDone();
+      },
+      error: () => { hasError = true; trackDone(); }
     });
   }
 
@@ -177,6 +302,13 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
   formatDate(d: string | Date): string {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  formatSeconds(sec: number): string {
+    if (!sec) return '0m';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
   }
 
   get displayName(): string {
