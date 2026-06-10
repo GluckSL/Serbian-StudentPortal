@@ -7,7 +7,7 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { lastValueFrom } from 'rxjs';
 import { MaterialModule } from '../../shared/material.module';
-import { ZoomService, Student, Teacher, ZoomAccount, ZoomHostConflict } from '../../services/zoom.service';
+import { ZoomService, Student, Teacher, ZoomAccount, ZoomHostConflict, StudentConflict } from '../../services/zoom.service';
 import { environment } from '../../../environments/environment';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { StepperSelectionEvent } from '@angular/cdk/stepper';
@@ -61,8 +61,10 @@ export class BulkJourneyMeetingComponent implements OnInit {
 
   previewWarnings: string[] = [];
   previewBlocking: string[] = [];
+  studentConflicts: StudentConflict[] = [];
   totalTeachingHours = 0;
   previewSavedAt: string | null = null;
+  isResolvingConflict = false;
 
   /** Row being edited on preview step */
   editingRowIndex: number | null = null;
@@ -136,6 +138,24 @@ export class BulkJourneyMeetingComponent implements OnInit {
 
   get scheduleType(): string {
     return this.basicForm.get('scheduleType')?.value || 'journey';
+  }
+
+  /** True when all Step 1 fields (topic, batch, plan, teacher, duration, journey mode) are valid. */
+  get step1Valid(): boolean {
+    const f = this.basicForm;
+    return !!(
+      f.get('topic')?.valid &&
+      f.get('batch')?.valid &&
+      f.get('plan')?.valid &&
+      f.get('teacherId')?.valid &&
+      f.get('duration')?.valid &&
+      this.scheduleType === 'journey'
+    );
+  }
+
+  /** True when at least one weekday is selected and a Zoom host has been chosen. */
+  get step2Valid(): boolean {
+    return this.selectedWeekdaysSun0.length > 0 && !!this.basicForm.get('zoomHostEmail')?.value;
   }
 
   get selectedWeekdaysSun0(): number[] {
@@ -490,6 +510,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
     schedules?: JourneyScheduleRow[];
     warnings?: string[];
     blockingErrors?: string[];
+    studentConflicts?: StudentConflict[];
     totalTeachingHours?: number;
   }): boolean {
     this.schedules = (d.schedules || []).map((row) => ({
@@ -499,6 +520,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
     }));
     this.previewWarnings = d.warnings || [];
     this.previewBlocking = d.blockingErrors || [];
+    this.studentConflicts = d.studentConflicts || [];
     this.totalTeachingHours = d.totalTeachingHours ?? 0;
     if (this.schedules.length === 0) {
       this.errorMessage = 'No class dates in preview.';
@@ -659,6 +681,9 @@ export class BulkJourneyMeetingComponent implements OnInit {
   stepperSelectionChanged(ev: StepperSelectionEvent): void {
     const prev = ev.previouslySelectedIndex;
     const cur = ev.selectedIndex;
+    if (cur === 1) {
+      this.refreshZoomBusyHint();
+    }
     if (cur === 3 && (this.shouldRegeneratePreview || !this.schedules.length)) {
       void this.runPreview();
     }
@@ -819,6 +844,36 @@ export class BulkJourneyMeetingComponent implements OnInit {
       this.errorMessage = e?.error?.message || 'Bulk create failed';
     } finally {
       this.isBulkCreating = false;
+    }
+  }
+
+  /** Remove the clashing students from all future meetings of the conflicting batch, then re-run preview. */
+  async resolveStudentConflict(conflict: StudentConflict): Promise<void> {
+    const studentIds = conflict.clashingStudents.map((s) => s.studentId);
+    const names = conflict.clashingStudents.map((s) => s.name || s.email).join(', ');
+    const confirmed = confirm(
+      `Remove ${names} from all future scheduled meetings of Batch "${conflict.conflictingBatch}"?\n\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
+    this.isResolvingConflict = true;
+    try {
+      const res = await lastValueFrom(
+        this.zoomService.removeStudentsFromBatch(conflict.conflictingBatch, studentIds)
+      );
+      if (res?.success) {
+        this.snack.open(
+          `Removed ${names} from ${res.updatedCount} Batch ${conflict.conflictingBatch} meeting(s). Re-running preview…`,
+          'OK',
+          { duration: 5000 }
+        );
+        await this.runPreview();
+      } else {
+        this.errorMessage = res?.message || 'Failed to remove students from conflicting meetings.';
+      }
+    } catch (e: any) {
+      this.errorMessage = e?.error?.message || 'Failed to remove students from conflicting meetings.';
+    } finally {
+      this.isResolvingConflict = false;
     }
   }
 

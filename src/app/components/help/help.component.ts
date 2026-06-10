@@ -32,6 +32,8 @@ export interface SupportTicket {
   batch?: string | null;
   /** Student registration number from linked User. */
   regNo?: string | null;
+  /** Recoverable portal password for admin display (when available). */
+  displayPassword?: string | null;
 }
 
 @Component({

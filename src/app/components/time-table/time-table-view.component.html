@@ -9,13 +9,13 @@
             <i class="fas fa-calendar-alt"></i>
             My Timetable
           </h1>
-          <p class="page-subtitle">{{ getCurrentMonthYear() }} Schedule</p>
+          <p class="page-subtitle">{{ getScheduleSubtitle() }}</p>
         </div>
         <div class="col-md-4 text-end">
           <div class="header-stats">
             <div class="stat-card">
-              <span class="stat-value">{{ visibleTimeTables.length || 0 }}</span>
-              <span class="stat-label">Weeks Scheduled</span>
+              <span class="stat-value">{{ isStudentJourneyView ? studentScheduleDayCount : (displayableTimeTables.length || 0) }}</span>
+              <span class="stat-label">{{ isStudentJourneyView ? 'Days Scheduled' : 'Weeks Scheduled' }}</span>
             </div>
           </div>
         </div>
@@ -50,10 +50,89 @@
         </button>
       </div>
 
-      <!-- Timetable Cards -->
-      <div class="timetable-cards">
-        <div class="week-section-title" *ngIf="currentWeekTimeTable">Current Week</div>
-        <ng-container *ngIf="currentWeekTimeTable as tt">
+      <div class="jg-legend" *ngIf="isStudentJourneyView && journeyScheduleLoaded">
+        <span class="jg-legend-item jg-legend-item--past"><i class="fas fa-circle"></i> Spent</span>
+        <span class="jg-legend-item jg-legend-item--current"><i class="fas fa-circle"></i> Today</span>
+        <span class="jg-legend-item jg-legend-item--upcoming"><i class="fas fa-circle"></i> Upcoming</span>
+      </div>
+
+      <!-- Student: skeleton week grid -->
+      <div class="journey-grid-wrap" *ngIf="isStudentJourneyView && !journeyScheduleLoaded">
+        <div class="journey-week-block" *ngFor="let sk of skeletonWeekRows">
+          <div class="jg-skel jg-skel--title"></div>
+          <div class="journey-grid">
+            <div class="journey-grid-cell journey-grid-cell--skel" *ngFor="let wd of weekDayLabels">
+              <div class="jg-skel jg-skel--day"></div>
+              <div class="jg-skel jg-skel--date"></div>
+              <div class="jg-skel jg-skel--badge"></div>
+              <div class="jg-skel-chips">
+                <div class="jg-skel jg-skel--chip"></div>
+                <div class="jg-skel jg-skel--chip"></div>
+                <div class="jg-skel jg-skel--chip"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Student: compact week grid -->
+      <div class="journey-grid-wrap" *ngIf="isStudentJourneyView && journeyScheduleLoaded && journeyWeekRows.length">
+        <div class="journey-week-block" *ngFor="let week of journeyWeekRows">
+          <div class="journey-week-label">{{ week.weekLabel }}</div>
+          <div class="journey-grid">
+            <div
+              class="journey-grid-cell"
+              *ngFor="let cell of week.cells"
+              [class.journey-grid-cell--past]="cellDayStatus(cell) === 'past'"
+              [class.journey-grid-cell--current]="cellDayStatus(cell) === 'today'"
+              [class.journey-grid-cell--upcoming]="cellDayStatus(cell) === 'upcoming'"
+              [class.journey-grid-cell--has-content]="gridCellHasItems(cell)"
+            >
+              <div class="jg-head">
+                <span class="jg-day-name">{{ formatGridDayName(cell) }}</span>
+                <span class="jg-day-date">{{ formatGridDayDate(cell) }}</span>
+              </div>
+
+              <ng-container *ngIf="cell.day as day; else jgEmptyCell">
+                <span class="jg-journey-pill" title="Journey day">D{{ day.journeyDay }}</span>
+                <div class="jg-counts" *ngIf="gridCellHasItems(cell); else jgNoItems">
+                  <span *ngIf="liveCount(day)" class="jg-chip jg-chip--live" title="Live class">
+                    <i class="fas fa-video"></i><b>{{ liveCount(day) }}</b>
+                    <small *ngIf="liveTimeShort(day)">{{ liveTimeShort(day) }}</small>
+                  </span>
+                  <span *ngIf="exerciseCount(day)" class="jg-chip jg-chip--ex" title="Exercises">
+                    <i class="fas fa-pen"></i><b>{{ exerciseCount(day) }}</b>
+                  </span>
+                  <span *ngIf="dgCount(day)" class="jg-chip jg-chip--dg" title="DG Bot">
+                    <i class="fas fa-robot"></i><b>{{ dgCount(day) }}</b>
+                  </span>
+                  <span *ngIf="arenaCount(day)" class="jg-chip jg-chip--arena" title="Glück Arena">
+                    <i class="fas fa-gamepad"></i><b>{{ arenaCount(day) }}</b>
+                  </span>
+                </div>
+                <button
+                  *ngIf="canJoinDay(day)"
+                  type="button"
+                  class="jg-join-btn"
+                  (click)="joinFirstLive(day)"
+                >Join</button>
+              </ng-container>
+
+              <ng-template #jgNoItems>
+                <div class="jg-empty-mini">—</div>
+              </ng-template>
+              <ng-template #jgEmptyCell>
+                <div class="jg-empty-mini">—</div>
+              </ng-template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin / teacher: manual timetable weeks -->
+      <div class="timetable-cards" *ngIf="!isStudentJourneyView">
+        <ng-container *ngFor="let tt of displayableTimeTables">
+          <div class="week-section-title">{{ getWeekSectionTitle(tt) }}</div>
           <div class="week-card">
             <div class="week-header">
               <div class="week-info">
@@ -178,19 +257,33 @@
         </ng-container>
       </div>
 
-      <div class="current-week-empty" *ngIf="timeTables.length && !currentWeekTimeTable">
-        Current week timetable is not available yet.
+      <div class="current-week-empty" *ngIf="!isStudentJourneyView && timeTables.length && !displayableTimeTables.length">
+        No classes scheduled for the current or upcoming week yet.
       </div>
 
-      <!-- Empty State -->
-      <div *ngIf="!timeTables || timeTables.length === 0" class="empty-state">
+      <!-- Student empty state -->
+      <div *ngIf="isStudentJourneyView && journeyScheduleLoaded && !journeyWeekRows.length" class="empty-state">
+        <div class="empty-icon">
+          <i class="fas fa-calendar-alt"></i>
+        </div>
+        <h3 class="empty-title">No Upcoming Schedule Yet</h3>
+        <p class="empty-text">
+          {{ journeyScheduleError || 'Your batch journey classes and activities will appear here automatically once they are scheduled in Journey Management.' }}
+        </p>
+        <button class="btn-primary-action" routerLink="/my-course">
+          <i class="fas fa-graduation-cap"></i>
+          Go to My Course
+        </button>
+      </div>
+
+      <!-- Admin / teacher empty state -->
+      <div *ngIf="!isStudentJourneyView && (!timeTables || timeTables.length === 0)" class="empty-state">
         <div class="empty-icon">
           <i class="fas fa-calendar-alt"></i>
         </div>
         <h3 class="empty-title">No Timetables Available</h3>
         <p class="empty-text">
           <span *ngIf="userRole === 'ADMIN'">Start by creating your first timetable to schedule classes.</span>
-          <span *ngIf="userRole === 'STUDENT'">Your teacher hasn't created a timetable yet. Check back soon!</span>
           <span *ngIf="userRole === 'TEACHER'">No timetables assigned to you yet.</span>
         </p>
         <button *ngIf="userRole === 'ADMIN'" class="btn-primary-action" routerLink="/time-table">

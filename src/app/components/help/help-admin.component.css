@@ -197,6 +197,23 @@
   font-size: 11px;
 }
 
+.ha-reg-no strong {
+  display: block;
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ha-reg-no small {
+  display: block;
+  margin-top: 2px;
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 500;
+}
+
 .ha-reg-no {
   font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
   font-size: 11px;
@@ -419,14 +436,48 @@
   padding: 12px;
 }
 
+.ha-replybox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
 .ha-replybox label {
   display: block;
   font-size: 12px;
   font-weight: 700;
   color: #1d4ed8;
-  margin-bottom: 6px;
+  margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.ha-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #c4b5fd;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  color: #5b21b6;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.ha-ai-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+  border-color: #a78bfa;
+}
+
+.ha-ai-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .ha-replybox textarea {

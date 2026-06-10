@@ -204,7 +204,10 @@
                   <small>{{ ticket.email }}</small>
                 </div>
               </td>
-              <td class="ha-reg-no">{{ ticket.regNo || '—' }}</td>
+              <td class="ha-reg-no">
+                <strong>{{ ticket.regNo || '—' }}</strong>
+                <small *ngIf="ticket.displayPassword">{{ ticket.displayPassword }}</small>
+              </td>
               <td class="ha-batch">{{ ticket.batch || '—' }}</td>
               <td class="ha-subject">{{ ticket.subject }}</td>
               <td><span class="ha-cat-badge">{{ getCategoryLabel(ticket.category) }}</span></td>
@@ -234,8 +237,8 @@
             <tr *ngIf="selectedTicket?._id === ticket._id" class="ha-expand-row">
               <td colspan="10">
                 <div class="ha-expand-content">
-                  <div class="ha-expand-ids" *ngIf="ticket.regNo || ticket.batch">
-                    <span *ngIf="ticket.regNo"><i class="fas fa-id-card"></i> Student ID: <strong>{{ ticket.regNo }}</strong></span>
+                  <div class="ha-expand-ids" *ngIf="ticket.regNo || ticket.batch || ticket.displayPassword">
+                    <span *ngIf="ticket.regNo"><i class="fas fa-id-card"></i> Student ID: <strong>{{ ticket.regNo }}</strong><span *ngIf="ticket.displayPassword"> · Password: <strong>{{ ticket.displayPassword }}</strong></span></span>
                     <span *ngIf="ticket.batch"><i class="fas fa-users"></i> Batch: <strong>{{ ticket.batch }}</strong></span>
                   </div>
                   <h4>Description</h4>
@@ -265,14 +268,25 @@
                   </div>
 
                   <div class="ha-replybox">
-                    <label>Reply to user</label>
+                    <div class="ha-replybox__head">
+                      <label>Reply to user</label>
+                      <button
+                        type="button"
+                        class="ha-ai-btn"
+                        (click)="useAiReply(ticket)"
+                        [disabled]="aiGeneratingId === ticket._id || replyingId === ticket._id"
+                        [title]="(replyDraft[ticket._id!] || '').trim() ? 'Polish your draft with AI' : 'Generate a formal reply with AI'">
+                        <i class="fas" [class.fa-wand-magic-sparkles]="aiGeneratingId !== ticket._id" [class.fa-spinner]="aiGeneratingId === ticket._id" [class.fa-spin]="aiGeneratingId === ticket._id"></i>
+                        {{ aiGeneratingId === ticket._id ? 'Generating…' : 'Use AI' }}
+                      </button>
+                    </div>
                     <div *ngIf="replyError" class="ha-error ha-error--inline" style="margin-bottom:8px;">
                       <i class="fas fa-exclamation-circle"></i> {{ replyError }}
                     </div>
-                    <textarea [(ngModel)]="replyDraft[ticket._id!]" rows="3" placeholder="Write a reply…"></textarea>
+                    <textarea [(ngModel)]="replyDraft[ticket._id!]" rows="5" placeholder="Write a reply…"></textarea>
                     <button class="ha-refresh" style="margin-top:10px;"
                             (click)="sendReply(ticket)"
-                            [disabled]="replyingId === ticket._id || !(replyDraft[ticket._id!] || '').trim()">
+                            [disabled]="replyingId === ticket._id || aiGeneratingId === ticket._id || !(replyDraft[ticket._id!] || '').trim()">
                       <span *ngIf="replyingId !== ticket._id"><i class="fas fa-paper-plane"></i> Send Reply</span>
                       <span *ngIf="replyingId === ticket._id"><i class="fas fa-spinner fa-spin"></i> Sending…</span>
                     </button>

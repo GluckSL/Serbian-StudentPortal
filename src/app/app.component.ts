@@ -83,12 +83,8 @@ export class AppComponent implements OnInit, OnDestroy {
         }
       });
     } else {
+      // Login / home handle their own session flow — avoid a second hanging /auth/profile call.
       this.authChecked = true;
-      // Restore user from existing token on public routes (header/sidebar state).
-      this.authService.refreshUserProfile().subscribe({
-        next: () => {},
-        error: () => {}
-      });
     }
   }
 

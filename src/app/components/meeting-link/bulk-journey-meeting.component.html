@@ -16,7 +16,7 @@
 
   <mat-vertical-stepper [linear]="false" (selectionChange)="stepperSelectionChanged($event)" class="bulk-stepper">
     <!-- Step 1: Basic -->
-    <mat-step label="Basic details" [completed]="basicForm.valid">
+    <mat-step label="Basic details" [completed]="step1Valid">
       <form [formGroup]="basicForm" class="mt-2">
         <div class="form-card">
           <div class="form-card-header"><i class="fas fa-info-circle"></i> Meeting details</div>
@@ -53,46 +53,6 @@
                 <option *ngFor="let t of teachers" [value]="t._id">{{ t.name }} ({{ t.email }})</option>
               </select>
             </div>
-            <div class="mb-3">
-              <label class="form-label">Zoom account *</label>
-              <select class="form-select" formControlName="zoomHostEmail" (change)="refreshZoomBusyHint()">
-                <option value="">Select Zoom host</option>
-                <option
-                  *ngFor="let z of zoomAccounts"
-                  [value]="z.email"
-                  [disabled]="z.isBusy"
-                  [attr.title]="z.isBusy ? conflictTooltip(z.conflicts) : null">
-                  {{ z.name }} ({{ z.email }}){{ z.isBusy ? ' — BUSY' : '' }}
-                </option>
-              </select>
-              <small class="text-muted d-block">
-                BUSY reflects portal bookings at your journey start time (not the Zoom website calendar).
-                Hover a BUSY option or see details below.
-              </small>
-              <div class="zoom-busy-panel" *ngIf="busyZoomAccounts.length > 0">
-                <div class="zoom-busy-panel-title">
-                  <i class="fas fa-info-circle" aria-hidden="true"></i>
-                  Conflicting portal classes
-                </div>
-                <div class="zoom-busy-account" *ngFor="let acc of busyZoomAccounts">
-                  <span class="zoom-busy-account-name">
-                    {{ acc.name }}
-                    <i
-                      class="fas fa-circle-info zoom-busy-info-icon"
-                      [matTooltip]="conflictTooltip(acc.conflicts)"
-                      matTooltipClass="zoom-busy-tooltip"
-                      aria-label="Conflict details"></i>
-                  </span>
-                  <ul class="zoom-busy-conflict-list">
-                    <li *ngFor="let c of acc.conflicts">
-                      <strong>{{ c.topic }}</strong>
-                      <span *ngIf="c.batch"> · Batch {{ c.batch }}</span>
-                      — {{ formatConflictWhen(c) }}
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
             <div class="row">
               <div class="col-md-4 mb-3">
                 <label class="form-label">Duration (minutes) *</label>
@@ -114,12 +74,12 @@
         </div>
       </form>
       <div class="step-actions">
-        <button mat-raised-button color="primary" matStepperNext [disabled]="basicForm.invalid || scheduleType !== 'journey'">Next</button>
+        <button mat-raised-button color="primary" matStepperNext [disabled]="!step1Valid">Next</button>
       </div>
     </mat-step>
 
     <!-- Step 2: Journey scheduler -->
-    <mat-step label="Journey schedule" [completed]="selectedWeekdaysSun0.length > 0">
+    <mat-step label="Journey schedule" [completed]="step2Valid">
       <div class="mt-2" *ngIf="scheduleType === 'journey'" [formGroup]="basicForm">
         <div class="alert alert-light border small py-2 mb-3 journey-today-banner">
           <div><strong>Today (IST):</strong> {{ istTodayDisplay() }}</div>
@@ -154,6 +114,57 @@
             </div>
           </div>
         </div>
+        <div class="form-card mt-3" [formGroup]="basicForm">
+          <div class="form-card-header"><i class="fas fa-video"></i> Zoom account *</div>
+          <div class="form-card-body">
+            <ng-container *ngIf="!selectedWeekdaysSun0.length; else zoomPicker">
+              <div class="alert alert-light border small mb-0">
+                <i class="fas fa-arrow-up me-1 text-muted"></i>
+                Tick at least one weekday and set a start time above — free and busy Zoom accounts will appear here automatically.
+              </div>
+            </ng-container>
+            <ng-template #zoomPicker>
+              <select class="form-select" formControlName="zoomHostEmail">
+                <option value="">Select Zoom host</option>
+                <option
+                  *ngFor="let z of zoomAccounts"
+                  [value]="z.email"
+                  [disabled]="z.isBusy"
+                  [attr.title]="z.isBusy ? conflictTooltip(z.conflicts) : null">
+                  {{ z.name }} ({{ z.email }}){{ z.isBusy ? ' — BUSY' : '' }}
+                </option>
+              </select>
+              <small class="text-muted d-block mt-1">
+                BUSY reflects portal bookings at your journey start time (not the Zoom website calendar).
+                Hover a BUSY option or see conflict details below.
+              </small>
+              <div class="zoom-busy-panel" *ngIf="busyZoomAccounts.length > 0">
+                <div class="zoom-busy-panel-title">
+                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                  Conflicting portal classes
+                </div>
+                <div class="zoom-busy-account" *ngFor="let acc of busyZoomAccounts">
+                  <span class="zoom-busy-account-name">
+                    {{ acc.name }} ({{ acc.email }})
+                    <i
+                      class="fas fa-circle-info zoom-busy-info-icon"
+                      [matTooltip]="conflictTooltip(acc.conflicts)"
+                      matTooltipClass="zoom-busy-tooltip"
+                      aria-label="Conflict details"></i>
+                  </span>
+                  <ul class="zoom-busy-conflict-list">
+                    <li *ngFor="let c of acc.conflicts">
+                      <strong>{{ c.topic }}</strong>
+                      <span *ngIf="c.batch"> · Batch {{ c.batch }}</span>
+                      — {{ formatConflictWhen(c) }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </ng-template>
+          </div>
+        </div>
+
         <div class="form-card mt-3">
           <div class="form-card-header"><i class="fas fa-route"></i> Journey range</div>
           <div class="form-card-body row">
@@ -189,7 +200,7 @@
       </div>
       <div class="step-actions">
         <button mat-button matStepperPrevious>Back</button>
-        <button mat-raised-button color="primary" matStepperNext [disabled]="!selectedWeekdaysSun0.length">Next</button>
+        <button mat-raised-button color="primary" matStepperNext [disabled]="!step2Valid">Next</button>
       </div>
     </mat-step>
 
@@ -265,6 +276,39 @@
         <div *ngIf="previewWarnings.length" class="alert alert-warning small mb-3 summary-warnings">
           <strong>Warnings / conflicts</strong>
           <ul class="mb-0"><li *ngFor="let w of previewWarnings">{{ w }}</li></ul>
+        </div>
+
+        <div *ngIf="studentConflicts.length" class="form-card mb-3 border-warning">
+          <div class="form-card-header bg-warning text-dark">
+            <i class="fas fa-user-times me-1"></i> Student scheduling conflicts — quick fix
+          </div>
+          <div class="form-card-body">
+            <p class="small mb-2">
+              The students below are already enrolled in another batch at the same time slot.
+              Click <strong>Remove from Batch X</strong> to drop them from those existing meetings so this batch creation proceeds without conflicts.
+            </p>
+            <div *ngFor="let conflict of studentConflicts" class="d-flex align-items-start gap-3 mb-3 p-2 rounded border">
+              <div class="flex-grow-1">
+                <div class="fw-semibold small mb-1">
+                  Conflicting batch: <span class="text-danger">{{ conflict.conflictingBatch }}</span>
+                  <span class="text-muted ms-1">({{ conflict.conflictingTopic }})</span>
+                </div>
+                <ul class="mb-0 small">
+                  <li *ngFor="let s of conflict.clashingStudents">
+                    {{ s.name }} <span class="text-muted">({{ s.email }})</span>
+                  </li>
+                </ul>
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm btn-danger flex-shrink-0"
+                (click)="resolveStudentConflict(conflict)"
+                [disabled]="isResolvingConflict || isPreviewing">
+                <i class="fas fa-user-minus me-1"></i>
+                {{ isResolvingConflict ? 'Removing…' : 'Remove from Batch ' + conflict.conflictingBatch }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="form-card" *ngIf="schedules.length">

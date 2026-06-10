@@ -7,6 +7,16 @@ const upload = require('../config/supportTicketUpload');
 const transporter = require('../config/emailConfig');
 const { verifyToken, checkRole, extractBearerToken } = require('../middleware/auth');
 const supportAssistantService = require('../services/supportAssistantService');
+const { readRecoverablePassword } = require('../utils/passwordRecoverable');
+
+function studentFieldsFromUser(user) {
+  if (!user) return { batch: null, regNo: null, displayPassword: null };
+  return {
+    batch: user.batch || null,
+    regNo: user.regNo || null,
+    displayPassword: readRecoverablePassword(user.passwordRecoverable) || null
+  };
+}
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -169,25 +179,28 @@ router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_AD
   try {
     const tickets = await SupportTicket.find()
       .sort({ createdAt: -1 })
-      .populate({ path: 'userId', select: 'batch email regNo' });
+      .populate({ path: 'userId', select: 'batch email regNo passwordRecoverable' });
 
     const rows = tickets.map((doc) => {
       const o = doc.toObject();
       let batch = null;
       let regNo = null;
+      let displayPassword = null;
       let userId = o.userId;
       if (userId && typeof userId === 'object') {
-        batch = userId.batch || null;
-        regNo = userId.regNo || null;
+        const fields = studentFieldsFromUser(userId);
+        batch = fields.batch;
+        regNo = fields.regNo;
+        displayPassword = fields.displayPassword;
         userId = userId._id;
       }
-      return { ...o, userId, batch, regNo };
+      return { ...o, userId, batch, regNo, displayPassword };
     });
 
     const emailsNeedingLookup = [
       ...new Set(
         rows
-          .filter((r) => r.email && (!r.batch || !r.regNo))
+          .filter((r) => r.email)
           .map((r) => String(r.email).trim().toLowerCase())
       )
     ];
@@ -196,12 +209,12 @@ router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_AD
       const users = await User.find({
         $expr: { $in: [{ $toLower: '$email' }, emailsNeedingLookup] }
       })
-        .select('email batch regNo')
+        .select('email batch regNo passwordRecoverable')
         .lean();
       const emailToUser = new Map(
         users.map((u) => [
           String(u.email || '').trim().toLowerCase(),
-          { batch: u.batch || '', regNo: u.regNo || '' }
+          studentFieldsFromUser(u)
         ])
       );
       for (const row of rows) {
@@ -211,6 +224,7 @@ router.get('/tickets', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_AD
         if (!match) continue;
         if (!row.batch && match.batch) row.batch = match.batch;
         if (!row.regNo && match.regNo) row.regNo = match.regNo;
+        if (!row.displayPassword && match.displayPassword) row.displayPassword = match.displayPassword;
       }
     }
 
@@ -239,6 +253,62 @@ router.patch('/tickets/:id/status', verifyToken, checkRole(['ADMIN', 'TEACHER_AD
     return res.json({ success: true, data: updated });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Failed to update ticket.' });
+  }
+});
+
+// POST /api/support/tickets/:id/ai-reply (admin) — generate or polish a reply draft
+router.post('/tickets/:id/ai-reply', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN']), async (req, res) => {
+  try {
+    const ticket = await SupportTicket.findById(req.params.id).lean();
+    if (!ticket) return res.status(404).json({ success: false, message: 'Ticket not found.' });
+
+    const draft = String(req.body?.draft || '').trim();
+
+    let studentContext = {};
+    let user = null;
+    if (ticket.userId) {
+      user = await User.findById(ticket.userId)
+        .select('name email batch regNo level subscription assignedTeacher')
+        .populate({ path: 'assignedTeacher', select: 'name email' })
+        .lean();
+    }
+    if (!user && ticket.email) {
+      user = await User.findOne({
+        $expr: { $eq: [{ $toLower: '$email' }, String(ticket.email).trim().toLowerCase()] }
+      })
+        .select('name email batch regNo level subscription assignedTeacher')
+        .populate({ path: 'assignedTeacher', select: 'name email' })
+        .lean();
+    }
+    if (user) {
+      studentContext = {
+        regNo: user.regNo || null,
+        batch: user.batch || null,
+        level: user.level || null,
+        plan: user.subscription || null,
+        teacherName: user.assignedTeacher?.name || null
+      };
+    }
+
+    const result = await supportAssistantService.generateAdminTicketReply({
+      ticket,
+      draft,
+      studentContext
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        reply: result.reply,
+        fallback: !!result.fallback
+      }
+    });
+  } catch (err) {
+    console.error('[support/tickets/ai-reply] error:', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Could not generate AI reply. Please try again or write the reply manually.'
+    });
   }
 });
 

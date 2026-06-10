@@ -365,6 +365,7 @@ router.post('/preview-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', '
         schedules: preview.schedules,
         warnings: preview.allWarnings,
         blockingErrors: preview.blockingErrors,
+        studentConflicts: preview.studentConflicts || [],
         totalMeetings: preview.schedules.length,
         totalTeachingHours: Math.round(teachingHours * 100) / 100
       }
@@ -372,6 +373,42 @@ router.post('/preview-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', '
   } catch (err) {
     console.error('preview-bulk-journey-meetings', err);
     res.status(500).json({ success: false, message: err.message || 'Preview failed' });
+  }
+});
+
+/**
+ * Remove specific students from all future scheduled meetings of a given batch.
+ * POST /api/zoom/meetings/remove-students-from-batch
+ * Body: { batchName: string, studentIds: string[] }
+ */
+router.post('/meetings/remove-students-from-batch', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { batchName, studentIds } = req.body || {};
+    if (!batchName || !Array.isArray(studentIds) || !studentIds.length) {
+      return res.status(400).json({ success: false, message: 'batchName and studentIds are required' });
+    }
+    const batchRe = new RegExp(`^${batchName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    const now = new Date();
+    const meetings = await MeetingLink.find({
+      batch: batchRe,
+      status: { $nin: ['cancelled', 'completed'] },
+      startTime: { $gt: now }
+    }).select('_id attendees');
+
+    let updatedCount = 0;
+    const idSet = new Set(studentIds.map(String));
+    for (const meeting of meetings) {
+      const before = meeting.attendees.length;
+      meeting.attendees = meeting.attendees.filter((a) => !idSet.has(String(a.studentId)));
+      if (meeting.attendees.length !== before) {
+        await meeting.save();
+        updatedCount++;
+      }
+    }
+    return res.json({ success: true, updatedCount, checkedCount: meetings.length });
+  } catch (err) {
+    console.error('remove-students-from-batch', err);
+    res.status(500).json({ success: false, message: err.message || 'Failed to remove students' });
   }
 });
 
@@ -483,7 +520,7 @@ router.post('/create-bulk-journey-meetings', verifyToken, checkRole(['ADMIN', 'T
         continue;
       }
 
-      const blockers = await collectSlotConflicts({
+      const { warnings: blockers } = await collectSlotConflicts({
         batch,
         teacherId,
         zoomHostEmail,
@@ -652,22 +689,10 @@ router.get('/meetings', verifyToken, async (req, res) => {
     const andClauses = [];
 
     if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
-      const teacherScopeOr = [
-        { createdBy: userId },
-        { assignedTeacher: userId },
-      ];
-      const batchValues = [];
-      for (const b of user.assignedBatches || []) {
-        const s = String(b || '').trim();
-        if (!s) continue;
-        batchValues.push(s);
-        const asNum = Number(s);
-        if (Number.isFinite(asNum) && String(asNum) === s) batchValues.push(asNum);
-      }
-      if (batchValues.length) {
-        teacherScopeOr.push({ batch: { $in: batchValues } });
-      }
-      andClauses.push({ $or: teacherScopeOr });
+      // Only classes this teacher hosts — not every meeting in assignedBatches.
+      andClauses.push({
+        $or: [{ createdBy: userId }, { assignedTeacher: userId }],
+      });
     }
 
     if (status) andClauses.push({ status });
@@ -1036,14 +1061,6 @@ async function staffMayManageMeeting(req, meeting) {
       ? String(meeting.assignedTeacher._id)
       : String(meeting.assignedTeacher || '');
     if (uid === createdBy || (assigned && uid === assigned)) return true;
-
-    const meetingBatch = normBatchKey(meeting.batch);
-    if (meetingBatch) {
-      const teacher = await User.findById(uid).select('assignedBatches').lean();
-      for (const b of teacher?.assignedBatches || []) {
-        if (normBatchKey(b) === meetingBatch) return true;
-      }
-    }
   }
   return false;
 }

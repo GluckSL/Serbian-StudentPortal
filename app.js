@@ -12,7 +12,11 @@ require("dotenv").config();
     .filter(Boolean);
   const servers = fromEnv.length ? fromEnv : process.platform === 'win32' ? ['1.1.1.1', '8.8.8.8'] : [];
   if (!servers.length) return;
-  require('dns').setServers(servers);
+  const dnsSync = require('dns');
+  dnsSync.setServers(servers);
+  if (typeof dnsSync.setDefaultResultOrder === 'function') {
+    dnsSync.setDefaultResultOrder('ipv4first');
+  }
   console.log(`[Mongo DNS] Using DNS resolvers: ${servers.join(', ')} (SRV lookup for Atlas)`);
 })();
 
@@ -242,13 +246,76 @@ async function warnIfSuspiciousMongoDns(uri) {
   }
 }
 
-/** Wait for MongoDB before accepting traffic / crons — avoids Mongoose “buffering timed out” spam when Atlas is unreachable. */
-async function connectMongoDb() {
-  await warnIfSuspiciousMongoDns(mongoUri).catch(() => {});
-  await mongoose.connect(mongoUri, {
+function isRetryableMongoConnectError(err) {
+  const msg = String(err?.message || err || '');
+  return /ENOTFOUND|ECONNREFUSED|querySrv|ETIMEDOUT|ETIMEOUT/i.test(msg);
+}
+
+/**
+ * Windows: dns.lookup (used by the MongoDB driver) ignores dns.setServers().
+ * dns.resolve4/resolve6 honor setServers — route Atlas host lookups through them.
+ */
+function createAtlasDnsLookup() {
+  const dnsMod = require('dns');
+  return (hostname, options, callback) => {
+    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
+      return dnsMod.lookup(hostname, options, callback);
+    }
+    const wantV6 = options?.family === 6;
+    const resolver = wantV6
+      ? dnsMod.promises.resolve6(hostname)
+      : dnsMod.promises.resolve4(hostname);
+    resolver
+      .then((addrs) => {
+        const addr = addrs?.[0];
+        if (!addr) {
+          callback(new Error(`getaddrinfo ENOTFOUND ${hostname}`));
+          return;
+        }
+        callback(null, addr, wantV6 ? 6 : 4);
+      })
+      .catch((err) => callback(err));
+  };
+}
+
+function mongoConnectOptions() {
+  const opts = {
     serverSelectionTimeoutMS: 45_000,
     socketTimeoutMS: 45_000,
-  });
+    family: 4,
+  };
+  if (mongoUri.startsWith('mongodb+srv://')) {
+    opts.lookup = createAtlasDnsLookup();
+  }
+  return opts;
+}
+
+/** Wait for MongoDB before accepting traffic / crons — avoids Mongoose “buffering timed out” spam when Atlas is unreachable. */
+async function connectMongoDb() {
+  const maxAttempts = 3;
+  let lastErr;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await warnIfSuspiciousMongoDns(mongoUri).catch(() => {});
+      await mongoose.connect(mongoUri, mongoConnectOptions());
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts && isRetryableMongoConnectError(err)) {
+        console.warn(
+          `[MongoDB] Connect attempt ${attempt}/${maxAttempts} failed (${err.message}). Retrying in 3s…`
+        );
+        await new Promise((r) => setTimeout(r, 3000));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (lastErr) throw lastErr;
+
   console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
   await ensureDefaultDgCharacter();
   await ensureInteractiveGamesSeeded();
@@ -380,7 +447,7 @@ app.use('/api/google-sheet', googleSheetSyncRoutes);
 
 // Payment Hub v2
 const registerPaymentModule = require('./modules/payments-v2/backend/register');
-registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: true });
+registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: false });
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
@@ -535,13 +602,27 @@ connectMongoDb()
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
+
+      const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
+      const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
+      overdueCron.start();
+      journeyDueCron.start();
     });
   })
   .catch((err) => {
-    console.error('❌ MongoDB connection failed — server not started:', err.message || err);
-    console.error(
-      '   Fix: verify MONGO_URI, Atlas password, and Network Access (IP allowlist). ' +
-      'If you see querySrv ECONNREFUSED, set Windows DNS to 1.1.1.1/8.8.8.8, run ipconfig /flushdns, or set MONGO_DNS_SERVERS=1.1.1.1,8.8.8.8 in .env.'
-    );
+    const msg = String(err?.message || err || '');
+    console.error('❌ MongoDB connection failed — server not started:', msg);
+    if (/ENOTFOUND|querySrv/i.test(msg)) {
+      console.error(
+        '   DNS: set Windows DNS to 1.1.1.1 and 8.8.8.8, run "ipconfig /flushdns", restart terminal, then "node app.js".'
+      );
+      console.error('   Or add to .env: MONGO_DNS_SERVERS=1.1.1.1,8.8.8.8');
+    }
+    if (/whitelist|server selection timed out|Could not connect to any servers/i.test(msg)) {
+      console.error(
+        '   Atlas: add your current public IP in MongoDB Atlas → Network Access → IP Access List (or use 0.0.0.0/0 for dev only).'
+      );
+    }
+    console.error('   Also verify MONGO_URI and Atlas database user password in .env.');
     process.exit(1);
   });

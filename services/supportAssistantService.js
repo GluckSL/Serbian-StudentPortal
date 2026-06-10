@@ -91,8 +91,104 @@ async function chat(messages, userContext = {}) {
   };
 }
 
+const CATEGORY_LABELS = {
+  login: 'Login / Access Issue',
+  payment: 'Payment Problem',
+  class: 'Class / Meeting Issue',
+  video: 'Video / Audio Issue',
+  course: 'Course Material',
+  technical: 'Technical Error',
+  account: 'Account Settings',
+  other: 'Other'
+};
+
+function buildFallbackTicketReply(ticket, draft = '') {
+  const name = String(ticket?.name || 'there').split(' ')[0] || 'there';
+  const draftTrimmed = String(draft || '').trim();
+  if (draftTrimmed) {
+    return `Hello ${name},\n\n${draftTrimmed}\n\nRegards,\nGlück Global Support Team`;
+  }
+  return `Hello ${name},\n\nThank you for contacting Glück Global Support regarding "${ticket?.subject || 'your request'}". We have reviewed your message and will help you with the next steps shortly. If you have any additional details, please reply on this ticket.\n\nRegards,\nGlück Global Support Team`;
+}
+
+/**
+ * Generate or polish an admin reply for a support ticket.
+ * @param {{ ticket: object, draft?: string, studentContext?: object }} opts
+ */
+async function generateAdminTicketReply({ ticket, draft = '', studentContext = {} }) {
+  const draftTrimmed = String(draft || '').trim();
+  const isPolish = draftTrimmed.length > 0;
+  const categoryLabel = CATEGORY_LABELS[ticket?.category] || ticket?.category || 'General';
+  const priorReplies = (ticket?.replies || [])
+    .map((r, i) => `Reply ${i + 1} (${r.authorRole || 'ADMIN'}): ${r.message}`)
+    .join('\n');
+
+  const studentBits = [];
+  if (studentContext.regNo) studentBits.push(`Student ID: ${studentContext.regNo}`);
+  if (studentContext.batch) studentBits.push(`Batch: ${studentContext.batch}`);
+  if (studentContext.level) studentBits.push(`Level: ${studentContext.level}`);
+  if (studentContext.plan) studentBits.push(`Plan: ${studentContext.plan}`);
+  if (studentContext.teacherName) studentBits.push(`Assigned teacher: ${studentContext.teacherName}`);
+
+  const client = getClient();
+  if (!client) {
+    return { reply: buildFallbackTicketReply(ticket, draftTrimmed), fallback: true };
+  }
+
+  const systemPrompt = `You are a support specialist for Glück Global, a German language learning portal.
+Write professional, warm replies to students on support tickets.
+- Use plain text only (no markdown, no bullet symbols like •).
+- Address the student by first name when natural.
+- Be helpful and specific to their issue.
+- Sign off with "Regards," then a new line, then "Glück Global Support Team" unless polishing a draft that already has a complete sign-off.
+- Do not invent exact class schedules, Zoom links, or policies unless provided in context.
+- Keep replies concise (2–5 short paragraphs).`;
+
+  const contextBlock = [
+    `Student: ${ticket.name} (${ticket.email})`,
+    `Subject: ${ticket.subject}`,
+    `Category: ${categoryLabel}`,
+    `Priority: ${ticket.priority}`,
+    `Student message: ${ticket.description}`,
+    ...studentBits
+  ].join('\n');
+
+  const userPrompt = isPolish
+    ? `Polish and improve this admin draft reply for a support ticket. Keep the same intent and facts; improve tone, clarity, and professionalism. Return only the improved reply text.
+
+Ticket context:
+${contextBlock}
+${priorReplies ? `\nPrevious replies:\n${priorReplies}` : ''}
+
+Admin draft to polish:
+${draftTrimmed}`
+    : `Write a formal, helpful support reply to this ticket. Return only the reply text.
+
+Ticket context:
+${contextBlock}
+${priorReplies ? `\nPrevious replies (do not repeat unnecessarily):\n${priorReplies}` : ''}`;
+
+  const completion = await client.chat.completions.create({
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    max_tokens: 600,
+    temperature: 0.55
+  });
+
+  const reply = (completion.choices[0]?.message?.content || '').trim();
+  return {
+    reply: reply || buildFallbackTicketReply(ticket, draftTrimmed),
+    fallback: false
+  };
+}
+
 module.exports = {
   chat,
   isConfigured,
-  buildFallbackReply
+  buildFallbackReply,
+  generateAdminTicketReply,
+  buildFallbackTicketReply
 };
