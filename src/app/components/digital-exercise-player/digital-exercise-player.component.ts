@@ -2375,18 +2375,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }> = [];
     let blankNum = 0;
     const data = pq.data;
-    const subs = data.subQuestions || [];
-    const hasSubQuestions = subs.length > 0;
+    const hasSubQuestions = (data.subQuestions || []).length > 0;
 
     if (data.type === 'fill-blank' && countFillBlankRuns(data.sentence || '') > 0) {
       const count = countFillBlankRuns(data.sentence || '');
       const correctList = data._correctAnswers || data.answers || [];
-      const partLabel = this.getFillBlankReviewPartLabel(
-        questionIndex,
-        this.getParentPartNumber(data),
-        'parent',
-        hasSubQuestions
-      );
+      const partLabel = hasSubQuestions ? 'Main question' : `Q ${this.getQuestionPartLabel(questionIndex, this.getParentPartNumber(data))}`;
       for (let bi = 0; bi < count; bi++) {
         blankNum++;
         const studentAnswer = String(pq.fillAnswers?.[bi] ?? '').trim();
@@ -2397,33 +2391,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           studentAnswer,
           correctAnswer,
           isCorrect: this.isFillCorrect(pq, bi),
-          answered: studentAnswer.length > 0
-        });
-      }
-    }
-
-    for (let si = 0; si < subs.length; si++) {
-      const sq = subs[si];
-      if (sq.type !== 'fill-blank') continue;
-      const count = countFillBlankRuns(sq.sentence || '');
-      if (count <= 0) continue;
-      const correctList = sq._correctAnswers || sq.answers || [];
-      const partLabel = this.getFillBlankReviewPartLabel(
-        questionIndex,
-        this.getSubQuestionPartNumber(si, data),
-        'sub',
-        hasSubQuestions
-      );
-      for (let bi = 0; bi < count; bi++) {
-        blankNum++;
-        const studentAnswer = String(pq.subQuestionFillBlankAnswers?.[si]?.[bi] ?? '').trim();
-        const correctAnswer = String(correctList[bi] ?? '').trim();
-        items.push({
-          globalIndex: blankNum,
-          partLabel,
-          studentAnswer,
-          correctAnswer,
-          isCorrect: this.isSubFillCorrect(pq, si, bi),
           answered: studentAnswer.length > 0
         });
       }

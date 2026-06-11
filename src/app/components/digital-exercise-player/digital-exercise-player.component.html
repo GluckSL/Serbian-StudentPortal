@@ -4287,9 +4287,9 @@
                           </div>
                         </div>
                       </div>
-                      <div class="rearrange-answer-box" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.length">
+                      <div class="rearrange-answer-box" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex).length">
                         <div class="rearrange-answer-label">Your answer is</div>
-                        <div class="rearrange-answer-text">{{ getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.join(' ') || '—' }}</div>
+                        <div class="rearrange-answer-text">{{ getSubQuestionRearrangeTokens(currentQuestion, sqIndex).join(' ') || '—' }}</div>
                       </div>
                     </div>
 
