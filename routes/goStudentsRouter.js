@@ -38,6 +38,7 @@ const {
   recordingWatchSecondsForComplete
 } = require('../utils/recordingWatchCompletion');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { readRecoverablePassword } = require('../utils/passwordRecoverable');
 
 function createGoStudentsRouter(trackKey) {
   const track = normalizeTrack(trackKey);
@@ -61,7 +62,9 @@ function createGoStudentsRouter(trackKey) {
       currentCourseDay: student.currentCourseDay,
       batch: student.batch || '',
       level: student.level || '',
-      studentStatus: student.studentStatus || ''
+      studentStatus: student.studentStatus || '',
+      displayPassword: readRecoverablePassword(student.passwordRecoverable) || null,
+      lastLogin: student.lastLogin || null
     };
   }
   
@@ -130,7 +133,7 @@ function createGoStudentsRouter(trackKey) {
   router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
     try {
       const students = await User.find(goStudentQuery(track))
-        .select('name regNo email subscription goStatus goLanguage goJoiningDate currentCourseDay level batch studentStatus medium')
+        .select('name regNo email subscription goStatus goLanguage goJoiningDate currentCourseDay level batch studentStatus medium passwordRecoverable lastLogin')
         .sort({ name: 1 })
         .lean();
 

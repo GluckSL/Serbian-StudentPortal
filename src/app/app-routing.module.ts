@@ -421,6 +421,15 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], sprechenFormMode: 'create' },
   },
   {
+    path: 'admin/sprechen-exam/new-a2',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-a2-admin-module-form/sprechen-a2-admin-module-form.component').then(
+        (m) => m.SprechenA2AdminModuleFormComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], sprechenFormMode: 'create-a2' },
+  },
+  {
     path: 'admin/sprechen-exam/:id/edit',
     loadComponent: () =>
       import('./sprechen-exam/sprechen-admin-module-form/sprechen-admin-module-form.component').then(
@@ -428,6 +437,15 @@ export const routes: Routes = [
       ),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], sprechenFormMode: 'edit' },
+  },
+  {
+    path: 'admin/sprechen-exam/:id/edit-a2',
+    loadComponent: () =>
+      import('./sprechen-exam/sprechen-a2-admin-module-form/sprechen-a2-admin-module-form.component').then(
+        (m) => m.SprechenA2AdminModuleFormComponent,
+      ),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], sprechenFormMode: 'edit-a2' },
   },
   {
     path: 'admin/sprechen-exam/:moduleId/sessions',

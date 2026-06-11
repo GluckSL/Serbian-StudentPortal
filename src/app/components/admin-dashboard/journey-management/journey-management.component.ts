@@ -40,6 +40,9 @@ interface BatchSummary {
   journeyPausedFrozenDay?: number | null;
   journeyPauseHistory?: JourneyPauseHistoryEntry[];
   studentCount: number;
+  /** Students whose journey day is below the batch current day. */
+  studentsBehindCount?: number;
+  hasStudentsBehind?: boolean;
   teacherId?: string | null;
   /** Resolved from students' assignedTeacher (most common per batch). */
   teacherName: string | null;
@@ -405,17 +408,27 @@ interface TimelineDay {
             </thead>
             <tbody>
               <tr *ngFor="let b of filteredBatches; trackBy: trackBatch"
-                  [class.j-row--behind]="batchBehindCalendar(b)">
+                  [class.j-row--behind]="batchNeedsAttention(b)">
                 <td>
                   <div class="j-batch-name-cell">
-                    {{ b.batchName }}
+                    <span class="j-batch-name-text">
+                      <i *ngIf="batchHasStudentsBehind(b)"
+                         class="fas fa-exclamation-triangle j-batch-danger-icon"
+                         [title]="studentsBehindTooltip(b)"></i>
+                      {{ b.batchName }}
+                    </span>
                     <span class="j-pause-badge" *ngIf="b.journeyPaused && b.batchType === 'new'">
                       <i class="fas fa-pause"></i> Paused
                     </span>
                     <span class="j-behind-batch-badge" *ngIf="batchBehindCalendar(b)"
                           [title]="'Expected Day ' + calendarDayForBatch(b) + ' but stuck on Day ' + b.batchCurrentDay + '. Students are not advancing.'">
                       <i class="fas fa-exclamation-triangle"></i>
-                      {{ calendarDayForBatch(b) - b.batchCurrentDay }} day(s) behind
+                      Batch {{ calendarDayForBatch(b) - b.batchCurrentDay }}d behind calendar
+                    </span>
+                    <span class="j-behind-batch-badge j-behind-batch-badge--students" *ngIf="batchHasStudentsBehind(b)"
+                          [title]="studentsBehindTooltip(b)">
+                      <i class="fas fa-user-clock"></i>
+                      {{ b.studentsBehindCount }} student{{ b.studentsBehindCount === 1 ? '' : 's' }} behind
                     </span>
                   </div>
                 </td>
@@ -443,12 +456,18 @@ interface TimelineDay {
                 </td>
                 <td>{{ b.journeyLength }} days</td>
                 <td>
-                  <div class="j-progress-cell">
+                  <div class="j-progress-cell" [class.j-progress-cell--behind]="batchHasStudentsBehind(b)">
                     <div class="j-progress-track j-progress-track--table">
                       <div class="j-progress-fill"
+                           [class.j-progress-fill--danger]="batchHasStudentsBehind(b)"
                            [style.width.%]="b.journeyLength ? (b.batchCurrentDay / b.journeyLength) * 100 : 0"></div>
                     </div>
-                    <span class="j-progress-label j-progress-label--table">{{ b.batchCurrentDay }} / {{ b.journeyLength }}</span>
+                    <span class="j-progress-label j-progress-label--table">
+                      <i *ngIf="batchHasStudentsBehind(b)"
+                         class="fas fa-exclamation-triangle j-progress-danger-icon"
+                         [title]="studentsBehindTooltip(b)"></i>
+                      {{ b.batchCurrentDay }} / {{ b.journeyLength }}
+                    </span>
                   </div>
                 </td>
                 <td>
@@ -1986,13 +2005,23 @@ interface TimelineDay {
                 <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
                 <div style="font-size:11px;color:#64748b;">{{ s.email }}</div>
               </td>
-              <td style="font-family:monospace;font-size:12px;">{{ s.regNo }}</td>
+              <td>
+                <div style="font-family:monospace;font-size:12px;">{{ s.regNo }}</div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;" *ngIf="s.displayPassword">{{ s.displayPassword }}</div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px;" *ngIf="!s.displayPassword">—</div>
+              </td>
               <td>{{ s.batch || '—' }}</td>
               <td><span class="gs-status-go">{{ s.goStatus }}</span></td>
               <td><span class="gs-plan-badge">{{ s.subscription }}</span></td>
               <td>
-                <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
-                <span *ngIf="!s.goJoiningDate" style="color:#94a3b8;">—</span>
+                <div>
+                  <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
+                  <span *ngIf="!s.goJoiningDate" style="color:#94a3b8;">—</span>
+                </div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;">
+                  <span *ngIf="s.lastLogin">{{ s.lastLogin | date:'dd MMM yyyy, HH:mm' }}</span>
+                  <span *ngIf="!s.lastLogin" style="color:#94a3b8;">Never logged in</span>
+                </div>
               </td>
               <td>
                 <div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay ?? 0 }}</div>
@@ -2739,8 +2768,23 @@ interface TimelineDay {
       background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
       cursor: help;
     }
-    .j-row--behind td { background: #fff8f8; }
-    .j-row--behind:hover td { background: #fff0f0; }
+    .j-row--behind td { background: #fff1f2; }
+    .j-row--behind:hover td { background: #ffe4e6; }
+
+    .j-batch-name-text {
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .j-batch-danger-icon {
+      color: #e11d48; font-size: 13px; flex-shrink: 0;
+    }
+    .j-behind-batch-badge--students {
+      background: #fecdd3; color: #9f1239; border-color: #fda4af;
+    }
+    .j-progress-cell--behind .j-progress-label--table { color: #be123c; font-weight: 600; }
+    .j-progress-danger-icon { color: #e11d48; margin-right: 4px; font-size: 11px; }
+    .j-progress-fill--danger {
+      background: linear-gradient(90deg, #e11d48, #fb7185) !important;
+    }
 
     .j-progress-track {
       height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden;
@@ -5268,6 +5312,20 @@ export class JourneyManagementComponent implements OnInit {
     if (!b.autoDay || !b.batchStartDate) return false;
     if (b.journeyPaused) return false;
     return this.calendarDayForBatch(b) > b.batchCurrentDay;
+  }
+
+  batchHasStudentsBehind(b: BatchSummary): boolean {
+    return !!(b.hasStudentsBehind || (b.studentsBehindCount ?? 0) > 0);
+  }
+
+  batchNeedsAttention(b: BatchSummary): boolean {
+    return this.batchBehindCalendar(b) || this.batchHasStudentsBehind(b);
+  }
+
+  studentsBehindTooltip(b: BatchSummary): string {
+    const n = b.studentsBehindCount ?? 0;
+    if (n <= 0) return '';
+    return `${n} student${n === 1 ? '' : 's'} on a lower day than batch Day ${b.batchCurrentDay}. They will catch up at the next midnight rollover (lenient) or after attending live class (Platinum).`;
   }
 
   /** Calendar day today for a batch based on its start date. */

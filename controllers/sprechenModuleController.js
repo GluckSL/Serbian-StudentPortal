@@ -8,6 +8,7 @@ const {
 } = require('../utils/sprechenStudentJourneyGate');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
 const placeholderContent = require('../content/sprechen-a1-placeholder.json');
+const a2ModelDefaults = require('../content/sprechen-a2-model-defaults.json');
 const { resignMediaInObject, resignMediaInObjects, canonicalizeMediaInObject } = require('../config/presign');
 
 // ─── Admin CRUD ───────────────────────────────────────────────────────────────
@@ -137,6 +138,25 @@ exports.seedFromPlaceholder = async (req, res) => {
 
     const payload = {
       ...placeholderContent,
+      characterId,
+      visibleToStudents: false,
+      createdBy: req.user.id,
+    };
+    const mod = new SprechenExamModule(payload);
+    await mod.save();
+    res.status(201).json(mod.toObject());
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+exports.seedFromA2Model = async (req, res) => {
+  try {
+    const { resolveOllyTutorCharacterId } = require('../services/sprechenCharacterSeed');
+    const characterId = await resolveOllyTutorCharacterId();
+
+    const payload = {
+      ...a2ModelDefaults,
       characterId,
       visibleToStudents: false,
       createdBy: req.user.id,
@@ -383,6 +403,7 @@ function _sanitizeMetadataPayload(body) {
   if (body.title !== undefined) p.title = String(body.title || '').trim();
   if (body.description !== undefined) p.description = String(body.description || '');
   if (body.level !== undefined) p.level = body.level || 'A1';
+  if (body.examFormat !== undefined) p.examFormat = body.examFormat || 'A1';
   if (body.visibleToStudents !== undefined) p.visibleToStudents = Boolean(body.visibleToStudents);
   if (body.weeklyTestEnabled !== undefined) p.weeklyTestEnabled = Boolean(body.weeklyTestEnabled);
   if (body.examEnabled !== undefined) p.examEnabled = Boolean(body.examEnabled);
@@ -406,6 +427,7 @@ function _sanitizePayload(body, createdBy) {
   if (body.title !== undefined) p.title = String(body.title || '').trim();
   if (body.description !== undefined) p.description = String(body.description || '');
   if (body.level !== undefined) p.level = body.level || 'A1';
+  if (body.examFormat !== undefined) p.examFormat = body.examFormat || 'A1';
   if (body.visibleToStudents !== undefined) p.visibleToStudents = Boolean(body.visibleToStudents);
   if (body.weeklyTestEnabled !== undefined) p.weeklyTestEnabled = Boolean(body.weeklyTestEnabled);
   if (body.examEnabled !== undefined) p.examEnabled = Boolean(body.examEnabled);
@@ -424,6 +446,18 @@ function _sanitizePayload(body, createdBy) {
   if (body.teil3 !== undefined) {
     p.teil3 = body.teil3;
     canonicalizeMediaInObject(p.teil3);
+  }
+  if (body.a2Teil1 !== undefined) {
+    p.a2Teil1 = body.a2Teil1;
+    canonicalizeMediaInObject(p.a2Teil1);
+  }
+  if (body.a2Teil2 !== undefined) {
+    p.a2Teil2 = body.a2Teil2;
+    canonicalizeMediaInObject(p.a2Teil2);
+  }
+  if (body.a2Teil3 !== undefined) {
+    p.a2Teil3 = body.a2Teil3;
+    canonicalizeMediaInObject(p.a2Teil3);
   }
   if (body.rubric !== undefined) p.rubric = body.rubric;
   if (createdBy) p.createdBy = createdBy;

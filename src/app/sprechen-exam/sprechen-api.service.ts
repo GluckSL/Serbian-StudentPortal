@@ -79,6 +79,14 @@ export class SprechenApiService {
     );
   }
 
+  seedA2Model(): Observable<SprechenExamModuleSummary> {
+    return this.http.post<SprechenExamModuleSummary>(
+      `${this.base}/modules/seed-a2-model`,
+      {},
+      this.httpOpts,
+    );
+  }
+
   uploadCardImage(file: File): Observable<{ url: string; canonicalUrl?: string }> {
     const fd = new FormData();
     fd.append('image', file);

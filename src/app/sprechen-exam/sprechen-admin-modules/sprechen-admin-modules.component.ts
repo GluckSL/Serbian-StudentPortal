@@ -106,8 +106,13 @@ export class SprechenAdminModulesComponent implements OnInit {
     this.router.navigate(['/admin/sprechen-exam/new']);
   }
 
+  goCreateA2(): void {
+    this.router.navigate(['/admin/sprechen-exam/new-a2']);
+  }
+
   goEdit(m: SprechenExamModuleSummary): void {
-    this.router.navigate(['/admin/sprechen-exam', m._id, 'edit']);
+    const isA2 = m.examFormat === 'A2';
+    this.router.navigate(['/admin/sprechen-exam', m._id, isA2 ? 'edit-a2' : 'edit']);
   }
 
   goPreview(m: SprechenExamModuleSummary): void {
@@ -152,6 +157,16 @@ export class SprechenAdminModulesComponent implements OnInit {
       .then(() => {
         this.message = 'Placeholder module created (Olly Tutor).';
         this.reload();
+      })
+      .catch((e) => {
+        this.message = e?.error?.message || 'Seed failed';
+      });
+  }
+
+  seedA2Model(): void {
+    firstValueFrom(this.api.seedA2Model())
+      .then((created) => {
+        this.router.navigate(['/admin/sprechen-exam', created._id, 'edit-a2']);
       })
       .catch((e) => {
         this.message = e?.error?.message || 'Seed failed';

@@ -2,18 +2,56 @@ import { Component, HostListener, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { resolveMediaUrl } from '../../utils/media-url';
-import type { SprechenCard } from '../sprechen-exam.types';
+import type { SprechenCard, SprechenA2TimetableSlot } from '../sprechen-exam.types';
 
 @Component({
   selector: 'app-exam-card-panel',
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `
-    <div class="exam-card-panel" *ngIf="card">
+    <div class="exam-card-panel" [class.exam-card-panel--hero]="hero" *ngIf="card">
       <p class="exam-card-panel__label" *ngIf="cardLabel">{{ cardLabel }}</p>
 
+      <!-- A2 question card (Fragen zur Person) -->
+      <div class="exam-card-panel__a2-question" *ngIf="card.type === 'a2_question'">
+        <p class="exam-card-panel__a2-sublabel">{{ card.sublabel || 'Fragen zur Person' }}</p>
+        <p class="exam-card-panel__a2-prompt">{{ card.content }}</p>
+        <button *ngIf="hasImage" type="button" class="exam-card-panel__img-btn mt-1" (click)="openLightbox()">
+          <img [src]="imageSrc" [alt]="card.content" class="exam-card-panel__img" />
+          <span class="exam-card-panel__zoom-hint"><mat-icon>zoom_in</mat-icon></span>
+        </button>
+      </div>
+
+      <!-- A2 monologue card (von sich erzählen) -->
+      <div class="exam-card-panel__a2-monologue" *ngIf="card.type === 'a2_monologue'">
+        <p class="exam-card-panel__a2-mono-title">{{ card.content }}</p>
+        <div class="exam-card-panel__a2-mono-spokes" *ngIf="subPrompts.length">
+          <span *ngFor="let sp of subPrompts" class="exam-card-panel__a2-spoke">{{ sp }}</span>
+        </div>
+        <button *ngIf="hasImage" type="button" class="exam-card-panel__img-btn mt-1" (click)="openLightbox()">
+          <img [src]="imageSrc" [alt]="card.content" class="exam-card-panel__img" />
+          <span class="exam-card-panel__zoom-hint"><mat-icon>zoom_in</mat-icon></span>
+        </button>
+      </div>
+
+      <!-- A2 timetable card -->
+      <div class="exam-card-panel__a2-timetable" *ngIf="card.type === 'a2_timetable'">
+        <p class="exam-card-panel__a2-timetable-date" *ngIf="card.dateLabel">{{ card.dateLabel }}</p>
+        <button *ngIf="hasImage" type="button" class="exam-card-panel__img-btn" (click)="openLightbox()" aria-label="View timetable full screen">
+          <img [src]="imageSrc" alt="Student timetable" class="exam-card-panel__img exam-card-panel__img--timetable" />
+          <span class="exam-card-panel__zoom-hint"><mat-icon>zoom_in</mat-icon> Tap to enlarge</span>
+        </button>
+        <ul class="exam-card-panel__a2-slots" *ngIf="timetableSlots.length">
+          <li *ngFor="let s of timetableSlots" [class.exam-card-panel__a2-slot--busy]="s.busy">
+            <span class="exam-card-panel__a2-slot-time">{{ s.start }}–{{ s.end }}</span>
+            <span class="exam-card-panel__a2-slot-act">{{ s.activity }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Standard A1 card types -->
       <button
-        *ngIf="hasImage"
+        *ngIf="hasImage && card.type !== 'a2_question' && card.type !== 'a2_monologue' && card.type !== 'a2_timetable'"
         type="button"
         class="exam-card-panel__img-btn"
         (click)="openLightbox()"
@@ -26,7 +64,7 @@ import type { SprechenCard } from '../sprechen-exam.types';
         </span>
       </button>
 
-      <div class="exam-card-panel__fallback" *ngIf="!hasImage && keywords.length">
+      <div class="exam-card-panel__fallback" *ngIf="!hasImage && keywords.length && card.type !== 'a2_question' && card.type !== 'a2_monologue' && card.type !== 'a2_timetable'">
         <ul class="exam-card-panel__keywords">
           <li *ngFor="let kw of keywords" class="exam-card-panel__kw">{{ kw }}</li>
         </ul>
@@ -200,10 +238,211 @@ import type { SprechenCard } from '../sprechen-exam.types';
       box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
       cursor: default;
     }
+
+    /* ── A2 card styles ─────────────────────── */
+    .exam-card-panel__a2-question {
+      background: #fff;
+      border: 2px solid #3949ab;
+      border-radius: 12px;
+      padding: 14px 16px 12px;
+      text-align: center;
+    }
+    .exam-card-panel__a2-sublabel {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #7986cb;
+      margin: 0 0 6px;
+    }
+    .exam-card-panel__a2-prompt {
+      font-size: 24px;
+      font-weight: 800;
+      color: #1a237e;
+      margin: 0;
+    }
+
+    .exam-card-panel__a2-monologue {
+      background: #fff;
+      border: 2px solid #3949ab;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+    .exam-card-panel__a2-mono-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a237e;
+      margin: 0 0 10px;
+    }
+    .exam-card-panel__a2-mono-spokes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+    .exam-card-panel__a2-spoke {
+      background: #e8eaf6;
+      color: #283593;
+      border-radius: 16px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .exam-card-panel__a2-timetable {
+      background: #fff;
+      border: 2px solid #3949ab;
+      border-radius: 12px;
+      padding: 10px;
+      max-width: 220px;
+    }
+    .exam-card-panel__a2-timetable-date {
+      font-size: 11px;
+      font-weight: 700;
+      color: #3949ab;
+      margin: 0 0 6px;
+      text-align: center;
+    }
+    .exam-card-panel__img--timetable {
+      max-height: 180px;
+    }
+    .exam-card-panel__a2-slots {
+      list-style: none;
+      margin: 6px 0 0;
+      padding: 0;
+      font-size: 10px;
+    }
+    .exam-card-panel__a2-slots li {
+      display: flex;
+      gap: 6px;
+      padding: 2px 0;
+      border-top: 1px solid #e8eaf6;
+    }
+    .exam-card-panel__a2-slot--busy {
+      color: #c62828;
+    }
+    .exam-card-panel__a2-slot-time {
+      font-weight: 700;
+      min-width: 70px;
+      flex-shrink: 0;
+    }
+    .exam-card-panel__a2-slot-act {
+      flex: 1;
+    }
+
+    /* ── Hero size (exam player center stage) ───────────────────────── */
+    .exam-card-panel--hero {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .exam-card-panel--hero > .exam-card-panel__a2-question,
+    .exam-card-panel--hero > .exam-card-panel__a2-monologue,
+    .exam-card-panel--hero > .exam-card-panel__a2-timetable,
+    .exam-card-panel--hero > .exam-card-panel__img-btn,
+    .exam-card-panel--hero > .exam-card-panel__fallback,
+    .exam-card-panel--hero > .exam-card-panel__word {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .exam-card-panel--hero > .exam-card-panel__a2-question,
+    .exam-card-panel--hero > .exam-card-panel__a2-monologue,
+    .exam-card-panel--hero > .exam-card-panel__a2-timetable {
+      flex: 1;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-question {
+      padding: 28px 32px;
+      min-height: min(44vh, 400px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 20px;
+      border-width: 3px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-sublabel {
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-prompt {
+      font-size: clamp(32px, 5vw, 48px);
+      line-height: 1.2;
+      width: 100%;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__img-btn {
+      width: 100%;
+      margin-top: 16px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__img {
+      width: 100%;
+      max-height: min(40vh, 340px);
+      object-fit: contain;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-monologue {
+      padding: 28px 24px;
+      min-height: min(52vh, 420px);
+      border-radius: 20px;
+      border-width: 3px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-mono-title {
+      font-size: clamp(22px, 3.5vw, 32px);
+      margin-bottom: 20px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-spoke {
+      font-size: 15px;
+      padding: 8px 16px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-timetable {
+      max-width: 100%;
+      width: 100%;
+      padding: 16px;
+      min-height: min(52vh, 420px);
+      border-radius: 20px;
+      border-width: 3px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-timetable-date {
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__img--timetable {
+      max-height: min(44vh, 360px);
+    }
+
+    .exam-card-panel--hero .exam-card-panel__a2-slots {
+      font-size: 13px;
+    }
+
+    .exam-card-panel--hero .exam-card-panel__word {
+      font-size: clamp(28px, 5vw, 44px);
+      padding: 28px;
+      min-height: min(40vh, 320px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
   `],
 })
 export class ExamCardPanelComponent {
   @Input() card: SprechenCard | null = null;
+  /** Large layout for the exam player center stage. */
+  @Input() hero = false;
 
   lightboxOpen = false;
 
@@ -224,12 +463,23 @@ export class ExamCardPanelComponent {
     if (this.card.type === 'keywords') return 'Stellen Sie sich vor';
     if (this.card.type === 'keyword') return 'Stichwort';
     if (this.card.type === 'object') return 'Gegenstand';
+    if (this.card.type === 'a2_question') return '';
+    if (this.card.type === 'a2_monologue') return 'Erzählen Sie';
+    if (this.card.type === 'a2_timetable') return 'Ihr Terminkalender';
     return '';
   }
 
   get keywords(): string[] {
     if (!this.card?.content || this.card.type !== 'keywords') return [];
     return this.card.content.split(',').map((k) => k.trim()).filter(Boolean);
+  }
+
+  get subPrompts(): string[] {
+    return this.card?.subPrompts ?? [];
+  }
+
+  get timetableSlots(): SprechenA2TimetableSlot[] {
+    return this.card?.slots ?? [];
   }
 
   openLightbox(): void {

@@ -16,14 +16,14 @@ import { firstValueFrom } from 'rxjs';
 
 import { SprechenApiService } from '../sprechen-api.service';
 import { DgCharacterComponent } from '../../dg-bot/dg-character/dg-character.component';
-import { DgPracticeComponent, type DgPracticePhase } from '../../dg-bot/dg-practice/dg-practice.component';
+import { DgPracticeComponent } from '../../dg-bot/dg-practice/dg-practice.component';
+import type { DgPracticePhase } from '../../dg-bot/dg-practice/dg-practice.component';
 import { DgCharacterStateService } from '../../dg-bot/dg-character-state.service';
 import { DgTtsService } from '../../dg-bot/dg-tts.service';
 import { DgAudioPlayerService } from '../../dg-bot/dg-audio-player.service';
 import { dgWithOneRetry } from '../../dg-bot/dg-player.util';
 import { resolveMediaUrl } from '../../utils/media-url';
 import { ExamCardPanelComponent } from '../exam-card-panel/exam-card-panel.component';
-import { ExamProgressComponent } from '../exam-progress/exam-progress.component';
 import { ExamSummaryComponent } from '../exam-summary/exam-summary.component';
 import type { PronunciationEvaluateResponse } from '../../services/pronunciation.service';
 import type {
@@ -52,7 +52,6 @@ interface ExamChatMessage {
     DgCharacterComponent,
     DgPracticeComponent,
     ExamCardPanelComponent,
-    ExamProgressComponent,
     ExamSummaryComponent,
   ],
   templateUrl: './sprechen-exam-player.component.html',
@@ -63,6 +62,7 @@ interface ExamChatMessage {
 })
 export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
   @ViewChild('chatScroll') private chatScrollRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('practiceRef') private practiceRef?: DgPracticeComponent;
 
   private readonly api = inject(SprechenApiService);
   private readonly route = inject(ActivatedRoute);
@@ -89,6 +89,8 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
   mascotSpeechText = '';
   ccMode: 'none' | 'en' | 'ta' = 'none';
   isMobile = false;
+  /** True when the current phase is a monologue turn (A2 Teil 2). */
+  isMonologueMode = false;
 
   examDone = false;
   finalScores: SprechenScores | null = null;
@@ -150,6 +152,19 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  /** The most recent bot message text — shown large in the center panel. */
+  get latestBotText(): string {
+    const last = [...this.chatHistory].reverse().find((m) => m.speaker === 'ai');
+    return last?.text || '';
+  }
+
+  /** CC caption for the latest bot message. */
+  get latestBotCc(): string {
+    const last = [...this.chatHistory].reverse().find((m) => m.speaker === 'ai');
+    if (!last) return '';
+    return this.getCcCaption(last);
+  }
+
   async replayTts(): Promise<void> {
     const last = [...this.chatHistory].reverse().find((m) => m.speaker === 'ai');
     const text = (last?.text || this.lastSpokenText || '').trim();
@@ -191,6 +206,12 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
     this.pendingTranscript = ev.transcript || '';
     this.pendingDurationMs = 0;
     await this._submitTurn();
+  }
+
+  /** Called by the Fertig button in monologue mode — stops the mic and submits. */
+  async onFertig(): Promise<void> {
+    if (!this.awaitingStudent || !this.isMonologueMode) return;
+    await this.practiceRef?.stopAndEvaluate();
   }
 
   onSilence(): void {
@@ -258,6 +279,7 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
     }
 
     this.awaitingStudent = result.awaitingStudent;
+    this.isMonologueMode = !!(result as any).monologueMode;
     if (result.awaitingStudent) {
       this.micRetryTick++;
       this.charState.setState('idle');
@@ -333,10 +355,18 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  get isA2(): boolean {
+    return (this.payload?.module?.examFormat || '') === 'A2';
+  }
+
+  get examLabel(): string {
+    return this.isA2 ? 'Goethe A2 — Sprechprüfung' : 'Goethe A1 — Sprechprüfung';
+  }
+
   private _inferTeilFromPhase(phase: string): SprechenPartNum {
-    if (phase.startsWith('teil1')) return 1;
-    if (phase.startsWith('teil2')) return 2;
-    if (phase.startsWith('teil3')) return 3;
+    if (phase.startsWith('teil1') || phase.startsWith('a2t1')) return 1;
+    if (phase.startsWith('teil2') || phase.startsWith('a2t2')) return 2;
+    if (phase.startsWith('teil3') || phase.startsWith('a2t3')) return 3;
     return 0;
   }
 

@@ -2,6 +2,80 @@
 
 const mongoose = require('mongoose');
 
+// ─── A2 sub-schemas ───────────────────────────────────────────────────────────
+
+const A2QuestionCardSchema = new mongoose.Schema(
+  {
+    prompt: { type: String, default: '' },
+    sublabel: { type: String, default: 'Fragen zur Person' },
+    imageUrl: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
+const A2Teil1Schema = new mongoose.Schema(
+  {
+    instructionDe: {
+      type: String,
+      default:
+        'Sie bekommen vier Karten und stellen mit diesen Karten vier Fragen. ' +
+        'Ihr Partner antwortet. Dann stellt Ihr Partner vier Fragen und Sie antworten.',
+    },
+    cards: { type: [A2QuestionCardSchema], default: [] },
+  },
+  { _id: false }
+);
+
+const A2MonologueCardSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: '' },
+    subPrompts: { type: [String], default: [] },
+    imageUrl: { type: String, default: '' },
+  },
+  { _id: false }
+);
+
+const A2Teil2Schema = new mongoose.Schema(
+  {
+    instructionDe: {
+      type: String,
+      default: 'Sie bekommen eine Karte und erzählen etwas über Ihr Leben.',
+    },
+    cards: { type: [A2MonologueCardSchema], default: [] },
+  },
+  { _id: false }
+);
+
+const A2TimetableSlotSchema = new mongoose.Schema(
+  {
+    start: { type: String, default: '' },
+    end: { type: String, default: '' },
+    activity: { type: String, default: '' },
+    busy: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+const A2TimetableSchema = new mongoose.Schema(
+  {
+    imageUrl: { type: String, default: '' },
+    slots: { type: [A2TimetableSlotSchema], default: [] },
+  },
+  { _id: false }
+);
+
+const A2Teil3Schema = new mongoose.Schema(
+  {
+    scenarioDe: { type: String, default: '' },
+    dateLabel: { type: String, default: '' },
+    studentTimetable: { type: A2TimetableSchema, default: () => ({}) },
+    botTimetable: { type: A2TimetableSchema, default: () => ({}) },
+  },
+  { _id: false }
+);
+
+// ─── A1 sub-schemas ───────────────────────────────────────────────────────────
+
 const Teil1Schema = new mongoose.Schema(
   {
     keywords: { type: [String], default: ['Name', 'Alter', 'Land', 'Wohnort', 'Sprachen', 'Beruf', 'Hobby'] },
@@ -97,9 +171,18 @@ const SprechenExamModuleSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    /**
+     * 'A1' = classic Goethe A1 three-Teil format (default, backwards compatible).
+     * 'A2' = Goethe A2 format: question dialogue / monologue / timetable scheduling.
+     */
+    examFormat: { type: String, default: 'A1' },
     teil1: { type: Teil1Schema, default: () => ({}) },
     teil2: { type: Teil2Schema, default: () => ({}) },
     teil3: { type: Teil3Schema, default: () => ({}) },
+    /** A2-specific content — only populated when examFormat === 'A2'. */
+    a2Teil1: { type: A2Teil1Schema, default: () => ({}) },
+    a2Teil2: { type: A2Teil2Schema, default: () => ({}) },
+    a2Teil3: { type: A2Teil3Schema, default: () => ({}) },
     rubric: {
       type: new mongoose.Schema(
         {

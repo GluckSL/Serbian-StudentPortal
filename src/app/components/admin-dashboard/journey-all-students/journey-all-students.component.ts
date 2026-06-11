@@ -34,6 +34,8 @@ interface GoStudentRow {
   batch?: string;
   level?: string;
   studentStatus?: string;
+  displayPassword?: string | null;
+  lastLogin?: string | null;
 }
 
 @Component({
@@ -177,13 +179,23 @@ interface GoStudentRow {
               <div class="jas-name">{{ s.name }}</div>
               <div class="jas-email">{{ s.email }}</div>
             </td>
-            <td class="jas-mono">{{ s.regNo }}</td>
+            <td>
+              <div class="jas-mono">{{ s.regNo }}</div>
+              <div class="jas-sub" *ngIf="s.displayPassword">{{ s.displayPassword }}</div>
+              <div class="jas-muted jas-sub" *ngIf="!s.displayPassword">—</div>
+            </td>
             <td>{{ s.batch || '—' }}</td>
             <td><span class="jas-badge-go">{{ s.goStatus }}</span></td>
             <td><span class="jas-badge-plan">{{ s.subscription }}</span></td>
             <td>
-              <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
-              <span *ngIf="!s.goJoiningDate" class="jas-muted">—</span>
+              <div>
+                <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
+                <span *ngIf="!s.goJoiningDate" class="jas-muted">—</span>
+              </div>
+              <div class="jas-sub">
+                <span *ngIf="s.lastLogin">{{ s.lastLogin | date:'dd MMM yyyy, HH:mm' }}</span>
+                <span *ngIf="!s.lastLogin" class="jas-muted">Never logged in</span>
+              </div>
             </td>
             <td>
               <span class="jas-day-pill">Day {{ s.currentCourseDay || 1 }}</span>
@@ -307,6 +319,7 @@ interface GoStudentRow {
     .jas-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
     .jas-name { font-weight: 600; color: #0f172a; }
     .jas-email { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .jas-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
     .jas-mono { font-family: ui-monospace, monospace; font-size: 12px; }
     .jas-pill {
       display: inline-block; padding: 2px 10px; border-radius: 999px;

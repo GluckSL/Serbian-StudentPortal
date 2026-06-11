@@ -311,6 +311,53 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
       return null;
     }
 
+    function defaultCfgForName(name) {
+      return {
+        batchName: name,
+        journeyLength: 200,
+        batchCurrentDay: 1,
+        batchStartDate: null,
+        strictJourneyRule: false,
+        strictJourneyThresholdPercent: 100,
+        trialDayEnabled: false
+      };
+    }
+
+    const studentsBehindMap = {};
+    allBatchNames.forEach((name) => {
+      studentsBehindMap[name] = 0;
+    });
+    if (allBatchNames.length) {
+      const batchDayCache = new Map();
+      function activeDayForBatch(batchName) {
+        if (batchDayCache.has(batchName)) return batchDayCache.get(batchName);
+        const cfg = cfgForName(batchName) || defaultCfgForName(batchName);
+        const day = computeBatchDay(cfg);
+        batchDayCache.set(batchName, day);
+        return day;
+      }
+
+      const studentRows = await User.find({
+        role: 'STUDENT',
+        batch: { $in: allBatchNames },
+        ...EXCLUDE_TEST
+      })
+        .select('batch currentCourseDay')
+        .lean();
+
+      for (const s of studentRows) {
+        const batch = s.batch;
+        if (!batch) continue;
+        const cfg = cfgForName(batch) || defaultCfgForName(batch);
+        const trial = !!cfg.trialDayEnabled;
+        const cur = resolveCourseDay(s.currentCourseDay, trial);
+        const activeDay = activeDayForBatch(batch);
+        if (cur < activeDay) {
+          studentsBehindMap[batch] = (studentsBehindMap[batch] || 0) + 1;
+        }
+      }
+    }
+
     const allRows = allBatchNames.map(name => {
       const savedCfg = cfgForName(name);
       const cfg = savedCfg || {
@@ -347,6 +394,8 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         trialAccessStartDate: cfg.trialAccessStartDate || null,
         ...journeyPauseFieldsForApi(cfg),
         studentCount: countMap[name] || 0,
+        studentsBehindCount: studentsBehindMap[name] || 0,
+        hasStudentsBehind: (studentsBehindMap[name] || 0) > 0,
         teacherId: teacherByBatch[name]?.teacherId ?? null,
         teacherName: teacherByBatch[name]?.teacherName ?? null
       };

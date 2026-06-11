@@ -44,6 +44,12 @@ router.post(
   checkRole(['ADMIN', 'TEACHER_ADMIN']),
   moduleCtrl.seedFromPlaceholder,
 );
+router.post(
+  '/modules/seed-a2-model',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  moduleCtrl.seedFromA2Model,
+);
 
 // Staff: sessions list + CSV export
 router.get('/modules/:id/sessions', verifyToken, checkRole(staffRoles), moduleCtrl.listSessions);

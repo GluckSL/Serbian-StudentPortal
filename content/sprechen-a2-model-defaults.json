@@ -1,0 +1,109 @@
+{
+  "title": "Goethe A2 Sprechen — Modellsatz 1",
+  "level": "A2",
+  "examFormat": "A2",
+  "passThreshold": 10,
+  "a2Teil1": {
+    "instructionDe": "Sie bekommen vier Karten und stellen mit diesen Karten vier Fragen. Ihr Partner/Ihre Partnerin antwortet. Dann stellt Ihr Partner/Ihre Partnerin vier Fragen und Sie antworten.",
+    "cards": [
+      { "prompt": "Geburtstag?", "sublabel": "Fragen zur Person", "imageUrl": "" },
+      { "prompt": "Wohnort?",    "sublabel": "Fragen zur Person", "imageUrl": "" },
+      { "prompt": "Beruf?",      "sublabel": "Fragen zur Person", "imageUrl": "" },
+      { "prompt": "Hobby?",      "sublabel": "Fragen zur Person", "imageUrl": "" }
+    ]
+  },
+  "a2Teil2": {
+    "instructionDe": "Sie bekommen eine Karte und erzählen etwas über Ihr Leben.",
+    "cards": [
+      {
+        "title": "Was machen Sie mit Ihrem Geld?",
+        "subPrompts": ["Kleidung?", "Lebensmittel, Miete?", "Sparen?", "Reisen?"],
+        "imageUrl": ""
+      }
+    ]
+  },
+  "a2Teil3": {
+    "scenarioDe": "Ihr Freund Patrick hat Geburtstag. Sie möchten ein Geschenk für ihn kaufen. Finden Sie einen Termin.",
+    "dateLabel": "Samstag, 17. Mai",
+    "studentTimetable": {
+      "imageUrl": "",
+      "slots": [
+        { "start": "07:00", "end": "10:00", "activity": "lange schlafen",        "busy": true  },
+        { "start": "11:00", "end": "12:00", "activity": "Frühstück bei Mario",   "busy": true  },
+        { "start": "14:00", "end": "15:00", "activity": "Fahrrad abholen",       "busy": true  },
+        { "start": "16:00", "end": "17:00", "activity": "Eltern anrufen",        "busy": true  },
+        { "start": "18:00", "end": "19:00", "activity": "Fußball-Training",      "busy": true  },
+        { "start": "20:00", "end": "21:00", "activity": "Fußball-Länderspiel im Fernsehen", "busy": true }
+      ]
+    },
+    "botTimetable": {
+      "imageUrl": "",
+      "slots": [
+        { "start": "07:00", "end": "10:00", "activity": "Großeinkauf",           "busy": true  },
+        { "start": "11:00", "end": "12:00", "activity": "Friseur/Haare schneiden", "busy": true },
+        { "start": "12:00", "end": "13:00", "activity": "Essen bei Stefan",      "busy": true  },
+        { "start": "15:00", "end": "16:00", "activity": "Schwimmen",             "busy": true  },
+        { "start": "18:00", "end": "19:00", "activity": "mit dem Hund nach draußen", "busy": true }
+      ]
+    }
+  },
+  "rubric": {
+    "teil1": {
+      "maxPoints": 5,
+      "criteria": [
+        {
+          "id": "a2t1_question",
+          "label": "Forms a W-question",
+          "points": 2.5,
+          "prompt": "Did the student form a clear W-question (Wann, Wo, Was, etc.) in German based on the keyword card shown? Award 2.5 for a grammatically sound A2 question, 1.5 for an understandable but imperfect question, 0 for no recognisable question.",
+          "turnType": "a2t1_student_ask"
+        },
+        {
+          "id": "a2t1_answer",
+          "label": "Answers the partner's question",
+          "points": 2.5,
+          "prompt": "Did the student understand and answer the question asked by the bot? Award 2.5 for a clear, relevant A2-level German answer, 1.5 for a partial answer, 0 for no response.",
+          "turnType": "a2t1_student_answer"
+        }
+      ]
+    },
+    "teil2": {
+      "maxPoints": 5,
+      "criteria": [
+        {
+          "id": "a2t2_topic",
+          "label": "Addresses main topic",
+          "points": 2.5,
+          "prompt": "Did the student speak about the main topic shown on the card in their monologue? Award 2.5 for a coherent, topic-relevant response covering the central idea, 1.5 for mentioning the topic but with significant gaps, 0 for off-topic or no speech.",
+          "turnType": "a2t2_monologue"
+        },
+        {
+          "id": "a2t2_subprompts",
+          "label": "Addresses sub-prompts",
+          "points": 2.5,
+          "prompt": "Did the student touch on at least 2 of the sub-prompt aspects shown on the card? Award 2.5 for addressing 3-4 sub-prompts, 1.5 for addressing 1-2, 0 for none.",
+          "turnType": "a2t2_monologue"
+        }
+      ]
+    },
+    "teil3": {
+      "maxPoints": 5,
+      "criteria": [
+        {
+          "id": "a2t3_propose",
+          "label": "Proposes time slots",
+          "points": 2.5,
+          "prompt": "Did the student propose a specific time in German that fits their schedule? Award 2.5 for a clear, time-specific proposal in German, 1.5 for a vague or partially correct proposal, 0 for no proposal.",
+          "turnType": "a2t3_dialogue"
+        },
+        {
+          "id": "a2t3_negotiate",
+          "label": "Responds to conflicts and negotiates",
+          "points": 2.5,
+          "prompt": "Did the student respond to the bot's scheduling conflicts and continue to negotiate or agree on a time? Award 2.5 for clear negotiation with a resolution attempt, 1.5 for minimal response to conflict, 0 for no engagement.",
+          "turnType": "a2t3_dialogue"
+        }
+      ]
+    }
+  }
+}

@@ -46,6 +46,11 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
   @Input() sceneKey = '';
   /** Hide transcript, word breakdown, and tips (e.g. formal exam mode). */
   @Input() hideFeedback = false;
+  /**
+   * When true the component is in monologue mode — silence does not emit `silence` or auto-stop.
+   * The parent must call `stopAndEvaluate()` (via ViewChild) to finish the turn.
+   */
+  @Input() monologueMode = false;
 
   @Output() evaluated = new EventEmitter<PronunciationEvaluateResponse>();
   @Output() silence = new EventEmitter<void>();
@@ -187,6 +192,13 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
     this.emitPhase('listening');
   }
 
+  /** Called by parent (e.g. monologue Fertig button) to stop recording and emit evaluated. */
+  async stopAndEvaluate(): Promise<void> {
+    if (this.recording) {
+      await this.toggleRecord();
+    }
+  }
+
   async toggleRecord(): Promise<void> {
     if (this.disabled || this.processing || this.countdownActive) return;
     if (!this.recording) {
@@ -232,7 +244,10 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
       );
       if ((this.allowFreeSpeech ? result.durationMs < 220 : !silence.ok) || result.blob.size < 32) {
         this.emitPhase('idle');
-        this.silence.emit();
+        // In monologue mode don't abort — the student may have just paused; let them try again.
+        if (!this.monologueMode) {
+          this.silence.emit();
+        }
         return;
       }
       const evalResult = await dgWithOneRetry(() =>

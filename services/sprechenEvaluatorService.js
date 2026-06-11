@@ -38,6 +38,21 @@ function heuristicScoreTurn({ turnType, transcript, criteria }) {
     if (c.turnType === 'teil3_student_request') {
       return /\b(bitte|können sie|koennen sie|darf ich|ich möchte|ich moechte)\b/.test(text);
     }
+    // A2 turn types
+    if (c.turnType === 'a2t1_student_ask') {
+      return /\?/.test(transcript || '') || /\b(wann|was|wo|wie|warum|wer|welche|welcher|welches)\b/.test(text);
+    }
+    if (c.turnType === 'a2t1_student_answer') {
+      return text.split(' ').filter(Boolean).length >= 2;
+    }
+    if (c.turnType === 'a2t2_monologue') {
+      return text.split(' ').filter(Boolean).length >= 5;
+    }
+    if (c.turnType === 'a2t3_dialogue') {
+      // Time reference or question attempt
+      return /\d{1,2}[:\s][0-5]\d|uhr|\b(morgen|nachmittag|abend|vormittag|mittag)\b|\?/.test(text) ||
+        text.split(' ').filter(Boolean).length >= 4;
+    }
     // Fallback: any non-trivial attempt.
     return text.split(' ').filter(Boolean).length >= 3;
   };

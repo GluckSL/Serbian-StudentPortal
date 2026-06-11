@@ -7,7 +7,7 @@
             <i class="fas fa-microphone-alt"></i>
             Sprechen Exam modules
           </h1>
-          <p class="admin-subtitle">Manage Goethe A1 speaking exams — same workflow as DG Bot (Olly Tutor)</p>
+          <p class="admin-subtitle">Manage Goethe A1 &amp; A2 speaking exams — same workflow as DG Bot (Olly Tutor)</p>
         </div>
         <div class="col-md-4 text-end" *ngIf="!loading">
           <div class="admin-stats-quick">
@@ -39,8 +39,14 @@
                 <button class="btn btn-primary btn-add-module" type="button" (click)="goCreate()">
                   <i class="fas fa-plus"></i> Create New Module
                 </button>
+                <button class="btn btn-success btn-add-module" type="button" (click)="goCreateA2()">
+                  <i class="fas fa-plus"></i> Create A2 Model Test
+                </button>
                 <button class="btn btn-outline-secondary" type="button" (click)="seedPlaceholder()">
                   <i class="fas fa-magic"></i> Quick placeholder
+                </button>
+                <button class="btn btn-outline-success" type="button" (click)="seedA2Model()">
+                  <i class="fas fa-magic"></i> Quick A2 model
                 </button>
               </div>
             </div>
@@ -102,7 +108,11 @@
                   <tbody>
                     <tr *ngFor="let m of pagedFilteredModules; trackBy: trackModule">
                       <td><div class="module-title">{{ m.title }}</div></td>
-                      <td><span class="badge bg-primary">{{ m.level || 'A1' }}</span></td>
+                      <td>
+                        <span class="badge" [class.bg-primary]="m.examFormat !== 'A2'" [class.bg-success]="m.examFormat === 'A2'">
+                          {{ m.level || 'A1' }}{{ m.examFormat === 'A2' ? ' A2' : '' }}
+                        </span>
+                      </td>
                       <td>{{ m.passThreshold ?? 10 }} / 15</td>
                       <td>
                         <span class="badge journey-day-badge" *ngIf="m.courseDay != null">Day {{ m.courseDay }}</span>

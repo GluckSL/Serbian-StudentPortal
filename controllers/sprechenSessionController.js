@@ -7,12 +7,20 @@ const {
   sprechenModuleUnlockedForStudentDay,
 } = require('../utils/sprechenStudentJourneyGate');
 const { presignS3Url } = require('../config/presign');
+const a1Engine = require('../services/sprechenExamEngine');
+const a2Engine = require('../services/sprechenA2ExamEngine');
+
+function _getEngine(mod) {
+  return mod.examFormat === 'A2' ? a2Engine : a1Engine;
+}
+
+// Keep named aliases for backwards compat inside this file
 const {
-  initSession,
-  advanceReady,
-  processTurn,
-  completeSession,
-} = require('../services/sprechenExamEngine');
+  initSession: _a1InitSession,
+  advanceReady: _a1AdvanceReady,
+  processTurn: _a1ProcessTurn,
+  completeSession: _a1CompleteSession,
+} = a1Engine;
 const { synthesizeSpeechStream } = require('../services/dgTtsService');
 
 // ─── POST /session/start ──────────────────────────────────────────────────────
@@ -48,7 +56,7 @@ exports.start = async (req, res) => {
     });
 
     // Initialise — saves session with welcome bot message
-    const initResult = await initSession(session, mod);
+    const initResult = await _getEngine(mod).initSession(session, mod);
 
     // Presign the card image URL so it's fresh for this response
     if (initResult.card && initResult.card.imageUrl) {
@@ -82,7 +90,7 @@ exports.advance = async (req, res) => {
     let result;
 
     if (action === 'ready') {
-      result = await advanceReady(session, mod);
+      result = await _getEngine(mod).advanceReady(session, mod);
     } else {
       return res.status(400).json({ message: `Unknown action: ${action}` });
     }
@@ -109,7 +117,7 @@ exports.turn = async (req, res) => {
     if (!session) return res.status(404).json({ message: 'Session not found' });
     if (session.completed) return res.status(400).json({ message: 'Session already complete' });
 
-    const { transcript, durationMs } = req.body;
+    const { transcript, durationMs, action } = req.body;
     if (!transcript && transcript !== '') {
       return res.status(400).json({ message: 'transcript required' });
     }
@@ -117,11 +125,12 @@ exports.turn = async (req, res) => {
     const mod = await SprechenExamModule.findById(session.moduleId).lean();
     if (!mod) return res.status(404).json({ message: 'Module not found' });
 
-    const result = await processTurn(session, mod, transcript, durationMs);
+    const engine = _getEngine(mod);
+    const result = await engine.processTurn(session, mod, transcript, durationMs, action);
 
     // If exam is done, compile scores
     if (result.done && !session.completed) {
-      const scores = await completeSession(session, mod);
+      const scores = await engine.completeSession(session, mod);
       result.scores = scores;
     }
 
@@ -148,7 +157,7 @@ exports.complete = async (req, res) => {
     const mod = await SprechenExamModule.findById(session.moduleId).lean();
     if (!mod) return res.status(404).json({ message: 'Module not found' });
 
-    const scores = await completeSession(session, mod);
+    const scores = await _getEngine(mod).completeSession(session, mod);
     res.json({ scores, completed: true });
   } catch (e) {
     console.error('[sprechenSession.complete]', e);
@@ -236,8 +245,8 @@ exports.overrideTurnScore = async (req, res) => {
     turn.tutorOverride = { points, note: note || '', by: req.user.id, at: new Date() };
 
     // Recompile scores
-    const mod = await SprechenExamModule.findById(session.moduleId).select('rubric passThreshold').lean();
-    const { compileTeilScores } = require('../services/sprechenExamEngine');
+    const mod = await SprechenExamModule.findById(session.moduleId).select('rubric passThreshold examFormat').lean();
+    const { compileTeilScores } = _getEngine(mod || {});
     const scores = compileTeilScores(session.turns, mod?.rubric, mod?.passThreshold);
     session.scores = scores;
 
