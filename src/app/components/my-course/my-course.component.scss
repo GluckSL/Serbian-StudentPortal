@@ -94,7 +94,7 @@
   min-width: var(--fee-card-min-w);
   max-width: 100%;
   padding: var(--fee-card-pad-y) var(--fee-card-pad-x);
-  border-radius: 12px;
+  border-radius: 999px;
   border: 2px solid transparent;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
   font-size: 12px;
@@ -112,7 +112,8 @@
 
 .mc-hero__fee-card__body {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: var(--fee-body-gap);
   min-width: 0;
 }

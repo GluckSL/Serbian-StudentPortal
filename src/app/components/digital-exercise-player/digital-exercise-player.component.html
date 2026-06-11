@@ -2528,7 +2528,7 @@
                     <td class="sp-plural-cell">
                       <input
                         type="text"
-                        class="blank-input sp-plural-input"
+                         class="sp-box-input"
                         [(ngModel)]="currentQuestion.singularPluralInputs![ri]"
                         (ngModelChange)="markAttempted(currentQuestion)"
                         (focus)="
@@ -3090,7 +3090,7 @@
             <ng-container
               *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
-            <label class="qa-input-label">Form the word:</label>
+            <label class="qa-input-label">Form the word: <strong>{{ currentQuestion.data.scrambledText || currentQuestion.data.word }}</strong></label>
             <input
               type="text"
               class="jumble-input"
@@ -3950,31 +3950,61 @@
 
                     <!-- Matching -->
                     <div *ngIf="sq.type === 'matching'" class="sub-q-matching">
-                      <p class="sub-q-text">Match the items on the left with their correct pairs.</p>
-                      <div class="matching-cols">
-                        <div class="matching-left">
-                          <div class="match-item" *ngFor="let item of sq.leftItems; let li = index"
-                            [class.matched]="currentQuestion.subQuestionMatching?.[sqIndex]?.[li] !== null"
-                            (click)="selectSubQuestionMatchingLeft(currentQuestion, sqIndex, li)">
-                            <span class="match-label">{{ sq.leftLabels?.[li] || 'A' + li }}</span>
-                            <span class="match-text">{{ item }}</span>
-                          </div>
+                      <div class="matching-container">
+                      <div class="matching-row labels-row">
+                        <div class="matching-col-label">Match these...</div>
+                        <div class="connector-spacer"></div>
+                        <div class="matching-col-label">...with these</div>
+                      </div>
+                      <div class="matching-row" *ngFor="let i of getSubMatchingIndices(currentQuestion, sqIndex)">
+                        <button
+                          *ngIf="getSubMatchingLeftItems(sq)[i] as item"
+                          class="match-item left-item"
+                          [ngClass]="getSubLeftMatchClass(currentQuestion, sqIndex, i)"
+                          [class.selected]="currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] === i"
+                          [class.matched]="currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== null && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== undefined"
+                          [class.correct]="hasCurrentSubmitted && isSubMatchCorrect(currentQuestion, sqIndex, i)"
+                          [class.wrong]="hasCurrentSubmitted && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== null && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== undefined && !isSubMatchCorrect(currentQuestion, sqIndex, i)"
+                          (click)="selectSubQuestionMatchingLeft(currentQuestion, sqIndex, i)"
+                        >
+                          <span [innerHTML]="item | safeHtml"></span>
+                        </button>
+                        <div
+                          *ngIf="!getSubMatchingLeftItems(sq)[i]"
+                          class="match-item-placeholder"
+                        ></div>
+                        <div class="matching-connector">
+                          <div class="connector-dot"></div>
                         </div>
-                        <div class="matching-right">
-                          <div class="match-item" *ngFor="let item of sq.rightItems; let ri = index"
-                            [class.matched]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, ri)"
-                            (click)="selectSubQuestionMatchingRight(currentQuestion, sqIndex, ri)">
-                            <span class="match-text">{{ item }}</span>
-                            <span class="match-label">{{ sq.rightLabels?.[ri] || ri + 1 }}</span>
-                          </div>
-                        </div>
+                        <button
+                          *ngIf="getSubMatchingRightItems(sq)[i] as rItem"
+                          class="match-item right-item"
+                          [ngClass]="getSubRightMatchClass(currentQuestion, sqIndex, i)"
+                          [class.available]="!isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== undefined && currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== null"
+                          [class.matched]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i)"
+                          [class.disabled]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i)"
+                          [class.correct]="hasCurrentSubmitted && isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && isSubMatchCorrect(currentQuestion, sqIndex, getLeftIndexForSubRight(currentQuestion, sqIndex, i))"
+                          [class.wrong]="hasCurrentSubmitted && isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && !isSubMatchCorrect(currentQuestion, sqIndex, getLeftIndexForSubRight(currentQuestion, sqIndex, i))"
+                          (click)="selectSubQuestionMatchingRight(currentQuestion, sqIndex, i)"
+                        >
+                          <span [innerHTML]="rItem | safeHtml"></span>
+                        </button>
+                        <div
+                          *ngIf="!getSubMatchingRightItems(sq)[i]"
+                          class="match-item-placeholder"
+                        ></div>
+                      </div>
+                      <div class="matching-hint" *ngIf="currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== null && currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== undefined">
+                        <span class="material-icons">info</span>
+                        Now click the matching item on the right →
+                      </div>
                       </div>
                     </div>
 
-                    <!-- Word Bank Fill -->
+                     <!-- Word Bank Fill -->
                     <div *ngIf="sq.type === 'word_bank_fill'" class="sub-q-word-bank">
                       <div class="word-bank-box" *ngIf="sq.wordBank?.length">
-                        <div class="word-bank-box-label">Word bank</div>
+                        <div class="word-bank-box-label">Word bank — select a blank, then tap a word</div>
                         <div class="word-bank-pills">
                           <button type="button" class="word-bank-pill"
                             *ngFor="let word of sq.wordBank; trackBy: trackByIndex"
@@ -3991,6 +4021,8 @@
                             <input type="text" class="blank-input word-bank-answer-input"
                               [ngModel]="getSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii)"
                               (ngModelChange)="setSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii, $event)"
+                              (focus)="onSubQuestionWordBankBlankFocus(currentQuestion, sqIndex, ii)"
+                              [class.active]="currentQuestion.subQuestionActiveBlankIndex?.[sqIndex] === ii"
                               [disabled]="hasCurrentSubmitted"
                               [placeholder]="'Blank ' + (ii + 1)" />
                           </div>
@@ -4028,6 +4060,7 @@
                           [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
                           (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                           [disabled]="hasCurrentSubmitted"
+                          name="sq-qa-{{ currentQuestion.index }}-{{ sqIndex }}"
                           placeholder="Type your answer..." />
                       </ng-template>
                     </div>
@@ -4191,12 +4224,13 @@
                         [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
                         (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                         [disabled]="hasCurrentSubmitted"
+                        name="sq-listening-{{ currentQuestion.index }}-{{ sqIndex }}"
                         placeholder="Type what you hear..." />
                     </div>
 
                     <!-- Singular Plural -->
                     <div *ngIf="sq.type === 'singular_plural'" class="sub-q-singular-plural">
-                      <table class="sp-pairs-table" *ngIf="sq.singularPluralPairs?.length">
+                      <table class="sp-pairs-table" *ngIf="getSubQuestionSpRows(sq).length">
                         <thead>
                           <tr>
                             <th>Singular</th>
@@ -4204,10 +4238,10 @@
                           </tr>
                         </thead>
                         <tbody>
-                          <tr *ngFor="let sp of sq.singularPluralPairs; let ri = index">
+                          <tr *ngFor="let sp of getSubQuestionSpRows(sq); let ri = index">
                             <td class="sp-singular-cell">{{ sp.singular }}</td>
                             <td class="sp-plural-cell">
-                              <input type="text" class="blank-input"
+                              <input type="text" class="sp-box-input"
                                 [ngModel]="getSubQuestionSpInput(currentQuestion, sqIndex, ri)"
                                 (ngModelChange)="setSubQuestionSpInput(currentQuestion, sqIndex, ri, $event)"
                                 [disabled]="hasCurrentSubmitted"
@@ -4257,6 +4291,10 @@
                           </div>
                         </div>
                       </div>
+                      <div class="rearrange-answer-box" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.length">
+                        <div class="rearrange-answer-label">Your answer is</div>
+                        <div class="rearrange-answer-text">{{ getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.join(' ') || '—' }}</div>
+                      </div>
                     </div>
 
                     <!-- Image Pin Match -->
@@ -4268,6 +4306,18 @@
                     <div *ngIf="sq.type === 'video-pronunciation'" class="sub-q-video-pron">
                       <p class="sub-q-text">Say: <strong>{{ sq.caption }}</strong></p>
                       <p *ngIf="sq.context" class="sub-q-text-sub">{{ sq.context }}</p>
+                    </div>
+
+                    <!-- Fallback for any unmatched sub-question type (e.g. worksheet-kind-based) -->
+                    <div *ngIf="!['mcq','fill-blank','matching','word_bank_fill','question-answer','pronunciation','listening','singular_plural','jumble-word','rearrange','image_pin_match','video-pronunciation'].includes(sq.type)" class="sub-q-fallback">
+                      <p class="sub-q-text" *ngIf="sq.prompt" [innerHTML]="sq.prompt | safeHtml"></p>
+                      <p class="sub-q-text" *ngIf="!sq.prompt && sq.question" [innerHTML]="sq.question | safeHtml"></p>
+                      <input type="text" class="sub-q-input"
+                        [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
+                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                        [disabled]="hasCurrentSubmitted"
+                        name="sq-fallback-{{ currentQuestion.index }}-{{ sqIndex }}"
+                        placeholder="Type your answer..." />
                     </div>
                   </div>
                 </div>
