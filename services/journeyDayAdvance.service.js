@@ -3,7 +3,8 @@
  * - Non-strict batches: every student’s journey day increments by 1 (capped at 200).
  * - Strict batches: increments only if the student completed enough of that day’s tasks
  *   (modules + exercises + live classes) per BatchConfig.strictJourneyThresholdPercent.
- * pendingJourneyDayAdvance is still written on live attendance for UI; rollover clears it when advancing.
+ * pendingJourneyDayAdvance is written on live attendance for Silver students only (midnight UI).
+ * Platinum students advance immediately when live attendance is recorded.
  */
 
 const User = require('../models/User');
@@ -99,8 +100,71 @@ function isSilverGoStudent(student) {
     String(student?.subscription || '').toUpperCase() === 'SILVER';
 }
 
+function isSilverSubscriptionStudent(student) {
+  return String(student?.subscription || '').toUpperCase() === 'SILVER';
+}
+
 /**
- * After attendance is saved on a meeting, mark students who are on that journey day and attended.
+ * Platinum (non-Silver-GO) students: advance immediately after live class attendance.
+ * Respects batch strictJourneyRule when enabled (live class credited toward threshold).
+ */
+async function checkAndInstantlyAdvancePlatinumStudent(studentId, meetingBatch, meetingCourseDay, meetingDoc = null) {
+  const student = await User.findById(studentId)
+    .select(SILVER_GO_STUDENT_SELECT)
+    .lean();
+  if (!student || student.role !== 'STUDENT') return { advanced: false };
+  if (isSilverSubscriptionStudent(student)) return { advanced: false };
+
+  const keys = allStudentBatchStringsForContent(student);
+  if (!keys.length || !keys.some((k) => batchesAlign(k, meetingBatch))) return { advanced: false };
+
+  const currentDay = normalizeCourseDay(student.currentCourseDay);
+  if (meetingCourseDay !== currentDay) return { advanced: false };
+  if (currentDay >= 200) return { advanced: false };
+
+  const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+  const primary = primaryGoBatchFromKeys(keys) || keys[0];
+  const cfgDoc = primary
+    ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
+    : null;
+
+  let allowAdvance = true;
+  if (cfgDoc && cfgDoc.strictJourneyRule) {
+    const meetingId = meetingDoc?._id;
+    const comp = await computeJourneyDayCompletion(studentId, keys, currentDay, {
+      creditMeetings: meetingId ? [meetingId] : []
+    });
+    allowAdvance = meetsStrictThreshold(comp, cfgDoc);
+  }
+
+  if (!allowAdvance) return { advanced: false };
+
+  const nextDay = Math.min(200, currentDay + 1);
+  const result = await User.updateOne(
+    { _id: studentId, role: 'STUDENT', currentCourseDay: currentDay },
+    {
+      $set: withJourneyLevelInSet(
+        nextDay,
+        {
+          currentCourseDay: nextDay,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        },
+        { student }
+      )
+    }
+  );
+
+  if (result.modifiedCount) {
+    console.log(`🚀 [Instant Advance] Platinum student ${studentId}: Day ${currentDay} → ${nextDay}`);
+    return { advanced: true, previousDay: currentDay, newDay: nextDay };
+  }
+  return { advanced: false };
+}
+
+/**
+ * After attendance is saved on a meeting, advance Platinum students immediately;
+ * mark Silver students pending for midnight rollover UI.
  */
 async function syncPendingFlagsFromMeeting(meetingDoc) {
   if (!meetingDoc || meetingDoc.status === 'cancelled') return;
@@ -112,7 +176,10 @@ async function syncPendingFlagsFromMeeting(meetingDoc) {
   const attendance = meetingDoc.attendance || [];
   for (const att of attendance) {
     if (!att.studentId || !att.attended) continue;
-    await tryMarkStudentPending(String(att.studentId), batch, day);
+    const studentId = String(att.studentId);
+    const adv = await checkAndInstantlyAdvancePlatinumStudent(studentId, batch, day, meetingDoc);
+    if (adv.advanced) continue;
+    await tryMarkStudentPending(studentId, batch, day);
   }
 }
 
@@ -121,6 +188,7 @@ async function tryMarkStudentPending(studentId, meetingBatch, meetingCourseDay) 
     .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return;
+  if (!isSilverSubscriptionStudent(student)) return;
   const keys = allStudentBatchStringsForContent(student);
   if (!keys.length || !keys.some((k) => batchesAlign(k, meetingBatch))) return;
   const currentDay = normalizeCourseDay(student.currentCourseDay);
@@ -147,14 +215,62 @@ async function markPendingAdvanceForStudentDay(studentId, batchName, courseDay) 
 }
 
 /**
+ * Catch-up for Platinum students: advance if live attendance was recorded while offline.
+ */
+async function reconcilePlatinumAdvanceFromAttendance(studentId) {
+  const student = await User.findById(studentId)
+    .select(SILVER_GO_STUDENT_SELECT)
+    .lean();
+  if (!student || student.role !== 'STUDENT') return;
+  if (isSilverSubscriptionStudent(student)) return;
+
+  if (student.pendingJourneyDayAdvance) {
+    await User.updateOne(
+      { _id: studentId },
+      { $set: { pendingJourneyDayAdvance: false, pendingJourneyDayAdvanceForDay: null } }
+    );
+  }
+
+  const keys = allStudentBatchStringsForContent(student);
+  if (!keys.length) return;
+  const currentDay = normalizeCourseDay(student.currentCourseDay);
+  const batchOr = keys.map((k) => ({
+    batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+  }));
+  const meetings = await MeetingLink.find({
+    $or: batchOr,
+    courseDay: currentDay,
+    status: { $ne: 'cancelled' }
+  })
+    .select('batch attendance')
+    .lean();
+
+  for (const meeting of meetings) {
+    const attended = (meeting.attendance || []).some(
+      (a) => String(a.studentId) === String(studentId) && a.attended === true
+    );
+    if (!attended) continue;
+    const adv = await checkAndInstantlyAdvancePlatinumStudent(
+      studentId,
+      meeting.batch,
+      currentDay,
+      meeting
+    );
+    if (adv.advanced) return;
+  }
+}
+
+/**
  * Ensure pending flag matches Zoom attendance (e.g. after page load / delayed sync).
  * Only when at least one live class exists for this batch + day (otherwise no class gate).
+ * Silver students only.
  */
 async function recomputePendingForStudent(studentId) {
   const student = await User.findById(studentId)
     .select(SILVER_GO_STUDENT_SELECT)
     .lean();
   if (!student || student.role !== 'STUDENT') return;
+  if (!isSilverSubscriptionStudent(student)) return;
   const keys = allStudentBatchStringsForContent(student);
   if (!keys.length) return;
   const currentDay = normalizeCourseDay(student.currentCourseDay);
@@ -196,6 +312,12 @@ async function applyJourneyDayRollovers() {
     .select(SILVER_GO_STUDENT_SELECT)
     .lean();
 
+  // Compute "today" in the rollover timezone so batchStartDate calendar-day calculations
+  // use the IST date (not UTC, which is still the previous day at midnight IST).
+  const ROLLOVER_TZ = process.env.JOURNEY_ROLLOVER_TZ || 'Asia/Colombo';
+  const todayStrInTz = new Date().toLocaleDateString('en-CA', { timeZone: ROLLOVER_TZ }); // "YYYY-MM-DD"
+  const rolloverNow = new Date(todayStrInTz + 'T00:00:00Z');
+
   const configCache = new Map();
   async function batchConfigForStudent(student) {
     const keys = allStudentBatchStringsForContent(student);
@@ -227,11 +349,6 @@ async function applyJourneyDayRollovers() {
       if (shouldSkipStudentRollover(cfg)) {
         continue;
       }
-      const trialEnabled = !!cfg?.trialDayEnabled;
-      const cur = normalizeCourseDay(s.currentCourseDay, trialEnabled);
-      const maxDay = cfg?.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
-      const calendarDay = cfg?.batchStartDate ? computeJourneyDayFromBatchConfig(cfg) : null;
-
       if (!cfg) {
         skippedNoConfig++;
         if (!s.batch) {
@@ -246,6 +363,13 @@ async function applyJourneyDayRollovers() {
         }
         continue;
       }
+
+      const trialEnabled = !!cfg.trialDayEnabled;
+      const cur = normalizeCourseDay(s.currentCourseDay, trialEnabled);
+      const maxDay = cfg.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
+      // Use rolloverNow (today in rollover TZ as UTC midnight) so the batch calendar day
+      // is calculated against the IST date, not UTC (which is still "yesterday" at midnight IST).
+      const calendarDay = cfg.batchStartDate ? computeJourneyDayFromBatchConfig(cfg, rolloverNow) : null;
 
       if (cur >= maxDay) {
         if (s.pendingJourneyDayAdvance) {
@@ -352,8 +476,10 @@ async function applyJourneyDayRollovers() {
 module.exports = {
   syncPendingFlagsFromMeeting,
   recomputePendingForStudent,
+  reconcilePlatinumAdvanceFromAttendance,
   applyJourneyDayRollovers,
   normalizeCourseDay,
   markPendingAdvanceForStudentDay,
-  checkAndInstantlyAdvanceSilverGoStudent
+  checkAndInstantlyAdvanceSilverGoStudent,
+  checkAndInstantlyAdvancePlatinumStudent
 };

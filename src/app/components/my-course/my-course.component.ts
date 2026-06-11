@@ -706,7 +706,15 @@ export class MyCourseComponent implements OnInit {
   }
 
   get showJourneyPendingCelebration(): boolean {
-    return !!this.profile?.pendingJourneyDayAdvance;
+    return !!this.profile?.pendingJourneyDayAdvance && this.isSilverSubscriptionStudent;
+  }
+
+  /** Silver-plan students wait until midnight; Platinum advances on live attendance. */
+  get isSilverSubscriptionStudent(): boolean {
+    const sub = String(
+      this.userProfile?.subscription || this.profile?.subscription || ''
+    ).toUpperCase();
+    return sub === 'SILVER';
   }
 
   private maybeShowJourneyCongratulations(): void {

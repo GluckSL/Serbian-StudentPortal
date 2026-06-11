@@ -404,17 +404,29 @@ interface TimelineDay {
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let b of filteredBatches; trackBy: trackBatch">
+              <tr *ngFor="let b of filteredBatches; trackBy: trackBatch"
+                  [class.j-row--behind]="batchBehindCalendar(b)">
                 <td>
                   <div class="j-batch-name-cell">
                     {{ b.batchName }}
                     <span class="j-pause-badge" *ngIf="b.journeyPaused && b.batchType === 'new'">
                       <i class="fas fa-pause"></i> Paused
                     </span>
+                    <span class="j-behind-batch-badge" *ngIf="batchBehindCalendar(b)"
+                          [title]="'Expected Day ' + calendarDayForBatch(b) + ' but stuck on Day ' + b.batchCurrentDay + '. Students are not advancing.'">
+                      <i class="fas fa-exclamation-triangle"></i>
+                      {{ calendarDayForBatch(b) - b.batchCurrentDay }} day(s) behind
+                    </span>
                   </div>
                 </td>
                 <td>
-                  <span class="j-day-pill j-day-pill--table">Day {{ b.batchCurrentDay }}</span>
+                  <div class="j-day-cell">
+                    <span class="j-day-pill j-day-pill--table"
+                          [class.j-day-pill--behind]="batchBehindCalendar(b)">Day {{ b.batchCurrentDay }}</span>
+                    <span class="j-day-expected" *ngIf="batchBehindCalendar(b)">
+                      → should be Day {{ calendarDayForBatch(b) }}
+                    </span>
+                  </div>
                 </td>
                 <td>{{ b.studentCount }}</td>
                 <td class="j-td-teacher" [title]="b.teacherName || ''">
@@ -814,11 +826,16 @@ interface TimelineDay {
               </tr>
             </thead>
         <tbody>
-          <tr *ngFor="let s of batchStudents">
+          <tr *ngFor="let s of batchStudents" [class.j-row-behind]="s.currentCourseDay < selectedBatch!.batchCurrentDay">
             <td>
               <div class="j-student-name-row">
                 <span class="j-student-name">{{ s.name }}</span>
                 <app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge>
+                <span *ngIf="s.currentCourseDay < selectedBatch!.batchCurrentDay"
+                      class="j-behind-badge"
+                      title="{{ selectedBatch!.batchCurrentDay - s.currentCourseDay }} day(s) behind">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </span>
               </div>
               <div class="j-student-email">{{ s.email }}</div>
             </td>
@@ -2675,6 +2692,21 @@ interface TimelineDay {
       font-size: 12px; font-weight: 700; white-space: nowrap;
     }
     .j-day-pill--table { font-size: 11px; padding: 2px 8px; }
+    .j-day-pill--behind {
+      background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+    }
+    .j-day-cell { display: flex; flex-direction: column; gap: 2px; }
+    .j-day-expected { font-size: 10px; color: #b91c1c; font-weight: 600; white-space: nowrap; }
+
+    .j-behind-batch-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+      cursor: help;
+    }
+    .j-row--behind td { background: #fff8f8; }
+    .j-row--behind:hover td { background: #fff0f0; }
 
     .j-progress-track {
       height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden;
@@ -3067,6 +3099,17 @@ interface TimelineDay {
     .j-date-main { font-size: 12px; font-weight: 600; color: #0f172a; white-space: nowrap; }
     .j-date-sub  { font-size: 10px; color: #94a3b8; }
     .j-date-empty { color: #cbd5e1; font-size: 12px; }
+
+    /* Behind-row highlight */
+    .j-row-behind { border-left: 3px solid #e11d48 !important; background: rgba(225, 29, 72, 0.03) !important; }
+
+    /* Danger badge next to student name */
+    .j-behind-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #ffe0e6; color: #e11d48; font-size: 9px;
+      flex-shrink: 0; cursor: default;
+    }
 
     /* Batch vs student day comparison */
     .j-batch-vs-student {
@@ -5102,6 +5145,25 @@ export class JourneyManagementComponent implements OnInit {
     const parts = this.editBatchStartDate.split('-').map(Number);
     const startUTC = Date.UTC(parts[0], parts[1] - 1, parts[2]);
     return Math.max(0, Math.floor((todayUTC - startUTC) / 86_400_000));
+  }
+
+  /** True when a batch has a start date and its stored day has fallen behind the calendar. */
+  batchBehindCalendar(b: BatchSummary): boolean {
+    if (!b.autoDay || !b.batchStartDate) return false;
+    if (b.journeyPaused) return false;
+    return this.calendarDayForBatch(b) > b.batchCurrentDay;
+  }
+
+  /** Calendar day today for a batch based on its start date. */
+  calendarDayForBatch(b: BatchSummary): number {
+    if (!b.batchStartDate) return b.batchCurrentDay;
+    return computeJourneyDayFromStartDate(
+      b.batchStartDate,
+      new Date(),
+      b.journeyLength,
+      !!b.trialDayEnabled,
+      b.trialAccessStartDate || null
+    );
   }
 
   computedDayFromDate(): number {
