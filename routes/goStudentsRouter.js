@@ -19,7 +19,7 @@ const GameSet = require('../models/GameSet');
 const GameAttempt = require('../models/GameAttempt');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
+const { allStudentBatchStringsForContent, recordingAccessBatchKeys, batchesAlign } = require('../utils/effectiveStudentBatch');
 const { withJourneyLevelInSet, levelForJourneyDay } = require('../services/journeyLevelSync.service');
 const { getStudentDgJourneyAccess, dgModuleUnlockedForAccess } = require('../utils/dgStudentJourneyGate');
 const {
@@ -29,7 +29,10 @@ const {
   silverPoolQuery,
   isSilverGoStudent
 } = require('../utils/goSilverTrack');
-const { resolveSilverGoContentUnlock } = require('../utils/silverGoSequentialUnlock');
+const {
+  resolveSilverGoContentUnlock,
+  reconcileSilverGoCourseDay
+} = require('../utils/silverGoSequentialUnlock');
 const {
   recordingWatchCountsAsComplete,
   recordingWatchSecondsForComplete
@@ -42,6 +45,8 @@ function createGoStudentsRouter(trackKey) {
   const GO_BATCH_NAME = trackCfg.batchName;
   const GO_LANGUAGE = trackCfg.language;
   const router = express.Router();
+  /** @type {null | { running: boolean, total: number, done: number, fixedCount: number, alreadyCorrect: number, skipped: number, message: string, results: object[], startedAt?: string, finishedAt?: string, error?: string }} */
+  let reconcileJob = null;
 
   function toGoStudentRow(student) {
     return {
@@ -416,6 +421,106 @@ function createGoStudentsRouter(trackKey) {
     }
   });
   
+  // ─── GET /api/go-students/reconcile-all/status ───────────────────────────────
+  router.get('/reconcile-all/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+    if (!reconcileJob) {
+      return res.json({
+        running: false,
+        total: 0,
+        done: 0,
+        fixedCount: 0,
+        alreadyCorrect: 0,
+        skipped: 0,
+        message: ''
+      });
+    }
+    res.json(reconcileJob);
+  });
+
+  // ─── POST /api/go-students/reconcile-all ─────────────────────────────────────
+  // Runs in the background (~3s per student). Returns 202 immediately; poll /status.
+  router.post('/reconcile-all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+    try {
+      if (reconcileJob?.running) {
+        return res.status(409).json({
+          message: 'Reconciliation already in progress.',
+          running: true,
+          done: reconcileJob.done,
+          total: reconcileJob.total
+        });
+      }
+
+      const students = await User.find(goStudentQuery(track))
+        .select('_id name regNo currentCourseDay')
+        .lean();
+
+      reconcileJob = {
+        running: true,
+        total: students.length,
+        done: 0,
+        fixedCount: 0,
+        alreadyCorrect: 0,
+        skipped: 0,
+        results: [],
+        message: `Reconciling ${students.length} GO ${GO_LANGUAGE} student(s)…`,
+        startedAt: new Date().toISOString()
+      };
+
+      res.status(202).json({
+        started: true,
+        message: `Started reconciliation for ${students.length} student(s). This may take a few minutes.`,
+        total: students.length
+      });
+
+      setImmediate(async () => {
+        try {
+          for (const student of students) {
+            try {
+              await SilverGoUnlockCache.deleteOne({ studentId: student._id });
+              const result = await reconcileSilverGoCourseDay(student._id);
+              if (result.adjusted) {
+                reconcileJob.fixedCount++;
+                reconcileJob.results.push({
+                  _id: student._id,
+                  name: student.name,
+                  regNo: student.regNo,
+                  status: 'fixed',
+                  storedDay: result.previousCourseDay,
+                  correctDay: result.maxUnlockedContentDay
+                });
+              } else {
+                reconcileJob.alreadyCorrect++;
+              }
+            } catch (studentErr) {
+              reconcileJob.skipped++;
+              reconcileJob.results.push({
+                _id: student._id,
+                name: student.name,
+                regNo: student.regNo,
+                status: 'error',
+                error: studentErr.message
+              });
+            }
+            reconcileJob.done++;
+          }
+          reconcileJob.message =
+            `Reconciled ${students.length} student(s): ${reconcileJob.fixedCount} corrected, ` +
+            `${reconcileJob.alreadyCorrect} already correct, ${reconcileJob.skipped} skipped/errored.`;
+        } catch (err) {
+          reconcileJob.error = err.message;
+          reconcileJob.message = 'Reconciliation failed.';
+          console.error('go-students reconcile-all background', err);
+        } finally {
+          reconcileJob.running = false;
+          reconcileJob.finishedAt = new Date().toISOString();
+        }
+      });
+    } catch (err) {
+      console.error('go-students POST /reconcile-all', err);
+      res.status(500).json({ message: 'Reconciliation failed.', error: err.message });
+    }
+  });
+
   // ─── PATCH /api/go-students/:studentId/journey-day ─────────────────────────────
   // Set the student's journey day (what they can access in the portal); clears pending auto-advance flags.
   router.patch('/:studentId/journey-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
@@ -645,14 +750,18 @@ function createGoStudentsRouter(trackKey) {
       if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
 
       const storedCourseDay = student.currentCourseDay || 1;
-      const batchKeys = allStudentBatchStringsForContent(student);
-      const batchRecFilter = batchKeys.length
-        ? {
-            $or: batchKeys.map((k) => ({
-              batches: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
-            }))
-          }
-        : {};
+      // Same keys as student visibility + journey completion (own class batch / GO track).
+      const batchKeys = recordingAccessBatchKeys(student);
+      const studentLevel = String(student.level || 'A1').toUpperCase();
+      const batchRecOr = batchKeys.map((k) => ({
+        batches: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+      }));
+
+      // Force a fresh completion re-check on every admin detail load so stale cache
+      // (e.g. recordings uploaded after a student auto-advanced) doesn't hide the true day.
+      if (isSilverGoStudent(student)) {
+        await SilverGoUnlockCache.deleteOne({ studentId });
+      }
 
       const [goBatchCfg, unlock] = await Promise.all([
         BatchConfig.findOne({ batchName: GO_BATCH_NAME }).select('journeyLength').lean(),
@@ -668,6 +777,26 @@ function createGoStudentsRouter(trackKey) {
         goBatchCfg?.journeyLength >= 1 ? Math.min(Math.floor(goBatchCfg.journeyLength), 200) : 200;
       const accessDay = unlock.maxUnlockedContentDay || storedCourseDay;
 
+      // Reconcile: if the student is stored ahead of what they've completed, pull them back.
+      let reconciled = false;
+      if (isSilverGoStudent(student) && accessDay < storedCourseDay) {
+        const updateResult = await User.updateOne(
+          { _id: studentId, role: 'STUDENT', currentCourseDay: storedCourseDay },
+          {
+            $set: withJourneyLevelInSet(
+              accessDay,
+              {
+                currentCourseDay: accessDay,
+                pendingJourneyDayAdvance: false,
+                pendingJourneyDayAdvanceForDay: null
+              },
+              { student }
+            )
+          }
+        );
+        reconciled = updateResult.modifiedCount > 0;
+      }
+
       const batchOrForMeetings = batchKeys.map((k) => ({
         batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
       }));
@@ -677,32 +806,37 @@ function createGoStudentsRouter(trackKey) {
 
       const [classRecordings, recViewsAgg, goMeetings, meetingsForDuration, allExercises, attempts] =
         await Promise.all([
-        ClassRecording.find({
-          active: true,
-          isPublished: { $ne: false },
-          ...batchRecFilter,
-          $or: [{ plan: 'ALL' }, { plan: 'SILVER' }, { plan: 'PLATINUM' }]
-        })
-          .select('title courseDay plan level duration batches createdAt')
-          .lean(),
+        batchRecOr.length
+          ? ClassRecording.find({
+              active: true,
+              isPublished: { $ne: false },
+              level: studentLevel,
+              plan: { $in: ['ALL', 'SILVER', 'PLATINUM'] },
+              $or: batchRecOr
+            })
+              .select('title courseDay plan level duration batches createdAt')
+              .lean()
+          : Promise.resolve([]),
         studentObjectId
           ? RecordingView.aggregate([
               { $match: { student: studentObjectId } },
               {
                 $group: {
                   _id: '$recording',
-                  maxWatchDuration: { $max: '$watchDuration' },
+                  maxWatchDuration: { $sum: '$watchDuration' },
                   lastUpdatedAt: { $max: '$lastUpdatedAt' }
                 }
               }
             ])
           : Promise.resolve([]),
-        MeetingLink.find({
-          $or: [{ batch: new RegExp(`^${GO_BATCH_NAME}$`, 'i') }, { plan: 'SILVER' }],
-          status: { $ne: 'cancelled' }
-        })
-          .select('topic startTime duration courseDay status')
-          .lean(),
+        batchOrForMeetings.length
+          ? MeetingLink.find({
+              $or: batchOrForMeetings,
+              status: { $ne: 'cancelled' }
+            })
+              .select('topic startTime duration courseDay status')
+              .lean()
+          : Promise.resolve([]),
         batchOrForMeetings.length
           ? MeetingLink.find({ $or: batchOrForMeetings, status: { $ne: 'cancelled' } })
               .select('batch courseDay duration')
@@ -790,7 +924,7 @@ function createGoStudentsRouter(trackKey) {
           {
             $group: {
               _id: '$meetingLinkId',
-              maxWatchDuration: { $max: '$watchDuration' },
+              maxWatchDuration: { $sum: '$watchDuration' },
               lastUpdatedAt: { $max: '$lastUpdatedAt' }
             }
           }
@@ -951,7 +1085,7 @@ function createGoStudentsRouter(trackKey) {
         journeySync: {
           effectiveAccessDay: accessDay,
           storedCourseDayBeforeSync: storedCourseDay,
-          reconciled: false,
+          reconciled,
           needsSync: storedCourseDay > accessDay,
           sequentialUnlock: isSilverGoStudent(student)
         },

@@ -329,12 +329,23 @@ export class ClassRecordingsService {
   }
 
   // View tracking
-  startView(recordingId: string): Observable<{ success: boolean; viewId: string }> {
+  startView(recordingId: string): Observable<{
+    success: boolean;
+    viewId: string;
+    /** Last saved playback position (seconds) — resume the video from here. */
+    resumePositionSec?: number;
+    /** Accumulated watch time across all previous sessions (seconds). */
+    totalWatchedSeconds?: number;
+  }> {
     return this.http.post<any>(`${this.url}/${recordingId}/view`, {});
   }
 
-  updateViewDuration(viewId: string, watchDuration: number): Observable<any> {
-    return this.http.put<any>(`${this.url}/view/${viewId}`, { watchDuration }).pipe(
+  updateViewDuration(viewId: string, watchDuration: number, positionSec?: number | null): Observable<any> {
+    const body: Record<string, number> = { watchDuration };
+    if (positionSec != null && Number.isFinite(positionSec) && positionSec >= 0) {
+      body['positionSec'] = Math.round(positionSec);
+    }
+    return this.http.put<any>(`${this.url}/view/${viewId}`, body).pipe(
       tap((res: any) => {
         if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
           this.progressService.notifyJourneyAdvance({
@@ -409,12 +420,23 @@ export class ClassRecordingsService {
     return `${this.url}/zoom/${meetingLinkId}/hls/playlist${qs}`;
   }
 
-  startZoomView(meetingLinkId: string): Observable<{ success: boolean; viewId: string }> {
+  startZoomView(meetingLinkId: string): Observable<{
+    success: boolean;
+    viewId: string;
+    /** Last saved playback position (seconds) — resume the video from here. */
+    resumePositionSec?: number;
+    /** Accumulated watch time across all previous sessions (seconds). */
+    totalWatchedSeconds?: number;
+  }> {
     return this.http.post<any>(`${this.url}/zoom/${meetingLinkId}/view`, {});
   }
 
-  updateZoomViewDuration(viewId: string, watchDuration: number): Observable<any> {
-    return this.http.put<any>(`${this.url}/zoom/view/${viewId}`, { watchDuration }).pipe(
+  updateZoomViewDuration(viewId: string, watchDuration: number, positionSec?: number | null): Observable<any> {
+    const body: Record<string, number> = { watchDuration };
+    if (positionSec != null && Number.isFinite(positionSec) && positionSec >= 0) {
+      body['positionSec'] = Math.round(positionSec);
+    }
+    return this.http.put<any>(`${this.url}/zoom/view/${viewId}`, body).pipe(
       tap((res: any) => {
         if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
           this.progressService.notifyJourneyAdvance({

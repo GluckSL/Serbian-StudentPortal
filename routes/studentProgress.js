@@ -1439,7 +1439,7 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
     const recordingViewAgg = await RecordingView.aggregate([
       { $match: { student: studentOid } },
       { $sort: { startedAt: -1 } },
-      { $group: { _id: '$recording', maxWatch: { $max: '$watchDuration' } } },
+      { $group: { _id: '$recording', maxWatch: { $sum: '$watchDuration' } } },
       { $lookup: { from: 'classrecordings', localField: '_id', foreignField: '_id', as: 'rec' } },
       { $unwind: { path: '$rec', preserveNullAndEmptyArrays: true } },
       { $match: { 'rec.active': true, 'rec.isPublished': true, 'rec.courseDay': { $gte: 1, $lte: currentDay } } }

@@ -1825,6 +1825,40 @@ interface TimelineDay {
         <button type="button" class="j-btn j-btn-outline" (click)="loadGoStudents()">
           <i class="fas fa-sync-alt"></i> Refresh list
         </button>
+        <button
+          type="button"
+          class="j-btn"
+          style="background:#fef9c3;color:#854d0e;border:1px solid #fde047;font-weight:600;"
+          [disabled]="goReconciling"
+          (click)="reconcileAllGoStudents()"
+          title="Check every Silver GO student's completion and pull them back to the correct day if they skipped ahead without finishing recordings/exercises/DG Bot."
+        >
+          <i class="fas" [class.fa-spinner]="goReconciling" [class.fa-wrench]="!goReconciling"></i>
+          {{ goReconciling ? (goReconcileProgress || 'Fixing days…') : 'Fix All Days' }}
+        </button>
+      </div>
+
+      <div
+        *ngIf="goReconciling && goReconcileProgress"
+        style="margin:10px 0 0;padding:8px 14px;border-radius:10px;font-size:13px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;"
+      >
+        {{ goReconcileProgress }}
+      </div>
+
+      <div
+        *ngIf="goReconcileResult"
+        style="margin:10px 0 0;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.5;"
+        [style.background]="goReconcileResult.fixedCount > 0 ? '#fef9c3' : '#f0fdf4'"
+        [style.border]="goReconcileResult.fixedCount > 0 ? '1px solid #fde047' : '1px solid #bbf7d0'"
+        [style.color]="goReconcileResult.fixedCount > 0 ? '#854d0e' : '#166534'"
+      >
+        <strong>{{ goReconcileResult.fixedCount > 0 ? '⚠ Days corrected' : '✓ All days correct' }}</strong>
+        &nbsp;—&nbsp;
+        {{ goReconcileResult.fixedCount }} corrected,
+        {{ goReconcileResult.alreadyCorrect }} already correct,
+        {{ goReconcileResult.skipped }} skipped
+        ({{ goReconcileResult.total }} students total).
+        <button type="button" style="margin-left:12px;background:none;border:none;cursor:pointer;font-size:12px;color:inherit;opacity:.7;" (click)="goReconcileResult = null">Dismiss</button>
       </div>
 
       <div *ngIf="goLoading" class="j-skeleton-wrap" aria-busy="true" aria-label="Loading GO students">
@@ -4323,6 +4357,10 @@ export class JourneyManagementComponent implements OnInit {
   goBulkDay: number | null = null;
   goBulkBatch = '';
   goBulkUpdating = false;
+  goReconciling = false;
+  goReconcileProgress = '';
+  goReconcileResult: { fixedCount: number; alreadyCorrect: number; skipped: number; total: number; message: string } | null = null;
+  private goReconcilePollTimer: ReturnType<typeof setTimeout> | null = null;
   silverBulkDay: number | null = null;
   silverBulkBatch = '';
   silverBulkUpdating = false;
@@ -4721,6 +4759,84 @@ export class JourneyManagementComponent implements OnInit {
         this.notify.error(e?.error?.message || 'Failed to set batch for selected GO students.');
       }
     });
+  }
+
+  reconcileAllGoStudents(): void {
+    if (this.goReconciling) return;
+    this.goReconciling = true;
+    this.goReconcileResult = null;
+    this.goReconcileProgress = 'Starting…';
+    this.http.post<any>(
+      `${environment.apiUrl}/${this.activeGoApiPath}/reconcile-all`,
+      {},
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        if (r?.started) {
+          this.pollGoReconcileStatus();
+          return;
+        }
+        this.finishGoReconcile(r);
+      },
+      error: (e) => {
+        this.goReconciling = false;
+        this.goReconcileProgress = '';
+        this.notify.error(e?.error?.message || 'Reconciliation failed.');
+      }
+    });
+  }
+
+  private pollGoReconcileStatus(): void {
+    if (this.goReconcilePollTimer) {
+      clearTimeout(this.goReconcilePollTimer);
+      this.goReconcilePollTimer = null;
+    }
+    this.http.get<any>(
+      `${environment.apiUrl}/${this.activeGoApiPath}/reconcile-all/status`,
+      { withCredentials: true }
+    ).subscribe({
+      next: (status) => {
+        if (status?.running) {
+          const done = status.done || 0;
+          const total = status.total || 0;
+          this.goReconcileProgress = total > 0 ? `Checking ${done} / ${total} students…` : 'Checking students…';
+          this.goReconcilePollTimer = setTimeout(() => this.pollGoReconcileStatus(), 2000);
+          return;
+        }
+        this.finishGoReconcile(status);
+      },
+      error: (e) => {
+        this.goReconciling = false;
+        this.goReconcileProgress = '';
+        this.notify.error(e?.error?.message || 'Reconciliation status check failed.');
+      }
+    });
+  }
+
+  private finishGoReconcile(r: any): void {
+    if (this.goReconcilePollTimer) {
+      clearTimeout(this.goReconcilePollTimer);
+      this.goReconcilePollTimer = null;
+    }
+    this.goReconciling = false;
+    this.goReconcileProgress = '';
+    if (r?.error) {
+      this.notify.error(r.message || 'Reconciliation failed.');
+      return;
+    }
+    this.goReconcileResult = {
+      fixedCount: r.fixedCount || 0,
+      alreadyCorrect: r.alreadyCorrect || 0,
+      skipped: r.skipped || 0,
+      total: r.total || 0,
+      message: r.message || ''
+    };
+    if ((r.fixedCount || 0) > 0) {
+      this.notify.success(`Fixed ${r.fixedCount} student(s). Refreshing list…`);
+      this.loadGoStudents();
+    } else {
+      this.notify.success(r.message || 'All journey days are already correct.');
+    }
   }
 
   addGoStudentById(student: SilverStudentRow): void {

@@ -156,7 +156,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       const manualIds = visibleManual.map((r) => r._id);
       const watchedManual = studentObjectId ? await RecordingView.aggregate([
         { $match: { student: studentObjectId, recording: { $in: manualIds } } },
-        { $group: { _id: '$recording', maxWatchSeconds: { $max: '$watchDuration' } } }
+        // Accumulated watch time across all sessions (resume-friendly).
+        { $group: { _id: '$recording', maxWatchSeconds: { $sum: '$watchDuration' } } }
       ]) : [];
       const watchedManualMap = new Map(
         watchedManual.map((w) => [String(w._id), Math.max(0, Number(w.maxWatchSeconds || 0))])
@@ -204,7 +205,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
         const zoomMeetingIds = visibleZoom.map((z) => z.meetingLinkId);
         const watchedZoom = studentObjectId ? await ZoomRecordingView.aggregate([
           { $match: { student: studentObjectId, meetingLinkId: { $in: zoomMeetingIds } } },
-          { $group: { _id: '$meetingLinkId', maxWatchSeconds: { $max: '$watchDuration' } } }
+          // Accumulated watch time across all sessions (resume-friendly).
+          { $group: { _id: '$meetingLinkId', maxWatchSeconds: { $sum: '$watchDuration' } } }
         ]) : [];
         const watchedZoomMap = new Map(
           watchedZoom.map((w) => [String(w._id), Math.max(0, Number(w.maxWatchSeconds || 0))])

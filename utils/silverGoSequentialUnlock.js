@@ -59,8 +59,14 @@ async function resolveSilverGoContentUnlock(student) {
 
   const cached = await SilverGoUnlockCache.findOne({ studentId }).lean();
   const cachedMax = cached?.maxUnlockedContentDay;
-  // Stale cache (e.g. after teacher advance or instant promotion) must be recomputed.
-  if (cachedMax != null && cachedMax >= currentCourseDay) {
+  // Trust the cache only for a short TTL. Content can be uploaded AFTER a student
+  // advanced (e.g. Day 1 recordings published the morning after midnight rollover),
+  // which makes a cached "all prior days complete" verdict wrong — recompute so
+  // reconcileSilverGoCourseDay can pull the student back to the incomplete day.
+  const UNLOCK_CACHE_TTL_MS = 10 * 60 * 1000;
+  const cacheUpdatedAt = cached?.updatedAt ? new Date(cached.updatedAt).getTime() : 0;
+  const cacheFresh = cacheUpdatedAt > 0 && Date.now() - cacheUpdatedAt < UNLOCK_CACHE_TTL_MS;
+  if (cachedMax != null && cacheFresh && cachedMax >= currentCourseDay) {
     const result = {
       isSilverGo: true,
       currentCourseDay,

@@ -3,7 +3,9 @@ const mongoose = require('mongoose');
 const recordingViewSchema = new mongoose.Schema({
   recording: { type: mongoose.Schema.Types.ObjectId, ref: 'ClassRecording', required: true },
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  watchDuration: { type: Number, default: 0 }, // seconds
+  watchDuration: { type: Number, default: 0 }, // seconds (this session)
+  /** Last playback position (seconds into the video) — used to resume where the student left off. */
+  lastPositionSec: { type: Number, default: 0 },
   startedAt: { type: Date, default: Date.now },
   lastUpdatedAt: { type: Date, default: Date.now }
 }, { timestamps: true });

@@ -1,4 +1,4 @@
-const { allStudentBatchStringsForContent, batchesAlign } = require('./effectiveStudentBatch');
+const { recordingAccessBatchKeys, batchesAlign } = require('./effectiveStudentBatch');
 const { isContentBlockedForStudent } = require('./journeyContentBlock');
 const { isCoursePlan } = require('./studentSubscriptionPlans');
 const RecordingAccessRequest = require('../models/RecordingAccessRequest');
@@ -42,7 +42,7 @@ function canUserAccessManualRecording(recording, student) {
   if (!student) return false;
   if (!isCoursePlan(student?.subscription)) return false;
   if (student.journeyAccessEnabled === false) return false;
-  const batchKeys = allStudentBatchStringsForContent(student);
+  const batchKeys = recordingAccessBatchKeys(student);
   const inBatch = batchKeys.length > 0 && Array.isArray(recording.batches) &&
     recording.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b)));
   if (!inBatch) return false;
@@ -76,7 +76,7 @@ function canUserAccessZoomRecording(zoomRecording, meetingLink, student) {
   if (isContentBlockedForStudent(student, { courseDay: meetingLink?.courseDay, level: meetingLink?.level })) return false;
 
   const { batches, level, plan } = normalizeZoomAccessSettings(zoomRecording, meetingLink);
-  const studentBatchKeys = allStudentBatchStringsForContent(student);
+  const studentBatchKeys = recordingAccessBatchKeys(student);
   const inBatch = studentBatchKeys.length > 0 &&
     batches.length > 0 &&
     batches.some((b) => studentBatchKeys.some((k) => batchesAlign(k, b)));
