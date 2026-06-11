@@ -512,7 +512,7 @@
                   <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Fill in the blanks</div>
 
                   <!-- Sub-question answer -->
-                  <div class="review-sub-q-answer" *ngIf="sq.type !== 'fill-blank' || !hasFillBlankReviewItems(pq, i)">
+                  <div class="review-sub-q-answer">
                     <span class="review-label">Your answer:</span>
                     <span
                       class="review-value"
@@ -520,13 +520,9 @@
                       [class.wrong]="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex)"
                     >{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
                   </div>
-                  <div class="review-sub-q-correct" *ngIf="sq.type === 'fill-blank' && !hasFillBlankReviewItems(pq, i)">
-                    <span class="review-label">Correct answer:</span>
-                    <span class="review-value correct">{{ getSubCorrectAnswerText(pq, sqIndex) }}</span>
-                  </div>
                   <div
                     class="review-sub-q-correct"
-                    *ngIf="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex) && sq.type !== 'fill-blank'"
+                    *ngIf="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex)"
                   >
                     <span class="review-label">Correct answer:</span>
                     <span class="review-value correct">{{
