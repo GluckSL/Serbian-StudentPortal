@@ -380,6 +380,8 @@ export interface QuestionResponse {
     selectedOptionIndex?: number | null;
     textAnswer?: string | null;
     fillBlankResponses?: string[];
+    spokenText?: string;
+    pronunciationScore?: number;
   }>;
 }
 

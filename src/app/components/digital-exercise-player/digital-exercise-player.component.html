@@ -4035,9 +4035,154 @@
                     <!-- Pronunciation -->
                     <div *ngIf="sq.type === 'pronunciation'" class="sub-q-pronunciation">
                       <div class="pronunciation-word-card">
-                        <div class="big-word">{{ sq.word }}</div>
-                        <div class="word-phonetic" *ngIf="sq.phonetic">{{ sq.phonetic }}</div>
-                        <div class="word-translation" *ngIf="sq.translation">= {{ sq.translation }}</div>
+                        <div>
+                          <div class="big-word">{{ sq.word }}</div>
+                          <div class="word-phonetic" *ngIf="sq.phonetic">{{ sq.phonetic }}</div>
+                          <div class="word-translation" *ngIf="sq.translation">= {{ sq.translation }}</div>
+                        </div>
+                        <div class="pronunciation-word-card-right">
+                          <button class="btn-audio" (click)="playWordAudio(currentQuestion)">
+                            <span class="material-icons">volume_up</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="pronunciation-controls">
+                        <div class="pronunciation-controls-btns">
+                          <button type="button" class="btn-record--subtle btn-record"
+                            (click)="openMicTest()"
+                            [disabled]="currentQuestion.subQuestionIsRecording?.[sqIndex] || currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing'"
+                            title="Check your microphone is working">
+                            <span class="material-icons">settings_voice</span>
+                            <span>Test microphone</span>
+                          </button>
+                          <button class="btn-record"
+                            [class.recording]="currentQuestion.subQuestionIsRecording?.[sqIndex]"
+                            [class.processing]="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing'"
+                            [class.has-result]="currentQuestion.subQuestionHasRecorded?.[sqIndex] && !currentQuestion.subQuestionIsRecording?.[sqIndex] && currentQuestion.subQuestionPronUiState?.[sqIndex] !== 'processing'"
+                            (click)="
+                              currentQuestion.subQuestionIsRecording?.[sqIndex]
+                                ? stopSubQuestionPronunciation(currentQuestion, sqIndex)
+                                : startSubQuestionPronunciation(currentQuestion, sqIndex)
+                            "
+                            [disabled]="hasCurrentSubmitted || currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing'">
+                            <span class="material-icons">
+                              {{ currentQuestion.subQuestionIsRecording?.[sqIndex] ? 'stop' : currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' ? 'hourglass_top' : 'mic' }}
+                            </span>
+                            <span>
+                              {{ currentQuestion.subQuestionIsRecording?.[sqIndex] ? 'Stop' : currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' ? 'Processing…' : currentQuestion.subQuestionHasRecorded?.[sqIndex] ? 'Re-record' : 'Speak' }}
+                            </span>
+                          </button>
+                        </div>
+
+                        <div class="pronunciation-listening" *ngIf="currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          <span class="material-icons">mic</span>
+                          🎤 Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+                          <app-audio-visualizer class="pronunciation-visualizer"
+                            [analyser]="getPronAnalyser()"
+                            [active]="!!currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          </app-audio-visualizer>
+                        </div>
+
+                        <div class="pronunciation-listening" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          <span class="material-icons">hourglass_top</span>
+                          Processing<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+                          <span class="pronunciation-processing-slow" *ngIf="pronProcessingSlow">— this may take a moment.</span>
+                        </div>
+
+                        <div class="pronunciation-listening pronunciation-listening--error" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'error' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          <span class="material-icons">error_outline</span>
+                          {{ currentQuestion.subQuestionPronMessage?.[sqIndex] || 'No speech detected, try again' }}
+                        </div>
+                      </div>
+
+                      <div class="pronunciation-result" *ngIf="currentQuestion.subQuestionHasRecorded?.[sqIndex] || hasCurrentSubmitted">
+                        <div class="score-circle"
+                          [class]="getPronunciationClass(currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0)">
+                          <div class="score-value">{{ currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0 }}%</div>
+                          <div class="score-label">Match</div>
+                        </div>
+
+                        <div class="pronunciation-feedback"
+                          [class.pron-feedback--correct]="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex] && (currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) >= 60"
+                          [class.pron-feedback--almost]="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]"
+                          [class.pron-feedback--incorrect]="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex] && (currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) < 60">
+                          <ng-container *ngIf="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            {{ getPronunciationFeedback(currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) }}
+                          </ng-container>
+                          <ng-container *ngIf="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            Almost there — try once more
+                          </ng-container>
+                        </div>
+
+                        <div class="pronunciation-confidence" *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
+                          [attr.data-confidence]="conf">
+                          {{ confidenceHeadline(conf) }}
+                        </div>
+                        <div class="pron-confidence-nudge" *ngIf="confidenceNudge(lastConfidenceByIndex[currentQuestion.index])">
+                          {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index]) }}
+                        </div>
+                        <div class="pron-audio-quality-banner" *ngIf="currentQuestion.subQuestionPronLowAudioQuality?.[sqIndex]">
+                          Your microphone input seems low. Try speaking louder or closer to the mic.
+                        </div>
+
+                        <app-pronunciation-comparison-view
+                          *ngIf="currentQuestion.subQuestionSpokenText?.[sqIndex] || currentQuestion.subQuestionPronExpectedText?.[sqIndex]"
+                          [expectedText]="currentQuestion.subQuestionPronExpectedText?.[sqIndex] || ''"
+                          [transcriptText]="currentQuestion.subQuestionSpokenText?.[sqIndex] || ''"
+                          [missingWords]="currentQuestion.subQuestionPronMissingWords?.[sqIndex] || []"
+                          [extraWords]="currentQuestion.subQuestionPronExtraWords?.[sqIndex] || []"
+                          [matchedWords]="currentQuestion.subQuestionPronMatchedWords?.[sqIndex] || []">
+                        </app-pronunciation-comparison-view>
+
+                        <div class="pron-word-analysis" *ngIf="currentQuestion.subQuestionPronWordAnalysis?.[sqIndex]?.length">
+                          <span class="pron-word-analysis-label">Word breakdown:</span>
+                          <div class="pron-word-chips">
+                            <span *ngFor="let w of currentQuestion.subQuestionPronWordAnalysis?.[sqIndex]"
+                              class="pron-chip"
+                              [class.pron-chip--correct]="w.status === 'correct'"
+                              [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                              [class.pron-chip--missing]="w.status === 'missing'"
+                              [title]="w.status === 'missing' ? 'Missing' : 'You said: ' + (w.spoken || '—')">
+                              {{ w.expected }}
+                              <span class="pron-chip-icon material-icons">
+                                {{ w.status === 'correct' ? 'check' : w.status === 'missing' ? 'remove' : 'close' }}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div class="pron-hints" *ngIf="currentQuestion.subQuestionPronHints?.[sqIndex]?.length">
+                          <div class="pron-hint" *ngFor="let h of currentQuestion.subQuestionPronHints?.[sqIndex]">
+                            <span class="material-icons">lightbulb</span> {{ h }}
+                          </div>
+                        </div>
+
+                        <div class="pronunciation-retry-row" *ngIf="currentQuestion.subQuestionHasRecorded?.[sqIndex] && !hasCurrentSubmitted && (currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex] || (currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) < 60)">
+                          <span class="pronunciation-retry-nudge" *ngIf="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            ❌ Not quite — 👉 try again clearly.
+                          </span>
+                          <span class="pronunciation-retry-nudge pronunciation-retry-nudge--almost" *ngIf="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            🔶 So close! Give it one more try.
+                          </span>
+                          <button type="button" class="btn-record btn-record--subtle"
+                            (click)="replayReferenceForRetry(currentQuestion)"
+                            title="Replay the reference word">
+                            <span class="material-icons">replay</span>
+                            <span>Replay word</span>
+                          </button>
+                        </div>
+
+                        <div class="pron-help-wrap" *ngIf="shouldShowNeedHelp(currentQuestion)">
+                          <button type="button" class="btn-record btn-record--subtle"
+                            (click)="togglePronHelp(currentQuestion)">
+                            <span class="material-icons">help_outline</span>
+                            Need help?
+                          </button>
+                          <div class="pron-help-chunks" *ngIf="currentQuestion.pronHelpOpen">
+                            <span class="pron-help-chip" *ngFor="let c of expectedChunks(currentQuestion.subQuestionPronExpectedText?.[sqIndex] || '')">{{ c }}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
