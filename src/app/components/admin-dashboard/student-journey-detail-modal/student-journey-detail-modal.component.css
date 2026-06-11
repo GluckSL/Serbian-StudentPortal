@@ -414,6 +414,7 @@
   flex-wrap: wrap;
   gap: 6px 16px;
   margin-bottom: 10px;
+  align-items: center;
 }
 
 .ld-strip__item {
@@ -554,6 +555,7 @@
 .ld-badge--partial { background: #fef3c7; color: #b45309; }
 .ld-badge--progress { background: #dbeafe; color: #2563eb; }
 .ld-badge--locked { background: #f1f5f9; color: #94a3b8; }
+.ld-badge--scheduled { background: #e0e7ff; color: #4f46e5; }
 
 /* ── Score badge ── */
 .ld-score {

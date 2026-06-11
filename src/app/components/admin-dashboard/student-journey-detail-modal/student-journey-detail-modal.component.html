@@ -122,7 +122,7 @@
       <div class="sp-card">
         <div class="ld-tabular">
           <!-- ═══ Section: Live Classes ═══ -->
-          <div class="ld-section">
+          <div class="ld-section" *ngIf="isPlatinum">
             <h4 class="ld-section__title">
               <i class="fas fa-chalkboard-teacher"></i> Live Classes
             </h4>
@@ -156,8 +156,8 @@
                       <td class="ld-cell--title" [title]="c.topic">{{ c.topic }}</td>
                       <td><span class="ld-pill ld-pill--day">Day {{ c.courseDay }}</span></td>
                     <td>
-                      <span class="ld-badge" [class.ld-badge--ok]="c.attended" [class.ld-badge--no]="!c.attended">
-                        {{ c.attended ? 'Attended' : 'Missed' }}
+                      <span class="ld-badge" [class.ld-badge--ok]="c.attended" [class.ld-badge--no]="!c.attended && !isUpcomingLiveClass(c)" [class.ld-badge--scheduled]="!c.attended && isUpcomingLiveClass(c)">
+                        {{ c.attended ? 'Attended' : isUpcomingLiveClass(c) ? 'Scheduled' : 'Missed' }}
                       </span>
                     </td>
                   </tr>
@@ -168,7 +168,7 @@
           </div>
 
           <!-- ═══ Section: Recordings ═══ -->
-          <div class="ld-section">
+          <div class="ld-section" *ngIf="isSilver">
             <h4 class="ld-section__title">
               <i class="fas fa-video"></i> Class Recordings
             </h4>
@@ -223,18 +223,6 @@
               <span class="ld-strip__item">
                 <span class="ld-strip__lbl">Completed</span>
                 <strong class="ld-strip__val">{{ jExerciseProgress.completed }}/{{ jExerciseProgress.total }}</strong>
-              </span>
-              <span class="ld-strip__item">
-                <span class="ld-strip__lbl">Pending</span>
-                <strong class="ld-strip__val">{{ jExerciseProgress.pending }}</strong>
-              </span>
-              <span class="ld-strip__item">
-                <span class="ld-strip__lbl">Completion</span>
-                <strong class="ld-strip__val">{{ jExerciseProgress.total ? (jExerciseProgress.completed / jExerciseProgress.total * 100 | number:'1.0-0') : 0 }}%</strong>
-              </span>
-              <span class="ld-strip__item" *ngIf="jExamSummary">
-                <span class="ld-strip__lbl">Exam exercises</span>
-                <strong class="ld-strip__val">{{ jExamSummary?.completedExercises || 0 }}/{{ jExamSummary?.totalExercises || 0 }}</strong>
               </span>
               <span class="ld-filter-bar">
                 <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!exerciseFilter" (click)="setExerciseFilter(null)">All</button>

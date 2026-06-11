@@ -3,15 +3,15 @@
   <!-- Header Section -->
   <div class="timetable-header">
     <div class="container-fluid">
-      <div class="row align-items-center">
-        <div class="col-md-8">
-          <h1 class="page-title">
-            <i class="fas fa-calendar-alt"></i>
-            My Timetable
-          </h1>
-          <p class="page-subtitle">{{ getScheduleSubtitle() }}</p>
+      <!-- Calendar Navigation -->
+      <div class="cal-nav">
+        <div class="cal-nav-left-wrap">
+          <button class="cal-nav-btn" (click)="goToPrev()" title="Previous"><i class="fas fa-chevron-left"></i></button>
+          <span class="cal-period-label">{{ currentPeriodLabel }}</span>
+          <button class="cal-nav-btn" (click)="goToNext()" title="Next"><i class="fas fa-chevron-right"></i></button>
+          <button class="cal-today-btn" (click)="goToToday()">Today</button>
         </div>
-        <div class="col-md-4 text-end">
+        <div class="cal-nav-right">
           <div class="header-stats">
             <div class="stat-card">
               <span class="stat-value">{{ isStudentJourneyView ? studentScheduleDayCount : (displayableTimeTables.length || 0) }}</span>
@@ -20,6 +20,7 @@
           </div>
         </div>
       </div>
+      <p class="page-subtitle">{{ getScheduleSubtitle() }}</p>
     </div>
   </div>
 
@@ -50,247 +51,253 @@
         </button>
       </div>
 
-      <div class="jg-legend" *ngIf="isStudentJourneyView && journeyScheduleLoaded">
-        <span class="jg-legend-item jg-legend-item--past"><i class="fas fa-circle"></i> Spent</span>
-        <span class="jg-legend-item jg-legend-item--current"><i class="fas fa-circle"></i> Today</span>
-        <span class="jg-legend-item jg-legend-item--upcoming"><i class="fas fa-circle"></i> Upcoming</span>
+
+      <!-- ── Legend ── -->
+      <div class="legend-bar">
+        <span class="mc-chip mc-chip--live"><i class="fas fa-video"></i> Live</span>
+        <span class="mc-chip mc-chip--ex"><i class="fas fa-pen"></i> Exercises</span>
+        <span class="mc-chip mc-chip--dg"><i class="fas fa-robot"></i> DG Bot</span>
+        <span class="mc-chip mc-chip--arena"><i class="fas fa-gamepad"></i> Arena</span>
+        <span class="wdr-live-badge live">LIVE</span>
+        <span class="wdr-live-badge upcoming">Upcoming</span>
       </div>
 
-      <!-- Student: skeleton week grid -->
-      <div class="journey-grid-wrap" *ngIf="isStudentJourneyView && !journeyScheduleLoaded">
-        <div class="journey-week-block" *ngFor="let sk of skeletonWeekRows">
-          <div class="jg-skel jg-skel--title"></div>
-          <div class="journey-grid">
-            <div class="journey-grid-cell journey-grid-cell--skel" *ngFor="let wd of weekDayLabels">
-              <div class="jg-skel jg-skel--day"></div>
-              <div class="jg-skel jg-skel--date"></div>
-              <div class="jg-skel jg-skel--badge"></div>
-              <div class="jg-skel-chips">
-                <div class="jg-skel jg-skel--chip"></div>
-                <div class="jg-skel jg-skel--chip"></div>
-                <div class="jg-skel jg-skel--chip"></div>
-              </div>
+      <!-- ── Loading Skeletons ── -->
+      <!-- Week skeleton -->
+      <div *ngIf="viewMode === 'week' && (isStudentJourneyView ? !journeyScheduleLoaded : !timeTablesLoaded)" class="week-view-skel">
+        <div class="week-view-day" *ngFor="let sk of [1,2,3,4,5,6,7]">
+          <div class="week-day-left">
+            <span class="jg-skel" style="height:11px;width:60px"></span>
+            <span class="jg-skel" style="height:9px;width:40px;margin-top:4px"></span>
+          </div>
+          <div class="week-day-right">
+            <div class="wdr-chips">
+              <span class="jg-skel" style="height:18px;width:50px;border-radius:6px"></span>
+              <span class="jg-skel" style="height:18px;width:40px;border-radius:6px"></span>
+              <span class="jg-skel" style="height:18px;width:55px;border-radius:6px"></span>
+            </div>
+            <div class="wdr-live-item" style="margin-top:6px">
+              <span class="jg-skel" style="height:9px;width:48px"></span>
+              <span class="jg-skel" style="height:9px;width:120px;flex:1"></span>
+              <span class="jg-skel" style="height:20px;width:40px;border-radius:4px;flex-shrink:0"></span>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- Student: compact week grid -->
-      <div class="journey-grid-wrap" *ngIf="isStudentJourneyView && journeyScheduleLoaded && journeyWeekRows.length">
-        <div class="journey-week-block" *ngFor="let week of journeyWeekRows">
-          <div class="journey-week-label">{{ week.weekLabel }}</div>
-          <div class="journey-grid">
-            <div
-              class="journey-grid-cell"
-              *ngFor="let cell of week.cells"
-              [class.journey-grid-cell--past]="cellDayStatus(cell) === 'past'"
-              [class.journey-grid-cell--current]="cellDayStatus(cell) === 'today'"
-              [class.journey-grid-cell--upcoming]="cellDayStatus(cell) === 'upcoming'"
-              [class.journey-grid-cell--has-content]="gridCellHasItems(cell)"
-            >
-              <div class="jg-head">
-                <span class="jg-day-name">{{ formatGridDayName(cell) }}</span>
-                <span class="jg-day-date">{{ formatGridDayDate(cell) }}</span>
-              </div>
-
-              <ng-container *ngIf="cell.day as day; else jgEmptyCell">
-                <span class="jg-journey-pill" title="Journey day">D{{ day.journeyDay }}</span>
-                <div class="jg-counts" *ngIf="gridCellHasItems(cell); else jgNoItems">
-                  <span *ngIf="liveCount(day)" class="jg-chip jg-chip--live" title="Live class">
-                    <i class="fas fa-video"></i><b>{{ liveCount(day) }}</b>
-                    <small *ngIf="liveTimeShort(day)">{{ liveTimeShort(day) }}</small>
-                  </span>
-                  <span *ngIf="exerciseCount(day)" class="jg-chip jg-chip--ex" title="Exercises">
-                    <i class="fas fa-pen"></i><b>{{ exerciseCount(day) }}</b>
-                  </span>
-                  <span *ngIf="dgCount(day)" class="jg-chip jg-chip--dg" title="DG Bot">
-                    <i class="fas fa-robot"></i><b>{{ dgCount(day) }}</b>
-                  </span>
-                  <span *ngIf="arenaCount(day)" class="jg-chip jg-chip--arena" title="Glück Arena">
-                    <i class="fas fa-gamepad"></i><b>{{ arenaCount(day) }}</b>
-                  </span>
-                </div>
-                <button
-                  *ngIf="canJoinDay(day)"
-                  type="button"
-                  class="jg-join-btn"
-                  (click)="joinFirstLive(day)"
-                >Join</button>
-              </ng-container>
-
-              <ng-template #jgNoItems>
-                <div class="jg-empty-mini">—</div>
-              </ng-template>
-              <ng-template #jgEmptyCell>
-                <div class="jg-empty-mini">—</div>
-              </ng-template>
+      <!-- Month skeleton -->
+      <div *ngIf="viewMode === 'month' && (isStudentJourneyView ? !journeyScheduleLoaded : !timeTablesLoaded)" class="month-view-skel">
+        <div class="month-weekday-header">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="month-skel-week" *ngFor="let sk of [1,2,3,4,5]">
+          <div class="month-skel-cell" *ngFor="let c of [1,2,3,4,5,6,7]">
+            <span class="jg-skel" style="height:10px;width:18px;margin:0 auto 6px"></span>
+            <div class="mc-chips" style="justify-content:center">
+              <span class="jg-skel" style="height:14px;width:28px;border-radius:4px"></span>
             </div>
+            <span class="jg-skel" style="height:10px;width:80%;margin:3px auto 0;border-radius:3px"></span>
           </div>
         </div>
       </div>
 
-      <!-- Admin / teacher: manual timetable weeks -->
-      <div class="timetable-cards" *ngIf="!isStudentJourneyView">
-        <ng-container *ngFor="let tt of displayableTimeTables">
-          <div class="week-section-title">{{ getWeekSectionTitle(tt) }}</div>
-          <div class="week-card">
-            <div class="week-header">
-              <div class="week-info">
-                <h2 class="week-title">
-                  <i class="fas fa-calendar-week"></i>
-                  Week of {{ tt.weekStartDate | date:'MMMM d' }} - {{ tt.weekEndDate | date:'d, yyyy' }}
-                </h2>
-                <div class="week-meta">
-                  <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-users"></i>Batch {{ tt.batch }}</span>
-                  <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-language"></i>{{ tt.medium }}</span>
-                  <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-star"></i>{{ tt.plan }}</span>
-                  <span class="meta-item" *ngIf="userRole === 'ADMIN'"><i class="fas fa-chalkboard-teacher"></i>{{ teachersCache[tt.assignedTeacher] || 'Loading...' }}</span>
+      <!-- ── Empty State (no data at all) ── -->
+      <div *ngIf="isStudentJourneyView && journeyScheduleLoaded && !journeyWeekRows.length" class="empty-state">
+        <div class="empty-icon"><i class="fas fa-calendar-alt"></i></div>
+        <h3 class="empty-title">No Upcoming Schedule Yet</h3>
+        <p class="empty-text">{{ journeyScheduleError || 'Your batch journey classes and activities will appear here automatically once they are scheduled in Journey Management.' }}</p>
+        <button class="btn-primary-action" routerLink="/my-course"><i class="fas fa-graduation-cap"></i> Go to My Course</button>
+      </div>
+      <div *ngIf="!isStudentJourneyView && timeTablesLoaded && !timeTables.length" class="empty-state">
+        <div class="empty-icon"><i class="fas fa-calendar-alt"></i></div>
+        <h3 class="empty-title">No Timetables Yet</h3>
+        <p class="empty-text">No timetables have been created yet.</p>
+      </div>
+
+      <!-- ── Week View ── -->
+      <ng-container *ngIf="viewMode === 'week'">
+        <!-- Student: current week days -->
+        <div class="week-view-wrap" *ngIf="isStudentJourneyView && journeyScheduleLoaded && journeyWeekRows.length">
+          <ng-container *ngIf="currentJourneyWeek as week; else noStudentWeek">
+            <div class="week-view-days">
+              <div class="week-view-day"
+                *ngFor="let cell of week.cells"
+                [class.today]="cellDayStatus(cell) === 'today'"
+                [class.has-content]="gridCellHasItems(cell)">
+                <div class="week-day-left">
+                  <span class="week-day-name">{{ formatGridDayName(cell) }}</span>
+                  <span class="week-day-date">{{ formatGridDayDate(cell) }}</span>
+                </div>
+                <div class="week-day-right">
+                  <ng-container *ngIf="cell.day as day; else noJourneyContent">
+                    <div class="wdr-chips">
+                      <span *ngIf="liveCount(day)" class="mc-chip mc-chip--live"><i class="fas fa-video"></i> {{ liveCount(day) }} Live</span>
+                      <span *ngIf="exerciseCount(day)" class="mc-chip mc-chip--ex"><i class="fas fa-pen"></i> {{ exerciseCount(day) }} Ex</span>
+                      <span *ngIf="dgCount(day)" class="mc-chip mc-chip--dg"><i class="fas fa-robot"></i> {{ dgCount(day) }} DG</span>
+                      <span *ngIf="arenaCount(day)" class="mc-chip mc-chip--arena"><i class="fas fa-gamepad"></i> {{ arenaCount(day) }} Arena</span>
+                    </div>
+                    <div class="wdr-live-items">
+                      <div class="wdr-live-item" *ngFor="let live of day.liveClasses">
+                        <span class="wdr-live-time">{{ live.timeLabel }}</span>
+                        <span class="wdr-live-topic">{{ live.topic }}</span>
+                        <div class="wdr-live-actions">
+                          <span *ngIf="getLiveClassStatus(live) === 'live'" class="wdr-live-badge live">LIVE</span>
+                          <span *ngIf="getLiveClassStatus(live) === 'upcoming'" class="wdr-live-badge upcoming">{{ getCountdownForLive(live) }}</span>
+                          <span *ngIf="canJoinLiveClass(live)" class="wdr-join-btn" (click)="joinLiveClass(live)"><i class="fas fa-video"></i> Join</span>
+                        </div>
+                      </div>
+                    </div>
+                  </ng-container>
+                  <ng-template #noJourneyContent>
+                    <span class="wdr-empty">No classes</span>
+                  </ng-template>
                 </div>
               </div>
+            </div>
+          </ng-container>
+          <ng-template #noStudentWeek>
+            <div class="current-week-empty">No schedule for this week.</div>
+          </ng-template>
+        </div>
+
+        <!-- Admin / teacher: current week days -->
+        <div class="week-view-wrap" *ngIf="!isStudentJourneyView && timeTablesLoaded && timeTables.length">
+          <ng-container *ngIf="weekViewTimeTable as tt; else noWeekData">
+            <div class="week-view-meta">
+              <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-users"></i>Batch {{ tt.batch }}</span>
+              <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-language"></i>{{ tt.medium }}</span>
+              <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-star"></i>{{ tt.plan }}</span>
+              <span class="meta-item" *ngIf="userRole === 'ADMIN'"><i class="fas fa-chalkboard-teacher"></i>{{ teachersCache[tt.assignedTeacher] || 'Loading...' }}</span>
               <div class="week-actions" *ngIf="userRole === 'ADMIN'">
                 <button class="btn-edit" [routerLink]="['/time-table', tt._id]" title="Edit Timetable"><i class="fas fa-edit"></i>Edit</button>
                 <button class="btn-hide" (click)="hideTimeTable(tt, $event)" title="Hide week"><i class="fas fa-eye-slash"></i>Hide</button>
                 <button class="btn-delete" (click)="deleteTimeTable(tt, $event)" title="Delete week"><i class="fas fa-trash"></i>Delete</button>
               </div>
             </div>
-
-            <div class="days-grid">
-              <div class="day-card" *ngFor="let day of ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; let dayIndex = index">
-                <div class="day-header">
-                  <div class="day-name">{{ day | titlecase }}</div>
-                  <div class="day-date">{{ getDateForDay(tt.weekStartDate, dayIndex) | date:'MMM d' }}</div>
+            <div class="week-view-days">
+              <div class="week-view-day"
+                *ngFor="let day of ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']; let dayIndex = index"
+                [class.today]="isToday(getDateForDay(tt.weekStartDate, dayIndex))"
+                [class.has-content]="!!(tt[day]?.length || getMeetingsForDayBatch(getDateForDay(tt.weekStartDate, dayIndex), tt.batch).length)">
+                <div class="week-day-left">
+                  <span class="week-day-name">{{ day | titlecase }}</span>
+                  <span class="week-day-date">{{ getDateForDay(tt.weekStartDate, dayIndex) | date:'MMM d' }}</span>
                 </div>
-                <div class="day-content">
-                  <ng-container *ngIf="tt[day] && tt[day].length > 0; else noDayClass">
-                    <div class="class-slot" *ngFor="let slot of tt[day]" [ngClass]="{'cancelled': slot.classStatus === 'Cancelled'}">
-                      <ng-container *ngIf="slot.meetingLinked && slot.zoomJoinUrl; else checkZoomMeetings">
-                        <div class="slot-with-meeting">
-                          <div class="slot-header">
-                            <div class="slot-icon"><i class="fas fa-video"></i></div>
-                            <div class="slot-details">
-                              <div class="slot-time"><i class="fas fa-clock"></i>{{ getLinkedSlotTimeLabel(slot, getDateForDay(tt.weekStartDate, dayIndex), tt.batch) }}</div>
-                              <div class="meeting-topic">Zoom Class</div>
-                            </div>
-                          </div>
-                          <div class="meeting-status-badge upcoming"><span class="status-upcoming"><i class="fas fa-check-circle"></i> Meeting Linked</span></div>
-                          <button class="btn-join-meeting" (click)="joinZoomMeeting(slot.zoomJoinUrl)"><i class="fas fa-video"></i><span>Join Class</span></button>
-                          <div class="meeting-meta" *ngIf="slot.zoomPassword">
-                            <span class="meta-password"><i class="fas fa-lock"></i>Password: {{ slot.zoomPassword }}</span>
-                          </div>
+                <div class="week-day-right">
+                  <ng-container *ngIf="tt[day]?.length; else weekNoDaySlots">
+                    <div class="wdr-slots">
+                      <div class="wdr-slot" *ngFor="let slot of tt[day]" [ngClass]="{'cancelled': slot.classStatus === 'Cancelled'}">
+                        <div class="wdr-slot-row1">
+                          <span class="wdr-slot-time">{{ slot.start }} - {{ slot.end }}</span>
+                          <span class="wdr-slot-status" [ngClass]="slot.classStatus?.toLowerCase()">{{ slot.classStatus || 'Scheduled' }}</span>
+                          <span *ngIf="slot.meetingLinked && slot.zoomJoinUrl" class="wdr-join-btn" (click)="joinZoomMeeting(slot.zoomJoinUrl); $event.stopPropagation()"><i class="fas fa-video"></i> Join</span>
                         </div>
-                      </ng-container>
-                      <ng-template #checkZoomMeetings>
-                        <ng-container *ngIf="getMeetingForSlot(getDateForDay(tt.weekStartDate, dayIndex), slot.start, tt.batch) as meeting; else noMeeting">
-                          <div class="slot-with-meeting">
-                            <div class="slot-header">
-                              <div class="slot-icon"><i class="fas fa-video"></i></div>
-                              <div class="slot-details">
-                                <div class="slot-time"><i class="fas fa-clock"></i>{{ formatMeetingTimeIST(meeting) }}</div>
-                                <div class="meeting-topic">{{ meeting.topic }}</div>
-                              </div>
-                            </div>
-                            <div class="meeting-status-badge" [ngClass]="getMeetingStatus(meeting)">
-                              <span *ngIf="getMeetingStatus(meeting) === 'live'" class="status-live"><i class="fas fa-circle pulse"></i> LIVE NOW</span>
-                              <span *ngIf="getMeetingStatus(meeting) === 'upcoming'" class="status-upcoming"><i class="fas fa-clock"></i> {{ getCountdown(meeting) }}</span>
-                              <span *ngIf="getMeetingStatus(meeting) === 'ended'" class="status-ended"><i class="fas fa-check-circle"></i> Ended</span>
-                            </div>
-                            <button *ngIf="canJoinMeeting(meeting)" class="btn-join-meeting" (click)="joinMeeting(meeting)" [ngClass]="{'live': getMeetingStatus(meeting) === 'live'}">
-                              <i class="fas fa-video"></i>
-                              <span *ngIf="getMeetingStatus(meeting) === 'live'">Join Now</span>
-                              <span *ngIf="getMeetingStatus(meeting) === 'upcoming'">Join Class</span>
-                            </button>
-                            <div class="meeting-meta" *ngIf="userRole === 'TEACHER' || userRole === 'ADMIN'">
-                              <span class="meta-attendees"><i class="fas fa-users"></i>{{ meeting.attendees.length || 0 }} students</span>
-                            </div>
+                        <ng-container *ngIf="slot.meetingLinked && slot.zoomJoinUrl">
+                          <div class="wdr-slot-row2">
+                            <span class="wdr-slot-topic">Zoom Class</span>
                           </div>
                         </ng-container>
-                        <ng-template #noMeeting>
-                          <div class="slot-no-meeting">
-                            <div class="slot-icon"><i class="fas" [ngClass]="slot.classStatus === 'Scheduled' ? 'fa-check-circle' : 'fa-times-circle'"></i></div>
-                            <div class="slot-details">
-                              <div class="slot-time"><i class="fas fa-clock"></i>{{ slot.start }} - {{ slot.end }}</div>
-                              <div class="slot-status" [ngClass]="slot.classStatus?.toLowerCase()">{{ slot.classStatus || 'Scheduled' }}</div>
-                              <div class="no-meeting-notice" *ngIf="slot.classStatus !== 'Cancelled'">
-                                <i class="fas fa-info-circle"></i>
-                                <span *ngIf="userRole === 'TEACHER' || userRole === 'ADMIN'">No Zoom meeting created</span>
-                                <span *ngIf="userRole === 'STUDENT'">Meeting link not available yet</span>
-                              </div>
-                            </div>
+                        <ng-container *ngIf="getMeetingForSlot(getDateForDay(tt.weekStartDate, dayIndex), slot.start, tt.batch) as meeting">
+                          <div class="wdr-slot-row2">
+                            <span class="wdr-slot-topic">{{ meeting.topic }}</span>
+                            <span *ngIf="getMeetingStatus(meeting) === 'live'" class="wdr-status-badge live">LIVE NOW</span>
+                            <span *ngIf="getMeetingStatus(meeting) === 'upcoming'" class="wdr-status-badge upcoming">{{ getCountdown(meeting) }}</span>
+                            <span *ngIf="canJoinMeeting(meeting)" class="wdr-join-btn" (click)="joinMeeting(meeting); $event.stopPropagation()"><i class="fas fa-video"></i> Join</span>
                           </div>
-                        </ng-template>
-                      </ng-template>
+                        </ng-container>
+                      </div>
                     </div>
                   </ng-container>
-                  <ng-template #noDayClass>
-                    <!-- Show Zoom meetings for days that have no timetable slot defined -->
+                  <ng-template #weekNoDaySlots>
                     <ng-container *ngIf="getMeetingsForDayBatch(getDateForDay(tt.weekStartDate, dayIndex), tt.batch) as extraMeetings">
-                      <ng-container *ngIf="extraMeetings.length > 0; else noClassMsg">
-                        <div class="class-slot" *ngFor="let em of extraMeetings">
-                          <div class="slot-with-meeting">
-                            <div class="slot-header">
-                              <div class="slot-icon"><i class="fas fa-video"></i></div>
-                              <div class="slot-details">
-                                <div class="slot-time"><i class="fas fa-clock"></i>{{ formatMeetingTimeIST(em) }}</div>
-                                <div class="meeting-topic">{{ em.topic || 'Zoom Class' }}</div>
-                              </div>
-                            </div>
-                            <div class="meeting-status-badge" [ngClass]="getMeetingStatus(em)">
-                              <span *ngIf="getMeetingStatus(em) === 'live'" class="status-live"><i class="fas fa-circle pulse"></i> LIVE NOW</span>
-                              <span *ngIf="getMeetingStatus(em) === 'upcoming'" class="status-upcoming"><i class="fas fa-clock"></i> {{ getCountdown(em) }}</span>
-                              <span *ngIf="getMeetingStatus(em) === 'ended'" class="status-ended"><i class="fas fa-check-circle"></i> Ended</span>
-                            </div>
-                            <button *ngIf="canJoinMeeting(em)" class="btn-join-meeting" (click)="joinMeeting(em)">
-                              <i class="fas fa-video"></i><span>Join Class</span>
-                            </button>
+                      <div class="wdr-slots" *ngIf="extraMeetings.length">
+                        <div class="wdr-slot" *ngFor="let em of extraMeetings">
+                          <div class="wdr-slot-row1">
+                            <span class="wdr-slot-time">{{ formatMeetingTimeIST(em) }}</span>
+                            <span *ngIf="canJoinMeeting(em)" class="wdr-join-btn" (click)="joinMeeting(em); $event.stopPropagation()"><i class="fas fa-video"></i> Join</span>
+                          </div>
+                          <div class="wdr-slot-row2">
+                            <span class="wdr-slot-topic">{{ em.topic || 'Zoom Class' }}</span>
+                            <span *ngIf="getMeetingStatus(em) === 'live'" class="wdr-status-badge live">LIVE NOW</span>
+                            <span *ngIf="getMeetingStatus(em) === 'upcoming'" class="wdr-status-badge upcoming">{{ getCountdown(em) }}</span>
                           </div>
                         </div>
-                      </ng-container>
-                      <ng-template #noClassMsg>
-                        <div class="no-class-message"><i class="fas fa-calendar-times"></i><span>No classes</span></div>
-                      </ng-template>
+                      </div>
                     </ng-container>
                   </ng-template>
+                  <span class="wdr-empty" *ngIf="!tt[day]?.length && !getMeetingsForDayBatch(getDateForDay(tt.weekStartDate, dayIndex), tt.batch).length">No classes</span>
                 </div>
               </div>
             </div>
+          </ng-container>
+          <ng-template #noWeekData>
+            <div class="current-week-empty">No classes scheduled for this week.</div>
+          </ng-template>
+        </div>
+      </ng-container>
+
+      <!-- ── Month View ── -->
+      <ng-container *ngIf="viewMode === 'month'">
+        <!-- Month grid (only when loaded and has data) -->
+        <div class="month-grid" *ngIf="isStudentJourneyView ? (journeyScheduleLoaded && journeyWeekRows.length) : (timeTablesLoaded && timeTables.length)">
+          <div class="month-weekday-header">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
           </div>
-        </ng-container>
-      </div>
-
-      <div class="current-week-empty" *ngIf="!isStudentJourneyView && timeTables.length && !displayableTimeTables.length">
-        No classes scheduled for the current or upcoming week yet.
-      </div>
-
-      <!-- Student empty state -->
-      <div *ngIf="isStudentJourneyView && journeyScheduleLoaded && !journeyWeekRows.length" class="empty-state">
-        <div class="empty-icon">
-          <i class="fas fa-calendar-alt"></i>
+          <div class="month-week" *ngFor="let week of monthDays">
+            <div class="month-cell"
+              *ngFor="let day of week"
+              [class.other-month]="!isCurrentMonth(day)"
+              [class.today]="isToday(day)"
+              [class.has-content]="dateHasContent(day)">
+              <ng-container *ngIf="day">
+                <span class="month-cell-daynum">{{ day.getDate() }}</span>
+                <div class="month-cell-body">
+                  <ng-container *ngIf="isStudentJourneyView; else adminMonthBody">
+                    <ng-container *ngIf="getJourneyDayForDate(day) as jDay">
+                      <div class="mc-chips">
+                        <span *ngIf="jDay.liveClasses?.length" class="mc-chip mc-chip--live">
+                          <i class="fas fa-video"></i> {{ jDay.liveClasses.length }}
+                        </span>
+                        <span *ngIf="jDay.exercises?.length" class="mc-chip mc-chip--ex">
+                          <i class="fas fa-pen"></i> {{ jDay.exercises.length }}
+                        </span>
+                        <span *ngIf="jDay.dgModules?.length" class="mc-chip mc-chip--dg">
+                          <i class="fas fa-robot"></i> {{ jDay.dgModules.length }}
+                        </span>
+                        <span *ngIf="jDay.arenaGames?.length" class="mc-chip mc-chip--arena">
+                          <i class="fas fa-gamepad"></i> {{ jDay.arenaGames.length }}
+                        </span>
+                      </div>
+                      <div class="mc-live-items">
+                        <div class="mc-live-item" *ngFor="let live of jDay.liveClasses">
+                          <span class="mc-live-time">{{ live.timeLabel }}</span>
+                          <span class="mc-live-topic">{{ live.topic }}</span>
+                          <button *ngIf="canJoinLiveClass(live)" class="mc-join-btn" (click)="joinLiveClass(live); $event.stopPropagation()">
+                            Join
+                          </button>
+                        </div>
+                      </div>
+                    </ng-container>
+                  </ng-container>
+                  <ng-template #adminMonthBody>
+                    <ng-container *ngIf="getSlotsForDate(day) as slotGroups">
+                      <ng-container *ngIf="slotGroups.length">
+                        <div class="mc-slots">
+                          <div class="mc-slot" *ngFor="let sg of slotGroups">
+                            <div class="mc-slot" *ngFor="let slot of sg.slots" [ngClass]="{'cancelled': slot.classStatus === 'Cancelled'}">
+                              <div class="mc-slot-time">{{ slot.start }} - {{ slot.end }}</div>
+                              <div class="mc-slot-status" [ngClass]="slot.classStatus?.toLowerCase()">{{ slot.classStatus || 'Scheduled' }}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </ng-container>
+                    </ng-container>
+                  </ng-template>
+                </div>
+              </ng-container>
+            </div>
+          </div>
         </div>
-        <h3 class="empty-title">No Upcoming Schedule Yet</h3>
-        <p class="empty-text">
-          {{ journeyScheduleError || 'Your batch journey classes and activities will appear here automatically once they are scheduled in Journey Management.' }}
-        </p>
-        <button class="btn-primary-action" routerLink="/my-course">
-          <i class="fas fa-graduation-cap"></i>
-          Go to My Course
-        </button>
-      </div>
-
-      <!-- Admin / teacher empty state -->
-      <div *ngIf="!isStudentJourneyView && (!timeTables || timeTables.length === 0)" class="empty-state">
-        <div class="empty-icon">
-          <i class="fas fa-calendar-alt"></i>
-        </div>
-        <h3 class="empty-title">No Timetables Available</h3>
-        <p class="empty-text">
-          <span *ngIf="userRole === 'ADMIN'">Start by creating your first timetable to schedule classes.</span>
-          <span *ngIf="userRole === 'TEACHER'">No timetables assigned to you yet.</span>
-        </p>
-        <button *ngIf="userRole === 'ADMIN'" class="btn-primary-action" routerLink="/time-table">
-          <i class="fas fa-plus-circle"></i>
-          Create First Timetable
-        </button>
-      </div>
+      </ng-container>
 
     </div>
   </div>
