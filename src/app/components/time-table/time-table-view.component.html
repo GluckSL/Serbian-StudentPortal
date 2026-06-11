@@ -52,18 +52,71 @@
       </div>
 
 
-      <!-- ── Week View ── -->
-      <ng-container *ngIf="viewMode === 'week'">
-        <!-- Student: skeleton -->
-        <div *ngIf="isStudentJourneyView && !journeyScheduleLoaded" class="week-view-skel">
-          <div class="week-view-day-skel" *ngFor="let sk of [1,2,3,4,5,6,7]">
-            <div class="jg-skel" style="height:12px;width:80px;margin-bottom:8px"></div>
-            <div class="jg-skel" style="height:40px;width:100%"></div>
+      <!-- ── Legend ── -->
+      <div class="legend-bar">
+        <span class="mc-chip mc-chip--live"><i class="fas fa-video"></i> Live</span>
+        <span class="mc-chip mc-chip--ex"><i class="fas fa-pen"></i> Exercises</span>
+        <span class="mc-chip mc-chip--dg"><i class="fas fa-robot"></i> DG Bot</span>
+        <span class="mc-chip mc-chip--arena"><i class="fas fa-gamepad"></i> Arena</span>
+        <span class="wdr-live-badge live">LIVE</span>
+        <span class="wdr-live-badge upcoming">Upcoming</span>
+      </div>
+
+      <!-- ── Loading Skeletons ── -->
+      <!-- Week skeleton -->
+      <div *ngIf="viewMode === 'week' && (isStudentJourneyView ? !journeyScheduleLoaded : !timeTablesLoaded)" class="week-view-skel">
+        <div class="week-view-day" *ngFor="let sk of [1,2,3,4,5,6,7]">
+          <div class="week-day-left">
+            <span class="jg-skel" style="height:11px;width:60px"></span>
+            <span class="jg-skel" style="height:9px;width:40px;margin-top:4px"></span>
+          </div>
+          <div class="week-day-right">
+            <div class="wdr-chips">
+              <span class="jg-skel" style="height:18px;width:50px;border-radius:6px"></span>
+              <span class="jg-skel" style="height:18px;width:40px;border-radius:6px"></span>
+              <span class="jg-skel" style="height:18px;width:55px;border-radius:6px"></span>
+            </div>
+            <div class="wdr-live-item" style="margin-top:6px">
+              <span class="jg-skel" style="height:9px;width:48px"></span>
+              <span class="jg-skel" style="height:9px;width:120px;flex:1"></span>
+              <span class="jg-skel" style="height:20px;width:40px;border-radius:4px;flex-shrink:0"></span>
+            </div>
           </div>
         </div>
+      </div>
+      <!-- Month skeleton -->
+      <div *ngIf="viewMode === 'month' && (isStudentJourneyView ? !journeyScheduleLoaded : !timeTablesLoaded)" class="month-view-skel">
+        <div class="month-weekday-header">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="month-skel-week" *ngFor="let sk of [1,2,3,4,5]">
+          <div class="month-skel-cell" *ngFor="let c of [1,2,3,4,5,6,7]">
+            <span class="jg-skel" style="height:10px;width:18px;margin:0 auto 6px"></span>
+            <div class="mc-chips" style="justify-content:center">
+              <span class="jg-skel" style="height:14px;width:28px;border-radius:4px"></span>
+            </div>
+            <span class="jg-skel" style="height:10px;width:80%;margin:3px auto 0;border-radius:3px"></span>
+          </div>
+        </div>
+      </div>
 
+      <!-- ── Empty State (no data at all) ── -->
+      <div *ngIf="isStudentJourneyView && journeyScheduleLoaded && !journeyWeekRows.length" class="empty-state">
+        <div class="empty-icon"><i class="fas fa-calendar-alt"></i></div>
+        <h3 class="empty-title">No Upcoming Schedule Yet</h3>
+        <p class="empty-text">{{ journeyScheduleError || 'Your batch journey classes and activities will appear here automatically once they are scheduled in Journey Management.' }}</p>
+        <button class="btn-primary-action" routerLink="/my-course"><i class="fas fa-graduation-cap"></i> Go to My Course</button>
+      </div>
+      <div *ngIf="!isStudentJourneyView && timeTablesLoaded && !timeTables.length" class="empty-state">
+        <div class="empty-icon"><i class="fas fa-calendar-alt"></i></div>
+        <h3 class="empty-title">No Timetables Yet</h3>
+        <p class="empty-text">No timetables have been created yet.</p>
+      </div>
+
+      <!-- ── Week View ── -->
+      <ng-container *ngIf="viewMode === 'week'">
         <!-- Student: current week days -->
-        <div class="week-view-wrap" *ngIf="isStudentJourneyView && journeyScheduleLoaded">
+        <div class="week-view-wrap" *ngIf="isStudentJourneyView && journeyScheduleLoaded && journeyWeekRows.length">
           <ng-container *ngIf="currentJourneyWeek as week; else noStudentWeek">
             <div class="week-view-days">
               <div class="week-view-day"
@@ -107,7 +160,7 @@
         </div>
 
         <!-- Admin / teacher: current week days -->
-        <div class="week-view-wrap" *ngIf="!isStudentJourneyView">
+        <div class="week-view-wrap" *ngIf="!isStudentJourneyView && timeTablesLoaded && timeTables.length">
           <ng-container *ngIf="weekViewTimeTable as tt; else noWeekData">
             <div class="week-view-meta">
               <span class="meta-item" *ngIf="userRole === 'ADMIN' || userRole === 'TEACHER'"><i class="fas fa-users"></i>Batch {{ tt.batch }}</span>
@@ -184,7 +237,8 @@
 
       <!-- ── Month View ── -->
       <ng-container *ngIf="viewMode === 'month'">
-        <div class="month-grid">
+        <!-- Month grid (only when loaded and has data) -->
+        <div class="month-grid" *ngIf="isStudentJourneyView ? (journeyScheduleLoaded && journeyWeekRows.length) : (timeTablesLoaded && timeTables.length)">
           <div class="month-weekday-header">
             <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
           </div>
@@ -243,42 +297,7 @@
             </div>
           </div>
         </div>
-
-        <div class="month-empty" *ngIf="!isStudentJourneyView && !timeTables.length">
-          No timetables available for this month.
-        </div>
       </ng-container>
-
-      <!-- Student empty state -->
-      <div *ngIf="isStudentJourneyView && journeyScheduleLoaded && !journeyWeekRows.length" class="empty-state">
-        <div class="empty-icon">
-          <i class="fas fa-calendar-alt"></i>
-        </div>
-        <h3 class="empty-title">No Upcoming Schedule Yet</h3>
-        <p class="empty-text">
-          {{ journeyScheduleError || 'Your batch journey classes and activities will appear here automatically once they are scheduled in Journey Management.' }}
-        </p>
-        <button class="btn-primary-action" routerLink="/my-course">
-          <i class="fas fa-graduation-cap"></i>
-          Go to My Course
-        </button>
-      </div>
-
-      <!-- Admin / teacher empty state -->
-      <div *ngIf="!isStudentJourneyView && (!timeTables || timeTables.length === 0)" class="empty-state">
-        <div class="empty-icon">
-          <i class="fas fa-calendar-alt"></i>
-        </div>
-        <h3 class="empty-title">No Timetables Available</h3>
-        <p class="empty-text">
-          <span *ngIf="userRole === 'ADMIN'">Start by creating your first timetable to schedule classes.</span>
-          <span *ngIf="userRole === 'TEACHER'">No timetables assigned to you yet.</span>
-        </p>
-        <button *ngIf="userRole === 'ADMIN'" class="btn-primary-action" routerLink="/time-table">
-          <i class="fas fa-plus-circle"></i>
-          Create First Timetable
-        </button>
-      </div>
 
     </div>
   </div>

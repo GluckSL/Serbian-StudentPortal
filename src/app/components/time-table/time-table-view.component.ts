@@ -112,6 +112,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
   journeyWeekRows: JourneyWeekRow[] = [];
   journeyScheduleLoaded = false;
   journeyScheduleError = '';
+  timeTablesLoaded = false;
   private journeyScheduleInitialLoad = true;
   readonly skeletonWeekRows = [0, 1, 2];
   readonly weekDayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -233,6 +234,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
       (data: TimeTable[]) => {
         // For admin view, show full history so current/upcoming and past can be separated in UI.
         this.timeTables = data || [];
+        this.timeTablesLoaded = true;
         this.adminBatchOptions = [...new Set(this.timeTables.map((tt) => String(tt.batch || '').trim()).filter(Boolean))]
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
         if (this.selectedAdminBatch !== 'ALL' && !this.adminBatchOptions.includes(this.selectedAdminBatch)) {
@@ -240,7 +242,10 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
         }
         this.preloadTeacherNames(this.timeTables); // ✅ preload teacher names
       },
-      (error) => console.error('Error fetching timetables', error)
+      (error) => {
+        console.error('Error fetching timetables', error);
+        this.timeTablesLoaded = true;
+      }
     );
   }
 
@@ -450,9 +455,13 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     this.timeTableService.getTimeTablesbyBatchAndPlan(batch, subscription).subscribe(
       (data: TimeTable[]) => {
         this.timeTables = data || [];
+        this.timeTablesLoaded = true;
         this.preloadTeacherNames(this.timeTables);
       },
-      (error) => console.error('Error fetching student timetable', error)
+      (error) => {
+        console.error('Error fetching student timetable', error);
+        this.timeTablesLoaded = true;
+      }
     );
   }
 
@@ -460,9 +469,13 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     this.timeTableService.getTimeTablesByTeacher(teacherId).subscribe({
       next: (data: TimeTable[]) => {
         this.timeTables = data || [];
+        this.timeTablesLoaded = true;
         this.preloadTeacherNames(this.timeTables);
       },
-      error: (error) => console.error('Error fetching teacher timetable', error)
+      error: (error) => {
+        console.error('Error fetching teacher timetable', error);
+        this.timeTablesLoaded = true;
+      }
     });
   }
 

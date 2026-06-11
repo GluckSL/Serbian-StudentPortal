@@ -116,6 +116,7 @@
 
 .page-subtitle {
   margin-top: 8px;
+  margin-bottom: 0;
   font-size: 11px;
   opacity: 0.7;
   font-weight: 500;
@@ -1117,17 +1118,26 @@
   font-style: italic;
 }
 
+/* ── Legend ── */
+.legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 14px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e8ecf4;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
+}
+
+
+
+/* ── Skeleton Loading ── */
 .week-view-skel {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.week-view-day-skel {
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e8ecf4;
-  padding: 10px;
 }
 
 .month-empty {
@@ -1138,6 +1148,30 @@
   font-size: 12px;
   color: #64748b;
   text-align: center;
+}
+
+.month-view-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.month-skel-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.month-skel-cell {
+  background: #fff;
+  border: 1px solid #e8ecf4;
+  border-radius: 8px;
+  padding: 8px 6px;
+  min-height: 60px;
+}
+
+@media (max-width: 1200px) {
+  .month-skel-cell { min-height: 50px; }
 }
 
 /* ── Responsive ── */
@@ -1177,7 +1211,8 @@
   .day-card:nth-child(2n),
   .day-card:nth-child(4n) { border-right: none; }
   .cal-nav { flex-direction: column; align-items: flex-start; }
-  .cal-nav-right { width: 100%; }
+  .cal-nav-right { width: 100%; justify-content: center; }
+  .page-subtitle { text-align: center; }
   .cal-period-label { font-size: 12px; }
   .month-cell { min-height: 60px; padding: 4px 5px; }
   .month-cell-daynum { font-size: 10px; }
