@@ -559,6 +559,109 @@ function gradeSubQuestionPart(sq, subResp) {
     const rawScore = expected && studentText && studentText === expected ? 100 : 0;
     return { rawScore, correctAnswer: { expectedTranscript: sq.expectedTranscript } };
   }
+  if (sq.type === 'matching') {
+    const pairs = sq.pairs || [];
+    const total = pairs.length;
+    if (total > 0 && Array.isArray(sub.matchingResponse)) {
+      const byLeft = {};
+      for (const m of sub.matchingResponse) byLeft[m.leftIndex] = m;
+      let correctCount = 0;
+      for (let li = 0; li < total; li++) {
+        const match = byLeft[li];
+        if (!match) continue;
+        const expectedRight = pairs[li]?.right;
+        const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
+        if (expectedRight !== undefined && givenRight !== undefined && matchingRightsEqual(expectedRight, givenRight)) {
+          correctCount += 1;
+        }
+      }
+      const useAdvanced = isAdvancedGradingEnabled(sq);
+      const rawScore = useAdvanced
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+      return { rawScore, correctAnswer: { pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: sanitizeQuestionPlainText(p.right) })) } };
+    }
+    return { rawScore: 0, correctAnswer: { pairs: [] } };
+  }
+  if (sq.type === 'word_bank_fill') {
+    const rows = Array.isArray(sq.items) ? sq.items : [];
+    const total = rows.length;
+    if (total > 0 && Array.isArray(sub.wordBankAnswers)) {
+      const byIndex = {};
+      sub.wordBankAnswers.forEach((entry) => {
+        const key = Number(entry?.index);
+        if (Number.isInteger(key) && key >= 0 && key < total) {
+          byIndex[key] = entry?.value;
+        }
+      });
+      let correctCount = 0;
+      for (let idx = 0; idx < total; idx++) {
+        const given = normalizeWordBankValue(byIndex[idx]);
+        if (wordBankRowAcceptsGiven(given, rows[idx])) correctCount += 1;
+      }
+      const useAdvanced = isAdvancedGradingEnabled(sq);
+      const rawScore = useAdvanced
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+      return { rawScore, correctAnswer: { wordBank: (Array.isArray(sq.wordBank) ? sq.wordBank : []).map((w) => sanitizeQuestionPlainText(w)), reusableWords: sq.reusableWords !== false, items: mapWordBankCorrectAnswerPayload(rows) } };
+    }
+    return { rawScore: 0, correctAnswer: { items: [] } };
+  }
+  if (sq.type === 'singular_plural') {
+    const rows = (sq.pairs || []).filter((p) => p.singular && p.plural);
+    const total = rows.length;
+    if (total > 0 && Array.isArray(sub.singularPluralResponses)) {
+      let correctCount = 0;
+      for (let idx = 0; idx < total; idx++) {
+        const given = String(sub.singularPluralResponses[idx] ?? '').trim();
+        const expected = String(rows[idx].plural || '').trim();
+        if (given.toLowerCase().replace(/\s+/g, ' ') === expected.toLowerCase().replace(/\s+/g, ' ')) {
+          correctCount += 1;
+        }
+      }
+      const useAdvanced = isAdvancedGradingEnabled(sq);
+      const rawScore = useAdvanced
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+      return { rawScore, correctAnswer: { plurals: rows.map((row) => row.plural) } };
+    }
+    return { rawScore: 0, correctAnswer: { plurals: [] } };
+  }
+  if (sq.type === 'jumble-word') {
+    const useAdvanced = isAdvancedGradingEnabled(sq);
+    const rawScore = jumbleWordRawScore(sub.jumbleWordResponse, sq.expectedWord, useAdvanced);
+    return { rawScore, correctAnswer: { expectedWord: sq.expectedWord } };
+  }
+  if (sq.type === 'rearrange') {
+    const useAdvanced = isAdvancedGradingEnabled(sq);
+    const rawScore = rearrangeRawScore(sq, sub, useAdvanced);
+    return { rawScore, correctAnswer: { rearrangeTokens: Array.isArray(sq.rearrangeTokens) ? sq.rearrangeTokens : [], rearrangeAnswer: sq.rearrangeAnswer || '' } };
+  }
+  if (sq.type === 'image_pin_match') {
+    const labels = Array.isArray(sq.labels) ? sq.labels : [];
+    const submitted = Array.isArray(sub.imagePinAnswers) ? sub.imagePinAnswers : [];
+    const byLabel = {};
+    submitted.forEach((entry) => {
+      const lid = String(entry?.labelId || '');
+      const pid = String(entry?.pinId || '');
+      if (lid && pid) byLabel[lid] = pid;
+    });
+    let correctCount = 0;
+    const total = labels.length;
+    for (const l of labels) {
+      if (String(byLabel[String(l.id)] || '') === String(l.correctPinId || '')) correctCount += 1;
+    }
+    const rawScore = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    return { rawScore, correctAnswer: { labels: labels.map((l) => ({ id: l.id, text: l.text, correctPinId: l.correctPinId })), pins: Array.isArray(sq.pins) ? sq.pins : [] } };
+  }
+  if (sq.type === 'pronunciation') {
+    const rawScore = Math.max(0, Math.min(100, Number(sub.pronunciationScore) || 0));
+    return { rawScore, correctAnswer: { word: sq.word, phonetic: sq.phonetic, acceptedVariants: sq.acceptedVariants } };
+  }
+  if (sq.type === 'video-pronunciation') {
+    const rawScore = Math.max(0, Math.min(100, Number(sub.pronunciationScore) || 0));
+    return { rawScore, correctAnswer: { caption: sq.caption, acceptedVariants: sq.acceptedVariants } };
+  }
   return { rawScore: 0, correctAnswer: null };
 }
 

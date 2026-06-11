@@ -380,6 +380,15 @@ export interface QuestionResponse {
     selectedOptionIndex?: number | null;
     textAnswer?: string | null;
     fillBlankResponses?: string[];
+    spokenText?: string;
+    pronunciationScore?: number;
+    matchingResponse?: Array<{ leftIndex: number; rightIndex: number; rightValue?: string | null }>;
+    wordBankAnswers?: Array<{ index: number; value: string }>;
+    singularPluralResponses?: string[];
+    jumbleWordResponse?: string;
+    rearrangeTextResponse?: string;
+    rearrangeTokensResponse?: string[];
+    imagePinAnswers?: Array<{ labelId: string; pinId: string }>;
   }>;
 }
 

@@ -93,6 +93,8 @@ interface PlayerQuestion {
   activeBlankIndex?: number | null;
   /** Singular/plural: one input per row (plural answer). */
   singularPluralInputs?: string[];
+  /** Cached display rows for singular/plural — stable reference to avoid infinite change detection loop. */
+  _cachedSpRows?: { singular: string }[];
   // Pronunciation state
   spokenText?: string;
   pronunciationScore?: number;
@@ -186,10 +188,31 @@ interface PlayerQuestion {
   subQuestionMatchingSelectedLeft?: Record<number, number | null>;
   /** Sub-question word bank answers */
   subQuestionWordBankAnswers?: Record<number, string[]>;
+  /** Sub-question word bank active blank index (per sub-question) */
+  subQuestionActiveBlankIndex?: Record<number, number>;
   /** Sub-question jumble-word used letter tile indexes */
   subQuestionJumbleUsedTokenIndices?: Record<number, number[]>;
   /** Sub-question rearrange tokens */
   subQuestionRearrangeTokens?: Record<number, string[]>;
+  /** Sub-question pronunciation state (per sub-question index) */
+  subQuestionSpokenText?: Record<number, string>;
+  subQuestionPronunciationScore?: Record<number, number>;
+  subQuestionIsRecording?: Record<number, boolean>;
+  subQuestionHasRecorded?: Record<number, boolean>;
+  subQuestionPronUiState?: Record<number, 'idle' | 'recording' | 'processing' | 'result' | 'error'>;
+  subQuestionPronMessage?: Record<number, string>;
+  subQuestionPronEngine?: Record<number, string>;
+  subQuestionPronRequestId?: Record<number, string>;
+  subQuestionPronAlmostCorrect?: Record<number, boolean>;
+  subQuestionPronWordAnalysis?: Record<number, Array<{ expected: string; spoken: string; status: 'correct' | 'incorrect' | 'missing' }>>;
+  subQuestionPronHints?: Record<number, string[]>;
+  subQuestionPronExpectedText?: Record<number, string>;
+  subQuestionPronMissingWords?: Record<number, string[]>;
+  subQuestionPronExtraWords?: Record<number, string[]>;
+  subQuestionPronMatchedWords?: Record<number, string[]>;
+  subQuestionPronLowAudioQuality?: Record<number, boolean>;
+  subQuestionPronAttemptCount?: Record<number, number>;
+  subQuestionPronHelpOpen?: Record<number, boolean>;
 }
 
 type SpecialInputTarget =
@@ -364,6 +387,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private pronAutoStopTimer: ReturnType<typeof setTimeout> | null = null;
   /** The question we are currently capturing audio for (audio flow only). */
   private activePronQuestion: PlayerQuestion | null = null;
+  /** When recording a sub-question, its index within the active question. */
+  private activeSubQuestionIndex: number | null = null;
   /** True while the "Processing…" state has been up for >1.5s and we want to reassure the user. */
   pronProcessingSlow = false;
   private pronProcessingSlowTimer: ReturnType<typeof setTimeout> | null = null;
@@ -651,6 +676,28 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }, DigitalExercisePlayerComponent.PROCESSING_SLOW_HINT_MS);
   }
 
+  /** Ensure sub-question pronunciation state records exist for a given sub-index. */
+  private ensureSubQuestionState(pq: PlayerQuestion, sqi: number): void {
+    if (!pq.subQuestionSpokenText) pq.subQuestionSpokenText = {};
+    if (!pq.subQuestionPronunciationScore) pq.subQuestionPronunciationScore = {};
+    if (!pq.subQuestionIsRecording) pq.subQuestionIsRecording = {};
+    if (!pq.subQuestionHasRecorded) pq.subQuestionHasRecorded = {};
+    if (!pq.subQuestionPronUiState) pq.subQuestionPronUiState = {};
+    if (!pq.subQuestionPronMessage) pq.subQuestionPronMessage = {};
+    if (!pq.subQuestionPronEngine) pq.subQuestionPronEngine = {};
+    if (!pq.subQuestionPronRequestId) pq.subQuestionPronRequestId = {};
+    if (!pq.subQuestionPronAlmostCorrect) pq.subQuestionPronAlmostCorrect = {};
+    if (!pq.subQuestionPronWordAnalysis) pq.subQuestionPronWordAnalysis = {};
+    if (!pq.subQuestionPronHints) pq.subQuestionPronHints = {};
+    if (!pq.subQuestionPronExpectedText) pq.subQuestionPronExpectedText = {};
+    if (!pq.subQuestionPronMissingWords) pq.subQuestionPronMissingWords = {};
+    if (!pq.subQuestionPronExtraWords) pq.subQuestionPronExtraWords = {};
+    if (!pq.subQuestionPronMatchedWords) pq.subQuestionPronMatchedWords = {};
+    if (!pq.subQuestionPronLowAudioQuality) pq.subQuestionPronLowAudioQuality = {};
+    if (!pq.subQuestionPronAttemptCount) pq.subQuestionPronAttemptCount = {};
+    if (!pq.subQuestionPronHelpOpen) pq.subQuestionPronHelpOpen = {};
+  }
+
   /** Composite key we use to keep per-question retry counts scoped. */
   private pronAttemptKey(pq: PlayerQuestion, mode: 'word' | 'clip'): string {
     return `${this.exerciseId || 'ex'}:${mode}:${pq.index}`;
@@ -803,6 +850,23 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private initPlayerQuestions(): void {
     if (!this.exercise) return;
     this.vpOptimisticCompletion = false;
+    this.exercise.questions.forEach((q: any) => {
+      const knownTypes = new Set([
+        'mcq', 'matching', 'fill-blank', 'word_bank_fill', 'singular_plural',
+        'pronunciation', 'question-answer', 'listening', 'jumble-word',
+        'rearrange', 'image_pin_match', 'video-pronunciation'
+      ]);
+      if (!knownTypes.has(q.type)) {
+        q.type = 'question-answer';
+      }
+      if (Array.isArray(q.subQuestions)) {
+        q.subQuestions.forEach((sq: any) => {
+          if (!knownTypes.has(sq.type)) {
+            sq.type = 'question-answer';
+          }
+        });
+      }
+    });
     this.playerQuestions = this.exercise.questions.map((q: any, i: number) => {
       const pq: PlayerQuestion = { data: q, index: i, isAnswered: false, attachmentAudioPlaysUsed: 0 };
 
@@ -848,6 +912,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       } else if (q.type === 'singular_plural') {
         const n = (q.pairs || []).filter((p: any) => String(p?.singular || '').trim()).length;
         pq.singularPluralInputs = new Array(Math.max(1, n)).fill('');
+        pq._cachedSpRows = (q.pairs || [])
+          .filter((p: any) => String(p?.singular || '').trim())
+          .map((p: any) => ({ singular: String(p.singular) }));
       } else if (q.type === 'pronunciation') {
         pq.spokenText = '';
         pq.pronunciationScore = 0;
@@ -888,6 +955,30 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.vpFailCount = 0;
         pq.vpCurrentTimeSec = 0;
         pq.vpSecondaryCaptionShownInChat = false;
+      } else {
+        pq.qaResponse = '';
+      }
+      if (Array.isArray(q.subQuestions)) {
+        q.subQuestions.forEach((sq: any, sqi: number) => {
+          if ((sq.type as string) === 'rearrange') {
+            const src = sq.shuffledTokens || sq.tokens;
+            if (Array.isArray(src)) {
+              if (!pq.subQuestionRearrangeTokens) pq.subQuestionRearrangeTokens = {};
+              const tokens = src.map((t: any) => String(t ?? '').trim()).filter((t: string) => t.length > 0);
+              if (tokens.length > 1) this.shuffleInPlace(tokens);
+              pq.subQuestionRearrangeTokens[sqi] = tokens;
+            }
+            if (!pq.subQuestionRearrangeTokens?.[sqi]) {
+              const arr = (sq.question || sq.rearrangePrompt || sq.prompt || '')
+                .trim().split(/\s+/).filter(Boolean);
+              if (arr.length > 1) {
+                this.shuffleInPlace(arr);
+                if (!pq.subQuestionRearrangeTokens) pq.subQuestionRearrangeTokens = {};
+                pq.subQuestionRearrangeTokens[sqi] = arr;
+              }
+            }
+          }
+        });
       }
       return pq;
     });
@@ -1452,7 +1543,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           ...base,
           spokenText: pq.spokenText,
           pronunciationScore: pq.pronunciationScore,
-          hasRecorded: pq.hasRecorded
+          hasRecorded: pq.hasRecorded,
+          subQuestionSpokenText: pq.subQuestionSpokenText ? { ...pq.subQuestionSpokenText } : undefined,
+          subQuestionPronunciationScore: pq.subQuestionPronunciationScore ? { ...pq.subQuestionPronunciationScore } : undefined,
+          subQuestionHasRecorded: pq.subQuestionHasRecorded ? { ...pq.subQuestionHasRecorded } : undefined
         };
       }
       if (typ === 'question-answer') return { ...base, qaResponse: pq.qaResponse };
@@ -1541,6 +1635,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (item.spokenText !== undefined) pq.spokenText = item.spokenText;
       if (item.pronunciationScore !== undefined) pq.pronunciationScore = item.pronunciationScore;
       if (item.hasRecorded !== undefined) pq.hasRecorded = item.hasRecorded;
+      if (item.subQuestionSpokenText) pq.subQuestionSpokenText = { ...item.subQuestionSpokenText };
+      if (item.subQuestionPronunciationScore) pq.subQuestionPronunciationScore = { ...item.subQuestionPronunciationScore };
+      if (item.subQuestionHasRecorded) pq.subQuestionHasRecorded = { ...item.subQuestionHasRecorded };
     } else if (pq.data.type === 'question-answer' && item.qaResponse !== undefined) {
       pq.qaResponse = item.qaResponse;
     } else if (pq.data.type === 'listening' && item.listeningText !== undefined) {
@@ -1705,6 +1802,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (String(it.spokenText ?? '').trim() !== '') return true;
     if (String(it.vpSpokenText ?? '').trim() !== '') return true;
     if (it.hasRecorded) return true;
+    if (it.subQuestionSpokenText && Object.values(it.subQuestionSpokenText).some((v) => String(v ?? '').trim() !== '')) return true;
+    if (it.subQuestionHasRecorded && Object.values(it.subQuestionHasRecorded).some((v) => v)) return true;
     return false;
   }
 
@@ -1826,8 +1925,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   get canCompleteByAttemptRate(): boolean {
     const total = this.playerQuestions.length;
     if (!total) return false;
-    const needed = Math.ceil(0.9 * total);
-    return this.answeredCount >= needed;
+    return this.answeredCount >= 1;
   }
   /** Backward-compatible alias used by older template fragments. */
   get isSubmittedState(): boolean { return this.state === 'submitted'; }
@@ -2046,6 +2144,33 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const answers = pq.subQuestionWordBankAnswers?.[subIndex] || [];
       return items.length > 0 && items.every((_x: unknown, ii: number) => String(answers[ii] ?? '').trim() !== '');
     }
+    if ((sq.type as string) === 'pronunciation') {
+      return pq.subQuestionHasRecorded?.[subIndex] === true;
+    }
+    if (sq.type === 'singular_plural') {
+      const rows = Array.isArray(sq.singularPluralPairs) ? sq.singularPluralPairs : (sq.pairs || []);
+      const inputs = pq.subQuestionSpInputs?.[subIndex] || [];
+      return rows.length > 0 && rows.every((_sp: any, ri: number) => String(inputs[ri] ?? '').trim() !== '');
+    }
+    if ((sq.type as string) === 'jumble-word') {
+      const ans = pq.subQuestionAnswers?.[subIndex];
+      return ans !== undefined && ans !== null && String(ans).trim() !== '';
+    }
+    if ((sq.type as string) === 'rearrange') {
+      const tokens = pq.subQuestionRearrangeTokens?.[subIndex];
+      return Array.isArray(tokens) && tokens.length > 0;
+    }
+    if ((sq.type as string) === 'image_pin_match') {
+      const labels = Array.isArray(sq.labels) ? sq.labels : [];
+      const conns = Array.isArray(pq.subQuestionAnswers?.[subIndex])
+        ? (pq.subQuestionAnswers[subIndex] as Array<{ labelId: string; pinId: string }>)
+        : [];
+      if (!labels.length) return false;
+      return labels.every((l: any) => conns.some((c: { labelId: string; pinId: string }) => c.labelId === l.id && !!c.pinId));
+    }
+    if (sq.type === 'video-pronunciation') {
+      return pq.subQuestionHasRecorded?.[subIndex] === true;
+    }
     const ans = pq.subQuestionAnswers?.[subIndex];
     return ans !== undefined && ans !== null && String(ans).trim() !== '';
   }
@@ -2061,6 +2186,68 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       if (sq.type === 'fill-blank') {
         return { ...base, fillBlankResponses: [...(pq.subQuestionFillBlankAnswers?.[sqi] || [])] };
+      }
+      if ((sq.type as string) === 'pronunciation') {
+        return {
+          ...base,
+          spokenText: pq.subQuestionSpokenText?.[sqi] || '',
+          pronunciationScore: pq.subQuestionPronunciationScore?.[sqi] || 0
+        };
+      }
+      if (sq.type === 'matching') {
+        const leftItems: string[] = this.getSubMatchingLeftItems(sq);
+        const rightItems: string[] = this.getSubMatchingRightItems(sq);
+        const mapping = pq.subQuestionMatching?.[sqi] || {};
+        return {
+          ...base,
+          matchingResponse: leftItems.map((_l: string, li: number) => {
+            const ri = mapping[li] ?? -1;
+            const rv = ri >= 0 && ri < rightItems.length ? rightItems[ri] : null;
+            return { leftIndex: li, rightIndex: ri, rightValue: rv };
+          })
+        };
+      }
+      if ((sq.type as string) === 'word_bank_fill') {
+        const answers: string[] = pq.subQuestionWordBankAnswers?.[sqi] || [];
+        return {
+          ...base,
+          wordBankAnswers: answers.map((v: string, i: number) => ({ index: i, value: v || '' }))
+        };
+      }
+      if (sq.type === 'singular_plural') {
+        return {
+          ...base,
+          singularPluralResponses: [...(pq.subQuestionSpInputs?.[sqi] || [])]
+        };
+      }
+      if ((sq.type as string) === 'jumble-word') {
+        return {
+          ...base,
+          jumbleWordResponse: String(pq.subQuestionAnswers?.[sqi] ?? '')
+        };
+      }
+      if ((sq.type as string) === 'rearrange') {
+        const tokens: string[] = pq.subQuestionRearrangeTokens?.[sqi] || [];
+        return {
+          ...base,
+          rearrangeTokensResponse: [...tokens],
+          rearrangeTextResponse: tokens.join(' ')
+        };
+      }
+      if ((sq.type as string) === 'image_pin_match') {
+        return {
+          ...base,
+          imagePinAnswers: Array.isArray(pq.subQuestionAnswers?.[sqi])
+            ? (pq.subQuestionAnswers[sqi] as Array<{ labelId: string; pinId: string }>)
+            : []
+        };
+      }
+      if (sq.type === 'video-pronunciation') {
+        return {
+          ...base,
+          spokenText: pq.subQuestionSpokenText?.[sqi] || pq.subQuestionAnswers?.[sqi] || '',
+          pronunciationScore: pq.subQuestionPronunciationScore?.[sqi] || 0
+        };
       }
       const ans = pq.subQuestionAnswers?.[sqi];
       return { ...base, textAnswer: ans !== undefined && ans !== null ? String(ans) : null };
@@ -2085,6 +2272,83 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
       if (sq.type === 'mcq' && sub.correctAnswer?.correctAnswerIndex !== undefined) {
         sq.correctAnswerIndex = sub.correctAnswer.correctAnswerIndex;
+      }
+      if (sq.type === 'matching' && Array.isArray(sub.correctAnswer?.pairs)) {
+        sq._correctPairs = sub.correctAnswer.pairs;
+      }
+      if ((sq.type as string) === 'word_bank_fill' && Array.isArray(sub.correctAnswer?.items)) {
+        sq._wordBankCorrectItems = sub.correctAnswer.items;
+      }
+      if (sq.type === 'singular_plural' && Array.isArray(sub.correctAnswer?.plurals)) {
+        sq._correctPlurals = sub.correctAnswer.plurals;
+      }
+      if (sq.type === 'pronunciation') {
+        if (typeof sub.correctAnswer?.score === 'number') {
+          pq.subQuestionPronunciationScore = pq.subQuestionPronunciationScore || {};
+          pq.subQuestionPronunciationScore[sqi] = sub.correctAnswer.score;
+        }
+        if (sub.correctAnswer?.expectedText) {
+          pq.subQuestionPronExpectedText = pq.subQuestionPronExpectedText || {};
+          pq.subQuestionPronExpectedText[sqi] = sub.correctAnswer.expectedText;
+        }
+        if (Array.isArray(sub.correctAnswer?.hints)) {
+          pq.subQuestionPronHints = pq.subQuestionPronHints || {};
+          pq.subQuestionPronHints[sqi] = sub.correctAnswer.hints;
+        }
+      }
+      if (sq.type === 'question-answer' && Array.isArray(sub.correctAnswer?.sampleAnswers)) {
+        sq.sampleAnswers = sub.correctAnswer.sampleAnswers;
+      }
+      if (sq.type === 'listening' && sub.correctAnswer?.expectedTranscript) {
+        sq.expectedTranscript = sub.correctAnswer.expectedTranscript;
+      }
+      if ((sq.type as string) === 'jumble-word' && sub.correctAnswer?.expectedWord) {
+        sq.expectedWord = sub.correctAnswer.expectedWord;
+      }
+      if ((sq.type as string) === 'rearrange') {
+        if (Array.isArray(sub.correctAnswer?.rearrangeTokens)) {
+          sq._correctRearrangeTokens = sub.correctAnswer.rearrangeTokens;
+        }
+        if (sub.correctAnswer?.rearrangeAnswer) {
+          sq._correctRearrangeAnswer = sub.correctAnswer.rearrangeAnswer;
+        }
+      }
+      if ((sq.type as string) === 'image_pin_match') {
+        if (Array.isArray(sub.correctAnswer?.labels)) {
+          sq._imagePinCorrectLabels = sub.correctAnswer.labels;
+        }
+        if (Array.isArray(sub.correctAnswer?.pins)) {
+          sq._imagePinCorrectPins = sub.correctAnswer.pins;
+        }
+      }
+      if (sq.type === 'video-pronunciation') {
+        if (typeof sub.correctAnswer?.score === 'number') {
+          pq.subQuestionPronunciationScore = pq.subQuestionPronunciationScore || {};
+          pq.subQuestionPronunciationScore[sqi] = sub.correctAnswer.score;
+        }
+        if (sub.correctAnswer?.expectedText) {
+          pq.subQuestionPronExpectedText = pq.subQuestionPronExpectedText || {};
+          pq.subQuestionPronExpectedText[sqi] = sub.correctAnswer.expectedText;
+        }
+      }
+
+      /* ── Fallback: copy parent correctAnswer data to sub-question when the
+         subResult doesn't provide its own type‑specific data ── */
+      if ((sq.type as string) === 'word_bank_fill' && !Array.isArray(sub.correctAnswer?.items) && Array.isArray(correctAnswer?.items)) {
+        sq._wordBankCorrectItems = correctAnswer.items;
+      }
+      if (sq.type === 'matching' && !Array.isArray(sub.correctAnswer?.pairs) && Array.isArray(correctAnswer?.pairs)) {
+        sq._correctPairs = correctAnswer.pairs;
+      }
+      if (sq.type === 'singular_plural' && !Array.isArray(sub.correctAnswer?.plurals) && Array.isArray(correctAnswer?.plurals)) {
+        sq._correctPlurals = correctAnswer.plurals;
+      }
+      if ((sq.type as string) === 'rearrange' && !Array.isArray(sub.correctAnswer?.rearrangeTokens) && Array.isArray(correctAnswer?.rearrangeTokens)) {
+        sq._correctRearrangeTokens = correctAnswer.rearrangeTokens;
+        if (correctAnswer?.rearrangeAnswer) sq._correctRearrangeAnswer = correctAnswer.rearrangeAnswer;
+      }
+      if ((sq.type as string) === 'jumble-word' && !sub.correctAnswer?.expectedWord && correctAnswer?.expectedWord) {
+        sq.expectedWord = correctAnswer.expectedWord;
       }
     });
   }
@@ -2111,18 +2375,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }> = [];
     let blankNum = 0;
     const data = pq.data;
-    const subs = data.subQuestions || [];
-    const hasSubQuestions = subs.length > 0;
+    const hasSubQuestions = (data.subQuestions || []).length > 0;
 
     if (data.type === 'fill-blank' && countFillBlankRuns(data.sentence || '') > 0) {
       const count = countFillBlankRuns(data.sentence || '');
       const correctList = data._correctAnswers || data.answers || [];
-      const partLabel = this.getFillBlankReviewPartLabel(
-        questionIndex,
-        this.getParentPartNumber(data),
-        'parent',
-        hasSubQuestions
-      );
+      const partLabel = hasSubQuestions ? 'Main question' : `Q ${this.getQuestionPartLabel(questionIndex, this.getParentPartNumber(data))}`;
       for (let bi = 0; bi < count; bi++) {
         blankNum++;
         const studentAnswer = String(pq.fillAnswers?.[bi] ?? '').trim();
@@ -2138,33 +2396,6 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       }
     }
 
-    for (let si = 0; si < subs.length; si++) {
-      const sq = subs[si];
-      if (sq.type !== 'fill-blank') continue;
-      const count = countFillBlankRuns(sq.sentence || '');
-      if (count <= 0) continue;
-      const correctList = sq._correctAnswers || sq.answers || [];
-      const partLabel = this.getFillBlankReviewPartLabel(
-        questionIndex,
-        this.getSubQuestionPartNumber(si, data),
-        'sub',
-        hasSubQuestions
-      );
-      for (let bi = 0; bi < count; bi++) {
-        blankNum++;
-        const studentAnswer = String(pq.subQuestionFillBlankAnswers?.[si]?.[bi] ?? '').trim();
-        const correctAnswer = String(correctList[bi] ?? '').trim();
-        items.push({
-          globalIndex: blankNum,
-          partLabel,
-          studentAnswer,
-          correctAnswer,
-          isCorrect: this.isSubFillCorrect(pq, si, bi),
-          answered: studentAnswer.length > 0
-        });
-      }
-    }
-
     return items;
   }
 
@@ -2173,23 +2404,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getSubQuestionIsCorrect(pq: PlayerQuestion, sqIndex: number): boolean {
-    if (pq.subQuestionIsCorrect?.[sqIndex] !== undefined) {
-      return !!pq.subQuestionIsCorrect[sqIndex];
-    }
-    const sq = pq.data.subQuestions?.[sqIndex];
-    if (sq?.type === 'fill-blank') {
-      const count = countFillBlankRuns(sq.sentence || '');
-      if (count <= 0) return false;
-      for (let bi = 0; bi < count; bi++) {
-        if (!this.isSubFillCorrect(pq, sqIndex, bi)) return false;
-      }
-      return true;
-    }
-    if (sq?.type === 'mcq') {
-      const ans = pq.subQuestionAnswers?.[sqIndex];
-      return ans !== undefined && ans !== null && Number(ans) === sq.correctAnswerIndex;
-    }
-    return false;
+    return pq.subQuestionIsCorrect?.[sqIndex] ?? false;
   }
 
   getParentPartIsCorrect(pq: PlayerQuestion): boolean {
@@ -2234,43 +2449,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   private computeParentPartIsCorrect(pq: PlayerQuestion): boolean {
-    const data = pq.data;
-    if (data.type === 'mcq') {
-      const idx = pq.selectedOption;
-      return idx !== undefined && idx !== null && idx === data.correctAnswerIndex;
-    }
-    if (data.type === 'fill-blank') {
-      const count = countFillBlankRuns(data.sentence || '');
-      if (count <= 0) return false;
-      for (let bi = 0; bi < count; bi++) {
-        if (!this.isFillCorrect(pq, bi)) return false;
-      }
-      return true;
-    }
-    if (data.type === 'question-answer' && this.isTrueFalseQuestion(data)) {
-      const expected = this.parseTrueFalseStrictSample(data.sampleAnswers?.[0]);
-      const given = this.parseTrueFalseStrictSample(pq.qaResponse);
-      return expected !== null && given !== null && expected === given;
-    }
-    if (data.type === 'question-answer') {
-      const samples: string[] = (data.sampleAnswers || []).filter(Boolean);
-      const student = String(pq.qaResponse ?? '').trim().toLowerCase();
-      return samples.some((s) => String(s).trim().toLowerCase() === student);
-    }
-    if (data.type === 'listening') {
-      const student = String(pq.listeningText ?? pq.qaResponse ?? '').trim().toLowerCase();
-      const expected = String(data.expectedTranscript ?? '').trim().toLowerCase();
-      return !!expected && student === expected;
-    }
     return pq.isCorrect === true;
   }
 
   private applyMultipartGradingMeta(pq: PlayerQuestion, pointsEarned?: number): void {
     if (!this.hasSubQuestions(pq.data)) return;
     if (typeof pointsEarned === 'number') pq.pointsEarned = pointsEarned;
-    if (!this.isParentAnswerPartEmpty(pq.data)) {
-      pq.parentIsCorrect = this.computeParentPartIsCorrect(pq);
-    }
+    pq.parentIsCorrect = pq.isCorrect === true;
   }
 
   getSubCorrectAnswerText(pq: PlayerQuestion, sqIndex: number): string {
@@ -2289,6 +2474,67 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (parsed === true) return 'Richtig';
       if (parsed === false) return 'Falsch';
       return samples.length ? samples.join('; ') : '—';
+    }
+    if ((sq.type as string) === 'pronunciation') {
+      return sq.word || (sq as any).expectedText || '—';
+    }
+    if (sq.type === 'matching') {
+      const correctPairs = sq._correctPairs || [];
+      const leftItems: string[] = this.getSubMatchingLeftItems(sq);
+      if (correctPairs.length && leftItems.length) {
+        return leftItems.map((l: string, li: number) => {
+          const found = Array.isArray(correctPairs) ? correctPairs.find((cp: any) => cp.leftIndex === li) : null;
+          const rv = found?.rightValue;
+          return rv != null ? `${l} → ${rv}` : `${l} → ?`;
+        }).join('; ');
+      }
+      return '—';
+    }
+    if ((sq.type as string) === 'word_bank_fill') {
+      const rows = Array.isArray(sq._wordBankCorrectItems) ? sq._wordBankCorrectItems : (sq.items || []);
+      return rows.length
+        ? rows.map((x: any, i: number) => {
+            const alts = Array.isArray(x?.acceptedAnswers) ? x.acceptedAnswers.filter(Boolean) : [];
+            const altStr = alts.length ? ` (also: ${alts.join(', ')})` : '';
+            return `${x?.prompt || `Item ${i + 1}`} -> ${x?.answer || '—'}${altStr}`;
+          }).join('; ')
+        : '—';
+    }
+    if (sq.type === 'singular_plural') {
+      const rows = Array.isArray(sq.singularPluralPairs) ? sq.singularPluralPairs : (sq.pairs || []);
+      const plurals = sq._correctPlurals || [];
+      if (!rows.length) return '—';
+      return rows.map((sp: any, i: number) => `${sp.singular || ''} → ${plurals[i] ?? '—'}`).join('; ');
+    }
+    if (sq.type === 'question-answer') {
+      const samples = sq.sampleAnswers || [];
+      return samples.length ? samples.join('; ') : '—';
+    }
+    if (sq.type === 'listening') {
+      return sq.expectedTranscript || '—';
+    }
+    if ((sq.type as string) === 'jumble-word') {
+      return sq.expectedWord || '—';
+    }
+    if ((sq.type as string) === 'rearrange') {
+      const toks = Array.isArray(sq._correctRearrangeTokens) ? sq._correctRearrangeTokens : [];
+      if (toks.length) return toks.join(' ');
+      return sq._correctRearrangeAnswer || '—';
+    }
+    if ((sq.type as string) === 'image_pin_match') {
+      const labels = Array.isArray(sq._imagePinCorrectLabels) ? sq._imagePinCorrectLabels : (Array.isArray(sq.labels) ? sq.labels : []);
+      const pins = Array.isArray(sq._imagePinCorrectPins) ? sq._imagePinCorrectPins : (Array.isArray(sq.pins) ? sq.pins : []);
+      const pinNum = (id: string) => {
+        const idx = pins.findIndex((p: any) => String(p?.id || '') === String(id || ''));
+        return idx >= 0 ? `Pin ${idx + 1}` : '—';
+      };
+      return labels.map((l: any) => `${l?.text || l?.id || 'label'} -> ${pinNum(l?.correctPinId || '')}`).join('; ');
+    }
+    if (sq.type === 'video-pronunciation') {
+      const first = String(sq.caption || '').trim();
+      const second = String(sq.secondaryCaption || '').trim();
+      if (first && second) return `${first} / after ${sq.secondaryCaptionAtSeconds || 0}s: ${second}`;
+      return first || '—';
     }
     return '—';
   }
@@ -2377,7 +2623,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.subQuestionMatching = {};
     }
     if (pq.subQuestionMatching[subIndex]?.[leftIndex] !== undefined && pq.subQuestionMatching[subIndex][leftIndex] !== null) {
-      delete pq.subQuestionMatching[subIndex][leftIndex];
+      this.unmatchSubQuestionLeft(pq, subIndex, leftIndex);
+      return;
     }
     pq.subQuestionMatchingSelectedLeft = pq.subQuestionMatchingSelectedLeft || {};
     pq.subQuestionMatchingSelectedLeft[subIndex] = leftIndex;
@@ -2388,6 +2635,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.state === 'submitted') return;
     const selectedLeft = pq.subQuestionMatchingSelectedLeft?.[subIndex];
     if (selectedLeft === undefined || selectedLeft === null) return;
+    if (this.isSubQuestionMatchingRightUsed(pq, subIndex, rightIndex)) return;
     if (!pq.subQuestionMatching) {
       pq.subQuestionMatching = {};
     }
@@ -2400,10 +2648,82 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.markAttempted(pq);
   }
 
+  unmatchSubQuestionLeft(pq: PlayerQuestion, subIndex: number, leftIndex: number): void {
+    if (!pq.subQuestionMatching?.[subIndex]) return;
+    delete pq.subQuestionMatching[subIndex][leftIndex];
+  }
+
   isSubQuestionMatchingRightUsed(pq: PlayerQuestion, subIndex: number, rightIndex: number): boolean {
     const matches = pq.subQuestionMatching?.[subIndex];
     if (!matches) return false;
     return Object.values(matches).some(v => v === rightIndex);
+  }
+
+  getSubMatchingIndices(pq: PlayerQuestion, sqIndex: number): number[] {
+    const sq = pq.data.subQuestions?.[sqIndex];
+    const leftCount = this.getSubMatchingLeftItems(sq).length;
+    const rightCount = this.getSubMatchingRightItems(sq).length;
+    const len = Math.max(leftCount, rightCount);
+    return Array.from({ length: len }, (_, i) => i);
+  }
+
+  getSubLeftMatchClass(pq: PlayerQuestion, sqIndex: number, leftIndex: number): string {
+    const rightIndex = pq.subQuestionMatching?.[sqIndex]?.[leftIndex];
+    if (rightIndex === undefined || rightIndex === null || rightIndex < 0) return '';
+    return this.getMatchColorClass(leftIndex);
+  }
+
+  getSubRightMatchClass(pq: PlayerQuestion, sqIndex: number, rightIndex: number): string {
+    const matches = pq.subQuestionMatching?.[sqIndex];
+    if (!matches) return '';
+    const leftIndex = Object.entries(matches).find(([_, ri]) => ri === rightIndex)?.[0];
+    if (leftIndex === undefined || leftIndex === null) return '';
+    return this.getMatchColorClass(Number(leftIndex));
+  }
+
+  isSubMatchCorrect(pq: PlayerQuestion, sqIndex: number, leftIndex: number): boolean {
+    const sq = pq.data.subQuestions?.[sqIndex];
+    if (!sq) return false;
+    const matchedRightIndex = pq.subQuestionMatching?.[sqIndex]?.[leftIndex];
+    if (matchedRightIndex === undefined || matchedRightIndex === null) return false;
+    const rightItems = this.getSubMatchingRightItems(sq);
+    const matchedRightValue = rightItems[matchedRightIndex];
+    const correctPairs = sq._correctPairs || [];
+    const correctForLeft = correctPairs.find((p: any) => p.leftIndex === leftIndex);
+    if (!correctForLeft) return false;
+    return this.normExercisePlainText(correctForLeft.rightValue) === this.normExercisePlainText(matchedRightValue);
+  }
+
+  getLeftIndexForSubRight(pq: PlayerQuestion, sqIndex: number, rightIndex: number): number {
+    const matches = pq.subQuestionMatching?.[sqIndex];
+    if (!matches) return -1;
+    const entry = Object.entries(matches).find(([_, ri]) => ri === rightIndex);
+    return entry ? Number(entry[0]) : -1;
+  }
+
+  getSubMatchingLeftItems(sq: any): string[] {
+    if (Array.isArray(sq.leftItems)) return sq.leftItems;
+    if (Array.isArray(sq.pairs)) return sq.pairs.map((p: any) => p.left ?? '').filter(Boolean);
+    return [];
+  }
+
+  getSubMatchingLeftLabels(sq: any): string[] {
+    if (Array.isArray(sq.leftLabels)) return sq.leftLabels;
+    const count = this.getSubMatchingLeftItems(sq).length;
+    return Array.from({ length: count }, (_, i) => 'A' + i);
+  }
+
+  getSubMatchingRightItems(sq: any): string[] {
+    if (Array.isArray(sq.rightItems)) return sq.rightItems;
+    if (Array.isArray(sq.shuffledRight)) return sq.shuffledRight;
+    if (Array.isArray(sq.pairs)) return sq.pairs.map((p: any) => p.right ?? '').filter(Boolean);
+    return [];
+  }
+
+  getSubMatchingRightLabels(sq: any): string[] {
+    if (Array.isArray(sq.rightLabels)) return sq.rightLabels;
+    const count = this.getSubMatchingRightItems(sq).length;
+    return Array.from({ length: count }, (_, i) => String(i + 1));
   }
 
   // ─── Sub-Question Word Bank ───────────────────────────────────────────────────
@@ -2412,7 +2732,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.subQuestionWordBankAnswers = {};
     }
     if (!pq.subQuestionWordBankAnswers[subIndex]) {
-      pq.subQuestionWordBankAnswers[subIndex] = [];
+      const itemCount = this.getSubQuestionWordBankItems(pq.data?.subQuestions?.[subIndex] || {}).length;
+      pq.subQuestionWordBankAnswers[subIndex] = new Array(itemCount).fill('');
     }
     return pq.subQuestionWordBankAnswers[subIndex][blankIndex] || '';
   }
@@ -2423,13 +2744,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.subQuestionWordBankAnswers = {};
     }
     if (!pq.subQuestionWordBankAnswers[subIndex]) {
-      pq.subQuestionWordBankAnswers[subIndex] = [];
+      const itemCount = this.getSubQuestionWordBankItems(pq.data?.subQuestions?.[subIndex] || {}).length;
+      pq.subQuestionWordBankAnswers[subIndex] = new Array(itemCount).fill('');
     }
-    pq.subQuestionWordBankAnswers[subIndex][blankIndex] = value;
+    const items = [...pq.subQuestionWordBankAnswers[subIndex]];
+    items[blankIndex] = value;
+    pq.subQuestionWordBankAnswers[subIndex] = items;
     this.markAttempted(pq);
   }
 
   getSubQuestionWordBankItems(sq: any): any[] {
+    if (Array.isArray(sq.items) && sq.items.length) return sq.items;
     if (sq.prompts) return sq.prompts;
     if (sq.sentences) return sq.sentences;
     if (sq.blanks) return sq.blanks;
@@ -2452,11 +2777,26 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const itemCount = this.getSubQuestionWordBankItems(pq.data?.subQuestions?.[subIndex] || {}).length;
       pq.subQuestionWordBankAnswers[subIndex] = new Array(itemCount).fill('');
     }
-    const emptyIndex = pq.subQuestionWordBankAnswers[subIndex].findIndex((v: string) => !v || !v.trim());
-    if (emptyIndex !== -1) {
-      pq.subQuestionWordBankAnswers[subIndex][emptyIndex] = word;
+    let items = pq.subQuestionWordBankAnswers[subIndex];
+    const expectedLen = this.getSubQuestionWordBankItems(pq.data?.subQuestions?.[subIndex] || {}).length;
+    while (items.length < expectedLen) items.push('');
+    if (!pq.subQuestionActiveBlankIndex) pq.subQuestionActiveBlankIndex = {};
+    let idx = pq.subQuestionActiveBlankIndex[subIndex];
+    if (!Number.isInteger(idx) || idx < 0 || idx >= items.length) {
+      idx = items.findIndex((v: string) => !v || !v.trim());
+    }
+    if (idx !== -1 && idx < items.length) {
+      items = [...items];
+      items[idx] = word;
+      pq.subQuestionWordBankAnswers[subIndex] = items;
+      pq.subQuestionActiveBlankIndex[subIndex] = idx;
       this.markAttempted(pq);
     }
+  }
+
+  onSubQuestionWordBankBlankFocus(pq: PlayerQuestion, subIndex: number, blankIndex: number): void {
+    if (!pq.subQuestionActiveBlankIndex) pq.subQuestionActiveBlankIndex = {};
+    pq.subQuestionActiveBlankIndex[subIndex] = blankIndex;
   }
 
   // ─── Sub-Question Jumble Word ─────────────────────────────────────────────────
@@ -2499,7 +2839,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (!pq.subQuestionRearrangeTokens[subIndex]) {
       const sq = pq.data?.subQuestions?.[subIndex];
-      pq.subQuestionRearrangeTokens[subIndex] = sq?.tokens ? [...sq.tokens] : [];
+      const src = sq?.shuffledTokens || sq?.tokens;
+      pq.subQuestionRearrangeTokens[subIndex] = Array.isArray(src) ? [...src] : [];
     }
     return pq.subQuestionRearrangeTokens[subIndex];
   }
@@ -3193,6 +3534,104 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.hasRecorded = false;
   }
 
+  /** Start recording for a sub-question pronunciation. */
+  startSubQuestionPronunciation(pq: PlayerQuestion, sqIndex: number): void {
+    if (pq.subQuestionIsRecording?.[sqIndex]) return;
+    this.activeSubQuestionIndex = sqIndex;
+    if (this.audioRecorderSupported) {
+      void this.startAudioPronunciationForWord(pq);
+      return;
+    }
+    if (!this.speechSupported) {
+      this.snackBar.open('Audio recording is not supported in this browser. Try Chrome, Edge, or Safari 14.3+.', 'Close', { duration: 6000 });
+      this.ensureSubQuestionState(pq, sqIndex);
+      pq.subQuestionPronUiState![sqIndex] = 'error';
+      pq.subQuestionPronMessage![sqIndex] = 'Unsupported browser';
+      this.activeSubQuestionIndex = null;
+      return;
+    }
+    this.startSubQuestionRecordingLegacy(pq, sqIndex);
+  }
+
+  /** Stop recording for a sub-question pronunciation. */
+  stopSubQuestionPronunciation(pq: PlayerQuestion, sqIndex: number): void {
+    if (this.activePronQuestion === pq) {
+      void this.finishAudioPronunciationForSubQuestion(pq, sqIndex);
+      return;
+    }
+    if (this.recognition) {
+      try { this.recognition.stop(); } catch { /* noop */ }
+    }
+  }
+
+  /** Legacy SpeechRecognition path for sub-question pronunciation. */
+  private startSubQuestionRecordingLegacy(pq: PlayerQuestion, sqIndex: number): void {
+    if (pq.subQuestionIsRecording?.[sqIndex]) return;
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    this.recognition = new SpeechRecognition();
+    const langMap: Record<string, string> = { 'German': 'de-DE', 'English': 'en-US' };
+    this.recognition.lang = langMap[this.exercise?.targetLanguage || 'German'] || 'de-DE';
+    this.recognition.continuous = true;
+    this.recognition.interimResults = false;
+    this.recognition.maxAlternatives = 3;
+    this.ensureSubQuestionState(pq, sqIndex);
+    pq.subQuestionIsRecording![sqIndex] = true;
+    pq.subQuestionPronUiState![sqIndex] = 'recording';
+    pq.subQuestionPronMessage![sqIndex] = '🎤 Listening…';
+    let bestTranscript = '';
+    let bestScore = 0;
+    let gotUsableResult = false;
+    const lang = this.exercise?.targetLanguage === 'English' ? 'en-US' : 'de-DE';
+    const sq = pq.data.subQuestions?.[sqIndex];
+    const target = String(sq?.word || '');
+    const variants = Array.isArray(sq?.acceptedVariants) ? sq.acceptedVariants : [];
+    this.recognition.onresult = (event: any) => {
+      const candidates = this.flattenSpeechResultCandidates(event);
+      for (const cand of candidates) {
+        const candScore = this.getPronunciationScoreForTranscript(cand, target, variants, lang);
+        if (candScore > bestScore) {
+          bestScore = candScore;
+          bestTranscript = cand;
+        }
+      }
+      if (candidates.length > 0) {
+        gotUsableResult = true;
+        const previewTranscript = bestTranscript || candidates[0] || '';
+        pq.subQuestionSpokenText![sqIndex] = this.normalizeNumbersForDisplay(previewTranscript, target, lang) || previewTranscript;
+      }
+    };
+    this.recognition.onerror = (event: any) => {
+      pq.subQuestionIsRecording![sqIndex] = false;
+      this.recognition = null;
+      this.activeSubQuestionIndex = null;
+      if (event.error === 'not-allowed') {
+        this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+      }
+      if (event.error === 'audio-capture') {
+        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
+      }
+    };
+    this.recognition.onend = () => {
+      pq.subQuestionIsRecording![sqIndex] = false;
+      this.recognition = null;
+      this.activeSubQuestionIndex = null;
+      if (!gotUsableResult) {
+        pq.subQuestionPronUiState![sqIndex] = 'error';
+        pq.subQuestionPronMessage![sqIndex] = 'No speech detected, try again';
+        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+        return;
+      }
+      const rawTranscript = bestTranscript || pq.subQuestionSpokenText?.[sqIndex] || '';
+      pq.subQuestionSpokenText![sqIndex] = this.normalizeNumbersForDisplay(rawTranscript, target, lang) || rawTranscript;
+      pq.subQuestionPronunciationScore![sqIndex] = bestScore;
+      pq.subQuestionHasRecorded![sqIndex] = true;
+      pq.subQuestionPronUiState![sqIndex] = 'result';
+      pq.subQuestionPronMessage![sqIndex] = null as unknown as string;
+      this.markAttempted(pq);
+    };
+    this.recognition.start();
+  }
+
   playAudio(url: string): void {
     if (!url) return;
     this.stopCurrentAudio();
@@ -3807,24 +4246,88 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** For review page: get sub-question answer text */
   getSubQuestionAnswerText(pq: PlayerQuestion, sqIndex: number): string {
     const sq = pq.data.subQuestions?.[sqIndex];
-    if (sq?.type === 'fill-blank') {
+    if (!sq) return '—';
+    if (sq.type === 'fill-blank') {
       const blanks = pq.subQuestionFillBlankAnswers?.[sqIndex] || [];
       const filled = blanks.map((x) => String(x ?? '').trim()).filter(Boolean);
       return filled.length ? filled.join(' / ') : 'Not answered';
     }
+    if ((sq.type as string) === 'pronunciation') {
+      const score = pq.subQuestionPronunciationScore?.[sqIndex];
+      const text = pq.subQuestionSpokenText?.[sqIndex];
+      if (text && score != null) return `Score: ${score}% | "${text}"`;
+      if (text) return `"${text}"`;
+      return 'Not answered';
+    }
+    if (sq.type === 'mcq') {
+      const ans = pq.subQuestionAnswers?.[sqIndex];
+      if (ans === undefined || ans === null) return 'Not answered';
+      const idx = Number(ans);
+      return (sq.options && idx >= 0 && idx < sq.options.length) ? sq.options[idx] : String(ans);
+    }
+    if (sq.type === 'matching') {
+      const leftItems: string[] = this.getSubMatchingLeftItems(sq);
+      const rightItems: string[] = this.getSubMatchingRightItems(sq);
+      const mapping = pq.subQuestionMatching?.[sqIndex] || {};
+      const pairs = leftItems
+        .map((l: string, li: number) => {
+          const ri = mapping[li];
+          return ri !== undefined && ri !== null && ri >= 0 && ri < rightItems.length
+            ? `${l} → ${rightItems[ri]}`
+            : null;
+        })
+        .filter(Boolean);
+      return pairs.length ? pairs.join('; ') : '—';
+    }
+    if ((sq.type as string) === 'word_bank_fill') {
+      const items = this.getSubQuestionWordBankItems(sq);
+      const answers = pq.subQuestionWordBankAnswers?.[sqIndex] || [];
+      if (!items.length) return '—';
+      return items
+        .map((item: any, i: number) => `${item?.prompt || `Item ${i + 1}`} -> ${String(answers[i] ?? '').trim() || '—'}`)
+        .join('; ');
+    }
+    if (sq.type === 'singular_plural') {
+      const rows = Array.isArray(sq.singularPluralPairs) ? sq.singularPluralPairs : (sq.pairs || []);
+      const inputs = pq.subQuestionSpInputs?.[sqIndex] || [];
+      if (!rows.length) return '—';
+      return rows
+        .map((sp: any, ri: number) => `${sp.singular || sp.singular || ''} → ${String(inputs[ri] ?? '').trim() || '—'}`)
+        .join('; ');
+    }
+    if (sq.type === 'jumble-word') {
+      const ans = pq.subQuestionAnswers?.[sqIndex];
+      return ans !== undefined && ans !== null ? String(ans) : 'Not answered';
+    }
+    if ((sq.type as string) === 'rearrange') {
+      const tokens = pq.subQuestionRearrangeTokens?.[sqIndex];
+      return Array.isArray(tokens) && tokens.length ? tokens.join(' ') : '—';
+    }
+    if ((sq.type as string) === 'image_pin_match') {
+      const labels = Array.isArray(sq.labels) ? sq.labels : [];
+      const conns = Array.isArray(pq.subQuestionAnswers?.[sqIndex])
+        ? (pq.subQuestionAnswers[sqIndex] as Array<{ labelId: string; pinId: string }>)
+        : [];
+      const pinNum = (id: string) => {
+        const pins: Array<{ id: string }> = Array.isArray(sq.pins) ? sq.pins : [];
+        const idx = pins.findIndex((p: { id: string }) => String(p?.id || '') === String(id || ''));
+        return idx >= 0 ? `Pin ${idx + 1}` : '—';
+      };
+      return labels.length
+        ? labels.map((l: any) => `${l?.text || l?.id || 'label'} -> ${pinNum(conns.find((c: { labelId: string }) => c.labelId === l.id)?.pinId || '')}`).join('; ')
+        : '—';
+    }
+    if (sq.type === 'video-pronunciation') {
+      const text = pq.subQuestionSpokenText?.[sqIndex];
+      return text ? `"${text}"` : 'Not answered';
+    }
+    if (sq.type === 'question-answer' && this.isTrueFalseQuestion(sq)) {
+      const ans = pq.subQuestionAnswers?.[sqIndex];
+      const parsed = this.parseTrueFalse(ans);
+      return parsed === true ? 'Richtig' : parsed === false ? 'Falsch' : 'Not answered';
+    }
     const answer = pq.subQuestionAnswers?.[sqIndex];
-    if (answer === undefined || answer === null) return 'Not answered';
-    if (typeof answer === 'number') {
-      if (sq && sq.type === 'mcq' && sq.options) {
-        return sq.options[answer] || String(answer);
-      }
-      return String(answer);
-    }
-    if (sq?.type === 'question-answer' && this.isTrueFalseQuestion(sq)) {
-      const parsed = this.parseTrueFalse(answer);
-      return parsed === true ? 'Richtig' : parsed === false ? 'Falsch' : String(answer);
-    }
-    return String(answer);
+    return answer !== undefined && answer !== null ? String(answer) : 'Not answered';
   }
 
   getJumbleTokens(data: any): string[] {
@@ -4103,9 +4606,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Rows with non-empty singular text (same order as `singularPluralInputs`). */
   singularPluralDisplayRows(pq: PlayerQuestion): { singular: string }[] {
-    return (pq?.data?.pairs || [])
-      .filter((p: any) => String(p?.singular || '').trim())
-      .map((p: any) => ({ singular: String(p.singular) }));
+    return pq._cachedSpRows ?? [];
+  }
+
+  /** Display rows for a singular/plural sub-question (falls back to `pairs` when `singularPluralPairs` is missing). */
+  getSubQuestionSpRows(sq: any): any[] {
+    return Array.isArray(sq.singularPluralPairs) ? sq.singularPluralPairs : (sq.pairs || []);
   }
 
   getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string; indices: number[] }> {
@@ -5441,17 +5947,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     try {
       await this.pronunciation.startRecording();
       this.activePronQuestion = pq;
-      pq.isRecording = true;
-      pq.pronUiState = 'recording';
-      pq.pronMessage = '🎤 Listening…';
+      if (this.activeSubQuestionIndex != null) {
+        const sqi = this.activeSubQuestionIndex;
+        this.ensureSubQuestionState(pq, sqi);
+        pq.subQuestionIsRecording![sqi] = true;
+        pq.subQuestionPronUiState![sqi] = 'recording';
+        pq.subQuestionPronMessage![sqi] = '🎤 Listening…';
+      } else {
+        pq.isRecording = true;
+        pq.pronUiState = 'recording';
+        pq.pronMessage = '🎤 Listening…';
+      }
       return true;
     } catch (err: any) {
       const code = err?.code || 'UNKNOWN';
       console.error('[pronunciation] startRecording failed', { code, message: err?.message });
-      pq.isRecording = false;
-      pq.pronUiState = 'error';
-      pq.pronMessage = err?.message || 'Microphone unavailable';
+      if (this.activeSubQuestionIndex != null) {
+        const sqi = this.activeSubQuestionIndex;
+        this.ensureSubQuestionState(pq, sqi);
+        pq.subQuestionIsRecording![sqi] = false;
+        pq.subQuestionPronUiState![sqi] = 'error';
+        pq.subQuestionPronMessage![sqi] = err?.message || 'Microphone unavailable';
+      } else {
+        pq.isRecording = false;
+        pq.pronUiState = 'error';
+        pq.pronMessage = err?.message || 'Microphone unavailable';
+      }
       this.activePronQuestion = null;
+      this.activeSubQuestionIndex = null;
       const msg = err?.message || 'Microphone could not be started. Please check your mic and try again.';
       this.snackBar.open(msg, 'Close', { duration: 5000 });
       if (code === 'PERMISSION_DENIED') this.micPermission = 'denied';
@@ -5468,8 +5991,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.armPronAutoStop(pq, 'word');
   }
 
+  /** Entry point for finishing sub-question pronunciation recording. */
+  private async finishAudioPronunciationForSubQuestion(pq: PlayerQuestion, _sqIndex: number): Promise<void> {
+    await this.finishAudioPronunciationForWord(pq);
+  }
+
   private async finishAudioPronunciationForWord(pq: PlayerQuestion): Promise<void> {
     if (this.activePronQuestion !== pq) return;
+    const sqi = this.activeSubQuestionIndex;
+    const isSub = sqi != null;
+    if (isSub) this.ensureSubQuestionState(pq, sqi!);
+
     this.clearPronAutoStopTimer();
     this.activePronQuestion = null;
 
@@ -5478,17 +6010,34 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       recording = await this.pronunciation.stopRecording();
     } catch (err: any) {
       console.error('[pronunciation] stopRecording failed (word)', err);
-      pq.isRecording = false;
-      pq.pronUiState = 'error';
-      pq.pronMessage = 'Recording failed, try again';
+      if (isSub) {
+        pq.subQuestionIsRecording![sqi!] = false;
+        pq.subQuestionPronUiState![sqi!] = 'error';
+        pq.subQuestionPronMessage![sqi!] = 'Recording failed, try again';
+      } else {
+        pq.isRecording = false;
+        pq.pronUiState = 'error';
+        pq.pronMessage = 'Recording failed, try again';
+      }
+      this.activeSubQuestionIndex = null;
       this.snackBar.open('Could not capture audio. Please try again.', 'Close', { duration: 3500 });
       return;
     }
-    pq.isRecording = false;
+    if (isSub) {
+      pq.subQuestionIsRecording![sqi!] = false;
+    } else {
+      pq.isRecording = false;
+    }
 
     if (!recording || recording.blob.size === 0) {
-      pq.pronUiState = 'error';
-      pq.pronMessage = 'No audio captured, try again';
+      if (isSub) {
+        pq.subQuestionPronUiState![sqi!] = 'error';
+        pq.subQuestionPronMessage![sqi!] = 'No audio captured, try again';
+      } else {
+        pq.pronUiState = 'error';
+        pq.pronMessage = 'No audio captured, try again';
+      }
+      this.activeSubQuestionIndex = null;
       this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
       this.pronunciation.releaseObjectUrl(recording?.objectUrl);
       return;
@@ -5511,9 +6060,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     if (!silence.ok) {
       console.info('[pronunciation] local silence reject (word)', silence);
-      pq.pronUiState = 'error';
-      pq.pronMessage = this.silentRejectMessage(silence.reason);
-      this.snackBar.open(pq.pronMessage, 'Close', { duration: 4000 });
+      if (isSub) {
+        pq.subQuestionPronUiState![sqi!] = 'error';
+        pq.subQuestionPronMessage![sqi!] = this.silentRejectMessage(silence.reason);
+      } else {
+        pq.pronUiState = 'error';
+        pq.pronMessage = this.silentRejectMessage(silence.reason);
+      }
+      this.activeSubQuestionIndex = null;
+      this.snackBar.open(this.silentRejectMessage(silence.reason), 'Close', { duration: 4000 });
       this.pronAnalytics.sendTelemetry(
         {
           silenceRejected: true,
@@ -5542,13 +6097,21 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    pq.pronUiState = 'processing';
-    pq.pronMessage = 'Processing…';
+    if (isSub) {
+      pq.subQuestionPronUiState![sqi!] = 'processing';
+      pq.subQuestionPronMessage![sqi!] = 'Processing…';
+    } else {
+      pq.pronUiState = 'processing';
+      pq.pronMessage = 'Processing…';
+    }
     this.armPronProcessingSlowTimer();
 
-    const expected = String(pq.data?.word || '');
-    const variants = this.resolvePronVariants(pq);
-    const baseThreshold = Number(pq.data?.similarityThreshold);
+    const sqData = isSub ? pq.data.subQuestions?.[sqi!] : null;
+    const expected = String(sqData?.word || pq.data?.word || '');
+    const variants = isSub
+      ? (Array.isArray(sqData?.acceptedVariants) ? sqData.acceptedVariants : [])
+      : this.resolvePronVariants(pq);
+    const baseThreshold = Number(sqData?.similarityThreshold || pq.data?.similarityThreshold);
     const baseThresholdSafe = Number.isFinite(baseThreshold) ? baseThreshold : 70;
     const assisted = this.assistedModeByIndex[pq.index] === true;
     const threshold = this.pronAnalytics.adjustThreshold(baseThresholdSafe, assisted);
@@ -5583,23 +6146,43 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         engine: res.engine,
       });
 
-      pq.spokenText = res.transcript || '';
-      pq.pronunciationScore = res.score;
-      pq.hasRecorded = true;
-      pq.pronUiState = 'result';
-      pq.pronMessage = null as unknown as string;
-      pq.pronEngine = res.engine;
-      pq.pronRequestId = res.requestId;
-      pq.pronAlmostCorrect = !!res.isAlmostCorrect && !res.isCorrect;
-      pq.pronWordAnalysis = res.wordAnalysis || [];
-      pq.pronHints = res.hints || [];
-      pq.pronExpectedText = res.expectedText || expected;
-      pq.pronMissingWords = Array.isArray((res as any).feedback?.missingWords) ? (res as any).feedback.missingWords : [];
-      pq.pronExtraWords = Array.isArray((res as any).feedback?.extraWords) ? (res as any).feedback.extraWords : [];
-      pq.pronMatchedWords = Array.isArray((res as any).feedback?.matchedWords) ? (res as any).feedback.matchedWords : [];
-      pq.pronLowAudioQuality = Boolean((res as any).flags?.lowAudioQuality);
-      pq.pronAttemptCount = Number(pq.pronAttemptCount || 0) + 1;
-      pq.pronHelpOpen = false;
+      if (isSub) {
+        pq.subQuestionSpokenText![sqi!] = res.transcript || '';
+        pq.subQuestionPronunciationScore![sqi!] = res.score;
+        pq.subQuestionHasRecorded![sqi!] = true;
+        pq.subQuestionPronUiState![sqi!] = 'result';
+        pq.subQuestionPronMessage![sqi!] = null as unknown as string;
+        pq.subQuestionPronEngine![sqi!] = res.engine;
+        pq.subQuestionPronRequestId![sqi!] = res.requestId;
+        pq.subQuestionPronAlmostCorrect![sqi!] = !!res.isAlmostCorrect && !res.isCorrect;
+        pq.subQuestionPronWordAnalysis![sqi!] = res.wordAnalysis || [];
+        pq.subQuestionPronHints![sqi!] = res.hints || [];
+        pq.subQuestionPronExpectedText![sqi!] = res.expectedText || expected;
+        pq.subQuestionPronMissingWords![sqi!] = Array.isArray((res as any).feedback?.missingWords) ? (res as any).feedback.missingWords : [];
+        pq.subQuestionPronExtraWords![sqi!] = Array.isArray((res as any).feedback?.extraWords) ? (res as any).feedback.extraWords : [];
+        pq.subQuestionPronMatchedWords![sqi!] = Array.isArray((res as any).feedback?.matchedWords) ? (res as any).feedback.matchedWords : [];
+        pq.subQuestionPronLowAudioQuality![sqi!] = Boolean((res as any).flags?.lowAudioQuality);
+        pq.subQuestionPronAttemptCount![sqi!] = Number(pq.subQuestionPronAttemptCount?.[sqi!] || 0) + 1;
+        pq.subQuestionPronHelpOpen![sqi!] = false;
+      } else {
+        pq.spokenText = res.transcript || '';
+        pq.pronunciationScore = res.score;
+        pq.hasRecorded = true;
+        pq.pronUiState = 'result';
+        pq.pronMessage = null as unknown as string;
+        pq.pronEngine = res.engine;
+        pq.pronRequestId = res.requestId;
+        pq.pronAlmostCorrect = !!res.isAlmostCorrect && !res.isCorrect;
+        pq.pronWordAnalysis = res.wordAnalysis || [];
+        pq.pronHints = res.hints || [];
+        pq.pronExpectedText = res.expectedText || expected;
+        pq.pronMissingWords = Array.isArray((res as any).feedback?.missingWords) ? (res as any).feedback.missingWords : [];
+        pq.pronExtraWords = Array.isArray((res as any).feedback?.extraWords) ? (res as any).feedback.extraWords : [];
+        pq.pronMatchedWords = Array.isArray((res as any).feedback?.matchedWords) ? (res as any).feedback.matchedWords : [];
+        pq.pronLowAudioQuality = Boolean((res as any).flags?.lowAudioQuality);
+        pq.pronAttemptCount = Number(pq.pronAttemptCount || 0) + 1;
+        pq.pronHelpOpen = false;
+      }
       this.lastConfidenceByIndex[pq.index] = res.confidence;
       this.markAttempted(pq);
 
@@ -5635,21 +6218,33 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       });
     } catch (err: any) {
       console.error('[pronunciation] evaluate failed (word)', err);
-      pq.pronUiState = 'error';
-      if (this.isNetworkError(err)) {
-        pq.pronMessage = 'Network issue. Please try again.';
-        this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
-        this.pronAnalytics.sendTelemetry(
-          { networkError: true, retryCount, language: lang, recordingDuration: recording.durationMs },
-          device,
-        );
+      if (isSub) {
+        pq.subQuestionPronUiState![sqi!] = 'error';
+        if (this.isNetworkError(err)) {
+          pq.subQuestionPronMessage![sqi!] = 'Network issue. Please try again.';
+          this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
+        } else {
+          pq.subQuestionPronMessage![sqi!] = 'Scoring failed, try again';
+          this.snackBar.open('Could not reach the pronunciation grader. Please try again.', 'Close', { duration: 4000 });
+        }
       } else {
-        pq.pronMessage = 'Scoring failed, try again';
-        this.snackBar.open('Could not reach the pronunciation grader. Please try again.', 'Close', { duration: 4000 });
+        pq.pronUiState = 'error';
+        if (this.isNetworkError(err)) {
+          pq.pronMessage = 'Network issue. Please try again.';
+          this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
+          this.pronAnalytics.sendTelemetry(
+            { networkError: true, retryCount, language: lang, recordingDuration: recording.durationMs },
+            device,
+          );
+        } else {
+          pq.pronMessage = 'Scoring failed, try again';
+          this.snackBar.open('Could not reach the pronunciation grader. Please try again.', 'Close', { duration: 4000 });
+        }
       }
     } finally {
       this.clearPronProcessingSlowTimer();
       this.pronunciation.releaseObjectUrl(recording.objectUrl);
+      this.activeSubQuestionIndex = null;
     }
   }
 

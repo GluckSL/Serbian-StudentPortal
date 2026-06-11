@@ -1450,6 +1450,12 @@
   font-style: italic;
 }
 
+.sub-q-word-bank {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .sub-q-word-bank-words {
   display: flex;
   flex-wrap: wrap;
@@ -2329,6 +2335,47 @@
 }
 .blank-input:disabled {
   cursor: not-allowed;
+}
+
+.sp-box-input {
+  width: 100%;
+  min-width: 80px;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  background: #fafafa;
+  color: #1a1a2e;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  outline: none;
+  transition: all 0.15s;
+}
+.sp-box-input:focus {
+  border-color: #1976d2;
+  background: #e8f4fd;
+}
+.sp-box-input.correct {
+  border-color: #22c55e;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.sp-box-input.wrong {
+  border-color: #f44336;
+  background: #fff5f5;
+  color: #c62828;
+}
+.sp-box-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.sp-pairs-table {
+  border-collapse: separate;
+  border-spacing: 0 8px;
 }
 
 .blank-correct-val {
