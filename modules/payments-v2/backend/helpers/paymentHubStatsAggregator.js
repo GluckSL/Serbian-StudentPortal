@@ -877,9 +877,32 @@ function finalizeBatchRow(batch, acc) {
   };
 }
 
+const VISA_DOC_SUBSCRIPTIONS = ['VISA_DOC', 'VISA_DOC_ONLY', 'DOCS_RECOGNITION'];
+
+function applyStudentCohortFilters(userQuery, filters = {}) {
+  const status = filters.studentStatus && String(filters.studentStatus).trim();
+  if (status) {
+    userQuery.studentStatus = status.toUpperCase();
+  }
+
+  const cohort = filters.cohort || filters.subscriptionGroup;
+  if (cohort && String(cohort).trim()) {
+    const key = String(cohort).trim().toLowerCase();
+    if (key === 'platinum') {
+      userQuery.subscription = 'PLATINUM';
+    } else if (key === 'silver') {
+      userQuery.subscription = 'SILVER';
+    } else if (key === 'visa_docs' || key === 'visa-docs' || key === 'visa') {
+      userQuery.subscription = { $in: VISA_DOC_SUBSCRIPTIONS };
+    }
+  } else if (filters.subscription && String(filters.subscription).trim()) {
+    userQuery.subscription = String(filters.subscription).trim().toUpperCase();
+  }
+}
+
 /**
  * Per-batch payment insights using the same rules as Payment Hub dashboard + table.
- * @param {{ batch?: string, level?: string }} filters
+ * @param {{ batch?: string, level?: string, studentStatus?: string, cohort?: string, subscription?: string }} filters
  */
 async function aggregateBatchPaymentInsights(filters = {}) {
   const User = mongoose.model('User');
@@ -893,6 +916,7 @@ async function aggregateBatchPaymentInsights(filters = {}) {
   if (filters.level && String(filters.level).trim()) {
     userQuery.level = String(filters.level).trim();
   }
+  applyStudentCohortFilters(userQuery, filters);
 
   const [students, catalog] = await Promise.all([
     User.find(userQuery).select('_id batch level phoneNumber currentCourseDay batchStartedOn courseStartDates').lean(),

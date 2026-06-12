@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -22,6 +22,7 @@ import {
 } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
+import { fmtPaymentAmount } from './payment-currency.util';
 import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
 import { totalJourneyDaysForLevel } from './payment-journey-metrics.util';
 import { BatchPaymentRow } from './payment-hub-batch-insights.component';
@@ -37,6 +38,12 @@ import {
   loadFinanceBatchPresets,
   saveFinanceBatchPreset,
 } from './payment-hub-finance-batch-presets.util';
+import {
+  FinanceCohort,
+  financeCohortLabel,
+  formatStudentStatusLabel,
+  parseFinanceCohortQuery,
+} from './payment-hub-finance-cohort.util';
 
 interface BatchJourneySummary {
   batchName: string;
@@ -107,6 +114,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   presetNameInput = '';
   showPresetSaveInput = false;
   exporting = false;
+  cohort: FinanceCohort = 'all';
+  cohortStatus = '';
 
   readonly levels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly levelLabels = ['All levels', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -128,18 +137,64 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     private readonly api: PaymentHubApiService,
     private readonly http: HttpClient,
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     private readonly snack: MatSnackBar,
   ) {}
 
   ngOnInit(): void {
     this.savedPresets = loadFinanceBatchPresets();
-    this.load();
+    this.route.queryParamMap.subscribe((params) => {
+      const parsed = parseFinanceCohortQuery({
+        cohort: params.get('cohort') ?? undefined,
+        status: params.get('status') ?? undefined,
+      });
+      this.cohort = parsed.cohort;
+      this.cohortStatus = parsed.status;
+      this.load();
+    });
+  }
+
+  get hasCohortFilter(): boolean {
+    return this.cohort !== 'all' || !!this.cohortStatus;
+  }
+
+  get showPlanPaymentSummary(): boolean {
+    return this.cohort !== 'all';
+  }
+
+  get pageTitle(): string {
+    if (!this.hasCohortFilter) return 'Finance Dashboard';
+    const parts = [financeCohortLabel(this.cohort)];
+    if (this.cohortStatus) parts.push(formatStudentStatusLabel(this.cohortStatus));
+    return parts.join(' · ');
+  }
+
+  get pageSubtitle(): string {
+    if (!this.hasCohortFilter) {
+      return 'Batch-wise payment overview — expected fees, received amounts, pending balances, and overdue totals.';
+    }
+    return `Payment breakdown for ${this.cardTotals.studentCount} student(s) across batches.`;
+  }
+
+  get paymentSummaryTotals(): {
+    expected: FinanceCurrencyTotals;
+    received: FinanceCurrencyTotals;
+    pending: FinanceCurrencyTotals;
+  } {
+    const scoped = this.scopedMoneyAggregate();
+    return {
+      expected: scoped.expected,
+      received: scoped.received,
+      pending: scoped.pending,
+    };
   }
 
   load(): void {
     this.loading = true;
     const params: Record<string, string> = {};
     if (this.filterLevel) params['level'] = this.filterLevel;
+    if (this.cohort !== 'all') params['cohort'] = this.cohort;
+    if (this.cohortStatus) params['studentStatus'] = this.cohortStatus;
 
     this.api.getBatchPaymentSummary(params).subscribe({
       next: (summary) => {
@@ -667,6 +722,40 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     const total = r.totalJourneyDays;
     if (cur == null && (total == null || total === undefined)) return '—';
     return `${cur ?? '—'}/${total ?? '—'}`;
+  }
+
+  fmtPayment(n: number | null | undefined): string {
+    return fmtPaymentAmount(n);
+  }
+
+  rowHasOverdue(r: BatchPaymentRow): boolean {
+    const o = this.rowOverdue(r);
+    return o.lkr + o.inr + o.usd > 0 || !!r.overdueSince;
+  }
+
+  overdueDaysSince(iso?: string | null): number | null {
+    if (!iso) return null;
+    const since = new Date(iso);
+    if (Number.isNaN(since.getTime())) return null;
+    const today = new Date();
+    const sinceUtc = Date.UTC(since.getFullYear(), since.getMonth(), since.getDate());
+    const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.max(0, Math.floor((todayUtc - sinceUtc) / 86_400_000));
+  }
+
+  overdueDaysLabel(r: BatchPaymentRow): string {
+    const days = this.overdueDaysSince(r.overdueSince);
+    if (days == null) return '—';
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day';
+    return `${days} days`;
+  }
+
+  formatOverdueSince(iso?: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   applyLevelFilter(): void {

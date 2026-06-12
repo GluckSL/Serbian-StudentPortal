@@ -17,6 +17,7 @@ import { GluckBuddyHubComponent } from '../../sprechen-exam/gluck-buddy-hub/gluc
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
+import { digitalExercisePlayCommands } from '../../utils/digital-exercise-id.util';
 import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
 import { SprechenExamModuleSummary, SprechenExamSummary } from '../../sprechen-exam/sprechen-exam.types';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
@@ -1295,23 +1296,27 @@ export class MyCourseComponent implements OnInit {
   }
 
   openExercise(ex: DigitalExercise): void {
-    if (!ex?._id) return;
+    const commands = digitalExercisePlayCommands(ex);
+    if (commands.length === 2) return;
     if (this.isExerciseSequenceLocked(ex)) {
       const prerequisite = this.getPrerequisiteExercise(ex);
       const prevLetter = String(ex.previousSequenceLetter || '').trim().toUpperCase();
-      if (prerequisite?._id) {
-        this.notify.info(
-          prevLetter
-            ? `Complete exercise ${prevLetter} first. Opening the previous item.`
-            : 'Complete the previous exercise in sequence first.'
-        );
-        this.router.navigate(['/digital-exercises', prerequisite._id, 'play']);
-        return;
+      if (prerequisite) {
+        const prereqCommands = digitalExercisePlayCommands(prerequisite);
+        if (prereqCommands.length > 2) {
+          this.notify.info(
+            prevLetter
+              ? `Complete exercise ${prevLetter} first. Opening the previous item.`
+              : 'Complete the previous exercise in sequence first.'
+          );
+          this.router.navigate(prereqCommands);
+          return;
+        }
       }
       this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
       return;
     }
-    this.router.navigate(['/digital-exercises', ex._id, 'play']);
+    this.router.navigate(commands);
   }
 
   openModule(mod: { _id?: string }): void {

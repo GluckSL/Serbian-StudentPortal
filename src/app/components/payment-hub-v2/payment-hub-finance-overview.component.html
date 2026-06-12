@@ -1,0 +1,108 @@
+<div class="ph-insights-page ph-finance-overview-page">
+  <div class="ph-insights-header">
+    <div class="ph-insights-header-inner">
+      <h1 class="ph-insights-title">Finance Dashboard</h1>
+      <p class="ph-insights-sub">
+        Student overview by plan — open batch payment breakdown for ongoing learners.
+      </p>
+    </div>
+  </div>
+
+  <div class="ph-insights-body">
+    <ng-container *ngIf="!loading; else loadingState">
+      <div class="ph-finance-overview-grid">
+        <article class="ph-finance-overview-card ph-finance-overview-card--hero">
+          <div class="ph-finance-overview-card__icon" aria-hidden="true">
+            <mat-icon>groups</mat-icon>
+          </div>
+          <div class="ph-finance-overview-card__main">
+            <span class="ph-finance-overview-card__value">{{ counts.portalNonTest }}</span>
+            <span class="ph-finance-overview-card__label">Total students</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link"
+            [routerLink]="batchesRoute('all')"
+            [queryParams]="batchesQuery('all')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.ongoingNonTest }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing students</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <p class="ph-finance-overview-card__hint">Click ongoing to view batch-wise payments for active learners.</p>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--platinum">
+          <div class="ph-finance-overview-card__top">
+            <span class="ph-finance-overview-card__value">{{ counts.platinumTotal }}</span>
+            <span class="ph-finance-overview-card__label">Platinum</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
+            [routerLink]="batchesRoute('platinum')"
+            [queryParams]="batchesQuery('platinum')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.platinumOngoing }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <div class="ph-finance-overview-breakdown" *ngIf="counts.platinumStatusBreakdown?.length">
+            <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.platinumStatusBreakdown">
+              <span>{{ formatStudentStatus(row.status) }}</span>
+              <strong>{{ row.count }}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--silver">
+          <div class="ph-finance-overview-card__top">
+            <span class="ph-finance-overview-card__value">{{ counts.silverTotal }}</span>
+            <span class="ph-finance-overview-card__label">Silver</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
+            [routerLink]="batchesRoute('silver')"
+            [queryParams]="batchesQuery('silver')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.silverOngoing }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <div class="ph-finance-overview-breakdown" *ngIf="counts.silverStatusBreakdown?.length">
+            <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.silverStatusBreakdown">
+              <span>{{ formatStudentStatus(row.status) }}</span>
+              <strong>{{ row.count }}</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--visa">
+          <div class="ph-finance-overview-card__top">
+            <span class="ph-finance-overview-card__value">{{ counts.visaDocsTotal }}</span>
+            <span class="ph-finance-overview-card__label">Visa &amp; docs</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
+            [routerLink]="batchesRoute('visa_docs')"
+            [queryParams]="batchesQuery('visa_docs')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.visaDocsOngoing }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <div class="ph-finance-overview-breakdown" *ngIf="counts.visaDocsStatusBreakdown?.length">
+            <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.visaDocsStatusBreakdown">
+              <span>{{ formatStudentStatus(row.status) }}</span>
+              <strong>{{ row.count }}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
+    </ng-container>
+
+    <ng-template #loadingState>
+      <div class="ph-finance-overview-loading" aria-busy="true" aria-label="Loading finance overview">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    </ng-template>
+  </div>
+</div>

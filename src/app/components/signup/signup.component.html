@@ -97,13 +97,28 @@
       <!-- Services Opted -->
       <div class="mb-3" *ngIf="role === 'STUDENT'">
         <label for="servicesOpted" class="form-label">Services Opted</label>
-        <input
-          type="text"
+        <select
           id="servicesOpted"
-          name="servicesOpted"  
-          [(ngModel)]="servicesOpted"
-          class="form-control"
+          name="servicesOptedSelect"
+          [(ngModel)]="servicesOptedSelection"
+          (ngModelChange)="onServicesOptedChange($event)"
+          class="form-select"
+        >
+          <option value="">Select service</option>
+          <option *ngFor="let s of studentServicesOptedOptions" [value]="s">{{ s }}</option>
+          <option [value]="addNewServiceValue">+ Add new...</option>
+        </select>
+        <input
+          *ngIf="isCustomServicesOpted"
+          type="text"
+          id="servicesOptedCustom"
+          name="servicesOptedCustom"
+          [(ngModel)]="customServicesOpted"
+          class="form-control mt-2"
+          placeholder="Enter new service name"
+          required
         />
+        <small *ngIf="isCustomServicesOpted" class="text-muted">Type a service name that is not in the list above.</small>
       </div>
 
       <!-- Qualifications -->
@@ -241,16 +256,19 @@
           Batch
           <span *ngIf="isSilverStudent" class="text-muted fw-normal">(optional)</span>
         </label>
-        <input
-          type="text"
+        <select
           id="batch"
           name="batch"
           [(ngModel)]="batch"
           [required]="!isSilverStudent"
-          class="form-control"
-          placeholder="e.g., Batch 2024-01"
-        />
+          class="form-select"
+        >
+          <option *ngIf="isSilverStudent" value="">— No batch —</option>
+          <option *ngIf="!isSilverStudent" value="" disabled>Select batch</option>
+          <option *ngFor="let b of studentBatchOptions" [value]="b">{{ b }}</option>
+        </select>
         <small *ngIf="isSilverStudent" class="text-muted">Silver students can use the GO journey without a legacy batch name.</small>
+        <small *ngIf="!isSilverStudent" class="text-muted">Choose the portal batch this student belongs to.</small>
       </div>
 
       <!-- Level -->

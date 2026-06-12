@@ -50,6 +50,10 @@ import { AudioVisualizerComponent } from '../audio-visualizer/audio-visualizer.c
 import { PronunciationComparisonViewComponent } from '../pronunciation-comparison-view/pronunciation-comparison-view.component';
 import { HttpErrorResponse } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
+import {
+  resolveExerciseIdFromRouteParts,
+  resolveExerciseIdFromUrl,
+} from '../../utils/digital-exercise-id.util';
 
 type PlayerState = 'loading' | 'intro' | 'playing' | 'submitted' | 'review' | 'error';
 
@@ -495,7 +499,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.exerciseId = this.route.snapshot.paramMap.get('id') || '';
+    this.exerciseId = this.resolveExerciseIdFromRoute();
     this.checkSpeechSupport();
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -787,7 +791,52 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  private resolveExerciseIdFromRoute(): string {
+    const params = this.route.snapshot.paramMap;
+    const fromParts = resolveExerciseIdFromRouteParts(
+      params.get('idPart1') || params.get('id') || '',
+      params.get('idPart2'),
+    );
+    if (fromParts) return fromParts;
+    return resolveExerciseIdFromUrl(this.router.url);
+  }
+
+  private handleExerciseLoadError(err: HttpErrorResponse): void {
+    const code = err?.error?.code;
+    if (code === 'SEQUENCE_LOCKED') {
+      const prev = err?.error?.previousLetter?.toUpperCase() || '';
+      this.snackBar.open(
+        `Complete exercise ${prev} first before attempting this one.`,
+        'OK',
+        { duration: 5000 },
+      );
+      this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
+      return;
+    }
+    if (code === 'COURSE_DAY_LOCKED') {
+      this.snackBar.open(
+        err?.error?.error || 'This exercise is not unlocked on your current journey day yet.',
+        'OK',
+        { duration: 5000 },
+      );
+      this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
+      return;
+    }
+    if (code === 'JOURNEY_NOT_ACTIVE' || code === 'LEARNING_CONTENT_DISABLED' || code === 'CONTENT_LEVEL_BLOCKED') {
+      this.snackBar.open(err?.error?.error || 'This exercise is not available for your account.', 'OK', {
+        duration: 5000,
+      });
+      this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
+      return;
+    }
+    this.state = 'error';
+  }
+
   loadExercise(): void {
+    if (!this.exerciseId) {
+      this.state = 'error';
+      return;
+    }
     this.state = 'loading';
     this.authService.currentUser$.pipe(take(1)).subscribe((user) => {
       this.currentUserRole = String(user?.role || '');
@@ -829,20 +878,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
             },
           });
         },
-        error: (err) => {
-          const code = err?.error?.code;
-          if (code === 'SEQUENCE_LOCKED') {
-            const prev = err?.error?.previousLetter?.toUpperCase() || '';
-            this.snackBar.open(
-              `Complete exercise ${prev} first before attempting this one.`,
-              'OK',
-              { duration: 5000 }
-            );
-            this.router.navigate(['/digital-exercises']);
-            return;
-          }
-          this.state = 'error';
-        }
+        error: (err) => this.handleExerciseLoadError(err)
       });
     });
   }
@@ -1474,14 +1510,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         const code = err?.error?.code;
-        if (code === 'SEQUENCE_LOCKED') {
-          const prev = err?.error?.previousLetter?.toUpperCase() || '';
-          this.snackBar.open(
-            `Complete exercise ${prev} first before attempting this one.`,
-            'OK',
-            { duration: 5000 }
-          );
-          this.router.navigate(['/digital-exercises']);
+        if (code === 'SEQUENCE_LOCKED' || code === 'COURSE_DAY_LOCKED') {
+          this.handleExerciseLoadError(err);
           return;
         }
         this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });

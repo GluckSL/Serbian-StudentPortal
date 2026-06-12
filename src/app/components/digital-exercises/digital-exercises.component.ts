@@ -10,6 +10,7 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
 import { parseAdminCourseDayOrNull, TRIAL_JOURNEY_DAY } from '../../utils/journey-day.util';
+import { digitalExercisePlayCommands, exerciseIdForRoute } from '../../utils/digital-exercise-id.util';
 
 type TabType = 'completed' | 'pending' | 'new';
 
@@ -282,7 +283,9 @@ export class DigitalExercisesComponent implements OnInit {
     if (this.isExerciseJourneyLocked(exercise)) {
       return;
     }
-    this.router.navigate(['/digital-exercises', exercise._id, 'play']);
+    const commands = digitalExercisePlayCommands(exercise);
+    if (commands.length === 2) return;
+    this.router.navigate(commands);
   }
 
   navigateToCreate(): void {
@@ -475,8 +478,9 @@ export class DigitalExercisesComponent implements OnInit {
 
   openExerciseReview(exercise: DigitalExercise, ev?: Event): void {
     ev?.stopPropagation();
-    if (!exercise._id || !exercise.studentAttempt) return;
-    this.router.navigate(['/digital-exercises', exercise._id, 'review']);
+    const id = exerciseIdForRoute(exercise);
+    if (!id || !exercise.studentAttempt) return;
+    this.router.navigate(['/digital-exercises', id, 'review']);
   }
 
   getCategoryIcon(category: string): string {

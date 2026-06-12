@@ -404,7 +404,6 @@ export interface IMResult {
       border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
       font-size: 14px; font-weight: 600;
     }
-    }
     .shell__loading { padding: 0; }
     .shell__loading-grid { display: grid; grid-template-columns: 280px 1fr 300px; gap: 16px; width: 100%; margin: 0 auto; padding: 0; }
     .shell__loading-side, .shell__loading-right { display: flex; flex-direction: column; gap: 16px; }
