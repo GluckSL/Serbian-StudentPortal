@@ -365,6 +365,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
   }
 
   onSlotDrop(event: CdkDragDrop<string[]>, targetIndex: number) {
+    this.audio.unlock();
     if (this.allLocked) return;
     if (this.slotLocked[targetIndex]) return;
 
