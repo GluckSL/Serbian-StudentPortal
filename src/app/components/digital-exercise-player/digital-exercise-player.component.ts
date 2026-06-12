@@ -3668,6 +3668,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
   }
 
+  playSubQuestionAudio(sq: any): void {
+    if (!sq) return;
+    if (sq.audioUrl) {
+      this.playAudio(this.getMediaFullUrl(sq.audioUrl));
+    } else {
+      this.speakWordTTS(sq.word || '');
+    }
+  }
+
   getPronunciationClass(score: number): string {
     if (score >= 80) return 'pronunciation-excellent';
     if (score >= 60) return 'pronunciation-good';

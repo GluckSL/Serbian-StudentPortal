@@ -5,8 +5,8 @@ import {
   EventEmitter,
   OnInit,
   OnDestroy,
-  HostListener,
   ChangeDetectorRef,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MaterialModule } from '../../../../shared/material.module';
@@ -66,7 +66,7 @@ interface DisplayPair {
             </div>
           </div>
 
-          <div class="im-pool">
+          <div class="im-pool" (click)="clearSelection()">
             <button
               type="button"
               *ngFor="let word of availableWords; let i = index"
@@ -88,7 +88,7 @@ interface DisplayPair {
                 [class.im-card__target--hover]="hoveredSlotId === pair.slotId"
                 [class.im-card__target--tap-ready]="selectedWordIndex !== null && canAcceptDrop(pair)"
                 [class.im-card__target--wrong]="pair.wrongFlash"
-                (pointerup)="onTargetPointerUp($event, pair)">
+                (click)="placeWord(pair)">
                 <img [src]="pair.imageUrl" alt="" draggable="false">
                 <div class="im-card__overlay" *ngIf="pair.matched || slotHasWord(pair)">
                   <span
@@ -109,15 +109,6 @@ interface DisplayPair {
           <span class="im-complete__calc">Calculating results…</span>
         </div>
       </main>
-
-      <!-- Floating drag label follows the pointer (no CDK) -->
-      <div
-        class="im-ghost"
-        *ngIf="draggingWord"
-        [style.left.px]="ghostX"
-        [style.top.px]="ghostY">
-        <span class="im-pool__pill">{{ draggingWord }}</span>
-      </div>
 
       <app-xp-float [xp]="xpPerMatch" [trigger]="xpTrigger"></app-xp-float>
       <app-confetti-burst [active]="showConfetti"></app-confetti-burst>
@@ -176,8 +167,8 @@ interface DisplayPair {
       border: none;
       background: transparent;
       padding: 0;
-      cursor: grab;
-      touch-action: none;
+      cursor: pointer;
+      touch-action: manipulation;
     }
     .im-pool__word:active { cursor: grabbing; }
     .im-pool__word--dragging { opacity: 0.35; }
@@ -305,19 +296,9 @@ interface DisplayPair {
       z-index: 2;
     }
 
-    .im-ghost {
-      position: fixed;
-      z-index: 10000;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      margin: 0;
-    }
-
     .im-complete { text-align: center; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
     .im-complete__spinner { font-size: 48px !important; width: 48px !important; height: 48px !important; color: #6366f1; animation: im-spin 1s linear infinite; }
     @keyframes im-spin { to { transform: rotate(360deg); } }
-    .im-complete__calc { font-size: 18px; font-weight: 600; color: #64748b; }
-
     @keyframes pill-pop {
       0% { transform: scale(0.92); }
       60% { transform: scale(1.08); }
@@ -394,7 +375,6 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     if (this.timerHandle) clearInterval(this.timerHandle);
-    this.cancelDrag();
   }
 
   loadPage(index: number) {
@@ -438,6 +418,16 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
 
   canAcceptDrop(pair: DisplayPair): boolean {
     return !pair.matched && !pair.validating && !this.slotHasWord(pair);
+  }
+
+  clearSelection() {
+    this.selectedWordIndex = null;
+    this.cdr.detectChanges();
+  }
+
+  placeWord(pair: DisplayPair) {
+    if (this.selectedWordIndex == null || !this.canAcceptDrop(pair)) return;
+    this.placeWordOnSlot(pair, this.selectedWordIndex);
   }
 
   private shuffle<T>(arr: T[]): T[] {

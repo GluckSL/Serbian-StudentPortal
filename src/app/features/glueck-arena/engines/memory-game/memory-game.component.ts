@@ -49,7 +49,7 @@ interface MemoryCard {
 
         <div class="mg-board" *ngIf="phase === 'playing'">
           <div class="mg-board__prompt" [class.mg-board__prompt--preview]="previewing">
-            <p *ngIf="previewing">Memorize the cards! Game starts in 3 seconds…</p>
+            <p *ngIf="previewing">Memorize the cards! Game starts in 8 seconds…</p>
             <p *ngIf="!previewing">Flip cards to find matching picture-word pairs. Match all pairs to complete the board!</p>
           </div>
 
@@ -332,7 +332,7 @@ export class MemoryGameComponent implements OnInit, OnDestroy {
       this.cards.forEach(c => { c.flipped = false; });
       this.previewing = false;
       this.cdr.detectChanges();
-    }, 3000);
+    }, 8000);
   }
 
   private shuffle<T>(arr: T[]): T[] {
