@@ -385,7 +385,7 @@ export interface IMResult {
     </div>
   `,
   styles: [`
-    .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
+    .shell { width: 100%; max-width: 1320px; margin: 0 auto; box-sizing: border-box; }
     .shell-preview-banner {
       display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px;
       border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
