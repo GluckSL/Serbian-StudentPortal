@@ -49,6 +49,13 @@ export class OllyAdminComponent implements OnInit, OnDestroy {
   replyError = '';
 
   pendingCount = 0;
+  sidebarOpen = false;
+
+  currentPage = 1;
+  totalSessions = 0;
+  pageSize = 30;
+  loadingMore = false;
+
   private refreshTimer: any = null;
 
   readonly statusOptions = [
@@ -78,14 +85,46 @@ export class OllyAdminComponent implements OnInit, OnDestroy {
   }
 
   loadSessions(silent = false): void {
+    this.currentPage = 1;
     if (!silent) this.loadingSessions = true;
-    const params = this.filterStatus ? `?status=${this.filterStatus}` : '';
-    this.http.get<any>(`${environment.apiUrl}/olly/admin/sessions${params}`, { withCredentials: true }).subscribe({
+    const params = new URLSearchParams();
+    if (this.filterStatus) params.set('status', this.filterStatus);
+    params.set('page', '1');
+    params.set('limit', String(this.pageSize));
+    this.http.get<any>(`${environment.apiUrl}/olly/admin/sessions?${params}`, { withCredentials: true }).subscribe({
       next: (res) => {
-        if (res?.success) this.sessions = res.data;
+        if (res?.success) {
+          this.sessions = res.data;
+          this.totalSessions = res.total;
+        }
         this.loadingSessions = false;
       },
       error: () => { this.loadingSessions = false; }
+    });
+  }
+
+  get hasMore(): boolean {
+    return this.sessions.length < this.totalSessions;
+  }
+
+  loadMore(): void {
+    if (this.loadingMore || !this.hasMore) return;
+    this.loadingMore = true;
+    const nextPage = this.currentPage + 1;
+    const params = new URLSearchParams();
+    if (this.filterStatus) params.set('status', this.filterStatus);
+    params.set('page', String(nextPage));
+    params.set('limit', String(this.pageSize));
+    this.http.get<any>(`${environment.apiUrl}/olly/admin/sessions?${params}`, { withCredentials: true }).subscribe({
+      next: (res) => {
+        if (res?.success) {
+          this.currentPage = nextPage;
+          this.totalSessions = res.total;
+          this.sessions = [...this.sessions, ...res.data];
+        }
+        this.loadingMore = false;
+      },
+      error: () => { this.loadingMore = false; }
     });
   }
 
@@ -95,10 +134,15 @@ export class OllyAdminComponent implements OnInit, OnDestroy {
     });
   }
 
+  toggleSidebar(): void {
+    this.sidebarOpen = !this.sidebarOpen;
+  }
+
   selectSession(s: OllySession): void {
     this.selectedSession = s;
     this.replyText = '';
     this.replyError = '';
+    this.sidebarOpen = false;
     this.loadFullSession(s.sessionId);
   }
 
@@ -108,6 +152,7 @@ export class OllyAdminComponent implements OnInit, OnDestroy {
       next: (res) => {
         if (res?.success && this.selectedSession?.sessionId === sessionId) {
           this.selectedSession = res.data;
+          setTimeout(() => this.scrollToBottom(), 50);
         }
         this.loadingSession = false;
       },
@@ -185,8 +230,8 @@ export class OllyAdminComponent implements OnInit, OnDestroy {
   }
 
   scrollToBottom(): void {
-    const el = document.getElementById('olly-admin-msgs');
-    if (el) el.scrollTop = el.scrollHeight;
+    const el = document.getElementById('olly-msg-bottom');
+    if (el) el.scrollIntoView({ behavior: 'auto', block: 'nearest' });
   }
 
   trackById(index: number, item: OllySession): string { return item.sessionId; }
