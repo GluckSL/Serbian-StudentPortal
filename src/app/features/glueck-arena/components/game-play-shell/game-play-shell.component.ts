@@ -67,11 +67,6 @@ export interface IMResult {
         <button mat-raised-button (click)="back()">Go Back</button>
       </div>
 
-      <div class="shell-preview-banner" *ngIf="isAdminPreview">
-        <mat-icon>visibility</mat-icon>
-        <span>Admin preview — scores and XP are not saved to student leaderboards.</span>
-      </div>
-
       <!-- Unified shell layout for intro and playing phases -->
       <div class="shell-game-wrap" *ngIf="phase === 'intro' || phase === 'playing' || phase === 'results'">
 
@@ -329,7 +324,7 @@ export interface IMResult {
 
 
         <!-- Leaderboard (right) -->
-        <aside class="shell-game-wrap__right" *ngIf="!isAdminPreview">
+        <aside class="shell-game-wrap__right">
           <div class="shell-side shell-side--lb">
             <div class="shell-side__lb">
               <header class="shell-side__lb-head">
@@ -386,12 +381,6 @@ export interface IMResult {
   `,
   styles: [`
     .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
-    .shell-preview-banner {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px;
-      border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
-      font-size: 14px; font-weight: 600;
-    }
-    .shell-preview-banner mat-icon { color: #2563eb; flex-shrink: 0; }
     .shell__loading { padding: 0; }
     .shell__loading-grid { display: grid; grid-template-columns: 280px 1fr 300px; gap: 16px; width: 100%; margin: 0 auto; padding: 0; }
     .shell__loading-side, .shell__loading-right { display: flex; flex-direction: column; gap: 16px; }
@@ -912,9 +901,7 @@ export class GamePlayShellComponent implements OnInit {
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.isAdminPreview = !!this.route.snapshot.data['arenaPreview'];
-    if (!this.isAdminPreview) {
-      this.loadLeaderboard();
-    }
+    this.loadLeaderboard();
     this.svc.startAttempt(id).subscribe({
       next: (r) => {
         this.set = r.set;
@@ -926,9 +913,7 @@ export class GamePlayShellComponent implements OnInit {
         if (r.preview) this.isAdminPreview = true;
         this.thumbnailBroken = false;
         this.resolveThumbnail(this.set?.thumbnailUrl);
-        if (!this.isAdminPreview) {
-          this.fetchGameLeaderboard(id);
-        }
+        this.fetchGameLeaderboard(id);
       },
       error: (err) => {
         this.error = err?.error?.message || 'Could not start game';
