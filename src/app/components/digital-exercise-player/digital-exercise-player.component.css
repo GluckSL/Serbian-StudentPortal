@@ -3515,8 +3515,7 @@
 
 /* ── Result Screen (full-page, production-grade + responsive) ── */
 .result-screen {
-  position: fixed;
-  inset: 0;
+  flex: 1;
   background:
     radial-gradient(
       ellipse 120% 80% at 50% -20%,
@@ -3528,7 +3527,6 @@
   align-items: center;
   justify-content: center;
   padding: 20px 16px;
-  z-index: 100;
   overflow-y: auto;
 }
 
