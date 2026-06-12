@@ -45,6 +45,7 @@ const {
   aggregateHubDashboardStats,
   aggregateBatchPaymentInsights,
   buildLevelPriceMap,
+  buildStudentLevelSlotTotals,
   pendingTotalsForStudent,
   effectiveOutstandingBalance,
   VALID_STUDENT_INSIGHTS,
@@ -1243,11 +1244,32 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
       const currentDay = student.currentCourseDay != null
         ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
         : null;
+      const studentPendingSubs = pendingByStudent[sid] || [];
       const overdueSince = overdueSinceForStudent(
         student,
         studentRequests,
         studentSubs,
-        pendingByStudent[sid] || [],
+        studentPendingSubs,
+        levelPriceMap,
+      );
+      const { live: langLive } = computeTotalsForStudentLevel(
+        studentRequests,
+        studentSubs,
+        studentPendingSubs,
+        student.level,
+      );
+      const langPendingStudent = pendingTotalsForStudent(
+        studentRequests,
+        studentSubs,
+        studentPendingSubs,
+        student,
+        levelPriceMap,
+      );
+      const { levelSlots, allLanguageFees } = buildStudentLevelSlotTotals(
+        student,
+        studentRequests,
+        studentSubs,
+        studentPendingSubs,
         levelPriceMap,
       );
 
@@ -1262,11 +1284,22 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         ...paidTotalsFromBreakdown(profile?.currencyBreakdown),
         ...pendingTotalsFromBreakdown(profile?.currencyBreakdown),
         ...overdueTotalsFromBreakdown(profile?.currencyBreakdown),
+        langPaidLKR: langLive.totalPaidLKR || 0,
+        langPaidINR: langLive.totalPaidINR || 0,
+        langPaidUSD: langLive.totalPaidUSD || 0,
+        langPendingLKR: langPendingStudent.LKR || 0,
+        langPendingINR: langPendingStudent.INR || 0,
+        langPendingUSD: langPendingStudent.USD || 0,
+        langOverdueLKR: langLive.overdueAmountLKR || 0,
+        langOverdueINR: langLive.overdueAmountINR || 0,
+        langOverdueUSD: langLive.overdueAmountUSD || 0,
         pendingApprovalAmount: profile?.pendingApprovalAmount ?? 0,
         overdueAmount: profile?.overdueAmount ?? 0,
         overdueSince,
         overallStatus: profile?.overallStatus || 'NO_REQUESTS',
         levelPaid,
+        levelSlots,
+        allLanguageFees,
         docsPaidByCurrency,
         visaPaidByCurrency,
         otherPaidByCurrency,

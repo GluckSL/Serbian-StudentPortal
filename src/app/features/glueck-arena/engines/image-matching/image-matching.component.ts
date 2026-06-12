@@ -57,9 +57,10 @@ interface DisplayPair {
         <div
           class="im-board"
           [class.im-board--dragging]="!!draggingWord"
+          [class.im-board--word-selected]="selectedWordIndex !== null"
           *ngIf="phase === 'playing' && currentPairs.length">
           <div class="im-board__prompt">
-            <p>Drag each word onto its matching image. Correct matches turn <span class="im-hint__green">green</span>!</p>
+            <p>Drag or tap a word, then tap its matching image. Correct matches turn <span class="im-hint__green">green</span>!</p>
             <div class="im-progress-chips">
               <span class="im-progress-chips__label">{{ matchedCount }} / {{ currentPairs.length }} matched</span>
             </div>
@@ -68,10 +69,11 @@ interface DisplayPair {
           <div class="im-pool">
             <button
               type="button"
-              *ngFor="let word of availableWords"
+              *ngFor="let word of availableWords; let i = index"
               class="im-pool__word"
-              [class.im-pool__word--dragging]="draggingWord === word"
-              (pointerdown)="startDrag($event, word)">
+              [class.im-pool__word--dragging]="draggingWordIndex === i"
+              [class.im-pool__word--selected]="selectedWordIndex === i"
+              (pointerdown)="onWordPointerDown($event, i)">
               <span class="im-pool__pill">{{ word }}</span>
             </button>
           </div>
@@ -84,6 +86,7 @@ interface DisplayPair {
                 [class.im-card__target--matched]="pair.matched"
                 [class.im-card__target--placed]="!pair.matched && slotHasWord(pair)"
                 [class.im-card__target--hover]="hoveredSlotId === pair.slotId"
+                [class.im-card__target--tap-ready]="selectedWordIndex !== null && canAcceptDrop(pair)"
                 [class.im-card__target--wrong]="pair.wrongFlash"
                 (pointerup)="onTargetPointerUp($event, pair)">
                 <img [src]="pair.imageUrl" alt="" draggable="false">
@@ -142,7 +145,12 @@ interface DisplayPair {
     .im-play__progress { flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: #64748b; }
     .im-play__timer { display: flex; align-items: center; gap: 4px; font-weight: 700; color: #1e3a5f; padding: 6px 12px; background: #e0f2fe; border-radius: 999px; font-size: 14px; }
 
-    .im-board { padding: 24px 22px 28px; touch-action: none; user-select: none; }
+    .im-board {
+      padding: 24px 22px calc(28px + env(safe-area-inset-bottom, 0px));
+      touch-action: pan-y;
+      user-select: none;
+    }
+    .im-board--dragging { touch-action: none; }
     .im-board--dragging .im-card__target:not(.im-card__target--matched):not(.im-card__target--placed) {
       pointer-events: auto;
     }
@@ -173,6 +181,10 @@ interface DisplayPair {
     }
     .im-pool__word:active { cursor: grabbing; }
     .im-pool__word--dragging { opacity: 0.35; }
+    .im-pool__word--selected .im-pool__pill {
+      box-shadow: 0 0 0 3px #fff, 0 0 0 6px #6366f1, 0 4px 14px rgba(79, 70, 229, 0.45);
+      transform: scale(1.06);
+    }
 
     .im-pool__pill {
       display: inline-flex;
@@ -230,10 +242,15 @@ interface DisplayPair {
       pointer-events: none;
       display: block;
     }
-    .im-card__target--hover:not(.im-card__target--matched):not(.im-card__target--placed) {
+    .im-card__target--hover:not(.im-card__target--matched):not(.im-card__target--placed),
+    .im-card__target--tap-ready {
       border-color: #6366f1;
       border-width: 3px;
       box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.35);
+      cursor: pointer;
+    }
+    .im-board--word-selected .im-card__target--tap-ready {
+      animation: im-pulse 1.2s ease-in-out infinite;
     }
     .im-card__target--matched {
       border-color: #22c55e;
@@ -311,6 +328,10 @@ interface DisplayPair {
       25% { transform: translateX(-4px); }
       75% { transform: translateX(4px); }
     }
+    @keyframes im-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.35); }
+      50% { box-shadow: 0 0 0 7px rgba(99, 102, 241, 0.2); }
+    }
   `]
 })
 export class ImageMatchingComponent implements OnInit, OnDestroy {
@@ -326,7 +347,9 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
   availableWords: string[] = [];
   slotData: Record<string, string[]> = {};
   hoveredSlotId: string | null = null;
+  selectedWordIndex: number | null = null;
   draggingWord: string | null = null;
+  draggingWordIndex: number | null = null;
   ghostX = 0;
   ghostY = 0;
   score = 0;
@@ -339,8 +362,13 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
   private timerHandle: ReturnType<typeof setInterval> | null = null;
   private sessionStartedAt = Date.now();
   private activePointerId: number | null = null;
+  private pendingWordIndex: number | null = null;
+  private pointerStartX = 0;
+  private pointerStartY = 0;
+  private dragStarted = false;
   private dropCommitted = false;
   private readonly dropHitPadding = 20;
+  private readonly dragThreshold = 10;
 
   get totalPages(): number {
     return Math.max(1, Math.ceil(this.questions.length / this.pageSize));
@@ -377,6 +405,7 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
     }
     this.currentPageIndex = index;
     this.hoveredSlotId = null;
+    this.selectedWordIndex = null;
     this.cancelDrag();
     const start = index * this.pageSize;
     const end = Math.min(start + this.pageSize, this.questions.length);
@@ -448,22 +477,55 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
     return bestId;
   }
 
-  startDrag(event: PointerEvent, word: string) {
-    if (this.phase !== 'playing' || !word || event.button !== 0) return;
-    event.preventDefault();
+  onWordPointerDown(event: PointerEvent, wordIndex: number) {
+    if (this.phase !== 'playing' || event.button !== 0) return;
+    const word = this.availableWords[wordIndex];
+    if (!word) return;
 
     this.dropCommitted = false;
-    this.draggingWord = word;
+    this.dragStarted = false;
+    this.pendingWordIndex = wordIndex;
     this.activePointerId = event.pointerId;
-    this.ghostX = event.clientX;
-    this.ghostY = event.clientY;
-    this.hoveredSlotId = this.slotIdAtPoint(event.clientX, event.clientY);
+    this.pointerStartX = event.clientX;
+    this.pointerStartY = event.clientY;
+  }
+
+  private beginDrag(wordIndex: number, clientX: number, clientY: number) {
+    const word = this.availableWords[wordIndex];
+    if (!word) return;
+
+    this.dragStarted = true;
+    this.selectedWordIndex = null;
+    this.draggingWord = word;
+    this.draggingWordIndex = wordIndex;
+    this.ghostX = clientX;
+    this.ghostY = clientY;
+    this.hoveredSlotId = this.slotIdAtPoint(clientX, clientY);
+    this.cdr.detectChanges();
+  }
+
+  private toggleWordSelection(wordIndex: number) {
+    this.selectedWordIndex = this.selectedWordIndex === wordIndex ? null : wordIndex;
     this.cdr.detectChanges();
   }
 
   @HostListener('window:pointermove', ['$event'])
   onWindowPointerMove(event: PointerEvent) {
-    if (this.draggingWord == null || this.activePointerId !== event.pointerId) return;
+    if (this.activePointerId !== event.pointerId) return;
+
+    if (this.pendingWordIndex != null && !this.dragStarted) {
+      const dx = event.clientX - this.pointerStartX;
+      const dy = event.clientY - this.pointerStartY;
+      if (Math.hypot(dx, dy) >= this.dragThreshold) {
+        event.preventDefault();
+        this.beginDrag(this.pendingWordIndex, event.clientX, event.clientY);
+        this.pendingWordIndex = null;
+      }
+      return;
+    }
+
+    if (this.draggingWord == null) return;
+    event.preventDefault();
     this.ghostX = event.clientX;
     this.ghostY = event.clientY;
     this.hoveredSlotId = this.slotIdAtPoint(event.clientX, event.clientY);
@@ -473,7 +535,15 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
   @HostListener('window:pointerup', ['$event'])
   @HostListener('window:pointercancel', ['$event'])
   onWindowPointerEnd(event: PointerEvent) {
-    if (this.draggingWord == null || this.activePointerId !== event.pointerId) return;
+    if (this.activePointerId !== event.pointerId) return;
+
+    if (this.pendingWordIndex != null && !this.dragStarted) {
+      this.toggleWordSelection(this.pendingWordIndex);
+      this.clearPointerState();
+      return;
+    }
+
+    if (this.draggingWord == null) return;
     const slotId = this.slotIdAtPoint(event.clientX, event.clientY) ?? this.hoveredSlotId;
     this.finishDrag(slotId);
   }
@@ -487,41 +557,67 @@ export class ImageMatchingComponent implements OnInit, OnDestroy {
   }
 
   onTargetPointerUp(event: PointerEvent, pair: DisplayPair) {
-    if (this.draggingWord == null || this.activePointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (this.canAcceptDrop(pair)) {
-      this.finishDrag(pair.slotId);
+    if (this.draggingWord != null && this.activePointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.canAcceptDrop(pair)) {
+        this.finishDrag(pair.slotId);
+      }
+      return;
+    }
+
+    if (this.selectedWordIndex != null && !this.dragStarted && this.canAcceptDrop(pair)) {
+      event.preventDefault();
+      this.placeWordOnSlot(pair, this.selectedWordIndex);
     }
   }
 
   private finishDrag(slotId: string | null) {
-    if (this.dropCommitted || this.draggingWord == null) return;
+    if (this.dropCommitted || this.draggingWordIndex == null) return;
     this.dropCommitted = true;
 
-    const word = this.draggingWord;
+    const wordIndex = this.draggingWordIndex;
     this.cancelDrag();
 
-    if (!slotId || !word.trim()) return;
+    if (!slotId) return;
 
     const pair = this.currentPairs.find(p => p.slotId === slotId);
     if (!pair || !this.canAcceptDrop(pair)) return;
 
-    const wordIndex = this.availableWords.indexOf(word);
-    if (wordIndex === -1) return;
+    this.placeWordOnSlot(pair, wordIndex);
+  }
+
+  private placeWordOnSlot(pair: DisplayPair, wordIndex: number) {
+    const word = this.availableWords[wordIndex];
+    if (!word?.trim() || !this.canAcceptDrop(pair)) return;
 
     this.availableWords.splice(wordIndex, 1);
     this.availableWords = [...this.availableWords];
-    this.slotData[slotId] = [word];
+    this.selectedWordIndex = null;
+    this.slotData[pair.slotId] = [word];
     pair.validating = true;
     this.cdr.detectChanges();
 
     this.validateMatch(pair, word);
   }
 
+  private clearPointerState() {
+    this.pendingWordIndex = null;
+    this.activePointerId = null;
+    this.pointerStartX = 0;
+    this.pointerStartY = 0;
+    this.dragStarted = false;
+    this.cdr.detectChanges();
+  }
+
   private cancelDrag() {
     this.draggingWord = null;
+    this.draggingWordIndex = null;
+    this.pendingWordIndex = null;
     this.activePointerId = null;
+    this.pointerStartX = 0;
+    this.pointerStartY = 0;
+    this.dragStarted = false;
     this.hoveredSlotId = null;
     this.cdr.detectChanges();
   }

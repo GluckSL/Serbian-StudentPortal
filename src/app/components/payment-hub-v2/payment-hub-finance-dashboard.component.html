@@ -53,6 +53,7 @@
               </mat-option>
             </mat-select>
           </mat-form-field>
+
         </div>
 
         <div class="ph-finance-filters-actions">
@@ -167,9 +168,32 @@
               <span *ngIf="hasBatchSelection"> · {{ selectedBatches.length }} selected</span>
               <span *ngIf="activePresetName"> · view: {{ activePresetName }}</span>
               <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
+              <span *ngIf="paymentFilter !== 'all_language'"> · {{ paymentFilterLabel() }}</span>
             </p>
           </div>
           <div class="ph-finance-table-actions">
+            <button
+              mat-icon-button
+              type="button"
+              class="ph-btn-payment-filter"
+              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
+              [matMenuTriggerFor]="paymentFilterMenu"
+              [matTooltip]="paymentFilterHint()"
+              aria-label="Payment amount filter"
+            >
+              <mat-icon>filter_list</mat-icon>
+            </button>
+            <mat-menu #paymentFilterMenu="matMenu" class="ph-payment-filter-menu">
+              <button
+                mat-menu-item
+                type="button"
+                *ngFor="let opt of paymentFilterOptions"
+                (click)="setPaymentFilter(opt.value)"
+              >
+                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
+              </button>
+            </mat-menu>
             <button
               mat-stroked-button
               type="button"
@@ -264,36 +288,36 @@
                 </td>
                 <td class="ph-num ph-money-cell ph-col-money">
                   <app-payment-currency-totals
-                    [lkr]="r.totalExpectedLKR"
-                    [inr]="r.totalExpectedINR"
-                    [usd]="r.totalExpectedUSD"
+                    [lkr]="rowExpected(r).lkr"
+                    [inr]="rowExpected(r).inr"
+                    [usd]="rowExpected(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-totals>
                 </td>
                 <td class="ph-num ph-money-cell ph-money-cell--received ph-col-money">
                   <app-payment-currency-totals
-                    [lkr]="r.totalPaidLKR"
-                    [inr]="r.totalPaidINR"
-                    [usd]="r.totalPaidUSD"
+                    [lkr]="rowReceived(r).lkr"
+                    [inr]="rowReceived(r).inr"
+                    [usd]="rowReceived(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-totals>
                 </td>
                 <td class="ph-num ph-money-cell ph-col-money">
                   <app-payment-currency-pending-totals
-                    [lkr]="r.totalPendingLKR"
-                    [inr]="r.totalPendingINR"
-                    [usd]="r.totalPendingUSD"
+                    [lkr]="rowPending(r).lkr"
+                    [inr]="rowPending(r).inr"
+                    [usd]="rowPending(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-pending-totals>
                 </td>
                 <td class="ph-num ph-money-cell ph-col-money">
                   <app-payment-currency-overdue-totals
-                    [lkr]="r.totalOverdueLKR"
-                    [inr]="r.totalOverdueINR"
-                    [usd]="r.totalOverdueUSD"
+                    [lkr]="rowOverdue(r).lkr"
+                    [inr]="rowOverdue(r).inr"
+                    [usd]="rowOverdue(r).usd"
                     [sinceDate]="r.overdueSince"
                     [compact]="true"
                     [hideZero]="true"

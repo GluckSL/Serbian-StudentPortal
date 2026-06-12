@@ -10,7 +10,13 @@ const {
   emptyCurrencyBucket,
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
-const { computeTotalsForStudentLevel, computeTotalsForAllPayments } = require('../utils/levelSlotHelper');
+const {
+  LANGUAGE_LEVELS,
+  computeTotalsForLevelSlot,
+  computeTotalsForStudentLevel,
+  computeTotalsForAllPayments,
+  slotForRequest,
+} = require('../utils/levelSlotHelper');
 const { computeLanguageFeeStatus, JOURNEY_DUE_FROM_DAY } = require('./languageFeeStatus');
 const { inferCurrencyFromPhone } = require('../utils/currencyHelper');
 const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
@@ -33,6 +39,32 @@ function buildLevelPriceMap(catalog) {
 
 function studentInferredCurrency(student) {
   return inferCurrencyFromPhone(student?.phoneNumber);
+}
+
+/** Fee currency for catalog totals: INR for +91 phones, otherwise LKR (incl. missing/94). */
+function feeCurrencyForStudent(student) {
+  return inferCurrencyFromPhone(student?.phoneNumber) === 'INR' ? 'INR' : 'LKR';
+}
+
+/** Infer fee currency for a level slot (+91 phone, or INR already received on this slot). */
+function feeCurrencyForLevelSlot(student, studentRequests, approvedSubs, slot, studentLevel) {
+  if (inferCurrencyFromPhone(student?.phoneNumber) === 'INR') return 'INR';
+  const slotReceived = receivedBucketsByLevelSlot(studentRequests, approvedSubs, studentLevel)[slot];
+  if ((slotReceived?.INR || 0) > 0) return 'INR';
+  return 'LKR';
+}
+
+/** Catalog fee for a level slot when the student is currently on that level. */
+function catalogFeeForLevelSlot(student, levelPriceMap, slot, studentRequests, approvedSubs) {
+  const studentLevel = String(student?.level || '').trim().toUpperCase();
+  if (studentLevel !== slot) return { LKR: 0, INR: 0, USD: 0 };
+  const lp = levelPriceMap.get(slot) || { LKR: 0, INR: 0, USD: 0 };
+  const ccy = feeCurrencyForLevelSlot(student, studentRequests, approvedSubs, slot, studentLevel);
+  return {
+    LKR: ccy === 'LKR' ? (lp.LKR || 0) : 0,
+    INR: ccy === 'INR' ? (lp.INR || 0) : 0,
+    USD: 0,
+  };
 }
 
 /** Catalog fee for one student — only in their inferred currency (INR / LKR / USD from phone). */
@@ -77,6 +109,237 @@ function addBuckets(target, source) {
   target.LKR += source.LKR || 0;
   target.INR += source.INR || 0;
   target.USD += source.USD || 0;
+}
+
+function emptyLevelSlotAccumulator() {
+  return {
+    received: emptyCurrencyBucket(),
+    pending: emptyCurrencyBucket(),
+    overdue: emptyCurrencyBucket(),
+    /** Catalog fee × students currently on this level (inferred currency per student). */
+    expected: emptyCurrencyBucket(),
+  };
+}
+
+function createEmptyLevelSlots() {
+  return Object.fromEntries(LANGUAGE_LEVELS.map((slot) => [slot, emptyLevelSlotAccumulator()]));
+}
+
+/** Catalog gap for a specific CEFR slot when the student is currently on that level. */
+function catalogGapsForLevelSlot(student, levelPriceMap, live, slot, studentRequests, approvedSubs) {
+  const studentLevel = String(student?.level || '').trim().toUpperCase();
+  if (studentLevel !== slot) return { LKR: 0, INR: 0, USD: 0 };
+  const levelPrice = levelPriceMap.get(slot) || { LKR: 0, INR: 0, USD: 0 };
+  const ccy = feeCurrencyForLevelSlot(student, studentRequests, approvedSubs, slot, studentLevel);
+  return {
+    LKR: ccy === 'LKR' ? Math.max(0, (levelPrice.LKR || 0) - (Number(live?.totalPaidLKR) || 0)) : 0,
+    INR: ccy === 'INR' ? Math.max(0, (levelPrice.INR || 0) - (Number(live?.totalPaidINR) || 0)) : 0,
+    USD: ccy === 'USD' ? Math.max(0, (levelPrice.USD || 0) - (Number(live?.totalPaidUSD) || 0)) : 0,
+  };
+}
+
+function pendingTotalsForLevelSlot(studentRequests, approvedSubs, pendingSubs, student, levelPriceMap, slot) {
+  const { live, balanceDue, levelRequests } = computeTotalsForLevelSlot(
+    studentRequests,
+    approvedSubs,
+    pendingSubs,
+    slot,
+    student?.level,
+  );
+  const hasMappedPayments = levelRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
+  const catalogGaps = catalogGapsForLevelSlot(
+    student,
+    levelPriceMap,
+    live,
+    slot,
+    studentRequests,
+    approvedSubs,
+  );
+  const catalogBalance = catalogGaps.LKR + catalogGaps.INR + catalogGaps.USD;
+
+  if (balanceDue.total > 0) {
+    return {
+      LKR: balanceDue.pendingApprovalAmountLKR,
+      INR: balanceDue.pendingApprovalAmountINR,
+      USD: balanceDue.pendingApprovalAmountUSD,
+    };
+  }
+  if (!hasMappedPayments && catalogBalance > 0) {
+    return { LKR: catalogGaps.LKR, INR: catalogGaps.INR, USD: catalogGaps.USD };
+  }
+  return { LKR: 0, INR: 0, USD: 0 };
+}
+
+function slotExpectedFromParts(received, pending, overdue) {
+  return {
+    LKR: (received.LKR || 0) + (pending.LKR || 0) + (overdue.LKR || 0),
+    INR: (received.INR || 0) + (pending.INR || 0) + (overdue.INR || 0),
+    USD: (received.USD || 0) + (pending.USD || 0) + (overdue.USD || 0),
+  };
+}
+
+/** Approved submission totals per A1–B2 slot (matches batch student detail levelPaid buckets). */
+function receivedBucketsByLevelSlot(studentRequests, approvedSubs, studentLevel) {
+  const slots = Object.fromEntries(LANGUAGE_LEVELS.map((s) => [s, emptyCurrencyBucket()]));
+  const reqById = new Map((studentRequests || []).map((r) => [String(r._id), r]));
+  for (const sub of approvedSubs || []) {
+    const paid = Number(sub.paidAmount) || 0;
+    if (paid <= 0) continue;
+    const req = reqById.get(String(sub.paymentRequestId));
+    if (!req || req.isArchived || req.status === 'REJECTED') continue;
+    const slot = slotForRequest(req, studentLevel);
+    if (!slot || !LANGUAGE_LEVELS.includes(slot)) continue;
+    addToCurrencyBucket(slots[slot], sub.currency || req.currency || 'LKR', paid);
+  }
+  return slots;
+}
+
+/** Approved received for one CEFR slot (submission attribution; matches levelPaid buckets). */
+function receivedForLevelSlot(studentRequests, approvedSubs, studentLevel, slot) {
+  const bySub = receivedBucketsByLevelSlot(studentRequests, approvedSubs, studentLevel)[slot];
+  if (bucketTotal(bySub) > 0) return bySub;
+  const { live } = computeTotalsForLevelSlot(studentRequests, approvedSubs, [], slot, studentLevel);
+  return {
+    LKR: live.totalPaidLKR || 0,
+    INR: live.totalPaidINR || 0,
+    USD: live.totalPaidUSD || 0,
+  };
+}
+
+/**
+ * Keep catalog slot totals consistent: received ≤ expected, pending = outstanding, overdue ≤ pending.
+ * When the student is not on this level (no catalog fee), keep request-based pending/overdue.
+ */
+function reconcileLevelSlotBuckets(catalogExpected, received, rawPending, rawOverdue) {
+  const exp = catalogExpected || { LKR: 0, INR: 0, USD: 0 };
+  const rec = received || { LKR: 0, INR: 0, USD: 0 };
+  const rawP = rawPending || { LKR: 0, INR: 0, USD: 0 };
+  const rawO = rawOverdue || { LKR: 0, INR: 0, USD: 0 };
+
+  if (bucketTotal(exp) <= 0) {
+    return {
+      expected: slotExpectedFromParts(rec, rawP, rawO),
+      received: rec,
+      pending: rawP,
+      overdue: rawO,
+    };
+  }
+
+  const pending = {
+    LKR: Math.max(0, (exp.LKR || 0) - (rec.LKR || 0)),
+    INR: Math.max(0, (exp.INR || 0) - (rec.INR || 0)),
+    USD: Math.max(0, (exp.USD || 0) - (rec.USD || 0)),
+  };
+  const receivedApplied = {
+    LKR: Math.min(rec.LKR || 0, exp.LKR || 0),
+    INR: Math.min(rec.INR || 0, exp.INR || 0),
+    USD: Math.min(rec.USD || 0, exp.USD || 0),
+  };
+  const overdue = {
+    LKR: pending.LKR > 0 && (rawO.LKR || 0) > 0 ? Math.min(pending.LKR, rawO.LKR) : 0,
+    INR: pending.INR > 0 && (rawO.INR || 0) > 0 ? Math.min(pending.INR, rawO.INR) : 0,
+    USD: pending.USD > 0 && (rawO.USD || 0) > 0 ? Math.min(pending.USD, rawO.USD) : 0,
+  };
+
+  return { expected: exp, received: receivedApplied, pending, overdue };
+}
+
+/** One student's reconciled A1–B2 slot (shared by batch aggregation and student detail). */
+function computeReconciledLevelSlot(
+  student,
+  studentRequests,
+  approvedSubs,
+  pendingSubs,
+  levelPriceMap,
+  slot,
+) {
+  const studentLevel = String(student?.level || '').trim().toUpperCase();
+  const catalogExpected = studentLevel === slot
+    ? catalogFeeForLevelSlot(student, levelPriceMap, slot, studentRequests, approvedSubs)
+    : { LKR: 0, INR: 0, USD: 0 };
+  const received = receivedForLevelSlot(studentRequests, approvedSubs, studentLevel, slot);
+  const { live: slotLive } = computeTotalsForLevelSlot(
+    studentRequests,
+    approvedSubs,
+    pendingSubs,
+    slot,
+    student.level,
+  );
+  const rawPending = pendingTotalsForLevelSlot(
+    studentRequests,
+    approvedSubs,
+    pendingSubs,
+    student,
+    levelPriceMap,
+    slot,
+  );
+  const rawOverdue = {
+    LKR: slotLive.overdueAmountLKR || 0,
+    INR: slotLive.overdueAmountINR || 0,
+    USD: slotLive.overdueAmountUSD || 0,
+  };
+  return reconcileLevelSlotBuckets(catalogExpected, received, rawPending, rawOverdue);
+}
+
+function finalizeLevelSlotFields(acc) {
+  const levelSlots = {};
+  const allLang = emptyLevelSlotAccumulator();
+
+  for (const slot of LANGUAGE_LEVELS) {
+    const s = acc.levelSlots[slot] || emptyLevelSlotAccumulator();
+    const received = { LKR: s.received.LKR || 0, INR: s.received.INR || 0, USD: s.received.USD || 0 };
+    const pending = { LKR: s.pending.LKR || 0, INR: s.pending.INR || 0, USD: s.pending.USD || 0 };
+    const overdue = { LKR: s.overdue.LKR || 0, INR: s.overdue.INR || 0, USD: s.overdue.USD || 0 };
+    const catalogExpected = {
+      LKR: s.expected.LKR || 0,
+      INR: s.expected.INR || 0,
+      USD: s.expected.USD || 0,
+    };
+    const derivedExpected = slotExpectedFromParts(received, pending, overdue);
+    const catalogTotal = catalogExpected.LKR + catalogExpected.INR + catalogExpected.USD;
+    const expected = catalogTotal > 0 ? catalogExpected : derivedExpected;
+    levelSlots[slot] = {
+      receivedLKR: received.LKR,
+      receivedINR: received.INR,
+      receivedUSD: received.USD,
+      pendingLKR: pending.LKR,
+      pendingINR: pending.INR,
+      pendingUSD: pending.USD,
+      overdueLKR: overdue.LKR,
+      overdueINR: overdue.INR,
+      overdueUSD: overdue.USD,
+      expectedLKR: expected.LKR,
+      expectedINR: expected.INR,
+      expectedUSD: expected.USD,
+    };
+    addBuckets(allLang.received, received);
+    addBuckets(allLang.pending, pending);
+    addBuckets(allLang.overdue, overdue);
+    addBuckets(allLang.expected, catalogExpected);
+  }
+
+  const allExpected = {
+    LKR: allLang.expected.LKR || 0,
+    INR: allLang.expected.INR || 0,
+    USD: allLang.expected.USD || 0,
+  };
+  return {
+    levelSlots,
+    allLanguageFees: {
+      receivedLKR: allLang.received.LKR || 0,
+      receivedINR: allLang.received.INR || 0,
+      receivedUSD: allLang.received.USD || 0,
+      pendingLKR: allLang.pending.LKR || 0,
+      pendingINR: allLang.pending.INR || 0,
+      pendingUSD: allLang.pending.USD || 0,
+      overdueLKR: allLang.overdue.LKR || 0,
+      overdueINR: allLang.overdue.INR || 0,
+      overdueUSD: allLang.overdue.USD || 0,
+      expectedLKR: allExpected.LKR,
+      expectedINR: allExpected.INR,
+      expectedUSD: allExpected.USD,
+    },
+  };
 }
 
 /** Per-student language fee from hub catalog (CEFR level × fee in inferred currency only). */
@@ -480,6 +743,9 @@ function emptyBatchAccumulator() {
   return {
     studentCount: 0,
     received: emptyCurrencyBucket(),
+    langReceived: emptyCurrencyBucket(),
+    fullPending: emptyCurrencyBucket(),
+    fullOverdue: emptyCurrencyBucket(),
     pending: emptyCurrencyBucket(),
     overdue: emptyCurrencyBucket(),
     expected: emptyCurrencyBucket(),
@@ -495,6 +761,7 @@ function emptyBatchAccumulator() {
     journeyDayCount: 0,
     maxStudentDay: null,
     earliestOverdueAt: null,
+    levelSlots: createEmptyLevelSlots(),
   };
 }
 
@@ -530,6 +797,19 @@ function finalizeBatchRow(batch, acc) {
     ? catalogExpectedUSD
     : receivedUSD + pendingUSD + overdueUSD;
 
+  const langPaidLKR = acc.langReceived.LKR || 0;
+  const langPaidINR = acc.langReceived.INR || 0;
+  const langPaidUSD = acc.langReceived.USD || 0;
+  const fullPendingLKR = acc.fullPending.LKR || 0;
+  const fullPendingINR = acc.fullPending.INR || 0;
+  const fullPendingUSD = acc.fullPending.USD || 0;
+  const fullOverdueLKR = acc.fullOverdue.LKR || 0;
+  const fullOverdueINR = acc.fullOverdue.INR || 0;
+  const fullOverdueUSD = acc.fullOverdue.USD || 0;
+  const fullExpectedLKR = receivedLKR + fullPendingLKR + fullOverdueLKR;
+  const fullExpectedINR = receivedINR + fullPendingINR + fullOverdueINR;
+  const fullExpectedUSD = receivedUSD + fullPendingUSD + fullOverdueUSD;
+
   return {
     batch,
     studentCount: acc.studentCount,
@@ -537,6 +817,18 @@ function finalizeBatchRow(batch, acc) {
     totalPaidLKR: receivedLKR,
     totalPaidINR: receivedINR,
     totalPaidUSD: receivedUSD,
+    langPaidLKR,
+    langPaidINR,
+    langPaidUSD,
+    fullPendingLKR,
+    fullPendingINR,
+    fullPendingUSD,
+    fullOverdueLKR,
+    fullOverdueINR,
+    fullOverdueUSD,
+    fullExpectedLKR,
+    fullExpectedINR,
+    fullExpectedUSD,
     totalPendingLKR: acc.pending.LKR || 0,
     totalPendingINR: pendingINR,
     totalPendingUSD: pendingUSD,
@@ -561,6 +853,7 @@ function finalizeBatchRow(batch, acc) {
       expectedLKR > 0 ? Math.min(100, Math.round((receivedLKR / expectedLKR) * 100)) : null,
     overdueSince: acc.earliestOverdueAt ? acc.earliestOverdueAt.toISOString() : null,
     ...insightAmountsToFields(acc.insightAmounts),
+    ...finalizeLevelSlotFields(acc),
   };
 }
 
@@ -623,7 +916,7 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     const approved = approvedByStudent[sid] || [];
     const pendingSubmissions = pendingByStudent[sid] || [];
 
-    const { live: allLive } = computeTotalsForAllPayments(
+    const { live: allLive, balanceDue: allBalanceDue } = computeTotalsForAllPayments(
       studentRequests,
       approved,
       pendingSubmissions,
@@ -639,6 +932,21 @@ async function aggregateBatchPaymentInsights(filters = {}) {
       LKR: allLive.totalPaidLKR,
       INR: allLive.totalPaidINR,
       USD: allLive.totalPaidUSD,
+    };
+    const langReceivedStudent = {
+      LKR: live.totalPaidLKR || 0,
+      INR: live.totalPaidINR || 0,
+      USD: live.totalPaidUSD || 0,
+    };
+    const fullPendingStudent = {
+      LKR: allBalanceDue.pendingApprovalAmountLKR || 0,
+      INR: allBalanceDue.pendingApprovalAmountINR || 0,
+      USD: allBalanceDue.pendingApprovalAmountUSD || 0,
+    };
+    const fullOverdueStudent = {
+      LKR: allLive.overdueAmountLKR || 0,
+      INR: allLive.overdueAmountINR || 0,
+      USD: allLive.overdueAmountUSD || 0,
     };
     const overdueStudent = {
       LKR: live.overdueAmountLKR,
@@ -668,6 +976,27 @@ async function aggregateBatchPaymentInsights(filters = {}) {
 
     acc.studentCount += 1;
     addBuckets(acc.received, receivedStudent);
+    addBuckets(acc.langReceived, langReceivedStudent);
+    addBuckets(acc.fullPending, fullPendingStudent);
+    addBuckets(acc.fullOverdue, fullOverdueStudent);
+    for (const slot of LANGUAGE_LEVELS) {
+      const reconciled = computeReconciledLevelSlot(
+        student,
+        studentRequests,
+        approved,
+        pendingSubmissions,
+        levelPriceMap,
+        slot,
+      );
+      addBuckets(acc.levelSlots[slot].expected, reconciled.expected);
+      addBuckets(acc.levelSlots[slot].received, reconciled.received);
+      addBuckets(acc.levelSlots[slot].pending, reconciled.pending);
+      addBuckets(acc.levelSlots[slot].overdue, reconciled.overdue);
+      addBuckets(totalsAcc.levelSlots[slot].expected, reconciled.expected);
+      addBuckets(totalsAcc.levelSlots[slot].received, reconciled.received);
+      addBuckets(totalsAcc.levelSlots[slot].pending, reconciled.pending);
+      addBuckets(totalsAcc.levelSlots[slot].overdue, reconciled.overdue);
+    }
     addBuckets(acc.pending, pendingStudent);
     addBuckets(acc.overdue, overdueStudent);
     addBuckets(acc.expected, expectedStudent);
@@ -727,6 +1056,9 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     }
 
     addBuckets(totalsAcc.received, receivedStudent);
+    addBuckets(totalsAcc.langReceived, langReceivedStudent);
+    addBuckets(totalsAcc.fullPending, fullPendingStudent);
+    addBuckets(totalsAcc.fullOverdue, fullOverdueStudent);
     addBuckets(totalsAcc.pending, pendingStudent);
     addBuckets(totalsAcc.overdue, overdueStudent);
     addBuckets(totalsAcc.expected, expectedStudent);
@@ -876,10 +1208,71 @@ async function filterStudentsByInsight(students, insight) {
   });
 }
 
+function slotTotalsToFields(received, pending, overdue, expected) {
+  return {
+    receivedLKR: received.LKR || 0,
+    receivedINR: received.INR || 0,
+    receivedUSD: received.USD || 0,
+    pendingLKR: pending.LKR || 0,
+    pendingINR: pending.INR || 0,
+    pendingUSD: pending.USD || 0,
+    overdueLKR: overdue.LKR || 0,
+    overdueINR: overdue.INR || 0,
+    overdueUSD: overdue.USD || 0,
+    expectedLKR: expected.LKR || 0,
+    expectedINR: expected.INR || 0,
+    expectedUSD: expected.USD || 0,
+  };
+}
+
+/** Per-student A1–B2 slot totals for batch student table payment filters. */
+function buildStudentLevelSlotTotals(student, studentRequests, approvedSubs, pendingSubs, levelPriceMap) {
+  const levelSlots = {};
+  const allLang = emptyLevelSlotAccumulator();
+
+  for (const slot of LANGUAGE_LEVELS) {
+    const reconciled = computeReconciledLevelSlot(
+      student,
+      studentRequests,
+      approvedSubs,
+      pendingSubs,
+      levelPriceMap,
+      slot,
+    );
+    levelSlots[slot] = slotTotalsToFields(
+      reconciled.received,
+      reconciled.pending,
+      reconciled.overdue,
+      reconciled.expected,
+    );
+    addBuckets(allLang.received, reconciled.received);
+    addBuckets(allLang.pending, reconciled.pending);
+    addBuckets(allLang.overdue, reconciled.overdue);
+    addBuckets(allLang.expected, reconciled.expected);
+  }
+
+  const allExpected = {
+    LKR: allLang.expected.LKR || 0,
+    INR: allLang.expected.INR || 0,
+    USD: allLang.expected.USD || 0,
+  };
+
+  return {
+    levelSlots,
+    allLanguageFees: slotTotalsToFields(
+      allLang.received,
+      allLang.pending,
+      allLang.overdue,
+      allExpected,
+    ),
+  };
+}
+
 module.exports = {
   aggregateHubDashboardStats,
   aggregateBatchPaymentInsights,
   buildLevelPriceMap,
+  buildStudentLevelSlotTotals,
   pendingTotalsForStudent,
   effectiveOutstandingBalance,
   overdueSinceForStudent,

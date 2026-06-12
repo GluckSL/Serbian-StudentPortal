@@ -32,7 +32,7 @@
               <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
               <div class="ph-health-card-amount" *ngIf="hasInsightAmount(opt.key)">
                 <app-payment-currency-totals
-                  *ngIf="opt.amountKind === 'received' || opt.amountKind === 'docs' || opt.amountKind === 'visa'"
+                  *ngIf="opt.amountKind === 'expected' || opt.amountKind === 'received' || opt.amountKind === 'docs' || opt.amountKind === 'visa'"
                   [lkr]="insightAmountLkr(opt.key)"
                   [inr]="insightAmountInr(opt.key)"
                   [usd]="insightAmountUsd(opt.key)"
@@ -78,6 +78,31 @@
               </button>
             </span>
             <span class="ph-select-meta">{{ displayRows.length }} shown</span>
+            <span class="ph-select-meta ph-select-meta--filter" *ngIf="paymentFilter !== 'all_language'">
+              {{ paymentFilterLabel() }}
+            </span>
+            <button
+              mat-icon-button
+              type="button"
+              class="ph-btn-payment-filter"
+              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
+              [matMenuTriggerFor]="paymentFilterMenu"
+              [matTooltip]="paymentFilterHint()"
+              aria-label="Payment amount filter"
+            >
+              <mat-icon>filter_list</mat-icon>
+            </button>
+            <mat-menu #paymentFilterMenu="matMenu">
+              <button
+                mat-menu-item
+                type="button"
+                *ngFor="let opt of paymentFilterOptions"
+                (click)="setPaymentFilter(opt.value)"
+              >
+                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
+              </button>
+            </mat-menu>
           </div>
           <div class="ph-batch-stu-search-wrap">
             <mat-icon class="ph-batch-stu-search-icon" aria-hidden="true">search</mat-icon>
@@ -100,8 +125,8 @@
                 <th>Level</th>
                 <th class="ph-num ph-col-compact">Journey day</th>
                 <th class="ph-num">Total received</th>
-                <th class="ph-num">Pending</th>
-                <th class="ph-num">Overdue</th>
+                <th class="ph-num" [matTooltip]="paymentFilterHint()">Pending</th>
+                <th class="ph-num" [matTooltip]="paymentFilterHint()">Overdue</th>
                 <th>Language fee</th>
                 <th class="ph-col-actions">Actions</th>
               </tr>
@@ -116,27 +141,27 @@
                 </td>
                 <td class="ph-num ph-val-green ph-paid-cell">
                   <app-payment-currency-totals
-                    [lkr]="r.totalPaidLKR"
-                    [inr]="r.totalPaidINR"
-                    [usd]="r.totalPaidUSD"
+                    [lkr]="rowReceived(r).lkr"
+                    [inr]="rowReceived(r).inr"
+                    [usd]="rowReceived(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-totals>
                 </td>
                 <td class="ph-num ph-val-amber ph-paid-cell">
                   <app-payment-currency-pending-totals
-                    [lkr]="r.pendingApprovalAmountLKR"
-                    [inr]="r.pendingApprovalAmountINR"
-                    [usd]="r.pendingApprovalAmountUSD"
+                    [lkr]="rowPending(r).lkr"
+                    [inr]="rowPending(r).inr"
+                    [usd]="rowPending(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-pending-totals>
                 </td>
                 <td class="ph-num ph-val-red ph-paid-cell">
                   <app-payment-currency-overdue-totals
-                    [lkr]="r.overdueAmountLKR"
-                    [inr]="r.overdueAmountINR"
-                    [usd]="r.overdueAmountUSD"
+                    [lkr]="rowOverdue(r).lkr"
+                    [inr]="rowOverdue(r).inr"
+                    [usd]="rowOverdue(r).usd"
                     [sinceDate]="r.overdueSince"
                     [compact]="true"
                     [hideZero]="true"
