@@ -207,6 +207,23 @@ function receivedForLevelSlot(studentRequests, approvedSubs, studentLevel, slot)
 }
 
 /**
+ * When journey day ≥ 10, the full language-fee balance is past due — not only formally OVERDUE requests.
+ */
+function applyJourneyOverdueAmounts(student, pending, overdue) {
+  const totalPending = bucketTotal(pending);
+  if (totalPending <= 0) return overdue || emptyCurrencyBucket();
+  const langStatus = computeLanguageFeeStatus(totalPending, journeyDayForStudent(student));
+  if (langStatus !== 'DUE') return overdue || emptyCurrencyBucket();
+  const p = pending || emptyCurrencyBucket();
+  const o = overdue || emptyCurrencyBucket();
+  return {
+    LKR: Math.max(o.LKR || 0, p.LKR || 0),
+    INR: Math.max(o.INR || 0, p.INR || 0),
+    USD: Math.max(o.USD || 0, p.USD || 0),
+  };
+}
+
+/**
  * Keep catalog slot totals consistent: received ≤ expected, pending = outstanding, overdue ≤ pending.
  * When the student is not on this level (no catalog fee), keep request-based pending/overdue.
  */
@@ -278,7 +295,11 @@ function computeReconciledLevelSlot(
     INR: slotLive.overdueAmountINR || 0,
     USD: slotLive.overdueAmountUSD || 0,
   };
-  return reconcileLevelSlotBuckets(catalogExpected, received, rawPending, rawOverdue);
+  const reconciled = reconcileLevelSlotBuckets(catalogExpected, received, rawPending, rawOverdue);
+  if (studentLevel === slot) {
+    reconciled.overdue = applyJourneyOverdueAmounts(student, reconciled.pending, reconciled.overdue);
+  }
+  return reconciled;
 }
 
 function finalizeLevelSlotFields(acc) {
@@ -645,13 +666,6 @@ async function aggregateHubDashboardStats(studentIds = null, options = {}) {
       INR: allLive.totalPaidINR,
       USD: allLive.totalPaidUSD,
     });
-    const overdueStudent = {
-      LKR: live.overdueAmountLKR,
-      INR: live.overdueAmountINR,
-      USD: live.overdueAmountUSD,
-    };
-    addBuckets(overdue, overdueStudent);
-
     const pendingStudent = pendingTotalsForStudent(
       studentRequests,
       approved,
@@ -659,6 +673,12 @@ async function aggregateHubDashboardStats(studentIds = null, options = {}) {
       student,
       levelPriceMap,
     );
+    const overdueStudent = applyJourneyOverdueAmounts(student, pendingStudent, {
+      LKR: live.overdueAmountLKR,
+      INR: live.overdueAmountINR,
+      USD: live.overdueAmountUSD,
+    });
+    addBuckets(overdue, overdueStudent);
     addBuckets(pending, pendingStudent);
     addBuckets(totalDue, dueFromPendingOverdue(pendingStudent, overdueStudent));
     addBuckets(totalPaymentExpected, catalogFeeForStudent(student, levelPriceMap));
@@ -948,11 +968,6 @@ async function aggregateBatchPaymentInsights(filters = {}) {
       INR: allLive.overdueAmountINR || 0,
       USD: allLive.overdueAmountUSD || 0,
     };
-    const overdueStudent = {
-      LKR: live.overdueAmountLKR,
-      INR: live.overdueAmountINR,
-      USD: live.overdueAmountUSD,
-    };
     const pendingStudent = pendingTotalsForStudent(
       studentRequests,
       approved,
@@ -960,6 +975,11 @@ async function aggregateBatchPaymentInsights(filters = {}) {
       student,
       levelPriceMap,
     );
+    const overdueStudent = applyJourneyOverdueAmounts(student, pendingStudent, {
+      LKR: live.overdueAmountLKR,
+      INR: live.overdueAmountINR,
+      USD: live.overdueAmountUSD,
+    });
     const expectedStudent = catalogFeeForStudent(student, levelPriceMap);
     const dueStudent = dueFromPendingOverdue(pendingStudent, overdueStudent);
 
@@ -1141,11 +1161,11 @@ function studentMatchesInsight(student, studentRequests, approved, pendingSubs, 
     pendingSubs,
     student?.level,
   );
-  const overdueStudent = {
+  const overdueStudent = applyJourneyOverdueAmounts(student, pendingStudent, {
     LKR: live.overdueAmountLKR || 0,
     INR: live.overdueAmountINR || 0,
     USD: live.overdueAmountUSD || 0,
-  };
+  });
 
   switch (insight) {
     case 'paid_full':
@@ -1274,6 +1294,7 @@ module.exports = {
   buildLevelPriceMap,
   buildStudentLevelSlotTotals,
   pendingTotalsForStudent,
+  applyJourneyOverdueAmounts,
   effectiveOutstandingBalance,
   overdueSinceForStudent,
   VALID_STUDENT_INSIGHTS,

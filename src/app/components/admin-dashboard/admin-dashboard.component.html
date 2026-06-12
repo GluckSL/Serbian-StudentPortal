@@ -11,6 +11,7 @@
       </div>
       <div class="admin-skeleton__stat"></div>
     </div>
+    <div class="admin-skeleton__summary"></div>
     <div class="admin-skeleton__content">
       <div class="admin-skeleton__actions">
         <div class="admin-sk-pill" *ngFor="let _ of skeletonActionPills"></div>
@@ -51,19 +52,63 @@
             </div>
           </div>
         </div>
-        <div class="admin-header-stat">
+        <div class="admin-header-stat" *ngIf="!hasActiveStudentFilters()">
+          <div class="stat-item stat-item--elevated">
+            <span class="stat-number">{{ portalStudentCounts.portalNonTest }}</span>
+            <span class="stat-label">Total</span>
+            <span class="stat-hint stat-hint--ongoing">{{ portalStudentCounts.ongoingNonTest }} ongoing</span>
+          </div>
+        </div>
+        <div class="admin-header-stat" *ngIf="hasActiveStudentFilters()">
           <div class="stat-item stat-item--elevated">
             <span class="stat-number">{{ displayStudentCount() }}</span>
-            <span class="stat-label">Students in portal</span>
-            <span class="stat-hint" *ngIf="!hasActiveStudentFilters() && portalStudentCounts.portalTotal">
-              {{ portalStudentCounts.portalCrmLinked }} linked to Monday CRM ·
-              {{ portalStudentCounts.portalSignupForm }} via signup form ·
-              {{ portalStudentCounts.portalTestAccounts }} test accounts ·
-              {{ portalStudentCounts.portalWithdrew }} withdrew ·
-              {{ portalStudentCounts.portalTotal }} total accounts
-            </span>
-            <span class="stat-hint" *ngIf="hasActiveStudentFilters()">matching filters</span>
+            <span class="stat-label">Matching filters</span>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plan summary cards -->
+  <div class="admin-plan-stats" *ngIf="!hasActiveStudentFilters()">
+    <div class="admin-plan-card admin-plan-card--platinum">
+      <div class="admin-plan-card__top">
+        <span class="admin-plan-card__value">{{ portalStudentCounts.platinumTotal }}</span>
+        <span class="admin-plan-card__label">Platinum</span>
+      </div>
+      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.platinumOngoing }} ongoing</div>
+      <div class="admin-plan-card__breakdown" *ngIf="portalStudentCounts.platinumStatusBreakdown?.length">
+        <div class="admin-plan-card__status" *ngFor="let row of portalStudentCounts.platinumStatusBreakdown">
+          <span>{{ formatStudentStatus(row.status) }}</span>
+          <strong>{{ row.count }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-plan-card admin-plan-card--silver">
+      <div class="admin-plan-card__top">
+        <span class="admin-plan-card__value">{{ portalStudentCounts.silverTotal }}</span>
+        <span class="admin-plan-card__label">Silver</span>
+      </div>
+      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.silverOngoing }} ongoing</div>
+      <div class="admin-plan-card__breakdown" *ngIf="portalStudentCounts.silverStatusBreakdown?.length">
+        <div class="admin-plan-card__status" *ngFor="let row of portalStudentCounts.silverStatusBreakdown">
+          <span>{{ formatStudentStatus(row.status) }}</span>
+          <strong>{{ row.count }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-plan-card admin-plan-card--visa">
+      <div class="admin-plan-card__top">
+        <span class="admin-plan-card__value">{{ portalStudentCounts.visaDocsTotal }}</span>
+        <span class="admin-plan-card__label">Visa &amp; docs</span>
+      </div>
+      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.visaDocsOngoing }} ongoing</div>
+      <div class="admin-plan-card__breakdown" *ngIf="portalStudentCounts.visaDocsStatusBreakdown?.length">
+        <div class="admin-plan-card__status" *ngFor="let row of portalStudentCounts.visaDocsStatusBreakdown">
+          <span>{{ formatStudentStatus(row.status) }}</span>
+          <strong>{{ row.count }}</strong>
         </div>
       </div>
     </div>

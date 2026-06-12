@@ -109,6 +109,31 @@ interface StudentDataIssueRow {
   severity: 'danger' | 'warning';
 }
 
+interface PlanStatusBreakdownEntry {
+  status: string;
+  count: number;
+}
+
+interface PortalStudentCounts {
+  portalTotal: number;
+  portalActive: number;
+  portalWithdrew: number;
+  portalCrmLinked: number;
+  portalSignupForm: number;
+  portalTestAccounts: number;
+  portalNonTest: number;
+  ongoingNonTest: number;
+  platinumTotal: number;
+  platinumOngoing: number;
+  platinumStatusBreakdown: PlanStatusBreakdownEntry[];
+  silverTotal: number;
+  silverOngoing: number;
+  silverStatusBreakdown: PlanStatusBreakdownEntry[];
+  visaDocsTotal: number;
+  visaDocsOngoing: number;
+  visaDocsStatusBreakdown: PlanStatusBreakdownEntry[];
+}
+
 interface StudentDataIssuesResponse {
   success: boolean;
   students: StudentDataIssueRow[];
@@ -305,6 +330,17 @@ export class AdminDashboardComponent implements OnInit {
   displayStudentCount(): number {
     return this.hasActiveStudentFilters() ? this.filteredStudentCount : this.totalStudentsCount();
   }
+
+  formatStudentStatus(status: string): string {
+    const labels: Record<string, string> = {
+      UNCERTAIN: 'Uncertain',
+      COMPLETED: 'Completed',
+      WITHDREW: 'Withdrew',
+      DROPPED: 'Dropped',
+      ONGOING: 'Ongoing',
+    };
+    return labels[String(status || '').toUpperCase()] || status;
+  }
   
   fetchStudents(page: number = this.currentPage): void {
     this.loading = true;
@@ -360,7 +396,25 @@ export class AdminDashboardComponent implements OnInit {
     });
     }
 
-  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0, portalSignupForm: 0, portalTestAccounts: 0 };
+  portalStudentCounts: PortalStudentCounts = {
+    portalTotal: 0,
+    portalActive: 0,
+    portalWithdrew: 0,
+    portalCrmLinked: 0,
+    portalSignupForm: 0,
+    portalTestAccounts: 0,
+    portalNonTest: 0,
+    ongoingNonTest: 0,
+    platinumTotal: 0,
+    platinumOngoing: 0,
+    platinumStatusBreakdown: [],
+    silverTotal: 0,
+    silverOngoing: 0,
+    silverStatusBreakdown: [],
+    visaDocsTotal: 0,
+    visaDocsOngoing: 0,
+    visaDocsStatusBreakdown: [],
+  };
 
   dataIssuesPanelOpen = false;
   dataIssuesLoading = false;
@@ -390,7 +444,7 @@ export class AdminDashboardComponent implements OnInit {
         languageLevelOpted?: string[];
         phoneCountries?: string[];
         loginCountries?: string[];
-        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number; portalSignupForm: number; portalTestAccounts: number };
+        studentCounts?: PortalStudentCounts;
       }>(`${apiUrl}/admin/students/filter-options`, { withCredentials: true })
       .subscribe({
         next: (res) => {
@@ -401,7 +455,15 @@ export class AdminDashboardComponent implements OnInit {
           this.filterOptions.languageLevelOpted = res.languageLevelOpted ?? [];
           this.filterOptions.phoneCountries = res.phoneCountries ?? [];
           this.filterOptions.loginCountries = res.loginCountries ?? [];
-          if (res.studentCounts) this.portalStudentCounts = res.studentCounts;
+          if (res.studentCounts) {
+            this.portalStudentCounts = {
+              ...this.portalStudentCounts,
+              ...res.studentCounts,
+              platinumStatusBreakdown: res.studentCounts.platinumStatusBreakdown ?? [],
+              silverStatusBreakdown: res.studentCounts.silverStatusBreakdown ?? [],
+              visaDocsStatusBreakdown: res.studentCounts.visaDocsStatusBreakdown ?? [],
+            };
+          }
         },
         error: () => {
           /* non-blocking */

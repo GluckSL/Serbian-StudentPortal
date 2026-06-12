@@ -47,6 +47,7 @@ const {
   buildLevelPriceMap,
   buildStudentLevelSlotTotals,
   pendingTotalsForStudent,
+  applyJourneyOverdueAmounts,
   effectiveOutstandingBalance,
   VALID_STUDENT_INSIGHTS,
   filterStudentsByInsight,
@@ -1265,6 +1266,11 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         student,
         levelPriceMap,
       );
+      const langOverdueStudent = applyJourneyOverdueAmounts(student, langPendingStudent, {
+        LKR: langLive.overdueAmountLKR || 0,
+        INR: langLive.overdueAmountINR || 0,
+        USD: langLive.overdueAmountUSD || 0,
+      });
       const { levelSlots, allLanguageFees } = buildStudentLevelSlotTotals(
         student,
         studentRequests,
@@ -1290,9 +1296,9 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         langPendingLKR: langPendingStudent.LKR || 0,
         langPendingINR: langPendingStudent.INR || 0,
         langPendingUSD: langPendingStudent.USD || 0,
-        langOverdueLKR: langLive.overdueAmountLKR || 0,
-        langOverdueINR: langLive.overdueAmountINR || 0,
-        langOverdueUSD: langLive.overdueAmountUSD || 0,
+        langOverdueLKR: langOverdueStudent.LKR || 0,
+        langOverdueINR: langOverdueStudent.INR || 0,
+        langOverdueUSD: langOverdueStudent.USD || 0,
         pendingApprovalAmount: profile?.pendingApprovalAmount ?? 0,
         overdueAmount: profile?.overdueAmount ?? 0,
         overdueSince,
