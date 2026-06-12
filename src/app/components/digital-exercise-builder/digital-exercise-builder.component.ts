@@ -787,6 +787,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       q.word = '';
       q.phonetic = parent.phonetic || '';
       q.translation = parent.translation || '';
+      q.audioUrl = parent.audioUrl || '';
       q.acceptedVariants = [];
     } else if (qType === 'question-answer') {
       q.prompt = '';
