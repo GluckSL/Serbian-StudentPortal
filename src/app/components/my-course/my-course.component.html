@@ -15,7 +15,7 @@
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">school</span>
           Current level <strong>{{ levelShortLabel }}</strong>
         </span>
-        <span class="mc-hero__pill" *ngIf="levelProgression.length">
+        <span class="mc-hero__pill mc-hero__pill--progress" *ngIf="levelProgression.length">
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">trending_up</span>
           {{ learningPct }}% of levels completed
         </span>
@@ -44,25 +44,6 @@
         </span>
       </div>
     </div>
-    <div class="mc-hero__photo">
-      <img
-        *ngIf="profilePhotoUrl as url"
-        class="mc-hero__avatar"
-        [src]="url"
-        [alt]="'Profile photo — ' + studentFirstName"
-        width="120"
-        height="120"
-        loading="eager"
-      />
-      <div
-        *ngIf="!profilePhotoUrl"
-        class="mc-hero__avatar mc-hero__avatar--fallback"
-        role="img"
-        [attr.aria-label]="'No photo — ' + studentInitial"
-      >
-        {{ studentInitial }}
-      </div>
-    </div>
   </header>
 
   <!-- Same vertical position as My class hero: full-width strip above tabs -->
@@ -74,32 +55,24 @@
       <div class="mc-tab-profile__main">
         <p class="mc-tab-profile__name">{{ studentDisplayName }}</p>
         <p class="mc-tab-profile__quote">{{ tabHeaderQuote }}</p>
-        <div class="mc-tab-profile__row">
-          <p class="mc-tab-profile__level">
-            Level <strong>{{ levelShortLabel }}</strong>
-          </p>
-          <p class="mc-tab-profile__level" *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">
-            Subscription: <span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'">{{ userProfile.subscription }}</span>
-          </p>
-        </div>
-      </div>
-      <div class="mc-tab-profile__photo">
-        <img
-          *ngIf="profilePhotoUrl as url"
-          class="mc-tab-profile__avatar"
-          [src]="url"
-          [alt]="'Profile photo — ' + studentDisplayName"
-          width="64"
-          height="64"
-          loading="lazy"
-        />
-        <div
-          *ngIf="!profilePhotoUrl"
-          class="mc-tab-profile__avatar mc-tab-profile__avatar--fallback"
-          role="img"
-          [attr.aria-label]="'No photo — ' + studentInitial"
-        >
-          {{ studentInitial }}
+        <div class="mc-tab-profile__row mc-hero__badges">
+          <span class="mc-hero__pill">
+            <span class="material-icons mc-hero__pill-icon" aria-hidden="true">school</span>
+            Current level <strong>{{ levelShortLabel }}</strong>
+          </span>
+          <span class="mc-hero__pill mc-hero__pill--progress" *ngIf="levelProgression.length">
+            <span class="material-icons mc-hero__pill-icon" aria-hidden="true">trending_up</span>
+            {{ learningPct }}% of levels completed
+          </span>
+          <span
+            class="mc-hero__pill"
+            [class.mc-hero__pill--gold]="userProfile.subscription === 'PLATINUM'"
+            [class.mc-hero__pill--silver]="userProfile.subscription === 'SILVER'"
+            *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription"
+          >
+            <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
+            Subscription <strong>{{ userProfile.subscription }}</strong>
+          </span>
         </div>
       </div>
     </div>
