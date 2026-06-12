@@ -27,6 +27,9 @@ import { MaterialModule } from '../../../shared/material.module';
       <p>Create and manage interactive digital exercises for students</p>
     </div>
     <div class="header-actions">
+      <button class="btn-freemode" (click)="navigateToFreeMode()">
+        <span class="material-icons">auto_awesome</span> Free Mode
+      </button>
       <button class="btn-generate-ai" (click)="navigateToAiGenerator()">
         <span class="material-icons">schema</span> Extract from PDF
       </button>
@@ -229,7 +232,10 @@ import { MaterialModule } from '../../../shared/material.module';
             ></mat-checkbox>
           </td>
           <td class="title-cell">
-            <div class="exercise-title">{{ ex.title }}</div>
+            <div class="exercise-title">
+              <span class="freemode-badge" *ngIf="ex.isFreeMode" matTooltip="Created with Free Mode">Free Mode</span>
+              {{ ex.title }}
+            </div>
             <div class="exercise-meta">{{ ex.targetLanguage }} · {{ ex.difficulty }}</div>
           </td>
           <td>
@@ -278,13 +284,13 @@ import { MaterialModule } from '../../../shared/material.module';
             </div>
           </td>
           <td class="actions-cell">
-            <button class="btn-icon btn-test" (click)="testExercise(ex)" matTooltip="Test as student">
+            <button class="btn-icon btn-test" (click)="testExercise(ex)" [matTooltip]="ex.isFreeMode ? 'Test as student (Free Mode)' : 'Test as student'">
               <span class="material-icons">play_arrow</span>
             </button>
             <button class="btn-icon btn-view" (click)="viewCompletions(ex)" matTooltip="View completions">
               <span class="material-icons">bar_chart</span>
             </button>
-            <button class="btn-icon btn-edit" (click)="navigateToEdit(ex._id!)" matTooltip="Edit">
+            <button class="btn-icon btn-edit" (click)="navigateToEdit(ex)" matTooltip="Edit">
               <span class="material-icons">edit</span>
             </button>
             <button class="btn-icon btn-delete" (click)="deleteExercise(ex)" matTooltip="Delete" *ngIf="isAdminUser">
@@ -300,6 +306,9 @@ import { MaterialModule } from '../../../shared/material.module';
       <h3>No exercises yet</h3>
       <p>Create your first interactive digital exercise manually or extract one directly from a worksheet PDF.</p>
       <div class="empty-actions">
+        <button class="btn-freemode" (click)="navigateToFreeMode()">
+          <span class="material-icons">auto_awesome</span> Free Mode
+        </button>
         <button class="btn-generate-ai" (click)="navigateToAiGenerator()">
           <span class="material-icons">schema</span> Extract from PDF
         </button>
@@ -390,6 +399,24 @@ import { MaterialModule } from '../../../shared/material.module';
 
     .btn-generate-ai:hover { background: #005b96; }
     .btn-generate-ai .material-icons { font-size: 14px; }
+
+    .btn-freemode {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-freemode:hover { background: linear-gradient(135deg, #6d28d9, #9333ea); }
+    .btn-freemode .material-icons { font-size: 14px; }
 
     .btn-create {
       display: inline-flex;
@@ -754,8 +781,21 @@ import { MaterialModule } from '../../../shared/material.module';
 
     /* ── Badges ── */
     .level-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; color: #fff; font-size: 10px; font-weight: 600; }
+
     .level-badge.sm { padding: 2px 6px; font-size: 9px; }
 
+    .freemode-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      margin-right: 4px;
+      vertical-align: middle;
+      letter-spacing: 0.3px;
+    }
     .score-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; background: #fef3c7; color: #92400e; }
     .score-badge.good { background: #dcfce7; color: #166534; }
     .score-badge.sm { padding: 2px 6px; font-size: 9px; }
@@ -825,6 +865,17 @@ import { MaterialModule } from '../../../shared/material.module';
     .btn-delete:hover { border-color: #e11d48; color: #e11d48; }
     .btn-view:hover { border-color: #28a745; color: #28a745; }
     .btn-test:hover { border-color: #7c3aed; color: #7c3aed; }
+    .test-fm-badge {
+      font-size: 7px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff;
+      padding: 1px 3px;
+      border-radius: 3px;
+      margin-left: 2px;
+      letter-spacing: 0.3px;
+      line-height: 1;
+    }
 
     /* ── Empty State ── */
     .empty-state { padding: 40px 20px; text-align: center; color: #94a3b8; }
@@ -1003,6 +1054,10 @@ export class DigitalExerciseManagementComponent implements OnInit {
     this.loadExercises();
   }
 
+  navigateToFreeMode(): void {
+    this.router.navigate(['/admin/digital-exercises/create-freemode']);
+  }
+
   navigateToCreate(): void {
     this.router.navigate(['/admin/digital-exercises/create']);
   }
@@ -1019,8 +1074,11 @@ export class DigitalExerciseManagementComponent implements OnInit {
     this.router.navigate(['/admin/digital-exercises/generate-listening-manual']);
   }
 
-  navigateToEdit(id: string): void {
-    this.router.navigate(['/admin/digital-exercises', id, 'edit']);
+  navigateToEdit(ex: DigitalExercise): void {
+    const id = ex._id ?? (ex as any).id;
+    if (!id) return;
+    const route = ex.isFreeMode ? 'edit-freemode' : 'edit';
+    this.router.navigate(['/admin/digital-exercises', id, route]);
   }
 
   exerciseRowId(ex: DigitalExercise): string {
@@ -1072,7 +1130,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
 
   editSingleSelected(): void {
     if (this.selectedIds.length !== 1) return;
-    this.navigateToEdit(this.selectedIds[0]);
+    const ex = this.exercises.find(e => this.exerciseRowId(e) === this.selectedIds[0]);
+    if (ex) this.navigateToEdit(ex);
   }
 
   toggleBulkProperties(): void {
@@ -1204,7 +1263,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
   testExercise(exercise: DigitalExercise): void {
     const id = exercise._id ?? (exercise as any).id;
     if (!id) return;
-    this.router.navigate(['/digital-exercises', id, 'play'], {
+    const route = exercise.isFreeMode ? '/play/freemode' : '/play';
+    this.router.navigate(['/digital-exercises', id, ...route.split('/').filter(Boolean)], {
       queryParams: { asStudent: 'true', tester: 'admin' }
     });
   }

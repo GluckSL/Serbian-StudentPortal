@@ -282,7 +282,8 @@ export class DigitalExercisesComponent implements OnInit {
     if (this.isExerciseJourneyLocked(exercise)) {
       return;
     }
-    this.router.navigate(['/digital-exercises', exercise._id, 'play']);
+    const route = exercise.isFreeMode ? '/play/freemode' : '/play';
+    this.router.navigate(['/digital-exercises', exercise._id, ...route.split('/').filter(Boolean)]);
   }
 
   navigateToCreate(): void {

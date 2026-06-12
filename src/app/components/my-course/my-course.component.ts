@@ -1305,13 +1305,15 @@ export class MyCourseComponent implements OnInit {
             ? `Complete exercise ${prevLetter} first. Opening the previous item.`
             : 'Complete the previous exercise in sequence first.'
         );
-        this.router.navigate(['/digital-exercises', prerequisite._id, 'play']);
+        const preRoute = prerequisite.isFreeMode ? '/play/freemode' : '/play';
+    this.router.navigate(['/digital-exercises', prerequisite._id, ...preRoute.split('/').filter(Boolean)]);
         return;
       }
       this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
       return;
     }
-    this.router.navigate(['/digital-exercises', ex._id, 'play']);
+    const route = ex.isFreeMode ? '/play/freemode' : '/play';
+    this.router.navigate(['/digital-exercises', ex._id, ...route.split('/').filter(Boolean)]);
   }
 
   openModule(mod: { _id?: string }): void {

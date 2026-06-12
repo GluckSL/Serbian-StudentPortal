@@ -473,6 +473,11 @@ export const routes: Routes = [
     canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
+    path: 'digital-exercises/:id/play/freemode',
+    loadComponent: () => import('./components/free-mode-exercise-renderer/free-mode-exercise-renderer.component').then(m => m.FreeModeExerciseRendererComponent),
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
+  },
+  {
     path: 'digital-exercises/:id/play',
     loadComponent: () => import('./components/digital-exercise-player/digital-exercise-player.component').then(m => m.DigitalExercisePlayerComponent),
     canActivate: [AuthGuard, VisaDocsOnlyGuard]
@@ -485,7 +490,15 @@ export const routes: Routes = [
   // Admin/Teacher: manage exercises
   {
     path: 'admin/digital-exercises',
+    pathMatch: 'full',
     loadComponent: () => import('./components/admin-dashboard/digital-exercise-management/digital-exercise-management.component').then(m => m.DigitalExerciseManagementComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  // Admin/Teacher: create exercise via free mode builder
+  {
+    path: 'admin/digital-exercises/create-freemode',
+    loadComponent: () => import('./components/free-mode-exercise-builder/free-mode-exercise-builder.component').then(m => m.FreeModeExerciseBuilderComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
@@ -507,6 +520,13 @@ export const routes: Routes = [
   {
     path: 'admin/digital-exercises/:id/edit',
     loadComponent: () => import('./components/digital-exercise-builder/digital-exercise-builder.component').then(m => m.DigitalExerciseBuilderComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  // Admin/Teacher: edit free mode exercise
+  {
+    path: 'admin/digital-exercises/:id/edit-freemode',
+    loadComponent: () => import('./components/free-mode-exercise-builder/free-mode-exercise-builder.component').then(m => m.FreeModeExerciseBuilderComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },

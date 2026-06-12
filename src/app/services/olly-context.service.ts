@@ -75,7 +75,7 @@ export class OllyContextService {
   }
 
   private isExerciseRoute(route: string): boolean {
-    return /\/digital-exercises\/[^/]+\/play/.test(route);
+    return /\/digital-exercises\/[^/]+\/play(\/freemode)?/.test(route);
   }
 
   private emptySnapshot(route: string): OllyActivityContext {
@@ -87,7 +87,7 @@ export class OllyContextService {
   }
 
   private labelFromRoute(route: string): string {
-    if (/\/digital-exercises\/[^/]+\/play/.test(route)) return 'Digital Exercise — Vocab / Activity Player';
+    if (/\/digital-exercises\/[^/]+\/play(\/freemode)?/.test(route)) return 'Digital Exercise — Vocab / Activity Player';
     if (route.includes('/my-course')) return 'My Course';
     if (route.includes('/student-progress')) return 'Student Progress';
     if (route.includes('/class-recordings')) return 'Class Recordings';
@@ -101,7 +101,7 @@ export class OllyContextService {
   }
 
   private activityTypeFromRoute(route: string): string | undefined {
-    if (/\/digital-exercises\/[^/]+\/play/.test(route)) return 'digital-exercise';
+    if (/\/digital-exercises\/[^/]+\/play(\/freemode)?/.test(route)) return 'digital-exercise';
     if (route.includes('/my-course')) return 'my-course';
     if (route.includes('/class-recordings')) return 'class-recordings';
     return undefined;

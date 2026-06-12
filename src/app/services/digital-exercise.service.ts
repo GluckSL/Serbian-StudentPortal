@@ -266,6 +266,8 @@ export interface DigitalExercise {
    * video clip and tap "Next". Controlled by admin only (default: false).
    */
   watchOnlyMode?: boolean;
+  /** Present when created via Free Mode builder. */
+  isFreeMode?: boolean;
   /** Present when created by splitting questions from another exercise. */
   splitLineage?: {
     sourceExerciseId?: string;
@@ -507,6 +509,14 @@ export class DigitalExerciseService {
 
   createExercise(exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {
     return this.http.post<DigitalExercise>(this.apiUrl, exercise, { withCredentials: true });
+  }
+
+  createFreeModeExercise(payload: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/freemode`, payload, { withCredentials: true });
+  }
+
+  updateFreeModeExercise(id: string, payload: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/freemode/${id}`, payload, { withCredentials: true });
   }
 
   /** Move selected questions into a new exercise (atomic; records split lineage). */
