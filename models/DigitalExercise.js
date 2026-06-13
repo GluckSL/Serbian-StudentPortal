@@ -352,6 +352,9 @@ const DigitalExerciseSchema = new mongoose.Schema({
   totalCompletions: { type: Number, default: 0 },
   averageScore: { type: Number, default: 0 },
 
+  // Free mode flag (created via free mode builder)
+  isFreeMode: { type: Boolean, default: false },
+
   // Soft delete
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

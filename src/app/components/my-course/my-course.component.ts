@@ -1301,22 +1301,26 @@ export class MyCourseComponent implements OnInit {
     if (this.isExerciseSequenceLocked(ex)) {
       const prerequisite = this.getPrerequisiteExercise(ex);
       const prevLetter = String(ex.previousSequenceLetter || '').trim().toUpperCase();
-      if (prerequisite) {
-        const prereqCommands = digitalExercisePlayCommands(prerequisite);
-        if (prereqCommands.length > 2) {
-          this.notify.info(
-            prevLetter
-              ? `Complete exercise ${prevLetter} first. Opening the previous item.`
-              : 'Complete the previous exercise in sequence first.'
-          );
-          this.router.navigate(prereqCommands);
-          return;
-        }
+      if (prerequisite?._id) {
+        this.notify.info(
+          prevLetter
+            ? `Complete exercise ${prevLetter} first. Opening the previous item.`
+            : 'Complete the previous exercise in sequence first.'
+        );
+        const preRoute = prerequisite.isFreeMode ? '/play/freemode' : '/play';
+        this.router.navigate([
+          '/digital-exercises',
+          prerequisite._id,
+          ...preRoute.split('/').filter(Boolean)
+        ]);
+        return;
+      }
       }
       this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
       return;
     }
-    this.router.navigate(commands);
+const route = ex.isFreeMode ? '/play/freemode' : '/play';
+this.router.navigate(['/digital-exercises', ex._id, ...route.split('/').filter(Boolean)]);
   }
 
   openModule(mod: { _id?: string }): void {
