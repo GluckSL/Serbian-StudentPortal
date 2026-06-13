@@ -294,39 +294,90 @@ function getCard(phaseDef) {
   return phaseDef.card;
 }
 
-// ─── Score compilation ────────────────────────────────────────────────────────
+// ─── Dual‑examiner score compilation (A2, 23‑pt scale) ────────────────────────
 
-function compileTeilScores(turns, rubric, passThreshold) {
+function _sumA2ExaminerScores(turns, rubric, examinerId) {
   let t1 = 0, t2 = 0, t3 = 0;
+  const pronScores = [];
+  const cap1 = rubric?.teil1?.maxPoints ?? 6;
+  const cap2 = rubric?.teil2?.maxPoints ?? 6;
+  const cap3 = rubric?.teil3?.maxPoints ?? 6;
 
   for (const turn of turns) {
     if (turn.role !== 'student') continue;
+    const ev = (turn.evaluations || []).find(e => e.examinerId === examinerId);
     const eval_ = turn.tutorOverride
       ? { points: turn.tutorOverride.points }
-      : turn.evaluation;
+      : ev;
     if (!eval_) continue;
     const pts = typeof eval_.points === 'number' ? eval_.points : 0;
     if (turn.teil === 1) t1 += pts;
     else if (turn.teil === 2) t2 += pts;
     else if (turn.teil === 3) t3 += pts;
+
+    // Collect global pronunciation scores across all turns
+    if (ev && ev.criteria) {
+      const pron = ev.criteria.find(c => c.id === 'a2_pronunciation');
+      if (pron && pron.pointsAwarded !== undefined) {
+        pronScores.push(pron.pointsAwarded);
+      }
+    }
   }
 
-  const cap1 = rubric?.teil1?.maxPoints ?? 5;
-  const cap2 = rubric?.teil2?.maxPoints ?? 5;
-  const cap3 = rubric?.teil3?.maxPoints ?? 5;
+  // Average pronunciation across all turns that reported it
+  const pronunciation = pronScores.length > 0
+    ? pronScores.reduce((a, b) => a + b, 0) / pronScores.length
+    : 0;
 
-  t1 = Math.min(t1, cap1);
-  t2 = Math.min(t2, cap2);
-  t3 = Math.min(t3, cap3);
-
-  const total = t1 + t2 + t3;
   return {
-    teil1: Math.round(t1 * 10) / 10,
-    teil2: Math.round(t2 * 10) / 10,
-    teil3: Math.round(t3 * 10) / 10,
-    total: Math.round(total * 10) / 10,
-    passed: total >= (passThreshold || 10),
+    teil1: Math.min(t1, cap1),
+    teil2: Math.min(t2, cap2),
+    teil3: Math.min(t3, cap3),
+    pronunciation,
   };
+}
+
+function compileTeilScores(turns, rubric, passThreshold) {
+  // Gather unique examiner IDs
+  const ids = new Set();
+  for (const turn of turns) {
+    for (const ev of (turn.evaluations || [])) {
+      if (ev.examinerId) ids.add(ev.examinerId);
+    }
+  }
+  if (ids.size === 0) ids.add(1);
+
+  const eScores = [];
+  for (const eId of ids) {
+    const s = _sumA2ExaminerScores(turns, rubric, eId);
+    const total = s.teil1 + s.teil2 + s.teil3 + s.pronunciation;
+    eScores.push({
+      examinerId: eId,
+      teil1: Math.round(s.teil1 * 10) / 10,
+      teil2: Math.round(s.teil2 * 10) / 10,
+      teil3: Math.round(s.teil3 * 10) / 10,
+      pronunciation: Math.round(s.pronunciation * 10) / 10,
+      total: Math.round(total * 10) / 10,
+    });
+  }
+
+  // Arithmetic mean → round to nearest 0.5 (A2 spec)
+  const mean = (key) => {
+    const vals = eScores.map(e => e[key] || 0);
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return Math.round(avg * 2) / 2;
+  };
+
+  const final = {
+    teil1: mean('teil1'),
+    teil2: mean('teil2'),
+    teil3: mean('teil3'),
+    pronunciation: mean('pronunciation'),
+    total: mean('total'),
+  };
+  final.passed = final.total >= (passThreshold || 14);
+
+  return { examinerScores: eScores, finalScores: final };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -405,23 +456,24 @@ async function processTurn(session, module, transcript, durationMs, action) {
     transcript: transcript || '',
     durationMs: durationMs || null,
     evaluation: null,
+    evaluations: [],
     botSpeech: '',
     at: new Date(),
   });
 
-  // ── Score silently ────────────────────────────────────────────────────────
+  // ── Score with dual examiners ─────────────────────────────────────────────
   const rubric = resolveModuleRubric(module);
   const rubricTeil = rubric && rubric[currentPhaseDef.evalTeil];
   const criteria = (rubricTeil && rubricTeil.criteria) || [];
 
-  const evalResult = await scoreTurn({
-    teil: currentPhaseDef.teil,
-    turnType: currentPhaseDef.turnType,
-    transcript,
-    card,
-    criteria,
-  });
-  session.turns[session.turns.length - 1].evaluation = evalResult;
+  const [eval1, eval2] = await Promise.all([
+    scoreTurn({ teil: currentPhaseDef.teil, turnType: currentPhaseDef.turnType, transcript, card, criteria, examFormat: 'A2', examinerId: 1 }),
+    scoreTurn({ teil: currentPhaseDef.teil, turnType: currentPhaseDef.turnType, transcript, card, criteria, examFormat: 'A2', examinerId: 2 }),
+  ]);
+
+  const lastIdx = session.turns.length - 1;
+  session.turns[lastIdx].evaluation = eval1;
+  session.turns[lastIdx].evaluations = [eval1, eval2];
 
   // ── A2 Teil 1: bot answers student question inline ────────────────────────
   const inlineBotMessages = [];
@@ -439,6 +491,7 @@ async function processTurn(session, module, transcript, durationMs, action) {
         transcript: '',
         durationMs: null,
         evaluation: null,
+        evaluations: [],
         botSpeech: inlineSpeech,
         at: new Date(),
       });
@@ -469,21 +522,22 @@ async function _processSchedulingTurn(session, module, phases, transcript, durat
     transcript: transcript || '',
     durationMs: durationMs || null,
     evaluation: null,
+    evaluations: [],
     botSpeech: '',
     at: new Date(),
   });
 
-  // Score the turn
+  // Score with dual examiners
   const rubric = resolveModuleRubric(module);
   const criteria = ((rubric && rubric.teil3) || {}).criteria || [];
-  const evalResult = await scoreTurn({
-    teil: 3,
-    turnType: 'a2t3_dialogue',
-    transcript,
-    card,
-    criteria,
-  });
-  session.turns[session.turns.length - 1].evaluation = evalResult;
+  const [eval1, eval2] = await Promise.all([
+    scoreTurn({ teil: 3, turnType: 'a2t3_dialogue', transcript, card, criteria, examFormat: 'A2', examinerId: 1 }),
+    scoreTurn({ teil: 3, turnType: 'a2t3_dialogue', transcript, card, criteria, examFormat: 'A2', examinerId: 2 }),
+  ]);
+
+  const lastIdx = session.turns.length - 1;
+  session.turns[lastIdx].evaluation = eval1;
+  session.turns[lastIdx].evaluations = [eval1, eval2];
 
   // Build chat history for bot
   const chatHistory = session.turns
@@ -686,14 +740,18 @@ function _getCurrentState(session) {
 
 async function completeSession(session, module) {
   const rubric = resolveModuleRubric(module);
-  const scores = compileTeilScores(session.turns, rubric, module.passThreshold);
-  session.scores = scores;
+  const { examinerScores, finalScores } = compileTeilScores(
+    session.turns, rubric, module.passThreshold
+  );
+  session.scores = finalScores;
+  session.examinerScores = examinerScores;
+  session.finalScores = finalScores;
   session.completed = true;
   session.completedAt = new Date();
   session.state.phase = 'complete';
   session.state.awaitingStudent = false;
   await session.save();
-  return scores;
+  return finalScores;
 }
 
 module.exports = {

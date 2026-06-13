@@ -132,6 +132,7 @@ exports.turn = async (req, res) => {
     if (result.done && !session.completed) {
       const scores = await engine.completeSession(session, mod);
       result.scores = scores;
+      result.finalScores = scores;
     }
 
     // Presign card image URL so it's fresh for the browser
@@ -188,7 +189,8 @@ exports.getState = async (req, res) => {
       teilNumber: state.teilNumber,
       card,
       completed,
-      scores: completed ? scores : null,
+      scores: completed ? (session.finalScores || scores) : null,
+      finalScores: completed ? (session.finalScores || scores) : null,
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -216,7 +218,9 @@ exports.getReplay = async (req, res) => {
         createdAt: session.createdAt,
         completed: session.completed,
         completedAt: session.completedAt,
-        scores: session.scores,
+        scores: session.finalScores || session.scores,
+        finalScores: session.finalScores,
+        examinerScores: session.examinerScores,
         moduleTitle: mod?.title,
         passThreshold: mod?.passThreshold,
       },
@@ -247,8 +251,10 @@ exports.overrideTurnScore = async (req, res) => {
     // Recompile scores
     const mod = await SprechenExamModule.findById(session.moduleId).select('rubric passThreshold examFormat').lean();
     const { compileTeilScores } = _getEngine(mod || {});
-    const scores = compileTeilScores(session.turns, mod?.rubric, mod?.passThreshold);
+    const result = compileTeilScores(session.turns, mod?.rubric, mod?.passThreshold);
+    const scores = result.finalScores || result;
     session.scores = scores;
+    session.finalScores = scores;
 
     await session.save();
     res.json({ turn: turn.toObject(), scores });
