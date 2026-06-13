@@ -16,10 +16,12 @@ import { HttpHeaders } from '@angular/common/http';
 import {TeacherService} from '../../services/teacher.service';
 import { environment } from '../../../environments/environment';
 import { BulkStudentUploadComponent } from './bulk-student-upload.component';
+import { CorrectDetailsComponent } from './correct-details.component';
 import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 import { forkJoin, Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
+import * as XLSX from 'xlsx';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -164,6 +166,7 @@ interface StudentDataIssuesResponse {
     NgChartsModule,
     RouterModule,
     BulkStudentUploadComponent,
+    CorrectDetailsComponent,
     TestAccountBadgeComponent
   ],
   templateUrl: './admin-dashboard.component.html',
@@ -246,6 +249,9 @@ export class AdminDashboardComponent implements OnInit {
 
   // Bulk upload
   showBulkUpload = false;
+
+  // Correct Details (Excel reconciliation)
+  showCorrectDetails = false;
 
   toggleFiltersPanel(): void {
     this.filtersPanelOpen = !this.filtersPanelOpen;
@@ -1203,8 +1209,8 @@ export class AdminDashboardComponent implements OnInit {
     const selectedStudents = this.students.filter((student) =>
       this.selectedStudentIds.has(student._id)
     );
-    this.downloadStudentsCsv(selectedStudents, 'selected');
-    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to CSV`);
+    this.downloadStudentsExcel(selectedStudents, 'selected');
+    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to Excel`);
   }
 
   exportAllStudents(): void {
@@ -1238,8 +1244,8 @@ export class AdminDashboardComponent implements OnInit {
             allStudents.push(...res.data);
           }
         }
-        this.downloadStudentsCsv(allStudents, 'all');
-        this.notify.success(`Successfully exported ${allStudents.length} student(s) to CSV`);
+        this.downloadStudentsExcel(allStudents, 'all');
+        this.notify.success(`Successfully exported ${allStudents.length} student(s) to Excel`);
         this.exportingAll = false;
       },
       error: () => {
@@ -1249,72 +1255,48 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
-  private downloadStudentsCsv(students: Student[], scope: 'selected' | 'all'): void {
-    const headers = [
-      'RegNo',
-      'Name',
-      'Email',
-      'Level',
-      'Subscription',
-      'Student Status',
-      'Batch',
-      'Medium',
-      'Phone Number',
-      'Address',
-      'Age',
-      'Program Enrolled',
-      'Lead Source',
-      'Assigned Teacher',
-      'Password',
-      'Created At',
-      'Last Credentials Sent',
-      'Last Login',
-    ];
+  private readonly studentExportHeaders = [
+    'Name',
+    'Email',
+    'Address',
+    'Current Level',
+    'Service Opted',
+    'Package Opted',
+    'Batch',
+    'Status',
+    'Medium',
+  ] as const;
 
-    const rows = students.map((student) => {
-      const teacherName =
-        typeof (student as any).assignedTeacher === 'object'
-          ? (student as any).assignedTeacher?.name || 'Unassigned'
-          : (student as any).assignedTeacher || 'Unassigned';
+  private studentToExportRow(student: Student): Record<(typeof this.studentExportHeaders)[number], string> {
+    const raw = student as Student & {
+      address?: string;
+      servicesOpted?: string;
+      medium?: string | string[];
+    };
+    const medium = Array.isArray(raw.medium)
+      ? raw.medium.filter(Boolean).join(', ')
+      : String(raw.medium || '');
 
-      return [
-        student.regNo || 'N/A',
-        student.name || 'N/A',
-        student.email || 'N/A',
-        student.level || 'N/A',
-        student.subscription || 'N/A',
-        student.studentStatus || 'N/A',
-        student.batch || 'N/A',
-        student.medium || 'N/A',
-        (student as any).phoneNumber || 'N/A',
-        (student as any).address || 'N/A',
-        (student as any).age || 'N/A',
-        (student as any).servicesOpted || 'N/A',
-        (student as any).leadSource || 'N/A',
-        teacherName,
-        student.displayPassword || 'N/A',
-        student.registeredAt ? new Date(student.registeredAt).toLocaleDateString() : 'N/A',
-        this.formatDate(student.lastCredentialsEmailSent),
-        this.formatLastLogin(student.lastLogin),
-      ];
-    });
+    return {
+      Name: raw.name || '',
+      Email: raw.email || '',
+      Address: raw.address || '',
+      'Current Level': raw.level || '',
+      'Service Opted': raw.servicesOpted || '',
+      'Package Opted': raw.subscription || '',
+      Batch: raw.batch || '',
+      Status: this.formatStudentStatus(raw.studentStatus) || raw.studentStatus || '',
+      Medium: medium,
+    };
+  }
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')),
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
+  private downloadStudentsExcel(students: Student[], scope: 'selected' | 'all'): void {
+    const rows = students.map((student) => this.studentToExportRow(student));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: [...this.studentExportHeaders] });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
     const timestamp = new Date().toISOString().split('T')[0];
-    link.setAttribute('href', url);
-    link.setAttribute('download', `students_export_${scope}_${timestamp}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    XLSX.writeFile(wb, `students_export_${scope}_${timestamp}.xlsx`);
   }
 
   openInviteModal(): void {

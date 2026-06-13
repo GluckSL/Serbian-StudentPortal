@@ -129,6 +129,11 @@
               <button type="button" class="btn btn-action btn-action--ghost" (click)="showBulkUpload = !showBulkUpload">
                 <i class="fas fa-cloud-upload-alt"></i> Bulk upload
               </button>
+              <button type="button" class="btn btn-action btn-action--ghost"
+                      (click)="showCorrectDetails = !showCorrectDetails; showBulkUpload = false"
+                      [class.btn-action--warn-active]="showCorrectDetails">
+                <i class="fas fa-file-alt"></i> Correct Details
+              </button>
               <button type="button" class="btn btn-action btn-action--ghost" (click)="openAssignTeacherByBatchModal()">
                 <i class="fas fa-chalkboard-teacher"></i> Assign tutor
               </button>
@@ -333,6 +338,11 @@
         <!-- Bulk Upload Section -->
         <div *ngIf="showBulkUpload" class="bulk-upload-section mt-3">
           <app-bulk-student-upload></app-bulk-student-upload>
+        </div>
+
+        <!-- Correct Details Section -->
+        <div *ngIf="showCorrectDetails" class="bulk-upload-section mt-3">
+          <app-correct-details (closed)="showCorrectDetails = false"></app-correct-details>
         </div>
       </div>
 

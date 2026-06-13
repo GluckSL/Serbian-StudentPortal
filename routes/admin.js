@@ -1161,6 +1161,75 @@ router.post('/email-change-requests/:id/reject', verifyToken, checkRole(['ADMIN'
   }
 });
 
+// POST /admin/students/lookup-by-emails
+// Returns portal student snapshots for a given list of emails (for detail correction comparison)
+router.post('/students/lookup-by-emails', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { emails } = req.body;
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ success: false, message: 'emails array required' });
+    }
+    const normalised = emails.map(e => String(e).toLowerCase().trim()).filter(Boolean);
+    const students = await User.find(
+      { email: { $in: normalised }, role: 'STUDENT' },
+      { _id: 1, regNo: 1, name: 1, email: 1, subscription: 1, level: 1, studentStatus: 1, servicesOpted: 1, batch: 1, medium: 1 }
+    ).lean();
+    return res.json({ success: true, students });
+  } catch (err) {
+    console.error('[POST /admin/students/lookup-by-emails]', err);
+    return res.status(500).json({ success: false, message: 'Failed to lookup students' });
+  }
+});
+
+// POST /admin/batch-correct-details
+// Applies per-student field corrections from an Excel reconciliation
+router.post('/batch-correct-details', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { corrections } = req.body;
+    if (!corrections || !Array.isArray(corrections) || corrections.length === 0) {
+      return res.status(400).json({ success: false, message: 'corrections array required' });
+    }
+
+    const ALLOWED = ['subscription', 'level', 'studentStatus', 'servicesOpted', 'batch', 'medium'];
+    let updated = 0;
+    let skipped = 0;
+    const failed = [];
+
+    for (const c of corrections) {
+      const { studentId, updates } = c;
+      if (!studentId || !updates || typeof updates !== 'object') {
+        failed.push({ studentId, reason: 'Invalid format' });
+        continue;
+      }
+      const sanitized = {};
+      for (const field of ALLOWED) {
+        if (updates[field] !== undefined && updates[field] !== null && String(updates[field]).trim() !== '') {
+          sanitized[field] = String(updates[field]).trim();
+        }
+      }
+      if (Object.keys(sanitized).length === 0) {
+        skipped++;
+        continue;
+      }
+      try {
+        const result = await User.findByIdAndUpdate(studentId, { $set: sanitized }, { new: false });
+        if (!result) {
+          failed.push({ studentId, reason: 'Student not found' });
+        } else {
+          updated++;
+        }
+      } catch (e) {
+        failed.push({ studentId, reason: e.message });
+      }
+    }
+
+    return res.json({ success: true, updated, skipped, failed });
+  } catch (err) {
+    console.error('[POST /admin/batch-correct-details]', err);
+    return res.status(500).json({ success: false, message: 'Failed to apply corrections' });
+  }
+});
+
 module.exports = router;
 
 
