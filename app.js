@@ -449,6 +449,10 @@ app.use('/api/google-sheet', googleSheetSyncRoutes);
 const registerPaymentModule = require('./modules/payments-v2/backend/register');
 registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: false });
 
+// Krish Dashboard — isolated Sales student management (no Language Team writes)
+const registerKrishDashboard = require('./modules/krish-dashboard/backend/register');
+registerKrishDashboard(app, { authMiddleware: auth.verifyToken });
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
   try {

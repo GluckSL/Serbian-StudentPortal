@@ -56,6 +56,9 @@ export class NavService {
       '/admin/finance-dashboard/batches',
       '/admin/payment-hub/insights/batches'
     ],
+    'krish-dashboard': [
+      '/admin/krish-dashboard'
+    ],
     'class-recordings': [
       '/class-recordings/approval-requests',
       '/class-recordings/access-recording',
@@ -133,6 +136,12 @@ export class NavService {
         { id: 'student-progress', label: 'Student Progress', icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
         { id: 'admin-performance', label: 'Performance', icon: 'speed', route: '/admin/performance', subGroup: null },
         { id: 'language-tracking', label: 'Language Tracking', icon: 'translate', route: '/admin/language-tracking', subGroup: null }
+      ]
+    },
+    {
+      group: 'Sales',
+      items: [
+        { id: 'krish-dashboard', label: 'Krish Dashboard', icon: 'storefront', route: '/admin/krish-dashboard', subGroup: null }
       ]
     },
     {

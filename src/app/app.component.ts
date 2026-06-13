@@ -37,6 +37,11 @@ export class AppComponent implements OnInit, OnDestroy {
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: NavigationEnd) => {
       const path = event.urlAfterRedirects.split('?')[0];
+      // #region agent log
+      if (path.includes('krish') || path === '/login' || path === '/home') {
+        fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'240bb9'},body:JSON.stringify({sessionId:'240bb9',runId:'pre-fix',hypothesisId:'H2',location:'app.component.ts:NavigationEnd',message:'Router navigation',data:{path,urlAfterRedirects:event.urlAfterRedirects,isLoggedIn:this.isLoggedIn},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion
       const isBareRoute = path === '/home' || path === '/login' || path === '/register' || path === '/' || path === '';
       this.showHeader = !isBareRoute;
       this.isLoginRoute = path === '/login' || path === '/register';
