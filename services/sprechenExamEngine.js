@@ -397,16 +397,20 @@ function getCard(phaseDef, mod) {
   return phaseDef.card;
 }
 
-// ─── Compile Teil scores from turns ──────────────────────────────────────────
+// ─── Dual‑examiner score compilation ──────────────────────────────────────────
 
-function compileTeilScores(turns, rubric, passThreshold) {
+function _sumExaminerScores(turns, rubric, examFormat, examinerId) {
   let t1 = 0, t2 = 0, t3 = 0;
+  const cap1 = rubric?.teil1?.maxPoints ?? (examFormat === 'A2' ? 6 : 3);
+  const cap2 = rubric?.teil2?.maxPoints ?? (examFormat === 'A2' ? 6 : 6);
+  const cap3 = rubric?.teil3?.maxPoints ?? (examFormat === 'A2' ? 6 : 6);
 
   for (const turn of turns) {
     if (turn.role !== 'student') continue;
+    const ev = (turn.evaluations || []).find(e => e.examinerId === examinerId);
     const eval_ = turn.tutorOverride
       ? { points: turn.tutorOverride.points }
-      : turn.evaluation;
+      : ev;
     if (!eval_) continue;
     const pts = typeof eval_.points === 'number' ? eval_.points : 0;
     if (turn.teil === 1) t1 += pts;
@@ -414,23 +418,55 @@ function compileTeilScores(turns, rubric, passThreshold) {
     else if (turn.teil === 3) t3 += pts;
   }
 
-  // Cap per Teil
-  const cap1 = rubric?.teil1?.maxPoints ?? 3;
-  const cap2 = rubric?.teil2?.maxPoints ?? 6;
-  const cap3 = rubric?.teil3?.maxPoints ?? 6;
-
-  t1 = Math.min(t1, cap1);
-  t2 = Math.min(t2, cap2);
-  t3 = Math.min(t3, cap3);
-
-  const total = t1 + t2 + t3;
   return {
-    teil1: Math.round(t1 * 10) / 10,
-    teil2: Math.round(t2 * 10) / 10,
-    teil3: Math.round(t3 * 10) / 10,
-    total: Math.round(total * 10) / 10,
-    passed: total >= (passThreshold || 10),
+    teil1: Math.min(t1, cap1),
+    teil2: Math.min(t2, cap2),
+    teil3: Math.min(t3, cap3),
   };
+}
+
+function compileTeilScores(turns, rubric, passThreshold, examFormat) {
+  const format = examFormat || 'A1';
+
+  // Gather unique examiner IDs from evaluations
+  const ids = new Set();
+  for (const turn of turns) {
+    for (const ev of (turn.evaluations || [])) {
+      if (ev.examinerId) ids.add(ev.examinerId);
+    }
+  }
+  // Fallback: if no dual‑examiner data, treat examiner 1 as default
+  if (ids.size === 0) ids.add(1);
+
+  const eScores = [];
+  for (const eId of ids) {
+    const s = _sumExaminerScores(turns, rubric, format, eId);
+    const total = s.teil1 + s.teil2 + s.teil3;
+    eScores.push({
+      examinerId: eId,
+      teil1: Math.round(s.teil1 * 10) / 10,
+      teil2: Math.round(s.teil2 * 10) / 10,
+      teil3: Math.round(s.teil3 * 10) / 10,
+      total: Math.round(total * 10) / 10,
+    });
+  }
+
+  // Arithmetic mean of both examiners
+  const mean = (key) => {
+    const vals = eScores.map(e => e[key] || 0);
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return format === 'A2' ? Math.round(avg * 2) / 2 : Math.round(avg);
+  };
+
+  const final = {
+    teil1: mean('teil1'),
+    teil2: mean('teil2'),
+    teil3: mean('teil3'),
+    total: mean('total'),
+  };
+  final.passed = final.total >= (passThreshold || (format === 'A2' ? 14 : 9));
+
+  return { examinerScores: eScores, finalScores: final };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -497,7 +533,7 @@ async function advanceReady(session, module) {
  * @param {object} module    - Mongoose module doc (lean or full)
  * @param {string} transcript
  * @param {number} durationMs
- * @returns {Promise<{ botMessages, card, phase, awaitingStudent, done }>}
+ * @returns {Promise<{ botMessages, card, phase, awaitingStudent, done, retry? }>}
  */
 async function processTurn(session, module, transcript, durationMs) {
   const phases = buildPhaseSequence(module);
@@ -528,28 +564,62 @@ async function processTurn(session, module, transcript, durationMs) {
     transcript: transcript || '',
     durationMs: durationMs || null,
     evaluation: null,
+    evaluations: [],
     botSpeech: '',
     at: new Date(),
   });
 
-  // ── 2. Evaluate silently (async, non-blocking session flow) ───────────────
+  // ── 2. Evaluate with dual examiners ───────────────────────────────────────
   const rubric = resolveModuleRubric(module);
   const rubricTeil = rubric && rubric[currentPhaseDef.evalTeil];
   const criteria = (rubricTeil && rubricTeil.criteria) || [];
 
-  const evalResult = await scoreTurn({
-    teil: currentPhaseDef.teil,
-    turnType: currentPhaseDef.turnType,
-    transcript,
-    card,
-    criteria,
-  });
+  const [eval1, eval2] = await Promise.all([
+    scoreTurn({ teil: currentPhaseDef.teil, turnType: currentPhaseDef.turnType, transcript, card, criteria, examFormat: 'A1', examinerId: 1 }),
+    scoreTurn({ teil: currentPhaseDef.teil, turnType: currentPhaseDef.turnType, transcript, card, criteria, examFormat: 'A1', examinerId: 2 }),
+  ]);
 
-  // Write evaluation back to the turn
   const lastTurnIdx = session.turns.length - 1;
-  session.turns[lastTurnIdx].evaluation = evalResult;
+  session.turns[lastTurnIdx].evaluation = eval1;
+  session.turns[lastTurnIdx].evaluations = [eval1, eval2];
 
-  // ── 3. Bot answers THIS turn inline (Teil 2 student_ask / Teil 3 student_request) ──
+  // ── 3. Guided retry for Teil 3 wrong task type ────────────────────────────
+  const isTeil3Request = currentPhaseDef.turnType === 'teil3_student_request';
+  if (isTeil3Request) {
+    const hasWrongTag = (eval1.criteria || []).some(c =>
+      c.issueTags && c.issueTags.includes('Wrong task type')
+    );
+    if (hasWrongTag && session.state.retryCount < 1) {
+      session.state.retryCount = (session.state.retryCount || 0) + 1;
+      const retrySpeech = 'Entschuldigung, Sie sollten mich bitten, nicht fragen. Versuchen Sie es bitte noch einmal.';
+      session.turns.push({
+        teil: currentPhaseDef.teil,
+        turnNumber: session.turns.length,
+        phase: currentPhaseId,
+        role: 'bot',
+        card: null,
+        transcript: '',
+        durationMs: null,
+        evaluation: null,
+        evaluations: [],
+        botSpeech: retrySpeech,
+        at: new Date(),
+      });
+      session.state.phase = currentPhaseId;
+      session.state.awaitingStudent = true;
+      await session.save();
+      return {
+        botMessages: [{ role: 'bot', text: retrySpeech, phase: currentPhaseId }],
+        card,
+        phase: currentPhaseId,
+        awaitingStudent: true,
+        done: false,
+        retry: true,
+      };
+    }
+  }
+
+  // ── 4. Bot answers THIS turn inline (Teil 2 student_ask / Teil 3 student_request) ──
   const inlineBotMessages = [];
 
   if (currentPhaseDef.botAnswers) {
@@ -571,6 +641,7 @@ async function processTurn(session, module, transcript, durationMs) {
         transcript: '',
         durationMs: null,
         evaluation: null,
+        evaluations: [],
         botSpeech: inlineBotSpeech,
         at: new Date(),
       });
@@ -578,7 +649,7 @@ async function processTurn(session, module, transcript, durationMs) {
     }
   }
 
-  // ── 4. Advance to next phase(s) ───────────────────────────────────────────
+  // ── 5. Advance to next phase(s) ───────────────────────────────────────────
   return _runFromIndex(session, module, phases, currentIdx + 1, null, inlineBotMessages);
 }
 
@@ -730,18 +801,22 @@ function _getCurrentState(session, module) {
 }
 
 /**
- * Finalize session — compile scores, mark completed.
+ * Finalize session — compile dual-examiner scores, mark completed.
  */
 async function completeSession(session, module) {
   const rubric = resolveModuleRubric(module);
-  const scores = compileTeilScores(session.turns, rubric, module.passThreshold);
-  session.scores = scores;
+  const { examinerScores, finalScores } = compileTeilScores(
+    session.turns, rubric, module.passThreshold, 'A1'
+  );
+  session.scores = finalScores;
+  session.examinerScores = examinerScores;
+  session.finalScores = finalScores;
   session.completed = true;
   session.completedAt = new Date();
   session.state.phase = 'complete';
   session.state.awaitingStudent = false;
   await session.save();
-  return scores;
+  return finalScores;
 }
 
 module.exports = {

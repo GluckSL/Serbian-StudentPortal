@@ -31,6 +31,7 @@ export interface SprechenTurnResult {
   awaitingStudent: boolean;
   done: boolean;
   scores?: SprechenScores;
+  finalScores?: SprechenScores;
   /** A2 monologue mode — student speaks freely, then presses Fertig to finish. */
   monologueMode?: boolean;
 }
@@ -39,6 +40,7 @@ export interface SprechenScores {
   teil1: number;
   teil2: number;
   teil3: number;
+  pronunciation?: number;
   total: number;
   passed: boolean;
 }
@@ -47,6 +49,9 @@ export interface SprechenEvalCriterion {
   id: string;
   label: string;
   met: boolean;
+  pointsAwarded?: number;
+  level?: string;
+  issueTags?: string[];
   note?: string;
 }
 
@@ -55,6 +60,17 @@ export interface SprechenEvaluation {
   maxPoints: number;
   criteria: SprechenEvalCriterion[];
   modelVersion?: string;
+  examinerId?: number;
+  responseType?: string;
+  taskFulfilled?: boolean;
+  partiallyFulfilled?: boolean;
+  intelligible?: boolean;
+}
+
+export interface SprechenExaminerScore {
+  examinerId: number;
+  scores: SprechenScores;
+  completed: boolean;
 }
 
 export interface SprechenTutorOverride {

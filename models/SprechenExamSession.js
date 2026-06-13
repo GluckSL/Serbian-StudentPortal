@@ -7,6 +7,9 @@ const EvalCriterionSchema = new mongoose.Schema(
     id: { type: String },
     label: { type: String },
     met: { type: Boolean },
+    pointsAwarded: { type: Number },
+    level: { type: String, default: '' },
+    issueTags: { type: [String], default: [] },
     note: { type: String, default: '' },
   },
   { _id: false }
@@ -18,6 +21,11 @@ const EvaluationSchema = new mongoose.Schema(
     maxPoints: { type: Number, default: 0 },
     criteria: { type: [EvalCriterionSchema], default: [] },
     modelVersion: { type: String, default: '' },
+    examinerId: { type: Number, default: 1 },
+    responseType: { type: String, default: 'verbal' },
+    taskFulfilled: { type: Boolean },
+    partiallyFulfilled: { type: Boolean },
+    intelligible: { type: Boolean },
   },
   { _id: false }
 );
@@ -52,6 +60,7 @@ const SprechenTurnSchema = new mongoose.Schema(
     transcript: { type: String, default: '' },
     durationMs: { type: Number, default: null },
     evaluation: { type: EvaluationSchema, default: null },
+    evaluations: { type: [EvaluationSchema], default: [] },
     tutorOverride: { type: TutorOverrideSchema, default: null },
     botSpeech: { type: String, default: '' },
     at: { type: Date, default: Date.now },
@@ -64,8 +73,18 @@ const ScoresSchema = new mongoose.Schema(
     teil1: { type: Number, default: 0 },
     teil2: { type: Number, default: 0 },
     teil3: { type: Number, default: 0 },
+    pronunciation: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
     passed: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+const ExaminerScoreSchema = new mongoose.Schema(
+  {
+    examinerId: { type: Number, required: true },
+    scores: { type: ScoresSchema, default: () => ({}) },
+    completed: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -80,6 +99,7 @@ const ExamStateSchema = new mongoose.Schema(
     cardImageUrl: { type: String, default: '' },
     teilNumber: { type: Number, default: 0 },
     teilStartedAt: { type: Date, default: null },
+    retryCount: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -100,6 +120,8 @@ const SprechenExamSessionSchema = new mongoose.Schema(
     },
     state: { type: ExamStateSchema, default: () => ({}) },
     scores: { type: ScoresSchema, default: () => ({}) },
+    examinerScores: { type: [ExaminerScoreSchema], default: [] },
+    finalScores: { type: ScoresSchema, default: () => ({}) },
     turns: { type: [SprechenTurnSchema], default: [] },
     completed: { type: Boolean, default: false },
     completedAt: { type: Date, default: null },

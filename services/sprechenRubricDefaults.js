@@ -29,11 +29,17 @@ function resolveModuleRubric(module) {
     };
   }
 
-  return {
+  const result = {
     teil1: mergeTeil('teil1'),
     teil2: mergeTeil('teil2'),
     teil3: mergeTeil('teil3'),
   };
+
+  if (isA2) {
+    result.global = mergeTeil('global');
+  }
+
+  return result;
 }
 
 module.exports = { DEFAULT_RUBRIC, resolveModuleRubric };
