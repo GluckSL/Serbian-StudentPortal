@@ -4,7 +4,7 @@
   <div class="sf-panel" *ngIf="open" role="dialog" aria-label="Help and support quick actions">
     <div class="sf-panel__hdr">
       <div class="sf-panel__brand">
-        <span class="sf-fox-icon">🦊</span>
+        <img class="sf-assistant-icon sf-assistant-icon--brand" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
         <div>
           <div class="sf-panel__name">Olly</div>
           <div class="sf-panel__sub">24/7 Portal Assistant</div>
@@ -17,7 +17,7 @@
 
     <div class="sf-panel__body">
       <button class="sf-action sf-action--primary" type="button" (click)="openModal('olly')">
-        <span class="sf-action__icon">🦊</span>
+        <img class="sf-action__icon sf-assistant-icon" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
         <span class="sf-action__text">
           <span class="sf-action__title">Chat with Olly</span>
           <span class="sf-action__sub">AI help — instant answers</span>
@@ -70,7 +70,7 @@
 
   <!-- ── FAB Button ─────────────────────────────────────────── -->
   <button class="sf-fab" type="button" (click)="toggle()" [attr.aria-expanded]="open" aria-label="Open Olly assistant">
-    <span class="sf-fab__icon" *ngIf="!open">🦊</span>
+    <img class="sf-fab__icon" *ngIf="!open" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
     <span class="sf-fab__icon sf-fab__icon--close" *ngIf="open">✕</span>
     <span *ngIf="showAnnouncementsTab && announcementBadgeCount > 0" class="sf-fab__badge"></span>
   </button>
@@ -88,7 +88,7 @@
   <div class="sf-modal__hdr">
     <ng-container [ngSwitch]="activeTab">
       <div class="sf-modal__title" *ngSwitchCase="'olly'">
-        <span class="sf-fox-sm">🦊</span>
+        <img class="sf-assistant-icon sf-assistant-icon--sm" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
         <span>Olly</span>
         <span class="sf-online-badge">Online</span>
       </div>
@@ -117,7 +117,10 @@
     <button *ngIf="showAnnouncementsTab" class="sf-tab" (click)="setTab('announcements')">
       📣 Announcements
     </button>
-    <button class="sf-tab" (click)="setTab('olly')">🦊 Olly</button>
+    <button class="sf-tab" (click)="setTab('olly')">
+      <img class="sf-assistant-icon sf-assistant-icon--tab" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
+      Olly
+    </button>
   </div>
 
   <!-- ╔══════════════════════════════════════════╗ -->
@@ -128,7 +131,7 @@
     <!-- ── Resume or start new chat ────────────────────────── -->
     <div class="sf-olly-resume" *ngIf="ollyShowResumePrompt">
       <div class="sf-olly-intake__hero">
-        <span class="sf-olly-intake__fox">🦊</span>
+        <img class="sf-olly-intake__assistant sf-assistant-icon" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
         <div>
           <div class="sf-olly-intake__title">Welcome back!</div>
           <div class="sf-olly-intake__sub">You have a previous chat with Olly. Would you like to continue where you left off or start a new conversation?</div>
@@ -146,7 +149,7 @@
     <!-- ── Pre-chat intake ─────────────────────────────────── -->
     <div class="sf-olly-intake" *ngIf="ollyShowIntake && !ollyShowResumePrompt">
       <div class="sf-olly-intake__hero">
-        <span class="sf-olly-intake__fox">🦊</span>
+        <img class="sf-olly-intake__assistant sf-assistant-icon" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
         <div>
           <div class="sf-olly-intake__title">Start a chat with Olly</div>
           <div class="sf-olly-intake__sub">Tell us what you need help with — Olly will assist you right away.</div>
@@ -202,7 +205,10 @@
         <div *ngIf="ollyError" class="sf-error">⚠️ {{ ollyError }}</div>
 
         <button class="sf-olly-intake__start" type="submit" [disabled]="ollyIntakeSubmitting">
-          <span *ngIf="!ollyIntakeSubmitting">🦊 Start Chat</span>
+          <span *ngIf="!ollyIntakeSubmitting">
+            <img class="sf-assistant-icon sf-assistant-icon--button" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
+            Start Chat
+          </span>
           <span *ngIf="ollyIntakeSubmitting">⏳ Starting…</span>
         </button>
       </form>
@@ -237,7 +243,9 @@
         [class.sf-msg--bot]="msg.role === 'assistant'"
       >
         <!-- Bot avatar -->
-        <div class="sf-msg__avatar" *ngIf="msg.role === 'assistant'">🦊</div>
+        <div class="sf-msg__avatar" *ngIf="msg.role === 'assistant'">
+          <img class="sf-assistant-icon" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
+        </div>
 
         <div class="sf-msg__bubble">
           <!-- Media preview -->
@@ -254,7 +262,9 @@
 
       <!-- Typing indicator -->
       <div class="sf-msg sf-msg--bot sf-msg--typing" *ngIf="ollyLoading">
-        <div class="sf-msg__avatar">🦊</div>
+        <div class="sf-msg__avatar">
+          <img class="sf-assistant-icon" src="assets/images/chatbot.jpg" alt="" aria-hidden="true" />
+        </div>
         <div class="sf-msg__bubble sf-msg__bubble--typing">
           <span></span><span></span><span></span>
         </div>

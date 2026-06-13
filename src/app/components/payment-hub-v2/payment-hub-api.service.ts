@@ -376,11 +376,42 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   openRequestCount: number;
   /** Earliest overdue conversion date (ISO). */
   overdueSince?: string | null;
+  /** Current-level language fee (A1–B2) — received / pending / overdue. */
+  langPaidLKR?: number;
+  langPaidINR?: number;
+  langPaidUSD?: number;
+  langPendingLKR?: number;
+  langPendingINR?: number;
+  langPendingUSD?: number;
+  langOverdueLKR?: number;
+  langOverdueINR?: number;
+  langOverdueUSD?: number;
+  levelSlots?: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
+  allLanguageFees?: BatchLevelSlotTotals;
 }
+
+export type BatchStudentPaymentFilter = LanguageLevelSlot | 'all_language' | 'all_payment';
 
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];
+}
+
+export type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
+
+export interface BatchLevelSlotTotals {
+  receivedLKR: number;
+  receivedINR: number;
+  receivedUSD: number;
+  pendingLKR: number;
+  pendingINR: number;
+  pendingUSD: number;
+  overdueLKR: number;
+  overdueINR: number;
+  overdueUSD: number;
+  expectedLKR: number;
+  expectedINR: number;
+  expectedUSD: number;
 }
 
 export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
@@ -396,6 +427,22 @@ export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
   totalExpectedLKR?: number;
   totalExpectedINR?: number;
   totalExpectedUSD?: number;
+  /** Received for current CEFR level only (A1–B2 language fee). */
+  langPaidLKR?: number;
+  langPaidINR?: number;
+  langPaidUSD?: number;
+  /** All payment types — pending / overdue / expected (received + pending + overdue). */
+  fullPendingLKR?: number;
+  fullPendingINR?: number;
+  fullPendingUSD?: number;
+  fullOverdueLKR?: number;
+  fullOverdueINR?: number;
+  fullOverdueUSD?: number;
+  fullExpectedLKR?: number;
+  fullExpectedINR?: number;
+  fullExpectedUSD?: number;
+  levelSlots?: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
+  allLanguageFees?: BatchLevelSlotTotals;
   totalDueLKR?: number;
   totalDueINR?: number;
   totalDueUSD?: number;

@@ -1140,6 +1140,33 @@
   }
 }
 
+@media (max-width: 640px) {
+  .sr-filters-wrap--inline {
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .sr-filters-wrap--inline .sr-input {
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .sr-filters-wrap--inline .sr-inline-filter,
+  .sr-filters-wrap--inline .sr-req-rec-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    margin-left: 0;
+    min-height: 38px;
+  }
+
+  .sr-filters-wrap--inline .sr-req-rec-btn {
+    padding-inline: 12px;
+  }
+}
+
 @media (max-width: 380px) {
   .sr-rec-card__meta {
     gap: 8px 5px;

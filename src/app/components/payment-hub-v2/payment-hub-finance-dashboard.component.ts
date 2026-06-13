@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -14,12 +14,15 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { environment } from '../../../environments/environment';
 import {
+  BatchLevelSlotTotals,
   BatchPaymentSummaryRow,
   BatchPaymentSummaryTotals,
+  LanguageLevelSlot,
   PaymentHubApiService,
 } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
+import { fmtPaymentAmount } from './payment-currency.util';
 import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
 import { totalJourneyDaysForLevel } from './payment-journey-metrics.util';
 import { BatchPaymentRow } from './payment-hub-batch-insights.component';
@@ -35,6 +38,12 @@ import {
   loadFinanceBatchPresets,
   saveFinanceBatchPreset,
 } from './payment-hub-finance-batch-presets.util';
+import {
+  FinanceCohort,
+  financeCohortLabel,
+  formatStudentStatusLabel,
+  parseFinanceCohortQuery,
+} from './payment-hub-finance-cohort.util';
 
 interface BatchJourneySummary {
   batchName: string;
@@ -43,6 +52,13 @@ interface BatchJourneySummary {
 }
 
 type BatchInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
+type FinancePaymentFilter = LanguageLevelSlot | 'all_language' | 'all_payment';
+
+interface FinanceCurrencyTotals {
+  lkr: number;
+  inr: number;
+  usd: number;
+}
 
 function normBatchKey(name: string): string {
   return String(name || '').trim().toLowerCase();
@@ -82,12 +98,24 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   filterLevel = '';
   tableSearch = '';
   batchInsight: BatchInsightFilter = '';
+  /** Default: all language fee slots combined (A1–B2). */
+  paymentFilter: FinancePaymentFilter = 'all_language';
+  readonly paymentFilterOptions: ReadonlyArray<{ value: FinancePaymentFilter; label: string; group?: 'level' | 'summary' }> = [
+    { value: 'A1', label: 'A1', group: 'level' },
+    { value: 'A2', label: 'A2', group: 'level' },
+    { value: 'B1', label: 'B1', group: 'level' },
+    { value: 'B2', label: 'B2', group: 'level' },
+    { value: 'all_language', label: 'All language fees', group: 'summary' },
+    { value: 'all_payment', label: 'All payment', group: 'summary' },
+  ];
   selectedBatches: string[] = [];
   savedPresets: FinanceBatchPreset[] = [];
   activePresetName = '';
   presetNameInput = '';
   showPresetSaveInput = false;
   exporting = false;
+  cohort: FinanceCohort = 'all';
+  cohortStatus = '';
 
   readonly levels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly levelLabels = ['All levels', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -109,18 +137,64 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     private readonly api: PaymentHubApiService,
     private readonly http: HttpClient,
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     private readonly snack: MatSnackBar,
   ) {}
 
   ngOnInit(): void {
     this.savedPresets = loadFinanceBatchPresets();
-    this.load();
+    this.route.queryParamMap.subscribe((params) => {
+      const parsed = parseFinanceCohortQuery({
+        cohort: params.get('cohort') ?? undefined,
+        status: params.get('status') ?? undefined,
+      });
+      this.cohort = parsed.cohort;
+      this.cohortStatus = parsed.status;
+      this.load();
+    });
+  }
+
+  get hasCohortFilter(): boolean {
+    return this.cohort !== 'all' || !!this.cohortStatus;
+  }
+
+  get showPlanPaymentSummary(): boolean {
+    return this.cohort !== 'all';
+  }
+
+  get pageTitle(): string {
+    if (!this.hasCohortFilter) return 'Finance Dashboard';
+    const parts = [financeCohortLabel(this.cohort)];
+    if (this.cohortStatus) parts.push(formatStudentStatusLabel(this.cohortStatus));
+    return parts.join(' · ');
+  }
+
+  get pageSubtitle(): string {
+    if (!this.hasCohortFilter) {
+      return 'Batch-wise payment overview — expected fees, received amounts, pending balances, and overdue totals.';
+    }
+    return `Payment breakdown for ${this.cardTotals.studentCount} student(s) across batches.`;
+  }
+
+  get paymentSummaryTotals(): {
+    expected: FinanceCurrencyTotals;
+    received: FinanceCurrencyTotals;
+    pending: FinanceCurrencyTotals;
+  } {
+    const scoped = this.scopedMoneyAggregate();
+    return {
+      expected: scoped.expected,
+      received: scoped.received,
+      pending: scoped.pending,
+    };
   }
 
   load(): void {
     this.loading = true;
     const params: Record<string, string> = {};
     if (this.filterLevel) params['level'] = this.filterLevel;
+    if (this.cohort !== 'all') params['cohort'] = this.cohort;
+    if (this.cohortStatus) params['studentStatus'] = this.cohortStatus;
 
     this.api.getBatchPaymentSummary(params).subscribe({
       next: (summary) => {
@@ -196,6 +270,20 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       totalExpectedLKR: row.totalExpectedLKR ?? 0,
       totalExpectedINR: row.totalExpectedINR ?? 0,
       totalExpectedUSD: row.totalExpectedUSD ?? 0,
+      langPaidLKR: row.langPaidLKR ?? 0,
+      langPaidINR: row.langPaidINR ?? 0,
+      langPaidUSD: row.langPaidUSD ?? 0,
+      fullPendingLKR: row.fullPendingLKR ?? 0,
+      fullPendingINR: row.fullPendingINR ?? 0,
+      fullPendingUSD: row.fullPendingUSD ?? 0,
+      fullOverdueLKR: row.fullOverdueLKR ?? 0,
+      fullOverdueINR: row.fullOverdueINR ?? 0,
+      fullOverdueUSD: row.fullOverdueUSD ?? 0,
+      fullExpectedLKR: row.fullExpectedLKR ?? 0,
+      fullExpectedINR: row.fullExpectedINR ?? 0,
+      fullExpectedUSD: row.fullExpectedUSD ?? 0,
+      levelSlots: row.levelSlots ?? {},
+      allLanguageFees: row.allLanguageFees ?? null,
       totalDueLKR: row.totalDueLKR ?? 0,
       totalDueINR: row.totalDueINR ?? 0,
       totalDueUSD: row.totalDueUSD ?? 0,
@@ -355,33 +443,69 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     return a.lkr > 0 || a.inr > 0 || a.usd > 0;
   }
 
+  private rowsForCardTotals(): BatchPaymentRow[] {
+    return this.hasBatchSelection ? this.filteredBatchRows : this.batchRows;
+  }
+
+  private scopedMoneyAggregate(): {
+    expected: FinanceCurrencyTotals;
+    received: FinanceCurrencyTotals;
+    pending: FinanceCurrencyTotals;
+    overdue: FinanceCurrencyTotals;
+  } {
+    return this.rowsForCardTotals().reduce(
+      (acc, r) => {
+        const s = this.scopeTotalsFromRow(r);
+        return {
+          expected: {
+            lkr: acc.expected.lkr + s.expected.lkr,
+            inr: acc.expected.inr + s.expected.inr,
+            usd: acc.expected.usd + s.expected.usd,
+          },
+          received: {
+            lkr: acc.received.lkr + s.received.lkr,
+            inr: acc.received.inr + s.received.inr,
+            usd: acc.received.usd + s.received.usd,
+          },
+          pending: {
+            lkr: acc.pending.lkr + s.pending.lkr,
+            inr: acc.pending.inr + s.pending.inr,
+            usd: acc.pending.usd + s.pending.usd,
+          },
+          overdue: {
+            lkr: acc.overdue.lkr + s.overdue.lkr,
+            inr: acc.overdue.inr + s.overdue.inr,
+            usd: acc.overdue.usd + s.overdue.usd,
+          },
+        };
+      },
+      {
+        expected: { lkr: 0, inr: 0, usd: 0 },
+        received: { lkr: 0, inr: 0, usd: 0 },
+        pending: { lkr: 0, inr: 0, usd: 0 },
+        overdue: { lkr: 0, inr: 0, usd: 0 },
+      },
+    );
+  }
+
   private insightAmountsFor(key: string): { lkr: number; inr: number; usd: number } {
+    const scoped = this.scopedMoneyAggregate();
     const t = this.cardTotals;
     switch (key) {
       case 'all':
-        return {
-          lkr: t.totalExpectedLKR ?? 0,
-          inr: t.totalExpectedINR ?? 0,
-          usd: t.totalExpectedUSD ?? 0,
-        };
+        return scoped.expected;
       case 'paid_full':
-        return {
-          lkr: t.insightPaidFullLKR ?? 0,
-          inr: t.insightPaidFullINR ?? 0,
-          usd: t.insightPaidFullUSD ?? 0,
-        };
+        return this.paymentFilter === 'all_payment'
+          ? {
+              lkr: t.insightPaidFullLKR ?? 0,
+              inr: t.insightPaidFullINR ?? 0,
+              usd: t.insightPaidFullUSD ?? 0,
+            }
+          : this.scopedReceivedForSettledRows();
       case 'have_balance':
-        return {
-          lkr: t.insightBalanceLKR ?? 0,
-          inr: t.insightBalanceINR ?? 0,
-          usd: t.insightBalanceUSD ?? 0,
-        };
+        return scoped.pending;
       case 'overdue':
-        return {
-          lkr: t.insightOverdueLKR ?? 0,
-          inr: t.insightOverdueINR ?? 0,
-          usd: t.insightOverdueUSD ?? 0,
-        };
+        return scoped.overdue;
       case 'paid_docs':
         return {
           lkr: t.insightDocsLKR ?? 0,
@@ -399,8 +523,180 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     }
   }
 
+  /** Sum received for rows with no outstanding balance in the active payment filter. */
+  private scopedReceivedForSettledRows(): FinanceCurrencyTotals {
+    return this.rowsForCardTotals().reduce(
+      (acc, r) => {
+        const s = this.scopeTotalsFromRow(r);
+        const owed = s.pending.lkr + s.pending.inr + s.pending.usd + s.overdue.lkr + s.overdue.inr + s.overdue.usd;
+        if (owed > 0) return acc;
+        return {
+          lkr: acc.lkr + s.received.lkr,
+          inr: acc.inr + s.received.inr,
+          usd: acc.usd + s.received.usd,
+        };
+      },
+      { lkr: 0, inr: 0, usd: 0 },
+    );
+  }
+
   applyInsightFilter(insight: BatchInsightFilter): void {
     this.batchInsight = this.batchInsight === insight ? '' : insight;
+  }
+
+  setPaymentFilter(filter: FinancePaymentFilter): void {
+    this.paymentFilter = filter;
+  }
+
+  paymentFilterLabel(): string {
+    return this.paymentFilterOptions.find((o) => o.value === this.paymentFilter)?.label ?? 'All language fees';
+  }
+
+  paymentFilterHint(): string {
+    switch (this.paymentFilter) {
+      case 'all_payment':
+        return 'All payment types — language, docs, visa, etc.';
+      case 'all_language':
+        return 'All language fees (A1–B2). Received + Pending = Total payment per batch.';
+      default:
+        return `${this.paymentFilter} fee only. Received is capped at catalog fee; Pending is still owed.`;
+    }
+  }
+
+  isPaymentFilterActive(value: FinancePaymentFilter): boolean {
+    return this.paymentFilter === value;
+  }
+
+  private emptyCurrencyTotals(): FinanceCurrencyTotals {
+    return { lkr: 0, inr: 0, usd: 0 };
+  }
+
+  private totalsFromSlot(slot: BatchLevelSlotTotals | null | undefined): {
+    expected: FinanceCurrencyTotals;
+    received: FinanceCurrencyTotals;
+    pending: FinanceCurrencyTotals;
+    overdue: FinanceCurrencyTotals;
+  } {
+    if (!slot) {
+      const z = this.emptyCurrencyTotals();
+      return { expected: z, received: z, pending: z, overdue: z };
+    }
+    return {
+      expected: { lkr: slot.expectedLKR, inr: slot.expectedINR, usd: slot.expectedUSD },
+      received: { lkr: slot.receivedLKR, inr: slot.receivedINR, usd: slot.receivedUSD },
+      pending: { lkr: slot.pendingLKR, inr: slot.pendingINR, usd: slot.pendingUSD },
+      overdue: { lkr: slot.overdueLKR, inr: slot.overdueINR, usd: slot.overdueUSD },
+    };
+  }
+
+  private scopeTotalsFromRow(r: BatchPaymentRow): {
+    expected: FinanceCurrencyTotals;
+    received: FinanceCurrencyTotals;
+    pending: FinanceCurrencyTotals;
+    overdue: FinanceCurrencyTotals;
+  } {
+    if (this.paymentFilter === 'all_payment') {
+      return {
+        expected: {
+          lkr: r.fullExpectedLKR,
+          inr: r.fullExpectedINR,
+          usd: r.fullExpectedUSD,
+        },
+        received: { lkr: r.totalPaidLKR, inr: r.totalPaidINR, usd: r.totalPaidUSD },
+        pending: { lkr: r.fullPendingLKR, inr: r.fullPendingINR, usd: r.fullPendingUSD },
+        overdue: { lkr: r.fullOverdueLKR, inr: r.fullOverdueINR, usd: r.fullOverdueUSD },
+      };
+    }
+    if (this.paymentFilter === 'all_language') {
+      if (r.allLanguageFees) return this.totalsFromSlot(r.allLanguageFees);
+      const summed = this.sumLevelSlots(r);
+      if (summed) return this.totalsFromSlot(summed);
+      return {
+        expected: { lkr: r.totalExpectedLKR, inr: r.totalExpectedINR, usd: r.totalExpectedUSD },
+        received: { lkr: r.langPaidLKR, inr: r.langPaidINR, usd: r.langPaidUSD },
+        pending: { lkr: r.totalPendingLKR, inr: r.totalPendingINR, usd: r.totalPendingUSD },
+        overdue: { lkr: r.totalOverdueLKR, inr: r.totalOverdueINR, usd: r.totalOverdueUSD },
+      };
+    }
+    const slot = this.totalsFromSlot(r.levelSlots?.[this.paymentFilter]);
+    if (this.slotTotalsEmpty(slot) && this.batchRowMatchesLevel(r, this.paymentFilter)) {
+      return {
+        expected: { lkr: r.totalExpectedLKR, inr: r.totalExpectedINR, usd: r.totalExpectedUSD },
+        received: { lkr: r.langPaidLKR, inr: r.langPaidINR, usd: r.langPaidUSD },
+        pending: { lkr: r.totalPendingLKR, inr: r.totalPendingINR, usd: r.totalPendingUSD },
+        overdue: { lkr: r.totalOverdueLKR, inr: r.totalOverdueINR, usd: r.totalOverdueUSD },
+      };
+    }
+    return slot;
+  }
+
+  private batchRowMatchesLevel(r: BatchPaymentRow, level: LanguageLevelSlot): boolean {
+    if (r.level === level) return true;
+    const summary = (r.levelSummary || '').toUpperCase();
+    return summary.includes(`${level}:`) || summary.startsWith(level);
+  }
+
+  private sumLevelSlots(r: BatchPaymentRow): BatchLevelSlotTotals | null {
+    const keys: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
+    let hasAny = false;
+    const acc: BatchLevelSlotTotals = {
+      receivedLKR: 0,
+      receivedINR: 0,
+      receivedUSD: 0,
+      pendingLKR: 0,
+      pendingINR: 0,
+      pendingUSD: 0,
+      overdueLKR: 0,
+      overdueINR: 0,
+      overdueUSD: 0,
+      expectedLKR: 0,
+      expectedINR: 0,
+      expectedUSD: 0,
+    };
+    for (const key of keys) {
+      const s = r.levelSlots?.[key];
+      if (!s) continue;
+      hasAny = true;
+      acc.receivedLKR += s.receivedLKR ?? 0;
+      acc.receivedINR += s.receivedINR ?? 0;
+      acc.receivedUSD += s.receivedUSD ?? 0;
+      acc.pendingLKR += s.pendingLKR ?? 0;
+      acc.pendingINR += s.pendingINR ?? 0;
+      acc.pendingUSD += s.pendingUSD ?? 0;
+      acc.overdueLKR += s.overdueLKR ?? 0;
+      acc.overdueINR += s.overdueINR ?? 0;
+      acc.overdueUSD += s.overdueUSD ?? 0;
+      acc.expectedLKR += s.expectedLKR ?? 0;
+      acc.expectedINR += s.expectedINR ?? 0;
+      acc.expectedUSD += s.expectedUSD ?? 0;
+    }
+    return hasAny ? acc : null;
+  }
+
+  private slotTotalsEmpty(t: {
+    expected: FinanceCurrencyTotals;
+    received: FinanceCurrencyTotals;
+    pending: FinanceCurrencyTotals;
+    overdue: FinanceCurrencyTotals;
+  }): boolean {
+    const sum = (c: FinanceCurrencyTotals) => c.lkr + c.inr + c.usd;
+    return sum(t.expected) + sum(t.received) + sum(t.pending) + sum(t.overdue) <= 0;
+  }
+
+  rowExpected(r: BatchPaymentRow): FinanceCurrencyTotals {
+    return this.scopeTotalsFromRow(r).expected;
+  }
+
+  rowReceived(r: BatchPaymentRow): FinanceCurrencyTotals {
+    return this.scopeTotalsFromRow(r).received;
+  }
+
+  rowPending(r: BatchPaymentRow): FinanceCurrencyTotals {
+    return this.scopeTotalsFromRow(r).pending;
+  }
+
+  rowOverdue(r: BatchPaymentRow): FinanceCurrencyTotals {
+    return this.scopeTotalsFromRow(r).overdue;
   }
 
   isInsightActive(value: BatchInsightFilter): boolean {
@@ -426,6 +722,40 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     const total = r.totalJourneyDays;
     if (cur == null && (total == null || total === undefined)) return '—';
     return `${cur ?? '—'}/${total ?? '—'}`;
+  }
+
+  fmtPayment(n: number | null | undefined): string {
+    return fmtPaymentAmount(n);
+  }
+
+  rowHasOverdue(r: BatchPaymentRow): boolean {
+    const o = this.rowOverdue(r);
+    return o.lkr + o.inr + o.usd > 0 || !!r.overdueSince;
+  }
+
+  overdueDaysSince(iso?: string | null): number | null {
+    if (!iso) return null;
+    const since = new Date(iso);
+    if (Number.isNaN(since.getTime())) return null;
+    const today = new Date();
+    const sinceUtc = Date.UTC(since.getFullYear(), since.getMonth(), since.getDate());
+    const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.max(0, Math.floor((todayUtc - sinceUtc) / 86_400_000));
+  }
+
+  overdueDaysLabel(r: BatchPaymentRow): string {
+    const days = this.overdueDaysSince(r.overdueSince);
+    if (days == null) return '—';
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day';
+    return `${days} days`;
+  }
+
+  formatOverdueSince(iso?: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   applyLevelFilter(): void {
@@ -515,6 +845,27 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     }
   }
 
+  private rowsForExport(rows: BatchPaymentRow[]): BatchPaymentRow[] {
+    return rows.map((r) => {
+      const scoped = this.scopeTotalsFromRow(r);
+      return {
+        ...r,
+        totalExpectedLKR: scoped.expected.lkr,
+        totalExpectedINR: scoped.expected.inr,
+        totalExpectedUSD: scoped.expected.usd,
+        totalPaidLKR: scoped.received.lkr,
+        totalPaidINR: scoped.received.inr,
+        totalPaidUSD: scoped.received.usd,
+        totalPendingLKR: scoped.pending.lkr,
+        totalPendingINR: scoped.pending.inr,
+        totalPendingUSD: scoped.pending.usd,
+        totalOverdueLKR: scoped.overdue.lkr,
+        totalOverdueINR: scoped.overdue.inr,
+        totalOverdueUSD: scoped.overdue.usd,
+      };
+    });
+  }
+
   exportBatches(format: 'xlsx' | 'csv', scope: 'all' | 'selected' | 'visible'): void {
     if (this.exporting) return;
     let rows: BatchPaymentRow[];
@@ -534,6 +885,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       this.snack.open('No batches to export.', 'Dismiss', { duration: 3500 });
       return;
     }
+    rows = this.rowsForExport(rows);
     const formatters = {
       journeyDay: (r: BatchPaymentRow) => this.journeyDayRatio(r),
       batchType: (t: 'new' | 'old') => this.batchTypeLabel(t),

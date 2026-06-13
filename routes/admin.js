@@ -55,7 +55,31 @@ async function loadStudentFilterOptions() {
       a.localeCompare(b, undefined, { sensitivity: 'base' })
     );
 
-  const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, signupAppUserIds, countAgg] =
+  const visaDocSubscriptions = ['VISA_DOC', 'VISA_DOC_ONLY', 'DOCS_RECOGNITION'];
+  const nonTestBase = { role: 'STUDENT', isTestAccount: { $ne: true } };
+
+  function summarizePlanGroup(rows, matchSubscription) {
+    const byStatus = {};
+    let total = 0;
+    for (const row of rows) {
+      const subscription = String(row._id?.subscription || '').toUpperCase();
+      if (!matchSubscription(subscription)) continue;
+      const status = String(row._id?.status || 'UNCERTAIN').toUpperCase();
+      total += row.count;
+      byStatus[status] = (byStatus[status] || 0) + row.count;
+    }
+    const statusOrder = ['UNCERTAIN', 'COMPLETED', 'WITHDREW', 'DROPPED'];
+    const statusBreakdown = statusOrder
+      .map((status) => ({ status, count: byStatus[status] || 0 }))
+      .filter((entry) => entry.count > 0);
+    return {
+      total,
+      ongoing: byStatus.ONGOING || 0,
+      statusBreakdown,
+    };
+  }
+
+  const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, signupAppUserIds, countAgg, planStatusAgg] =
     await Promise.all([
       User.distinct('batch', base),
       User.distinct('servicesOpted', base),
@@ -103,9 +127,30 @@ async function loadStudentFilterOptions() {
           },
         },
       ]),
+      User.aggregate([
+        { $match: nonTestBase },
+        {
+          $group: {
+            _id: { subscription: '$subscription', status: '$studentStatus' },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
     ]);
 
   const counts = countAgg[0] || {};
+  const planStatusRows = planStatusAgg || [];
+  let portalNonTest = 0;
+  let ongoingNonTest = 0;
+  for (const row of planStatusRows) {
+    portalNonTest += row.count;
+    if (String(row._id?.status || '').toUpperCase() === 'ONGOING') {
+      ongoingNonTest += row.count;
+    }
+  }
+  const platinumStats = summarizePlanGroup(planStatusRows, (sub) => sub === 'PLATINUM');
+  const silverStats = summarizePlanGroup(planStatusRows, (sub) => sub === 'SILVER');
+  const visaDocsStats = summarizePlanGroup(planStatusRows, (sub) => visaDocSubscriptions.includes(sub));
   const signupFormUserIds = (signupAppUserIds || []).filter((id) => id != null);
   let portalSignupForm = counts.portalSignupForm ?? 0;
   if (signupFormUserIds.length) {
@@ -129,6 +174,17 @@ async function loadStudentFilterOptions() {
       portalCrmLinked: counts.portalCrmLinked ?? 0,
       portalSignupForm,
       portalTestAccounts: counts.portalTestAccounts ?? 0,
+      portalNonTest,
+      ongoingNonTest,
+      platinumTotal: platinumStats.total,
+      platinumOngoing: platinumStats.ongoing,
+      platinumStatusBreakdown: platinumStats.statusBreakdown,
+      silverTotal: silverStats.total,
+      silverOngoing: silverStats.ongoing,
+      silverStatusBreakdown: silverStats.statusBreakdown,
+      visaDocsTotal: visaDocsStats.total,
+      visaDocsOngoing: visaDocsStats.ongoing,
+      visaDocsStatusBreakdown: visaDocsStats.statusBreakdown,
     },
     phoneCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
     loginCountries: STUDENT_COUNTRY_FILTER_OPTIONS,

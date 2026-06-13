@@ -16,9 +16,11 @@ import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { environment } from '../../../environments/environment';
 import {
+  BatchLevelSlotTotals,
   BatchPaymentSummaryRow,
   BatchPaymentSummaryTotals,
   CurrencyPaidTotals,
+  LanguageLevelSlot,
   PaymentHubApiService,
 } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
@@ -55,6 +57,20 @@ export interface BatchPaymentRow extends CurrencyPaidTotals {
   totalExpectedLKR: number;
   totalExpectedINR: number;
   totalExpectedUSD: number;
+  langPaidLKR: number;
+  langPaidINR: number;
+  langPaidUSD: number;
+  fullPendingLKR: number;
+  fullPendingINR: number;
+  fullPendingUSD: number;
+  fullOverdueLKR: number;
+  fullOverdueINR: number;
+  fullOverdueUSD: number;
+  fullExpectedLKR: number;
+  fullExpectedINR: number;
+  fullExpectedUSD: number;
+  levelSlots: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
+  allLanguageFees: BatchLevelSlotTotals | null;
   totalDueLKR: number;
   totalDueINR: number;
   totalDueUSD: number;
@@ -331,6 +347,20 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
       totalExpectedLKR: row.totalExpectedLKR ?? 0,
       totalExpectedINR: row.totalExpectedINR ?? 0,
       totalExpectedUSD: row.totalExpectedUSD ?? 0,
+      langPaidLKR: row.langPaidLKR ?? 0,
+      langPaidINR: row.langPaidINR ?? 0,
+      langPaidUSD: row.langPaidUSD ?? 0,
+      fullPendingLKR: row.fullPendingLKR ?? 0,
+      fullPendingINR: row.fullPendingINR ?? 0,
+      fullPendingUSD: row.fullPendingUSD ?? 0,
+      fullOverdueLKR: row.fullOverdueLKR ?? 0,
+      fullOverdueINR: row.fullOverdueINR ?? 0,
+      fullOverdueUSD: row.fullOverdueUSD ?? 0,
+      fullExpectedLKR: row.fullExpectedLKR ?? 0,
+      fullExpectedINR: row.fullExpectedINR ?? 0,
+      fullExpectedUSD: row.fullExpectedUSD ?? 0,
+      levelSlots: row.levelSlots ?? {},
+      allLanguageFees: row.allLanguageFees ?? null,
       totalDueLKR: row.totalDueLKR ?? 0,
       totalDueINR: row.totalDueINR ?? 0,
       totalDueUSD: row.totalDueUSD ?? 0,
@@ -589,6 +619,18 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
         totalExpectedLKR: a.totalExpectedLKR + r.totalExpectedLKR,
         totalExpectedINR: a.totalExpectedINR + r.totalExpectedINR,
         totalExpectedUSD: a.totalExpectedUSD + r.totalExpectedUSD,
+        langPaidLKR: a.langPaidLKR + r.langPaidLKR,
+        langPaidINR: a.langPaidINR + r.langPaidINR,
+        langPaidUSD: a.langPaidUSD + r.langPaidUSD,
+        fullPendingLKR: a.fullPendingLKR + r.fullPendingLKR,
+        fullPendingINR: a.fullPendingINR + r.fullPendingINR,
+        fullPendingUSD: a.fullPendingUSD + r.fullPendingUSD,
+        fullOverdueLKR: a.fullOverdueLKR + r.fullOverdueLKR,
+        fullOverdueINR: a.fullOverdueINR + r.fullOverdueINR,
+        fullOverdueUSD: a.fullOverdueUSD + r.fullOverdueUSD,
+        fullExpectedLKR: a.fullExpectedLKR + r.fullExpectedLKR,
+        fullExpectedINR: a.fullExpectedINR + r.fullExpectedINR,
+        fullExpectedUSD: a.fullExpectedUSD + r.fullExpectedUSD,
         totalDueLKR: a.totalDueLKR + r.totalDueLKR,
         totalDueINR: a.totalDueINR + r.totalDueINR,
         totalDueUSD: a.totalDueUSD + r.totalDueUSD,
@@ -615,6 +657,18 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
         totalExpectedLKR: 0,
         totalExpectedINR: 0,
         totalExpectedUSD: 0,
+        langPaidLKR: 0,
+        langPaidINR: 0,
+        langPaidUSD: 0,
+        fullPendingLKR: 0,
+        fullPendingINR: 0,
+        fullPendingUSD: 0,
+        fullOverdueLKR: 0,
+        fullOverdueINR: 0,
+        fullOverdueUSD: 0,
+        fullExpectedLKR: 0,
+        fullExpectedINR: 0,
+        fullExpectedUSD: 0,
         totalDueLKR: 0,
         totalDueINR: 0,
         totalDueUSD: 0,

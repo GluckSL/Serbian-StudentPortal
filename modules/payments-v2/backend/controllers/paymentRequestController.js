@@ -45,7 +45,9 @@ const {
   aggregateHubDashboardStats,
   aggregateBatchPaymentInsights,
   buildLevelPriceMap,
+  buildStudentLevelSlotTotals,
   pendingTotalsForStudent,
+  applyJourneyOverdueAmounts,
   effectiveOutstandingBalance,
   VALID_STUDENT_INSIGHTS,
   filterStudentsByInsight,
@@ -1099,11 +1101,14 @@ function detectLevelFromPaymentRequest(req) {
 // ─── Batch payment summary (aggregated — no per-student payload) ─────────────
 const getBatchPaymentSummary = async (req, res) => {
   try {
-    const { batch, level } = req.query;
+    const { batch, level, studentStatus, cohort, subscription } = req.query;
     const batchFilters = parseHubFilters(req.query);
     const data = await aggregateBatchPaymentInsights({
       batch: batch && String(batch).trim() ? String(batch).trim() : undefined,
       level: level && String(level).trim() ? String(level).trim() : undefined,
+      studentStatus: studentStatus && String(studentStatus).trim() ? String(studentStatus).trim() : undefined,
+      cohort: cohort && String(cohort).trim() ? String(cohort).trim() : undefined,
+      subscription: subscription && String(subscription).trim() ? String(subscription).trim() : undefined,
       includeTestAccounts: batchFilters.includeTestAccounts,
     });
     res.json({ success: true, data });
@@ -1243,11 +1248,37 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
       const currentDay = student.currentCourseDay != null
         ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
         : null;
+      const studentPendingSubs = pendingByStudent[sid] || [];
       const overdueSince = overdueSinceForStudent(
         student,
         studentRequests,
         studentSubs,
-        pendingByStudent[sid] || [],
+        studentPendingSubs,
+        levelPriceMap,
+      );
+      const { live: langLive } = computeTotalsForStudentLevel(
+        studentRequests,
+        studentSubs,
+        studentPendingSubs,
+        student.level,
+      );
+      const langPendingStudent = pendingTotalsForStudent(
+        studentRequests,
+        studentSubs,
+        studentPendingSubs,
+        student,
+        levelPriceMap,
+      );
+      const langOverdueStudent = applyJourneyOverdueAmounts(student, langPendingStudent, {
+        LKR: langLive.overdueAmountLKR || 0,
+        INR: langLive.overdueAmountINR || 0,
+        USD: langLive.overdueAmountUSD || 0,
+      });
+      const { levelSlots, allLanguageFees } = buildStudentLevelSlotTotals(
+        student,
+        studentRequests,
+        studentSubs,
+        studentPendingSubs,
         levelPriceMap,
       );
 
@@ -1262,11 +1293,22 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         ...paidTotalsFromBreakdown(profile?.currencyBreakdown),
         ...pendingTotalsFromBreakdown(profile?.currencyBreakdown),
         ...overdueTotalsFromBreakdown(profile?.currencyBreakdown),
+        langPaidLKR: langLive.totalPaidLKR || 0,
+        langPaidINR: langLive.totalPaidINR || 0,
+        langPaidUSD: langLive.totalPaidUSD || 0,
+        langPendingLKR: langPendingStudent.LKR || 0,
+        langPendingINR: langPendingStudent.INR || 0,
+        langPendingUSD: langPendingStudent.USD || 0,
+        langOverdueLKR: langOverdueStudent.LKR || 0,
+        langOverdueINR: langOverdueStudent.INR || 0,
+        langOverdueUSD: langOverdueStudent.USD || 0,
         pendingApprovalAmount: profile?.pendingApprovalAmount ?? 0,
         overdueAmount: profile?.overdueAmount ?? 0,
         overdueSince,
         overallStatus: profile?.overallStatus || 'NO_REQUESTS',
         levelPaid,
+        levelSlots,
+        allLanguageFees,
         docsPaidByCurrency,
         visaPaidByCurrency,
         otherPaidByCurrency,

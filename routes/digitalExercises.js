@@ -1451,10 +1451,35 @@ function exerciseOwnerId(exercise) {
   return String(raw || '');
 }
 
+const EXERCISES_TAB_ID = 'exercises';
+
+function teacherExercisesTabLevel(teacherUser) {
+  const levels = teacherUser?.teacherTabAccessLevels || {};
+  const level = levels[EXERCISES_TAB_ID];
+  if (level === 'view' || level === 'edit' || level === 'full') return level;
+  const perms = teacherUser?.teacherTabPermissions || [];
+  return perms.includes(EXERCISES_TAB_ID) ? 'view' : null;
+}
+
+async function loadTeacherPermissions(userId) {
+  return User.findById(userId)
+    .select('teacherTabPermissions teacherTabAccessLevels')
+    .lean();
+}
+
+async function teacherCanEditExercise(user, exercise) {
+  if (user.role !== 'TEACHER') return true;
+  const owner = exerciseOwnerId(exercise);
+  if (owner === String(user.id)) return true;
+  const teacherUser = await loadTeacherPermissions(user.id);
+  const level = teacherExercisesTabLevel(teacherUser);
+  return level === 'edit' || level === 'full';
+}
+
 async function assertTeacherOwnsExercise(user, exercise) {
   if (user.role === 'TEACHER') {
-    const owner = exerciseOwnerId(exercise);
-    if (owner !== String(user.id)) {
+    const canEdit = await teacherCanEditExercise(user, exercise);
+    if (!canEdit) {
       const err = new Error('Forbidden');
       err.statusCode = 403;
       throw err;
@@ -1517,13 +1542,25 @@ function exerciseLevelAllowedForStudent(exerciseLevel, accessibleLevels) {
   return accessibleLevels.includes(exerciseLevel);
 }
 
+function normalizeExerciseIdParam(rawId, rawPart2) {
+  const a = String(rawId || '').trim();
+  const b = String(rawPart2 || '').trim();
+  let joined = a;
+  if (b && /^[a-f0-9]+$/i.test(a) && /^[a-f0-9]+$/i.test(b) && a.length + b.length === 24) {
+    joined = a + b;
+  }
+  joined = joined.replace(/\//g, '');
+  if (mongoose.Types.ObjectId.isValid(joined)) return String(joined);
+  return a;
+}
+
 /** Students: exercise has no day lock, or lock is satisfied. */
 function exerciseUnlockedForStudentDay(exercise, studentDay, minCourseDay = 1) {
   const cd = exercise.courseDay;
   if (cd == null || cd === undefined) return true;
   const n = Number(cd);
   if (!Number.isFinite(n)) return true;
-  const min = Number(minCourseDay) || 1;
+  const min = Number.isFinite(Number(minCourseDay)) ? Number(minCourseDay) : 1;
   if (n < min) return false;
   return n <= studentDay;
 }
@@ -1991,8 +2028,9 @@ router.get('/gluck-exam', verifyToken, blockVisaDocsOnly, async (req, res) => {
 // GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
 router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
+    const exerciseId = normalizeExerciseIdParam(req.params.id, req.query.idPart2);
     const exercise = await DigitalExercise.findOne({
-      _id: req.params.id,
+      _id: exerciseId,
       isDeleted: { $ne: true }
     }).populate('createdBy', 'name email').lean();
 
@@ -2252,11 +2290,6 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       });
     }
 
-    // Teachers only see their own exercises (unless ADMIN/TEACHER_ADMIN)
-    if (req.user.role === 'TEACHER') {
-      adminAnd.push({ createdBy: req.user.id });
-    }
-
     const filter = { $and: adminAnd };
 
     const total = await DigitalExercise.countDocuments(filter);
@@ -2382,7 +2415,17 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
       isDeleted: { $ne: true }
     };
     if (req.user.role === 'TEACHER') {
-      filter.createdBy = req.user.id;
+      const exercises = await DigitalExercise.find(filter).select('createdBy').lean();
+      const allowedIds = [];
+      for (const ex of exercises) {
+        if (await teacherCanEditExercise(req.user, ex)) {
+          allowedIds.push(ex._id);
+        }
+      }
+      if (!allowedIds.length) {
+        return res.json({ success: true, modifiedCount: 0 });
+      }
+      filter._id = { $in: allowedIds };
     }
 
     $set.updatedAt = new Date();
@@ -2420,7 +2463,7 @@ router.post(
         return res.status(404).json({ error: 'Exercise not found' });
       }
 
-      if (req.user.role === 'TEACHER' && source.createdBy.toString() !== req.user.id) {
+      if (!(await teacherCanEditExercise(req.user, source))) {
         return res.status(403).json({ error: 'Not authorized to edit this exercise' });
       }
 
@@ -2850,7 +2893,7 @@ router.post(
       const exercise = await DigitalExercise.findById(req.params.id);
       if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-      if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+      if (!(await teacherCanEditExercise(req.user, exercise))) {
         return res.status(403).json({ error: 'Not authorized to edit this exercise' });
       }
 
@@ -2888,8 +2931,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
     const exercise = await DigitalExercise.findById(req.params.id);
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    // Teachers can only edit their own exercises
-    if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+    if (!(await teacherCanEditExercise(req.user, exercise))) {
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
@@ -2948,9 +2990,10 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
 // POST /api/digital-exercises/:id/start  — Start a new attempt (students + admin/teacher for testing)
 router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
+    const exerciseId = normalizeExerciseIdParam(req.params.id, req.query.idPart2);
     const isStaff = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'].includes(req.user.role);
     const exercise = await DigitalExercise.findOne({
-      _id: req.params.id,
+      _id: exerciseId,
       isActive: true,
       ...(isStaff ? {} : { visibleToStudents: true }),
       isDeleted: { $ne: true }
