@@ -474,7 +474,6 @@ export const routes: Routes = [
     canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
-{
     path: 'digital-exercises/:idPart1/:idPart2/play',
     loadComponent: () => import('./components/digital-exercise-player/digital-exercise-player.component').then(m => m.DigitalExercisePlayerComponent),
     canActivate: [AuthGuard, VisaDocsOnlyGuard]
@@ -482,8 +481,6 @@ export const routes: Routes = [
   {
     path: 'digital-exercises/:id/play/freemode',
     loadComponent: () => import('./components/free-mode-exercise-renderer/free-mode-exercise-renderer.component').then(m => m.FreeModeExerciseRendererComponent),
-    canActivate: [AuthGuard, VisaDocsOnlyGuard]
-  },
     canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
@@ -499,7 +496,6 @@ export const routes: Routes = [
   // Admin/Teacher: manage exercises
   {
     path: 'admin/digital-exercises',
-    pathMatch: 'full',
     loadComponent: () => import('./components/admin-dashboard/digital-exercise-management/digital-exercise-management.component').then(m => m.DigitalExerciseManagementComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }

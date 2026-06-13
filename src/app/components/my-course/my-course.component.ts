@@ -1315,12 +1315,11 @@ export class MyCourseComponent implements OnInit {
         ]);
         return;
       }
-      }
       this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
       return;
     }
-const route = ex.isFreeMode ? '/play/freemode' : '/play';
-this.router.navigate(['/digital-exercises', ex._id, ...route.split('/').filter(Boolean)]);
+    const route = ex.isFreeMode ? '/play/freemode' : '/play';
+    this.router.navigate(['/digital-exercises', ex._id, ...route.split('/').filter(Boolean)]);
   }
 
   openModule(mod: { _id?: string }): void {
