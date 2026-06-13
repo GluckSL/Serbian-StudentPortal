@@ -17,7 +17,7 @@ import {TeacherService} from '../../services/teacher.service';
 import { environment } from '../../../environments/environment';
 import { BulkStudentUploadComponent } from './bulk-student-upload.component';
 import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
-import { Observable } from 'rxjs';
+import { forkJoin, Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
 
@@ -180,6 +180,7 @@ export class AdminDashboardComponent implements OnInit {
   isFullAdmin = false;
   /** Tracks which student rows have their password revealed */
   loading = true;
+  exportingAll = false;
   readonly skeletonActionPills = [0, 1, 2];
   readonly skeletonFilterFields = [0, 1, 2, 3, 4, 5];
   readonly skeletonTableRows = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -342,13 +343,10 @@ export class AdminDashboardComponent implements OnInit {
     return labels[String(status || '').toUpperCase()] || status;
   }
   
-  fetchStudents(page: number = this.currentPage): void {
-    this.loading = true;
-    this.currentPage = page;
-
+  private buildStudentListParams(page: number, limit: number): HttpParams {
     let params = new HttpParams()
-      .set('page', String(this.currentPage))
-      .set('limit', String(this.pageSize));
+      .set('page', String(page))
+      .set('limit', String(limit));
 
     if (this.filters.level) params = params.set('level', this.filters.level);
     if (this.filters.plan) params = params.set('plan', this.filters.plan);
@@ -361,6 +359,15 @@ export class AdminDashboardComponent implements OnInit {
     if (this.filters.languageLevelOpted) params = params.set('languageLevelOpted', this.filters.languageLevelOpted);
     if (this.filters.phoneCountry) params = params.set('phoneCountry', this.filters.phoneCountry);
     if (this.filters.loginCountry) params = params.set('loginCountry', this.filters.loginCountry);
+
+    return params;
+  }
+
+  fetchStudents(page: number = this.currentPage): void {
+    this.loading = true;
+    this.currentPage = page;
+
+    const params = this.buildStudentListParams(this.currentPage, this.pageSize);
 
     this.http.get<StudentListResponse>(`${apiUrl}/admin/students`, { params, withCredentials: true }).subscribe({
       next: res => {
@@ -1193,12 +1200,56 @@ export class AdminDashboardComponent implements OnInit {
       return;
     }
 
-    // Get selected students data
-    const selectedStudents = this.students.filter(student => 
+    const selectedStudents = this.students.filter((student) =>
       this.selectedStudentIds.has(student._id)
     );
+    this.downloadStudentsCsv(selectedStudents, 'selected');
+    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to CSV`);
+  }
 
-    // Define CSV headers (all 13 fields from Monday.com CRM + additional fields)
+  exportAllStudents(): void {
+    if (this.exportingAll) return;
+
+    const total = this.displayStudentCount();
+    if (total === 0) {
+      this.notify.warning('No students to export');
+      return;
+    }
+
+    this.exportingAll = true;
+    const limit = 100;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const requests: Observable<StudentListResponse>[] = [];
+
+    for (let page = 1; page <= pages; page++) {
+      requests.push(
+        this.http.get<StudentListResponse>(`${apiUrl}/admin/students`, {
+          params: this.buildStudentListParams(page, limit),
+          withCredentials: true,
+        })
+      );
+    }
+
+    forkJoin(requests).subscribe({
+      next: (responses) => {
+        const allStudents: Student[] = [];
+        for (const res of responses) {
+          if (res.success && Array.isArray(res.data)) {
+            allStudents.push(...res.data);
+          }
+        }
+        this.downloadStudentsCsv(allStudents, 'all');
+        this.notify.success(`Successfully exported ${allStudents.length} student(s) to CSV`);
+        this.exportingAll = false;
+      },
+      error: () => {
+        this.notify.error('Failed to export students');
+        this.exportingAll = false;
+      },
+    });
+  }
+
+  private downloadStudentsCsv(students: Student[], scope: 'selected' | 'all'): void {
     const headers = [
       'RegNo',
       'Name',
@@ -1214,16 +1265,17 @@ export class AdminDashboardComponent implements OnInit {
       'Program Enrolled',
       'Lead Source',
       'Assigned Teacher',
+      'Password',
       'Created At',
       'Last Credentials Sent',
       'Last Login',
     ];
 
-    // Build CSV rows
-    const rows = selectedStudents.map(student => {
-      const teacherName = typeof student.assignedTeacher === 'object' 
-        ? student.assignedTeacher?.name || 'Unassigned'
-        : student.assignedTeacher || 'Unassigned';
+    const rows = students.map((student) => {
+      const teacherName =
+        typeof (student as any).assignedTeacher === 'object'
+          ? (student as any).assignedTeacher?.name || 'Unassigned'
+          : (student as any).assignedTeacher || 'Unassigned';
 
       return [
         student.regNo || 'N/A',
@@ -1240,32 +1292,29 @@ export class AdminDashboardComponent implements OnInit {
         (student as any).servicesOpted || 'N/A',
         (student as any).leadSource || 'N/A',
         teacherName,
+        student.displayPassword || 'N/A',
         student.registeredAt ? new Date(student.registeredAt).toLocaleDateString() : 'N/A',
         this.formatDate(student.lastCredentialsEmailSent),
         this.formatLastLogin(student.lastLogin),
       ];
     });
 
-    // Create CSV content
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(value => `"${value}"`).join(','))
+      ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')),
     ].join('\n');
 
-    // Download CSV file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     const timestamp = new Date().toISOString().split('T')[0];
     link.setAttribute('href', url);
-    link.setAttribute('download', `students_export_${timestamp}.csv`);
+    link.setAttribute('download', `students_export_${scope}_${timestamp}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
-    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to CSV`);
   }
 
   openInviteModal(): void {
