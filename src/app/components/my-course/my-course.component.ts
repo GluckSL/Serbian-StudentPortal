@@ -1287,6 +1287,25 @@ export class MyCourseComponent implements OnInit {
     return tasks.filter((t) => t?.kind === 'recording');
   }
 
+  /** Incomplete tasks shown in the day-completion modal (client lists + Silver GO server fallbacks). */
+  get dayCompletionModalHasIncomplete(): boolean {
+    if (
+      this.currentDayIncompleteExercises.length > 0 ||
+      this.currentDayIncompleteDg.length > 0 ||
+      this.currentDayIncompleteGameSets.length > 0 ||
+      this.currentDayIncompleteRecs.length > 0
+    ) {
+      return true;
+    }
+    if (!this.isSilverGoStudentFrontend) return false;
+    return (
+      this.serverIncompleteExercises.length > 0 ||
+      this.serverIncompleteDg.length > 0 ||
+      this.serverIncompleteRecordings.length > 0 ||
+      (!this.isDayComplete && this.dayHasTrackableContent)
+    );
+  }
+
   openDayCompletionModal(): void {
     this.showDayCompletionModal = true;
   }

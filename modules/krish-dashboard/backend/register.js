@@ -1,5 +1,5 @@
 /**
- * Krish Dashboard Module Registration
+ * Enrollment Overview Module Registration
  *
  * ╔══════════════════════════════════════════════════════════════╗
  * ║  ISOLATION RULE — READ BEFORE MODIFYING                      ║
@@ -25,21 +25,30 @@ async function migrateLegacyStatuses() {
   try {
     const result = await SalesStudent.updateMany({ status: 'HOLD' }, { $set: { status: 'WITHDREW' } });
     if (result.modifiedCount > 0) {
-      console.log(`[KrishDashboard] Migrated ${result.modifiedCount} students HOLD → WITHDREW`);
+      console.log(`[EnrollmentOverview] Migrated ${result.modifiedCount} students HOLD → WITHDREW`);
     }
   } catch (err) {
-    console.error('[KrishDashboard] status migration error', err.message);
+    console.error('[EnrollmentOverview] status migration error', err.message);
   }
 }
 
-function registerKrishDashboard(app, { authMiddleware, prefix = '/api/krish-dashboard' } = {}) {
-  if (authMiddleware) {
-    app.use(prefix, authMiddleware, router);
-  } else {
-    app.use(prefix, router);
+function registerKrishDashboard(app, { authMiddleware, prefix = '/api/enrollment-overview' } = {}) {
+  const mount = (path) => {
+    if (authMiddleware) {
+      app.use(path, authMiddleware, router);
+    } else {
+      app.use(path, router);
+    }
+  };
+  mount(prefix);
+  if (prefix !== '/api/krish-dashboard') {
+    mount('/api/krish-dashboard');
+  }
+  if (prefix !== '/api/enrollment-overdue') {
+    mount('/api/enrollment-overdue');
   }
   migrateLegacyStatuses();
-  console.log(`[KrishDashboard] Registered at ${prefix}`);
+  console.log(`[EnrollmentOverview] Registered at ${prefix} (legacy aliases supported)`);
 }
 
 module.exports = registerKrishDashboard;

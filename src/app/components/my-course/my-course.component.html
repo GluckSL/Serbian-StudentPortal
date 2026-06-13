@@ -973,7 +973,9 @@
     <div class="mc-completion-modal__head">
       <div class="mc-completion-modal__title-wrap">
         <span class="material-icons mc-completion-modal__title-icon">assignment_late</span>
-        <h3 class="mc-completion-modal__title">Day {{ journeyCourseDay }} — Still to do</h3>
+        <h3 class="mc-completion-modal__title">
+          Day {{ journeyCourseDay }} — {{ dayCompletionModalHasIncomplete ? 'Still to do' : 'All done' }}
+        </h3>
       </div>
       <button type="button" class="mc-completion-modal__close" (click)="closeDayCompletionModal()"
         aria-label="Close">&#10005;</button>
@@ -1069,6 +1071,23 @@
         </div>
       </div>
 
+      <!-- Recorded Classes (server list for Silver GO Zoom recordings) -->
+      <div class="mc-completion-section"
+        *ngIf="isSilverGoStudentFrontend && serverIncompleteRecordings.length && !currentDayIncompleteRecs.length">
+        <p class="mc-completion-section__label">
+          <span class="material-icons">videocam</span> Recorded Classes
+        </p>
+        <div class="mc-completion-item" *ngFor="let r of serverIncompleteRecordings">
+          <div class="mc-completion-item__info">
+            <span class="mc-completion-item__title">{{ r.title }}</span>
+            <span class="mc-completion-item__sub">Watch at least 90% to complete this day</span>
+          </div>
+          <button type="button" class="mc-completion-item__btn" (click)="closeDayCompletionModal()">
+            <span class="material-icons">play_circle</span> Play
+          </button>
+        </div>
+      </div>
+
       <!-- Recorded Classes -->
       <div class="mc-completion-section" *ngIf="currentDayIncompleteRecs.length">
         <p class="mc-completion-section__label">
@@ -1086,7 +1105,7 @@
 
       <!-- Nothing left (edge-case: modal opened but actually done) -->
       <p class="mc-completion-modal__empty"
-        *ngIf="!currentDayIncompleteExercises.length && !currentDayIncompleteDg.length && !currentDayIncompleteGameSets.length && !currentDayIncompleteRecs.length && dayHasTrackableContent">
+        *ngIf="!dayCompletionModalHasIncomplete && dayHasTrackableContent">
         All tasks for Day {{ journeyCourseDay }} are completed!
       </p>
       <p class="mc-completion-modal__empty" *ngIf="!dayHasTrackableContent && !dayCompletionLoading">

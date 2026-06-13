@@ -11,7 +11,7 @@ import {
   PaginationMeta,
 } from './krish-dashboard-filters.model';
 
-const BASE = `${environment.apiUrl}/krish-dashboard`;
+const BASE = `${environment.apiUrl}/enrollment-overview`;
 
 interface ApiResp<T> { success: boolean; data: T; }
 interface ListResp    { success: boolean; data: SalesStudent[]; pagination: PaginationMeta; }

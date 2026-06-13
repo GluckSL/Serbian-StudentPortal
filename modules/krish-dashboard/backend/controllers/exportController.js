@@ -21,13 +21,13 @@ async function exportStudents(req, res) {
     if (format === 'xlsx') {
       const buffer = await buildXlsx(rows);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename="krish-students.xlsx"');
+      res.setHeader('Content-Disposition', 'attachment; filename="enrollment-overview-students.xlsx"');
       return res.send(buffer);
     }
 
     const csv = buildCsv(rows);
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="krish-students.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="enrollment-overview-students.csv"');
     res.send(csv);
   } catch (err) {
     console.error('[KrishDash] export error', err);

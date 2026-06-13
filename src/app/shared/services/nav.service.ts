@@ -56,8 +56,14 @@ export class NavService {
       '/admin/finance-dashboard/batches',
       '/admin/payment-hub/insights/batches'
     ],
+    'enrollment-overview': [
+      '/admin/enrollment-overview'
+    ],
     'krish-dashboard': [
-      '/admin/krish-dashboard'
+      '/admin/enrollment-overview'
+    ],
+    'enrollment-overdue': [
+      '/admin/enrollment-overview'
     ],
     'class-recordings': [
       '/class-recordings/approval-requests',
@@ -141,7 +147,7 @@ export class NavService {
     {
       group: 'Sales',
       items: [
-        { id: 'krish-dashboard', label: 'Krish Dashboard', icon: 'storefront', route: '/admin/krish-dashboard', subGroup: null }
+        { id: 'enrollment-overview', label: 'Enrollment Overview', icon: 'storefront', route: '/admin/enrollment-overview', subGroup: null }
       ]
     },
     {
@@ -485,16 +491,30 @@ export class NavService {
 
   // ── Sub-Admin permissions ─────────────────────────────────────────────────
 
+  private readonly LEGACY_PERMISSION_ALIASES: Record<string, string> = {
+    'krish-dashboard': 'enrollment-overview',
+    'enrollment-overdue': 'enrollment-overview',
+  };
+
   normalizeSidebarPermissions(
     sidebarPermissions: string[] = [],
     sidebarAccessLevels: Record<string, AccessLevel> = {}
   ): string[] {
     const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
-    const normalizedAccessLevels = this.normalizeAccessLevels(sidebarAccessLevels);
+    const remappedPermissions = (sidebarPermissions || []).map(
+      (id) => this.LEGACY_PERMISSION_ALIASES[id] || id
+    );
+    const remappedAccessLevels = { ...sidebarAccessLevels };
+    for (const [legacyId, nextId] of Object.entries(this.LEGACY_PERMISSION_ALIASES)) {
+      if (remappedAccessLevels[legacyId] && !remappedAccessLevels[nextId]) {
+        remappedAccessLevels[nextId] = remappedAccessLevels[legacyId];
+      }
+    }
+    const normalizedAccessLevels = this.normalizeAccessLevels(remappedAccessLevels);
     const normalized = Array.from(
       new Set(
         [
-          ...(sidebarPermissions || []).filter(permissionId => validIds.has(permissionId)),
+          ...remappedPermissions.filter(permissionId => validIds.has(permissionId)),
           ...Object.entries(normalizedAccessLevels)
             .filter(([, level]) => this.canAccessLevel(level, 'view'))
             .map(([permissionId]) => permissionId)

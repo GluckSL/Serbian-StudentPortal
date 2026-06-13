@@ -148,6 +148,8 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "glueck-arena-teacher",
   "bf-team-battles",
   "finance-dashboard",
+  "enrollment-overview",
+  "enrollment-overdue",
   "krish-dashboard",
   "payment-hub",
   "payment-request",

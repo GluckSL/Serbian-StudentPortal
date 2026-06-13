@@ -296,9 +296,9 @@ export const routes: Routes = [
   { path: 'admin/language-tracking', loadComponent: () => import('./pages/language-tracking/language-tracking.component').then(m => m.LanguageTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/language-tracking/student/:studentId', loadComponent: () => import('./pages/language-tracking/language-tracking-student-detail.component').then(m => m.LanguageTrackingStudentDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
-  // Krish Dashboard — Sales CRM (isolated from Language Team students)
+  // Enrollment Overview — Sales CRM (isolated from Language Team students)
   {
-    path: 'admin/krish-dashboard',
+    path: 'admin/enrollment-overview',
     loadComponent: () =>
       import('./features/krish-dashboard/krish-dashboard.component').then(
         (m) => m.KrishDashboardComponent
@@ -306,6 +306,8 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] },
   },
+  { path: 'admin/krish-dashboard', redirectTo: 'admin/enrollment-overview', pathMatch: 'full' },
+  { path: 'admin/enrollment-overdue', redirectTo: 'admin/enrollment-overview', pathMatch: 'full' },
 
   // Monday.com Sync Preview
   { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
