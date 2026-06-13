@@ -276,7 +276,8 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] },
   },
-  { path: 'admin/finance-dashboard', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/finance-dashboard', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-overview.component').then(m => m.PaymentHubFinanceOverviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/finance-dashboard/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-insights.component').then(m => m.PaymentHubBatchInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches/:batch/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-students.component').then(m => m.PaymentHubBatchStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/revenue', loadComponent: () => import('./components/payment-hub-v2/payment-hub-revenue-insights.component').then(m => m.PaymentHubRevenueInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
@@ -473,6 +474,16 @@ export const routes: Routes = [
     canActivate: [AuthGuard, VisaDocsOnlyGuard]
   },
   {
+    path: 'digital-exercises/:idPart1/:idPart2/play',
+    loadComponent: () => import('./components/digital-exercise-player/digital-exercise-player.component').then(m => m.DigitalExercisePlayerComponent),
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
+  },
+  {
+    path: 'digital-exercises/:id/play/freemode',
+    loadComponent: () => import('./components/free-mode-exercise-renderer/free-mode-exercise-renderer.component').then(m => m.FreeModeExerciseRendererComponent),
+    canActivate: [AuthGuard, VisaDocsOnlyGuard]
+  },
+  {
     path: 'digital-exercises/:id/play',
     loadComponent: () => import('./components/digital-exercise-player/digital-exercise-player.component').then(m => m.DigitalExercisePlayerComponent),
     canActivate: [AuthGuard, VisaDocsOnlyGuard]
@@ -486,6 +497,13 @@ export const routes: Routes = [
   {
     path: 'admin/digital-exercises',
     loadComponent: () => import('./components/admin-dashboard/digital-exercise-management/digital-exercise-management.component').then(m => m.DigitalExerciseManagementComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  // Admin/Teacher: create exercise via free mode builder
+  {
+    path: 'admin/digital-exercises/create-freemode',
+    loadComponent: () => import('./components/free-mode-exercise-builder/free-mode-exercise-builder.component').then(m => m.FreeModeExerciseBuilderComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },
@@ -507,6 +525,13 @@ export const routes: Routes = [
   {
     path: 'admin/digital-exercises/:id/edit',
     loadComponent: () => import('./components/digital-exercise-builder/digital-exercise-builder.component').then(m => m.DigitalExerciseBuilderComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  // Admin/Teacher: edit free mode exercise
+  {
+    path: 'admin/digital-exercises/:id/edit-freemode',
+    loadComponent: () => import('./components/free-mode-exercise-builder/free-mode-exercise-builder.component').then(m => m.FreeModeExerciseBuilderComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
   },

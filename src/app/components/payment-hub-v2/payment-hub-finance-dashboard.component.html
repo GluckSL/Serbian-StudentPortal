@@ -1,10 +1,12 @@
 <div class="ph-insights-page ph-finance-page">
   <div class="ph-insights-header">
     <div class="ph-insights-header-inner">
-      <h1 class="ph-insights-title">Finance Dashboard</h1>
-      <p class="ph-insights-sub">
-        Batch-wise payment overview — expected fees, received amounts, pending balances, and overdue totals.
-      </p>
+      <a class="ph-insights-back" routerLink="/admin/finance-dashboard">
+        <mat-icon>arrow_back</mat-icon>
+        Finance overview
+      </a>
+      <h1 class="ph-insights-title">{{ pageTitle }}</h1>
+      <p class="ph-insights-sub">{{ pageSubtitle }}</p>
     </div>
   </div>
 
@@ -53,6 +55,7 @@
               </mat-option>
             </mat-select>
           </mat-form-field>
+
         </div>
 
         <div class="ph-finance-filters-actions">
@@ -104,7 +107,47 @@
     </div>
 
     <ng-container *ngIf="!loading; else skeleton">
-      <div class="ph-health-grid">
+      <div class="ph-finance-kpi-grid" *ngIf="showPlanPaymentSummary">
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--expected">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Total payment</span>
+            <span class="ph-finance-kpi-card__meta">{{ cardTotals.studentCount }} students</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.expected.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount">{{ fmtPayment(paymentSummaryTotals.expected.lkr) }}</span>
+          </div>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="paymentSummaryTotals.expected.inr > 0">
+            INR {{ fmtPayment(paymentSummaryTotals.expected.inr) }}
+          </p>
+        </article>
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--received">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Total received</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.received.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount">{{ fmtPayment(paymentSummaryTotals.received.lkr) }}</span>
+          </div>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="paymentSummaryTotals.received.inr > 0">
+            INR {{ fmtPayment(paymentSummaryTotals.received.inr) }}
+          </p>
+        </article>
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--pending">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Total pending</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.pending.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount ph-finance-kpi-card__amount--amber">{{ fmtPayment(paymentSummaryTotals.pending.lkr) }}</span>
+          </div>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="paymentSummaryTotals.pending.inr > 0">
+            INR {{ fmtPayment(paymentSummaryTotals.pending.inr) }}
+          </p>
+        </article>
+      </div>
+
+      <div class="ph-health-grid" *ngIf="!showPlanPaymentSummary">
         <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
         <div class="ph-health-cards">
           <button
@@ -167,9 +210,32 @@
               <span *ngIf="hasBatchSelection"> · {{ selectedBatches.length }} selected</span>
               <span *ngIf="activePresetName"> · view: {{ activePresetName }}</span>
               <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
+              <span *ngIf="paymentFilter !== 'all_language'"> · {{ paymentFilterLabel() }}</span>
             </p>
           </div>
           <div class="ph-finance-table-actions">
+            <button
+              mat-icon-button
+              type="button"
+              class="ph-btn-payment-filter"
+              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
+              [matMenuTriggerFor]="paymentFilterMenu"
+              [matTooltip]="paymentFilterHint()"
+              aria-label="Payment amount filter"
+            >
+              <mat-icon>filter_list</mat-icon>
+            </button>
+            <mat-menu #paymentFilterMenu="matMenu" class="ph-payment-filter-menu">
+              <button
+                mat-menu-item
+                type="button"
+                *ngFor="let opt of paymentFilterOptions"
+                (click)="setPaymentFilter(opt.value)"
+              >
+                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
+              </button>
+            </mat-menu>
             <button
               mat-stroked-button
               type="button"
@@ -264,40 +330,43 @@
                 </td>
                 <td class="ph-num ph-money-cell ph-col-money">
                   <app-payment-currency-totals
-                    [lkr]="r.totalExpectedLKR"
-                    [inr]="r.totalExpectedINR"
-                    [usd]="r.totalExpectedUSD"
+                    [lkr]="rowExpected(r).lkr"
+                    [inr]="rowExpected(r).inr"
+                    [usd]="rowExpected(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-totals>
                 </td>
                 <td class="ph-num ph-money-cell ph-money-cell--received ph-col-money">
                   <app-payment-currency-totals
-                    [lkr]="r.totalPaidLKR"
-                    [inr]="r.totalPaidINR"
-                    [usd]="r.totalPaidUSD"
+                    [lkr]="rowReceived(r).lkr"
+                    [inr]="rowReceived(r).inr"
+                    [usd]="rowReceived(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-totals>
                 </td>
                 <td class="ph-num ph-money-cell ph-col-money">
                   <app-payment-currency-pending-totals
-                    [lkr]="r.totalPendingLKR"
-                    [inr]="r.totalPendingINR"
-                    [usd]="r.totalPendingUSD"
+                    [lkr]="rowPending(r).lkr"
+                    [inr]="rowPending(r).inr"
+                    [usd]="rowPending(r).usd"
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-pending-totals>
                 </td>
-                <td class="ph-num ph-money-cell ph-col-money">
-                  <app-payment-currency-overdue-totals
-                    [lkr]="r.totalOverdueLKR"
-                    [inr]="r.totalOverdueINR"
-                    [usd]="r.totalOverdueUSD"
-                    [sinceDate]="r.overdueSince"
-                    [compact]="true"
-                    [hideZero]="true"
-                  ></app-payment-currency-overdue-totals>
+                <td class="ph-num ph-col-overdue">
+                  <ng-container *ngIf="rowHasOverdue(r); else noOverdue">
+                    <span
+                      class="ph-overdue-days"
+                      [class.ph-overdue-days--hot]="(overdueDaysSince(r.overdueSince) ?? 0) >= 7"
+                      [matTooltip]="r.overdueSince ? 'Overdue since ' + formatOverdueSince(r.overdueSince) : 'Overdue balance'"
+                    >{{ overdueDaysLabel(r) }}</span>
+                    <span class="ph-overdue-since-sub" *ngIf="r.overdueSince">
+                      since {{ formatOverdueSince(r.overdueSince) }}
+                    </span>
+                  </ng-container>
+                  <ng-template #noOverdue><span class="ph-ccy-empty">—</span></ng-template>
                 </td>
                 <td class="ph-col-journey">
                   <span

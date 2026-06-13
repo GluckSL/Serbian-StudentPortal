@@ -1,31 +1,91 @@
 //src/app/component/signup/signup.component.ts
 
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { HttpClientModule } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { CoursesService } from '../../services/courses.service';
 import { NotificationService } from '../../services/notification.service';
+import { environment } from '../../../environments/environment';
+
+const DEFAULT_SERVICES_OPTED = [
+  'Au Pair',
+  'Ausbildung',
+  'Dependant',
+  'Doc Recognition',
+  'Educational Programs',
+  'Job Support',
+  'Only for language',
+  'Opportunity Card',
+  'Semi Skilled Jobs',
+  'Skilled Jobs',
+  'Voluntary Jobs',
+] as const;
+
+const ADD_NEW_SERVICE_VALUE = '__ADD_NEW__';
 
 @Component({
   selector: 'app-signup',
   standalone: true,
-  imports: [FormsModule, HttpClientModule, CommonModule],
+  imports: [FormsModule, CommonModule],
   templateUrl: './signup.component.html',
   styleUrls: ['./signup.component.css']
 })
-export class SignupComponent {
+export class SignupComponent implements OnInit {
   /** Silver-plan students may omit batch (e.g. GO Silver journey without a legacy batch label). */
   get isSilverStudent(): boolean {
     return String(this.subscription || '').toUpperCase() === 'SILVER';
+  }
+
+  /** Batches for dropdown — always includes the student's current value if set. */
+  get studentBatchOptions(): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const add = (value: string) => {
+      const v = String(value || '').trim();
+      if (!v) return;
+      const key = v.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(v);
+    };
+    for (const b of this.batchOptions) add(b);
+    add(this.batch);
+    return out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  readonly addNewServiceValue = ADD_NEW_SERVICE_VALUE;
+
+  get isCustomServicesOpted(): boolean {
+    return this.servicesOptedSelection === ADD_NEW_SERVICE_VALUE;
+  }
+
+  /** Services for dropdown — defaults, portal values, and the student's current value. */
+  get studentServicesOptedOptions(): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const add = (value: string) => {
+      const v = String(value || '').trim();
+      if (!v) return;
+      const key = v.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(v);
+    };
+    for (const s of DEFAULT_SERVICES_OPTED) add(s);
+    for (const s of this.servicesOptedOptions) add(s);
+    add(this.loadedServicesOptedRaw);
+    if (this.isCustomServicesOpted) add(this.customServicesOpted);
+    return out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
 
   name: string = '';
   email: string = '';
   role: string = 'STUDENT'; // default role
   batch: string = '';
+  batchOptions: string[] = [];
   medium: string | string[]  = '';
   conversationId: string = '';
   subscription: string = '';
@@ -35,6 +95,10 @@ export class SignupComponent {
   address: string = '';
   age: number | null = null;
   servicesOpted: string = '';
+  servicesOptedOptions: string[] = [];
+  servicesOptedSelection = '';
+  customServicesOpted = '';
+  private loadedServicesOptedRaw = '';
   leadSource: string = '';
   languageLevelOpted: string = '';
   dateWithdrew: Date | null = null;
@@ -67,15 +131,17 @@ export class SignupComponent {
 
 
   constructor(
-    private authService: AuthService, 
-    private router: Router, 
+    private authService: AuthService,
+    private router: Router,
     private coursesService: CoursesService,
     private route: ActivatedRoute,
     private notify: NotificationService,
+    private http: HttpClient,
   ) {}
 
   ngOnInit(): void {
     this.loadCourses();
+    this.loadStudentFilterOptions();
 
     // Check if an ID is passed in route → Edit mode
     this.studentId = this.route.snapshot.paramMap.get('id');
@@ -90,6 +156,70 @@ export class SignupComponent {
       next: (data) => this.courses = data,
       error: (err) => console.error('Failed to load courses', err)
     });
+  }
+
+  loadStudentFilterOptions(): void {
+    this.http
+      .get<{ success: boolean; batches?: string[]; servicesOpted?: string[] }>(
+        `${environment.apiUrl}/admin/students/filter-options`,
+        { withCredentials: true },
+      )
+      .subscribe({
+        next: (res) => {
+          const batches = (res.batches ?? []).map((b) => String(b).trim()).filter(Boolean);
+          this.batchOptions = batches.length ? batches : ['Unassigned'];
+          if (!this.batchOptions.some((b) => b.toLowerCase() === 'unassigned')) {
+            this.batchOptions = ['Unassigned', ...this.batchOptions];
+          }
+
+          this.servicesOptedOptions = (res.servicesOpted ?? [])
+            .map((s) => String(s).trim())
+            .filter(Boolean);
+          this.applyServicesOptedUiState();
+        },
+        error: () => {
+          this.batchOptions = ['Unassigned'];
+          this.servicesOptedOptions = [];
+          this.applyServicesOptedUiState();
+        },
+      });
+  }
+
+  onServicesOptedChange(value: string): void {
+    if (value !== ADD_NEW_SERVICE_VALUE) {
+      this.customServicesOpted = '';
+    }
+  }
+
+  private applyServicesOptedUiState(): void {
+    const value = String(this.loadedServicesOptedRaw || '').trim();
+    if (!value) {
+      this.servicesOptedSelection = '';
+      this.customServicesOpted = '';
+      this.servicesOpted = '';
+      return;
+    }
+
+    const match = this.studentServicesOptedOptions.find(
+      (option) => option.toLowerCase() === value.toLowerCase(),
+    );
+    if (match) {
+      this.servicesOptedSelection = match;
+      this.customServicesOpted = '';
+      this.servicesOpted = match;
+      return;
+    }
+
+    this.servicesOptedSelection = ADD_NEW_SERVICE_VALUE;
+    this.customServicesOpted = value;
+    this.servicesOpted = value;
+  }
+
+  private resolveServicesOpted(): string {
+    if (this.servicesOptedSelection === ADD_NEW_SERVICE_VALUE) {
+      return String(this.customServicesOpted || '').trim();
+    }
+    return String(this.servicesOptedSelection || '').trim();
   }
 
   // Load teachers dynamically when student selects level + medium
@@ -124,7 +254,8 @@ export class SignupComponent {
           this.phoneNumber = data.phoneNumber || '';
           this.address = data.address || '';
           this.age = data.age || null;
-          this.servicesOpted = data.servicesOpted || data['programEnrolled'] || '';
+          this.loadedServicesOptedRaw = data.servicesOpted || data['programEnrolled'] || '';
+          this.applyServicesOptedUiState();
           this.leadSource = data.leadSource || '';
           this.languageLevelOpted = data.languageLevelOpted || '';
           this.dateWithdrew = data.dateWithdrew || null;
@@ -221,7 +352,7 @@ export class SignupComponent {
       user.phoneNumber = this.phoneNumber;
       user.address = this.address;
       user.age = this.age;
-      user.servicesOpted = this.servicesOpted;
+      user.servicesOpted = this.resolveServicesOpted();
       user.leadSource = this.leadSource;
       user.languageLevelOpted = this.languageLevelOpted;
       user.dateWithdrew = this.dateWithdrew;

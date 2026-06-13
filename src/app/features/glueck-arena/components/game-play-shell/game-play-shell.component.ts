@@ -7,7 +7,7 @@ import { DigitalExerciseService } from '../../../../services/digital-exercise.se
 import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
-  GameAttempt, GameQuestion, GameLevel, GameSet,
+  GameAttempt, GameQuestion, GameLevel, GameSet, StartAttemptResult,
   SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, HangmanQuestion, WordPictureMatchQuestion, MatchingQuestion, MultipleChoiceQuestion,   SpinWheelQuestion, TapBoxesQuestion, WordSearchQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
 import { MultipleChoiceComponent, MCResult } from '../../engines/multiple-choice/multiple-choice.component';
@@ -67,13 +67,8 @@ export interface IMResult {
         <button mat-raised-button (click)="back()">Go Back</button>
       </div>
 
-      <div class="shell-preview-banner" *ngIf="isAdminPreview">
-        <mat-icon>visibility</mat-icon>
-        <span>Admin preview — scores and XP are not saved to student leaderboards.</span>
-      </div>
-
       <!-- Unified shell layout for intro and playing phases -->
-      <div class="shell-game-wrap" *ngIf="phase === 'intro' || phase === 'playing' || phase === 'results'">
+      <div class="shell-game-wrap" [class.shell-game-wrap--playing]="phase === 'playing'" *ngIf="phase === 'intro' || phase === 'playing' || phase === 'results'">
 
         <div class="shell-game-wrap__left">
 
@@ -104,7 +99,7 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'gender_stack'">Words fall from the sky and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.</p>
               <p *ngIf="set.gameType === 'matching'">Match each item on the left with the correct item on the right, then check your answers.</p>
               <p *ngIf="set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
-              <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each pronoun cycles after 3 correct hits.</p>
+              <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each correct hit advances to the next pronoun.</p>
               <p *ngIf="set.gameType === 'whackawort'">Whack the German words that match the target category — hit the wrong ones and lose a life!</p>
               <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word. Match all pairs to win!</p>
               <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word. Drag each letter tile into the right slot and submit your answer.</p>
@@ -120,7 +115,7 @@ export interface IMResult {
         </div>
 
         <!-- Main game content -->
-        <div class="shell-game-wrap__main">
+        <div class="shell-game-wrap__main" [class.shell-game-wrap__main--active]="phase === 'playing'">
 
           <!-- Intro -->
           <div *ngIf="phase === 'intro' && set" class="shell-intro">
@@ -313,8 +308,9 @@ export interface IMResult {
               <span>{{ finalAccuracy }}%</span>
             </div>
             <div class="shell__results__actions">
-              <button class="shell__results__btn shell__results__btn--replay" (click)="replay()">
-                <mat-icon>replay</mat-icon> Play Again
+              <button class="shell__results__btn shell__results__btn--replay" (click)="replay()" [disabled]="replayLoading">
+                <mat-icon>{{ replayLoading ? 'hourglass_top' : 'replay' }}</mat-icon>
+                {{ replayLoading ? 'Starting…' : 'Play Again' }}
               </button>
               <button class="shell__results__btn" routerLink="/glueck-arena/leaderboard">
                 <mat-icon>leaderboard</mat-icon> Leaderboard
@@ -329,7 +325,7 @@ export interface IMResult {
 
 
         <!-- Leaderboard (right) -->
-        <aside class="shell-game-wrap__right" *ngIf="!isAdminPreview">
+        <aside class="shell-game-wrap__right">
           <div class="shell-side shell-side--lb">
             <div class="shell-side__lb">
               <header class="shell-side__lb-head">
@@ -385,13 +381,29 @@ export interface IMResult {
     </div>
   `,
   styles: [`
-    .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
+    :host {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
+    .shell {
+      width: 100%;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 20px;
+      box-sizing: border-box;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
     .shell-preview-banner {
       display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px;
       border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
       font-size: 14px; font-weight: 600;
     }
-    .shell-preview-banner mat-icon { color: #2563eb; flex-shrink: 0; }
     .shell__loading { padding: 0; }
     .shell__loading-grid { display: grid; grid-template-columns: 280px 1fr 300px; gap: 16px; width: 100%; margin: 0 auto; padding: 0; }
     .shell__loading-side, .shell__loading-right { display: flex; flex-direction: column; gap: 16px; }
@@ -407,12 +419,27 @@ export interface IMResult {
       gap: 16px;
       align-items: start;
       width: 100%;
+      flex: 1;
+      min-height: 0;
+    }
+    .shell-game-wrap--playing {
+      align-items: stretch;
+      min-height: calc(100vh - 120px);
     }
     .shell-game-wrap__left {
       display: flex; flex-direction: column; gap: 16px;
       min-width: 0;
     }
     .shell-game-wrap__main { min-width: 0; display: flex; flex-direction: column; }
+    .shell-game-wrap__main--active {
+      flex: 1;
+      min-height: 0;
+    }
+    .shell-game-wrap__main--active > * {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
     .shell-game-wrap__right { min-width: 0; display: flex; flex-direction: column; }
     @media (max-width: 960px) {
       .shell-game-wrap { grid-template-columns: 250px 1fr; }
@@ -847,6 +874,7 @@ export interface IMResult {
     .shell__results__btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.4); }
     .shell__results__btn--replay { background: linear-gradient(135deg, #f59e0b, #ea580c); box-shadow: 0 4px 16px rgba(245,158,11,.35); }
     .shell__results__btn--replay:hover { box-shadow: 0 8px 24px rgba(245,158,11,.45); }
+    .shell__results__btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; box-shadow: none; }
     .shell__results__btn--outline { background: transparent; color: #64748b; box-shadow: none; border: 2px solid #e2e8f0; }
     .shell__results__btn--outline:hover { border-color: #94a3b8; color: #0f172a; box-shadow: none; }
     .shell__results__btn mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; }
@@ -884,6 +912,8 @@ export class GamePlayShellComponent implements OnInit {
 
   isAdminPreview = false;
   thumbnailBroken = false;
+  replayLoading = false;
+  playSessionKey = 0;
   private thumbnailUrl = '';
 
   constructor(
@@ -910,31 +940,74 @@ export class GamePlayShellComponent implements OnInit {
   }
 
   ngOnInit() {
-    const id = this.route.snapshot.paramMap.get('id')!;
     this.isAdminPreview = !!this.route.snapshot.data['arenaPreview'];
-    if (!this.isAdminPreview) {
-      this.loadLeaderboard();
+    this.loadLeaderboard();
+    this.loadGameSession();
+  }
+
+  private loadGameSession(fromReplay = false) {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) {
+      this.error = 'Game not found';
+      this.phase = 'error';
+      return;
     }
+
+    if (fromReplay) {
+      this.replayLoading = true;
+    } else {
+      this.phase = 'loading';
+    }
+
     this.svc.startAttempt(id).subscribe({
-      next: (r) => {
-        this.set = r.set;
-        this.attempt = r.attempt;
-        this.questions = r.questions;
-        this.shuffledWords = r.shuffledWords || [];
-        this.levels = r.levels || [];
-        this.phase = 'intro';
-        if (r.preview) this.isAdminPreview = true;
-        this.thumbnailBroken = false;
-        this.resolveThumbnail(this.set?.thumbnailUrl);
-        if (!this.isAdminPreview) {
-          this.fetchGameLeaderboard(id);
-        }
-      },
-      error: (err) => {
-        this.error = err?.error?.message || 'Could not start game';
-        this.phase = 'error';
-      }
+      next: (r) => this.onSessionStarted(r, id, fromReplay),
+      error: (err) => this.onSessionStartFailed(err, fromReplay),
     });
+  }
+
+  private onSessionStarted(r: StartAttemptResult, gameSetId: string, fromReplay: boolean) {
+    this.applyStartAttempt(r);
+    this.playSessionKey++;
+    this.fetchGameLeaderboard(gameSetId);
+
+    if (fromReplay) {
+      this.replayLoading = false;
+      this.resetFinalStats();
+      this.phase = 'playing';
+      return;
+    }
+
+    this.phase = 'intro';
+  }
+
+  private onSessionStartFailed(err: { error?: { message?: string } }, fromReplay: boolean) {
+    const message = err?.error?.message || 'Could not start game';
+    if (fromReplay) {
+      this.replayLoading = false;
+      this.notify.error(message);
+      return;
+    }
+    this.error = message;
+    this.phase = 'error';
+  }
+
+  private applyStartAttempt(r: StartAttemptResult) {
+    this.set = r.set;
+    this.attempt = r.attempt;
+    this.questions = r.questions;
+    this.shuffledWords = r.shuffledWords || [];
+    this.levels = r.levels || [];
+    if (r.preview) this.isAdminPreview = true;
+    this.thumbnailBroken = false;
+    this.resolveThumbnail(this.set?.thumbnailUrl);
+  }
+
+  private resetFinalStats() {
+    this.finalScore = 0;
+    this.finalXp = 0;
+    this.finalAccuracy = 0;
+    this.finalTimeSeconds = 0;
+    this.newBadges = [];
   }
 
   private fetchGameLeaderboard(gameSetId: string) {
@@ -1012,7 +1085,10 @@ export class GamePlayShellComponent implements OnInit {
 
   startPlay() { this.phase = 'playing'; }
 
-  replay() { window.location.reload(); }
+  replay() {
+    if (this.replayLoading) return;
+    this.loadGameSession(true);
+  }
 
   back() { this.router.navigate([this.arenaExitPath]); }
 

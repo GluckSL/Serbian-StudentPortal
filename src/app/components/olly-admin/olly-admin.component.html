@@ -18,8 +18,11 @@
 
   <div class="oa-layout">
 
-    <!-- ── Session List ─────────────────────────────────────── -->
-    <div class="oa-sidebar">
+    <!-- ── Backdrop (mobile drawer) ─────────────────────────── -->
+    <div class="oa-backdrop" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
+
+    <!-- ── Session List / Drawer ────────────────────────────── -->
+    <div class="oa-sidebar" [class.oa-sidebar--open]="sidebarOpen">
 
       <!-- Filter -->
       <div class="oa-filter">
@@ -61,6 +64,17 @@
             {{ s.lastMessage!.content | slice:0:60 }}…
           </div>
         </div>
+
+        <!-- Load More -->
+        <div class="oa-load-more" *ngIf="hasMore && !loadingSessions">
+          <button
+            class="oa-load-more-btn"
+            type="button"
+            (click)="loadMore()"
+            [disabled]="loadingMore">
+            {{ loadingMore ? '⏳ Loading…' : '↓ Load More' }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -79,6 +93,7 @@
         <!-- Chat header -->
         <div class="oa-chat__hdr">
           <div class="oa-chat__user">
+            <button class="oa-menu-btn" type="button" (click)="toggleSidebar()" title="Open sessions">☰</button>
             <div class="oa-chat__avatar">{{ (selectedSession.userName || 'G')[0] }}</div>
             <div>
               <div class="oa-chat__name">{{ selectedSession.userName }}</div>
@@ -141,6 +156,7 @@
           <div class="oa-empty" *ngIf="selectedSession.messages?.length === 0">
             No messages yet.
           </div>
+          <div id="olly-msg-bottom"></div>
         </div>
 
         <!-- Reply box -->

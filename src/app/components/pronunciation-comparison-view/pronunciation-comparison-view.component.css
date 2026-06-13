@@ -11,36 +11,36 @@
 .pcv-label {
   font-size: 12px;
   font-weight: 700;
-  color: #ffffff;
+  color: #475569;
 }
 
 .pcv-line {
   font-size: 14px;
   line-height: 1.5;
-  color: #ffffff;
+  color: #1e293b;
   word-break: break-word;
 }
 
 .pcv-word--matched {
-  color: #ffffff;
+  color: #15803d;
   font-weight: 700;
 }
 
 .pcv-word--missing {
-  color: #ffffff;
+  color: #b91c1c;
   text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.95);
+  text-decoration-color: #b91c1c;
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
 
 .pcv-word--extra {
-  background: rgba(255, 255, 255, 0.12);
+  background: #fef3c7;
   border-radius: 4px;
   padding: 0 2px;
-  color: #ffffff;
+  color: #92400e;
 }
 
 .pcv-empty {
-  color: rgba(255, 255, 255, 0.7);
+  color: #94a3b8;
 }

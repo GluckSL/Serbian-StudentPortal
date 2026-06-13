@@ -7,10 +7,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import {
+  BatchLevelSlotTotals,
+  BatchStudentPaymentFilter,
   BatchStudentPaymentRow,
   CurrencyBucket,
   CurrencyPaidTotals,
+  LanguageLevelSlot,
   PaymentHubApiService,
 } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
@@ -27,6 +31,12 @@ import {
 
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
 
+interface BatchStudentCurrencyTotals {
+  lkr: number;
+  inr: number;
+  usd: number;
+}
+
 @Component({
   selector: 'app-payment-hub-batch-students',
   standalone: true,
@@ -39,6 +49,7 @@ type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'pai
     MatTooltipModule,
     MatFormFieldModule,
     MatInputModule,
+    MatMenuModule,
     PaymentCurrencyTotalsComponent,
     PaymentCurrencyPendingTotalsComponent,
     PaymentCurrencyOverdueTotalsComponent,
@@ -52,10 +63,19 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   rows: BatchStudentPaymentRow[] = [];
   searchQuery = '';
   studentInsight: StudentInsightFilter = '';
+  paymentFilter: BatchStudentPaymentFilter = 'all_language';
+  readonly paymentFilterOptions: ReadonlyArray<{ value: BatchStudentPaymentFilter; label: string }> = [
+    { value: 'A1', label: 'A1' },
+    { value: 'A2', label: 'A2' },
+    { value: 'B1', label: 'B1' },
+    { value: 'B2', label: 'B2' },
+    { value: 'all_language', label: 'All language fees' },
+    { value: 'all_payment', label: 'All payment' },
+  ];
   readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
 
   readonly studentInsightOptions = [
-    { value: '' as StudentInsightFilter, key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all students', color: 'slate', amountKind: 'received' as const },
+    { value: '' as StudentInsightFilter, key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all students', color: 'slate', amountKind: 'expected' as const },
     { value: 'paid_full' as StudentInsightFilter, key: 'paid_full', label: 'Paid full', icon: 'check_circle', hint: 'Language fee fully paid', color: 'green', amountKind: 'received' as const },
     { value: 'have_balance' as StudentInsightFilter, key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', hint: 'Outstanding balance', color: 'amber', amountKind: 'pending' as const },
     { value: 'overdue' as StudentInsightFilter, key: 'overdue', label: 'Overdue', icon: 'warning_amber', hint: 'Past due payments', color: 'red', amountKind: 'overdue' as const },
@@ -123,6 +143,166 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
     return opt?.label || '';
   }
 
+  setPaymentFilter(filter: BatchStudentPaymentFilter): void {
+    this.paymentFilter = filter;
+  }
+
+  paymentFilterLabel(): string {
+    return this.paymentFilterOptions.find((o) => o.value === this.paymentFilter)?.label ?? 'All language fees';
+  }
+
+  paymentFilterHint(): string {
+    switch (this.paymentFilter) {
+      case 'all_payment':
+        return 'All payment types — language, docs, visa, etc.';
+      case 'all_language':
+        return 'All language fees (A1–B2). Received + Pending = fee due per student.';
+      default:
+        return `${this.paymentFilter} fee only. Received is capped at catalog fee; Pending is still owed.`;
+    }
+  }
+
+  isPaymentFilterActive(value: BatchStudentPaymentFilter): boolean {
+    return this.paymentFilter === value;
+  }
+
+  private emptyCurrencyTotals(): BatchStudentCurrencyTotals {
+    return { lkr: 0, inr: 0, usd: 0 };
+  }
+
+  private totalsFromSlot(slot: BatchLevelSlotTotals | null | undefined): {
+    expected: BatchStudentCurrencyTotals;
+    received: BatchStudentCurrencyTotals;
+    pending: BatchStudentCurrencyTotals;
+    overdue: BatchStudentCurrencyTotals;
+  } {
+    if (!slot) {
+      const z = this.emptyCurrencyTotals();
+      return { expected: z, received: z, pending: z, overdue: z };
+    }
+    return {
+      expected: { lkr: slot.expectedLKR ?? 0, inr: slot.expectedINR ?? 0, usd: slot.expectedUSD ?? 0 },
+      received: { lkr: slot.receivedLKR, inr: slot.receivedINR, usd: slot.receivedUSD },
+      pending: { lkr: slot.pendingLKR, inr: slot.pendingINR, usd: slot.pendingUSD },
+      overdue: { lkr: slot.overdueLKR, inr: slot.overdueINR, usd: slot.overdueUSD },
+    };
+  }
+
+  private sumLevelSlots(r: BatchStudentPaymentRow): BatchLevelSlotTotals | null {
+    const keys: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
+    let hasAny = false;
+    const acc: BatchLevelSlotTotals = {
+      receivedLKR: 0,
+      receivedINR: 0,
+      receivedUSD: 0,
+      pendingLKR: 0,
+      pendingINR: 0,
+      pendingUSD: 0,
+      overdueLKR: 0,
+      overdueINR: 0,
+      overdueUSD: 0,
+      expectedLKR: 0,
+      expectedINR: 0,
+      expectedUSD: 0,
+    };
+    for (const key of keys) {
+      const s = r.levelSlots?.[key];
+      if (!s) continue;
+      hasAny = true;
+      acc.receivedLKR += s.receivedLKR ?? 0;
+      acc.receivedINR += s.receivedINR ?? 0;
+      acc.receivedUSD += s.receivedUSD ?? 0;
+      acc.pendingLKR += s.pendingLKR ?? 0;
+      acc.pendingINR += s.pendingINR ?? 0;
+      acc.pendingUSD += s.pendingUSD ?? 0;
+      acc.overdueLKR += s.overdueLKR ?? 0;
+      acc.overdueINR += s.overdueINR ?? 0;
+      acc.overdueUSD += s.overdueUSD ?? 0;
+      acc.expectedLKR += s.expectedLKR ?? 0;
+      acc.expectedINR += s.expectedINR ?? 0;
+      acc.expectedUSD += s.expectedUSD ?? 0;
+    }
+    return hasAny ? acc : null;
+  }
+
+  private slotTotalsEmpty(t: {
+    expected: BatchStudentCurrencyTotals;
+    received: BatchStudentCurrencyTotals;
+    pending: BatchStudentCurrencyTotals;
+    overdue: BatchStudentCurrencyTotals;
+  }): boolean {
+    const sum = (c: BatchStudentCurrencyTotals) => c.lkr + c.inr + c.usd;
+    return sum(t.expected) + sum(t.received) + sum(t.pending) + sum(t.overdue) <= 0;
+  }
+
+  private scopeTotalsFromRow(r: BatchStudentPaymentRow): {
+    expected: BatchStudentCurrencyTotals;
+    received: BatchStudentCurrencyTotals;
+    pending: BatchStudentCurrencyTotals;
+    overdue: BatchStudentCurrencyTotals;
+  } {
+    if (this.paymentFilter === 'all_payment') {
+      return {
+        expected: this.emptyCurrencyTotals(),
+        received: { lkr: r.totalPaidLKR ?? 0, inr: r.totalPaidINR ?? 0, usd: r.totalPaidUSD ?? 0 },
+        pending: {
+          lkr: r.pendingApprovalAmountLKR ?? 0,
+          inr: r.pendingApprovalAmountINR ?? 0,
+          usd: r.pendingApprovalAmountUSD ?? 0,
+        },
+        overdue: { lkr: r.overdueAmountLKR ?? 0, inr: r.overdueAmountINR ?? 0, usd: r.overdueAmountUSD ?? 0 },
+      };
+    }
+    if (this.paymentFilter === 'all_language') {
+      if (r.allLanguageFees) return this.totalsFromSlot(r.allLanguageFees);
+      const summed = this.sumLevelSlots(r);
+      if (summed) return this.totalsFromSlot(summed);
+      const z = this.emptyCurrencyTotals();
+      return {
+        expected: z,
+        received: { lkr: r.langPaidLKR ?? 0, inr: r.langPaidINR ?? 0, usd: r.langPaidUSD ?? 0 },
+        pending: { lkr: r.langPendingLKR ?? 0, inr: r.langPendingINR ?? 0, usd: r.langPendingUSD ?? 0 },
+        overdue: { lkr: r.langOverdueLKR ?? 0, inr: r.langOverdueINR ?? 0, usd: r.langOverdueUSD ?? 0 },
+      };
+    }
+    const slot = this.totalsFromSlot(r.levelSlots?.[this.paymentFilter]);
+    if (this.slotTotalsEmpty(slot) && r.level === this.paymentFilter) {
+      const z = this.emptyCurrencyTotals();
+      return {
+        expected: z,
+        received: { lkr: r.langPaidLKR ?? 0, inr: r.langPaidINR ?? 0, usd: r.langPaidUSD ?? 0 },
+        pending: { lkr: r.langPendingLKR ?? 0, inr: r.langPendingINR ?? 0, usd: r.langPendingUSD ?? 0 },
+        overdue: { lkr: r.langOverdueLKR ?? 0, inr: r.langOverdueINR ?? 0, usd: r.langOverdueUSD ?? 0 },
+      };
+    }
+    if (this.slotTotalsEmpty(slot)) {
+      const bucket = r.levelPaid?.[this.paymentFilter];
+      if (bucket) {
+        const received = paidTotalsFromBucket(bucket);
+        const z = this.emptyCurrencyTotals();
+        return {
+          expected: z,
+          received: { lkr: received.totalPaidLKR, inr: received.totalPaidINR, usd: received.totalPaidUSD },
+          pending: z,
+          overdue: z,
+        };
+      }
+    }
+    return slot;
+  }
+
+  rowReceived(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
+    return this.scopeTotalsFromRow(r).received;
+  }
+
+  rowPending(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
+    return this.scopeTotalsFromRow(r).pending;
+  }
+
+  rowOverdue(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
+    return this.scopeTotalsFromRow(r).overdue;
+  }
+
   hasInsightAmount(key: string): boolean {
     const a = this.insightAmountsFor(key);
     return a.lkr > 0 || a.inr > 0 || a.usd > 0;
@@ -148,18 +328,19 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
 
     return matched.reduce(
       (acc, r) => {
+        const scoped = this.scopeTotalsFromRow(r);
         if (key === 'have_balance') {
           return {
-            lkr: acc.lkr + (r.pendingApprovalAmountLKR ?? 0),
-            inr: acc.inr + (r.pendingApprovalAmountINR ?? 0),
-            usd: acc.usd + (r.pendingApprovalAmountUSD ?? 0),
+            lkr: acc.lkr + scoped.pending.lkr,
+            inr: acc.inr + scoped.pending.inr,
+            usd: acc.usd + scoped.pending.usd,
           };
         }
         if (key === 'overdue') {
           return {
-            lkr: acc.lkr + (r.overdueAmountLKR ?? 0),
-            inr: acc.inr + (r.overdueAmountINR ?? 0),
-            usd: acc.usd + (r.overdueAmountUSD ?? 0),
+            lkr: acc.lkr + scoped.overdue.lkr,
+            inr: acc.inr + scoped.overdue.inr,
+            usd: acc.usd + scoped.overdue.usd,
           };
         }
         if (key === 'paid_docs') {
@@ -170,10 +351,21 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
           const v = this.bucketTotals(r.visaPaidByCurrency);
           return { lkr: acc.lkr + v.totalPaidLKR, inr: acc.inr + v.totalPaidINR, usd: acc.usd + v.totalPaidUSD };
         }
+        if (key === 'all') {
+          return {
+            lkr: acc.lkr + scoped.expected.lkr,
+            inr: acc.inr + scoped.expected.inr,
+            usd: acc.usd + scoped.expected.usd,
+          };
+        }
+        if (key === 'paid_full') {
+          const owed = scoped.pending.lkr + scoped.pending.inr + scoped.overdue.lkr + scoped.overdue.inr;
+          if (owed > 0) return acc;
+        }
         return {
-          lkr: acc.lkr + (r.totalPaidLKR ?? 0),
-          inr: acc.inr + (r.totalPaidINR ?? 0),
-          usd: acc.usd + (r.totalPaidUSD ?? 0),
+          lkr: acc.lkr + scoped.received.lkr,
+          inr: acc.inr + scoped.received.inr,
+          usd: acc.usd + scoped.received.usd,
         };
       },
       { lkr: 0, inr: 0, usd: 0 },
@@ -209,11 +401,13 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   }
 
   private pendingTotal(row: BatchStudentPaymentRow): number {
-    return (row.pendingApprovalAmountLKR ?? 0) + (row.pendingApprovalAmountINR ?? 0) + (row.pendingApprovalAmountUSD ?? 0);
+    const p = this.scopeTotalsFromRow(row).pending;
+    return p.lkr + p.inr + p.usd;
   }
 
   private overdueTotal(row: BatchStudentPaymentRow): number {
-    return (row.overdueAmountLKR ?? 0) + (row.overdueAmountINR ?? 0) + (row.overdueAmountUSD ?? 0);
+    const o = this.scopeTotalsFromRow(row).overdue;
+    return o.lkr + o.inr + o.usd;
   }
 
   private bucketPaidTotal(bucket: CurrencyBucket | undefined): number {

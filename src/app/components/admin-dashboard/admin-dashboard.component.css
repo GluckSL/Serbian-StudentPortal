@@ -117,6 +117,97 @@
   margin-top: 2px;
 }
 
+.stat-hint--ongoing {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #16a34a;
+  margin-top: 6px;
+}
+
+/* ── Plan summary cards ── */
+.admin-plan-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 14px 16px 0;
+}
+
+.admin-plan-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 4px solid #cbd5e1;
+}
+
+.admin-plan-card--platinum { border-top-color: #eab308; }
+.admin-plan-card--silver { border-top-color: #94a3b8; }
+.admin-plan-card--visa { border-top-color: #0ea5e9; }
+
+.admin-plan-card__top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.admin-plan-card__value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #0369a1;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.admin-plan-card__label {
+  margin-top: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.admin-plan-card__ongoing {
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #16a34a;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-plan-card__breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-plan-card__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.8125rem;
+  color: #475569;
+}
+
+.admin-plan-card__status strong {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+@media (max-width: 900px) {
+  .admin-plan-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 .stat-number {
   display: block;
   font-size: 18px;
@@ -1382,11 +1473,20 @@
 }
 
 .admin-skeleton__stat {
-  width: 140px;
-  height: 64px;
+  width: 120px;
+  height: 72px;
   border-radius: 12px;
   flex-shrink: 0;
   background: linear-gradient(90deg, rgba(255,255,255,.35) 25%, rgba(255,255,255,.55) 50%, rgba(255,255,255,.35) 75%);
+  background-size: 200% 100%;
+  animation: admin-sk-shimmer 1.2s linear infinite;
+}
+
+.admin-skeleton__summary {
+  margin: 14px 16px 0;
+  height: 148px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%);
   background-size: 200% 100%;
   animation: admin-sk-shimmer 1.2s linear infinite;
 }
@@ -1502,7 +1602,6 @@
 }
 
 @media (max-width: 576px) {
-  .admin-skeleton__stat { display: none; }
   .admin-skeleton__filter-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -53,6 +53,7 @@ export class NavService {
     ],
     'finance-dashboard': [
       '/admin/finance-dashboard',
+      '/admin/finance-dashboard/batches',
       '/admin/payment-hub/insights/batches'
     ],
     'class-recordings': [

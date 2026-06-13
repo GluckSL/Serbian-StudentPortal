@@ -1451,10 +1451,35 @@ function exerciseOwnerId(exercise) {
   return String(raw || '');
 }
 
+const EXERCISES_TAB_ID = 'exercises';
+
+function teacherExercisesTabLevel(teacherUser) {
+  const levels = teacherUser?.teacherTabAccessLevels || {};
+  const level = levels[EXERCISES_TAB_ID];
+  if (level === 'view' || level === 'edit' || level === 'full') return level;
+  const perms = teacherUser?.teacherTabPermissions || [];
+  return perms.includes(EXERCISES_TAB_ID) ? 'view' : null;
+}
+
+async function loadTeacherPermissions(userId) {
+  return User.findById(userId)
+    .select('teacherTabPermissions teacherTabAccessLevels')
+    .lean();
+}
+
+async function teacherCanEditExercise(user, exercise) {
+  if (user.role !== 'TEACHER') return true;
+  const owner = exerciseOwnerId(exercise);
+  if (owner === String(user.id)) return true;
+  const teacherUser = await loadTeacherPermissions(user.id);
+  const level = teacherExercisesTabLevel(teacherUser);
+  return level === 'edit' || level === 'full';
+}
+
 async function assertTeacherOwnsExercise(user, exercise) {
   if (user.role === 'TEACHER') {
-    const owner = exerciseOwnerId(exercise);
-    if (owner !== String(user.id)) {
+    const canEdit = await teacherCanEditExercise(user, exercise);
+    if (!canEdit) {
       const err = new Error('Forbidden');
       err.statusCode = 403;
       throw err;
@@ -1517,13 +1542,25 @@ function exerciseLevelAllowedForStudent(exerciseLevel, accessibleLevels) {
   return accessibleLevels.includes(exerciseLevel);
 }
 
+function normalizeExerciseIdParam(rawId, rawPart2) {
+  const a = String(rawId || '').trim();
+  const b = String(rawPart2 || '').trim();
+  let joined = a;
+  if (b && /^[a-f0-9]+$/i.test(a) && /^[a-f0-9]+$/i.test(b) && a.length + b.length === 24) {
+    joined = a + b;
+  }
+  joined = joined.replace(/\//g, '');
+  if (mongoose.Types.ObjectId.isValid(joined)) return String(joined);
+  return a;
+}
+
 /** Students: exercise has no day lock, or lock is satisfied. */
 function exerciseUnlockedForStudentDay(exercise, studentDay, minCourseDay = 1) {
   const cd = exercise.courseDay;
   if (cd == null || cd === undefined) return true;
   const n = Number(cd);
   if (!Number.isFinite(n)) return true;
-  const min = Number(minCourseDay) || 1;
+  const min = Number.isFinite(Number(minCourseDay)) ? Number(minCourseDay) : 1;
   if (n < min) return false;
   return n <= studentDay;
 }
@@ -1991,8 +2028,9 @@ router.get('/gluck-exam', verifyToken, blockVisaDocsOnly, async (req, res) => {
 // GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
 router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
+    const exerciseId = normalizeExerciseIdParam(req.params.id, req.query.idPart2);
     const exercise = await DigitalExercise.findOne({
-      _id: req.params.id,
+      _id: exerciseId,
       isDeleted: { $ne: true }
     }).populate('createdBy', 'name email').lean();
 
@@ -2252,17 +2290,12 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       });
     }
 
-    // Teachers only see their own exercises (unless ADMIN/TEACHER_ADMIN)
-    if (req.user.role === 'TEACHER') {
-      adminAnd.push({ createdBy: req.user.id });
-    }
-
     const filter = { $and: adminAnd };
 
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .select(
-        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode isActive createdBy createdAt updatedAt questions.type'
+        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode isActive isFreeMode createdBy createdAt updatedAt questions.type'
       )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
@@ -2382,7 +2415,17 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
       isDeleted: { $ne: true }
     };
     if (req.user.role === 'TEACHER') {
-      filter.createdBy = req.user.id;
+      const exercises = await DigitalExercise.find(filter).select('createdBy').lean();
+      const allowedIds = [];
+      for (const ex of exercises) {
+        if (await teacherCanEditExercise(req.user, ex)) {
+          allowedIds.push(ex._id);
+        }
+      }
+      if (!allowedIds.length) {
+        return res.json({ success: true, modifiedCount: 0 });
+      }
+      filter._id = { $in: allowedIds };
     }
 
     $set.updatedAt = new Date();
@@ -2420,7 +2463,7 @@ router.post(
         return res.status(404).json({ error: 'Exercise not found' });
       }
 
-      if (req.user.role === 'TEACHER' && source.createdBy.toString() !== req.user.id) {
+      if (!(await teacherCanEditExercise(req.user, source))) {
         return res.status(403).json({ error: 'Not authorized to edit this exercise' });
       }
 
@@ -2550,6 +2593,241 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), 
   }
 });
 
+// POST /api/digital-exercises/freemode  — Create exercise from Free Mode builder items
+router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one question item is required' });
+    }
+
+    // Track current content block fields to inherit
+    let currentContext = '';
+    let currentInstruction = '';
+    let currentSectionTitle = '';
+    let currentAttachmentUrls = [];
+    let currentExample = '';
+
+    const questions = [];
+
+    for (const item of items) {
+      if (item.kind === 'content') {
+        currentContext = item.context || '';
+        currentInstruction = item.instruction || '';
+        currentSectionTitle = item.sectionTitle || '';
+        currentAttachmentUrls = item.attachmentUrls || [];
+        currentExample = item.example || '';
+      } else if (item.kind === 'question' && item.type) {
+        const question = {
+          type: item.type,
+          context: currentContext,
+          instruction: currentInstruction,
+          sectionTitle: currentSectionTitle || null,
+          attachmentUrls: currentAttachmentUrls,
+          attachmentUrl: (currentAttachmentUrls[0] || ''),
+          example: currentExample,
+          answerExplanation: item.answerExplanation || '',
+          points: item.points || 1,
+          // Copy all type-specific fields
+          question: item.question || '',
+          imageUrl: item.imageUrl || '',
+          options: item.options || [],
+          optionImageUrls: item.optionImageUrls || [],
+          correctAnswerIndex: item.correctAnswerIndex,
+          explanation: item.explanation || '',
+          pairs: item.pairs || [],
+          sentence: item.sentence || '',
+          answers: item.answers || [],
+          hint: item.hint || '',
+          caseSensitive: item.caseSensitive || false,
+          wordBank: item.wordBank || [],
+          items: item.items || [],
+          reusableWords: item.reusableWords !== undefined ? item.reusableWords : true,
+          prompt: item.prompt || '',
+          sampleAnswers: item.sampleAnswers || [],
+          storyParagraph: item.storyParagraph || '',
+          similarityThreshold: item.similarityThreshold || 70,
+          scoringMode: item.scoringMode || 'full',
+          aiGradingEnabled: item.aiGradingEnabled !== undefined ? item.aiGradingEnabled : true,
+          mediaUrl: item.mediaUrl || '',
+          expectedTranscript: item.expectedTranscript || '',
+          attemptMode: item.attemptMode || 'typing',
+          videoUrl: item.videoUrl || '',
+          caption: item.caption || '',
+          secondaryCaption: item.secondaryCaption || '',
+          secondaryCaptionAtSeconds: item.secondaryCaptionAtSeconds || 5,
+          scrambledText: item.scrambledText || '',
+          boldLetter: item.boldLetter || '',
+          expectedWord: item.expectedWord || '',
+          categoryTip: item.categoryTip || '',
+          rearrangePrompt: item.rearrangePrompt || '',
+          rearrangeAnswer: item.rearrangeAnswer || '',
+          rearrangeTokens: item.rearrangeTokens || [],
+          labels: item.labels || [],
+          pins: item.pins || [],
+          settings: item.settings || { randomizeLabels: true, allowRetry: true },
+          worksheetKind: item.worksheetKind || null,
+          tier: item.tier || null,
+        };
+
+        questions.push(question);
+      }
+    }
+
+    if (questions.length === 0) {
+      return res.status(400).json({ error: 'At least one question is required' });
+    }
+
+    const normalizedBody = {
+      title,
+      description,
+      level,
+      category,
+      targetLanguage: targetLanguage || 'German',
+      nativeLanguage: nativeLanguage || 'English',
+      difficulty: difficulty || 'Beginner',
+      estimatedDuration: estimatedDuration || 15,
+      courseDay: courseDay != null ? courseDay : null,
+      tags: tags || [],
+      questions,
+      isFreeMode: true,
+      createdBy: req.user.id,
+      lastUpdatedBy: req.user.id
+    };
+
+    if (Object.prototype.hasOwnProperty.call(normalizedBody, 'questions')) {
+      normalizedBody.questions = normalizeQuestionContexts(normalizedBody.questions);
+    }
+
+    const exerciseData = canonicalizeExerciseForStorage(normalizedBody);
+    const exercise = new DigitalExercise(exerciseData);
+    await exercise.save();
+
+    res.status(201).json({ exercise, message: 'Exercise saved successfully' });
+  } catch (err) {
+    console.error('POST /digital-exercises/freemode error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT /api/digital-exercises/freemode/:id  — Update exercise from Free Mode builder items
+router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findById(req.params.id);
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+    if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+    }
+
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one question item is required' });
+    }
+
+    let currentContext = '';
+    let currentInstruction = '';
+    let currentSectionTitle = '';
+    let currentAttachmentUrls = [];
+    let currentExample = '';
+
+    const questions = [];
+
+    for (const item of items) {
+      if (item.kind === 'content') {
+        currentContext = item.context || '';
+        currentInstruction = item.instruction || '';
+        currentSectionTitle = item.sectionTitle || '';
+        currentAttachmentUrls = item.attachmentUrls || [];
+        currentExample = item.example || '';
+      } else if (item.kind === 'question' && item.type) {
+        const question = {
+          type: item.type,
+          context: currentContext,
+          instruction: currentInstruction,
+          sectionTitle: currentSectionTitle || null,
+          attachmentUrls: currentAttachmentUrls,
+          attachmentUrl: (currentAttachmentUrls[0] || ''),
+          example: currentExample,
+          answerExplanation: item.answerExplanation || '',
+          points: item.points || 1,
+          question: item.question || '',
+          imageUrl: item.imageUrl || '',
+          options: item.options || [],
+          optionImageUrls: item.optionImageUrls || [],
+          correctAnswerIndex: item.correctAnswerIndex,
+          explanation: item.explanation || '',
+          pairs: item.pairs || [],
+          sentence: item.sentence || '',
+          answers: item.answers || [],
+          hint: item.hint || '',
+          caseSensitive: item.caseSensitive || false,
+          wordBank: item.wordBank || [],
+          items: item.items || [],
+          reusableWords: item.reusableWords !== undefined ? item.reusableWords : true,
+          prompt: item.prompt || '',
+          sampleAnswers: item.sampleAnswers || [],
+          storyParagraph: item.storyParagraph || '',
+          similarityThreshold: item.similarityThreshold || 70,
+          scoringMode: item.scoringMode || 'full',
+          aiGradingEnabled: item.aiGradingEnabled !== undefined ? item.aiGradingEnabled : true,
+          mediaUrl: item.mediaUrl || '',
+          expectedTranscript: item.expectedTranscript || '',
+          attemptMode: item.attemptMode || 'typing',
+          videoUrl: item.videoUrl || '',
+          caption: item.caption || '',
+          secondaryCaption: item.secondaryCaption || '',
+          secondaryCaptionAtSeconds: item.secondaryCaptionAtSeconds || 5,
+          scrambledText: item.scrambledText || '',
+          boldLetter: item.boldLetter || '',
+          expectedWord: item.expectedWord || '',
+          categoryTip: item.categoryTip || '',
+          rearrangePrompt: item.rearrangePrompt || '',
+          rearrangeAnswer: item.rearrangeAnswer || '',
+          rearrangeTokens: item.rearrangeTokens || [],
+          labels: item.labels || [],
+          pins: item.pins || [],
+          settings: item.settings || { randomizeLabels: true, allowRetry: true },
+          worksheetKind: item.worksheetKind || null,
+          tier: item.tier || null,
+        };
+
+        questions.push(question);
+      }
+    }
+
+    if (questions.length === 0) {
+      return res.status(400).json({ error: 'At least one question is required' });
+    }
+
+    exercise.title = title || exercise.title;
+    exercise.description = description || exercise.description;
+    exercise.level = level || exercise.level;
+    exercise.category = category || exercise.category;
+    exercise.targetLanguage = targetLanguage || exercise.targetLanguage;
+    exercise.nativeLanguage = nativeLanguage || exercise.nativeLanguage;
+    exercise.difficulty = difficulty || exercise.difficulty;
+    exercise.estimatedDuration = estimatedDuration || exercise.estimatedDuration;
+    exercise.courseDay = courseDay != null ? courseDay : exercise.courseDay;
+    exercise.tags = tags || exercise.tags;
+    exercise.questions = normalizeQuestionContexts(questions);
+    exercise.isFreeMode = true;
+    exercise.lastUpdatedBy = req.user.id;
+    exercise.updatedAt = new Date();
+
+    canonicalizeExerciseForStorage(exercise);
+    await exercise.save();
+
+    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email').lean();
+    res.json({ exercise: updated, message: 'Exercise updated successfully' });
+  } catch (err) {
+    console.error('PUT /digital-exercises/freemode/:id error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // PATCH /api/digital-exercises/:id/visibility  — Toggle student visibility (must be before PUT /:id)
 router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
@@ -2615,7 +2893,7 @@ router.post(
       const exercise = await DigitalExercise.findById(req.params.id);
       if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-      if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+      if (!(await teacherCanEditExercise(req.user, exercise))) {
         return res.status(403).json({ error: 'Not authorized to edit this exercise' });
       }
 
@@ -2653,8 +2931,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
     const exercise = await DigitalExercise.findById(req.params.id);
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    // Teachers can only edit their own exercises
-    if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+    if (!(await teacherCanEditExercise(req.user, exercise))) {
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
@@ -2713,9 +2990,10 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
 // POST /api/digital-exercises/:id/start  — Start a new attempt (students + admin/teacher for testing)
 router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
+    const exerciseId = normalizeExerciseIdParam(req.params.id, req.query.idPart2);
     const isStaff = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'].includes(req.user.role);
     const exercise = await DigitalExercise.findOne({
-      _id: req.params.id,
+      _id: exerciseId,
       isActive: true,
       ...(isStaff ? {} : { visibleToStudents: true }),
       isDeleted: { $ne: true }
@@ -3445,37 +3723,35 @@ router.get('/:id/my-attempts', verifyToken, async (req, res) => {
   }
 });
 
-// GET /api/digital-exercises/:id/my-review  — Student: per-question breakdown (best completed attempt)
+// GET /api/digital-exercises/:id/my-review  — Per-question breakdown (best completed attempt)
 router.get('/:id/my-review', verifyToken, async (req, res) => {
   try {
-    if (req.user.role !== 'STUDENT') {
-      return res.status(403).json({ error: 'Only students can use this review endpoint' });
-    }
-
     const exercise = await DigitalExercise.findOne({
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
-    if (!exercise.visibleToStudents) {
-      return res.status(403).json({ error: 'Exercise not available' });
-    }
 
-    const access = await getStudentExerciseAccess(req.user.id);
-    if (!access.enabled) {
-      return res.status(403).json({ error: 'Journey content is not enabled for your batch yet.' });
-    }
-    if (access.learningEnabled === false) {
-      return res.status(403).json({ error: 'Exercises are not available for your batch.' });
-    }
-    if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
-      return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
-    }
-    if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
-      return res.status(403).json({ error: 'This exercise is not available for your learning path.' });
-    }
-    if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
-      return res.status(403).json({ error: 'This exercise is above your current language level.' });
+    if (req.user.role === 'STUDENT') {
+      if (!exercise.visibleToStudents) {
+        return res.status(403).json({ error: 'Exercise not available' });
+      }
+      const access = await getStudentExerciseAccess(req.user.id);
+      if (!access.enabled) {
+        return res.status(403).json({ error: 'Journey content is not enabled for your batch yet.' });
+      }
+      if (access.learningEnabled === false) {
+        return res.status(403).json({ error: 'Exercises are not available for your batch.' });
+      }
+      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
+        return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
+      }
+      if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
+        return res.status(403).json({ error: 'This exercise is not available for your learning path.' });
+      }
+      if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
+        return res.status(403).json({ error: 'This exercise is above your current language level.' });
+      }
     }
 
     const attempt = await ExerciseAttempt.findOne({

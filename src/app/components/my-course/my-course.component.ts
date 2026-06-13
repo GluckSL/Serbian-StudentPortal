@@ -17,6 +17,7 @@ import { GluckBuddyHubComponent } from '../../sprechen-exam/gluck-buddy-hub/gluc
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
+import { digitalExercisePlayCommands } from '../../utils/digital-exercise-id.util';
 import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
 import { SprechenExamModuleSummary, SprechenExamSummary } from '../../sprechen-exam/sprechen-exam.types';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
@@ -1295,7 +1296,8 @@ export class MyCourseComponent implements OnInit {
   }
 
   openExercise(ex: DigitalExercise): void {
-    if (!ex?._id) return;
+    const commands = digitalExercisePlayCommands(ex);
+    if (commands.length === 2) return;
     if (this.isExerciseSequenceLocked(ex)) {
       const prerequisite = this.getPrerequisiteExercise(ex);
       const prevLetter = String(ex.previousSequenceLetter || '').trim().toUpperCase();
@@ -1305,13 +1307,19 @@ export class MyCourseComponent implements OnInit {
             ? `Complete exercise ${prevLetter} first. Opening the previous item.`
             : 'Complete the previous exercise in sequence first.'
         );
-        this.router.navigate(['/digital-exercises', prerequisite._id, 'play']);
+        const preRoute = prerequisite.isFreeMode ? '/play/freemode' : '/play';
+        this.router.navigate([
+          '/digital-exercises',
+          prerequisite._id,
+          ...preRoute.split('/').filter(Boolean)
+        ]);
         return;
       }
       this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
       return;
     }
-    this.router.navigate(['/digital-exercises', ex._id, 'play']);
+    const route = ex.isFreeMode ? '/play/freemode' : '/play';
+    this.router.navigate(['/digital-exercises', ex._id, ...route.split('/').filter(Boolean)]);
   }
 
   openModule(mod: { _id?: string }): void {

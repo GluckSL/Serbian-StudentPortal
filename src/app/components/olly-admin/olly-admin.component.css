@@ -1,13 +1,12 @@
 /* ══════════════════════════════════════════════════════════════
    Olly Admin — Live Chat Panel
    ══════════════════════════════════════════════════════════════ */
-:host { display: block; height: 100%; }
+:host { display: block; height: calc(100dvh - 63px); }
 
 .oa-root {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: calc(100vh - 60px);
+  height: calc(100dvh - 63px);
   background: #f8fafc;
   font-family: 'Inter', system-ui, sans-serif;
 }
@@ -126,6 +125,7 @@
 .oa-session-list {
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 /* Session item */
@@ -210,6 +210,32 @@
   white-space: nowrap;
 }
 
+/* ── Load More ──────────────────────────────────────────────── */
+.oa-load-more {
+  text-align: center;
+  padding: 8px 12px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.oa-load-more-btn {
+  width: 100%;
+  padding: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: background 0.15s;
+}
+.oa-load-more-btn:hover:not(:disabled) { background: #eff6ff; color: #3b82f6; }
+.oa-load-more-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* ── Chat Pane ──────────────────────────────────────────────── */
 .oa-chat-pane {
   flex: 1;
@@ -252,6 +278,24 @@
   align-items: center;
   gap: 12px;
 }
+
+.oa-menu-btn {
+  display: none;
+  width: 34px;
+  height: 34px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 18px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+  color: #0f172a;
+}
+.oa-menu-btn:hover { background: #eff6ff; }
 
 .oa-chat__avatar {
   width: 38px;
@@ -305,6 +349,7 @@
 .oa-messages {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -447,7 +492,7 @@
 .oa-send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .oa-reply-hint {
-  margin-top: 6px;
+  margin: 6px 0 0;
   font-size: 11px;
   color: #94a3b8;
 }
@@ -463,9 +508,45 @@
   flex-shrink: 0;
 }
 
+/* ── Backdrop (mobile drawer) ───────────────────────────────── */
+.oa-backdrop {
+  display: none;
+}
+
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .oa-layout { flex-direction: column; }
-  .oa-sidebar { width: 100%; max-height: 240px; border-right: none; border-bottom: 1px solid #e2e8f0; }
-  .oa-session-list { max-height: 200px; }
+  :host { height: calc(100dvh - 93px); }
+  .oa-root { height: calc(100dvh - 93px); }
+
+  .oa-menu-btn { display: inline-flex; }
+
+  .oa-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99;
+  }
+
+  .oa-sidebar {
+    position: fixed;
+    top: 52px;
+    left: 0;
+    height: calc(100dvh - 52px);
+    width: 300px;
+    max-width: 80vw;
+    z-index: 100;
+    border-right: 1px solid #e2e8f0;
+    border-radius: 0;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+
+  .oa-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .oa-chat-pane {
+    min-width: 0;
+  }
 }
