@@ -47,15 +47,21 @@
 }
 
 .journey-week-hint {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #4338ca;
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
-  border-radius: 8px;
-  padding: 0 12px;
-  line-height: 44px;
-  white-space: nowrap;
+  flex: 1 1 100%;
+  display: block;
+  margin: 2px 0 0;
+  padding: 0;
+  max-width: 100%;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #64748b;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .journey-day-pill {
@@ -397,6 +403,10 @@
 .clear-filters-btn:hover {
   background: #fee2e2;
   border-color: #f87171;
+}
+
+.clear-filters-btn--mobile-search {
+  display: none;
 }
 
 
@@ -1033,16 +1043,17 @@
   }
 
   .filters-section {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
     overflow-x: clip;
     min-width: 0;
   }
 
   .search-wrap {
-    flex: none;
-    width: 100%;
+    flex: 1 1 auto;
+    width: auto;
     min-width: 0;
   }
 
@@ -1068,6 +1079,8 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
     align-items: start;
+    flex: 1 1 100%;
+    width: 100%;
   }
 
   .dex-filter-wrap {
@@ -1086,28 +1099,26 @@
     min-width: 0;
   }
 
-  /* Journey hint: full-width row under the three selects; copy inset from left like the dropdowns */
+  /* Journey hint: plain helper text under the three selects */
   .journey-week-hint {
     grid-column: 1 / -1;
     max-width: none;
     width: 100%;
     box-sizing: border-box;
-    margin: 0;
-    min-height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
+    margin: 2px 0 0;
+    min-height: 0;
+    display: block;
     text-align: left;
-    background: linear-gradient(180deg, #fafaff 0%, #f4f4ff 100%);
-    border: 1px solid #e0e7ff;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-    padding: 8px 10px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.4;
-    letter-spacing: -0.01em;
-    color: #4338ca;
+    letter-spacing: 0;
+    color: #64748b;
     overflow-wrap: anywhere;
     word-break: break-word;
     hyphens: auto;
@@ -1123,11 +1134,31 @@
   }
 
   .clear-filters-btn {
-    grid-column: 1 / -1;
-    width: 100%;
-    justify-content: center;
-    box-sizing: border-box;
     min-height: 44px;
+    height: 44px;
+    padding: 0 12px;
+    border: 1.5px solid #fecaca;
+    background: #fef2f2;
+    color: #dc2626;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .clear-filters-btn--mobile-search {
+    display: inline-flex;
+  }
+
+  .clear-filters-btn--desktop {
+    display: none;
+  }
+
+  .clear-filters-btn .material-icons {
+    font-size: 17px;
+    width: 17px;
+    height: 17px;
   }
 
   .mc-tabs-wrap {

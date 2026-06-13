@@ -931,7 +931,7 @@
             </div>
           </div>
           </div>
-          <div class="vp-detail-card vp-detail-card--clips">
+          <div class="vp-detail-card vp-detail-card--clips vp-detail-card--clips-desktop">
             <span class="vp-detail-card-label"
               >Clips · {{ playerQuestions.length }} total</span
             >
@@ -1056,7 +1056,7 @@
                     >
                       <button
                         type="button"
-                        class="vp-stage-foot-pill vp-stage-foot-pill--subtle"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--subtle vp-stage-foot-pill--replay"
                         (click)="replayVpVideo()"
                       >
                         <span class="material-icons">replay</span>
@@ -1065,7 +1065,7 @@
                       <button
                         *ngIf="!isLastQuestion"
                         type="button"
-                        class="vp-stage-foot-pill"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--next"
                         (click)="skipWatchOnlyClip()"
                         [disabled]="finishingAll || submitting"
                       >
@@ -1075,7 +1075,7 @@
                       <button
                         *ngIf="isLastQuestion"
                         type="button"
-                        class="vp-stage-foot-pill"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--next"
                         (click)="skipWatchOnlyClip()"
                         [disabled]="finishingAll || submitting"
                       >
@@ -1545,6 +1545,36 @@
             </div>
         </div>
 
+        <div class="vp-detail-card vp-detail-card--clips vp-detail-card--clips-mobile">
+          <span class="vp-detail-card-label"
+            >Clips · {{ playerQuestions.length }} total</span
+          >
+          <div class="vp-clip-cells">
+            <button
+              *ngFor="let _ of playerQuestions; let i = index"
+              class="{{ vpClipCellClass(i) }}"
+              [class.vp-clip-cell--jumpable]="
+                !(
+                  finishingAll ||
+                  submitting ||
+                  currentQuestion.isRecording ||
+                  currentQuestion.pronUiState === 'processing'
+                )
+              "
+              [attr.title]="'Clip ' + (i + 1)"
+              [disabled]="
+                finishingAll ||
+                submitting ||
+                currentQuestion.isRecording ||
+                currentQuestion.pronUiState === 'processing'
+              "
+              (click)="goToQuestion(i)"
+            >
+              {{ i + 1 }}
+            </button>
+          </div>
+        </div>
+
         <aside
           class="vp-chat-panel--studio"
           [attr.aria-busy]="currentQuestion.isRecording ? 'true' : null"
@@ -1893,6 +1923,59 @@
             >
           </div>
 
+          <div
+            class="q-top-media-stack"
+            *ngIf="
+              ['mcq', 'fill-blank', 'word_bank_fill', 'singular_plural'].includes(currentQuestion.data.type) &&
+              (hasMediaAttachment(currentQuestion.data) || currentQuestion.data.imageUrl)
+            "
+          >
+            <div
+              class="q-attachment-box"
+              *ngFor="let attUrl of getQuestionMediaAttachmentUrls(currentQuestion.data)"
+              [hidden]="!hasMediaAttachment(currentQuestion.data)"
+            >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(attUrl)"
+                  alt="Question attachment"
+                  class="q-attachment-img"
+                />
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(attUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(attUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(attUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
+            <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
+              <img
+                [src]="currentQuestion.data.imageUrl"
+                alt="Question image"
+                class="q-image"
+              />
+            </div>
+          </div>
+
           <!-- Guidance: 1. Instruction → 2. Example → 3. Context (+ TF reading passage), then q-body: 4. Question(s) → 5. Shared image (after sub-questions when present) -->
           <div
             class="q-guidance-stack"
@@ -2121,16 +2204,6 @@
               </div>
               </div>
             </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
-            <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
-              <img
-                [src]="currentQuestion.data.imageUrl"
-                alt="Question image"
-                class="q-image"
-              />
-            </div>
             <div
               class="q-feedback-incorrect"
               *ngIf="hasCurrentSubmitted && !currentQuestion.isCorrect"
@@ -2249,6 +2322,10 @@
               <ng-container
                 *ngTemplateOutlet="playerQuestionAudioAttachment"
               ></ng-container>
+              <div class="hint-label" *ngIf="currentQuestion.data.hint">
+                <span class="material-icons">lightbulb</span>
+                Hint: {{ currentQuestion.data.hint }}
+              </div>
               <div class="sentence-container">
                 <ng-container
                   *ngFor="
@@ -2299,13 +2376,6 @@
                   </span>
                 </ng-container>
               </div>
-            </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
-            <div class="hint-label" *ngIf="currentQuestion.data.hint">
-              <span class="material-icons">lightbulb</span>
-              Hint: {{ currentQuestion.data.hint }}
             </div>
             <div
               class="special-char-pad"
@@ -2368,37 +2438,6 @@
             <ng-container
               *ngTemplateOutlet="playerQuestionAudioAttachment"
             ></ng-container>
-            <div
-              class="word-bank-box"
-              *ngIf="currentQuestion.data.wordBank?.length"
-            >
-              <div class="word-bank-box-label">
-                Word bank — select a blank, then tap a word (or type your answer)
-              </div>
-              <div class="word-bank-pills">
-                <button
-                  type="button"
-                  class="word-bank-pill"
-                  *ngFor="
-                    let word of currentQuestion.data.wordBank;
-                    trackBy: trackByIndex
-                  "
-                  [class.used]="
-                    !isWordBankReusable(currentQuestion) &&
-                    isWordAlreadyUsed(currentQuestion, word, null)
-                  "
-                  [disabled]="
-                    hasCurrentSubmitted ||
-                    (!isWordBankReusable(currentQuestion) &&
-                      isWordAlreadyUsed(currentQuestion, word, null))
-                  "
-                  (click)="fillActiveWordBankBlank(currentQuestion, word)"
-                >
-                  {{ word }}
-                </button>
-              </div>
-            </div>
-
             <div class="word-bank-items">
               <div
                 class="word-bank-item-row"
@@ -2460,6 +2499,37 @@
             </div>
 
             <div
+              class="word-bank-box"
+              *ngIf="currentQuestion.data.wordBank?.length"
+            >
+              <div class="word-bank-box-label">
+                Word bank — select a blank, then tap a word (or type your answer)
+              </div>
+              <div class="word-bank-pills">
+                <button
+                  type="button"
+                  class="word-bank-pill"
+                  *ngFor="
+                    let word of currentQuestion.data.wordBank;
+                    trackBy: trackByIndex
+                  "
+                  [class.used]="
+                    !isWordBankReusable(currentQuestion) &&
+                    isWordAlreadyUsed(currentQuestion, word, null)
+                  "
+                  [disabled]="
+                    hasCurrentSubmitted ||
+                    (!isWordBankReusable(currentQuestion) &&
+                      isWordAlreadyUsed(currentQuestion, word, null))
+                  "
+                  (click)="fillActiveWordBankBlank(currentQuestion, word)"
+                >
+                  {{ word }}
+                </button>
+              </div>
+            </div>
+
+            <div
               class="special-char-pad"
               *ngIf="
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
@@ -2482,9 +2552,6 @@
                 </button>
               </div>
             </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
             <div
               class="fill-feedback"
               *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
@@ -2558,9 +2625,6 @@
                 </tbody>
               </table>
             </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
             <div
               class="special-char-pad"
               *ngIf="
