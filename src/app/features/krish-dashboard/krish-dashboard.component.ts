@@ -27,9 +27,26 @@ import {
   SERVICE_OPTED_CATALOG,
   STATUS_COLORS,
   STATUS_LABELS,
+  COLUMN_FILTER_LABELS,
+  ColumnFilterKey,
+  FacetOption,
+  facetValueToFilter,
+  filterValueToLabel,
   UNSPECIFIED_PROFESSION,
   isNonSkilledProfessionLabel,
 } from './krish-dashboard-filters.model';
+
+/** Legacy single-value patches from analytics cards. */
+type LegacyFilterPatch = Partial<KrishDashboardFilters> & {
+  status?: KrishStatus | null;
+  package?: KrishPackage | null;
+  serviceName?: string | null;
+  profession?: string | null;
+  currentLanguageLevel?: string | null;
+  documentPaymentStatus?: string | null;
+  documentationStatus?: string | null;
+  visaStatus?: string | null;
+};
 
 @Component({
   selector: 'app-krish-dashboard',
@@ -102,12 +119,19 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   noteForm = { type: 'NOTE', content: '', followUpDate: '' };
   noteSaving = false;
 
+  // ── Column filter modal (Kanban / pipeline style) ─────────────────────────
+  columnFilterOpen: ColumnFilterKey | null = null;
+  columnFilterDraft: string[] = [];
+  columnFilterDraftB: string[] = [];
+  columnFilterSearch = '';
+
   // ── Constants exposed to template ─────────────────────────────────────────
   readonly PACKAGE_LABELS = PACKAGE_LABELS;
   readonly STATUS_LABELS  = STATUS_LABELS;
   readonly STATUS_COLORS  = STATUS_COLORS;
   readonly SERVICE_OPTED_CATALOG = SERVICE_OPTED_CATALOG;
   readonly UNSPECIFIED_PROFESSION = UNSPECIFIED_PROFESSION;
+  readonly COLUMN_FILTER_LABELS = COLUMN_FILTER_LABELS;
   readonly PACKAGES: KrishPackage[] = ['PLATINUM', 'SILVER', 'VISA_DOCS'];
   readonly STATUSES: KrishStatus[]  = ['UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW'];
 
@@ -160,12 +184,70 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   /** Instant profession cards from preloaded analytics — no extra API call. */
   syncProfessionBreakdown(): void {
-    if (!this.filters.serviceName || !this.analytics?.professionBreakdowns) {
+    const svc = this.filters.serviceNames[0];
+    if (!svc || this.filters.serviceNames.length !== 1 || !this.analytics?.professionBreakdowns) {
       this.professionBreakdown = [];
       return;
     }
-    this.professionBreakdown =
-      this.analytics.professionBreakdowns[this.filters.serviceName] || [];
+    this.professionBreakdown = this.analytics.professionBreakdowns[svc] || [];
+  }
+
+  primaryServiceName(): string | null {
+    return this.filters.serviceNames[0] ?? null;
+  }
+
+  hasSummaryFilters(): boolean {
+    return (
+      !this.filters.statuses.length &&
+      !this.filters.packages.length &&
+      !this.filters.serviceNames.length
+    );
+  }
+
+  isSummaryStatusActive(status: KrishStatus): boolean {
+    return (
+      this.filters.statuses.length === 1 &&
+      this.filters.statuses[0] === status &&
+      !this.filters.packages.length &&
+      !this.filters.serviceNames.length
+    );
+  }
+
+  private normalizeFilterPatch(patch: LegacyFilterPatch): Partial<KrishDashboardFilters> {
+    const next: Partial<KrishDashboardFilters> = { ...patch };
+    if ('status' in patch) {
+      next.statuses = patch.status ? [patch.status] : [];
+      delete (next as LegacyFilterPatch).status;
+    }
+    if ('package' in patch) {
+      next.packages = patch.package ? [patch.package] : [];
+      delete (next as LegacyFilterPatch).package;
+    }
+    if ('serviceName' in patch) {
+      next.serviceNames = patch.serviceName ? [patch.serviceName] : [];
+      delete (next as LegacyFilterPatch).serviceName;
+    }
+    if ('profession' in patch) {
+      next.professions = patch.profession ? [patch.profession] : [];
+      delete (next as LegacyFilterPatch).profession;
+    }
+    if ('currentLanguageLevel' in patch) {
+      next.languageLevels = patch.currentLanguageLevel ? [patch.currentLanguageLevel] : [];
+      delete (next as LegacyFilterPatch).currentLanguageLevel;
+    }
+    if ('documentPaymentStatus' in patch) {
+      next.documentPaymentStatuses = patch.documentPaymentStatus ? [patch.documentPaymentStatus] : [];
+      delete (next as LegacyFilterPatch).documentPaymentStatus;
+    }
+    if ('documentationStatus' in patch) {
+      next.documentationStatuses = patch.documentationStatus ? [patch.documentationStatus] : [];
+      delete (next as LegacyFilterPatch).documentationStatus;
+    }
+    if ('visaStatus' in patch) {
+      next.visaStatuses = patch.visaStatus ? [patch.visaStatus] : [];
+      delete (next as LegacyFilterPatch).visaStatus;
+    }
+    return next;
   }
 
   loadStudents(): void {
@@ -192,13 +274,11 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   // ── Filter actions ────────────────────────────────────────────────────────
 
-  applyFilter(patch: Partial<KrishDashboardFilters>): void {
-    const next: KrishDashboardFilters = { ...this.filters, ...patch, page: 1 };
-    if ('serviceName' in patch && patch.serviceName !== this.filters.serviceName) {
-      next.profession = null;
-    }
-    if ('status' in patch || 'serviceName' in patch) {
-      next.profession = null;
+  applyFilter(patch: LegacyFilterPatch): void {
+    const normalized = this.normalizeFilterPatch(patch);
+    const next: KrishDashboardFilters = { ...this.filters, ...normalized, page: 1 };
+    if ('serviceNames' in normalized && !('professions' in normalized)) {
+      next.professions = [];
     }
     this.filters = next;
     this.syncProfessionBreakdown();
@@ -209,13 +289,11 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   applyProfessionFilter(profession: string, status?: KrishStatus | null): void {
     const professionValue =
       profession === UNSPECIFIED_PROFESSION ? '__UNSPECIFIED__' : profession;
-    const patch: Partial<KrishDashboardFilters> = { profession: professionValue, page: 1 };
+    const patch: LegacyFilterPatch = { profession: professionValue, page: 1 };
     if (status !== undefined) {
       patch.status = status;
     }
-    this.filters = { ...this.filters, ...patch };
-    this.loadStudents();
-    this.scrollToTable();
+    this.applyFilter(patch);
     this.cdr.markForCheck();
   }
 
@@ -225,9 +303,9 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
       profession === UNSPECIFIED_PROFESSION ? '__UNSPECIFIED__' : profession;
     this.filters = {
       ...this.filters,
-      serviceName: null,
-      status: null,
-      profession: professionValue,
+      serviceNames: [],
+      statuses: [],
+      professions: [professionValue],
       page: 1,
     };
     this.professionBreakdown = [];
@@ -238,7 +316,8 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   /** Service chip — first number: current status only (e.g. 23 ongoing). */
   applyServiceProfessionStatusFilter(profession: string): void {
-    this.applyProfessionFilter(profession, this.filters.status ?? null);
+    const status = this.filters.statuses.length === 1 ? this.filters.statuses[0] : null;
+    this.applyProfessionFilter(profession, status);
   }
 
   /** Service chip — total number: all statuses in this service (e.g. 38). */
@@ -248,20 +327,20 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   isProfessionActive(profession: string): boolean {
     const value = profession === UNSPECIFIED_PROFESSION ? '__UNSPECIFIED__' : profession;
-    return this.filters.profession === value;
+    return this.filters.professions.includes(value);
   }
 
   professionBreakdownTitle(): string {
-    const parts = [this.filters.serviceName || ''];
-    if (this.filters.status) {
-      parts.push(STATUS_LABELS[this.filters.status]);
+    const parts = [this.primaryServiceName() || ''];
+    if (this.filters.statuses.length === 1) {
+      parts.push(STATUS_LABELS[this.filters.statuses[0]]);
     }
     return parts.filter(Boolean).join(' · ');
   }
 
   professionDisplayTotal(prof: ProfessionStat): number {
-    if (!this.filters.status) return prof.total;
-    switch (this.filters.status) {
+    if (this.filters.statuses.length !== 1) return prof.total;
+    switch (this.filters.statuses[0]) {
       case 'ONGOING': return prof.ongoing;
       case 'UNCERTAIN': return prof.uncertain ?? 0;
       case 'COMPLETED': return prof.completed ?? 0;
@@ -273,7 +352,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   /** Professions with a non-zero count for the active status filter. */
   visibleProfessionBreakdown(): ProfessionStat[] {
     const list = this.professionBreakdown.filter((p) => {
-      if (!this.filters.status) return true;
+      if (!this.filters.statuses.length) return true;
       return this.professionDisplayTotal(p) > 0;
     });
     return list;
@@ -336,62 +415,314 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     if (!skilled.length && !this.allSkilledProfessions().length) {
       return 'No professional data — re-import Excel with Professional Categories column';
     }
-    if (this.filters.status) {
-      const statusLabel = STATUS_LABELS[this.filters.status].toLowerCase();
-      return `${this.filters.serviceName} only · ${this.skilledProfessionStudentTotal()} ${statusLabel} skilled · ${inService} total skilled in service`;
+    if (this.filters.statuses.length === 1) {
+      const statusLabel = STATUS_LABELS[this.filters.statuses[0]].toLowerCase();
+      return `${this.primaryServiceName()} only · ${this.skilledProfessionStudentTotal()} ${statusLabel} skilled · ${inService} total skilled in service`;
     }
-    return `${this.filters.serviceName} only · ${inService} skilled students · ${this.allSkilledProfessions().length} categories`;
+    return `${this.primaryServiceName()} only · ${inService} skilled students · ${this.allSkilledProfessions().length} categories`;
   }
 
   professionCompareHint(): string {
-    if (this.filters.status) {
-      const statusLabel = STATUS_LABELS[this.filters.status].toLowerCase();
-      return `Green chip → all students (every status). Blue chip → click ${statusLabel} number for ${statusLabel} only, or / total for all statuses in ${this.filters.serviceName}.`;
+    const svc = this.primaryServiceName();
+    if (this.filters.statuses.length === 1) {
+      const statusLabel = STATUS_LABELS[this.filters.statuses[0]].toLowerCase();
+      return `Green chip → all students (every status). Blue chip → click ${statusLabel} number for ${statusLabel} only, or / total for all statuses in ${svc}.`;
     }
-    return `Green row matches Excel. Below is ${this.filters.serviceName} only.`;
+    return `Green row matches Excel. Below is ${svc} only.`;
   }
 
   clearFilters(): void {
     this.filters = { ...DEFAULT_FILTERS };
     this.professionBreakdown = [];
+    this.closeColumnFilter();
     this.loadStudents();
   }
 
-  removeChip(field: 'status' | 'package' | 'serviceName' | 'profession' | 'search'): void {
-    (this.filters as any)[field] = field === 'search' ? '' : null;
+  // ── Column header filters (multi-select modal) ───────────────────────────
+
+  openColumnFilter(key: ColumnFilterKey, event: Event): void {
+    event.stopPropagation();
+    this.columnFilterOpen = key;
+    this.columnFilterSearch = '';
+    switch (key) {
+      case 'languageLevel':
+        this.columnFilterDraft = [...this.filters.languageLevels];
+        this.columnFilterDraftB = [];
+        break;
+      case 'package':
+        this.columnFilterDraft = [...this.filters.packages];
+        this.columnFilterDraftB = [];
+        break;
+      case 'service':
+        this.columnFilterDraft = [...this.filters.serviceNames];
+        this.columnFilterDraftB = [...this.filters.professions];
+        break;
+      case 'status':
+        this.columnFilterDraft = [...this.filters.statuses];
+        this.columnFilterDraftB = [];
+        break;
+      case 'doc':
+        this.columnFilterDraft = [...this.filters.documentPaymentStatuses];
+        this.columnFilterDraftB = [...this.filters.documentationStatuses];
+        break;
+      case 'visa':
+        this.columnFilterDraft = [...this.filters.visaStatuses];
+        this.columnFilterDraftB = [];
+        break;
+    }
+    this.cdr.markForCheck();
+  }
+
+  closeColumnFilter(): void {
+    this.columnFilterOpen = null;
+    this.columnFilterDraft = [];
+    this.columnFilterDraftB = [];
+    this.columnFilterSearch = '';
+    this.cdr.markForCheck();
+  }
+
+  columnFilterTitle(): string {
+    return this.columnFilterOpen ? COLUMN_FILTER_LABELS[this.columnFilterOpen] : '';
+  }
+
+  columnFilterHasSearch(): boolean {
+    return this.columnFilterOpen === 'service' || this.columnFilterOpen === 'languageLevel';
+  }
+
+  columnFilterOptions(section: 'primary' | 'secondary' = 'primary'): FacetOption[] {
+    if (!this.analytics || !this.columnFilterOpen) return [];
+    const a = this.analytics;
+    switch (this.columnFilterOpen) {
+      case 'languageLevel':
+        return a.languageLevels || [];
+      case 'package':
+        return (a.packages || []).map((p) => ({
+          value: p.package,
+          label: PACKAGE_LABELS[p.package],
+          total: p.total,
+        }));
+      case 'status':
+        return this.STATUSES.map((st) => ({
+          value: st,
+          label: STATUS_LABELS[st],
+          total: this.statusTotal(st),
+        }));
+      case 'service':
+        if (section === 'secondary') {
+          return (a.sheetProfessions || []).map((p) => ({
+            value: p.profession,
+            label: p.label,
+            total: p.total,
+          }));
+        }
+        return (a.services || []).map((s) => ({
+          value: s.serviceName,
+          label: s.label,
+          total: s.total,
+        }));
+      case 'doc':
+        if (section === 'secondary') return a.documentationStatuses || [];
+        return a.documentPaymentStatuses || [];
+      case 'visa':
+        return a.visaStatuses || [];
+      default:
+        return [];
+    }
+  }
+
+  filteredColumnOptions(section: 'primary' | 'secondary' = 'primary'): FacetOption[] {
+    const opts = this.columnFilterOptions(section);
+    const q = this.columnFilterSearch.trim().toLowerCase();
+    if (!q) return opts;
+    return opts.filter((o) => o.label.toLowerCase().includes(q));
+  }
+
+  isColumnFilterActive(key: ColumnFilterKey): boolean {
+    switch (key) {
+      case 'languageLevel': return this.filters.languageLevels.length > 0;
+      case 'package': return this.filters.packages.length > 0;
+      case 'service':
+        return this.filters.serviceNames.length > 0 || this.filters.professions.length > 0;
+      case 'status': return this.filters.statuses.length > 0;
+      case 'doc':
+        return this.filters.documentPaymentStatuses.length > 0 ||
+          this.filters.documentationStatuses.length > 0;
+      case 'visa': return this.filters.visaStatuses.length > 0;
+      default: return false;
+    }
+  }
+
+  columnFilterCount(key: ColumnFilterKey): number {
+    switch (key) {
+      case 'languageLevel': return this.filters.languageLevels.length;
+      case 'package': return this.filters.packages.length;
+      case 'service':
+        return this.filters.serviceNames.length + this.filters.professions.length;
+      case 'status': return this.filters.statuses.length;
+      case 'doc':
+        return this.filters.documentPaymentStatuses.length + this.filters.documentationStatuses.length;
+      case 'visa': return this.filters.visaStatuses.length;
+      default: return 0;
+    }
+  }
+
+  isDraftSelected(value: string, section: 'primary' | 'secondary' = 'primary'): boolean {
+    const draft = section === 'secondary' ? this.columnFilterDraftB : this.columnFilterDraft;
+    return draft.includes(facetValueToFilter(value));
+  }
+
+  toggleDraftValue(value: string, section: 'primary' | 'secondary' = 'primary'): void {
+    const mapped = facetValueToFilter(value);
+    const draft = section === 'secondary' ? this.columnFilterDraftB : this.columnFilterDraft;
+    const idx = draft.indexOf(mapped);
+    if (idx >= 0) draft.splice(idx, 1);
+    else draft.push(mapped);
+    this.cdr.markForCheck();
+  }
+
+  selectAllColumnOptions(section: 'primary' | 'secondary' = 'primary'): void {
+    const values = this.filteredColumnOptions(section).map((o) => facetValueToFilter(o.value));
+    if (section === 'secondary') this.columnFilterDraftB = [...new Set(values)];
+    else this.columnFilterDraft = [...new Set(values)];
+    this.cdr.markForCheck();
+  }
+
+  selectAllColumnFilter(): void {
+    this.selectAllColumnOptions('primary');
+    if (this.columnFilterOpen === 'service' || this.columnFilterOpen === 'doc') {
+      this.selectAllColumnOptions('secondary');
+    }
+    this.cdr.markForCheck();
+  }
+
+  clearColumnFilterDraft(section?: 'primary' | 'secondary'): void {
+    if (!section || section === 'primary') this.columnFilterDraft = [];
+    if (!section || section === 'secondary') this.columnFilterDraftB = [];
+    this.cdr.markForCheck();
+  }
+
+  applyColumnFilter(): void {
+    if (!this.columnFilterOpen) return;
+    const patch: Partial<KrishDashboardFilters> = { page: 1 };
+    switch (this.columnFilterOpen) {
+      case 'languageLevel':
+        patch.languageLevels = [...this.columnFilterDraft];
+        break;
+      case 'package':
+        patch.packages = [...this.columnFilterDraft] as KrishPackage[];
+        break;
+      case 'service':
+        patch.serviceNames = [...this.columnFilterDraft];
+        patch.professions = [...this.columnFilterDraftB];
+        break;
+      case 'status':
+        patch.statuses = [...this.columnFilterDraft] as KrishStatus[];
+        break;
+      case 'doc':
+        patch.documentPaymentStatuses = [...this.columnFilterDraft];
+        patch.documentationStatuses = [...this.columnFilterDraftB];
+        break;
+      case 'visa':
+        patch.visaStatuses = [...this.columnFilterDraft];
+        break;
+    }
+    this.closeColumnFilter();
+    this.filters = { ...this.filters, ...patch };
+    this.syncProfessionBreakdown();
+    this.loadStudents();
+    this.scrollToTable();
+    this.cdr.markForCheck();
+  }
+
+  private statusTotal(status: KrishStatus): number {
+    const t = this.analytics?.totals;
+    if (!t) return 0;
+    switch (status) {
+      case 'ONGOING': return t.ongoing;
+      case 'UNCERTAIN': return t.uncertain;
+      case 'COMPLETED': return t.completed;
+      case 'WITHDREW': return t.withdrew;
+      default: return 0;
+    }
+  }
+
+  removeChip(field: keyof KrishDashboardFilters | 'search'): void {
+    if (field === 'search') {
+      this.filters.search = '';
+    } else if (field === 'counselor') {
+      this.filters.counselor = '';
+    } else {
+      (this.filters as any)[field] = [];
+    }
     this.filters.page = 1;
-    if (field === 'serviceName') {
-      this.filters.profession = null;
+    if (field === 'serviceNames') {
+      this.filters.professions = [];
       this.professionBreakdown = [];
     }
-    if (field === 'profession' && this.filters.serviceName) {
+    if (field === 'professions' && this.filters.serviceNames.length) {
       this.syncProfessionBreakdown();
     }
     this.loadStudents();
   }
 
-  onSearchInput(q: string): void {
-    this.searchSubject.next(q);
+  private formatChipValues(values: string[]): string {
+    return values.map((v) => filterValueToLabel(v)).join(', ');
   }
 
   get activeChips(): { field: string; label: string }[] {
     const chips: { field: string; label: string }[] = [];
-    if (this.filters.status)
-      chips.push({ field: 'status', label: `Status: ${STATUS_LABELS[this.filters.status]}` });
-    if (this.filters.package)
-      chips.push({ field: 'package', label: `Package: ${PACKAGE_LABELS[this.filters.package]}` });
-    if (this.filters.serviceName)
-      chips.push({ field: 'serviceName', label: `Service: ${this.filters.serviceName}` });
-    if (this.filters.profession) {
-      const label =
-        this.filters.profession === '__UNSPECIFIED__'
-          ? UNSPECIFIED_PROFESSION
-          : this.filters.profession;
-      chips.push({ field: 'profession', label: `Professional: ${label}` });
+    if (this.filters.statuses.length) {
+      const labels = this.filters.statuses.map((s) => STATUS_LABELS[s]).join(', ');
+      chips.push({ field: 'statuses', label: `Status: ${labels}` });
     }
-    if (this.filters.search)
+    if (this.filters.packages.length) {
+      const labels = this.filters.packages.map((p) => PACKAGE_LABELS[p]).join(', ');
+      chips.push({ field: 'packages', label: `Package: ${labels}` });
+    }
+    if (this.filters.serviceNames.length) {
+      chips.push({
+        field: 'serviceNames',
+        label: `Service: ${this.formatChipValues(this.filters.serviceNames)}`,
+      });
+    }
+    if (this.filters.professions.length) {
+      chips.push({
+        field: 'professions',
+        label: `Professional: ${this.formatChipValues(this.filters.professions)}`,
+      });
+    }
+    if (this.filters.languageLevels.length) {
+      chips.push({
+        field: 'languageLevels',
+        label: `Language: ${this.formatChipValues(this.filters.languageLevels)}`,
+      });
+    }
+    if (this.filters.documentPaymentStatuses.length) {
+      chips.push({
+        field: 'documentPaymentStatuses',
+        label: `Doc Payment: ${this.formatChipValues(this.filters.documentPaymentStatuses)}`,
+      });
+    }
+    if (this.filters.documentationStatuses.length) {
+      chips.push({
+        field: 'documentationStatuses',
+        label: `Doc Status: ${this.formatChipValues(this.filters.documentationStatuses)}`,
+      });
+    }
+    if (this.filters.visaStatuses.length) {
+      chips.push({
+        field: 'visaStatuses',
+        label: `Visa: ${this.formatChipValues(this.filters.visaStatuses)}`,
+      });
+    }
+    if (this.filters.search) {
       chips.push({ field: 'search', label: `Search: "${this.filters.search}"` });
+    }
     return chips;
+  }
+
+  onSearchInput(q: string): void {
+    this.searchSubject.next(q);
   }
 
   // ── Sorting ───────────────────────────────────────────────────────────────
@@ -727,6 +1058,15 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   get skeletonRows(): number[] {
     return Array.from({ length: 6 }, (_, i) => i);
+  }
+
+  get skeletonCols(): number[] {
+    return Array.from({ length: 10 }, (_, i) => i);
+  }
+
+  displayField(value?: string | null): string {
+    const v = (value || '').trim();
+    return v || '—';
   }
 
   formatDate(d?: string): string {

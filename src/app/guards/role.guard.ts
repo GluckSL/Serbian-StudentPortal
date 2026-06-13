@@ -22,32 +22,13 @@ export class RoleGuard implements CanActivate {
     // Use cached user first — no HTTP call needed if already logged in
     const cachedUser = this.authService.getSnapshotUser();
     if (cachedUser) {
-      const allowed = this.checkRole(cachedUser, expectedRole, state.url);
-      // #region agent log
-      if (state.url.includes('krish-dashboard')) {
-        fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'240bb9'},body:JSON.stringify({sessionId:'240bb9',runId:'pre-fix',hypothesisId:'H1',location:'role.guard.ts:canActivate',message:'RoleGuard cached user check',data:{url:state.url,role:cachedUser?.role,allowed,expectedRole},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
-      return of(allowed);
+      return of(this.checkRole(cachedUser, expectedRole, state.url));
     }
 
     // Fallback: fetch from server if no cached user
     return this.authService.getUserProfile().pipe(
-      map(user => {
-        const allowed = this.checkRole(user, expectedRole, state.url);
-        // #region agent log
-        if (state.url.includes('krish-dashboard')) {
-          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'240bb9'},body:JSON.stringify({sessionId:'240bb9',runId:'pre-fix',hypothesisId:'H1',location:'role.guard.ts:canActivate-fetch',message:'RoleGuard profile fetch check',data:{url:state.url,role:user?.role,allowed,expectedRole},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
-        return allowed;
-      }),
-      catchError((err) => {
-        // #region agent log
-        if (state.url.includes('krish-dashboard')) {
-          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'240bb9'},body:JSON.stringify({sessionId:'240bb9',runId:'pre-fix',hypothesisId:'H1',location:'role.guard.ts:catchError',message:'RoleGuard profile fetch failed -> login',data:{url:state.url,error:String(err)},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
+      map(user => this.checkRole(user, expectedRole, state.url)),
+      catchError(() => {
         this.router.navigate(['/login']);
         return of(false);
       })

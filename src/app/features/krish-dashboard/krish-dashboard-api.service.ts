@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  joinFilterValues,
   KrishAnalytics,
   KrishDashboardFilters,
   ProfessionStat,
@@ -31,20 +32,38 @@ export class KrishDashboardApiService {
     );
   }
 
-  getStudents(filters: Partial<KrishDashboardFilters>): Observable<ListResp> {
+  private buildFilterParams(filters: Partial<KrishDashboardFilters>): HttpParams {
     let params = new HttpParams();
-    const add = (k: string, v: unknown) => { if (v != null && v !== '') params = params.set(k, String(v)); };
+    const add = (k: string, v: unknown) => {
+      if (v != null && v !== '') params = params.set(k, String(v));
+    };
+    const addMulti = (k: string, values?: string[]) => {
+      const joined = joinFilterValues(values || []);
+      if (joined) params = params.set(k, joined);
+    };
+
     add('page', filters.page);
     add('limit', filters.limit);
     add('sortBy', filters.sortBy);
     add('sortDir', filters.sortDir);
     add('search', filters.search);
-    add('package', filters.package);
-    add('status', filters.status);
-    add('serviceName', filters.serviceName);
-    add('profession', filters.profession);
+    addMulti('status', filters.statuses);
+    addMulti('package', filters.packages);
+    addMulti('serviceName', filters.serviceNames);
+    addMulti('profession', filters.professions);
+    addMulti('currentLanguageLevel', filters.languageLevels);
+    addMulti('documentPaymentStatus', filters.documentPaymentStatuses);
+    addMulti('documentationStatus', filters.documentationStatuses);
+    addMulti('visaStatus', filters.visaStatuses);
     add('counselor', filters.counselor);
-    return this.http.get<ListResp>(`${BASE}/students`, { params, withCredentials: true });
+    return params;
+  }
+
+  getStudents(filters: Partial<KrishDashboardFilters>): Observable<ListResp> {
+    return this.http.get<ListResp>(`${BASE}/students`, {
+      params: this.buildFilterParams(filters),
+      withCredentials: true,
+    });
   }
 
   getStudent(id: string): Observable<ApiResp<SalesStudent>> {
@@ -88,14 +107,6 @@ export class KrishDashboardApiService {
   }
 
   getExportUrl(filters: Partial<KrishDashboardFilters>, format: 'csv' | 'xlsx'): string {
-    let params = new HttpParams().set('format', format);
-    const add = (k: string, v: unknown) => { if (v != null && v !== '') params = params.set(k, String(v)); };
-    add('search', filters.search);
-    add('package', filters.package);
-    add('status', filters.status);
-    add('serviceName', filters.serviceName);
-    add('profession', filters.profession);
-    add('counselor', filters.counselor);
-    return `${BASE}/export?${params.toString()}`;
+    return `${BASE}/export?${this.buildFilterParams(filters).set('format', format).toString()}`;
   }
 }

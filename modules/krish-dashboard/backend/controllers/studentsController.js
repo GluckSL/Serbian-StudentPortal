@@ -18,6 +18,10 @@ async function list(req, res) {
       counselor: req.query.counselor,
       serviceName: req.query.serviceName || req.query.serviceKey,
       profession: req.query.profession,
+      currentLanguageLevel: req.query.currentLanguageLevel,
+      documentPaymentStatus: req.query.documentPaymentStatus,
+      documentationStatus: req.query.documentationStatus,
+      visaStatus: req.query.visaStatus,
     });
     res.json({ success: true, ...result });
   } catch (err) {

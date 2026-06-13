@@ -39,11 +39,6 @@ export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
         (errMsg.includes('invalid or expired token') || errMsg.includes('invalid token'));
 
       if (err.status !== 401 && !isAuth403) {
-        // #region agent log
-        if (req.url.toLowerCase().includes('krish-dashboard')) {
-          fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'240bb9'},body:JSON.stringify({sessionId:'240bb9',runId:'pre-fix',hypothesisId:'H3',location:'auth-expired.interceptor.ts:non-auth-error',message:'Krish API error not triggering logout',data:{status:err.status,reqUrl:req.url,routerUrl:router.url,errMsg},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
         return throwError(() => err);
       }
 
@@ -65,9 +60,6 @@ export const authExpiredInterceptor: HttpInterceptorFn = (req, next) => {
 
       if (!redirectInProgress) {
         redirectInProgress = true;
-        // #region agent log
-        fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'240bb9'},body:JSON.stringify({sessionId:'240bb9',runId:'pre-fix',hypothesisId:'H3',location:'auth-expired.interceptor.ts:logout',message:'Auth interceptor forcing logout',data:{status:err.status,isAuth403,reqUrl:req.url,routerUrl:router.url,errMsg},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         auth.clearClientSession();
 
         // Preserve the current SPA route so login can redirect back after success.

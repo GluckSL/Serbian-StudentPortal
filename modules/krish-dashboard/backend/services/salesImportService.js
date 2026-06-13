@@ -45,6 +45,47 @@ function normalizeStr(v) {
   return String(v || '').trim();
 }
 
+/**
+ * Pick a CRM column by alias list, then fuzzy header matching.
+ * preferIncludes: when multiple keys match, rank headers containing these substrings first.
+ */
+function pickByHeaderHints(lookup, raw, {
+  aliases = [],
+  mustInclude = [],
+  mustExclude = [],
+  preferIncludes = [],
+} = {}) {
+  const direct = pickField(lookup, aliases);
+  if (direct) return direct;
+
+  const candidates = [];
+
+  const consider = (key, value) => {
+    if (mustExclude.some((ex) => key.includes(ex))) return;
+    if (mustInclude.length && !mustInclude.every((inc) => key.includes(inc))) return;
+    const v = normalizeStr(value);
+    if (!v) return;
+    const score = preferIncludes.reduce(
+      (sum, inc) => sum + (key.includes(inc) ? 1 : 0),
+      0,
+    );
+    candidates.push({ key, value: v, score });
+  };
+
+  for (const [key, value] of Object.entries(lookup)) {
+    consider(key, value);
+  }
+  if (raw && typeof raw === 'object') {
+    for (const [header, value] of Object.entries(raw)) {
+      consider(normalizeHeader(header), value);
+    }
+  }
+
+  if (!candidates.length) return '';
+  candidates.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
+  return candidates[0].value;
+}
+
 /** Canonical labels from CRM "Professional Categories" column. */
 function normalizeProfessionValue(raw) {
   const v = normalizeStr(raw);
@@ -497,6 +538,62 @@ function mapRowFields(raw) {
   ]);
   const address = pickField(lookup, ['client address', 'address', 'client_address']);
 
+  const currentLanguageLevel = pickByHeaderHints(lookup, raw, {
+    aliases: [
+      'current level',
+      'current language level',
+      'language level opted',
+      'language level',
+      'language_level_opted',
+      'german level',
+      'native language',
+    ],
+    mustInclude: ['level'],
+    mustExclude: ['withdrawal', 'document', 'visa', 'payment', 'batch', 'remark', 'amount'],
+  });
+
+  const documentPaymentStatus = pickByHeaderHints(lookup, raw, {
+    aliases: [
+      'document payment status',
+      'documentation payment status',
+      'doc payment status',
+    ],
+    mustInclude: ['payment'],
+    mustExclude: ['visa', 'remark', 'amount', 'balance'],
+  });
+
+  const documentationStatus = pickByHeaderHints(lookup, raw, {
+    aliases: [
+      'documentation status',
+      'document status',
+      'docs status',
+    ],
+    mustInclude: ['document', 'status'],
+    mustExclude: ['payment', 'visa', 'remark', 'amount', 'balance', 'cv', 'passport', 'educational', 'other'],
+    preferIncludes: ['documentation'],
+  });
+
+  const documentationRemarks = pickByHeaderHints(lookup, raw, {
+    aliases: [
+      'documentation remarks',
+      'document remarks',
+      'docs remarks',
+    ],
+    mustInclude: ['remark'],
+    mustExclude: ['visa'],
+    preferIncludes: ['documentation', 'document'],
+  });
+
+  const visaStatus = pickByHeaderHints(lookup, raw, {
+    aliases: [
+      'visa status',
+      'visa_status',
+      'current visa status',
+    ],
+    mustInclude: ['visa'],
+    mustExclude: ['payment', 'remark', 'amount', 'balance', 'documentation'],
+  });
+
   const noteParts = [];
   if (leadSource) noteParts.push(`Lead: ${leadSource}`);
   if (qualification) noteParts.push(`Qualification: ${qualification}`);
@@ -516,6 +613,11 @@ function mapRowFields(raw) {
     profession,
     qualifications: qualification,
     specialization,
+    currentLanguageLevel,
+    documentPaymentStatus,
+    documentationStatus,
+    documentationRemarks,
+    visaStatus,
     serviceNames: parseServiceNames(rawServices),
     notes,
     _rawPackage: pkgRaw,
@@ -574,6 +676,11 @@ function resolveRow(raw, rowIndex) {
       profession: mapped.profession || '',
       qualifications: mapped.qualifications || '',
       specialization: mapped.specialization || '',
+      currentLanguageLevel: mapped.currentLanguageLevel || '',
+      documentPaymentStatus: mapped.documentPaymentStatus || '',
+      documentationStatus: mapped.documentationStatus || '',
+      documentationRemarks: mapped.documentationRemarks || '',
+      visaStatus: mapped.visaStatus || '',
       notes,
       serviceNames: mapped.serviceNames,
     },
@@ -673,6 +780,11 @@ async function commitImport(validatedRows, staffUserId) {
       profession: fields.profession || '',
       qualifications: fields.qualifications || '',
       specialization: fields.specialization || '',
+      currentLanguageLevel: fields.currentLanguageLevel || '',
+      documentPaymentStatus: fields.documentPaymentStatus || '',
+      documentationStatus: fields.documentationStatus || '',
+      documentationRemarks: fields.documentationRemarks || '',
+      visaStatus: fields.visaStatus || '',
       notes: fields.notes || '',
       serviceNames: serviceNames || [],
       rowIndex: row.rowIndex,
@@ -721,6 +833,11 @@ async function commitImport(validatedRows, staffUserId) {
       profession: payload.profession || '',
       qualifications: payload.qualifications || '',
       specialization: payload.specialization || '',
+      currentLanguageLevel: payload.currentLanguageLevel || '',
+      documentPaymentStatus: payload.documentPaymentStatus || '',
+      documentationStatus: payload.documentationStatus || '',
+      documentationRemarks: payload.documentationRemarks || '',
+      visaStatus: payload.visaStatus || '',
       notes: payload.notes,
       createdBy: staffUserId,
       updatedBy: staffUserId,
@@ -781,6 +898,11 @@ async function commitImport(validatedRows, staffUserId) {
             profession: payload.profession || '',
             qualifications: payload.qualifications || '',
             specialization: payload.specialization || '',
+            currentLanguageLevel: payload.currentLanguageLevel || '',
+            documentPaymentStatus: payload.documentPaymentStatus || '',
+            documentationStatus: payload.documentationStatus || '',
+            documentationRemarks: payload.documentationRemarks || '',
+            visaStatus: payload.visaStatus || '',
             notes: payload.notes,
             updatedBy: staffUserId,
           },

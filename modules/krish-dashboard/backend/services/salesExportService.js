@@ -4,10 +4,12 @@
  */
 const SalesStudent = require('../models/SalesStudent');
 const SalesStudentService = require('../models/SalesStudentService');
-const { buildFilter } = require('./salesStudentService');
+const { buildFilter, parseMulti } = require('./salesStudentService');
 
 const HEADERS = [
-  'Name', 'Email', 'Phone', 'Age', 'Package', 'Services', 'Status', 'Counselor',
+  'Name', 'Email', 'Phone', 'Current Language Level', 'Age', 'Package', 'Services',
+  'Professional', 'Status', 'Counselor',
+  'Document Payment Status', 'Documentation Status', 'Documentation Remarks', 'Visa Status',
   'Created Date', 'Last Updated',
 ];
 
@@ -19,11 +21,14 @@ function formatDate(d) {
 async function fetchForExport(filters) {
   let serviceIds;
   const svcFilter = filters.serviceName || filters.serviceKey;
-  if (svcFilter) {
+  const svcNames = parseMulti(svcFilter);
+  if (svcNames.length) {
     const svcDocs = await SalesStudentService.find({
-      serviceName: new RegExp(`^${svcFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-    }).select('salesStudentId').lean();
-    serviceIds = svcDocs.map((d) => d.salesStudentId);
+      serviceName: svcNames.length === 1 ? svcNames[0] : { $in: svcNames },
+    })
+      .select('salesStudentId')
+      .lean();
+    serviceIds = [...new Set(svcDocs.map((d) => d.salesStudentId))];
     if (serviceIds.length === 0) return [];
   }
 
@@ -43,11 +48,17 @@ async function fetchForExport(filters) {
     Name: s.name,
     Email: s.email,
     Phone: s.phone || '',
+    'Current Language Level': s.currentLanguageLevel || '',
     Age: s.age != null ? s.age : '',
     Package: s.package,
     Services: (svcMap[String(s._id)] || []).join('; '),
+    Professional: s.profession || '',
     Status: s.status,
     Counselor: s.counselor || '',
+    'Document Payment Status': s.documentPaymentStatus || '',
+    'Documentation Status': s.documentationStatus || '',
+    'Documentation Remarks': s.documentationRemarks || '',
+    'Visa Status': s.visaStatus || '',
     'Created Date': formatDate(s.createdAt),
     'Last Updated': formatDate(s.updatedAt),
   }));

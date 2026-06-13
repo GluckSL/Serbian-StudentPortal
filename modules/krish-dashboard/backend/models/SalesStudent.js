@@ -25,6 +25,16 @@ const salesStudentSchema = new mongoose.Schema(
     qualifications: { type: String, trim: true, default: '' },
     /** CRM "Specialization" column — stored separately, not used for profession cards. */
     specialization: { type: String, trim: true, default: '' },
+    /** CRM "Current language level" column. */
+    currentLanguageLevel: { type: String, trim: true, default: '' },
+    /** CRM "Document Payment Status" column. */
+    documentPaymentStatus: { type: String, trim: true, default: '' },
+    /** CRM "Documentation status" column. */
+    documentationStatus: { type: String, trim: true, default: '' },
+    /** CRM "Documentation Remarks" column. */
+    documentationRemarks: { type: String, trim: true, default: '' },
+    /** CRM "Visa status" column. */
+    visaStatus: { type: String, trim: true, default: '' },
     notes: { type: String, default: '' }, // short inline note; full notes in SalesStudentNote
     // Staff audit refs — read-only after write; NOT portal student refs
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

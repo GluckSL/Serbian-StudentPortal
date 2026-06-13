@@ -71,35 +71,99 @@ export const CARD_BREAKDOWN_STATUSES: KrishStatus[] = ['UNCERTAIN', 'COMPLETED',
 
 
 export interface KrishDashboardFilters {
-  status:      KrishStatus | null;
-  package:     KrishPackage | null;
-  serviceName: string | null;
-  /** Profession / stream filter; __UNSPECIFIED__ = empty profession */
-  profession:  string | null;
-  search:      string;
-  counselor:   string;
-  page:        number;
-  limit:       number;
-  sortBy:      string;
-  sortDir:     'asc' | 'desc';
+  statuses: KrishStatus[];
+  packages: KrishPackage[];
+  serviceNames: string[];
+  professions: string[];
+  languageLevels: string[];
+  documentPaymentStatuses: string[];
+  documentationStatuses: string[];
+  visaStatuses: string[];
+  search: string;
+  counselor: string;
+  page: number;
+  limit: number;
+  sortBy: string;
+  sortDir: 'asc' | 'desc';
 }
 
 export const DEFAULT_FILTERS: KrishDashboardFilters = {
-  status:      null,
-  package:     null,
-  serviceName: null,
-  profession:  null,
-  search:      '',
-  counselor:   '',
-  page:        1,
-  limit:       25,
-  sortBy:      'updatedAt',
-  sortDir:     'desc',
+  statuses: [],
+  packages: [],
+  serviceNames: [],
+  professions: [],
+  languageLevels: [],
+  documentPaymentStatuses: [],
+  documentationStatuses: [],
+  visaStatuses: [],
+  search: '',
+  counselor: '',
+  page: 1,
+  limit: 25,
+  sortBy: 'updatedAt',
+  sortDir: 'desc',
 };
+
+export type ColumnFilterKey =
+  | 'languageLevel'
+  | 'package'
+  | 'service'
+  | 'status'
+  | 'doc'
+  | 'visa';
+
+export const COLUMN_FILTER_LABELS: Record<ColumnFilterKey, string> = {
+  languageLevel: 'Language Level',
+  package: 'Package',
+  service: 'Service & Professional',
+  status: 'Status',
+  doc: 'Documentation',
+  visa: 'Visa Status',
+};
+
+export function joinFilterValues(values: string[]): string | undefined {
+  return values.length ? values.join(',') : undefined;
+}
+
+export interface FacetOption {
+  value: string;
+  label: string;
+  total: number;
+  ongoing?: number;
+}
+
+export type KrishFilterCategory =
+  | 'service'
+  | 'languageLevel'
+  | 'package'
+  | 'status'
+  | 'profession'
+  | 'docPayment'
+  | 'docStatus'
+  | 'visa';
+
+/** @deprecated Use column header filters — kept for analytics card helpers */
+export const FILTER_CATEGORIES: { id: KrishFilterCategory; label: string }[] = [
+  { id: 'service', label: 'Service' },
+  { id: 'languageLevel', label: 'Language Level' },
+  { id: 'package', label: 'Package' },
+  { id: 'status', label: 'Status' },
+  { id: 'profession', label: 'Professional' },
+  { id: 'docPayment', label: 'Doc Payment' },
+  { id: 'docStatus', label: 'Doc Status' },
+  { id: 'visa', label: 'Visa Status' },
+];
 
 export const UNSPECIFIED_PROFESSION = 'Unspecified';
 
-/** Education / generic buckets — not shown under skilled profession chips. */
+export function facetValueToFilter(value: string): string {
+  return value === UNSPECIFIED_PROFESSION ? '__UNSPECIFIED__' : value;
+}
+
+export function filterValueToLabel(value: string): string {
+  return value === '__UNSPECIFIED__' ? UNSPECIFIED_PROFESSION : value;
+}
+
 export const NON_SKILLED_PROFESSION_KEYS = new Set([
   'others',
   'other',
@@ -194,6 +258,12 @@ export interface SalesStudent {
   counselor?: string;
   profession?: string;
   qualifications?: string;
+  specialization?: string;
+  currentLanguageLevel?: string;
+  documentPaymentStatus?: string;
+  documentationStatus?: string;
+  documentationRemarks?: string;
+  visaStatus?: string;
   notes?: string;
 
   services?: SalesStudentSvc[];
@@ -285,7 +355,11 @@ export interface KrishAnalytics {
   professionBreakdowns?: Record<string, ProfessionStat[]>;
   /** All students by Excel Professional column — matches sheet-wide totals. */
   sheetProfessions?: ProfessionStat[];
-  counselors: { _id: string; total: number; ongoing: number }[];
+  languageLevels?: FacetOption[];
+  documentPaymentStatuses?: FacetOption[];
+  documentationStatuses?: FacetOption[];
+  visaStatuses?: FacetOption[];
+  counselors: FacetOption[];
 }
 
 

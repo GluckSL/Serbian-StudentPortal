@@ -202,13 +202,60 @@ function buildStatusBreakdown(row, statuses = CARD_BREAKDOWN_STATUSES) {
   });
 }
 
+function mapFacetRows(rows) {
+  return rows.map((row) => ({
+    value: row._id,
+    label: row._id,
+    total: row.total || 0,
+    ongoing: row.ongoing || 0,
+    uncertain: row.uncertain || 0,
+    completed: row.completed || 0,
+    withdrew: (row.withdrew || 0) + (row.hold || 0),
+    statusBreakdown: buildStatusBreakdown(row),
+  }));
+}
+
+async function aggregateFieldFacet(fieldName, emptyLabel = UNSPECIFIED_PROFESSION) {
+  const rows = await SalesStudent.aggregate([
+    {
+      $addFields: {
+        facetLabel: {
+          $let: {
+            vars: {
+              trimmed: { $trim: { input: { $ifNull: [`$${fieldName}`, ''] } } },
+            },
+            in: {
+              $cond: [{ $ne: ['$$trimmed', ''] }, '$$trimmed', emptyLabel],
+            },
+          },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: '$facetLabel',
+        total: { $sum: 1 },
+        ongoing: { $sum: { $cond: [{ $eq: ['$status', 'ONGOING'] }, 1, 0] } },
+        uncertain: { $sum: { $cond: [{ $eq: ['$status', 'UNCERTAIN'] }, 1, 0] } },
+        completed: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } },
+        withdrew: {
+          $sum: { $cond: [{ $in: ['$status', ['WITHDREW', 'HOLD']] }, 1, 0] },
+        },
+        hold: { $sum: { $cond: [{ $eq: ['$status', 'HOLD'] }, 1, 0] } },
+      },
+    },
+    { $sort: { total: -1, _id: 1 } },
+  ]);
+  return mapFacetRows(rows);
+}
+
 async function getAnalytics() {
   const now = Date.now();
   if (cache && now < cacheExpiry) return cache;
 
   await ensureProfessionBackfill();
 
-  const [studentFacet, serviceFacet, professionBreakdowns, sheetProfessions] = await Promise.all([
+  const [studentFacet, serviceFacet, professionBreakdowns, sheetProfessions, languageLevels, documentPaymentStatuses, documentationStatuses, visaStatuses] = await Promise.all([
     SalesStudent.aggregate([
       {
         $facet: {
@@ -283,6 +330,10 @@ async function getAnalytics() {
 
     aggregateProfessionBreakdowns(),
     aggregateSheetProfessionBreakdown(),
+    aggregateFieldFacet('currentLanguageLevel'),
+    aggregateFieldFacet('documentPaymentStatus'),
+    aggregateFieldFacet('documentationStatus'),
+    aggregateFieldFacet('visaStatus'),
   ]);
 
   const raw = studentFacet[0];
@@ -344,7 +395,16 @@ async function getAnalytics() {
     services,
     professionBreakdowns,
     sheetProfessions,
-    counselors: raw.byCounselor,
+    languageLevels,
+    documentPaymentStatuses,
+    documentationStatuses,
+    visaStatuses,
+    counselors: raw.byCounselor.map((row) => ({
+      value: row._id || UNSPECIFIED_PROFESSION,
+      label: row._id || UNSPECIFIED_PROFESSION,
+      total: row.total || 0,
+      ongoing: row.ongoing || 0,
+    })),
   };
 
   cache = result;

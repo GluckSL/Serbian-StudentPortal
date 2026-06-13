@@ -14,6 +14,86 @@ function escapeRegex(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Parse comma-separated or array filter values from query params. */
+function parseMulti(val) {
+  if (val == null || val === '') return [];
+  if (Array.isArray(val)) return val.map(String).filter(Boolean);
+  return String(val)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function applyPackageFilter(target, pkg) {
+  const list = parseMulti(pkg);
+  if (!list.length) return;
+  target.package = list.length === 1 ? list[0] : { $in: list };
+}
+
+function applyStatusFilter(target, status) {
+  const list = parseMulti(status);
+  if (!list.length) return;
+  const expanded = [];
+  for (const s of list) {
+    if (s === 'WITHDREW') expanded.push('WITHDREW', 'HOLD');
+    else expanded.push(s);
+  }
+  const uniq = [...new Set(expanded)];
+  target.status = uniq.length === 1 ? uniq[0] : { $in: uniq };
+}
+
+function optionalTextFieldMultiMatch(field, values) {
+  const list = parseMulti(values);
+  if (!list.length) return null;
+  const clauses = list.map((v) => optionalTextFieldMatch(field, v)).filter(Boolean);
+  if (!clauses.length) return null;
+  if (clauses.length === 1) return clauses[0];
+  return { $or: clauses };
+}
+
+function professionMultiMatch(profession) {
+  const list = parseMulti(profession);
+  if (!list.length) return null;
+  const clauses = list.map((p) => professionMatchQuery(p)).filter(Boolean);
+  if (!clauses.length) return null;
+  if (clauses.length === 1) return clauses[0];
+  return { $or: clauses };
+}
+
+function applyStudentFilters(target, {
+  search,
+  package: pkg,
+  status,
+  counselor,
+  profession,
+  currentLanguageLevel,
+  documentPaymentStatus,
+  documentationStatus,
+  visaStatus,
+} = {}) {
+  applyPackageFilter(target, pkg);
+  applyStatusFilter(target, status);
+  if (counselor) {
+    if (counselor === '__UNSPECIFIED__') {
+      mergeMatchClause(target, optionalTextFieldMatch('counselor', '__UNSPECIFIED__'));
+    } else {
+      target.counselor = new RegExp(escapeRegex(counselor), 'i');
+    }
+  }
+  mergeMatchClause(target, professionMultiMatch(profession));
+  mergeMatchClause(target, optionalTextFieldMultiMatch('currentLanguageLevel', currentLanguageLevel));
+  mergeMatchClause(target, optionalTextFieldMultiMatch('documentPaymentStatus', documentPaymentStatus));
+  mergeMatchClause(target, optionalTextFieldMultiMatch('documentationStatus', documentationStatus));
+  mergeMatchClause(target, optionalTextFieldMultiMatch('visaStatus', visaStatus));
+  if (search) {
+    const s = search.trim();
+    if (s) {
+      const re = new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      target.$or = [{ name: re }, { email: re }, { phone: re }];
+    }
+  }
+}
+
 function mergeMatchClause(target, clause) {
   if (!clause) return;
   if (target.$or && clause.$or) {
@@ -65,25 +145,65 @@ function professionMatchQuery(profession) {
   };
 }
 
+function optionalTextFieldMatch(field, value) {
+  if (!value) return null;
+  if (value === '__UNSPECIFIED__') {
+    return {
+      $or: [
+        { [field]: { $in: [null, ''] } },
+        { [field]: { $exists: false } },
+      ],
+    };
+  }
+  return { [field]: new RegExp(`^${escapeRegex(value)}$`, 'i') };
+}
+
+const STUDENT_LIST_PROJECT = {
+  name: 1,
+  email: 1,
+  phone: 1,
+  age: 1,
+  package: 1,
+  status: 1,
+  counselor: 1,
+  profession: 1,
+  currentLanguageLevel: 1,
+  documentPaymentStatus: 1,
+  documentationStatus: 1,
+  documentationRemarks: 1,
+  visaStatus: 1,
+  updatedAt: 1,
+  createdAt: 1,
+};
+
 /**
  * Build MongoDB query from filter params.
  */
-function buildFilter({ search, package: pkg, status, counselor, serviceIds, serviceName, profession } = {}) {
+function buildFilter({
+  search,
+  package: pkg,
+  status,
+  counselor,
+  serviceIds,
+  serviceName,
+  profession,
+  currentLanguageLevel,
+  documentPaymentStatus,
+  documentationStatus,
+  visaStatus,
+} = {}) {
   const query = {};
-  if (pkg) query.package = pkg;
-  if (status) {
-    query.status = status === 'WITHDREW' ? { $in: ['WITHDREW', 'HOLD'] } : status;
-  }
-  if (counselor) query.counselor = new RegExp(counselor, 'i');
-  const professionQuery = professionMatchQuery(profession);
-  mergeMatchClause(query, professionQuery);
-  if (search) {
-    const s = search.trim();
-    if (s) {
-      const re = new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      query.$or = [{ name: re }, { email: re }, { phone: re }];
-    }
-  }
+  applyStudentFilters(query, {
+    search,
+    package: pkg,
+    status,
+    counselor,
+    profession,
+    currentLanguageLevel,
+    documentPaymentStatus,
+    documentationStatus,
+    visaStatus,
+  });
   if (Array.isArray(serviceIds) && serviceIds.length > 0) {
     query._id = { $in: serviceIds };
   }
@@ -102,6 +222,10 @@ async function listStudents({
   serviceName,
   serviceKey, // legacy alias
   profession,
+  currentLanguageLevel,
+  documentPaymentStatus,
+  documentationStatus,
+  visaStatus,
 } = {}) {
   const svcFilter = serviceName || serviceKey;
   const safeLimit = Math.min(Number(limit) || 25, 100);
@@ -112,33 +236,19 @@ async function listStudents({
   const sort = { [sortField]: sortOrder };
 
   const studentMatch = {};
-  if (pkg) studentMatch.package = pkg;
-  if (status) {
-    studentMatch.status = status === 'WITHDREW' ? { $in: ['WITHDREW', 'HOLD'] } : status;
-  }
-  if (counselor) studentMatch.counselor = new RegExp(counselor, 'i');
-  const professionQuery = professionMatchQuery(profession);
-  mergeMatchClause(studentMatch, professionQuery);
-  if (search) {
-    const s = search.trim();
-    if (s) {
-      const re = new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      studentMatch.$or = [{ name: re }, { email: re }, { phone: re }];
-    }
-  }
+  applyStudentFilters(studentMatch, {
+    search,
+    package: pkg,
+    status,
+    counselor,
+    profession,
+    currentLanguageLevel,
+    documentPaymentStatus,
+    documentationStatus,
+    visaStatus,
+  });
 
-  const project = {
-    name: 1,
-    email: 1,
-    phone: 1,
-    age: 1,
-    package: 1,
-    status: 1,
-    counselor: 1,
-    profession: 1,
-    updatedAt: 1,
-    createdAt: 1,
-  };
+  const project = STUDENT_LIST_PROJECT;
 
   const facetStage = {
     $facet: {
@@ -153,9 +263,14 @@ async function listStudents({
   };
 
   let result;
-  if (svcFilter) {
+  const svcNames = parseMulti(svcFilter);
+  if (svcNames.length) {
     const pipeline = [
-      { $match: { serviceName: svcFilter } },
+      {
+        $match: {
+          serviceName: svcNames.length === 1 ? svcNames[0] : { $in: svcNames },
+        },
+      },
       {
         $lookup: {
           from: 'sales_students',
@@ -336,4 +451,5 @@ module.exports = {
   addNote,
   updateNote,
   buildFilter,
+  parseMulti,
 };
