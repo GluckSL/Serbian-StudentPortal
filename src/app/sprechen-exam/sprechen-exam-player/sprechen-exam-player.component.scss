@@ -569,31 +569,8 @@
 @media (max-width: 900px) {
   .sp-exam-player__stage {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: 40% 60% auto;
     overflow-y: auto;
   }
-  .sp-exam-player__fox-col {
-    flex-direction: row;
-    padding: 12px 16px;
-    gap: 12px;
-    justify-content: flex-start;
-    border-right: none;
-    border-bottom: 1px solid rgba(99, 102, 241, 0.12);
-  }
-  .sp-exam-player__fox-wrap {
-    flex-direction: row;
-    flex: 0 0 auto;
-    gap: 10px;
-    align-items: center;
-  }
-  .sp-exam-player__fox-char {
-    max-width: 80px;
-  }
-  .sp-exam-player__speech-bubble {
-    max-width: 200px;
-    margin-bottom: 0;
-    font-size: 12px;
-  }
-  .sp-exam-player__fox-controls { margin-top: 0; margin-left: auto; }
-  .sp-exam-player__chat-col { max-height: 240px; border-left: none; border-top: 1px solid #e8eaf6; }
+  .sp-exam-player__chat-col { height: 400px; border-left: none; border-top: 1px solid #e8eaf6; }
 }
