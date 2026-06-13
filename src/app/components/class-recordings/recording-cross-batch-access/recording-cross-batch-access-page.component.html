@@ -28,14 +28,11 @@
     </div>
     <div class="acr-batch-activation__body">
       <div class="acr-batch-input-row">
-        <input
-          class="acr-input"
-          type="text"
-          [(ngModel)]="batchInput"
-          placeholder="Type batch (e.g. 36 or Batch 36) and press Enter"
-          (keyup.enter)="addBatchFromInput()" />
+        <input class="acr-input" type="text" [(ngModel)]="batchInput"
+          placeholder="Type batch (e.g. 36 or Batch 36) and press Enter" (keyup.enter)="addBatchFromInput()" />
         <button type="button" class="acr-btn acr-btn--ghost" (click)="addBatchFromInput()">Add batch</button>
-        <button *ngIf="canManage" type="button" class="acr-btn acr-btn--primary" (click)="saveActiveBatches()" [disabled]="savingBatches">
+        <button *ngIf="canManage" type="button" class="acr-btn acr-btn--primary" (click)="saveActiveBatches()"
+          [disabled]="savingBatches">
           {{ savingBatches ? 'Saving…' : 'Save active batches' }}
         </button>
       </div>
@@ -124,12 +121,16 @@
               <mat-icon>playlist_add</mat-icon>
               <span class="acr-icon-btn__label">Map recordings</span>
             </button>
-            <button type="button" class="acr-icon-btn" [class.acr-icon-btn--active]="isPreviewOpen(rule)" (click)="loadPreview(rule)">
+            <button type="button" class="acr-icon-btn" [class.acr-icon-btn--active]="isPreviewOpen(rule)"
+              (click)="loadPreview(rule)">
               <mat-icon>{{ isPreviewOpen(rule) ? 'expand_less' : 'visibility' }}</mat-icon>
             </button>
-            <button *ngIf="canManage" type="button" class="acr-icon-btn" (click)="openEditForm(rule)"><mat-icon>edit</mat-icon></button>
-            <button *ngIf="canManage" type="button" class="acr-icon-btn" (click)="toggleActive(rule)"><mat-icon>{{ rule.active ? 'toggle_on' : 'toggle_off' }}</mat-icon></button>
-            <button *ngIf="canManage" type="button" class="acr-icon-btn acr-icon-btn--danger" (click)="deleteRule(rule)"><mat-icon>delete_outline</mat-icon></button>
+            <button *ngIf="canManage" type="button" class="acr-icon-btn"
+              (click)="openEditForm(rule)"><mat-icon>edit</mat-icon></button>
+            <button *ngIf="canManage" type="button" class="acr-icon-btn" (click)="toggleActive(rule)"><mat-icon>{{
+                rule.active ? 'toggle_on' : 'toggle_off' }}</mat-icon></button>
+            <button *ngIf="canManage" type="button" class="acr-icon-btn acr-icon-btn--danger"
+              (click)="deleteRule(rule)"><mat-icon>delete_outline</mat-icon></button>
           </div>
         </div>
 
@@ -157,7 +158,8 @@
               <div class="acr-preview-stat acr-preview-stat--purple">
                 <mat-icon>video_library</mat-icon>
                 <div>
-                  <span class="acr-preview-stat__val">{{ preview.sourceZoomRecordings.length + preview.sourceManualRecordings.length }}</span>
+                  <span class="acr-preview-stat__val">{{ preview.sourceZoomRecordings.length +
+                    preview.sourceManualRecordings.length }}</span>
                   <span class="acr-preview-stat__lbl">Mapped recordings</span>
                 </div>
               </div>
@@ -186,16 +188,14 @@
           </div>
           <div class="acr-field">
             <label class="acr-label">Journey day <span class="acr-required">*</span></label>
-            <input class="acr-input" type="number" min="1" max="200" [(ngModel)]="form.courseDay" placeholder="e.g. 1" />
+            <input class="acr-input" type="number" min="1" max="200" [(ngModel)]="form.courseDay"
+              placeholder="e.g. 1" />
           </div>
           <div class="acr-field acr-field--full">
             <label class="acr-label">Applies to active batches <span class="acr-required">*</span></label>
             <div class="acr-selector-chips">
-              <button
-                type="button"
-                class="acr-selector-chip"
-                [class.acr-selector-chip--active]="form.targetBatches.includes(b)"
-                *ngFor="let b of activeBatches"
+              <button type="button" class="acr-selector-chip"
+                [class.acr-selector-chip--active]="form.targetBatches.includes(b)" *ngFor="let b of activeBatches"
                 (click)="toggleBatchForForm(b)">
                 {{ formatBatchLabel(b) }}
               </button>
@@ -203,7 +203,8 @@
           </div>
           <div class="acr-field acr-field--full">
             <label class="acr-label">Notes</label>
-            <textarea class="acr-input acr-textarea" rows="2" [(ngModel)]="form.notes" placeholder="Optional note"></textarea>
+            <textarea class="acr-input acr-textarea" rows="2" [(ngModel)]="form.notes"
+              placeholder="Optional note"></textarea>
           </div>
         </div>
         <div *ngIf="formError" class="acr-form-error"><mat-icon>warning</mat-icon>{{ formError }}</div>
@@ -228,17 +229,16 @@
         <button type="button" class="acr-modal__close" (click)="closeMapping()"><mat-icon>close</mat-icon></button>
       </header>
       <div class="acr-modal__body">
-        <input class="acr-input" [(ngModel)]="mappingSearch" (ngModelChange)="applyCatalogFilter()" placeholder="Search recordings..." />
+        <input class="acr-input" [(ngModel)]="mappingSearch" (ngModelChange)="applyCatalogFilter()"
+          placeholder="Search recordings..." />
         <div class="acr-catalog-list" *ngIf="!mappingLoading; else mapLoading">
           <div class="acr-catalog-item" *ngFor="let row of filteredCatalog">
             <div>
               <div class="acr-catalog-title">{{ row.title }}</div>
-              <div class="acr-catalog-meta">{{ row.type | titlecase }} · Day {{ row.courseDay || '—' }} · {{ row.isPublished ? 'Published' : 'Unpublished' }}</div>
+              <div class="acr-catalog-meta">{{ row.type | titlecase }} · Day {{ row.courseDay || '—' }} · {{
+                row.isPublished ? 'Published' : 'Unpublished' }}</div>
             </div>
-            <button
-              type="button"
-              class="acr-btn"
-              [class.acr-btn--primary]="!isRecordingMapped(mappingJourney, row)"
+            <button type="button" class="acr-btn" [class.acr-btn--primary]="!isRecordingMapped(mappingJourney, row)"
               [class.acr-btn--ghost]="isRecordingMapped(mappingJourney, row)"
               (click)="toggleMappedRecording(mappingJourney, row)">
               {{ isRecordingMapped(mappingJourney, row) ? 'Unmap' : 'Map' }}

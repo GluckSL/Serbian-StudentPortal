@@ -90,7 +90,7 @@
 
   <div class="mc-classes-layout" [hidden]="activeTab !== 'classes'" role="tabpanel">
     <div class="mc-classes-layout__main">
-      <section class="mc-classes-card mc-classes-card--live" *ngIf="userProfile.subscription === 'PLATINUM'"
+      <section class="mc-classes-card mc-classes-card--live" *ngIf="userProfile?.subscription === 'PLATINUM'"
         aria-label="Live and scheduled classes">
         <app-student-meetings [embedded]="true"></app-student-meetings>
       </section>

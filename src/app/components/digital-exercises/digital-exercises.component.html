@@ -37,6 +37,9 @@
         <span class="material-icons">close</span>
       </button>
     </div>
+    <button class="clear-filters-btn clear-filters-btn--mobile-search" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+      <span class="material-icons">filter_alt_off</span> Clear
+    </button>
     <div class="filter-chips">
       <div class="dex-filter-wrap">
         <button
@@ -114,7 +117,7 @@
         </div>
       </div>
       <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
-      <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+      <button class="clear-filters-btn clear-filters-btn--desktop" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
       </button>
     </div>
