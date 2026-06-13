@@ -141,9 +141,10 @@ export class LoginComponent implements OnInit {
     ).subscribe({
       next: (user) => {
         if (!user) return;
-        const path = this.authService.getPostLoginPath(user);
+        const resolved = this.authService.resolveUserForNavigation(user);
+        const path = this.authService.getPostLoginPath(resolved);
         if (path) {
-          this.router.navigateByUrl(path);
+          void this.router.navigateByUrl(path);
         }
       },
     });
@@ -268,22 +269,33 @@ export class LoginComponent implements OnInit {
   }
 
   navigateAfterLogin(userFromResponse?: { role?: string; subscription?: string }): void {
+    const redirect = (profile?: { role?: string; subscription?: string } | null) => {
+      this.loading = false;
+      this.setupLoading = false;
+      const resolved = this.authService.resolveUserForNavigation(profile, userFromResponse);
+
+      if (this.pendingReturnUrl) {
+        void this.router.navigateByUrl(this.pendingReturnUrl);
+        return;
+      }
+
+      const path = this.authService.getPostLoginPath(resolved);
+      if (path) {
+        void this.router.navigateByUrl(path);
+      } else {
+        this.errorMessage = 'Unknown user role.';
+      }
+    };
+
+    // Login already returned role — redirect immediately; refresh profile in background.
+    if (userFromResponse?.role || this.authService.getRoleFromToken()) {
+      redirect(userFromResponse);
+      this.authService.refreshUserProfile().subscribe({ error: () => {} });
+      return;
+    }
+
     this.authService.refreshUserProfile().subscribe({
-      next: (profile) => {
-        this.loading = false;
-        this.setupLoading = false;
-        const merged = profile || userFromResponse;
-        if (this.pendingReturnUrl) {
-          this.router.navigateByUrl(this.pendingReturnUrl);
-        } else {
-          const path = this.authService.getPostLoginPath(merged);
-          if (path) {
-            this.router.navigateByUrl(path);
-          } else {
-            this.errorMessage = 'Unknown user role.';
-          }
-        }
-      },
+      next: (profile) => redirect(profile),
       error: () => {
         this.loading = false;
         this.setupLoading = false;

@@ -282,12 +282,38 @@ export class AuthService {
     return loggedIn;
   }
 
+  /** Role embedded in the JWT issued at login (fallback when profile payload omits role). */
+  getRoleFromToken(): string | undefined {
+    const token = getAuthToken();
+    if (!token) return undefined;
+    try {
+      const decoded = jwtDecode<{ role?: string }>(token);
+      return decoded?.role || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Merge login + profile payloads so navigation never loses role/subscription. */
+  resolveUserForNavigation(
+    profile?: { role?: string; subscription?: string } | null,
+    loginUser?: { role?: string; subscription?: string } | null
+  ): { role?: string; subscription?: string } {
+    const tokenRole = this.getRoleFromToken();
+    return {
+      ...loginUser,
+      ...profile,
+      role: profile?.role || loginUser?.role || tokenRole,
+      subscription: profile?.subscription ?? loginUser?.subscription,
+    };
+  }
+
   /** Dashboard path after login or when a valid token session is already present. */
   getPostLoginPath(user: { role?: string; subscription?: string } | null | undefined): string | null {
-    if (!user?.role) {
+    const role = user?.role || this.getRoleFromToken();
+    if (!role) {
       return null;
     }
-    const role = user.role;
     if (role === 'ADMIN' || role === 'SUB_ADMIN') {
       return '/admin-dashboard';
     }
@@ -295,7 +321,7 @@ export class AuthService {
       return '/teacher-dashboard';
     }
     if (role === 'STUDENT') {
-      const sub = (user.subscription || '').toUpperCase().trim();
+      const sub = (user?.subscription || '').toUpperCase().trim();
       const isCourse = sub === 'SILVER' || sub === 'PLATINUM';
       return isCourse ? '/student/my-course' : '/student-documents';
     }
