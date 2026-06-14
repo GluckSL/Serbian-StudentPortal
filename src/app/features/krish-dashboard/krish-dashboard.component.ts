@@ -175,6 +175,8 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   columnFilterOpen: ColumnFilterKey | null = null;
   columnFilterDraft: string[] = [];
   columnFilterDraftB: string[] = [];
+  columnFilterPrimaryOptions: FacetOption[] = [];
+  columnFilterSecondaryOptions: FacetOption[] = [];
   columnFilterSearch = '';
   columnFilterCustomOrder = false;
 
@@ -271,6 +273,32 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   primaryServiceName(): string | null {
     return this.filters.serviceNames[0] ?? null;
+  }
+
+  /** Profession chips (sheet-wide + service breakdown) — Skilled Jobs only. */
+  showProfessionPanel(): boolean {
+    return this.isSkilledJobsService(this.primaryServiceName() || '');
+  }
+
+  isSkilledJobsService(serviceName: string): boolean {
+    return serviceName.trim().toLowerCase() === 'skilled jobs';
+  }
+
+  /** Table column + drawer — professional only for Skilled Jobs students. */
+  showStudentProfession(student: SalesStudent): boolean {
+    return this.serviceChips(student).some((name) => this.isSkilledJobsService(name));
+  }
+
+  /** Column header — dual label only when Skilled Jobs context or mixed (no service filter). */
+  serviceColumnLabel(): string {
+    const svc = this.primaryServiceName();
+    if (svc && !this.isSkilledJobsService(svc)) return 'Service';
+    return 'Service / Professional';
+  }
+
+  /** Service column filter — profession options only when Skilled Jobs is selected. */
+  showProfessionInServiceFilter(): boolean {
+    return this.columnFilterDraft.some((name) => this.isSkilledJobsService(name));
   }
 
   hasSummaryFilters(): boolean {
@@ -426,6 +454,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     this.filters = next;
     this.syncProfessionBreakdown();
     this.syncStudentTableAfterFilter();
+    this.cdr.markForCheck();
   }
 
   applyProfessionFilter(profession: string, status?: KrishStatus | null): void {
@@ -848,6 +877,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
         this.columnFilterDraftB = [];
         break;
     }
+    this.refreshColumnFilterOptionsCache();
     this.cdr.markForCheck();
   }
 
@@ -855,9 +885,16 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     this.columnFilterOpen = null;
     this.columnFilterDraft = [];
     this.columnFilterDraftB = [];
+    this.columnFilterPrimaryOptions = [];
+    this.columnFilterSecondaryOptions = [];
     this.columnFilterSearch = '';
     this.columnFilterCustomOrder = false;
     this.cdr.markForCheck();
+  }
+
+  private refreshColumnFilterOptionsCache(): void {
+    this.columnFilterPrimaryOptions = this.columnFilterOptions('primary');
+    this.columnFilterSecondaryOptions = this.columnFilterOptions('secondary');
   }
 
   columnFilterCanOrder(): boolean {
@@ -866,6 +903,10 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   toggleColumnFilterOrder(): void {
     this.columnFilterCustomOrder = !this.columnFilterCustomOrder;
+    this.cdr.markForCheck();
+  }
+
+  onColumnFilterSearchChange(): void {
     this.cdr.markForCheck();
   }
 
@@ -919,7 +960,8 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   }
 
   filteredColumnOptions(section: 'primary' | 'secondary' = 'primary'): FacetOption[] {
-    const opts = this.columnFilterOptions(section);
+    const opts =
+      section === 'secondary' ? this.columnFilterSecondaryOptions : this.columnFilterPrimaryOptions;
     const q = this.columnFilterSearch.trim().toLowerCase();
     let filtered = q ? opts.filter((o) => o.label.toLowerCase().includes(q)) : opts;
 
@@ -981,17 +1023,33 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   toggleDraftValue(value: string, section: 'primary' | 'secondary' = 'primary'): void {
     const mapped = facetValueToFilter(value);
     const draft = section === 'secondary' ? this.columnFilterDraftB : this.columnFilterDraft;
-    const idx = draft.indexOf(mapped);
-    if (idx >= 0) draft.splice(idx, 1);
-    else draft.push(mapped);
-    this.cdr.markForCheck();
+    const next = draft.includes(mapped)
+      ? draft.filter((v) => v !== mapped)
+      : [...draft, mapped];
+    if (section === 'secondary') {
+      this.columnFilterDraftB = next;
+    } else {
+      this.columnFilterDraft = next;
+      if (this.columnFilterOpen === 'service' && !this.showProfessionInServiceFilter()) {
+        this.columnFilterDraftB = [];
+      }
+    }
+    this.cdr.detectChanges();
+  }
+
+  onColumnFilterOptionClick(value: string, section: 'primary' | 'secondary' = 'primary'): void {
+    this.toggleDraftValue(value, section);
+  }
+
+  trackColumnFilterOption(_index: number, opt: FacetOption): string {
+    return opt.value;
   }
 
   selectAllColumnOptions(section: 'primary' | 'secondary' = 'primary'): void {
     const values = this.filteredColumnOptions(section).map((o) => facetValueToFilter(o.value));
     if (section === 'secondary') this.columnFilterDraftB = [...new Set(values)];
     else this.columnFilterDraft = [...new Set(values)];
-    this.cdr.markForCheck();
+    this.cdr.detectChanges();
   }
 
   selectAllColumnFilter(): void {
@@ -999,13 +1057,13 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     if (this.columnFilterOpen === 'service' || this.columnFilterOpen === 'doc') {
       this.selectAllColumnOptions('secondary');
     }
-    this.cdr.markForCheck();
+    this.cdr.detectChanges();
   }
 
   clearColumnFilterDraft(section?: 'primary' | 'secondary'): void {
     if (!section || section === 'primary') this.columnFilterDraft = [];
     if (!section || section === 'secondary') this.columnFilterDraftB = [];
-    this.cdr.markForCheck();
+    this.cdr.detectChanges();
   }
 
   applyColumnFilter(): void {

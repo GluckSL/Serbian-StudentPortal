@@ -250,8 +250,8 @@
     </div>
   </section>
 
-  <!-- ══ PROFESSION DRILL-DOWN (when a service is selected) ═══════════════════ -->
-  <section class="kd-section kd-section--nested kd-prof-panel" *ngIf="primaryServiceName()">
+  <!-- ══ PROFESSION DRILL-DOWN (Skilled Jobs only) ═══════════════════════════ -->
+  <section class="kd-section kd-section--nested kd-prof-panel" *ngIf="showProfessionPanel()">
     <div class="kd-prof-head">
       <button class="kd-btn kd-btn--ghost kd-btn--xs kd-prof-head__close" type="button"
         (click)="applyFilter({ serviceName: null, profession: null })">
@@ -375,7 +375,7 @@
               [class.kd-th--filtered]="isColumnFilterActive('service')">
               <div class="kd-th__inner">
                 <button type="button" class="kd-th__label-btn" (click)="openColumnFilter('service', $event)">
-                  Service / Professional
+                  {{ serviceColumnLabel() }}
                   <span class="material-icons kd-th__filter-icon">filter_list</span>
                   <span class="kd-th__badge" *ngIf="columnFilterCount('service')">{{ columnFilterCount('service') }}</span>
                 </button>
@@ -457,7 +457,10 @@
                     <span class="kd-svc-chip" *ngFor="let label of serviceChips(s)">{{ label }}</span>
                     <span class="kd-svc-chip kd-svc-chip--empty" *ngIf="serviceChips(s).length === 0">—</span>
                   </div>
-                  <span class="kd-cell-stack__secondary kd-cell-stack__profession">{{ displayProfession(s.profession) }}</span>
+                  <span
+                    class="kd-cell-stack__secondary kd-cell-stack__profession"
+                    *ngIf="showStudentProfession(s)"
+                  >{{ displayProfession(s.profession) }}</span>
                 </div>
               </td>
               <td class="kd-td kd-td--status kd-col--status">
@@ -560,7 +563,9 @@
           <dt>Current Language Level</dt><dd>{{ displayField(drawerStudent.currentLanguageLevel) }}</dd>
           <dt>Age</dt><dd>{{ drawerStudent.age ?? '—' }}</dd>
           <dt>Counselor</dt><dd>{{ drawerStudent.counselor || '—' }}</dd>
-          <dt>Professional</dt><dd>{{ displayProfession(drawerStudent.profession) }}</dd>
+          <ng-container *ngIf="showStudentProfession(drawerStudent)">
+            <dt>Professional</dt><dd>{{ displayProfession(drawerStudent.profession) }}</dd>
+          </ng-container>
         </dl>
       </div>
       <div class="kd-info-section">
@@ -807,6 +812,7 @@
       class="kd-input"
       placeholder="Search options…"
       [(ngModel)]="columnFilterSearch"
+      (ngModelChange)="onColumnFilterSearchChange()"
     />
   </div>
 
@@ -814,53 +820,67 @@
     <ng-container *ngIf="columnFilterOpen === 'service'">
       <p class="kd-colfilter-section__label">Service</p>
       <div class="kd-colfilter-options">
-        <label class="kd-colfilter-option" *ngFor="let opt of filteredColumnOptions('primary')">
-          <input
-            type="checkbox"
-            [checked]="isDraftSelected(opt.value, 'primary')"
-            (change)="toggleDraftValue(opt.value, 'primary')"
-          />
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('primary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'primary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'primary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'primary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
           <span class="kd-colfilter-option__label">{{ opt.label }}</span>
           <span class="kd-colfilter-option__count">{{ opt.total }}</span>
         </label>
         <p class="kd-colfilter-empty" *ngIf="!filteredColumnOptions('primary').length">No services found</p>
       </div>
-      <p class="kd-colfilter-section__label">Professional</p>
-      <div class="kd-colfilter-options">
-        <label class="kd-colfilter-option" *ngFor="let opt of filteredColumnOptions('secondary')">
-          <input
-            type="checkbox"
-            [checked]="isDraftSelected(opt.value, 'secondary')"
-            (change)="toggleDraftValue(opt.value, 'secondary')"
-          />
-          <span class="kd-colfilter-option__label">{{ opt.label }}</span>
-          <span class="kd-colfilter-option__count">{{ opt.total }}</span>
-        </label>
-        <p class="kd-colfilter-empty" *ngIf="!filteredColumnOptions('secondary').length">No professions found</p>
-      </div>
+      <ng-container *ngIf="showProfessionInServiceFilter()">
+        <p class="kd-colfilter-section__label">Professional</p>
+        <div class="kd-colfilter-options">
+          <label class="kd-colfilter-option"
+            *ngFor="let opt of filteredColumnOptions('secondary'); trackBy: trackColumnFilterOption"
+            [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'secondary')"
+            (click)="onColumnFilterOptionClick(opt.value, 'secondary')">
+            <span class="kd-colfilter-option__check"
+              [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'secondary')"
+              aria-hidden="true">
+              <span class="material-icons">check</span>
+            </span>
+            <span class="kd-colfilter-option__label">{{ opt.label }}</span>
+            <span class="kd-colfilter-option__count">{{ opt.total }}</span>
+          </label>
+          <p class="kd-colfilter-empty" *ngIf="!filteredColumnOptions('secondary').length">No professions found</p>
+        </div>
+      </ng-container>
     </ng-container>
 
     <ng-container *ngIf="columnFilterOpen === 'doc'">
       <p class="kd-colfilter-section__label">Document Payment</p>
       <div class="kd-colfilter-options">
-        <label class="kd-colfilter-option" *ngFor="let opt of filteredColumnOptions('primary')">
-          <input
-            type="checkbox"
-            [checked]="isDraftSelected(opt.value, 'primary')"
-            (change)="toggleDraftValue(opt.value, 'primary')"
-          />
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('primary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'primary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'primary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'primary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
           <span class="kd-colfilter-option__label">{{ opt.label }}</span>
           <span class="kd-colfilter-option__count">{{ opt.total }}</span>
         </label>
       </div>
       <p class="kd-colfilter-section__label">Documentation Status</p>
       <div class="kd-colfilter-options">
-        <label class="kd-colfilter-option" *ngFor="let opt of filteredColumnOptions('secondary')">
-          <input
-            type="checkbox"
-            [checked]="isDraftSelected(opt.value, 'secondary')"
-            (change)="toggleDraftValue(opt.value, 'secondary')"
-          />
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('secondary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'secondary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'secondary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'secondary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
           <span class="kd-colfilter-option__label">{{ opt.label }}</span>
           <span class="kd-colfilter-option__count">{{ opt.total }}</span>
         </label>
@@ -869,12 +889,15 @@
 
     <ng-container *ngIf="columnFilterOpen !== 'service' && columnFilterOpen !== 'doc'">
       <div class="kd-colfilter-options">
-        <label class="kd-colfilter-option" *ngFor="let opt of filteredColumnOptions('primary')">
-          <input
-            type="checkbox"
-            [checked]="isDraftSelected(opt.value, 'primary')"
-            (change)="toggleDraftValue(opt.value, 'primary')"
-          />
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('primary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'primary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'primary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'primary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
           <span class="kd-colfilter-option__label">{{ opt.label }}</span>
           <span class="kd-colfilter-option__count">{{ opt.total }}</span>
         </label>
