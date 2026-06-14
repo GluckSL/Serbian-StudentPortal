@@ -56,6 +56,8 @@ export class KrishDashboardApiService {
     addMulti('documentationStatus', filters.documentationStatuses);
     addMulti('visaStatus', filters.visaStatuses);
     add('counselor', filters.counselor);
+    add('enrolledFrom', filters.enrolledFrom);
+    add('enrolledTo', filters.enrolledTo);
     return params;
   }
 

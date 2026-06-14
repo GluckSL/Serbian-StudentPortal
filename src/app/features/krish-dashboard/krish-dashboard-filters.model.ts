@@ -1,6 +1,6 @@
 export type KrishPackage = 'PLATINUM' | 'SILVER' | 'VISA_DOCS';
 
-export type KrishStatus  = 'UNCERTAIN' | 'ONGOING' | 'COMPLETED' | 'WITHDREW';
+export type KrishStatus  = 'NOT_STARTED' | 'UNCERTAIN' | 'ONGOING' | 'COMPLETED' | 'WITHDREW';
 
 
 
@@ -38,6 +38,8 @@ export const PACKAGE_LABELS: Record<KrishPackage, string> = {
 
 export const STATUS_LABELS: Record<KrishStatus, string> = {
 
+  NOT_STARTED: 'Not Started',
+
   UNCERTAIN: 'Uncertain',
 
   ONGOING: 'Ongoing',
@@ -51,6 +53,8 @@ export const STATUS_LABELS: Record<KrishStatus, string> = {
 
 
 export const STATUS_COLORS: Record<KrishStatus, string> = {
+
+  NOT_STARTED: '#64748b',
 
   UNCERTAIN: '#d97706',
 
@@ -66,7 +70,7 @@ export const STATUS_COLORS: Record<KrishStatus, string> = {
 
 /** Statuses listed in package/service card breakdown (Finance Dashboard style). */
 
-export const CARD_BREAKDOWN_STATUSES: KrishStatus[] = ['UNCERTAIN', 'COMPLETED', 'WITHDREW'];
+export const CARD_BREAKDOWN_STATUSES: KrishStatus[] = ['NOT_STARTED', 'UNCERTAIN', 'COMPLETED', 'WITHDREW'];
 
 
 
@@ -81,6 +85,8 @@ export interface KrishDashboardFilters {
   visaStatuses: string[];
   search: string;
   counselor: string;
+  enrolledFrom: string;
+  enrolledTo: string;
   page: number;
   limit: number;
   sortBy: string;
@@ -98,6 +104,8 @@ export const DEFAULT_FILTERS: KrishDashboardFilters = {
   visaStatuses: [],
   search: '',
   counselor: '',
+  enrolledFrom: '',
+  enrolledTo: '',
   page: 1,
   limit: 25,
   sortBy: 'updatedAt',
@@ -162,6 +170,33 @@ export function facetValueToFilter(value: string): string {
 
 export function filterValueToLabel(value: string): string {
   return value === '__UNSPECIFIED__' ? UNSPECIFIED_PROFESSION : value;
+}
+
+/** Sort tier for column-filter Language Level "Order" button (lower = higher in list). */
+export function languageLevelFilterSortTier(label: string, value: string): number {
+  const text = `${value || ''} ${label || ''}`.trim().toLowerCase();
+  if (
+    value === UNSPECIFIED_PROFESSION ||
+    value === '__UNSPECIFIED__' ||
+    text.includes('unspecified')
+  ) {
+    return 0;
+  }
+  if (/\ba\s*1\b/.test(text) || text.includes('a1')) return 1;
+  if (/\bb\s*1\b/.test(text) || /\bb1\b/.test(text)) return 2;
+  if (/\bb\s*2\b/.test(text) || /\bb2\b/.test(text)) return 3;
+  if (/\ba\s*2\b/.test(text) || /\ba2\b/.test(text)) return 4;
+  return 5;
+}
+
+/** Sort tier for column-filter Package "Order" button: Platinum → Silver → Visa & Docs. */
+export function packageFilterSortTier(packageValue: string): number {
+  switch (packageValue) {
+    case 'PLATINUM': return 0;
+    case 'SILVER': return 1;
+    case 'VISA_DOCS': return 2;
+    default: return 99;
+  }
 }
 
 export const NON_SKILLED_PROFESSION_KEYS = new Set([
@@ -298,6 +333,8 @@ export interface PackageStat {
 
   ongoing: number;
 
+  notStarted?: number;
+
   uncertain?: number;
 
   completed?: number;
@@ -315,6 +352,7 @@ export interface ServiceStat {
   label: string;
   total: number;
   ongoing: number;
+  notStarted?: number;
   uncertain?: number;
   completed?: number;
   withdrew?: number;
@@ -326,6 +364,7 @@ export interface ProfessionStat {
   label: string;
   total: number;
   ongoing: number;
+  notStarted?: number;
   uncertain?: number;
   completed?: number;
   withdrew?: number;
@@ -342,11 +381,15 @@ export interface KrishAnalytics {
 
     ongoing: number;
 
+    notStarted: number;
+
     uncertain: number;
 
     completed: number;
 
     withdrew: number;
+
+    docPaid: number;
 
   };
 

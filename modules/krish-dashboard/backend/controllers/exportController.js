@@ -14,6 +14,8 @@ async function exportStudents(req, res) {
       documentPaymentStatus: req.query.documentPaymentStatus,
       documentationStatus: req.query.documentationStatus,
       visaStatus: req.query.visaStatus,
+      enrolledFrom: req.query.enrolledFrom,
+      enrolledTo: req.query.enrolledTo,
     };
 
     const rows = await fetchForExport(filters);

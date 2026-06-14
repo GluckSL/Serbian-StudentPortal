@@ -29,6 +29,7 @@ const salesStudentServiceSchema = new mongoose.Schema(
 
 salesStudentServiceSchema.index({ serviceName: 1 });
 salesStudentServiceSchema.index({ salesStudentId: 1, serviceName: 1 }, { unique: true });
+salesStudentServiceSchema.index({ serviceName: 1, salesStudentId: 1 });
 
 module.exports =
   mongoose.models['SalesStudentService'] ||

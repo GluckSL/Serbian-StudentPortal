@@ -27,6 +27,8 @@ async function migrateLegacyStatuses() {
     if (result.modifiedCount > 0) {
       console.log(`[EnrollmentOverview] Migrated ${result.modifiedCount} students HOLD → WITHDREW`);
     }
+    const { repairDocumentPaymentStatuses } = require('./services/fieldNormalizers');
+    await repairDocumentPaymentStatuses(SalesStudent);
   } catch (err) {
     console.error('[EnrollmentOverview] status migration error', err.message);
   }

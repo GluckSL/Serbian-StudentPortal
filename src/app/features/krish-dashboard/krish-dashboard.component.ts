@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil, switchMap } from 'rxjs';
 
 import { KrishDashboardApiService } from './krish-dashboard-api.service';
 import {
@@ -32,6 +32,8 @@ import {
   FacetOption,
   facetValueToFilter,
   filterValueToLabel,
+  languageLevelFilterSortTier,
+  packageFilterSortTier,
   UNSPECIFIED_PROFESSION,
   isNonSkilledProfessionLabel,
 } from './krish-dashboard-filters.model';
@@ -48,6 +50,17 @@ type LegacyFilterPatch = Partial<KrishDashboardFilters> & {
   visaStatus?: string | null;
 };
 
+type AdvFilterField =
+  | 'status'
+  | 'package'
+  | 'service'
+  | 'profession'
+  | 'languageLevel'
+  | 'documentPayment'
+  | 'documentation'
+  | 'visa'
+  | 'counselor';
+
 @Component({
   selector: 'app-krish-dashboard',
   standalone: true,
@@ -58,7 +71,44 @@ type LegacyFilterPatch = Partial<KrishDashboardFilters> & {
 })
 export class KrishDashboardComponent implements OnInit, OnDestroy {
   @ViewChild('tableAnchor') tableAnchor!: ElementRef;
+  @ViewChild('filterPanel') filterPanel?: ElementRef<HTMLElement>;
   @ViewChild('importFileInput') importFileInput!: ElementRef<HTMLInputElement>;
+
+  // ── Analytics layout ─────────────────────────────────────────────────────
+  showStudentTable = false;
+  advancedFilterOpen = false;
+  advancedFilterDirty = false;
+
+  advDraft = {
+    enrolledFrom: '',
+    enrolledTo: '',
+    rules: [] as { id: string; field: AdvFilterField | ''; value: string }[],
+  };
+
+  readonly ADV_FILTER_FIELDS: { id: AdvFilterField; label: string }[] = [
+    { id: 'status', label: 'Current Status' },
+    { id: 'package', label: 'Package Opted' },
+    { id: 'service', label: 'Service Opted' },
+    { id: 'profession', label: 'Professional' },
+    { id: 'languageLevel', label: 'Current language level' },
+    { id: 'documentPayment', label: 'Document Payment Status' },
+    { id: 'documentation', label: 'Documentation status' },
+    { id: 'visa', label: 'Visa status' },
+    { id: 'counselor', label: 'Assigned Sales Representative' },
+  ];
+
+  readonly GROUP_BY_FIELDS: { id: AdvFilterField; label: string }[] = [
+    { id: 'status', label: 'Current Status' },
+    { id: 'package', label: 'Package Opted' },
+    { id: 'profession', label: 'Professional' },
+    { id: 'languageLevel', label: 'Language Level Opted' },
+    { id: 'documentPayment', label: 'Document Payment Status' },
+    { id: 'documentation', label: 'Documentation status' },
+    { id: 'visa', label: 'Visa status' },
+    { id: 'counselor', label: 'Assigned Sales Representative' },
+  ];
+
+  private advRuleSeq = 0;
 
   // ── Analytics ────────────────────────────────────────────────────────────
   analytics: KrishAnalytics | null = null;
@@ -69,10 +119,12 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   students: SalesStudent[] = [];
   pagination: PaginationMeta = { total: 0, page: 1, limit: 25, pages: 0 };
   tableLoading = true;
+  tableRefreshing = false;
 
   // ── Filters ───────────────────────────────────────────────────────────────
   filters: KrishDashboardFilters = { ...DEFAULT_FILTERS };
   private readonly searchSubject = new Subject<string>();
+  private readonly studentsLoad$ = new Subject<void>();
 
   // ── Drawer ────────────────────────────────────────────────────────────────
   drawerStudent: SalesStudent | null = null;
@@ -124,16 +176,22 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   columnFilterDraft: string[] = [];
   columnFilterDraftB: string[] = [];
   columnFilterSearch = '';
+  columnFilterCustomOrder = false;
 
   // ── Constants exposed to template ─────────────────────────────────────────
   readonly PACKAGE_LABELS = PACKAGE_LABELS;
+  readonly PACKAGE_CHIP_LABELS: Record<KrishPackage, string> = {
+    PLATINUM: 'Platinum',
+    SILVER: 'Silver',
+    VISA_DOCS: 'Docs & Visa',
+  };
   readonly STATUS_LABELS  = STATUS_LABELS;
   readonly STATUS_COLORS  = STATUS_COLORS;
   readonly SERVICE_OPTED_CATALOG = SERVICE_OPTED_CATALOG;
   readonly UNSPECIFIED_PROFESSION = UNSPECIFIED_PROFESSION;
   readonly COLUMN_FILTER_LABELS = COLUMN_FILTER_LABELS;
   readonly PACKAGES: KrishPackage[] = ['PLATINUM', 'SILVER', 'VISA_DOCS'];
-  readonly STATUSES: KrishStatus[]  = ['UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW'];
+  readonly STATUSES: KrishStatus[]  = ['NOT_STARTED', 'UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW'];
 
   private readonly destroy$ = new Subject<void>();
 
@@ -144,7 +202,26 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadAnalytics();
-    this.loadStudents();
+
+    this.studentsLoad$.pipe(
+      switchMap(() => this.api.getStudents(this.filters)),
+      takeUntil(this.destroy$),
+    ).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.students = res.data;
+          this.pagination = res.pagination;
+        }
+        this.tableLoading = false;
+        this.tableRefreshing = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.tableLoading = false;
+        this.tableRefreshing = false;
+        this.cdr.markForCheck();
+      },
+    });
 
     this.searchSubject.pipe(
       debounceTime(300),
@@ -153,7 +230,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     ).subscribe((q) => {
       this.filters.search = q;
       this.filters.page = 1;
-      this.loadStudents();
+      this.syncStudentTableAfterFilter();
     });
   }
 
@@ -200,8 +277,85 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     return (
       !this.filters.statuses.length &&
       !this.filters.packages.length &&
+      !this.filters.serviceNames.length &&
+      !this.filters.documentPaymentStatuses.length &&
+      !this.filters.documentationStatuses.length
+    );
+  }
+
+  isSummaryDocPaidActive(): boolean {
+    return (
+      this.filters.documentPaymentStatuses.length === 1 &&
+      this.filters.documentPaymentStatuses[0] === 'Paid' &&
+      !this.filters.statuses.length &&
+      !this.filters.packages.length &&
+      !this.filters.serviceNames.length &&
+      !this.filters.documentationStatuses.length
+    );
+  }
+
+  applyDocPaidFilter(): void {
+    this.filters = {
+      ...this.filters,
+      statuses: [],
+      packages: [],
+      serviceNames: [],
+      professions: [],
+      documentPaymentStatuses: ['Paid'],
+      documentationStatuses: [],
+      page: 1,
+    };
+    this.professionBreakdown = [];
+    this.syncStudentTableAfterFilter();
+    this.cdr.markForCheck();
+  }
+
+  isSummaryPackageActive(pkg: KrishPackage): boolean {
+    return (
+      this.filters.packages.length === 1 &&
+      this.filters.packages[0] === pkg &&
+      !this.filters.statuses.length &&
       !this.filters.serviceNames.length
     );
+  }
+
+  packageTotal(pkg: KrishPackage): number {
+    return this.analytics?.packages?.find((p) => p.package === pkg)?.total ?? 0;
+  }
+
+  applyPackageSummaryFilter(pkg: KrishPackage): void {
+    this.applyFilter({ package: pkg, status: null, serviceName: null });
+  }
+
+  private hasDrillDownFilters(f: KrishDashboardFilters = this.filters): boolean {
+    return !!(
+      f.search.trim() ||
+      f.counselor.trim() ||
+      f.enrolledFrom.trim() ||
+      f.enrolledTo.trim() ||
+      f.statuses.length ||
+      f.packages.length ||
+      f.serviceNames.length ||
+      f.professions.length ||
+      f.languageLevels.length ||
+      f.documentPaymentStatuses.length ||
+      f.documentationStatuses.length ||
+      f.visaStatuses.length
+    );
+  }
+
+  private syncStudentTableAfterFilter(): void {
+    if (this.hasDrillDownFilters()) {
+      this.showStudentTable = true;
+      this.loadStudents();
+      this.scrollToTable();
+      return;
+    }
+    this.showStudentTable = false;
+    this.tableLoading = false;
+    this.students = [];
+    this.pagination = { total: 0, page: 1, limit: this.filters.limit, pages: 0 };
+    this.cdr.markForCheck();
   }
 
   isSummaryStatusActive(status: KrishStatus): boolean {
@@ -251,25 +405,14 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   }
 
   loadStudents(): void {
-    const showSkeleton = this.students.length === 0;
-    if (showSkeleton) {
+    if (!this.students.length) {
       this.tableLoading = true;
-      this.cdr.markForCheck();
+      this.tableRefreshing = false;
+    } else {
+      this.tableRefreshing = true;
     }
-    this.api.getStudents(this.filters).subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.students = res.data;
-          this.pagination = res.pagination;
-        }
-        this.tableLoading = false;
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.tableLoading = false;
-        this.cdr.markForCheck();
-      },
-    });
+    this.cdr.markForCheck();
+    this.studentsLoad$.next();
   }
 
   // ── Filter actions ────────────────────────────────────────────────────────
@@ -282,8 +425,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     }
     this.filters = next;
     this.syncProfessionBreakdown();
-    this.loadStudents();
-    this.scrollToTable();
+    this.syncStudentTableAfterFilter();
   }
 
   applyProfessionFilter(profession: string, status?: KrishStatus | null): void {
@@ -309,8 +451,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
       page: 1,
     };
     this.professionBreakdown = [];
-    this.loadStudents();
-    this.scrollToTable();
+    this.syncStudentTableAfterFilter();
     this.cdr.markForCheck();
   }
 
@@ -341,6 +482,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   professionDisplayTotal(prof: ProfessionStat): number {
     if (this.filters.statuses.length !== 1) return prof.total;
     switch (this.filters.statuses[0]) {
+      case 'NOT_STARTED': return prof.notStarted ?? 0;
       case 'ONGOING': return prof.ongoing;
       case 'UNCERTAIN': return prof.uncertain ?? 0;
       case 'COMPLETED': return prof.completed ?? 0;
@@ -431,11 +573,246 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     return `Green row matches Excel. Below is ${svc} only.`;
   }
 
-  clearFilters(): void {
-    this.filters = { ...DEFAULT_FILTERS };
+  resetOverview(): void {
+    this.filters = { ...DEFAULT_FILTERS, limit: this.filters.limit };
     this.professionBreakdown = [];
     this.closeColumnFilter();
-    this.loadStudents();
+    this.advancedFilterDirty = false;
+    this.syncAdvDraftFromFilters();
+    this.syncStudentTableAfterFilter();
+    this.cdr.markForCheck();
+  }
+
+  // ── Advanced filter panel ─────────────────────────────────────────────────
+
+  toggleAdvancedFilter(): void {
+    this.closeColumnFilter();
+    this.advancedFilterOpen = !this.advancedFilterOpen;
+    if (this.advancedFilterOpen) {
+      this.syncAdvDraftFromFilters();
+      this.advancedFilterDirty = false;
+      this.cdr.markForCheck();
+      setTimeout(() => {
+        this.filterPanel?.nativeElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 60);
+      return;
+    }
+    this.cdr.markForCheck();
+  }
+
+  closeAdvancedFilter(): void {
+    this.advancedFilterOpen = false;
+    this.cdr.markForCheck();
+  }
+
+  markAdvDirty(): void {
+    this.advancedFilterDirty = true;
+    this.cdr.markForCheck();
+  }
+
+  addAdvRule(field: AdvFilterField | '' = ''): void {
+    const id = `r-${++this.advRuleSeq}`;
+    this.advDraft.rules.push({ id, field, value: '' });
+    this.markAdvDirty();
+  }
+
+  removeAdvRule(id: string): void {
+    this.advDraft.rules = this.advDraft.rules.filter((r) => r.id !== id);
+    if (!this.advDraft.rules.length) this.addAdvRule();
+    this.markAdvDirty();
+  }
+
+  addGroupByField(field: AdvFilterField): void {
+    const existing = this.advDraft.rules.find((r) => r.field === field);
+    if (existing) {
+      this.markAdvDirty();
+      return;
+    }
+    const id = `r-${++this.advRuleSeq}`;
+    this.advDraft.rules.push({ id, field, value: '' });
+    this.markAdvDirty();
+  }
+
+  isGroupByFieldActive(field: AdvFilterField): boolean {
+    return this.advDraft.rules.some((r) => r.field === field);
+  }
+
+  setAdvRuleField(rule: { id: string; field: AdvFilterField | ''; value: string }, field: AdvFilterField | ''): void {
+    if (rule.field === field) return;
+    rule.field = field;
+    rule.value = '';
+    this.markAdvDirty();
+  }
+
+  setAdvRuleValue(rule: { id: string; field: AdvFilterField | ''; value: string }, value: string): void {
+    rule.value = value;
+    this.markAdvDirty();
+  }
+
+  trackAdvRule(_index: number, rule: { id: string }): string {
+    return rule.id;
+  }
+
+  trackAdvOption(_index: number, opt: { value: string }): string {
+    return opt.value;
+  }
+
+  advFieldOptions(field: AdvFilterField | ''): { value: string; label: string }[] {
+    if (!field) return [];
+    const a = this.analytics;
+    switch (field) {
+      case 'status':
+        return this.STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
+      case 'package':
+        return this.PACKAGES.map((p) => ({ value: p, label: PACKAGE_LABELS[p] }));
+      case 'service':
+        return (a?.services || []).map((s) => ({ value: s.serviceName, label: s.label }));
+      case 'profession':
+        return (a?.sheetProfessions || []).map((p) => ({
+          value: facetValueToFilter(p.profession),
+          label: p.label,
+        }));
+      case 'languageLevel':
+        return (a?.languageLevels || []).map((o) => ({ value: o.value, label: o.label }));
+      case 'documentPayment':
+        return (a?.documentPaymentStatuses || [])
+          .filter((o) => o.value && o.value !== UNSPECIFIED_PROFESSION)
+          .map((o) => ({ value: o.value, label: o.label }));
+      case 'documentation':
+        return (a?.documentationStatuses || []).map((o) => ({ value: o.value, label: o.label }));
+      case 'visa':
+        return (a?.visaStatuses || []).map((o) => ({ value: o.value, label: o.label }));
+      case 'counselor':
+        return (a?.counselors || []).map((o) => ({
+          value: o.value === UNSPECIFIED_PROFESSION ? '__UNSPECIFIED__' : o.value,
+          label: o.label,
+        }));
+      default:
+        return [];
+    }
+  }
+
+  advFieldLabel(field: AdvFilterField | ''): string {
+    return this.ADV_FILTER_FIELDS.find((f) => f.id === field)?.label ?? '';
+  }
+
+  hasActiveAdvancedFilters(): boolean {
+    return this.hasDrillDownFilters();
+  }
+
+  applyAdvancedFilters(): void {
+    const statuses: KrishStatus[] = [];
+    const packages: KrishPackage[] = [];
+    const serviceNames: string[] = [];
+    const professions: string[] = [];
+    const languageLevels: string[] = [];
+    const documentPaymentStatuses: string[] = [];
+    const documentationStatuses: string[] = [];
+    const visaStatuses: string[] = [];
+    let counselor = '';
+
+    for (const rule of this.advDraft.rules) {
+      if (!rule.field || !rule.value) continue;
+      switch (rule.field) {
+        case 'status':
+          if (!statuses.includes(rule.value as KrishStatus)) statuses.push(rule.value as KrishStatus);
+          break;
+        case 'package':
+          if (!packages.includes(rule.value as KrishPackage)) packages.push(rule.value as KrishPackage);
+          break;
+        case 'service':
+          if (!serviceNames.includes(rule.value)) serviceNames.push(rule.value);
+          break;
+        case 'profession':
+          if (!professions.includes(rule.value)) professions.push(rule.value);
+          break;
+        case 'languageLevel':
+          if (!languageLevels.includes(rule.value)) languageLevels.push(rule.value);
+          break;
+        case 'documentPayment':
+          if (!documentPaymentStatuses.includes(rule.value)) documentPaymentStatuses.push(rule.value);
+          break;
+        case 'documentation':
+          if (!documentationStatuses.includes(rule.value)) documentationStatuses.push(rule.value);
+          break;
+        case 'visa':
+          if (!visaStatuses.includes(rule.value)) visaStatuses.push(rule.value);
+          break;
+        case 'counselor':
+          counselor = rule.value;
+          break;
+      }
+    }
+
+    this.filters = {
+      ...this.filters,
+      statuses,
+      packages,
+      serviceNames,
+      professions,
+      languageLevels,
+      documentPaymentStatuses,
+      documentationStatuses,
+      visaStatuses,
+      counselor,
+      enrolledFrom: this.advDraft.enrolledFrom,
+      enrolledTo: this.advDraft.enrolledTo,
+      page: 1,
+    };
+    this.advancedFilterDirty = false;
+    this.syncProfessionBreakdown();
+    this.syncStudentTableAfterFilter();
+    this.cdr.markForCheck();
+  }
+
+  resetAdvancedFilters(): void {
+    this.advDraft = { enrolledFrom: '', enrolledTo: '', rules: [] };
+    this.addAdvRule();
+    this.advancedFilterDirty = false;
+    this.resetOverview();
+  }
+
+  private syncAdvDraftFromFilters(): void {
+    const f = this.filters;
+    const rules: { id: string; field: AdvFilterField | ''; value: string }[] = [];
+
+    const pushRules = (field: AdvFilterField, values: string[]) => {
+      for (const value of values) {
+        rules.push({ id: `r-${++this.advRuleSeq}`, field, value });
+      }
+    };
+
+    pushRules('status', f.statuses);
+    pushRules('package', f.packages);
+    pushRules('service', f.serviceNames);
+    pushRules('profession', f.professions);
+    pushRules('languageLevel', f.languageLevels);
+    pushRules('documentPayment', f.documentPaymentStatuses);
+    pushRules('documentation', f.documentationStatuses);
+    pushRules('visa', f.visaStatuses);
+    if (f.counselor) {
+      rules.push({ id: `r-${++this.advRuleSeq}`, field: 'counselor', value: f.counselor });
+    }
+
+    this.advDraft = {
+      enrolledFrom: f.enrolledFrom || '',
+      enrolledTo: f.enrolledTo || '',
+      rules: rules.length ? rules : [],
+    };
+    if (!this.advDraft.rules.length) this.ensureAdvDraftHasRule();
+  }
+
+  private ensureAdvDraftHasRule(): void {
+    if (this.advDraft.rules.length) return;
+    this.advDraft.rules.push({
+      id: `r-${++this.advRuleSeq}`,
+      field: '',
+      value: '',
+    });
+  }
+
+  clearFilters(): void {
+    this.resetOverview();
   }
 
   // ── Column header filters (multi-select modal) ───────────────────────────
@@ -444,6 +821,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.columnFilterOpen = key;
     this.columnFilterSearch = '';
+    this.columnFilterCustomOrder = false;
     switch (key) {
       case 'languageLevel':
         this.columnFilterDraft = [...this.filters.languageLevels];
@@ -478,6 +856,16 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     this.columnFilterDraft = [];
     this.columnFilterDraftB = [];
     this.columnFilterSearch = '';
+    this.columnFilterCustomOrder = false;
+    this.cdr.markForCheck();
+  }
+
+  columnFilterCanOrder(): boolean {
+    return this.columnFilterOpen === 'languageLevel' || this.columnFilterOpen === 'package';
+  }
+
+  toggleColumnFilterOrder(): void {
+    this.columnFilterCustomOrder = !this.columnFilterCustomOrder;
     this.cdr.markForCheck();
   }
 
@@ -533,8 +921,27 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   filteredColumnOptions(section: 'primary' | 'secondary' = 'primary'): FacetOption[] {
     const opts = this.columnFilterOptions(section);
     const q = this.columnFilterSearch.trim().toLowerCase();
-    if (!q) return opts;
-    return opts.filter((o) => o.label.toLowerCase().includes(q));
+    let filtered = q ? opts.filter((o) => o.label.toLowerCase().includes(q)) : opts;
+
+    if (this.columnFilterCustomOrder && section === 'primary') {
+      if (this.columnFilterOpen === 'languageLevel') {
+        filtered = [...filtered].sort((a, b) => {
+          const tierDiff =
+            languageLevelFilterSortTier(a.label, a.value) -
+            languageLevelFilterSortTier(b.label, b.value);
+          if (tierDiff !== 0) return tierDiff;
+          return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+        });
+      } else if (this.columnFilterOpen === 'package') {
+        filtered = [...filtered].sort((a, b) => {
+          const tierDiff = packageFilterSortTier(a.value) - packageFilterSortTier(b.value);
+          if (tierDiff !== 0) return tierDiff;
+          return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+        });
+      }
+    }
+
+    return filtered;
   }
 
   isColumnFilterActive(key: ColumnFilterKey): boolean {
@@ -629,8 +1036,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     this.closeColumnFilter();
     this.filters = { ...this.filters, ...patch };
     this.syncProfessionBreakdown();
-    this.loadStudents();
-    this.scrollToTable();
+    this.syncStudentTableAfterFilter();
     this.cdr.markForCheck();
   }
 
@@ -638,6 +1044,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     const t = this.analytics?.totals;
     if (!t) return 0;
     switch (status) {
+      case 'NOT_STARTED': return t.notStarted;
       case 'ONGOING': return t.ongoing;
       case 'UNCERTAIN': return t.uncertain;
       case 'COMPLETED': return t.completed;
@@ -662,7 +1069,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
     if (field === 'professions' && this.filters.serviceNames.length) {
       this.syncProfessionBreakdown();
     }
-    this.loadStudents();
+    this.syncStudentTableAfterFilter();
   }
 
   private formatChipValues(values: string[]): string {
@@ -764,6 +1171,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   }
 
   private scrollToTable(): void {
+    if (!this.showStudentTable) return;
     setTimeout(() => {
       this.tableAnchor?.nativeElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
@@ -1042,6 +1450,22 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   packageStat(pkg: KrishPackage) {
     return this.analytics?.packages?.find((p) => p.package === pkg);
+  }
+
+  visibleServices() {
+    return (this.analytics?.services || []).filter((s) => s.total > 0);
+  }
+
+  isServiceCardActive(serviceName: string): boolean {
+    return this.filters.serviceNames.includes(serviceName);
+  }
+
+  breakdownCount(
+    item: { ongoing: number; statusBreakdown?: { status: KrishStatus; count: number }[] },
+    status: KrishStatus,
+  ): number {
+    if (status === 'ONGOING') return item.ongoing;
+    return item.statusBreakdown?.find((r) => r.status === status)?.count ?? 0;
   }
 
   serviceChips(student: SalesStudent): string[] {

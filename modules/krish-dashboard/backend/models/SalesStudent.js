@@ -9,7 +9,7 @@
 const mongoose = require('mongoose');
 
 const PACKAGES = ['PLATINUM', 'SILVER', 'VISA_DOCS'];
-const STATUSES = ['UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW'];
+const STATUSES = ['NOT_STARTED', 'UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW'];
 
 const salesStudentSchema = new mongoose.Schema(
   {
@@ -53,6 +53,7 @@ salesStudentSchema.index({ package: 1, status: 1, updatedAt: -1 });
 salesStudentSchema.index({ counselor: 1 });
 salesStudentSchema.index({ updatedAt: -1 });
 salesStudentSchema.index({ name: 'text', email: 'text', phone: 'text' });
+salesStudentSchema.index({ status: 1, updatedAt: -1 });
 salesStudentSchema.index({ profession: 1, status: 1 });
 
 module.exports =

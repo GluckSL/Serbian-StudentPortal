@@ -9,6 +9,60 @@ const SalesStudentService = require('../models/SalesStudentService');
 const SalesStudentNote = require('../models/SalesStudentNote');
 const SalesStudentStatusHistory = require('../models/SalesStudentStatusHistory');
 const { invalidateCache } = require('./salesAnalyticsAggregator');
+const { normalizeDocumentPaymentStatus, canonicalServiceName, normalizeServiceKey } = require('./fieldNormalizers');
+
+/** Cached distinct service names for index-friendly $in queries (avoids regex scans). */
+let serviceNameCatalog = { at: 0, names: [] };
+const SERVICE_NAME_CATALOG_TTL_MS = 120_000;
+
+async function getServiceNameCatalog() {
+  const now = Date.now();
+  if (now - serviceNameCatalog.at < SERVICE_NAME_CATALOG_TTL_MS && serviceNameCatalog.names.length) {
+    return serviceNameCatalog.names;
+  }
+  const names = await SalesStudentService.distinct('serviceName');
+  serviceNameCatalog = { at: now, names };
+  return names;
+}
+
+async function resolveServiceNameVariants(requested) {
+  const list = parseMulti(requested);
+  if (!list.length) return [];
+  const catalog = await getServiceNameCatalog();
+  const keys = new Set(list.map((name) => normalizeServiceKey(name)));
+  return catalog.filter((name) => keys.has(normalizeServiceKey(name)));
+}
+
+function buildListFacetStage(sort, skip, safeLimit) {
+  return {
+    $facet: {
+      metadata: [{ $count: 'total' }],
+      data: [
+        { $sort: sort },
+        { $skip: skip },
+        { $limit: safeLimit },
+        {
+          $lookup: {
+            from: 'sales_student_services',
+            localField: '_id',
+            foreignField: 'salesStudentId',
+            as: 'services',
+            pipeline: [{ $project: { serviceName: 1, _id: 0 } }],
+          },
+        },
+        { $project: { ...STUDENT_LIST_PROJECT, services: 1 } },
+      ],
+    },
+  };
+}
+
+function normalizeStudentFields(data) {
+  const next = { ...data };
+  if ('documentPaymentStatus' in next) {
+    next.documentPaymentStatus = normalizeDocumentPaymentStatus(next.documentPaymentStatus);
+  }
+  return next;
+}
 
 function escapeRegex(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -60,6 +114,23 @@ function professionMultiMatch(profession) {
   return { $or: clauses };
 }
 
+function applyEnrollmentDateRange(target, enrolledFrom, enrolledTo) {
+  if (!enrolledFrom && !enrolledTo) return;
+  const range = {};
+  if (enrolledFrom) {
+    const start = new Date(enrolledFrom);
+    if (!Number.isNaN(start.getTime())) range.$gte = start;
+  }
+  if (enrolledTo) {
+    const end = new Date(enrolledTo);
+    if (!Number.isNaN(end.getTime())) {
+      end.setHours(23, 59, 59, 999);
+      range.$lte = end;
+    }
+  }
+  if (Object.keys(range).length) target.createdAt = range;
+}
+
 function applyStudentFilters(target, {
   search,
   package: pkg,
@@ -70,9 +141,12 @@ function applyStudentFilters(target, {
   documentPaymentStatus,
   documentationStatus,
   visaStatus,
+  enrolledFrom,
+  enrolledTo,
 } = {}) {
   applyPackageFilter(target, pkg);
   applyStatusFilter(target, status);
+  applyEnrollmentDateRange(target, enrolledFrom, enrolledTo);
   if (counselor) {
     if (counselor === '__UNSPECIFIED__') {
       mergeMatchClause(target, optionalTextFieldMatch('counselor', '__UNSPECIFIED__'));
@@ -145,6 +219,13 @@ function professionMatchQuery(profession) {
   };
 }
 
+function serviceNameMatch(names) {
+  const clauses = names.map((name) => ({
+    serviceName: new RegExp(`^${escapeRegex(name)}$`, 'i'),
+  }));
+  return clauses.length === 1 ? clauses[0] : { $or: clauses };
+}
+
 function optionalTextFieldMatch(field, value) {
   if (!value) return null;
   if (value === '__UNSPECIFIED__') {
@@ -191,6 +272,8 @@ function buildFilter({
   documentPaymentStatus,
   documentationStatus,
   visaStatus,
+  enrolledFrom,
+  enrolledTo,
 } = {}) {
   const query = {};
   applyStudentFilters(query, {
@@ -203,6 +286,8 @@ function buildFilter({
     documentPaymentStatus,
     documentationStatus,
     visaStatus,
+    enrolledFrom,
+    enrolledTo,
   });
   if (Array.isArray(serviceIds) && serviceIds.length > 0) {
     query._id = { $in: serviceIds };
@@ -226,6 +311,8 @@ async function listStudents({
   documentPaymentStatus,
   documentationStatus,
   visaStatus,
+  enrolledFrom,
+  enrolledTo,
 } = {}) {
   const svcFilter = serviceName || serviceKey;
   const safeLimit = Math.min(Number(limit) || 25, 100);
@@ -246,46 +333,38 @@ async function listStudents({
     documentPaymentStatus,
     documentationStatus,
     visaStatus,
+    enrolledFrom,
+    enrolledTo,
   });
 
-  const project = STUDENT_LIST_PROJECT;
-
-  const facetStage = {
-    $facet: {
-      metadata: [{ $count: 'total' }],
-      data: [
-        { $sort: sort },
-        { $skip: skip },
-        { $limit: safeLimit },
-        { $project: project },
-      ],
-    },
-  };
+  const facetStage = buildListFacetStage(sort, skip, safeLimit);
 
   let result;
   const svcNames = parseMulti(svcFilter);
   if (svcNames.length) {
-    const pipeline = [
-      {
-        $match: {
-          serviceName: svcNames.length === 1 ? svcNames[0] : { $in: svcNames },
-        },
-      },
-      {
-        $lookup: {
-          from: 'sales_students',
-          localField: 'salesStudentId',
-          foreignField: '_id',
-          as: 'student',
-          pipeline: [{ $project: project }],
-        },
-      },
-      { $unwind: '$student' },
-      { $replaceRoot: { newRoot: '$student' } },
-    ];
-    if (Object.keys(studentMatch).length > 0) pipeline.push({ $match: studentMatch });
-    pipeline.push(facetStage);
-    [result] = await SalesStudentService.aggregate(pipeline);
+    const resolvedNames = await resolveServiceNameVariants(svcNames);
+    if (!resolvedNames.length) {
+      return {
+        data: [],
+        pagination: { total: 0, page: safePage, limit: safeLimit, pages: 0 },
+      };
+    }
+
+    const serviceLinks = await SalesStudentService.find({ serviceName: { $in: resolvedNames } })
+      .select('salesStudentId')
+      .lean();
+    const studentIds = [...new Set(serviceLinks.map((link) => link.salesStudentId))];
+
+    if (!studentIds.length) {
+      return {
+        data: [],
+        pagination: { total: 0, page: safePage, limit: safeLimit, pages: 0 },
+      };
+    }
+
+    studentMatch._id = { $in: studentIds };
+    const pipeline = [{ $match: studentMatch }, facetStage];
+    [result] = await SalesStudent.aggregate(pipeline);
   } else {
     const pipeline = [{ $match: studentMatch }, facetStage];
     [result] = await SalesStudent.aggregate(pipeline);
@@ -294,26 +373,8 @@ async function listStudents({
   const total = result?.metadata?.[0]?.total || 0;
   const data = result?.data || [];
 
-  if (data.length === 0) {
-    return {
-      data: [],
-      pagination: { total, page: safePage, limit: safeLimit, pages: Math.ceil(total / safeLimit) },
-    };
-  }
-
-  const ids = data.map((s) => s._id);
-  const services = await SalesStudentService.find({ salesStudentId: { $in: ids } })
-    .select('salesStudentId serviceName')
-    .lean();
-  const svcMap = {};
-  for (const svc of services) {
-    const key = String(svc.salesStudentId);
-    if (!svcMap[key]) svcMap[key] = [];
-    svcMap[key].push(svc);
-  }
-
   return {
-    data: data.map((s) => ({ ...s, services: svcMap[String(s._id)] || [] })),
+    data,
     pagination: {
       total,
       page: safePage,
@@ -337,8 +398,9 @@ async function getStudentDetail(id) {
 }
 
 async function createStudent(data, staffUserId) {
+  const payload = normalizeStudentFields(data);
   const student = await SalesStudent.create({
-    ...data,
+    ...payload,
     createdBy: staffUserId,
     updatedBy: staffUserId,
   });
@@ -346,7 +408,7 @@ async function createStudent(data, staffUserId) {
   if (Array.isArray(data.services) && data.services.length > 0) {
     const svcDocs = data.services.map((s) => ({
       salesStudentId: student._id,
-      serviceName: s.serviceName || s,
+      serviceName: canonicalServiceName(s.serviceName || s),
     }));
     await SalesStudentService.insertMany(svcDocs, { ordered: false });
   }
@@ -366,11 +428,12 @@ async function updateStudent(id, data, staffUserId) {
   const existing = await SalesStudent.findById(id).lean();
   if (!existing) return null;
 
-  const statusChanged = data.status && data.status !== existing.status;
+  const payload = normalizeStudentFields(data);
+  const statusChanged = payload.status && payload.status !== existing.status;
 
   const updated = await SalesStudent.findByIdAndUpdate(
     id,
-    { ...data, updatedBy: staffUserId },
+    { ...payload, updatedBy: staffUserId },
     { new: true, runValidators: true }
   ).lean();
 
@@ -378,7 +441,7 @@ async function updateStudent(id, data, staffUserId) {
     await SalesStudentStatusHistory.create({
       salesStudentId: id,
       fromStatus: existing.status,
-      toStatus: data.status,
+      toStatus: payload.status,
       changedBy: staffUserId,
       note: data.statusNote || '',
     });
@@ -390,7 +453,7 @@ async function updateStudent(id, data, staffUserId) {
     if (data.services.length > 0) {
       const svcDocs = data.services.map((s) => ({
         salesStudentId: id,
-        serviceName: typeof s === 'string' ? s : s.serviceName,
+        serviceName: canonicalServiceName(typeof s === 'string' ? s : s.serviceName),
       }));
       await SalesStudentService.insertMany(svcDocs, { ordered: false });
     }

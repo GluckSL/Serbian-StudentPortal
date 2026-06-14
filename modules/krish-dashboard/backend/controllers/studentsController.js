@@ -22,6 +22,8 @@ async function list(req, res) {
       documentPaymentStatus: req.query.documentPaymentStatus,
       documentationStatus: req.query.documentationStatus,
       visaStatus: req.query.visaStatus,
+      enrolledFrom: req.query.enrolledFrom,
+      enrolledTo: req.query.enrolledTo,
     });
     res.json({ success: true, ...result });
   } catch (err) {

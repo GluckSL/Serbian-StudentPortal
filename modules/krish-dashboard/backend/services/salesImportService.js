@@ -7,9 +7,10 @@
 const SalesStudent = require('../models/SalesStudent');
 const SalesStudentService = require('../models/SalesStudentService');
 const { invalidateCache, repairStaleProfessionData } = require('./salesAnalyticsAggregator');
+const { normalizeDocumentPaymentStatus, repairDocumentPaymentStatuses, canonicalServiceName } = require('./fieldNormalizers');
 
 const VALID_PACKAGES = ['PLATINUM', 'SILVER', 'VISA_DOCS'];
-const VALID_STATUSES = ['UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW'];
+const VALID_STATUSES = ['NOT_STARTED', 'UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW'];
 
 /** Normalize a spreadsheet header for fuzzy matching. */
 function normalizeHeader(h) {
@@ -212,13 +213,12 @@ function normalizePackage(raw) {
 }
 
 const STATUS_ALIASES = {
+  NOT_STARTED: ['not_started', 'not started'],
   UNCERTAIN: [
     'uncertain',
     'pending',
     'not_sure',
     'not sure',
-    'not_started',
-    'not started',
     'no_updates_yet',
     'no updates yet',
     'new',
@@ -262,9 +262,11 @@ function normalizeStatus(raw) {
   if (s.includes('ongoing') || s.includes('in_progress')) {
     return 'ONGOING';
   }
+  if (s.includes('not_started') || s === 'notstarted') {
+    return 'NOT_STARTED';
+  }
   if (
     s.includes('uncertain') ||
-    s.includes('not_started') ||
     s.includes('no_update') ||
     s === 'new' ||
     s.includes('pending')
@@ -284,7 +286,7 @@ function parseServiceNames(rawServices) {
   return [...new Set(
     String(rawServices)
       .split(/[,;|/]+/)
-      .map((s) => normalizeStr(s))
+      .map((s) => canonicalServiceName(normalizeStr(s)))
       .filter(Boolean)
   )];
 }
@@ -600,6 +602,7 @@ function mapRowFields(raw) {
   if (profession) noteParts.push(`Professional: ${profession}`);
   if (specialization) noteParts.push(`Specialization: ${specialization}`);
   if (address) noteParts.push(`Address: ${address}`);
+  if (documentPaymentStatus) noteParts.push(`DocPaymentRaw: ${documentPaymentStatus}`);
   const notes = noteParts.join(' | ');
 
   return {
@@ -614,7 +617,7 @@ function mapRowFields(raw) {
     qualifications: qualification,
     specialization,
     currentLanguageLevel,
-    documentPaymentStatus,
+    documentPaymentStatus: normalizeDocumentPaymentStatus(documentPaymentStatus),
     documentationStatus,
     documentationRemarks,
     visaStatus,
@@ -933,6 +936,7 @@ async function commitImport(validatedRows, staffUserId) {
   await batchSyncStudentServices(serviceSync);
 
   await repairStaleProfessionData();
+  await repairDocumentPaymentStatuses(SalesStudent);
   invalidateCache();
   return {
     imported,

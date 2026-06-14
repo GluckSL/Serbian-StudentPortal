@@ -9,6 +9,11 @@
       </div>
 
       <div class="kd-hero__actions">
+        <button type="button" class="kd-btn kd-btn--filter" (click)="toggleAdvancedFilter()"
+          [class.kd-btn--filter-active]="advancedFilterOpen || hasActiveAdvancedFilters()">
+          <span class="material-icons">tune</span>
+          Filter
+        </button>
         <button class="kd-btn kd-btn--ghost kd-btn--danger" (click)="resetAllData()" [disabled]="resetLoading">
           <span class="material-icons">delete_sweep</span> Reset All
         </button>
@@ -28,277 +33,277 @@
     </div>
   </header>
 
-  <!-- Compact summary stats -->
+  <!-- Summary stats — click to filter -->
   <div class="kd-summary-bar">
     <ng-container *ngIf="analyticsLoading">
-      <div class="kd-summary-chip kd-skeleton" *ngFor="let s of skeletonRows.slice(0,5)"></div>
+      <div class="kd-summary-chip kd-skeleton" *ngFor="let s of skeletonRows.slice(0,10)"></div>
     </ng-container>
     <ng-container *ngIf="!analyticsLoading && analytics">
-      <button class="kd-summary-chip" [class.kd-summary-chip--active]="hasSummaryFilters()"
-        (click)="applyFilter({ status: null, package: null, serviceName: null })">
-        <strong>{{ analytics.totals.total }}</strong>
-        <span>Total</span>
-      </button>
-      <button class="kd-summary-chip kd-summary-chip--ongoing" [class.kd-summary-chip--active]="isSummaryStatusActive('ONGOING')"
-        (click)="applyFilter({ status: 'ONGOING', package: null, serviceName: null })">
-        <strong>{{ analytics.totals.ongoing }}</strong>
-        <span>Ongoing</span>
-      </button>
-      <button class="kd-summary-chip kd-summary-chip--uncertain" [class.kd-summary-chip--active]="isSummaryStatusActive('UNCERTAIN')"
-        (click)="applyFilter({ status: 'UNCERTAIN', package: null, serviceName: null })">
-        <strong>{{ analytics.totals.uncertain }}</strong>
-        <span>Uncertain</span>
-      </button>
-      <button class="kd-summary-chip kd-summary-chip--completed" [class.kd-summary-chip--active]="isSummaryStatusActive('COMPLETED')"
-        (click)="applyFilter({ status: 'COMPLETED', package: null, serviceName: null })">
-        <strong>{{ analytics.totals.completed }}</strong>
-        <span>Completed</span>
-      </button>
-      <button class="kd-summary-chip kd-summary-chip--withdrew" [class.kd-summary-chip--active]="isSummaryStatusActive('WITHDREW')"
-        (click)="applyFilter({ status: 'WITHDREW', package: null, serviceName: null })">
-        <strong>{{ analytics.totals.withdrew }}</strong>
-        <span>Withdrew</span>
-      </button>
+      <div class="kd-summary-group">
+        <span class="kd-summary-group__label">Enrollment</span>
+        <div class="kd-summary-group__chips">
+          <button class="kd-summary-chip" [class.kd-summary-chip--active]="hasSummaryFilters()"
+            (click)="resetOverview()">
+            <strong>{{ analytics.totals.total }}</strong>
+            <span>Total</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--not-started" [class.kd-summary-chip--active]="isSummaryStatusActive('NOT_STARTED')"
+            (click)="applyFilter({ status: 'NOT_STARTED', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.notStarted }}</strong>
+            <span>Not Started</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--ongoing" [class.kd-summary-chip--active]="isSummaryStatusActive('ONGOING')"
+            (click)="applyFilter({ status: 'ONGOING', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.ongoing }}</strong>
+            <span>Ongoing</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--uncertain" [class.kd-summary-chip--active]="isSummaryStatusActive('UNCERTAIN')"
+            (click)="applyFilter({ status: 'UNCERTAIN', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.uncertain }}</strong>
+            <span>Uncertain</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--completed" [class.kd-summary-chip--active]="isSummaryStatusActive('COMPLETED')"
+            (click)="applyFilter({ status: 'COMPLETED', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.completed }}</strong>
+            <span>Completed</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--withdrew" [class.kd-summary-chip--active]="isSummaryStatusActive('WITHDREW')"
+            (click)="applyFilter({ status: 'WITHDREW', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.withdrew }}</strong>
+            <span>Withdrew</span>
+          </button>
+        </div>
+      </div>
+      <div class="kd-summary-group kd-summary-group--packages">
+        <span class="kd-summary-group__label">Packages</span>
+        <div class="kd-summary-group__chips">
+          <button type="button" class="kd-summary-chip kd-summary-chip--platinum"
+            [class.kd-summary-chip--active]="isSummaryPackageActive('PLATINUM')"
+            (click)="applyPackageSummaryFilter('PLATINUM')">
+            <strong>{{ packageTotal('PLATINUM') }}</strong>
+            <span>{{ PACKAGE_CHIP_LABELS.PLATINUM }}</span>
+          </button>
+          <button type="button" class="kd-summary-chip kd-summary-chip--silver"
+            [class.kd-summary-chip--active]="isSummaryPackageActive('SILVER')"
+            (click)="applyPackageSummaryFilter('SILVER')">
+            <strong>{{ packageTotal('SILVER') }}</strong>
+            <span>{{ PACKAGE_CHIP_LABELS.SILVER }}</span>
+          </button>
+          <button type="button" class="kd-summary-chip kd-summary-chip--visa-docs"
+            [class.kd-summary-chip--active]="isSummaryPackageActive('VISA_DOCS')"
+            (click)="applyPackageSummaryFilter('VISA_DOCS')">
+            <strong>{{ packageTotal('VISA_DOCS') }}</strong>
+            <span>{{ PACKAGE_CHIP_LABELS.VISA_DOCS }}</span>
+          </button>
+        </div>
+      </div>
+      <div class="kd-summary-group kd-summary-group--doc">
+        <span class="kd-summary-group__label">Documentation</span>
+        <div class="kd-summary-group__chips">
+          <button class="kd-summary-chip kd-summary-chip--doc-paid" [class.kd-summary-chip--active]="isSummaryDocPaidActive()"
+            (click)="applyDocPaidFilter()">
+            <strong>{{ analytics.totals.docPaid }}</strong>
+            <span>Doc Paid</span>
+          </button>
+        </div>
+      </div>
     </ng-container>
   </div>
 
-  <!-- ══ PACKAGE ANALYTICS ════════════════════════════════════════════════════ -->
-  <section class="kd-section">
-    <h2 class="kd-section__title">Package Breakdown</h2>
-    <div class="kd-cards-row">
-      <ng-container *ngIf="analyticsLoading">
-        <div class="kd-pkg-card kd-skeleton" *ngFor="let s of skeletonRows.slice(0,3)" style="height:88px"></div>
-      </ng-container>
-      <ng-container *ngIf="!analyticsLoading && analytics">
-        <div class="kd-pkg-card kd-pkg-card--{{ pkg.package | lowercase }}" *ngFor="let pkg of analytics.packages">
-          <div class="kd-pkg-card__header">
-            <span class="kd-pkg-card__label">{{ PACKAGE_LABELS[pkg.package] }}</span>
-            <button class="kd-pkg-card__total" (click)="applyFilter({ package: pkg.package, status: null })">
-              {{ pkg.total }}
+  <!-- ══ SERVICE OPTED (main area — not in filter sidebar) ═══════════════════ -->
+  <section class="kd-section kd-analytics">
+    <div class="kd-analytics__panel">
+      <div class="kd-analytics__toolbar">
+        <h2 class="kd-analytics__heading">Service Opted</h2>
+        <p class="kd-analytics__hint">Click any number to filter students below</p>
+      </div>
+
+      <div class="kd-service-cards" *ngIf="analyticsLoading">
+        <div class="kd-service-card kd-service-card--skeleton" *ngFor="let s of skeletonRows.slice(0,6)"></div>
+      </div>
+
+      <div class="kd-service-cards" *ngIf="!analyticsLoading && analytics">
+        <article class="kd-service-card"
+          *ngFor="let svc of visibleServices()"
+          [class.kd-service-card--active]="isServiceCardActive(svc.serviceName)">
+          <header class="kd-service-card__head">
+            <h3 class="kd-service-card__title">{{ svc.label }}</h3>
+            <button type="button" class="kd-service-card__total"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: null })">
+              {{ svc.total }}
+            </button>
+          </header>
+          <div class="kd-service-card__stats">
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--ongoing"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'ONGOING' })">
+              <strong>{{ svc.ongoing }}</strong>
+              <span>Ongoing</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--not-started"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'NOT_STARTED' })">
+              <strong>{{ breakdownCount(svc, 'NOT_STARTED') }}</strong>
+              <span>Not Started</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--uncertain"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'UNCERTAIN' })">
+              <strong>{{ breakdownCount(svc, 'UNCERTAIN') }}</strong>
+              <span>Uncertain</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--completed"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'COMPLETED' })">
+              <strong>{{ breakdownCount(svc, 'COMPLETED') }}</strong>
+              <span>Completed</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--withdrew"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'WITHDREW' })">
+              <strong>{{ breakdownCount(svc, 'WITHDREW') }}</strong>
+              <span>Withdrew</span>
             </button>
           </div>
-          <div class="kd-pkg-card__stats">
-            <button class="kd-mini-stat kd-mini-stat--ongoing" (click)="applyFilter({ package: pkg.package, status: 'ONGOING' })">
-              <strong>{{ pkg.ongoing }}</strong><span>Ongoing</span>
-            </button>
-            <button
-              class="kd-mini-stat"
-              type="button"
-              *ngFor="let row of pkg.statusBreakdown"
-              [class.kd-mini-stat--uncertain]="row.status === 'UNCERTAIN'"
-              [class.kd-mini-stat--completed]="row.status === 'COMPLETED'"
-              [class.kd-mini-stat--withdrew]="row.status === 'WITHDREW'"
-              (click)="applyFilter({ package: pkg.package, status: row.status })"
-            >
-              <strong>{{ row.count }}</strong><span>{{ STATUS_LABELS[row.status] }}</span>
-            </button>
-          </div>
-        </div>
-      </ng-container>
+        </article>
+      </div>
     </div>
   </section>
 
-  <!-- ══ SERVICE OPTED ══════════════════════════════════════════════════════ -->
-  <section class="kd-section">
-    <h2 class="kd-section__title">Service Opted</h2>
-    <div class="kd-svc-grid">
-      <ng-container *ngIf="analyticsLoading">
-        <div class="kd-svc-card kd-skeleton" *ngFor="let s of serviceSkeletonRows" style="height:88px"></div>
-      </ng-container>
-      <ng-container *ngIf="!analyticsLoading && analytics">
-        <div class="kd-svc-card" *ngFor="let svc of analytics.services">
-          <div class="kd-svc-card__header">
-            <span class="kd-svc-card__label">{{ svc.label }}</span>
-            <button class="kd-svc-card__total" (click)="applyFilter({ serviceName: svc.serviceName, status: null })">
-              {{ svc.total }}
+  <!-- ══ FILTER PANEL (inline below Service Opted) ═══════════════════════════ -->
+  <section class="kd-section kd-advfilter-inline" *ngIf="advancedFilterOpen" #filterPanel>
+    <div class="kd-advfilter-panel kd-advfilter-panel--inline">
+      <header class="kd-advfilter-panel__head">
+        <h2 class="kd-advfilter-panel__title">Filter students</h2>
+        <button type="button" class="kd-advfilter-panel__close" (click)="closeAdvancedFilter()" aria-label="Close filter">
+          <span class="material-icons">expand_less</span>
+        </button>
+      </header>
+
+      <div class="kd-advfilter-banner" *ngIf="advancedFilterDirty">
+        Unsaved changes — click <strong>Apply</strong> to update the table.
+      </div>
+
+      <div class="kd-advfilter-body">
+        <section class="kd-advfilter-section kd-advfilter-section--dates">
+          <h3 class="kd-advfilter-section__title">Enrollment date</h3>
+          <div class="kd-advfilter-dates-row">
+            <div class="kd-advfilter-dates">
+              <label class="kd-advfilter-date">
+                <span class="sr-only">Start date</span>
+                <input type="date" [(ngModel)]="advDraft.enrolledFrom" (ngModelChange)="markAdvDirty()"
+                  aria-label="Enrollment start date" />
+              </label>
+              <span class="kd-advfilter-dates__sep" aria-hidden="true">to</span>
+              <label class="kd-advfilter-date">
+                <span class="sr-only">End date</span>
+                <input type="date" [(ngModel)]="advDraft.enrolledTo" (ngModelChange)="markAdvDirty()"
+                  aria-label="Enrollment end date" />
+              </label>
+            </div>
+            <button type="button" class="kd-btn kd-btn--outline kd-btn--sm kd-advfilter-add" (click)="addAdvRule()">
+              <span class="material-icons">add</span> Add condition
             </button>
           </div>
-          <div class="kd-svc-card__stats">
-            <button class="kd-mini-stat kd-mini-stat--ongoing" (click)="applyFilter({ serviceName: svc.serviceName, status: 'ONGOING' })">
-              <strong>{{ svc.ongoing }}</strong><span>Ongoing</span>
-            </button>
-            <button
-              class="kd-mini-stat"
-              type="button"
-              *ngFor="let row of svc.statusBreakdown"
-              [class.kd-mini-stat--uncertain]="row.status === 'UNCERTAIN'"
-              [class.kd-mini-stat--completed]="row.status === 'COMPLETED'"
-              [class.kd-mini-stat--withdrew]="row.status === 'WITHDREW'"
-              (click)="applyFilter({ serviceName: svc.serviceName, status: row.status })"
-            >
-              <strong>{{ row.count }}</strong><span>{{ STATUS_LABELS[row.status] }}</span>
+        </section>
+
+        <section class="kd-advfilter-section kd-advfilter-section--conditions">
+          <h3 class="kd-advfilter-section__title">Conditions</h3>
+          <div class="kd-advfilter-rule-block" *ngFor="let rule of advDraft.rules; let i = index; trackBy: trackAdvRule">
+            <div class="kd-advfilter-rule">
+              <span class="kd-advfilter-rule__join">{{ i === 0 ? 'Where' : 'And' }}</span>
+              <select class="kd-advfilter-select kd-advfilter-select--field"
+                [ngModel]="rule.field"
+                (ngModelChange)="setAdvRuleField(rule, $event)">
+                <option [ngValue]="''">Select field…</option>
+                <option *ngFor="let f of ADV_FILTER_FIELDS" [ngValue]="f.id">{{ f.label }}</option>
+              </select>
+              <span class="kd-advfilter-rule__op">is</span>
+              <select class="kd-advfilter-select kd-advfilter-select--value"
+                [ngModel]="rule.value"
+                (ngModelChange)="setAdvRuleValue(rule, $event)"
+                [disabled]="!rule.field">
+                <option [ngValue]="''">{{ rule.field ? 'Select value…' : 'Pick a field first' }}</option>
+                <option *ngFor="let opt of advFieldOptions(rule.field); trackBy: trackAdvOption"
+                  [ngValue]="opt.value">{{ opt.label }}</option>
+              </select>
+              <button type="button" class="kd-advfilter-rule__remove" (click)="removeAdvRule(rule.id)" aria-label="Remove rule">
+                <span class="material-icons">delete_outline</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="kd-advfilter-section kd-advfilter-section--groupby">
+          <h3 class="kd-advfilter-section__title">Quick filters</h3>
+          <div class="kd-advfilter-groupby">
+            <button type="button" class="kd-advfilter-tag" *ngFor="let g of GROUP_BY_FIELDS"
+              [class.kd-advfilter-tag--active]="isGroupByFieldActive(g.id)"
+              (click)="addGroupByField(g.id)">
+              {{ g.label }}
             </button>
           </div>
-        </div>
-      </ng-container>
+        </section>
+      </div>
+
+      <footer class="kd-advfilter-panel__foot">
+        <button type="button" class="kd-btn kd-btn--ghost kd-btn--sm" (click)="resetAdvancedFilters()">Reset</button>
+        <button type="button" class="kd-btn kd-btn--primary kd-btn--sm" (click)="applyAdvancedFilters()">
+          <span class="material-icons">search</span> Apply
+        </button>
+      </footer>
     </div>
   </section>
 
   <!-- ══ PROFESSION DRILL-DOWN (when a service is selected) ═══════════════════ -->
-  <section class="kd-section kd-section--nested" *ngIf="primaryServiceName()">
+  <section class="kd-section kd-section--nested kd-prof-panel" *ngIf="primaryServiceName()">
     <div class="kd-prof-head">
-      <div>
-        <h2 class="kd-section__title kd-section__title--inline">Professional Breakdown</h2>
-        <p class="kd-prof-head__meta">{{ professionBreakdownMeta() }}</p>
-        <p class="kd-prof-head__hint">{{ professionCompareHint() }}</p>
-      </div>
-      <button class="kd-btn kd-btn--ghost kd-btn--sm" type="button" *ngIf="filters.professions.length"
-        (click)="removeChip('professions')">
-        <span class="material-icons">clear</span> Clear profession
+      <button class="kd-btn kd-btn--ghost kd-btn--xs kd-prof-head__close" type="button"
+        (click)="applyFilter({ serviceName: null, profession: null })">
+        <span class="material-icons">close</span> Clear
       </button>
     </div>
 
-    <div class="kd-prof-wrap" *ngIf="analyticsLoading">
+    <div class="kd-prof-wrap" *ngIf="analyticsLoading && !analytics">
       <div class="kd-prof-chip kd-skeleton" *ngFor="let s of serviceSkeletonRows"></div>
     </div>
 
-    <!-- Sheet-wide totals (matches Excel / ChatGPT — all 626 students) -->
-    <ng-container *ngIf="!analyticsLoading && sheetSkilledProfessions().length">
-      <p class="kd-prof-subhead kd-prof-subhead--sheet">Excel sheet · all students</p>
-      <p class="kd-prof-sheet-meta">{{ sheetProfessionMeta() }}</p>
-      <div class="kd-prof-wrap kd-prof-wrap--chips kd-prof-wrap--sheet">
-        <button
-          type="button"
-          class="kd-prof-chip kd-prof-chip--sheet"
+    <ng-container *ngIf="sheetSkilledProfessions().length">
+      <p class="kd-prof-subhead">Sheet-wide (all services)</p>
+      <div class="kd-prof-wrap kd-prof-wrap--chips">
+        <button type="button" class="kd-prof-chip kd-prof-chip--sheet"
           *ngFor="let prof of sheetSkilledProfessions()"
-          (click)="applySheetProfessionFilter(prof.profession)"
-          [title]="'Show all ' + prof.total + ' students (every status, every service)'"
-        >
+          (click)="applySheetProfessionFilter(prof.profession)">
           <span class="kd-prof-chip__name">{{ prof.label }}</span>
           <span class="kd-prof-chip__count">{{ prof.total }}</span>
         </button>
       </div>
     </ng-container>
 
-    <p class="kd-prof-divider" *ngIf="!analyticsLoading && sheetSkilledProfessions().length && professionBreakdown.length">
-      {{ primaryServiceName() }} breakdown
-    </p>
-
-    <!-- Skilled profession chips (excludes O/L, A/L, Others, Unspecified) -->
-    <ng-container *ngIf="!analyticsLoading && filters.statuses.length === 1">
-      <p class="kd-prof-subhead">Skilled professions</p>
+    <ng-container *ngIf="professionBreakdown.length">
+      <p class="kd-prof-subhead" *ngIf="sheetSkilledProfessions().length">{{ primaryServiceName() }} only</p>
       <div class="kd-prof-wrap kd-prof-wrap--chips" *ngIf="skilledProfessionBreakdown().length">
-        <div
-          class="kd-prof-chip"
+        <button type="button" class="kd-prof-chip"
           *ngFor="let prof of skilledProfessionBreakdown()"
           [class.kd-prof-chip--active]="isProfessionActive(prof.profession)"
-        >
+          (click)="applyServiceProfessionTotalFilter(prof.profession)">
           <span class="kd-prof-chip__name">{{ prof.label }}</span>
-          <span class="kd-prof-chip__counts">
-            <button
-              type="button"
-              class="kd-prof-chip__count"
-              [class.kd-prof-chip__count--active]="isProfessionActive(prof.profession) && filters.statuses.length === 1"
-              (click)="applyServiceProfessionStatusFilter(prof.profession)"
-              [title]="'Show ' + professionDisplayTotal(prof) + ' ' + (filters.statuses.length === 1 ? STATUS_LABELS[filters.statuses[0]].toLowerCase() : '') + ' in ' + primaryServiceName()"
-            >
-              {{ professionDisplayTotal(prof) }}
-            </button>
-            <button
-              type="button"
-              class="kd-prof-chip__of"
-              *ngIf="prof.total !== professionDisplayTotal(prof)"
-              [class.kd-prof-chip__of--active]="isProfessionActive(prof.profession) && !filters.statuses.length"
-              (click)="applyServiceProfessionTotalFilter(prof.profession)"
-              [title]="'Show all ' + prof.total + ' in ' + primaryServiceName()"
-            >
-              / {{ prof.total }}
-            </button>
-          </span>
-        </div>
+          <span class="kd-prof-chip__count">{{ professionDisplayTotal(prof) }}</span>
+        </button>
       </div>
-
-      <p class="kd-prof-subhead kd-prof-subhead--other" *ngIf="otherProfessionBreakdown().length">Other categories</p>
       <div class="kd-prof-wrap kd-prof-wrap--chips kd-prof-wrap--muted" *ngIf="otherProfessionBreakdown().length">
-        <div
-          class="kd-prof-chip kd-prof-chip--muted"
+        <button type="button" class="kd-prof-chip kd-prof-chip--muted"
           *ngFor="let prof of otherProfessionBreakdown()"
           [class.kd-prof-chip--active]="isProfessionActive(prof.profession)"
-        >
+          (click)="applyServiceProfessionTotalFilter(prof.profession)">
           <span class="kd-prof-chip__name">{{ prof.label }}</span>
-          <span class="kd-prof-chip__counts">
-            <button
-              type="button"
-              class="kd-prof-chip__count"
-              (click)="applyServiceProfessionStatusFilter(prof.profession)"
-            >
-              {{ professionDisplayTotal(prof) }}
-            </button>
-            <button
-              type="button"
-              class="kd-prof-chip__of"
-              *ngIf="prof.total !== professionDisplayTotal(prof)"
-              (click)="applyServiceProfessionTotalFilter(prof.profession)"
-            >
-              / {{ prof.total }}
-            </button>
-          </span>
-        </div>
+          <span class="kd-prof-chip__count">{{ professionDisplayTotal(prof) }}</span>
+        </button>
       </div>
     </ng-container>
 
-    <!-- Full cards when no status filter (service total clicked) -->
-    <ng-container *ngIf="!analyticsLoading && !filters.statuses.length && professionBreakdown.length">
-      <p class="kd-prof-subhead">Skilled professions</p>
-      <div class="kd-svc-grid kd-prof-grid">
-        <div
-          class="kd-svc-card kd-prof-card"
-          [class.kd-prof-card--active]="isProfessionActive(prof.profession)"
-          *ngFor="let prof of allSkilledProfessions()"
-        >
-          <div class="kd-svc-card__header">
-            <span class="kd-svc-card__label">{{ prof.label }}</span>
-            <button
-              class="kd-svc-card__total"
-              [class.kd-svc-card__total--active]="isProfessionActive(prof.profession)"
-              (click)="applyProfessionFilter(prof.profession, null)"
-            >
-              {{ prof.total }}
-            </button>
-          </div>
-          <div class="kd-svc-card__stats">
-            <button class="kd-mini-stat kd-mini-stat--ongoing" (click)="applyProfessionFilter(prof.profession, 'ONGOING')">
-              <strong>{{ prof.ongoing }}</strong><span>Ongoing</span>
-            </button>
-            <button
-              class="kd-mini-stat"
-              type="button"
-              *ngFor="let row of prof.statusBreakdown"
-              [class.kd-mini-stat--uncertain]="row.status === 'UNCERTAIN'"
-              [class.kd-mini-stat--completed]="row.status === 'COMPLETED'"
-              [class.kd-mini-stat--withdrew]="row.status === 'WITHDREW'"
-              (click)="applyProfessionFilter(prof.profession, row.status)"
-            >
-              <strong>{{ row.count }}</strong><span>{{ STATUS_LABELS[row.status] }}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <p class="kd-prof-subhead kd-prof-subhead--other" *ngIf="allOtherProfessions().length">Other categories</p>
-      <div class="kd-svc-grid kd-prof-grid kd-prof-grid--other" *ngIf="allOtherProfessions().length">
-        <div
-          class="kd-svc-card kd-prof-card kd-prof-card--other"
-          [class.kd-prof-card--active]="isProfessionActive(prof.profession)"
-          *ngFor="let prof of allOtherProfessions()"
-        >
-          <div class="kd-svc-card__header">
-            <span class="kd-svc-card__label">{{ prof.label }}</span>
-            <button class="kd-svc-card__total" (click)="applyProfessionFilter(prof.profession, null)">
-              {{ prof.total }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </ng-container>
-
-    <p class="kd-prof-empty" *ngIf="!analyticsLoading && !skilledProfessionBreakdown().length && !professionBreakdown.length">
-      No professional data for this service. Ensure your Excel has a <strong>Professional</strong> column (not Specialization), then re-import.
+    <p class="kd-prof-empty" *ngIf="analytics && !professionBreakdown.length">
+      No professional data for this service. Re-import with a <strong>Professional</strong> column.
     </p>
   </section>
 
-  <!-- ══ SEARCH & FILTER CHIPS ════════════════════════════════════════════════ -->
-  <section class="kd-table-section" #tableAnchor>
+  <!-- ══ STUDENT TABLE (shown after drill-down) ═══════════════════════════════ -->
+  <section class="kd-table-section" #tableAnchor *ngIf="showStudentTable">
     <div class="kd-table-header">
       <div class="kd-search-bar">
         <span class="material-icons kd-search-bar__icon">search</span>
@@ -332,7 +337,7 @@
     </div>
 
     <!-- ══ STUDENT TABLE ════════════════════════════════════════════════════ -->
-    <div class="kd-table-wrap">
+    <div class="kd-table-wrap" [class.kd-table-wrap--refreshing]="tableRefreshing">
       <table class="kd-table">
         <thead>
           <tr>
@@ -713,6 +718,7 @@
         <div class="kd-form-field">
           <label class="kd-label">Status *</label>
           <select class="kd-select kd-select--full" [(ngModel)]="formData.status">
+            <option value="NOT_STARTED">Not Started</option>
             <option value="UNCERTAIN">Uncertain</option>
             <option value="ONGOING">Ongoing</option>
             <option value="COMPLETED">Completed</option>
@@ -774,13 +780,24 @@
 <div class="kd-colfilter-backdrop" *ngIf="columnFilterOpen" (click)="closeColumnFilter()"></div>
 <div class="kd-colfilter-modal" *ngIf="columnFilterOpen" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
   <div class="kd-colfilter-modal__head">
-    <div>
+    <div class="kd-colfilter-modal__head-text">
       <h3 class="kd-colfilter-modal__title">Filter by {{ columnFilterTitle() }}</h3>
       <p class="kd-colfilter-modal__sub">Select one or more values, then click Apply</p>
     </div>
-    <button type="button" class="kd-drawer__close" (click)="closeColumnFilter()">
-      <span class="material-icons">close</span>
-    </button>
+    <div class="kd-colfilter-modal__head-actions">
+      <button type="button"
+        class="kd-colfilter-order-btn"
+        *ngIf="columnFilterCanOrder()"
+        [class.kd-colfilter-order-btn--active]="columnFilterCustomOrder"
+        (click)="toggleColumnFilterOrder()"
+        [attr.aria-pressed]="columnFilterCustomOrder">
+        <span class="material-icons">sort</span>
+        Order
+      </button>
+      <button type="button" class="kd-drawer__close" (click)="closeColumnFilter()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
   </div>
 
   <div class="kd-colfilter-modal__search" *ngIf="columnFilterHasSearch()">
@@ -882,6 +899,7 @@
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <!-- IMPORT DIALOG                                                             -->
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
+
 <div class="kd-modal-overlay" *ngIf="showImportDialog" (click)="closeImportDialog()">
   <div class="kd-modal kd-modal--wide" (click)="$event.stopPropagation()">
     <div class="kd-modal__head">
@@ -898,7 +916,7 @@
             <li><strong>Candidate Name</strong> → name</li>
             <li><strong>Email Address</strong> → email</li>
             <li><strong>Package Opted</strong> → Platinum / Silver / Visa &amp; Docs</li>
-            <li><strong>Current Status</strong> → Uncertain / Ongoing / Completed / Withdrew</li>
+            <li><strong>Current Status</strong> → Not Started / Uncertain / Ongoing / Completed / Withdrew</li>
             <li><strong>Phone Number</strong>, <strong>WhatsApp Number</strong>, <strong>Age</strong></li>
             <li><strong>Assigned Sales Representative</strong> → counselor</li>
             <li><strong>Service Opted</strong> → CV Service, Interview Preparation, etc.</li>
