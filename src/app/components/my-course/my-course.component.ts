@@ -69,6 +69,13 @@ export class MyCourseComponent implements OnInit {
   readonly skeletonMeetingRows = [0, 1, 2, 3, 4];
   readonly skeletonSideLines = [0, 1, 2];
 
+  /**
+   * Tracks which tabs have been visited so child components only mount when
+   * the user first navigates to a tab (lazy mounting via *ngIf + [hidden]).
+   * 'classes' is pre-seeded because it is the default landing tab.
+   */
+  readonly tabVisited = new Set<MyCourseTab>(['classes']);
+
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
   /** Prevents opening two celebration dialogs from overlapping refresh + init timers. */
@@ -221,18 +228,19 @@ export class MyCourseComponent implements OnInit {
 
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.destroyed = true);
-    this.setAuthProfilePicFromUser(this.authService.getSnapshotUser());
-    this.authService.currentUser$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((u) => {
-        this.setAuthProfilePicFromUser(u);
-        if (u) {
-          this.authService.getUserProfile().subscribe({
-            next: (fullU) => this.userProfile = fullU,
-            error: () => {}
-          });
-        }
-      });
+    // Use the snapshot user immediately so the template has subscription/role data
+    // without waiting for an HTTP round-trip. A single background refresh keeps it fresh.
+    const snapshotUser = this.authService.getSnapshotUser();
+    this.setAuthProfilePicFromUser(snapshotUser);
+    if (snapshotUser) {
+      this.userProfile = snapshotUser;
+      this.authService.getUserProfile()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (fullU) => { this.userProfile = fullU; this.setAuthProfilePicFromUser(fullU); },
+          error: () => {}
+        });
+    }
 
     // Instant advance: Silver GO students promoted immediately after completing all day tasks.
     this.progressService.journeyInstantAdvance$
@@ -290,17 +298,23 @@ export class MyCourseComponent implements OnInit {
     this.loading = false;
     this.pickTabHeaderQuote();
 
-    this.loadLanguageFeeDue();
+    // Defer the payment-hub request so it doesn't compete with journey / meetings on initial load.
+    setTimeout(() => { if (!this.destroyed) this.loadLanguageFeeDue(); }, 1500);
 
-    this.zoomService
-      .getStudentMeetings({ tab: 'upcoming', page: 1, limit: 25 })
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        catchError(() => of({ success: false, data: [] }))
-      )
-      .subscribe({
-        next: (meetings) => this.applyMeetingsPreview(meetings),
-      });
+    // Defer the meetings preview by 800 ms so the journey and profile requests
+    // have priority. The "next meeting" card is non-blocking — it appears once data arrives.
+    setTimeout(() => {
+      if (this.destroyed) return;
+      this.zoomService
+        .getStudentMeetings({ tab: 'upcoming', page: 1, limit: 25 })
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          catchError(() => of({ success: false, data: [] }))
+        )
+        .subscribe({
+          next: (meetings) => this.applyMeetingsPreview(meetings),
+        });
+    }, 800);
 
     // Announcements are shown under Help & Support (messenger) → Announcements.
 
@@ -321,12 +335,15 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = 'classes';
       } else if (t === 'exercises' || t === 'talk-buddy' || t === 'classes') {
         this.activeTab = t;
+        this.tabVisited.add(t);
       } else if (t === 'journey') {
         this.activeTab = t;
+        this.tabVisited.add(t);
         this.loadJourneyTabData();
         this.loadJourneyGames();
       } else if (t === 'gluck-exam') {
         this.activeTab = t;
+        this.tabVisited.add(t);
         this.loadGluckExamData();
       }
       const d = q.get('day');
@@ -387,6 +404,38 @@ export class MyCourseComponent implements OnInit {
     });
   }
 
+  /** Full exercise list (loaded lazily on Journey tab first visit). */
+  private _fullExercisesLoaded = false;
+
+  /**
+   * Loads the full exercise list (limit 500) for the Journey tab.
+   * Only called when the Journey tab is first opened; the My Class badge uses
+   * the lighter initial set already stored in journeyDayExercises.
+   */
+  loadFullExercisesForJourney(): void {
+    if (this._fullExercisesLoaded || this.destroyed) return;
+    this._fullExercisesLoaded = true;
+    const courseDay = this.journeyCourseDay;
+    this.exerciseService
+      .getExercises({ page: 1, limit: 500 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
+          this.journeyDayExercises = items;
+          // Refresh quick-access with full dataset
+          const unlocked = items.filter((ex) => {
+            if (ex.studentAttempt) return false;
+            const exDay = ex.courseDay;
+            return exDay == null || exDay <= courseDay;
+          });
+          unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
+          this.nextNewDigitalExercise = unlocked[0] || null;
+        },
+        error: () => {}
+      });
+  }
+
   private loadQuickAccess(onDone?: () => void): void {
     if (this.destroyed) return;
     this.nextNewDigitalExercise = null;
@@ -396,17 +445,20 @@ export class MyCourseComponent implements OnInit {
       pending -= 1;
       if (pending <= 0) onDone?.();
     };
-    const levelRaw = this.profile?.currentLevel || this.profile?.currentLevelCode || this.profile?.level;
-    const studentLevel = typeof levelRaw === 'string' ? levelRaw.split(/\s+/)[0] : '';
 
-    // Journey Day tab data sources
+    // Lightweight fetch: only current + adjacent days for the day-completion badge
+    // and the "next exercise" quick-access card on My Class.
+    // The Journey tab triggers loadFullExercisesForJourney() for the full 500-item list.
     this.exerciseService
-      .getExercises({ page: 1, limit: 500 })
+      .getExercises({ page: 1, limit: 60 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
-          this.journeyDayExercises = items;
+          // Only replace the full list if Journey hasn't already loaded the 500-item set
+          if (!this._fullExercisesLoaded) {
+            this.journeyDayExercises = items;
+          }
           const unlocked = items.filter((ex) => {
             const noAttempt = !ex.studentAttempt;
             if (!noAttempt) return false;
@@ -462,6 +514,7 @@ export class MyCourseComponent implements OnInit {
     this._journeyTabDataLoaded = true;
     this.loadDayCompletionData(true);
     this.loadGluckExamData();
+    this.loadFullExercisesForJourney();
   }
 
   private loadJourneyGames(): void {
@@ -555,6 +608,7 @@ export class MyCourseComponent implements OnInit {
     if (tab === 'talk-buddy' && !this.allowsTalkBuddyTab) {
       tab = 'classes';
     }
+    this.tabVisited.add(tab);
     this.activeTab = tab;
     this.router.navigate([], {
       relativeTo: this.route,
@@ -674,6 +728,53 @@ export class MyCourseComponent implements OnInit {
 
   gluckExamSprechenDone(m: SprechenExamModuleSummary): boolean {
     return !!m.studentProgress?.lastCompleted;
+  }
+
+  /** Pending Glück Exam items (not yet completed) — drives tab notification badges. */
+  get gluckExamWeeklyPendingCount(): number {
+    return (
+      this.gluckExamWeeklyExercises.filter((x) => !this.gluckExamExerciseDone(x)).length +
+      this.gluckExamWeeklyDgModules.filter((x) => !this.gluckExamDgDone(x)).length +
+      this.gluckExamWeeklySprechen.filter((x) => !this.gluckExamSprechenDone(x)).length
+    );
+  }
+
+  get gluckExamInternalPendingCount(): number {
+    return (
+      this.gluckExamExamExercises.filter((x) => !this.gluckExamExerciseDone(x)).length +
+      this.gluckExamExamDgModules.filter((x) => !this.gluckExamDgDone(x)).length +
+      this.gluckExamExamSprechen.filter((x) => !this.gluckExamSprechenDone(x)).length
+    );
+  }
+
+  get gluckExamAnyPending(): boolean {
+    return this.gluckExamWeeklyPendingCount + this.gluckExamInternalPendingCount > 0;
+  }
+
+  get gluckExamWeeklyHasPending(): boolean {
+    return this.gluckExamWeeklyPendingCount > 0;
+  }
+
+  get gluckExamInternalHasPending(): boolean {
+    return this.gluckExamInternalPendingCount > 0;
+  }
+
+  gluckExamExercisesSectionHasPending(): boolean {
+    const list =
+      this.gluckExamSubTab === 'weekly-test' ? this.gluckExamWeeklyExercises : this.gluckExamExamExercises;
+    return list.some((ex) => !this.gluckExamExerciseDone(ex));
+  }
+
+  gluckExamDgSectionHasPending(): boolean {
+    const list =
+      this.gluckExamSubTab === 'weekly-test' ? this.gluckExamWeeklyDgModules : this.gluckExamExamDgModules;
+    return list.some((mod) => !this.gluckExamDgDone(mod));
+  }
+
+  gluckExamSprechenSectionHasPending(): boolean {
+    const list =
+      this.gluckExamSubTab === 'weekly-test' ? this.gluckExamWeeklySprechen : this.gluckExamExamSprechen;
+    return list.some((mod) => !this.gluckExamSprechenDone(mod));
   }
 
   openSprechenExamModule(m: SprechenExamModuleSummary): void {

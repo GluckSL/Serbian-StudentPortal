@@ -81,9 +81,10 @@
         (click)="setTab('journey')">
         Journey to Germany
       </button>
-      <button type="button" role="tab" class="mc-tab" [class.mc-tab--on]="activeTab === 'gluck-exam'"
+      <button type="button" role="tab" class="mc-tab mc-tab--badged" [class.mc-tab--on]="activeTab === 'gluck-exam'"
         (click)="setTab('gluck-exam')">
         Glück Exam
+        <span class="mc-tab-pending-badge" *ngIf="gluckExamAnyPending" aria-label="Pending exam items">1</span>
       </button>
     </div>
   </div>
@@ -230,20 +231,20 @@
     </aside>
   </div>
 
-  <div class="mc-panel" [hidden]="activeTab !== 'exercises'" role="tabpanel">
+  <div class="mc-panel" *ngIf="tabVisited.has('exercises')" [hidden]="activeTab !== 'exercises'" role="tabpanel">
     <app-digital-exercises [embedded]="true"></app-digital-exercises>
   </div>
 
   <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->
 
-  <div class="mc-panel" [hidden]="activeTab !== 'talk-buddy'" role="tabpanel">
+  <div class="mc-panel" *ngIf="tabVisited.has('talk-buddy')" [hidden]="activeTab !== 'talk-buddy'" role="tabpanel">
     <p class="mc-dg-week-hint" *ngIf="allowsDgBot && !allowsLearningContent">
       Complete all Glück Buddy modules in your current week to unlock the next week of practice.
     </p>
     <app-gluck-buddy-hub></app-gluck-buddy-hub>
   </div>
 
-  <div class="mc-panel mc-journey" [hidden]="activeTab !== 'journey'" role="tabpanel">
+  <div class="mc-panel mc-journey" *ngIf="tabVisited.has('journey')" [hidden]="activeTab !== 'journey'" role="tabpanel">
     <div class="mc-journey-head">
       <div>
         <h3>Journey to Germany</h3>
@@ -703,17 +704,20 @@
     </div>
   </div>
 
-  <div class="mc-classes-layout" [hidden]="activeTab !== 'gluck-exam'" role="tabpanel">
+  <div class="mc-classes-layout" *ngIf="tabVisited.has('gluck-exam')" [hidden]="activeTab !== 'gluck-exam'" role="tabpanel">
     <div class="mc-classes-layout__main">
       <div class="mc-panel">
         <div class="tab-row" role="tablist" aria-label="Gluck Exam type">
-          <button type="button" role="tab" class="tab-btn" [class.active]="gluckExamSubTab === 'weekly-test'"
+          <button type="button" role="tab" class="tab-btn tab-btn--badged"
+            [class.active]="gluckExamSubTab === 'weekly-test'"
             [attr.aria-selected]="gluckExamSubTab === 'weekly-test'" (click)="setGluckExamSubTab('weekly-test')">
             Weekly Test
+            <span class="mc-tab-pending-badge" *ngIf="gluckExamWeeklyHasPending" aria-label="Pending weekly test">1</span>
           </button>
-          <button type="button" role="tab" class="tab-btn" [class.active]="gluckExamSubTab === 'exams'"
+          <button type="button" role="tab" class="tab-btn tab-btn--badged" [class.active]="gluckExamSubTab === 'exams'"
             [attr.aria-selected]="gluckExamSubTab === 'exams'" (click)="setGluckExamSubTab('exams')">
             Internal Exam
+            <span class="mc-tab-pending-badge" *ngIf="gluckExamInternalHasPending" aria-label="Pending internal exam">1</span>
           </button>
         </div>
 
@@ -731,7 +735,9 @@
               *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length)">
               <div class="mc-day-section__head">
                 <h4>Digital exercises</h4>
-                <span class="mc-day-section__count">
+                <span class="mc-day-section__count mc-day-section__count--pending"
+                  *ngIf="gluckExamExercisesSectionHasPending()" aria-label="Pending exercises">1</span>
+                <span class="mc-day-section__count" *ngIf="!gluckExamExercisesSectionHasPending()">
                   {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length
                   }}
                 </span>
@@ -762,7 +768,9 @@
               *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length)">
               <div class="mc-day-section__head">
                 <h4>Gluck Buddy modules</h4>
-                <span class="mc-day-section__count">
+                <span class="mc-day-section__count mc-day-section__count--pending"
+                  *ngIf="gluckExamDgSectionHasPending()" aria-label="Pending modules">1</span>
+                <span class="mc-day-section__count" *ngIf="!gluckExamDgSectionHasPending()">
                   {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length
                   }}
                 </span>
@@ -792,7 +800,9 @@
               *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length)">
               <div class="mc-day-section__head">
                 <h4>Sprechen exam</h4>
-                <span class="mc-day-section__count">
+                <span class="mc-day-section__count mc-day-section__count--pending"
+                  *ngIf="gluckExamSprechenSectionHasPending()" aria-label="Pending sprechen exam">1</span>
+                <span class="mc-day-section__count" *ngIf="!gluckExamSprechenSectionHasPending()">
                   {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length
                   }}
                 </span>
