@@ -182,7 +182,7 @@
             <span class="vol-label">DAY / SEQ</span>
           </div>
           <div class="row-volume">
-            <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+            <span class="vol-num">{{ getQuestionCount(ex) }}</span>
             <span class="vol-label">ITEMS</span>
           </div>
           <div class="row-duration">
@@ -221,7 +221,7 @@
           </span>
         </div>
         <div class="row-volume">
-          <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+          <span class="vol-num">{{ getQuestionCount(ex) }}</span>
           <span class="vol-label">ITEMS</span>
         </div>
         <div class="row-duration">

@@ -114,6 +114,9 @@ const DGModuleSchema = new mongoose.Schema(
 );
 
 DGModuleSchema.index({ visibleToStudents: 1, isActive: 1, level: 1 });
+DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, title: 1 });
+DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, weeklyTestEnabled: 1, title: 1 });
+DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, examEnabled: 1, title: 1 });
 DGModuleSchema.index({ createdBy: 1 });
 DGModuleSchema.index({ targetBatchKeys: 1, visibleToStudents: 1, isActive: 1, courseDay: 1 });
 

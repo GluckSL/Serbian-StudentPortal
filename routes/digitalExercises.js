@@ -142,6 +142,21 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
 
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
 const VIDEO_PRONUNCIATION_PASS_SCORE = 20;
+const DIGITAL_EXERCISE_LIST_MAX_LIMIT = 100;
+
+function parsePositiveInt(value, fallback, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function buildQuestionTypeSummary(questionTypes = []) {
+  return (Array.isArray(questionTypes) ? questionTypes : []).reduce((acc, type) => {
+    if (typeof type !== 'string' || !type) return acc;
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+}
 
 function isWatchOnlyVideoClip(exercise, q) {
   return !!exercise?.watchOnlyMode && q?.type === 'video-pronunciation';
@@ -1649,7 +1664,7 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     isActive: true,
     isDeleted: { $ne: true }
   })
-    .select('_id courseDay sequenceLetter title splitLineage questions')
+    .select('_id courseDay sequenceLetter title splitLineage questions.type questions.points questions.subQuestions.points')
     .lean();
 
   if (!dayExercises.length) {
@@ -1709,6 +1724,8 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       level, category, difficulty, targetLanguage, search,
       page = 1, limit = 12
     } = req.query;
+    const pageNum = parsePositiveInt(page, 1);
+    const limitNum = parsePositiveInt(limit, 12, DIGITAL_EXERCISE_LIST_MAX_LIMIT);
 
     const andClauses = [
       { isActive: true },
@@ -1723,7 +1740,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
         return res.json({
           exercises: [],
           total: 0,
-          page: parseInt(page),
+          page: pageNum,
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
@@ -1734,7 +1751,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
         return res.json({
           exercises: [],
           total: 0,
-          page: parseInt(page),
+          page: pageNum,
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
@@ -1790,46 +1807,51 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
 
     const filter = { $and: andClauses };
 
-    const total = await DigitalExercise.countDocuments(filter);
-    const exercises = await DigitalExercise.find(filter)
-      .populate('createdBy', 'name email')
-      // Keep browse payload lightweight: include only question type metadata.
-      .select(
-        [
-          'title',
-          'description',
-          'targetLanguage',
-          'nativeLanguage',
-          'level',
-          'category',
-          'difficulty',
-          'estimatedDuration',
-          'sharedAudioUrl',
-          'tags',
-          'isActive',
-          'visibleToStudents',
-          'publishedAt',
-          'createdBy',
-          'totalAttempts',
-          'totalCompletions',
-          'averageScore',
-          'courseDay',
-          'weeklyTestEnabled',
-          'examEnabled',
-          'sequenceLetter',
-          'splitLineage',
-          'createdAt',
-          'updatedAt',
-          'questions.type',
-          'questions.points',
-          'questions.subQuestions.type',
-          'questions.subQuestions.points'
-        ].join(' ')
-      )
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .lean();
+    const [total, exercises] = await Promise.all([
+      DigitalExercise.countDocuments(filter),
+      DigitalExercise.aggregate([
+        { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $skip: (pageNum - 1) * limitNum },
+        { $limit: limitNum },
+        {
+          $project: {
+            title: 1,
+            description: 1,
+            targetLanguage: 1,
+            nativeLanguage: 1,
+            level: 1,
+            category: 1,
+            difficulty: 1,
+            estimatedDuration: 1,
+            tags: 1,
+            isActive: 1,
+            visibleToStudents: 1,
+            publishedAt: 1,
+            courseDay: 1,
+            weeklyTestEnabled: 1,
+            examEnabled: 1,
+            sequenceLetter: 1,
+            splitLineage: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            questionCount: { $size: { $ifNull: ['$questions', []] } },
+            questionTypes: {
+              $map: {
+                input: { $ifNull: ['$questions', []] },
+                as: 'q',
+                in: '$$q.type'
+              }
+            }
+          }
+        }
+      ])
+    ]);
+
+    exercises.forEach((ex) => {
+      ex.questionTypeSummary = buildQuestionTypeSummary(ex.questionTypes);
+      delete ex.questionTypes;
+    });
 
     // For students: attach attempt summary (best score) + wrong/correct counts for analytics
     if (req.user.role === 'STUDENT') {
@@ -1895,7 +1917,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       attempts.forEach(a => {
         const key = a.exerciseId.toString();
         const ex = exerciseById[key];
-        const totalQ = Array.isArray(ex?.questions) ? ex.questions.length : 0;
+        const totalQ = Number(ex?.questionCount) || 0;
         const summary = {
           _id: a._id,
           exerciseId: a.exerciseId,
@@ -1920,13 +1942,11 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       await attachSequenceLockStatusForList(req.user.id, exercises);
     }
 
-    await resignExercises(exercises);
-
     const payload = {
       exercises,
       total,
-      page: parseInt(page),
-      pages: Math.ceil(total / parseInt(limit))
+      page: pageNum,
+      pages: Math.ceil(total / limitNum)
     };
     if (req.user.role === 'STUDENT' && studentExerciseAccess) {
       payload.studentCourseDay = studentExerciseAccess.courseDay;

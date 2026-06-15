@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { StudentProgressService } from '../services/student-progress.service';
@@ -68,8 +68,30 @@ export interface DgModuleSessionInsightsResponse {
 @Injectable({ providedIn: 'root' })
 export class DgApiService {
   private readonly base = `${environment.apiUrl}/dg`;
+  private readonly studentModulesCache = new Map<string, Observable<{
+    modules: DgModuleSummary[];
+    studentCourseDay?: number;
+    unlockMode?: 'daily' | 'weekly' | 'none';
+    dgUnlockedWeek?: number;
+    dgWeekHint?: string | null;
+  }>>();
 
   constructor(private http: HttpClient, private progressService: StudentProgressService) {}
+
+  invalidateStudentModulesCache(): void {
+    this.studentModulesCache.clear();
+  }
+
+  refreshStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<{
+    modules: DgModuleSummary[];
+    studentCourseDay?: number;
+    unlockMode?: 'daily' | 'weekly' | 'none';
+    dgUnlockedWeek?: number;
+    dgWeekHint?: string | null;
+  }> {
+    this.studentModulesCache.delete(this.studentModulesCacheKey(opts));
+    return this.listStudentModules(opts);
+  }
 
   listStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<{
     modules: DgModuleSummary[];
@@ -78,12 +100,28 @@ export class DgApiService {
     dgUnlockedWeek?: number;
     dgWeekHint?: string | null;
   }> {
+    const cacheKey = this.studentModulesCacheKey(opts);
+    const cached = this.studentModulesCache.get(cacheKey);
+    if (cached) return cached;
+
     let params = new HttpParams();
     if (opts.gluckExamOnly) params = params.set('gluckExamOnly', 'true');
-    return this.http.get<{ modules: DgModuleSummary[]; studentCourseDay?: number }>(
-      `${this.base}/modules/student`,
-      { params },
+    const request$ = this.http.get<{
+      modules: DgModuleSummary[];
+      studentCourseDay?: number;
+      unlockMode?: 'daily' | 'weekly' | 'none';
+      dgUnlockedWeek?: number;
+      dgWeekHint?: string | null;
+    }>(`${this.base}/modules/student`, { params }).pipe(
+      tap({ error: () => this.studentModulesCache.delete(cacheKey) }),
+      shareReplay({ bufferSize: 1, refCount: true }),
     );
+    this.studentModulesCache.set(cacheKey, request$);
+    return request$;
+  }
+
+  private studentModulesCacheKey(opts: { gluckExamOnly?: boolean } = {}): string {
+    return opts.gluckExamOnly ? 'gluckExamOnly=true' : 'default';
   }
 
   /** Admin grid: lightweight rows (title, level, flags, …). Full content via `getAdminModule` or `getPlay`. */
@@ -111,7 +149,9 @@ export class DgApiService {
   }
 
   createModule(body: Partial<DgModuleSummary> & { scenes?: unknown[] }): Observable<DgModuleSummary> {
-    return this.http.post<DgModuleSummary>(`${this.base}/modules`, body);
+    return this.http.post<DgModuleSummary>(`${this.base}/modules`, body).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
   }
 
   /** AI-generate scenes (intro/teach/practice/feedback) for the role-play context. */
@@ -159,7 +199,9 @@ export class DgApiService {
     id: string,
     body: Partial<DgModuleSummary> & { scenes?: unknown[] },
   ): Observable<DgModuleSummary> {
-    return this.http.put<DgModuleSummary>(`${this.base}/modules/${id}`, body);
+    return this.http.put<DgModuleSummary>(`${this.base}/modules/${id}`, body).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
   }
 
   patchModuleVisibility(
@@ -169,11 +211,15 @@ export class DgApiService {
     return this.http.patch<{ success: boolean; visibleToStudents?: boolean }>(
       `${this.base}/modules/${id}/visibility`,
       { visibleToStudents },
+    ).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
     );
   }
 
   deleteModule(id: string): Observable<{ success: boolean }> {
-    return this.http.delete<{ success: boolean }>(`${this.base}/modules/${id}`);
+    return this.http.delete<{ success: boolean }>(`${this.base}/modules/${id}`).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
   }
 
   listCharacters(): Observable<{ characters: DgCharacterDoc[] }> {
@@ -211,6 +257,7 @@ export class DgApiService {
       ...progress,
     }).pipe(
       tap((res: any) => {
+        this.invalidateStudentModulesCache();
         if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
           this.progressService.notifyJourneyAdvance({
             previousDay: res.previousCourseDay,

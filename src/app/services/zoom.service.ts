@@ -2,7 +2,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface Student {
@@ -87,6 +87,8 @@ export interface Teacher {
 })
 export class ZoomService {
   private apiUrl = `${environment.apiUrl}/zoom`;
+  private readonly studentMeetingsCacheTtlMs = 45_000;
+  private readonly studentMeetingsCache = new Map<string, { timestamp: number; request$: Observable<any> }>();
 
   constructor(private http: HttpClient) {}
 
@@ -355,7 +357,18 @@ export class ZoomService {
     if (filters?.includeTabCounts) params.append('includeTabCounts', 'true');
     const qs = params.toString();
     const url = qs ? `${this.apiUrl}/student-meetings?${qs}` : `${this.apiUrl}/student-meetings`;
-    return this.http.get(url, { withCredentials: true });
+    const cacheKey = qs || '__all__';
+    const now = Date.now();
+    const cached = this.studentMeetingsCache.get(cacheKey);
+    if (cached && now - cached.timestamp < this.studentMeetingsCacheTtlMs) {
+      return cached.request$;
+    }
+    const request$ = this.http.get(url, { withCredentials: true }).pipe(
+      tap({ error: () => this.studentMeetingsCache.delete(cacheKey) }),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+    this.studentMeetingsCache.set(cacheKey, { timestamp: now, request$ });
+    return request$;
   }
 
   /**

@@ -408,7 +408,7 @@ export class MyCourseComponent implements OnInit {
   private _fullExercisesLoaded = false;
 
   /**
-   * Loads the full exercise list (limit 500) for the Journey tab.
+   * Loads a paginated exercise list for the Journey tab.
    * Only called when the Journey tab is first opened; the My Class badge uses
    * the lighter initial set already stored in journeyDayExercises.
    */
@@ -417,7 +417,7 @@ export class MyCourseComponent implements OnInit {
     this._fullExercisesLoaded = true;
     const courseDay = this.journeyCourseDay;
     this.exerciseService
-      .getExercises({ page: 1, limit: 500 })
+      .getExercises({ page: 1, limit: 50 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {

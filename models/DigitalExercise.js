@@ -375,6 +375,9 @@ DigitalExerciseSchema.pre('save', function (next) {
 DigitalExerciseSchema.index({ level: 1, category: 1, isActive: 1 });
 DigitalExerciseSchema.index({ createdBy: 1 });
 DigitalExerciseSchema.index({ visibleToStudents: 1, isActive: 1, isDeleted: 1 });
+DigitalExerciseSchema.index({ isActive: 1, isDeleted: 1, visibleToStudents: 1, createdAt: -1 });
+DigitalExerciseSchema.index({ isActive: 1, isDeleted: 1, visibleToStudents: 1, level: 1, category: 1, difficulty: 1, createdAt: -1 });
+DigitalExerciseSchema.index({ isActive: 1, isDeleted: 1, visibleToStudents: 1, courseDay: 1, createdAt: -1 });
 DigitalExerciseSchema.index({ courseDay: 1, visibleToStudents: 1, isDeleted: 1 });
 DigitalExerciseSchema.index({ courseDay: 1, sequenceLetter: 1 });
 DigitalExerciseSchema.index({ isDeleted: 1, createdAt: -1 });
