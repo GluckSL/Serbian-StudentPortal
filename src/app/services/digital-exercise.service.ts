@@ -2,7 +2,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, from, of, throwError } from 'rxjs';
+import { Observable, from, of, shareReplay, throwError } from 'rxjs';
 import { switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { StudentProgressService } from './student-progress.service';
@@ -456,12 +456,26 @@ export interface ExerciseFilters {
 @Injectable({ providedIn: 'root' })
 export class DigitalExerciseService {
   private apiUrl = `${environment.apiUrl}/digital-exercises`;
+  private readonly exerciseListCache = new Map<string, Observable<any>>();
 
   constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
   // ─── Student / Browse ─────────────────────────────────────────────────────
 
+  invalidateExerciseListCache(): void {
+    this.exerciseListCache.clear();
+  }
+
+  refreshExercises(filters: ExerciseFilters = {}): Observable<any> {
+    this.exerciseListCache.delete(this.exerciseListCacheKey(filters));
+    return this.getExercises(filters);
+  }
+
   getExercises(filters: ExerciseFilters = {}): Observable<any> {
+    const cacheKey = this.exerciseListCacheKey(filters);
+    const cached = this.exerciseListCache.get(cacheKey);
+    if (cached) return cached;
+
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, val]) => {
       if (val === undefined || val === null || val === '') return;
@@ -471,7 +485,20 @@ export class DigitalExerciseService {
       }
       params = params.set(key, val.toString());
     });
-    return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
+    const request$ = this.http.get<any>(this.apiUrl, { params, withCredentials: true }).pipe(
+      tap({ error: () => this.exerciseListCache.delete(cacheKey) }),
+      shareReplay({ bufferSize: 1, refCount: true }),
+    );
+    this.exerciseListCache.set(cacheKey, request$);
+    return request$;
+  }
+
+  private exerciseListCacheKey(filters: ExerciseFilters = {}): string {
+    return Object.entries(filters)
+      .filter(([, val]) => val !== undefined && val !== null && val !== '')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `${key}=${String(val)}`)
+      .join('&') || '__default__';
   }
 
   /** Lightweight list for Student → Gluck Exam tab (no questions / media). */
@@ -508,7 +535,9 @@ export class DigitalExerciseService {
   }
 
   createExercise(exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {
-    return this.http.post<DigitalExercise>(this.apiUrl, exercise, { withCredentials: true });
+    return this.http.post<DigitalExercise>(this.apiUrl, exercise, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   createFreeModeExercise(payload: any): Observable<any> {
@@ -542,15 +571,21 @@ export class DigitalExerciseService {
       `${this.apiUrl}/${sourceExerciseId}/split-questions`,
       payload,
       { withCredentials: true }
+    ).pipe(
+      tap(() => this.invalidateExerciseListCache()),
     );
   }
 
   updateExercise(id: string, exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {
-    return this.http.put<DigitalExercise>(`${this.apiUrl}/${id}`, exercise, { withCredentials: true });
+    return this.http.put<DigitalExercise>(`${this.apiUrl}/${id}`, exercise, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   toggleVisibility(id: string, visibleToStudents: boolean): Observable<any> {
-    return this.http.patch(`${this.apiUrl}/${id}/visibility`, { visibleToStudents }, { withCredentials: true });
+    return this.http.patch(`${this.apiUrl}/${id}/visibility`, { visibleToStudents }, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   toggleWatchOnlyMode(id: string, watchOnlyMode: boolean): Observable<any> {
@@ -558,11 +593,15 @@ export class DigitalExerciseService {
   }
 
   toggleActive(id: string): Observable<any> {
-    return this.http.patch(`${this.apiUrl}/${id}/toggle-active`, {}, { withCredentials: true });
+    return this.http.patch(`${this.apiUrl}/${id}/toggle-active`, {}, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   deleteExercise(id: string): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true });
+    return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   bulkDeleteExercises(ids: string[]): Observable<{ success: boolean; modifiedCount: number }> {
@@ -570,6 +609,8 @@ export class DigitalExerciseService {
       `${this.apiUrl}/admin/bulk-delete`,
       { ids },
       { withCredentials: true }
+    ).pipe(
+      tap(() => this.invalidateExerciseListCache()),
     );
   }
 
@@ -578,6 +619,8 @@ export class DigitalExerciseService {
       `${this.apiUrl}/admin/bulk-update`,
       { ids, updates },
       { withCredentials: true }
+    ).pipe(
+      tap(() => this.invalidateExerciseListCache()),
     );
   }
 
@@ -599,6 +642,7 @@ export class DigitalExerciseService {
       { withCredentials: true }
     ).pipe(
       tap((res: any) => {
+        this.invalidateExerciseListCache();
         if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
           this.progressService.notifyJourneyAdvance({
             previousDay: res.previousCourseDay,

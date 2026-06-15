@@ -261,11 +261,9 @@ exports.listStudent = async (req, res) => {
         'title level language courseDay weeklyTestEnabled examEnabled'
       );
     } else {
-      moduleQuery = moduleQuery
-        .populate('characterId')
-        .select(
-          'title description level characterId visibleToStudents weeklyTestEnabled examEnabled updatedAt createdAt scenes courseDay targetBatchKeys'
-        );
+      moduleQuery = moduleQuery.select(
+        'title description level language visibleToStudents weeklyTestEnabled examEnabled scenes courseDay'
+      );
     }
     const modules = await moduleQuery.sort({ title: 1 }).lean();
 

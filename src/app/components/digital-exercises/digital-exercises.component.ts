@@ -100,7 +100,7 @@ export class DigitalExercisesComponent implements OnInit {
     this.loading = true;
     const filters: any = {
       page: 1,
-      limit: 100
+      limit: this.embedded ? 50 : 100
     };
     if (this.searchQuery.trim()) filters.search = this.searchQuery.trim();
     if (this.selectedLevel) filters.level = this.selectedLevel;
@@ -306,10 +306,13 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   getTypeSummary(exercise: DigitalExercise): string {
-    const counts: Record<string, number> = {};
     const labels: Record<string, string> = { mcq: 'MCQ', matching: 'Match', 'fill-blank': 'Fill', pronunciation: 'Speak' };
-    (exercise.questions || []).forEach(q => { counts[q.type] = (counts[q.type] || 0) + 1; });
+    const counts = exercise.questionTypeSummary || {};
     return Object.entries(counts).map(([t, c]) => `${labels[t] || t}×${c}`).join(' · ');
+  }
+
+  getQuestionCount(ex: DigitalExercise): number {
+    return Number(ex.questionCount ?? ex.questions?.length ?? 0) || 0;
   }
 
   isAttemptPassing(att: ExerciseAttempt | null | undefined): boolean {
@@ -416,6 +419,8 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   hasType(exercise: DigitalExercise, type: string): boolean {
+    const summary = exercise.questionTypeSummary;
+    if (summary) return (Number(summary[type]) || 0) > 0;
     return (exercise.questions || []).some(q => q.type === type);
   }
 
@@ -434,7 +439,7 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   exerciseMetaLine(ex: DigitalExercise): string {
-    const n = ex.questions.length || 0;
+    const n = this.getQuestionCount(ex);
     const m = ex.estimatedDuration || 15;
     const d = ex.difficulty || '—';
     return `${n} qs · ~${m} min · ${d}`;

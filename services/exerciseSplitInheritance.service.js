@@ -4,6 +4,7 @@
  */
 
 const ExerciseAttempt = require('../models/ExerciseAttempt');
+const DigitalExercise = require('../models/DigitalExercise');
 
 const PASS_SCORE_PERCENT = 60;
 
@@ -190,6 +191,21 @@ async function attachInheritedAttemptsForStudent(studentId, exercises) {
     (ex) => ex?.splitLineage?.sourceExerciseId && !ex.studentAttempt
   );
   if (!candidates.length) return;
+
+  const missingQuestionIds = candidates
+    .filter((ex) => !Array.isArray(ex.questions) || !ex.questions.length)
+    .map((ex) => ex._id)
+    .filter(Boolean);
+  if (missingQuestionIds.length) {
+    const questionRows = await DigitalExercise.find({ _id: { $in: missingQuestionIds } })
+      .select('questions.type questions.points questions.subQuestions.points')
+      .lean();
+    const questionsByExercise = new Map(questionRows.map((row) => [String(row._id), row.questions || []]));
+    candidates.forEach((ex) => {
+      if (Array.isArray(ex.questions) && ex.questions.length) return;
+      ex.questions = questionsByExercise.get(String(ex._id)) || [];
+    });
+  }
 
   const sourceIds = [
     ...new Set(candidates.map((ex) => String(ex.splitLineage.sourceExerciseId)))
