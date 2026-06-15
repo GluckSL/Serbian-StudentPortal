@@ -166,6 +166,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   } | null = null;
   importError = '';
   resetLoading = false;
+  exportLoading = false;
 
   // ── Note form (inside drawer) ─────────────────────────────────────────────
   noteForm = { type: 'NOTE', content: '', followUpDate: '' };
@@ -1499,9 +1500,38 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   // ── Export ────────────────────────────────────────────────────────────────
 
-  exportData(format: 'csv' | 'xlsx'): void {
-    const url = this.api.getExportUrl(this.filters, format);
-    window.open(url, '_blank');
+  /** Export all students matching the current filters (not just the current page). */
+  exportData(format: 'csv' | 'xlsx' = 'xlsx'): void {
+    if (this.exportLoading) return;
+    this.exportLoading = true;
+    this.cdr.markForCheck();
+    this.api.exportStudents(this.filters, format).subscribe({
+      next: (blob) => {
+        const ext = format === 'xlsx' ? 'xlsx' : 'csv';
+        const filename = `enrollment-students-${this.exportFilenameStamp()}.${ext}`;
+        this.downloadBlob(blob, filename);
+        this.exportLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        alert('Export failed. Please try again.');
+        this.exportLoading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private exportFilenameStamp(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Template helpers ──────────────────────────────────────────────────────

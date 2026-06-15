@@ -20,10 +20,10 @@
         <button class="kd-btn kd-btn--ghost" (click)="openImportDialog()">
           <span class="material-icons">upload_file</span> Import
         </button>
-        <button class="kd-btn kd-btn--ghost" (click)="exportData('csv')">
+        <button class="kd-btn kd-btn--ghost" (click)="exportData('csv')" [disabled]="exportLoading">
           <span class="material-icons">download</span> CSV
         </button>
-        <button class="kd-btn kd-btn--ghost" (click)="exportData('xlsx')">
+        <button class="kd-btn kd-btn--ghost" (click)="exportData('xlsx')" [disabled]="exportLoading">
           <span class="material-icons">table_chart</span> Excel
         </button>
         <button class="kd-btn kd-btn--primary" (click)="openCreateDialog()">
@@ -317,6 +317,15 @@
       </div>
 
       <div class="kd-filter-row">
+        <button
+          type="button"
+          class="kd-btn kd-btn--primary kd-btn--sm kd-export-btn"
+          (click)="exportData('xlsx')"
+          [disabled]="exportLoading || pagination.total === 0"
+          [attr.aria-busy]="exportLoading">
+          <span class="material-icons">{{ exportLoading ? 'hourglass_top' : 'download' }}</span>
+          {{ exportLoading ? 'Exporting…' : ('Export Excel (' + pagination.total + ')') }}
+        </button>
         <select class="kd-select" [(ngModel)]="filters.limit" (change)="applyFilter({ limit: filters.limit })">
           <option [ngValue]="25">25 per page</option>
           <option [ngValue]="50">50 per page</option>
