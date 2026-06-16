@@ -6,6 +6,7 @@ const approvalCtrl = require('../controllers/approvalController');
 const catalogCtrl = require('../controllers/catalogSettingsController');
 const legacyCtrl = require('../controllers/legacyMapController');
 const notificationCtrl = require('../controllers/notificationController');
+const financeDashboardSettingsCtrl = require('../controllers/financeDashboardSettingsController');
 const { attachFinanceRole, requireFinanceAdmin } = require('../middlewares/financeRoles');
 const { buildUploadMiddleware } = require('../middlewares/paymentScreenshotUpload');
 const uploadScreenshot = (req, res, next) => buildUploadMiddleware()(req, res, next);
@@ -25,6 +26,9 @@ router.get('/students/table', ctrl.getStudentTable);
 
 // ─── Admin: Batch payment aggregates (Payment Hub batch overview) ─────────────
 router.get('/batches/summary', ctrl.getBatchPaymentSummary);
+router.get('/finance-dashboard/visible-batches', financeDashboardSettingsCtrl.getVisibleBatches);
+router.put('/finance-dashboard/visible-batches', requireFinanceAdmin, financeDashboardSettingsCtrl.updateVisibleBatches);
+router.post('/finance-dashboard/trigger-report/:type', requireFinanceAdmin, financeDashboardSettingsCtrl.triggerReport);
 
 // ─── Admin: Batch students payment breakdown (Payment Hub insights) ─────────
 router.get('/batches/:batch/students', ctrl.getBatchStudentsPaymentDetail);

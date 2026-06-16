@@ -22,88 +22,87 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="ph-filter ph-filter--batches" subscriptSizing="dynamic">
-            <mat-label>
-              Batches
-              <span class="ph-filter-count" *ngIf="hasBatchSelection">{{ selectedBatches.length }}</span>
-            </mat-label>
+            <mat-label>Add batches to dashboard</mat-label>
             <mat-select
-              [(ngModel)]="selectedBatches"
+              [(ngModel)]="batchesToAdd"
               multiple
-              (selectionChange)="onBatchSelectionChange()"
-              [disabled]="loading || !batchOptions.length"
-              placeholder="All batches"
+              [disabled]="loading || savingVisibleBatches || !availableBatchesToAdd.length"
+              placeholder="Choose batches…"
             >
-              <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
+              <mat-option *ngFor="let b of availableBatchesToAdd" [value]="b">{{ b }}</mat-option>
             </mat-select>
           </mat-form-field>
-
-          <mat-form-field
-            appearance="outline"
-            class="ph-filter ph-filter--preset"
-            subscriptSizing="dynamic"
-            *ngIf="savedPresets.length"
-          >
-            <mat-label>Saved view</mat-label>
-            <mat-select
-              [(ngModel)]="activePresetName"
-              (selectionChange)="applySavedPreset($event.value)"
-              [disabled]="loading"
-            >
-              <mat-option value="">Custom selection</mat-option>
-              <mat-option *ngFor="let p of savedPresets" [value]="p.name">
-                {{ p.name }} ({{ p.batches.length }})
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-
         </div>
 
         <div class="ph-finance-filters-actions">
           <button
             type="button"
             class="ph-filter-pill ph-filter-pill--primary"
-            (click)="openSavePreset()"
-            [disabled]="loading || !selectedBatches.length"
-            matTooltip="Save current batch selection as a named view"
+            (click)="addBatchesToDashboard()"
+            [disabled]="loading || savingVisibleBatches || !batchesToAdd.length"
+            matTooltip="Add selected batches for all admins and sub-admins"
           >
-            <mat-icon>bookmark_add</mat-icon>
-            Save view
-          </button>
-          <button
-            type="button"
-            class="ph-filter-pill"
-            (click)="clearBatchSelection()"
-            [disabled]="loading || (!selectedBatches.length && !activePresetName)"
-          >
-            Clear
-          </button>
-          <button
-            type="button"
-            class="ph-filter-pill ph-filter-pill--danger"
-            *ngIf="activePresetName"
-            (click)="deleteActivePreset()"
-            matTooltip="Delete this saved view"
-            aria-label="Delete saved view"
-          >
-            <mat-icon>delete_outline</mat-icon>
+            <mat-icon>add</mat-icon>
+            Add batches
           </button>
         </div>
       </div>
-    </div>
 
-    <div class="ph-preset-save-panel" *ngIf="showPresetSaveInput">
-      <mat-form-field appearance="outline" class="ph-preset-name-field" subscriptSizing="dynamic">
-        <mat-label>View name</mat-label>
-        <input
-          matInput
-          [(ngModel)]="presetNameInput"
-          placeholder="e.g. New batches"
-          (keyup.enter)="confirmSavePreset()"
-        />
-      </mat-form-field>
-      <button type="button" class="ph-filter-pill ph-filter-pill--primary" (click)="confirmSavePreset()">Save</button>
-      <button type="button" class="ph-filter-pill" (click)="cancelSavePreset()">Cancel</button>
-      <span class="ph-preset-save-hint">{{ selectedBatches.length }} batch(es) will be saved</span>
+      <div class="ph-finance-visible-batches" *ngIf="hasVisibleBatches">
+        <span class="ph-finance-visible-batches__label">Visible batches ({{ visibleBatches.length }})</span>
+        <div class="ph-finance-visible-batches__chips">
+          <span class="ph-finance-visible-chip" *ngFor="let b of visibleBatches">
+            {{ b }}
+            <button
+              type="button"
+              class="ph-finance-visible-chip__remove"
+              (click)="removeVisibleBatch(b)"
+              [disabled]="savingVisibleBatches"
+              [attr.aria-label]="'Remove ' + b"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </span>
+        </div>
+      </div>
+
+      <p class="ph-finance-visible-hint" *ngIf="!hasVisibleBatches && !loading">
+        No batches on this dashboard yet. Use <strong>Add batches</strong> above — only added batches are shown for every admin and sub-admin.
+      </p>
+
+      <div class="ph-finance-email-triggers">
+        <span class="ph-finance-email-triggers__label">
+          <mat-icon class="ph-finance-email-triggers__icon">mail</mat-icon>
+          Email reports
+        </span>
+        <button
+          type="button"
+          class="ph-finance-trigger-btn ph-finance-trigger-btn--morning"
+          (click)="triggerEmailReport('morning')"
+          [disabled]="!!triggeringReport || loading"
+          [matTooltip]="'Send 10 AM pending balance summary to finance team'"
+        >
+          <mat-icon>wb_sunny</mat-icon>
+          <ng-container *ngIf="triggeringReport === 'morning'; else morningLabel">
+            <span class="ph-finance-trigger-btn__sending">Sending…</span>
+          </ng-container>
+          <ng-template #morningLabel>10 AM Report</ng-template>
+        </button>
+        <button
+          type="button"
+          class="ph-finance-trigger-btn ph-finance-trigger-btn--evening"
+          (click)="triggerEmailReport('evening')"
+          [disabled]="!!triggeringReport || loading"
+          [matTooltip]="'Send 6 PM received-today summary to finance team'"
+        >
+          <mat-icon>nights_stay</mat-icon>
+          <ng-container *ngIf="triggeringReport === 'evening'; else eveningLabel">
+            <span class="ph-finance-trigger-btn__sending">Sending…</span>
+          </ng-container>
+          <ng-template #eveningLabel>6 PM Report</ng-template>
+        </button>
+        <span class="ph-finance-email-triggers__hint">Auto-sends daily at 10 AM &amp; 6 PM IST</span>
+      </div>
     </div>
 
     <ng-container *ngIf="!loading; else skeleton">
@@ -207,8 +206,7 @@
             <h2 class="ph-insights-panel-title">Batch breakdown</h2>
             <p class="ph-panel-caption">
               {{ displayBatchRows.length }} batches
-              <span *ngIf="hasBatchSelection"> · {{ selectedBatches.length }} selected</span>
-              <span *ngIf="activePresetName"> · view: {{ activePresetName }}</span>
+              <span *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} on dashboard</span>
               <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
               <span *ngIf="paymentFilter !== 'all_language'"> · {{ paymentFilterLabel() }}</span>
             </p>
@@ -241,7 +239,7 @@
               type="button"
               class="ph-btn-export"
               [matMenuTriggerFor]="exportMenu"
-              [disabled]="exporting || !batchRows.length"
+              [disabled]="exporting || !rowsInDashboard.length"
             >
               <mat-icon>download</mat-icon>
               {{ exporting ? 'Exporting…' : 'Export' }}
@@ -249,19 +247,15 @@
             <mat-menu #exportMenu="matMenu">
               <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
                 <mat-icon>grid_on</mat-icon>
-                <span>Excel — all batches ({{ batchRows.length }})</span>
+                <span>Excel — dashboard batches ({{ rowsInDashboard.length }})</span>
               </button>
               <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
                 <mat-icon>description</mat-icon>
-                <span>CSV — all batches</span>
+                <span>CSV — dashboard batches</span>
               </button>
               <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
                 <mat-icon>filter_list</mat-icon>
                 <span>Excel — table filter ({{ displayBatchRows.length }})</span>
-              </button>
-              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'selected')" [disabled]="!selectedBatches.length">
-                <mat-icon>checklist</mat-icon>
-                <span>Excel — selected ({{ selectedBatches.length }})</span>
               </button>
             </mat-menu>
             <div class="ph-finance-search-wrap">
@@ -394,7 +388,13 @@
 
         <ng-template #emptyTable>
           <p class="ph-empty-note">
-            {{ tableSearch || batchInsight || hasBatchSelection ? 'No batches match your filter.' : 'No batches found.' }}
+            {{
+              !hasVisibleBatches
+                ? 'No batches added to this dashboard yet. Use Add batches above.'
+                : tableSearch || batchInsight
+                  ? 'No batches match your filter.'
+                  : 'No batch data found for the added batches.'
+            }}
           </p>
         </ng-template>
       </section>
