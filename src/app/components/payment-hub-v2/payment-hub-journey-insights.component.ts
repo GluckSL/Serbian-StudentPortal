@@ -151,6 +151,11 @@ export class PaymentHubJourneyInsightsComponent implements OnInit {
     return v.row.studentId?.level || '—';
   }
 
+  journeyDayRatio(v: JourneyRowView): string {
+    if (v.currentDay == null) return `—/${v.totalDays}`;
+    return `${v.currentDay}/${v.totalDays}`;
+  }
+
   fmtPct(p: number | null): string {
     if (p == null) return '—';
     return `${Math.round(p * 100)}%`;

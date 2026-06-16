@@ -276,6 +276,7 @@ export class LanguageTrackingStudentDetailComponent implements OnInit, OnDestroy
       flashcards: 'Flashcards',
       image_matching: 'Image Matching',
       gender_stack: 'Gender Stack',
+      memory: 'Memory Game',
     };
     return map[gt] || gt;
   }

@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const sanitizeHtml = require('sanitize-html');
 const Announcement = require('../models/Announcement');
 const User = require('../models/User');
 const { dispatchWebsiteEmailAnnouncement } = require('../services/announcementEmailDispatch');
@@ -50,6 +51,74 @@ const upload = multer({
     return cb(new Error('Unsupported file type'));
   }
 });
+
+const ANNOUNCEMENT_HTML_SANITIZE_OPTIONS = {
+  allowedTags: [
+    'p',
+    'br',
+    'strong',
+    'b',
+    'em',
+    'i',
+    'u',
+    's',
+    'mark',
+    'blockquote',
+    'ul',
+    'ol',
+    'li',
+    'h1',
+    'h2',
+    'h3',
+    'a',
+    'span'
+  ],
+  allowedAttributes: {
+    a: ['href', 'target', 'rel'],
+    span: ['style']
+  },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowProtocolRelative: false,
+  // Allow Quill highlight output (background) and optional foreground color.
+  allowedStyles: {
+    span: {
+      'background-color': [/^#[0-9a-fA-F]{3,8}$/, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/, /^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0(\.\d+)?|1(\.0+)?)\s*\)$/],
+      color: [/^#[0-9a-fA-F]{3,8}$/, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/, /^rgba\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*(0(\.\d+)?|1(\.0+)?)\s*\)$/]
+    }
+  },
+  transformTags: {
+    a: (tagName, attribs) => {
+      const href = String(attribs.href || '').trim();
+      return {
+        tagName,
+        attribs: {
+          href,
+          target: '_blank',
+          rel: 'noreferrer noopener'
+        }
+      };
+    }
+  }
+};
+
+function textToHtml(value) {
+  const escaped = String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+  return escaped.replace(/\r?\n/g, '<br/>');
+}
+
+function sanitizeAnnouncementHtml(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return '';
+  const normalized = /[<>]/.test(value) ? value : textToHtml(value);
+  const cleaned = sanitizeHtml(normalized, ANNOUNCEMENT_HTML_SANITIZE_OPTIONS);
+  const plain = sanitizeHtml(cleaned, { allowedTags: [], allowedAttributes: {} }).trim();
+  return plain ? cleaned : '';
+}
 
 function parseTargetBatches(raw) {
   if (Array.isArray(raw)) return raw.map((b) => String(b || '').trim()).filter(Boolean);
@@ -159,10 +228,20 @@ router.get('/student', verifyToken, async (req, res) => {
       return res.json({ success: true, data: [] });
     }
 
-    const allItems = await Announcement.find({
-      channel: 'website',
-      isActive: true
-    })
+    const normalizedTargets = [];
+    if (isGoStudent) {
+      normalizedTargets.push(GO_STUDENTS_TARGET_NORMALIZED);
+    }
+    if (batch) {
+      normalizedTargets.push(normalizeBatchKey(batch));
+    }
+
+    const query = { channel: 'website', isActive: true };
+    if (normalizedTargets.length) {
+      query.normalizedBatches = { $in: normalizedTargets };
+    }
+
+    const allItems = await Announcement.find(query)
       .sort({ createdAt: -1 })
       .populate('createdBy', 'name role')
       .lean();
@@ -236,9 +315,9 @@ router.post(
       const channel = String(req.body.channel || 'website').toLowerCase();
       const deliveryType = String(req.body.deliveryType || 'website').toLowerCase();
       const title = String(req.body.title || '').trim();
-      const body = String(req.body.body || '').trim();
+      const body = sanitizeAnnouncementHtml(req.body.body);
       const emailSubject = String(req.body.emailSubject || '').trim();
-      const emailBody = String(req.body.emailBody || '').trim();
+      const emailBody = sanitizeAnnouncementHtml(req.body.emailBody);
       const targetBatches = parseTargetBatches(req.body.targetBatches);
 
       const scheduleRaw = String(req.body.scheduleAt || '').trim();
@@ -279,10 +358,13 @@ router.post(
         fileSize: file.size
       }));
 
+      const normalizedBatches = targetBatches.map(normalizeBatchKey).filter(Boolean);
+
       const announcement = new Announcement({
         channel,
         deliveryType,
         targetBatches,
+        normalizedBatches,
         title,
         body,
         attachments,
@@ -330,10 +412,10 @@ router.put(
 
       const deliveryType = String(req.body.deliveryType || '').trim().toLowerCase();
       const title = String(req.body.title || '').trim();
-      const body = String(req.body.body || '').trim();
+      const body = sanitizeAnnouncementHtml(req.body.body);
       const targetBatches = parseTargetBatches(req.body.targetBatches);
       const emailSubject = String(req.body.emailSubject || '').trim();
-      const emailBody = String(req.body.emailBody || '').trim();
+      const emailBody = sanitizeAnnouncementHtml(req.body.emailBody);
 
       if (!['website', 'website_email'].includes(deliveryType)) {
         return res.status(400).json({ success: false, message: 'Invalid website type.' });
@@ -348,6 +430,8 @@ router.put(
         return res.status(400).json({ success: false, message: 'Email subject and email body are required for website + email.' });
       }
 
+      const normalizedBatches = targetBatches.map(normalizeBatchKey).filter(Boolean);
+
       const updated = await Announcement.findOneAndUpdate(
         { _id: id, channel: 'website' },
         {
@@ -356,6 +440,7 @@ router.put(
             title,
             body,
             targetBatches,
+            normalizedBatches,
             emailSubject: deliveryType === 'website_email' ? emailSubject : '',
             emailBody: deliveryType === 'website_email' ? emailBody : ''
           }

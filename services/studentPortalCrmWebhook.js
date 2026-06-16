@@ -6,6 +6,7 @@ const axios = require('axios');
 const CrmStudentPortalSettings = require('../models/CrmStudentPortalSettings');
 
 const SETTINGS_KEY = 'default';
+let noWebhookUrlWarned = false;
 
 const ALL_EVENT_KEYS = [
   'STUDENT_CREATED',
@@ -179,7 +180,12 @@ async function dispatchEvent({ event, entity, metaOverrides = {} }) {
 
   const url = resolveWebhookUrl(settings);
   if (!url) {
-    console.warn('[StudentPortalCRM] No webhook URL configured; skip', event);
+    if (!noWebhookUrlWarned) {
+      noWebhookUrlWarned = true;
+      console.warn(
+        '[StudentPortalCRM] No webhook URL configured (set STUDENT_PORTAL_CRM_WEBHOOK_URL or webhookUrlOverride); CRM sync events are skipped.'
+      );
+    }
     return { ok: false, skipped: true, reason: 'no_url' };
   }
 

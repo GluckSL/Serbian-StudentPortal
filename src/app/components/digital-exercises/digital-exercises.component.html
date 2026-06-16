@@ -37,42 +37,87 @@
         <span class="material-icons">close</span>
       </button>
     </div>
+    <button class="clear-filters-btn clear-filters-btn--mobile-search" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+      <span class="material-icons">filter_alt_off</span> Clear
+    </button>
     <div class="filter-chips">
-      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
-        <mat-select
-          [(ngModel)]="selectedLevel"
-          (selectionChange)="onFilterChange()"
-          panelClass="dex-select-panel"
-          [attr.aria-label]="'Filter by level'"
+      <div class="dex-filter-wrap">
+        <button
+          type="button"
+          class="dex-filter"
+          (click)="toggleFilter('level')"
         >
-          <mat-option value="">All Levels</mat-option>
-          <mat-option *ngFor="let l of levelFilterOptions" [value]="l">{{ l }}</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
-        <mat-select
-          [(ngModel)]="selectedCategory"
-          (selectionChange)="onFilterChange()"
-          panelClass="dex-select-panel"
-          [attr.aria-label]="'Filter by category'"
+          <span>{{ selectedLevel || 'All Levels' }}</span>
+          <span class="material-icons dex-filter__arrow">expand_{{ levelFilterOpen ? 'less' : 'more' }}</span>
+        </button>
+        <div class="dex-filter-menu" *ngIf="levelFilterOpen">
+          <button
+            type="button"
+            class="dex-filter-option"
+            [class.on]="!selectedLevel"
+            (click)="selectedLevel = ''; levelFilterOpen = false; onFilterChange()"
+          >All Levels</button>
+          <button
+            type="button"
+            class="dex-filter-option"
+            *ngFor="let l of levelFilterOptions"
+            [class.on]="selectedLevel === l"
+            (click)="selectedLevel = l; levelFilterOpen = false; onFilterChange()"
+          >{{ l }}</button>
+        </div>
+      </div>
+      <div class="dex-filter-wrap">
+        <button
+          type="button"
+          class="dex-filter"
+          (click)="toggleFilter('category')"
         >
-          <mat-option value="">All Categories</mat-option>
-          <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline" class="dex-filter-field" subscriptSizing="dynamic" hideRequiredMarker>
-        <mat-select
-          [(ngModel)]="selectedDifficulty"
-          (selectionChange)="onFilterChange()"
-          panelClass="dex-select-panel"
-          [attr.aria-label]="'Filter by difficulty'"
+          <span>{{ selectedCategory || 'All Categories' }}</span>
+          <span class="material-icons dex-filter__arrow">expand_{{ categoryFilterOpen ? 'less' : 'more' }}</span>
+        </button>
+        <div class="dex-filter-menu" *ngIf="categoryFilterOpen">
+          <button
+            type="button"
+            class="dex-filter-option"
+            [class.on]="!selectedCategory"
+            (click)="selectedCategory = ''; categoryFilterOpen = false; onFilterChange()"
+          >All Categories</button>
+          <button
+            type="button"
+            class="dex-filter-option"
+            *ngFor="let c of categories"
+            [class.on]="selectedCategory === c"
+            (click)="selectedCategory = c; categoryFilterOpen = false; onFilterChange()"
+          >{{ c }}</button>
+        </div>
+      </div>
+      <div class="dex-filter-wrap">
+        <button
+          type="button"
+          class="dex-filter"
+          (click)="toggleFilter('difficulty')"
         >
-          <mat-option value="">All Difficulties</mat-option>
-          <mat-option *ngFor="let d of difficulties" [value]="d">{{ d }}</mat-option>
-        </mat-select>
-      </mat-form-field>
+          <span>{{ selectedDifficulty || 'All Difficulties' }}</span>
+          <span class="material-icons dex-filter__arrow">expand_{{ difficultyFilterOpen ? 'less' : 'more' }}</span>
+        </button>
+        <div class="dex-filter-menu" *ngIf="difficultyFilterOpen">
+          <button
+            type="button"
+            class="dex-filter-option"
+            [class.on]="!selectedDifficulty"
+            (click)="selectedDifficulty = ''; difficultyFilterOpen = false; onFilterChange()"
+          >All Difficulties</button>
+          <button
+            type="button"
+            class="dex-filter-option"
+            *ngFor="let d of difficulties"
+            [class.on]="selectedDifficulty === d"
+            (click)="selectedDifficulty = d; difficultyFilterOpen = false; onFilterChange()"
+          >{{ d }}</button>
+        </div>
+      </div>
       <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
-      <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+      <button class="clear-filters-btn clear-filters-btn--desktop" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
       </button>
     </div>
@@ -137,7 +182,7 @@
             <span class="vol-label">DAY / SEQ</span>
           </div>
           <div class="row-volume">
-            <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+            <span class="vol-num">{{ getQuestionCount(ex) }}</span>
             <span class="vol-label">ITEMS</span>
           </div>
           <div class="row-duration">
@@ -176,7 +221,7 @@
           </span>
         </div>
         <div class="row-volume">
-          <span class="vol-num">{{ ex.questions.length || 0 }}</span>
+          <span class="vol-num">{{ getQuestionCount(ex) }}</span>
           <span class="vol-label">ITEMS</span>
         </div>
         <div class="row-duration">

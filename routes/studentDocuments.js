@@ -14,6 +14,7 @@ const s3Client = require('../config/s3');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
+
 // Services that don't require any documents
 const NO_DOCS_SERVICES = ['German Language Only', 'Language only', 'Only for language', 'None', ''];
 
@@ -40,7 +41,8 @@ router.get('/requirements', verifyToken, checkRole(['STUDENT']), async (req, res
     }
 
     const service = (student.servicesOpted || '').trim();
-    const requirements = await getRequirementsForStudentService(service);
+    // Show every active document type to all students; required flag stays program-specific.
+    const requirements = await getAllActiveRequirementsForStudent(service);
 
     // Map to the shape the frontend expects
     const mapped = requirements.map(mapRequirement);
@@ -189,7 +191,7 @@ router.post('/upload', verifyToken, checkRole(['STUDENT']), upload.single('docum
     });
     
     await document.save();
-    
+
     console.log(`✅ Document uploaded: ${documentName} by ${student.name}`);
     
     res.json({
@@ -758,8 +760,7 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
       );
     }
     
-    // Create document record with VERIFIED status and no file
-    const document = new StudentDocument({
+    const doc = new StudentDocument({
       studentId: student._id,
       studentName: student.name,
       studentEmail: student.email,
@@ -781,7 +782,7 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
       isCurrent: true
     });
     
-    await document.save();
+    await doc.save();
     
     console.log(`✅ Admin marked document as verified: ${documentName} for ${student.name}`);
     
@@ -789,9 +790,9 @@ router.post('/admin/mark-verified', verifyToken, checkRole(['ADMIN']), async (re
       success: true,
       message: 'Document marked as verified successfully',
       document: mapStudentDocument({
-        ...document.toObject(),
+        ...doc.toObject(),
         formattedFileSize: 'N/A',
-        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(document.documentType)
+        documentTypeDisplay: requirement.name || requirement.label || getDocumentTypeDisplayName(doc.documentType)
       })
     });
   } catch (error) {
@@ -890,6 +891,42 @@ async function ensureDefaultRequirementsSeeded() {
       active: true
     }))
   );
+}
+
+function requirementAppliesToStudentService(requirement, service = '') {
+  const scopedServices = [
+    ...(Array.isArray(requirement.applicableServices) ? requirement.applicableServices : []),
+    ...(Array.isArray(requirement.programKeys) ? requirement.programKeys : [])
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+
+  if (scopedServices.length === 0) return true;
+
+  const trimmedService = String(service || '').trim();
+  if (!trimmedService) return false;
+
+  const normalized = trimmedService.replace(/[\s\-]+/g, '[\\s\\-]*');
+  const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+  return scopedServices.some((s) => serviceRegex.test(String(s).trim()));
+}
+
+async function getAllActiveRequirementsForStudent(service = '') {
+  const allRequirements = await DocumentRequirement.find({ active: true })
+    .sort({ order: 1, label: 1 })
+    .lean();
+
+  return allRequirements.map((req) => {
+    const applies = requirementAppliesToStudentService(req, service);
+    const baseRequired =
+      typeof req.isRequired === 'boolean' ? req.isRequired : !!req.required;
+    const isRequiredForStudent = applies && baseRequired;
+    return {
+      ...req,
+      required: isRequiredForStudent,
+      isRequired: isRequiredForStudent
+    };
+  });
 }
 
 function buildServiceScopedRequirementFilter(service = '', { requiredOnly = false } = {}) {

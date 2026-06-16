@@ -194,15 +194,20 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/auth/setup/send-otp`, { setupToken });
   }
 
-  /** Flow B step 2: verify OTP and set password, then log in */
-  completePasswordSetup(data: {
+  /** Flow B step 2a: verify OTP only — returns verificationCode */
+  verifySetupOtp(data: { setupToken: string; otp: string }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/auth/setup/verify-otp`, data);
+  }
+
+  /** Flow B step 2b: set password after OTP verification, then log in */
+  setSetupPassword(data: {
     setupToken: string;
-    otp: string;
+    verificationCode: string;
     newPassword: string;
     confirmPassword: string;
     keepSessionActive?: boolean;
   }): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/auth/setup/complete`, data).pipe(
+    return this.http.post<any>(`${this.apiUrl}/auth/setup/set-password`, data).pipe(
       tap((response: any) => {
         if (response?.token) {
           try {
@@ -277,12 +282,38 @@ export class AuthService {
     return loggedIn;
   }
 
+  /** Role embedded in the JWT issued at login (fallback when profile payload omits role). */
+  getRoleFromToken(): string | undefined {
+    const token = getAuthToken();
+    if (!token) return undefined;
+    try {
+      const decoded = jwtDecode<{ role?: string }>(token);
+      return decoded?.role || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Merge login + profile payloads so navigation never loses role/subscription. */
+  resolveUserForNavigation(
+    profile?: { role?: string; subscription?: string } | null,
+    loginUser?: { role?: string; subscription?: string } | null
+  ): { role?: string; subscription?: string } {
+    const tokenRole = this.getRoleFromToken();
+    return {
+      ...loginUser,
+      ...profile,
+      role: profile?.role || loginUser?.role || tokenRole,
+      subscription: profile?.subscription ?? loginUser?.subscription,
+    };
+  }
+
   /** Dashboard path after login or when a valid token session is already present. */
   getPostLoginPath(user: { role?: string; subscription?: string } | null | undefined): string | null {
-    if (!user?.role) {
+    const role = user?.role || this.getRoleFromToken();
+    if (!role) {
       return null;
     }
-    const role = user.role;
     if (role === 'ADMIN' || role === 'SUB_ADMIN') {
       return '/admin-dashboard';
     }
@@ -290,8 +321,9 @@ export class AuthService {
       return '/teacher-dashboard';
     }
     if (role === 'STUDENT') {
-      const isVisaDocOnly = (user.subscription || '').toUpperCase().trim() === 'VISA_DOC_ONLY';
-      return isVisaDocOnly ? '/student-progress' : '/student/my-course';
+      const sub = (user?.subscription || '').toUpperCase().trim();
+      const isCourse = sub === 'SILVER' || sub === 'PLATINUM';
+      return isCourse ? '/student/my-course' : '/student-documents';
     }
     return null;
   }

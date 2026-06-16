@@ -1,5 +1,7 @@
 <!-- Filters -->
 <section class="ph-surface ph-filters-panel">
+  <p class="ph-filters-heading">Filter students</p>
+
   <div class="ph-filters-row">
     <mat-form-field appearance="outline" class="ph-filter-field">
       <mat-label>Batch</mat-label>
@@ -10,35 +12,72 @@
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
-      <mat-label>Level</mat-label>
+      <mat-label>CEFR level</mat-label>
       <mat-select [(ngModel)]="filterLevel">
-        <mat-option value="">All Levels</mat-option>
+        <mat-option value="">All levels</mat-option>
         <mat-option *ngFor="let l of levels" [value]="l">{{ l }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Plan</mat-label>
+      <mat-select [(ngModel)]="filterSubscription">
+        <mat-option *ngFor="let o of subscriptionOptions" [value]="o.value">{{ o.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Student status</mat-label>
+      <mat-select [(ngModel)]="filterStudentStatus">
+        <mat-option *ngFor="let o of studentStatusOptions" [value]="o.value">{{ o.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <div class="ph-filters-row ph-filters-row--secondary">
+    <mat-form-field appearance="outline" class="ph-filter-field">
+      <mat-label>Language fee status</mat-label>
+      <mat-select [(ngModel)]="filterLanguageFeeStatus">
+        <mat-option *ngFor="let o of languageFeeStatusOptions" [value]="o.value">{{ o.label }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
       <mat-label>Currency</mat-label>
       <mat-select [(ngModel)]="filterCurrency">
-        <mat-option value="">All Currencies</mat-option>
+        <mat-option value="">All currencies</mat-option>
         <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
-      <mat-label>From Date</mat-label>
+      <mat-label>From date</mat-label>
       <input matInput [matDatepicker]="pickerFrom" [(ngModel)]="filterDateFrom" />
       <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
       <mat-datepicker #pickerFrom></mat-datepicker>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
-      <mat-label>To Date</mat-label>
+      <mat-label>To date</mat-label>
       <input matInput [matDatepicker]="pickerTo" [(ngModel)]="filterDateTo" />
       <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
       <mat-datepicker #pickerTo></mat-datepicker>
     </mat-form-field>
+
+    <div
+      class="ph-filter-test"
+      matTooltip="Test accounts are hidden by default. Turn on to include them in the student list and all summary numbers."
+    >
+      <mat-checkbox [(ngModel)]="includeTestAccounts" (change)="applyFilters()">
+        Include test accounts
+      </mat-checkbox>
+    </div>
   </div>
+
+  <p class="ph-filters-lang-hint">
+    <mat-icon aria-hidden="true">info</mat-icon>
+    <span>Full paid = no language fee balance · Balance if journey day &lt; 10 · Due from day 10</span>
+  </p>
 
   <div class="ph-actions-row">
     <button mat-flat-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-primary ph-anim-btn" (click)="applyFilters()">
@@ -69,6 +108,45 @@
       <mat-icon>table_chart</mat-icon>
       Import from Excel
     </button>
+    <button
+      mat-stroked-button
+      type="button"
+      class="ph-pill-btn ph-pill-btn-export ph-anim-btn"
+      [matMenuTriggerFor]="exportMenu"
+      [disabled]="exporting || total === 0"
+      matTooltip="Download student payment data as Excel or CSV (current filters)"
+    >
+      <mat-icon>download</mat-icon>
+      {{ exporting ? 'Exporting…' : 'Export' }}
+    </button>
+    <mat-menu #exportMenu="matMenu">
+      <button mat-menu-item type="button" (click)="exportPayments('xlsx', 'all')" [disabled]="exporting || total === 0">
+        <mat-icon>grid_on</mat-icon>
+        <span>Excel (.xlsx) — all matching ({{ total }})</span>
+      </button>
+      <button mat-menu-item type="button" (click)="exportPayments('csv', 'all')" [disabled]="exporting || total === 0">
+        <mat-icon>description</mat-icon>
+        <span>CSV — all matching ({{ total }})</span>
+      </button>
+      <button
+        mat-menu-item
+        type="button"
+        (click)="exportPayments('xlsx', 'selected')"
+        [disabled]="exporting || selectedCount === 0"
+      >
+        <mat-icon>checklist</mat-icon>
+        <span>Excel (.xlsx) — selected ({{ selectedCount }})</span>
+      </button>
+      <button
+        mat-menu-item
+        type="button"
+        (click)="exportPayments('csv', 'selected')"
+        [disabled]="exporting || selectedCount === 0"
+      >
+        <mat-icon>checklist</mat-icon>
+        <span>CSV — selected ({{ selectedCount }})</span>
+      </button>
+    </mat-menu>
     <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openCorrectReceived()" [disabled]="selectedCount !== 1" matTooltip="Fix wrong approved amount for one selected student (updates student portal too)">
       <mat-icon>edit</mat-icon>
       Correct total received
@@ -77,81 +155,150 @@
       <mat-icon>account_balance_wallet</mat-icon>
       Set balance to zero
     </button>
+    <button
+      mat-stroked-button
+      color="warn"
+      type="button"
+      class="ph-pill-btn ph-pill-btn-warn ph-anim-btn"
+      (click)="resetSelectedPayments()"
+      [disabled]="selectedCount === 0 || resettingPayments"
+      matTooltip="Clear total received, pending, and overdue for selected students before Excel re-import"
+    >
+      <mat-icon>delete_sweep</mat-icon>
+      {{ resettingPayments ? 'Resetting…' : 'Reset payments' }}
+    </button>
   </div>
 </section>
 
 <!-- Stat cards -->
 <div class="ph-cards-section" *ngIf="!loadingStats; else statsSpinner">
+  <div class="ph-cards-scope" *ngIf="stats">
+    <span class="ph-cards-scope-label">Summary for</span>
+    <span class="ph-cards-scope-value" [class.ph-cards-scope-value--filtered]="hasActiveFilters">
+      {{ activeFilterLabel }}
+    </span>
+    <span class="ph-cards-scope-hint" *ngIf="!hasActiveFilters">Apply filters above to see batch-specific totals</span>
+  </div>
+
   <div class="ph-cards-grid" *ngIf="stats">
+    <mat-card class="ph-card ph-card-indigo ph-card--total-payment">
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--indigo"><mat-icon>payments</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Total Payment</span>
+          <span class="ph-card-desc">{{ stats.totalStudents }} students × level fee</span>
+        </div>
+      </div>
+      <mat-card-content class="ph-card-body ph-card-body--total-payment">
+        @if (!filterCurrency || filterCurrency === 'LKR') {
+          @if (stats.totalPaymentExpectedLKR > 0) {
+            <div class="ph-compact-total-row">
+              <span class="ph-ccy-badge ph-ccy-badge--lkr">LKR</span>
+              <span class="ph-compact-total-val">{{ fmtCompact(stats.totalPaymentExpectedLKR) }}</span>
+              <span class="ph-compact-total-full" [title]="fmtFull(stats.totalPaymentExpectedLKR) + ' LKR'">
+                ({{ fmtFull(stats.totalPaymentExpectedLKR) }})
+              </span>
+            </div>
+          }
+        }
+        @if (!filterCurrency || filterCurrency === 'INR') {
+          @if (stats.totalPaymentExpectedINR > 0) {
+            <div class="ph-compact-total-row">
+              <span class="ph-ccy-badge ph-ccy-badge--inr">INR</span>
+              <span class="ph-compact-total-val">{{ fmtCompact(stats.totalPaymentExpectedINR) }}</span>
+              <span class="ph-compact-total-full" [title]="fmtFull(stats.totalPaymentExpectedINR) + ' INR'">
+                ({{ fmtFull(stats.totalPaymentExpectedINR) }})
+              </span>
+            </div>
+          }
+        }
+        @if (stats.totalPaymentExpectedLKR === 0 && stats.totalPaymentExpectedINR === 0) {
+          <span class="ph-compact-empty">—</span>
+        }
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="ph-card ph-card-green">
-      <div class="ph-card-header">
-        <mat-icon>check_circle</mat-icon>
-        <span>Total Received</span>
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--green"><mat-icon>check_circle</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Total Received</span>
+          <span class="ph-card-desc">All approved payments</span>
+        </div>
       </div>
       <mat-card-content class="ph-card-body">
         <app-payment-currency-totals
           [lkr]="stats.totalReceivedLKR"
           [inr]="stats.totalReceivedINR"
           [usd]="stats.totalReceivedUSD"
+          [hideZero]="!!filterCurrency"
         ></app-payment-currency-totals>
       </mat-card-content>
-      <div class="ph-card-footer">All approved payments</div>
     </mat-card>
 
     <mat-card class="ph-card ph-card-amber">
-      <div class="ph-card-header">
-        <mat-icon>hourglass_empty</mat-icon>
-        <span>Pending Approval</span>
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--amber"><mat-icon>hourglass_empty</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Pending / Balance</span>
+          <span class="ph-card-desc">Outstanding on payment slots (matches table)</span>
+        </div>
       </div>
       <mat-card-content class="ph-card-body">
         <app-payment-currency-pending-totals
           [lkr]="stats.pendingApprovalAmountLKR"
           [inr]="stats.pendingApprovalAmountINR"
           [usd]="stats.pendingApprovalAmountUSD"
-          [hideZero]="false"
+          [hideZero]="!!filterCurrency"
         ></app-payment-currency-pending-totals>
       </mat-card-content>
-      <div class="ph-card-footer">Submitted, not yet approved</div>
-    </mat-card>
-
-    <mat-card class="ph-card ph-card-blue">
-      <div class="ph-card-header">
-        <mat-icon>calendar_today</mat-icon>
-        <span>Expected This Month</span>
-      </div>
-      <mat-card-content class="ph-card-body">
-        <app-payment-currency-totals
-          [lkr]="stats.totalExpectedThisMonthLKR"
-          [inr]="stats.totalExpectedThisMonthINR"
-          [usd]="stats.totalExpectedThisMonthUSD"
-        ></app-payment-currency-totals>
-      </mat-card-content>
-      <div class="ph-card-footer">Due by end of current month</div>
     </mat-card>
 
     <mat-card class="ph-card ph-card-red">
-      <div class="ph-card-header">
-        <mat-icon>error_outline</mat-icon>
-        <span>Overdue</span>
+      <div class="ph-card-top">
+        <div class="ph-card-icon ph-card-icon--red"><mat-icon>error_outline</mat-icon></div>
+        <div class="ph-card-meta">
+          <span class="ph-card-title">Overdue</span>
+          <span class="ph-card-desc">Past due, not paid · {{ stats.overdueCount }} requests</span>
+        </div>
       </div>
       <mat-card-content class="ph-card-body">
         <app-payment-currency-overdue-totals
           [lkr]="stats.totalOverdueLKR"
           [inr]="stats.totalOverdueINR"
           [usd]="stats.totalOverdueUSD"
-          [hideZero]="false"
+          [hideZero]="!!filterCurrency"
         ></app-payment-currency-overdue-totals>
       </mat-card-content>
-      <div class="ph-card-footer">Past due date, not paid ({{ stats.overdueCount }} requests)</div>
     </mat-card>
   </div>
 
-  <div class="ph-summary-row" *ngIf="stats">
-    <div class="ph-summary-item"><span class="ph-summary-label">Total Students</span><span class="ph-summary-val">{{ stats.totalStudents }}</span></div>
-    <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item"><span class="ph-summary-label">Fully Paid</span><span class="ph-summary-val ph-val-green">{{ stats.fullyPaidStudents }}</span></div>
-    <div class="ph-summary-divider"></div>
-    <div class="ph-summary-item"><span class="ph-summary-label">Active</span><span class="ph-summary-val ph-val-blue">{{ stats.activeStudents }}</span></div>
+  <div class="ph-health-grid" *ngIf="stats">
+    <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
+    <div class="ph-health-cards">
+      <button
+        type="button"
+        class="ph-health-card ph-health-card--{{ opt.color }}"
+        *ngFor="let opt of studentInsightOptions"
+        [class.ph-health-card--active]="isInsightActive(opt.value)"
+        [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
+        (click)="applyInsightFilter(opt.value)"
+        [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+      >
+        <div class="ph-health-card-icon">
+          <mat-icon>{{ opt.icon }}</mat-icon>
+        </div>
+        <div class="ph-health-card-body">
+          <span class="ph-health-card-label">{{ opt.label }}</span>
+          <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
+          <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In current view</span>
+          <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
+            {{ studentPct(insightCount(opt.key), stats.totalStudents) }} of students
+          </span>
+        </div>
+        <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
+      </button>
+    </div>
   </div>
 </div>
 <ng-template #statsSpinner>
@@ -159,11 +306,32 @@
 </ng-template>
 
 <!-- Table -->
-<section class="ph-table-section ph-surface">
+<section class="ph-table-section ph-surface" id="ph-students-table">
   <div class="ph-table-toolbar">
     <div class="ph-table-toolbar-left">
       <h2 class="ph-section-title">Students</h2>
+      <span class="ph-insight-filter-chip" *ngIf="hasTableInsightFilter">
+        <mat-icon>filter_alt</mat-icon>
+        {{ activeInsightLabel() }}
+        <button type="button" class="ph-insight-filter-clear" (click)="clearInsightFilter()" matTooltip="Clear category filter">
+          <mat-icon>close</mat-icon>
+        </button>
+      </span>
       <span class="ph-select-meta" *ngIf="selectedCount > 0">{{ selectedCount }} selected</span>
+      <button
+        mat-button
+        type="button"
+        class="ph-select-all-btn"
+        *ngIf="total > rows.length"
+        (click)="selectAllMatchingFilter()"
+        [disabled]="selectingAllMatching"
+        matTooltip="Select every student matching the current filters (all pages)"
+      >
+        {{ selectingAllMatching ? 'Selecting…' : 'Select all ' + total + ' matching' }}
+      </button>
+      <button mat-button type="button" class="ph-select-clear-btn" *ngIf="selectedCount > 0" (click)="clearSelection()">
+        Clear selection
+      </button>
     </div>
     <mat-form-field appearance="outline" class="ph-search-field">
       <mat-label>Search by name or email</mat-label>
@@ -184,12 +352,11 @@
           <th>Batch</th>
           <th>Level</th>
           <th>Date joined</th>
-          <th class="ph-num ph-col-compact">Total journey days</th>
-          <th class="ph-num ph-col-compact">Current journey day</th>
+          <th class="ph-num ph-col-compact">Journey day</th>
           <th class="ph-num">Total received</th>
           <th class="ph-num">Pending</th>
           <th class="ph-num">Overdue</th>
-          <th>Status</th>
+          <th>Language fee</th>
           <th class="ph-col-actions">Actions</th>
         </tr>
       </thead>
@@ -198,13 +365,17 @@
           <td class="ph-col-check">
             <mat-checkbox [checked]="isRowSelected(row)" (change)="toggleRowSelection(row, $event.checked)"></mat-checkbox>
           </td>
-          <td class="ph-name-cell">{{ studentName(row) }}</td>
+          <td class="ph-name-cell">
+            {{ studentName(row) }}
+            <app-test-account-badge [show]="includeTestAccounts && !!row.studentId.isTestAccount"></app-test-account-badge>
+          </td>
           <td class="ph-email-cell">{{ studentEmail(row) }}</td>
           <td>{{ studentBatch(row) }}</td>
           <td><span class="ph-level-pill">{{ studentLevel(row) }}</span></td>
           <td>{{ studentDateJoined(row) }}</td>
-          <td class="ph-num ph-col-compact ph-muted-num">{{ totalJourneyDays(row) }}</td>
-          <td class="ph-num ph-col-compact"><span class="ph-day-badge">{{ currentJourneyDay(row) ?? '—' }}</span></td>
+          <td class="ph-num ph-col-compact">
+            <span class="ph-day-badge ph-day-badge--ratio">{{ journeyDayDisplay(row) }}</span>
+          </td>
           <td class="ph-num ph-val-green ph-paid-cell">
             <app-payment-currency-totals
               [lkr]="row.totalPaidLKR"
@@ -213,6 +384,13 @@
               [compact]="true"
               [hideZero]="true"
             ></app-payment-currency-totals>
+            <div class="ph-paid-slots" *ngIf="paidSlots(row).length">
+              <span
+                class="ph-paid-slot"
+                *ngFor="let slot of paidSlots(row)"
+                [ngClass]="paidSlotClass(slot)"
+              >{{ paidSlotLabel(slot) }}</span>
+            </div>
           </td>
           <td class="ph-num ph-val-amber ph-paid-cell">
             <app-payment-currency-pending-totals
@@ -230,7 +408,9 @@
               [compact]="true"
             ></app-payment-currency-overdue-totals>
           </td>
-          <td><span class="ph-pill" [ngClass]="statusClass(row.overallStatus)">{{ row.overallStatus || '—' }}</span></td>
+          <td>
+            <span class="ph-pill" [ngClass]="languageFeePillClass(row)">{{ languageFeeStatusLabel(row) }}</span>
+          </td>
           <td class="ph-col-actions">
             <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(row)">
               <mat-icon>open_in_new</mat-icon> Payments

@@ -9,7 +9,7 @@ const PRONOUN_CYCLE = ['ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr', 'Sie'] as c
 const PRONOUN_TO_TOKEN_INDEX: Record<string, number> = {
   ich: 0, du: 1, er: 2, sie: 2, es: 2, wir: 3, ihr: 4, Sie: 5,
 };
-const HITS_PER_PRONOUN = 3;
+const HITS_PER_PRONOUN = 1;
 const GRAVITY = 0.4;
 const FLAP_VELOCITY = -6.5;
 const CARD_SPEED_BASE = 2.5;
@@ -48,10 +48,6 @@ export interface FJResult {
   template: `
     <div class="fj" #container>
       <div class="fj__header" #header [style.display]="phase === 'idle' ? 'none' : ''">
-        <div class="fj__header-left">
-          <div class="fj__pronoun">{{ currentPronoun }}</div>
-          <div class="fj__infinitive">{{ currentInfinitive }}</div>
-        </div>
         <div class="fj__header-center">
           <div class="fj__score">{{ score }}</div>
           <div class="fj__progress-bar">
@@ -67,6 +63,11 @@ export interface FJResult {
       </div>
       <div class="fj__body">
         <canvas #canvas class="fj__canvas" (click)="onFlap()" (keydown)="onKeydown($event)" tabindex="0"></canvas>
+        <div class="fj__prompt" *ngIf="phase === 'playing'" aria-live="polite">
+          <span class="fj__pronoun">{{ currentPronoun }}</span>
+          <span class="fj__infinitive">{{ currentInfinitive }}</span>
+          <span class="fj__translation" *ngIf="currentTranslation">{{ currentTranslation }}</span>
+        </div>
         <div class="fj__overlay" *ngIf="phase === 'idle' || phase === 'gameover' || phase === 'complete'">
           <div class="fj__overlay-card">
             <ng-container [ngSwitch]="phase">
@@ -92,13 +93,53 @@ export interface FJResult {
     </div>
   `,
   styles: [`
-    .fj { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 450px; border-radius: 12px; overflow: hidden; outline: none; }
+    :host {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
+    .fj {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      flex: 1;
+      min-height: min(72vh, 720px);
+      border-radius: 12px;
+      overflow: hidden;
+      outline: none;
+    }
     .fj__header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: rgba(0,0,0,.45); backdrop-filter: blur(6px); min-height: 52px; gap: 12px; z-index: 10; flex-shrink: 0; }
-    .fj__header-left { display: flex; align-items: center; gap: 10px; }
-    .fj__header-center { display: flex; align-items: center; gap: 12px; }
-    .fj__header-right { display: flex; align-items: center; }
-    .fj__pronoun { font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.5); background: rgba(255,255,255,.12); padding: 2px 14px; border-radius: 8px; }
-    .fj__infinitive { font-size: 13px; color: #e0e0e0; background: rgba(255,255,255,.08); padding: 2px 10px; border-radius: 6px; }
+    .fj__header-center { display: flex; align-items: center; gap: 12px; flex: 1; }
+    .fj__header-right { display: flex; align-items: center; margin-left: auto; }
+    .fj__prompt {
+      position: absolute;
+      top: clamp(16px, 10%, 72px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 18px;
+      border-radius: 14px;
+      background: rgba(30, 41, 59, 0.72);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      pointer-events: none;
+      z-index: 5;
+      max-width: calc(100% - 32px);
+    }
+    .fj__pronoun { font-size: 26px; font-weight: 800; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.5); background: rgba(255,255,255,.15); padding: 4px 16px; border-radius: 8px; }
+    .fj__infinitive { font-size: 15px; font-weight: 600; color: #fff; background: rgba(255,255,255,.1); padding: 4px 12px; border-radius: 6px; }
+    .fj__translation { font-size: 14px; color: #e2e8f0; background: rgba(255,255,255,.08); padding: 4px 12px; border-radius: 6px; font-style: italic; }
+    @media (max-width: 640px) {
+      .fj__prompt { flex-direction: column; gap: 6px; padding: 12px 16px; }
+      .fj__pronoun { font-size: 22px; }
+    }
     .fj__score { font-size: 20px; font-weight: 700; color: #fdd835; }
     .fj__lives { display: flex; gap: 2px; }
     .fj__progress-bar { width: 100px; height: 5px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
@@ -123,6 +164,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
   phase: 'idle' | 'playing' | 'gameover' | 'complete' = 'idle';
   currentPronoun = 'ich';
   currentInfinitive = '';
+  currentTranslation = '';
   score = 0;
   accuracy = 0;
   livesArr: number[] = [];
@@ -159,6 +201,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
   private boomRingY = 0;
   private boomRingRadius = 0;
   private boomRingAlpha = 0;
+  private resizeObserver?: ResizeObserver;
 
   constructor(private ngZone: NgZone, readonly audio: GameAudioService) {}
 
@@ -167,10 +210,13 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     this.audio.loadMutePreference();
     this.resizeCanvas();
     this.drawIdle();
+    this.resizeObserver = new ResizeObserver(() => this.onResize());
+    this.resizeObserver.observe(this.containerRef.nativeElement);
   }
 
   ngOnDestroy() {
     this.stopLoop();
+    this.resizeObserver?.disconnect();
   }
 
   private resizeCanvas() {
@@ -180,7 +226,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     const headerH = headerEl ? headerEl.offsetHeight : 0;
     const dpr = window.devicePixelRatio || 1;
     this.canvasW = rect.width;
-    this.canvasH = Math.max(rect.height - headerH, 350);
+    this.canvasH = Math.max(rect.height - headerH, 480);
     const canvas = this.canvasRef.nativeElement;
     canvas.width = this.canvasW * dpr;
     canvas.height = this.canvasH * dpr;
@@ -217,6 +263,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     const q = this.questions[this.questionIndex];
     if (!q) { this.endGame(); return; }
     this.currentInfinitive = q.word;
+    this.currentTranslation = q.translation || '';
     this.pronounCycleIndex = 0;
     this.currentPronoun = PRONOUN_CYCLE[0];
     this.hitsThisPronoun = 0;
@@ -250,6 +297,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
   @HostListener('window:resize')
   onResize() {
     this.resizeCanvas();
+    if (this.phase === 'idle') this.drawIdle();
   }
 
   onFlap() {
@@ -368,7 +416,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
   }
 
   private onCorrect(card: FormCard) {
-    this.audio.playUrl('/assets/audios/correct-flappy.mp3');
+    this.audio.playCorrect();
     card.hitState = 'hit';
     card.hitCorrect = true;
     card.hitTimer = 30;
@@ -378,6 +426,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     this.hitsThisPronoun++;
     this.xpBurst = 10;
     this.xpTrigger++;
+    this.audio.playXpGain();
     this.showFeedback('✓', '#22c55e');
     if (this.hitsThisPronoun >= HITS_PER_PRONOUN) {
       this.pronounCycleIndex++;
@@ -430,7 +479,7 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     card.hitTimer = 25;
     const cx = card.x + (CARD_WIDTH * this.scaleFactor) / 2;
     const cy = card.y + (CARD_HEIGHT * this.scaleFactor) / 2;
-    this.audio.playUrl('/assets/audios/incorrect-flappy.mp3');
+    this.audio.playWrong();
     this.spawnParticles(cx, cy, '#ef4444', 30);
     this.spawnFragments(cx, cy);
     this.boomRingX = cx;
@@ -443,7 +492,10 @@ export class FlapjugationComponent implements AfterViewInit, OnDestroy {
     this.livesArr = Array(Math.max(0, this.lives)).fill(0);
     this.lostLivesArr = Array(MAX_LIVES - Math.max(0, this.lives)).fill(0);
     this.showFeedback('✗', '#ef4444');
-    if (this.lives <= 0) { this.endGame(); }
+    if (this.lives <= 0) {
+      this.audio.playLost();
+      this.endGame();
+    }
   }
 
   private showFeedback(text: string, color: string) {

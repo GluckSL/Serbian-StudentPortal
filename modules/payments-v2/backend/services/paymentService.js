@@ -13,6 +13,10 @@ const notificationService = require('./notificationService');
 const timelineService = require('./timelineService');
 const installmentService = require('./installmentService');
 const receiptService = require('./receiptService');
+const { computeLiveTotalsFromData } = require('../utils/currencyBreakdownHelper');
+const { slotForRequest } = require('../utils/levelSlotHelper');
+
+const VALID_SLOT_KEYS = new Set(['A1', 'A2', 'B1', 'B2', 'DOCS', 'VISA']);
 
 const getEmailService = () => require('./emailService');
 
@@ -27,53 +31,80 @@ const getUser = (userId) =>
 // ─── Rebuild StudentPaymentProfile ───────────────────────────────────────────
 
 const recalculateStudentProfile = async (studentId) => {
-  const [requests, approvedSubmissions] = await Promise.all([
+  const [requests, approvedSubmissions, pendingSubmissions] = await Promise.all([
     PaymentRequest.find({ studentId, isArchived: false }).lean(),
     PaymentFlowSubmission.find({ studentId, status: 'APPROVED', isArchived: false }).lean(),
+    PaymentFlowSubmission.find({ studentId, status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false }).lean(),
   ]);
 
-  const currencyMap = {};
-  for (const s of approvedSubmissions) {
-    if (!currencyMap[s.currency]) currencyMap[s.currency] = { currency: s.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
-    currencyMap[s.currency].totalPaid += s.paidAmount;
-  }
-  for (const r of requests) {
-    if (!currencyMap[r.currency]) currencyMap[r.currency] = { currency: r.currency, totalPaid: 0, pendingApprovalAmount: 0, overdueAmount: 0, expectedAmount: 0 };
-    if (['SUBMITTED', 'UNDER_REVIEW'].includes(r.status)) currencyMap[r.currency].pendingApprovalAmount += r.amountRemaining || r.amount;
-    if (r.status === 'OVERDUE') currencyMap[r.currency].overdueAmount += r.amountRemaining || r.amount;
-    if (['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'PARTIALLY_PAID'].includes(r.status)) currencyMap[r.currency].expectedAmount += r.amountRemaining || r.amount;
-  }
+  const activeRequestIds = new Set(requests.map((r) => String(r._id)));
+  const approvedForActiveRequests = approvedSubmissions.filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId)),
+  );
+  const pendingForActiveRequests = pendingSubmissions.filter((s) =>
+    activeRequestIds.has(String(s.paymentRequestId)),
+  );
 
-  const totalPaid = approvedSubmissions.reduce((s, sub) => s + sub.paidAmount, 0);
+  const live = computeLiveTotalsFromData(requests, approvedSubmissions, pendingSubmissions);
+  const {
+    totalPaid,
+    pendingApprovalAmount,
+    overdueAmount,
+    overallStatus,
+    currencyBreakdown,
+  } = live;
+
   const totalRequested = requests.reduce((s, r) => s + r.amount, 0);
-  const pendingApprovalAmount = requests
-    .filter((r) => ['SUBMITTED', 'UNDER_REVIEW'].includes(r.status))
-    .reduce((s, r) => s + (r.amountRemaining ?? r.amount), 0);
-  const overdueAmount = requests.filter((r) => r.status === 'OVERDUE').reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
-  const expectedAmount = requests.filter((r) => !['APPROVED', 'FULLY_PAID', 'REJECTED', 'OVERDUE'].includes(r.status)).reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
+  const expectedAmount = requests
+    .filter((r) => !['APPROVED', 'FULLY_PAID', 'REJECTED', 'OVERDUE'].includes(r.status))
+    .reduce((s, r) => s + (r.amountRemaining || r.amount), 0);
 
   const overdueCount = requests.filter((r) => r.status === 'OVERDUE').length;
-  const activeRequestCount = requests.filter((r) => ['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'REUPLOAD_REQUIRED'].includes(r.status)).length;
+  const activeRequestCount = requests.filter((r) =>
+    ['REQUESTED', 'SUBMITTED', 'UNDER_REVIEW', 'REUPLOAD_REQUIRED'].includes(r.status),
+  ).length;
   const completedRequestCount = requests.filter((r) => ['APPROVED', 'FULLY_PAID'].includes(r.status)).length;
-  const pendingApprovalCount = requests.filter((r) => ['SUBMITTED', 'UNDER_REVIEW'].includes(r.status)).length;
+  const pendingApprovalCount = pendingForActiveRequests.length;
   const rejectedCount = requests.filter((r) => r.status === 'REJECTED').length;
 
-  const sorted = [...approvedSubmissions].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
+  const sorted = [...approvedForActiveRequests].sort((a, b) => new Date(b.approvedAt) - new Date(a.approvedAt));
   const lastSub = sorted[0];
-
-  let overallStatus = 'CLEAR';
-  if (overdueCount > 0) overallStatus = 'OVERDUE';
-  else if (pendingApprovalCount > 0) overallStatus = 'PENDING_REVIEW';
-  else if (activeRequestCount > 0) overallStatus = 'REQUESTED';
-  else if (completedRequestCount > 0 && activeRequestCount === 0 && overdueCount === 0) overallStatus = 'CLEAR';
 
   const paymentHealthScore = Math.max(0, 100 - overdueCount * 20 - rejectedCount * 5);
 
-  return StudentPaymentProfile.findOneAndUpdate(
+  const profile = await StudentPaymentProfile.findOneAndUpdate(
     { studentId },
-    { studentId, totalPaid, pendingApprovalAmount, overdueAmount, expectedAmount, totalRequested, currencyBreakdown: Object.values(currencyMap), totalRequestCount: requests.length, activeRequestCount, completedRequestCount, overdueCount, pendingApprovalCount, fullyPaidCount: completedRequestCount, rejectedCount, lastPaymentDate: lastSub?.approvedAt, lastPaymentAmount: lastSub?.paidAmount, lastPaymentCurrency: lastSub?.currency, overallStatus, paymentHealthScore, lastRebuiltAt: new Date() },
+    {
+      studentId,
+      totalPaid,
+      pendingApprovalAmount,
+      overdueAmount,
+      expectedAmount,
+      totalRequested,
+      currencyBreakdown,
+      totalRequestCount: requests.length,
+      activeRequestCount,
+      completedRequestCount,
+      overdueCount,
+      pendingApprovalCount,
+      fullyPaidCount: completedRequestCount,
+      rejectedCount,
+      lastPaymentDate: lastSub?.approvedAt,
+      lastPaymentAmount: lastSub?.paidAmount,
+      lastPaymentCurrency: lastSub?.currency,
+      overallStatus,
+      paymentHealthScore,
+      lastRebuiltAt: new Date(),
+    },
     { upsert: true, new: true }
   );
+
+  try {
+    const journeyDue = require('./journeyLanguageFeeDueService');
+    journeyDue.syncForStudent(studentId).catch((e) => console.error('[JourneyDue]', e.message));
+  } catch (_) { /* optional */ }
+
+  return profile;
 };
 
 // ─── CREATE PAYMENT REQUEST(S) ───────────────────────────────────────────────
@@ -128,7 +159,7 @@ const createPaymentRequests = async ({ studentIds, adminId, adminRole, adminName
 
 // ─── SUBMIT PAYMENT ──────────────────────────────────────────────────────────
 
-const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency, transactionId, screenshotKey, screenshotOriginalName, screenshotMimeType, screenshotSize, paymentMethod, installmentNumber }) => {
+const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency, transactionId, screenshotKey, screenshotOriginalName, screenshotMimeType, screenshotSize, paymentMethod, installmentNumber, paymentDateTime, accountHolderName }) => {
   const request = await PaymentRequest.findOne({ _id: paymentRequestId, studentId });
   if (!request) throw new Error('Payment request not found or does not belong to this student');
   if (['FULLY_PAID', 'APPROVED'].includes(request.status)) throw new Error('This payment is already fully paid');
@@ -141,7 +172,24 @@ const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency
     if (inst) { installmentId = inst._id; inst.status = 'SUBMITTED'; await inst.save(); }
   }
 
-  const submission = await PaymentFlowSubmission.create({ paymentRequestId, studentId, paidAmount, currency, transactionId, screenshotKey, screenshotOriginalName, screenshotMimeType, screenshotSize, paymentMethod: paymentMethod || 'Bank Transfer', installmentId, installmentNumber, status: 'SUBMITTED', submittedAt: new Date() });
+  const submission = await PaymentFlowSubmission.create({
+    paymentRequestId,
+    studentId,
+    paidAmount,
+    currency,
+    transactionId,
+    screenshotKey,
+    screenshotOriginalName,
+    screenshotMimeType,
+    screenshotSize,
+    paymentMethod: paymentMethod || 'Bank Transfer',
+    paymentDateTime: paymentDateTime || null,
+    accountHolderName: accountHolderName ? String(accountHolderName).trim() : '',
+    installmentId,
+    installmentNumber,
+    status: 'SUBMITTED',
+    submittedAt: new Date(),
+  });
   request.status = 'SUBMITTED';
   await request.save();
 
@@ -152,9 +200,142 @@ const submitPayment = async ({ paymentRequestId, studentId, paidAmount, currency
   return submission;
 };
 
+const VALID_REVIEW_CURRENCIES = new Set(['LKR', 'INR', 'USD']);
+const VALID_REVIEW_METHODS = new Set(['Bank Transfer', 'UPI', 'Cash', 'Card', 'Other', 'Legacy']);
+const VALID_REVIEW_LEVELS = new Set(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
+
+/** Admin edits on approval queue review modal (batch, type, amounts, submission fields). */
+const applySubmissionReviewDetails = async ({ submissionId, adminId, adminRole, updates, skipCreditValidation = false }) => {
+  if (!updates || typeof updates !== 'object') return null;
+
+  const submission = await PaymentFlowSubmission.findById(submissionId).populate('paymentRequestId');
+  if (!submission) throw new Error('Submission not found');
+  if (submission.status === 'APPROVED') throw new Error('Cannot edit an already approved submission');
+
+  const request = submission.paymentRequestId
+    ? await PaymentRequest.findById(submission.paymentRequestId._id || submission.paymentRequestId)
+    : null;
+  if (!request) throw new Error('Payment request not found');
+
+  const studentId = submission.studentId;
+  const User = mongoose.model('User');
+  const student = await User.findById(studentId);
+  if (!student) throw new Error('Student not found');
+
+  const previous = {
+    submission: submission.toObject(),
+    request: request.toObject(),
+    student: { batch: student.batch, level: student.level },
+  };
+
+  if (updates.batch !== undefined) {
+    student.batch = String(updates.batch || '').trim();
+  }
+  if (updates.level !== undefined) {
+    const lv = String(updates.level || '').trim().toUpperCase();
+    if (lv && !VALID_REVIEW_LEVELS.has(lv)) throw new Error('Level must be A1–C2');
+    student.level = lv || student.level;
+  }
+
+  if (updates.paymentType) {
+    request.paymentType = String(updates.paymentType).trim();
+  }
+  if (updates.customType !== undefined) {
+    request.customType = String(updates.customType || '').trim() || undefined;
+  }
+  if (updates.remarks !== undefined) {
+    request.remarks = String(updates.remarks || '').trim();
+  }
+  if (updates.requestCurrency) {
+    const c = String(updates.requestCurrency).trim().toUpperCase();
+    if (!VALID_REVIEW_CURRENCIES.has(c)) throw new Error('Currency must be LKR, INR, or USD');
+    request.currency = c;
+    submission.currency = c;
+  }
+  if (updates.requestAmount != null && updates.requestAmount !== '') {
+    const a = Number(updates.requestAmount);
+    if (!a || a <= 0 || Number.isNaN(a)) throw new Error('Request total must be greater than zero');
+    request.amount = a;
+  }
+  if (updates.balance != null && updates.balance !== '') {
+    const bal = Math.max(0, Number(updates.balance));
+    if (Number.isNaN(bal)) throw new Error('Balance must be a valid number');
+    request.amountRemaining = bal;
+  }
+
+  if (updates.declaredAmount != null && updates.declaredAmount !== '') {
+    const declared = Number(updates.declaredAmount);
+    if (!declared || declared <= 0 || Number.isNaN(declared)) {
+      throw new Error('Declared amount must be greater than zero');
+    }
+    submission.paidAmount = declared;
+  }
+  if (updates.accountHolderName !== undefined) {
+    submission.accountHolderName = String(updates.accountHolderName || '').trim();
+  }
+  if (updates.paymentMethod) {
+    const m = String(updates.paymentMethod).trim();
+    if (!VALID_REVIEW_METHODS.has(m)) throw new Error('Invalid payment method');
+    submission.paymentMethod = m;
+  }
+  if (updates.paymentDateTime) {
+    const d = new Date(updates.paymentDateTime);
+    if (Number.isNaN(d.getTime())) throw new Error('Invalid payment date');
+    submission.paymentDateTime = d;
+  }
+
+  if (!skipCreditValidation) {
+    const otherApproved = await PaymentFlowSubmission.find({
+      paymentRequestId: request._id,
+      status: 'APPROVED',
+      isArchived: false,
+      _id: { $ne: submission._id },
+    }).lean();
+    const otherPaid = otherApproved.reduce((s, sub) => s + (Number(sub.paidAmount) || 0), 0);
+    if (otherPaid + submission.paidAmount > request.amount + 0.01) {
+      throw new Error(
+        `Declared/credit amount cannot exceed request total (${request.currency} ${request.amount})`,
+      );
+    }
+  }
+
+  await student.save();
+  await request.save();
+  await submission.save();
+
+  await logAudit({
+    entityType: 'PaymentFlowSubmission',
+    entityId: submission._id,
+    action: 'REVIEW_DETAILS_UPDATED',
+    performedBy: adminId,
+    performedByRole: adminRole,
+    previousState: previous,
+    newState: {
+      submission: submission.toObject(),
+      request: request.toObject(),
+      student: { batch: student.batch, level: student.level },
+    },
+    studentId: student._id,
+  });
+
+  return { submission, request, student };
+};
+
 // ─── APPROVE PAYMENT ─────────────────────────────────────────────────────────
 
-const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, adminRemarks }) => {
+const approveSubmission = async ({
+  submissionId,
+  adminId,
+  adminRole,
+  adminName,
+  adminRemarks,
+  paidAmount: paidAmountOverride,
+  reviewUpdates,
+}) => {
+  if (reviewUpdates) {
+    await applySubmissionReviewDetails({ submissionId, adminId, adminRole, updates: reviewUpdates });
+  }
+
   const submission = await PaymentFlowSubmission.findById(submissionId).populate('paymentRequestId').populate('studentId', 'name email batch level');
   if (!submission) throw new Error('Submission not found');
   if (submission.status === 'APPROVED') throw new Error('Already approved');
@@ -162,6 +343,22 @@ const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, 
   const request = submission.paymentRequestId;
   const student = submission.studentId;
   const previousStatus = submission.status;
+
+  if (paidAmountOverride !== undefined && paidAmountOverride !== null && paidAmountOverride !== '') {
+    const amount = Number(paidAmountOverride);
+    if (!amount || amount <= 0 || Number.isNaN(amount)) throw new Error('Credited amount must be a positive number');
+    const otherApproved = await PaymentFlowSubmission.find({
+      paymentRequestId: request._id,
+      status: 'APPROVED',
+      isArchived: false,
+      _id: { $ne: submission._id },
+    }).lean();
+    const otherTotal = otherApproved.reduce((s, sub) => s + sub.paidAmount, 0);
+    if (otherTotal + amount > request.amount + 0.01) {
+      throw new Error(`Credited amount cannot exceed request total (${request.currency} ${request.amount})`);
+    }
+    submission.paidAmount = amount;
+  }
 
   submission.status = 'APPROVED';
   submission.approvedBy = adminId;
@@ -220,7 +417,17 @@ const approveSubmission = async ({ submissionId, adminId, adminRole, adminName, 
 
 // ─── REJECT SUBMISSION ────────────────────────────────────────────────────────
 
-const rejectSubmission = async ({ submissionId, adminId, adminRole, adminName, rejectionReason }) => {
+const rejectSubmission = async ({ submissionId, adminId, adminRole, adminName, rejectionReason, reviewUpdates }) => {
+  if (reviewUpdates) {
+    await applySubmissionReviewDetails({
+      submissionId,
+      adminId,
+      adminRole,
+      updates: reviewUpdates,
+      skipCreditValidation: true,
+    });
+  }
+
   const submission = await PaymentFlowSubmission.findById(submissionId).populate('studentId', 'name email');
   if (!submission) throw new Error('Submission not found');
   if (submission.status === 'APPROVED') throw new Error('Cannot reject an already approved payment');
@@ -236,12 +443,18 @@ const rejectSubmission = async ({ submissionId, adminId, adminRole, adminName, r
   if (request) { request.status = 'REJECTED'; await request.save(); }
 
   const student = submission.studentId;
-  await logAudit({ entityType: 'PaymentFlowSubmission', entityId: submission._id, action: 'REJECTED', performedBy: adminId, performedByRole: adminRole, previousState: { status: previousStatus }, newState: { status: 'REJECTED', rejectionReason }, studentId: student._id || student });
-  await timelineService.onPaymentRejected(submission, adminId, adminRole, adminName, rejectionReason);
-  await recalculateStudentProfile(student._id || student);
+  const studentId = student?._id || student;
+  if (!studentId) throw new Error('Student not found for this submission');
 
-  notificationService.notifyPaymentRejected(student._id || student, { ...submission.toObject(), rejectionReason }).catch(() => {});
-  if (student.email) getEmailService().sendPaymentRejectedEmail(student, { ...submission.toObject(), rejectionReason }).catch(() => {});
+  await logAudit({ entityType: 'PaymentFlowSubmission', entityId: submission._id, action: 'REJECTED', performedBy: adminId, performedByRole: adminRole, previousState: { status: previousStatus }, newState: { status: 'REJECTED', rejectionReason }, studentId });
+  await timelineService.onPaymentRejected(submission, adminId, adminRole, adminName, rejectionReason);
+  await recalculateStudentProfile(studentId);
+
+  const submissionPayload = { ...submission.toObject(), rejectionReason };
+  notificationService.notifyPaymentRejected(studentId, submissionPayload).catch(() => {});
+  if (student?.email) {
+    getEmailService().sendPaymentRejectedEmail(student, submissionPayload).catch((e) => console.error('[Email]', e.message));
+  }
 
   return submission;
 };
@@ -286,11 +499,18 @@ const addInternalNote = async ({ requestId, adminId, adminRole, adminName, note,
 const archiveRequest = async ({ requestId, adminId, adminRole, reason }) => {
   const request = await PaymentRequest.findById(requestId);
   if (!request) throw new Error('Payment request not found');
+  const archivedAt = new Date();
   request.isArchived = true;
-  request.archivedAt = new Date();
+  request.archivedAt = archivedAt;
   request.archivedBy = adminId;
   request.archiveReason = reason;
   await request.save();
+
+  await PaymentFlowSubmission.updateMany(
+    { paymentRequestId: request._id, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+  );
+
   await logAudit({ entityType: 'PaymentRequest', entityId: request._id, action: 'DELETED', performedBy: adminId, performedByRole: adminRole, metadata: { reason, archiveType: 'SOFT_DELETE' }, studentId: request.studentId });
   await recalculateStudentProfile(request.studentId);
   return request;
@@ -317,17 +537,44 @@ const detectAndMarkOverdue = async () => {
 
 // ─── DASHBOARD STATS ─────────────────────────────────────────────────────────
 
-const getPaymentDashboardStats = async () => {
+const getPaymentDashboardStats = async (options = {}) => {
+  const { studentIds = null, currency = null } = options;
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
+  const studentScope =
+    studentIds === null ?
+      {} :
+      { studentId: { $in: studentIds.length ? studentIds : [new mongoose.Types.ObjectId('000000000000000000000000')] } };
+  const currencyScope = currency ? { currency } : {};
+
+  const matchApproved = { status: 'APPROVED', isArchived: false, ...studentScope, ...currencyScope };
+  const matchPending = { status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false, ...studentScope, ...currencyScope };
+  const matchExpected = {
+    dueDate: { $gte: startOfMonth, $lte: endOfMonth },
+    status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] },
+    isArchived: false,
+    ...studentScope,
+    ...currencyScope,
+  };
+  const matchOverdue = {
+    dueDate: { $lt: now },
+    status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] },
+    isArchived: false,
+    ...studentScope,
+    ...currencyScope,
+  };
+
   const [totalReceivedOverall, totalReceivedThisMonth, pendingApproval, expectedThisMonth, overdueData] = await Promise.all([
-    PaymentFlowSubmission.aggregate([{ $match: { status: 'APPROVED', isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
-    PaymentFlowSubmission.aggregate([{ $match: { status: 'APPROVED', approvedAt: { $gte: startOfMonth, $lte: endOfMonth }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
-    PaymentFlowSubmission.aggregate([{ $match: { status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
-    PaymentRequest.aggregate([{ $match: { dueDate: { $gte: startOfMonth, $lte: endOfMonth }, status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' } } }]),
-    PaymentRequest.aggregate([{ $match: { dueDate: { $lt: now }, status: { $nin: ['APPROVED', 'FULLY_PAID', 'REJECTED'] }, isArchived: false } }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' }, count: { $sum: 1 } } }]),
+    PaymentFlowSubmission.aggregate([{ $match: matchApproved }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
+    PaymentFlowSubmission.aggregate([
+      { $match: { ...matchApproved, approvedAt: { $gte: startOfMonth, $lte: endOfMonth } } },
+      { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } },
+    ]),
+    PaymentFlowSubmission.aggregate([{ $match: matchPending }, { $group: { _id: '$currency', total: { $sum: '$paidAmount' }, count: { $sum: 1 } } }]),
+    PaymentRequest.aggregate([{ $match: matchExpected }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' } } }]),
+    PaymentRequest.aggregate([{ $match: matchOverdue }, { $group: { _id: '$currency', total: { $sum: '$amountRemaining' }, count: { $sum: 1 } } }]),
   ]);
 
   const toMap = (arr) => arr.reduce((acc, i) => ({ ...acc, [i._id]: { total: i.total, count: i.count || 0 } }), {});
@@ -488,9 +735,125 @@ const correctStudentTotalPaid = async ({ studentId, currency, correctedTotalPaid
   };
 };
 
+// ─── Bulk reset payment data (admin — before Excel re-import) ────────────────
+
+const bulkResetStudentPayments = async ({ studentIds, adminId, adminRole, reason }) => {
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    throw new Error('studentIds array is required');
+  }
+  if (studentIds.length > 500) {
+    throw new Error('Maximum 500 students per bulk reset');
+  }
+
+  const uniqueIds = [...new Set(studentIds.map(String))];
+  const User = mongoose.model('User');
+  const students = await User.find({ _id: { $in: uniqueIds }, role: 'STUDENT' }).select('_id').lean();
+  const validIds = students.map((s) => s._id);
+  if (!validIds.length) {
+    throw new Error('No valid student IDs provided');
+  }
+
+  const archivedAt = new Date();
+  const archiveReason = reason?.trim() || 'Bulk payment reset before re-import';
+
+  const activeRequests = await PaymentRequest.find({
+    studentId: { $in: validIds },
+    isArchived: false,
+  }).select('_id').lean();
+  const requestIds = activeRequests.map((r) => r._id);
+
+  const reqResult = await PaymentRequest.updateMany(
+    { studentId: { $in: validIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId, archiveReason } },
+  );
+
+  const subResult = await PaymentFlowSubmission.updateMany(
+    { studentId: { $in: validIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+  );
+
+  if (requestIds.length) {
+    await PaymentFlowSubmission.updateMany(
+      { paymentRequestId: { $in: requestIds }, isArchived: false },
+      { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+    );
+  }
+
+  for (const sid of validIds) {
+    await recalculateStudentProfile(sid);
+    await logAudit({
+      entityType: 'StudentPaymentProfile',
+      entityId: sid,
+      action: 'BULK_RESET',
+      performedBy: adminId,
+      performedByRole: adminRole,
+      studentId: sid,
+      metadata: { reason: archiveReason },
+    });
+  }
+
+  return {
+    studentsProcessed: validIds.length,
+    requestsArchived: reqResult.modifiedCount,
+    submissionsArchived: subResult.modifiedCount,
+  };
+};
+
+// ─── Reset one payment mapping slot (A1 / A2 / Docs / Visa, etc.) ───────────
+
+const resetPaymentSlot = async ({ studentId, slotKey, adminId, adminRole, reason }) => {
+  const slot = String(slotKey || '').trim().toUpperCase();
+  if (!VALID_SLOT_KEYS.has(slot)) {
+    throw new Error('slotKey must be A1, A2, B1, B2, DOCS, or VISA');
+  }
+
+  const User = mongoose.model('User');
+  const student = await User.findOne({ _id: studentId, role: 'STUDENT' }).select('level').lean();
+  if (!student) throw new Error('Student not found');
+
+  const allRequests = await PaymentRequest.find({ studentId, isArchived: false }).lean();
+  const toArchive = allRequests.filter((req) => slotForRequest(req, student.level) === slot);
+
+  if (!toArchive.length) {
+    return { slot, requestsArchived: 0, submissionsArchived: 0 };
+  }
+
+  const requestIds = toArchive.map((r) => r._id);
+  const archivedAt = new Date();
+  const archiveReason = reason?.trim() || `${slot} payment slot reset by admin`;
+
+  await PaymentRequest.updateMany(
+    { _id: { $in: requestIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId, archiveReason } },
+  );
+
+  const subResult = await PaymentFlowSubmission.updateMany(
+    { paymentRequestId: { $in: requestIds }, isArchived: false },
+    { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
+  );
+
+  await recalculateStudentProfile(studentId);
+  await logAudit({
+    entityType: 'StudentPaymentProfile',
+    entityId: studentId,
+    action: 'SLOT_RESET',
+    performedBy: adminId,
+    performedByRole: adminRole,
+    studentId,
+    metadata: { slot, reason: archiveReason, requestsArchived: toArchive.length },
+  });
+
+  return {
+    slot,
+    requestsArchived: toArchive.length,
+    submissionsArchived: subResult.modifiedCount,
+  };
+};
+
 module.exports = {
   createPaymentRequests,
   submitPayment,
+  applySubmissionReviewDetails,
   approveSubmission,
   rejectSubmission,
   requestReupload,
@@ -503,4 +866,6 @@ module.exports = {
   getUser,
   correctApprovedSubmissionAmount,
   correctStudentTotalPaid,
+  bulkResetStudentPayments,
+  resetPaymentSlot,
 };

@@ -32,6 +32,10 @@ export interface DigitalExerciseDraftItem {
   isAnswered?: boolean;
   /** True if this question was already POSTed via submit-question (replay on restore). */
   serverGraded?: boolean;
+  /** Sub-question pronunciation state (per sub-index). */
+  subQuestionSpokenText?: Record<number, string>;
+  subQuestionPronunciationScore?: Record<number, number>;
+  subQuestionHasRecorded?: Record<number, boolean>;
 }
 
 export interface DigitalExerciseDraftPayload {

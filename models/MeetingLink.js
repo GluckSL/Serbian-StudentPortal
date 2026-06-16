@@ -16,7 +16,7 @@ const meetingLinkSchema = new mongoose.Schema({
   timezone: { type: String, default: 'Asia/Colombo' },
   
   // Optional: day in the 200-day course journey
-  courseDay: { type: Number, default: null, min: 1, max: 200 },
+  courseDay: { type: Number, default: null, min: 0, max: 200 },
 
   /** Groups rows created in one bulk journey scheduling run (optional). */
   bulkScheduleId: { type: String, default: null, index: true },
@@ -139,7 +139,7 @@ const meetingLinkSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-meetingLinkSchema.index({ batch: 1, status: 1 });
+meetingLinkSchema.index({ batch: 1, status: 1, courseDay: 1 });
 
 // Update timestamp on save
 meetingLinkSchema.pre('save', function(next) {

@@ -185,6 +185,13 @@
                         <i class="fas fa-edit"></i>
                       </button>
                       <button
+                        class="btn btn-sm btn-key me-1"
+                        (click)="openPasswordModal(teacher)"
+                        title="Change password"
+                      >
+                        <i class="fas fa-key"></i>
+                      </button>
+                      <button
                         class="btn btn-sm btn-outline-danger"
                         (click)="deleteUser(teacher._id)"
                         title="Delete Teacher"
@@ -200,6 +207,81 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Password Modal -->
+  <div class="pw-overlay" *ngIf="pwModal.open" (click)="closePasswordModal()">
+    <div class="pw-box" (click)="$event.stopPropagation()">
+      <div class="pw-header">
+        <span class="pw-header-title"><i class="fas fa-key"></i>&nbsp; Manage Password</span>
+        <button class="pw-close" type="button" (click)="closePasswordModal()">&#x2715;</button>
+      </div>
+
+      <div class="pw-body">
+        <div class="pw-user-pill">
+          <i class="fas fa-user-circle"></i>
+          <span>{{ pwModal.user?.name }}</span>
+          <span class="pw-role-badge">{{ pwModal.user?.role }}</span>
+        </div>
+        <p class="pw-email-line">{{ pwModal.user?.email }}</p>
+
+        <div class="pw-field">
+          <label>New Password</label>
+          <div class="pw-input-row">
+            <input
+              [type]="pwModal.showPass ? 'text' : 'password'"
+              [(ngModel)]="pwModal.newPassword"
+              class="form-control form-control-sm"
+              placeholder="Enter new password (min 6 chars)"
+            />
+            <button class="pw-eye-btn" type="button" (click)="pwModal.showPass = !pwModal.showPass">
+              <i class="fas" [ngClass]="pwModal.showPass ? 'fa-eye-slash' : 'fa-eye'"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="pw-field">
+          <label>Confirm Password</label>
+          <input
+            [type]="pwModal.showPass ? 'text' : 'password'"
+            [(ngModel)]="pwModal.confirmPassword"
+            class="form-control form-control-sm"
+            placeholder="Re-enter the new password"
+          />
+        </div>
+
+        <div class="pw-divider"></div>
+
+        <button class="btn btn-sm btn-gen" type="button" (click)="generateRandomPassword()">
+          <i class="fas fa-random"></i>&nbsp; Generate Random Password
+        </button>
+
+        <div class="pw-generated-box" *ngIf="pwModal.generatedPreview">
+          <div class="pw-gen-row">
+            <span class="pw-gen-label">Generated:</span>
+            <span class="pw-gen-value">{{ pwModal.generatedPreview }}</span>
+            <button class="btn btn-sm btn-link pw-copy-btn" type="button" (click)="copyPassword()">
+              <i class="fas fa-copy"></i> Copy
+            </button>
+          </div>
+          <p class="pw-gen-note">This password is already filled above. Save to apply it.</p>
+        </div>
+
+        <p class="pw-error-msg" *ngIf="pwModal.error">
+          <i class="fas fa-exclamation-circle"></i> {{ pwModal.error }}
+        </p>
+      </div>
+
+      <div class="pw-footer">
+        <button class="btn btn-sm btn-light pw-cancel-btn" type="button" (click)="closePasswordModal()">Cancel</button>
+        <button class="btn btn-sm btn-mail" type="button" (click)="savePassword(true)" [disabled]="pwModal.saving">
+          <i class="fas fa-envelope"></i>&nbsp;{{ pwModal.saving ? 'Sending...' : 'Save & Mail' }}
+        </button>
+        <button class="btn btn-sm btn-save-pw" type="button" (click)="savePassword(false)" [disabled]="pwModal.saving">
+          <i class="fas fa-save"></i>&nbsp;{{ pwModal.saving ? 'Saving...' : 'Save Only' }}
+        </button>
+      </div>
     </div>
   </div>
 </div>

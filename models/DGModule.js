@@ -75,6 +75,14 @@ const DGModuleSchema = new mongoose.Schema(
     scenes: { type: [DGSceneSchema], default: [] },
     level: { type: String, default: 'A1' },
     visibleToStudents: { type: Boolean, default: false },
+    /**
+     * Exam bucket flags (mutually exclusive).
+     * - weeklyTestEnabled: visible under Student → My Course → Gluck Exam → Weekly Test
+     * - examEnabled:       visible under Student → My Course → Gluck Exam → Exams
+     * Default: both false (not shown under Gluck Exam).
+     */
+    weeklyTestEnabled: { type: Boolean, default: false },
+    examEnabled: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -88,7 +96,7 @@ const DGModuleSchema = new mongoose.Schema(
     minPracticeMinutes: { type: Number, default: 10, min: 5, max: 120 },
     maxPracticeMinutes: { type: Number, default: null, min: 5, max: 180 },
     /** 1–200 day in course journey; unset = general pool */
-    courseDay: { type: Number, min: 1, max: 200 },
+    courseDay: { type: Number, min: 0, max: 200 },
     /**
      * Optional batch targeting.
      * Empty / missing = visible to all batches (subject to other gating like journey day).
@@ -106,6 +114,9 @@ const DGModuleSchema = new mongoose.Schema(
 );
 
 DGModuleSchema.index({ visibleToStudents: 1, isActive: 1, level: 1 });
+DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, title: 1 });
+DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, weeklyTestEnabled: 1, title: 1 });
+DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, examEnabled: 1, title: 1 });
 DGModuleSchema.index({ createdBy: 1 });
 DGModuleSchema.index({ targetBatchKeys: 1, visibleToStudents: 1, isActive: 1, courseDay: 1 });
 
@@ -116,6 +127,10 @@ DGModuleSchema.pre('validate', function dgValidatePracticeWindow(next) {
     this.maxPracticeMinutes < this.minPracticeMinutes
   ) {
     this.invalidate('maxPracticeMinutes', 'Max practice minutes must be greater than or equal to min practice minutes.');
+  }
+  if (this.weeklyTestEnabled && this.examEnabled) {
+    this.invalidate('examEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+    this.invalidate('weeklyTestEnabled', 'Only one of Weekly Test or Exam can be enabled.');
   }
   next();
 });

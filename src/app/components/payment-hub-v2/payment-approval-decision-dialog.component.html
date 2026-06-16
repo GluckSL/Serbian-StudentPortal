@@ -1,0 +1,149 @@
+<div class="pad-root">
+  <div class="pad-header">
+    <div>
+      <h2 class="pad-title">{{ title }}</h2>
+      <p class="pad-sub" *ngIf="studentName">
+        Edit details for <strong>{{ studentName }}</strong>, then approve or reject.
+      </p>
+      <p class="pad-sub" *ngIf="!studentName">Edit payment details before confirming.</p>
+    </div>
+    <button mat-icon-button type="button" (click)="cancel()" aria-label="Close">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <mat-divider></mat-divider>
+
+  <div class="pad-body">
+    <p class="pad-email-line" *ngIf="studentEmail">
+      <mat-icon>email</mat-icon>
+      {{ studentEmail }}
+    </p>
+
+    <section class="pad-section">
+      <h3 class="pad-section__title">Student</h3>
+      <div class="pad-form-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Batch</mat-label>
+          <input matInput [(ngModel)]="batch" placeholder="e.g. Batch 36" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Level</mat-label>
+          <mat-select [(ngModel)]="level">
+            <mat-option value="">—</mat-option>
+            <mat-option *ngFor="let lv of levels" [value]="lv">{{ lv }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="pad-section">
+      <h3 class="pad-section__title">Payment request</h3>
+      <div class="pad-form-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Payment type</mat-label>
+          <mat-select [(ngModel)]="paymentType">
+            <mat-option *ngFor="let pt of paymentTypes" [value]="pt.value">{{ pt.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2" *ngIf="showCustomType">
+          <mat-label>{{ customTypeLabel }}</mat-label>
+          <input matInput [(ngModel)]="customType" placeholder="e.g. A1" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Currency</mat-label>
+          <mat-select [(ngModel)]="currency">
+            <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Payment amount</mat-label>
+          <input matInput type="number" min="0" [(ngModel)]="paymentAmount" (ngModelChange)="onPaymentAmountChange()" />
+          <mat-hint>Amount the student declared they paid</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Quoted course fee</mat-label>
+          <input matInput type="number" min="0" [(ngModel)]="quotedCourseFee" (ngModelChange)="onQuotedFeeChange()" />
+          <mat-hint>Full fee on the payment request</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Balance after credit</mat-label>
+          <input matInput type="number" min="0" [(ngModel)]="balance" />
+          <mat-hint>Remaining after this payment is credited</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Request remarks</mat-label>
+          <input matInput [(ngModel)]="requestRemarks" placeholder="Optional note on the request" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="pad-section">
+      <h3 class="pad-section__title">Submission (proof)</h3>
+      <div class="pad-form-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Credit amount ({{ currency }})</mat-label>
+          <input matInput type="number" min="1" [(ngModel)]="creditedAmount" (ngModelChange)="onCreditedAmountChange()" />
+          <mat-hint>Amount to approve and credit</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Payment date</mat-label>
+          <input matInput type="datetime-local" [(ngModel)]="paymentDate" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Account holder name</mat-label>
+          <input matInput [(ngModel)]="accountHolderName" placeholder="Name on bank / UPI" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
+          <mat-label>Payment method</mat-label>
+          <mat-select [(ngModel)]="paymentMethod">
+            <mat-option *ngFor="let m of paymentMethods" [value]="m">{{ m }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <mat-form-field appearance="outline" class="pad-field" subscriptSizing="dynamic">
+      <mat-label>Admin remarks (optional)</mat-label>
+      <input matInput [(ngModel)]="adminRemarks" placeholder="Internal note — not shown to student" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="pad-field pad-field--required" subscriptSizing="dynamic">
+      <mat-label>Rejection reason (required to reject)</mat-label>
+      <textarea
+        #rejectionReasonInput
+        matInput
+        rows="2"
+        [(ngModel)]="rejectionReason"
+        placeholder="e.g. Amount does not match proof — included in the email to the student"></textarea>
+      <mat-hint *ngIf="!canReject">Enter a rejection reason to enable the Reject button.</mat-hint>
+    </mat-form-field>
+  </div>
+
+  <div class="pad-footer">
+    <button mat-stroked-button type="button" (click)="cancel()">Cancel</button>
+    <span
+      class="pad-reject-wrap"
+      [matTooltip]="canReject ? '' : 'Enter a rejection reason first'"
+      [matTooltipDisabled]="canReject">
+      <button
+        mat-stroked-button
+        type="button"
+        class="pad-btn pad-btn--reject"
+        (click)="confirmReject()"
+        [disabled]="!canReject">
+        <mat-icon>block</mat-icon>
+        Reject
+      </button>
+    </span>
+    <button
+      mat-stroked-button
+      type="button"
+      class="pad-btn pad-btn--approve"
+      (click)="confirmApprove()"
+      [disabled]="!canApprove">
+      <mat-icon>check_circle</mat-icon>
+      Approve {{ currency }} {{ fmt(creditedAmount) }}
+    </button>
+  </div>
+</div>

@@ -112,10 +112,20 @@ import { CommonModule } from '@angular/common';
 })
 export class ExamProgressComponent {
   @Input() activeTeil: 0 | 1 | 2 | 3 = 0;
+  @Input() isA2 = false;
 
-  readonly steps = [
-    { teil: 1, label: 'Teil 1' },
-    { teil: 2, label: 'Teil 2' },
-    { teil: 3, label: 'Teil 3' },
-  ];
+  get steps(): { teil: number; label: string }[] {
+    if (this.isA2) {
+      return [
+        { teil: 1, label: 'Fragen' },
+        { teil: 2, label: 'Monolog' },
+        { teil: 3, label: 'Termin' },
+      ];
+    }
+    return [
+      { teil: 1, label: 'Teil 1' },
+      { teil: 2, label: 'Teil 2' },
+      { teil: 3, label: 'Teil 3' },
+    ];
+  }
 }

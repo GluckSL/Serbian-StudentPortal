@@ -1,51 +1,576 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprechen Exam Player — 3-column layout
+//   Left  30 % : Fox character + controls
+//   Center 40 % : Bot speech text + card + mic
+//   Right  30 % : Conversation history
+// ─────────────────────────────────────────────────────────────────────────────
+
 :host {
   display: block;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 10% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 55%),
+    radial-gradient(90% 70% at 100% 20%, rgba(56, 189, 248, 0.13) 0%, transparent 50%),
+    linear-gradient(165deg, #f8fafc 0%, #eef2ff 40%, #f1f5f9 100%);
 }
 
-.sp-exam-player__top {
-  flex-wrap: wrap;
-  gap: 8px;
+// ── Skeleton loader ──────────────────────────────────────────────────────────
+.sp-exam-player__skeleton {
+  display: grid;
+  grid-template-columns: 30% 40% 30%;
+  height: 100vh;
+  gap: 0;
+}
+.sp-sk__col {
+  animation: sp-pulse 1.4s ease-in-out infinite alternate;
+}
+.sp-sk__col--fox    { background: rgba(57, 73, 171, 0.07); }
+.sp-sk__col--stage  { background: rgba(57, 73, 171, 0.04); }
+.sp-sk__col--chat   { background: rgba(57, 73, 171, 0.07); }
+@keyframes sp-pulse {
+  from { opacity: 0.4; }
+  to   { opacity: 0.9; }
 }
 
+// ── Outer wrapper ────────────────────────────────────────────────────────────
+.sp-exam-player {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 100vw;
+  overflow: hidden;
+}
+
+// ── Top bar ──────────────────────────────────────────────────────────────────
+.sp-exam-player__topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px 10px 20px;
+  background: linear-gradient(160deg, #cfeaff 0%, #b9ddff 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.14);
+  flex-shrink: 0;
+  position: relative;
+}
+.sp-exam-player__topbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+.sp-exam-player__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
 .sp-exam-player__exam-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #9fa8da;
-  margin-top: 2px;
+  letter-spacing: 0.08em;
+  color: #1e40af;
+  opacity: 0.75;
+}
+.sp-exam-player__exit {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.18);
+  color: #1d4ed8;
+  padding: 0;
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; }
 }
 
-.sp-exam-player__teil-progress {
-  margin-top: 6px;
+// ── Three-column stage ───────────────────────────────────────────────────────
+.sp-exam-player__stage {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 30% 40% 30%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// ── Left col — Fox ───────────────────────────────────────────────────────────
+.sp-exam-player__fox-col {
+  background: linear-gradient(180deg, #e8eafd 0%, #dde0ff 100%);
+  border-right: 1px solid rgba(99, 102, 241, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 8px 16px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.sp-exam-player__fox-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  position: relative;
+  justify-content: flex-end;
+}
+
+.sp-exam-player__speech-bubble {
+  display: none; /* speech shown in center panel */
+}
+@keyframes sp-bubble-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sp-exam-player__fox-char {
+  width: 100%;
+  max-width: none;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  ::ng-deep .dg-char {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  ::ng-deep .dg-char__stage {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: min(72vh, 680px) !important;
+    min-height: unset !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1.12 !important;
+  }
+
+  ::ng-deep .dg-char__img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    object-fit: contain;
+    object-position: center bottom;
+    transform: none;
+  }
 }
 
 .sp-exam-player__char-name {
-  margin: 8px 0 0;
-  font-size: 14px;
+  margin: 4px 0 0;
+  font-size: 11px;
   font-weight: 700;
   color: #3949ab;
   text-align: center;
+  flex-shrink: 0;
+}
+.sp-exam-player__char-role {
+  display: none;
 }
 
-.sp-exam-player__char-role {
+.sp-exam-player__fox-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 14px;
+  flex-shrink: 0;
+}
+.sp-exam-player__cc-btn {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #c5cae9;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #3949ab;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &.sp-exam-player__cc-btn--on {
+    background: #3949ab;
+    color: #fff;
+    border-color: #3949ab;
+  }
+}
+.sp-exam-player__replay-btn {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #c5cae9;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #3949ab;
+  padding: 0;
+  transition: background 0.15s;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  &:not(:disabled):hover {
+    background: #3949ab;
+    color: #fff;
+  }
+}
+
+// ── Center col — Stage ───────────────────────────────────────────────────────
+.sp-exam-player__center-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 20px 12px;
+  overflow-y: auto;
+  gap: 10px;
+  border-right: 1px solid rgba(99, 102, 241, 0.1);
+  min-height: 0;
+}
+
+// Welcome screen
+.sp-exam-player__welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+}
+.sp-exam-player__welcome-fox {
+  font-size: 64px;
+  line-height: 1;
+}
+.sp-exam-player__welcome-head {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a237e;
   margin: 0;
-  font-size: 11px;
-  color: #9fa8da;
+}
+.sp-exam-player__welcome-sub {
+  font-size: 14px;
+  color: #5c6bc0;
+  margin: 0;
+  max-width: 360px;
+  line-height: 1.6;
+}
+.sp-exam-player__start-btn {
+  margin-top: 8px;
+  padding: 10px 32px !important;
+  border-radius: 28px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+
+// Bot speech text (large, at top of center)
+.sp-exam-player__bot-speech {
+  width: 100%;
+  background: #fff;
+  border: 1.5px solid #c5cae9;
+  border-radius: 16px;
+  padding: 16px 20px 14px;
+  box-shadow: 0 4px 16px rgba(57, 73, 171, 0.1);
+  position: relative;
+  flex-shrink: 0;
+
+  &.sp-exam-player__bot-speech--speaking {
+    border-color: #3949ab;
+    box-shadow: 0 0 0 3px rgba(57, 73, 171, 0.12), 0 4px 16px rgba(57, 73, 171, 0.1);
+  }
+
+  p {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a237e;
+    line-height: 1.55;
+  }
+}
+.sp-exam-player__bot-speech-icon {
+  position: absolute;
+  top: -14px;
+  left: 16px;
+  font-size: 22px;
+  background: #fff;
+  padding: 0 4px;
+}
+.sp-exam-player__bot-speech-cc {
+  margin: 6px 0 0 !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: #7986cb !important;
+  font-style: italic;
+}
+
+// Typing indicator in center
+.sp-exam-player__typing {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  align-self: flex-start;
+
+  span {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #7986cb;
+    animation: sp-dot-bounce 1.2s ease-in-out infinite;
+
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.4s; }
+  }
+}
+@keyframes sp-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+  40%           { transform: translateY(-6px); opacity: 1; }
+}
+
+// Card stage — full width of center column
+.sp-exam-player__card-stage {
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  flex: 1;
+  min-height: 0;
+  align-self: stretch;
+}
+.sp-exam-player__card-inner {
+  width: 100%;
+  max-width: none;
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+
+  ::ng-deep .exam-card-panel {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+  }
+}
+
+// Status strip
+.sp-exam-player__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7986cb;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  text-align: center;
+  flex-shrink: 0;
+}
+.sp-exam-player__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c5cae9;
+  flex-shrink: 0;
+
+  &.sp-exam-player__status-dot--active {
+    background: #43a047;
+    animation: sp-pulse-dot 1s ease-in-out infinite;
+  }
+}
+@keyframes sp-pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.35); opacity: 0.7; }
 }
 
-.sp-exam-player__card-panel {
+// Mic zone
+.sp-exam-player__mic-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
   width: 100%;
 }
+.sp-exam-player__turn-pill {
+  background: #3949ab;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  padding: 4px 14px;
+  border-radius: 20px;
+  text-transform: uppercase;
+}
+.sp-exam-player__mic-hint {
+  font-size: 12px;
+  color: #7986cb;
+  text-align: center;
+  margin: 0;
+}
+.sp-exam-player__fertig-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 28px;
+  border-radius: 28px;
+  background: #43a047;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(67, 160, 71, 0.3);
+  transition: background 0.15s;
 
+  &:hover:not([disabled]) { background: #388e3c; }
+  &[disabled] { opacity: 0.5; cursor: not-allowed; }
+}
+
+// ── Right col — Chat history ─────────────────────────────────────────────────
+.sp-exam-player__chat-col {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.7);
+  border-left: 1px solid rgba(99, 102, 241, 0.1);
+  min-height: 0;
+}
+
+.sp-exam-player__chat-label {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #9fa8da;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid #e8eaf6;
+  margin: 0;
+}
+
+.sp-exam-player__chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-thumb {
+    background: #c5cae9;
+    border-radius: 4px;
+  }
+}
+
+.sp-exam-player__msg {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+
+  &.sp-exam-player__msg--student {
+    flex-direction: row-reverse;
+  }
+}
+.sp-exam-player__msg-who {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.sp-exam-player__msg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 85%;
+}
+.sp-exam-player__msg-name {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9fa8da;
+
+  .sp-exam-player__msg--student & { text-align: right; }
+}
+.sp-exam-player__msg-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1a237e;
+  background: #e8eaf6;
+  border-radius: 10px 10px 10px 3px;
+  padding: 7px 10px;
+
+  .sp-exam-player__msg--student & {
+    background: #3949ab;
+    color: #fff;
+    border-radius: 10px 10px 3px 10px;
+  }
+}
+.sp-exam-player__msg-cc {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: #9fa8da;
+  font-style: italic;
+}
+
+.sp-exam-player__typing-dots {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px;
+  background: #e8eaf6;
+  border-radius: 10px;
+  width: fit-content;
+
+  span {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #7986cb;
+    animation: sp-dot-bounce 1.2s ease-in-out infinite;
+
+    &:nth-child(2) { animation-delay: 0.2s; }
+    &:nth-child(3) { animation-delay: 0.4s; }
+  }
+}
+
+// ── Summary ──────────────────────────────────────────────────────────────────
 .sp-exam-player__summary-wrap {
   min-height: 100vh;
   padding: 24px 16px;
   background: #f3f4f9;
+}
+
+// ── Mobile — stack vertically ────────────────────────────────────────────────
+@media (max-width: 900px) {
+  .sp-exam-player__stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: 40% 60% auto;
+    overflow-y: auto;
+  }
+  .sp-exam-player__chat-col { height: 400px; border-left: none; border-top: 1px solid #e8eaf6; }
 }

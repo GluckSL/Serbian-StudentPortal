@@ -18,7 +18,7 @@ async function getStudentSprechenJourneyAccess(userId) {
   return {
     enabled: journeyAccess.enabled,
     learningEnabled: journeyAccess.learningEnabled !== false,
-    courseDay: journeyAccess.courseDay,
+    courseDay: journeyAccess.contentUnlockDay ?? journeyAccess.courseDay,
   };
 }
 

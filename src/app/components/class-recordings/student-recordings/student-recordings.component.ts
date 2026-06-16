@@ -18,6 +18,7 @@ import { Router } from '@angular/router';
 import { MaterialModule } from '../../../shared/material.module';
 import { AuthService, getAuthToken } from '../../../services/auth.service';
 import { ClassRecordingsService } from '../../../services/class-recordings.service';
+import { RecordingAccessRequestService } from '../../../services/recording-access-request.service';
 import {
   GoRecordingResourceService,
   GoRecordingResourceType,
@@ -59,6 +60,8 @@ export interface DisplayRecording {
   watchedSeconds?: number | null;
   /** Platinum recording-access request state for this class. */
   accessRequestStatus?: 'PENDING' | 'APPROVED' | 'DECLINED' | null;
+  /** Mongo id of RecordingAccessRequest when status is PENDING (for cancel). */
+  accessRequestId?: string | null;
   /** When false, show pending UI instead of play (backend-driven). */
   canPlay?: boolean;
   /** 'cross_batch' (legacy) or 'self_pace' when unlocked via attendance-gated mapping. */
@@ -84,6 +87,10 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   /** Increment from parent to reload the list (e.g. after submitting a request). */
   @Input() refreshToken = 0;
   @Output() reqRecordingClick = new EventEmitter<void>();
+  /** Fired after submit/cancel so parent can refresh quota UI. */
+  @Output() recordingRequestChanged = new EventEmitter<void>();
+  /** Fired when watch progress is saved (parent can refresh day-completion badge). */
+  @Output() watchProgressUpdated = new EventEmitter<void>();
 
   @ViewChild('srVideoEl') srVideoEl?: ElementRef<HTMLVideoElement>;
 
@@ -132,12 +139,15 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   private zoomWatchStartTime = 0;
   private zoomDurationInterval: any = null;
   private currentPlayingRecording: DisplayRecording | null = null;
+  /** Saved playback position (seconds) waiting to be applied to the video element. */
+  private pendingResumeSec: number | null = null;
 
   // Resources modal
   showResourceModal = false;
   resourceRecording: DisplayRecording | null = null;
   resources: any[] = [];
   loadingResources = false;
+  cancellingRequestId: string | null = null;
 
   // Signed-URL cache: meetingLinkId → { url, expiresAt }
   // Stores either the HLS playlist URL (if hlsMode) or MP4 URL (legacy).
@@ -149,6 +159,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   constructor(
     private service: ClassRecordingsService,
     private goResourceService: GoRecordingResourceService,
+    private recordingAccessService: RecordingAccessRequestService,
     private sanitizer: DomSanitizer,
     private authService: AuthService,
     private router: Router
@@ -161,7 +172,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['courseDayFilter'] || changes['refreshToken']) {
+    if ((changes['courseDayFilter'] && !changes['courseDayFilter'].firstChange) ||
+        (changes['refreshToken'] && !changes['refreshToken'].firstChange)) {
       this.recordingsPage = 1;
       this.loadRecordingsPage(1);
     }
@@ -194,7 +206,6 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
             1,
             Number(res?.totalPages) || Math.ceil(this.recordingsTotal / this.recordingsPageSize)
           );
-          this.prefetchFirst5Zoom();
           this.loading = false;
         },
         error: () => {
@@ -230,6 +241,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
       courseDay: r['courseDay'] != null && Number.isFinite(Number(r['courseDay'])) ? Number(r['courseDay']) : null,
       watchedSeconds: Number.isFinite(Number(r['watchedSeconds'])) ? Number(r['watchedSeconds']) : 0,
       accessRequestStatus: (r['accessRequestStatus'] as DisplayRecording['accessRequestStatus']) || null,
+      accessRequestId: (r['accessRequestId'] as string) || null,
       canPlay: r['canPlay'] !== false,
       accessSource:
         r['accessSource'] === 'cross_batch' || r['accessSource'] === 'self_pace'
@@ -251,12 +263,54 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     return r.canPlay !== false;
   }
 
+  /** Waiting for admin to approve/decline the recording access request. */
+  isAccessRequestPending(r: DisplayRecording): boolean {
+    return r.accessRequestStatus === 'PENDING';
+  }
+
+  /** Approved by admin; recording is still uploading or processing in the portal. */
+  isRecordingProcessing(r: DisplayRecording): boolean {
+    return r.accessRequestStatus === 'APPROVED' && r.canPlay === false;
+  }
+
   isPendingApproval(r: DisplayRecording): boolean {
-    return r.accessRequestStatus === 'PENDING' || (r.accessRequestStatus === 'APPROVED' && r.canPlay === false);
+    return this.isAccessRequestPending(r) || this.isRecordingProcessing(r);
   }
 
   isDeclinedRequest(r: DisplayRecording): boolean {
     return r.accessRequestStatus === 'DECLINED';
+  }
+
+  canCancelRecordingRequest(r: DisplayRecording): boolean {
+    return this.isAccessRequestPending(r) && !!(r.accessRequestId || r.meetingLinkId);
+  }
+
+  cancelRecordingRequest(r: DisplayRecording, event?: Event): void {
+    event?.stopPropagation();
+    const requestId = r.accessRequestId;
+    const meetingLinkId = r.meetingLinkId;
+    const busyKey = requestId || meetingLinkId || '';
+    if (!busyKey || this.cancellingRequestId) return;
+    this.cancellingRequestId = busyKey;
+    const req$ = requestId
+      ? this.recordingAccessService.cancelRequest(requestId)
+      : meetingLinkId
+        ? this.recordingAccessService.cancelPendingByMeeting(meetingLinkId)
+        : null;
+    if (!req$) {
+      this.cancellingRequestId = null;
+      return;
+    }
+    req$.subscribe({
+      next: () => {
+        this.cancellingRequestId = null;
+        this.recordingRequestChanged.emit();
+        this.reloadRecordings();
+      },
+      error: () => {
+        this.cancellingRequestId = null;
+      },
+    });
   }
 
   changeRecordingsPage(page: number): void {
@@ -391,6 +445,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     this.videoBuffering  = false;
     this.showPlayerModal = true;
     this.currentPlayingRecording = recording;
+    this.pendingResumeSec = null;
 
     if (recording.type === 'manual') {
       this.startWatching(recording.id);
@@ -451,8 +506,11 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   closePlayer(): void {
-    this.destroyHls();
+    // Flush final watch time + playback position while the video element still exists.
+    this.stopTracking();
     this.stopZoomTracking();
+    this.destroyHls();
+    this.pendingResumeSec = null;
     this.showPlayerModal = false;
     this.playerLoading   = false;
     this.playerError     = null;
@@ -525,6 +583,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
           } catch {
             /* seek may throw before buffer ready */
           }
+        } else {
+          this.tryApplyResume();
         }
         video.play().catch(() => {});
       });
@@ -595,6 +655,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   onVideoCanPlay(): void {
     this.videoBuffering = false;
+    this.tryApplyResume();
     const video = this.srVideoEl?.nativeElement;
     if (video && this.currentPlayingRecording) {
       const sec = Number(video.duration || 0);
@@ -708,6 +769,43 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     fetch(hlsUrl, { headers }).catch(() => {});
   }
 
+  // ── Resume playback ───────────────────────────────────────────────────────
+
+  /** Store the saved position (from the backend) and seek once the video is ready. */
+  private setResumePosition(sec: number | undefined | null): void {
+    let resume = Math.max(0, Math.floor(Number(sec) || 0));
+    const duration = Number(this.currentPlayingRecording?.duration || 0);
+    // Already finished (or nearly): restart from the beginning.
+    if (duration > 0 && resume >= duration - 15) resume = 0;
+    if (resume <= 1) {
+      this.pendingResumeSec = null;
+      return;
+    }
+    this.pendingResumeSec = resume;
+    this.tryApplyResume();
+  }
+
+  /** Seek the video element to the pending resume position when metadata is loaded. */
+  private tryApplyResume(): void {
+    const video = this.srVideoEl?.nativeElement;
+    if (!video || this.pendingResumeSec == null) return;
+    if (video.readyState >= 1 /* HAVE_METADATA */) {
+      try {
+        video.currentTime = this.pendingResumeSec;
+      } catch {
+        /* seek may throw before buffer ready */
+      }
+      this.pendingResumeSec = null;
+    }
+  }
+
+  /** Current playback position of the open player (seconds), for heartbeat saves. */
+  private currentVideoPositionSec(): number | null {
+    const video = this.srVideoEl?.nativeElement;
+    const t = Number(video?.currentTime);
+    return Number.isFinite(t) && t >= 0 ? Math.round(t) : null;
+  }
+
   // ── Manual view tracking ──────────────────────────────────────────────────
 
   startWatching(recordingId: string): void {
@@ -718,6 +816,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     this.service.startView(recordingId).subscribe({
       next: (res) => {
         this.activeViewId = res.viewId;
+        this.setResumePosition(res.resumePositionSec);
         this.manualDurationInterval = setInterval(() => this.updateDuration(), 15000);
       },
       error: () => {},
@@ -731,7 +830,10 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     if (recDuration && recDuration > 0) {
       seconds = Math.min(seconds, recDuration);
     }
-    this.service.updateViewDuration(this.activeViewId, seconds).subscribe({ error: () => {} });
+    this.service.updateViewDuration(this.activeViewId, seconds, this.currentVideoPositionSec()).subscribe({
+      next: () => this.watchProgressUpdated.emit(),
+      error: () => {},
+    });
   }
 
   private stopTracking(): void {
@@ -749,6 +851,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     this.service.startZoomView(meetingLinkId).subscribe({
       next: (res) => {
         this.activeZoomViewId  = res.viewId;
+        this.setResumePosition(res.resumePositionSec);
         this.zoomDurationInterval = setInterval(() => this.updateZoomDuration(), 15000);
       },
       error: () => {},
@@ -757,8 +860,15 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   private updateZoomDuration(): void {
     if (!this.activeZoomViewId) return;
-    const seconds = Math.round((Date.now() - this.zoomWatchStartTime) / 1000);
-    this.service.updateZoomViewDuration(this.activeZoomViewId, seconds).subscribe({ error: () => {} });
+    let seconds = Math.round((Date.now() - this.zoomWatchStartTime) / 1000);
+    const recDuration = this.currentPlayingRecording?.duration;
+    if (recDuration && recDuration > 0) {
+      seconds = Math.min(seconds, recDuration);
+    }
+    this.service.updateZoomViewDuration(this.activeZoomViewId, seconds, this.currentVideoPositionSec()).subscribe({
+      next: () => this.watchProgressUpdated.emit(),
+      error: () => {},
+    });
   }
 
   private stopZoomTracking(): void {
@@ -801,7 +911,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
     const rawWatchedSec = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
     // Cap to total duration so wall-clock over-runs never inflate the display
     const watchedSec = totalSec > 0 ? Math.min(rawWatchedSec, totalSec) : rawWatchedSec;
-    if (totalSec > 0 && watchedSec >= Math.ceil(totalSec * 0.75)) {
+    const watchRatio = this.resolveIsSilverStudent() ? 0.9 : 0.75;
+    if (totalSec > 0 && watchedSec >= Math.ceil(totalSec * watchRatio)) {
       return 'Watched';
     }
     const watched = Math.floor(watchedSec / 60);
@@ -847,7 +958,8 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   private resolveIsSilverStudent(): boolean {
     const user = this.authService.getSnapshotUser();
-    return String(user?.subscription || '').toUpperCase() === 'SILVER';
+    const goOk = String(user?.goStatus || '').toUpperCase() === 'GO';
+    return goOk && String(user?.subscription || '').toUpperCase() === 'SILVER';
   }
 
   private normalizeBatch(value: string): string {

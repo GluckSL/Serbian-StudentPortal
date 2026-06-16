@@ -8,6 +8,13 @@ const path = require('path');
 const fs = require('fs');
 const OpenAI = require('openai');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { extractBracketMarkers, applyBracketMarkersToExercise } = require('../utils/worksheetBracketMarkers');
+const {
+  isExerciseR2Configured,
+  headExerciseMediaKey,
+  getExerciseMediaBuffer,
+  extractMediaKeyFromUrl,
+} = require('../services/exerciseMediaR2');
 const EXTRACTION_JOB_TTL_MS = 30 * 60 * 1000;
 
 if (!global.__extractionJobs) {
@@ -76,7 +83,7 @@ const pdfFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter: pdfFilter,
-  limits: { fileSize: 15 * 1024 * 1024 } // 15 MB
+  limits: { fileSize: 20 * 1024 * 1024 } // 20 MB
 });
 
 // ─── OpenAI init ──────────────────────────────────────────────────────────────
@@ -91,18 +98,19 @@ if (process.env.EXERCISES_OPENAI_API_KEY) {
 
 // ─── PDF text extraction ──────────────────────────────────────────────────────
 
-const pdfParse = require('pdf-parse');
+const { parsePdfBuffer } = require('../services/pdfParseCompat');
 
 async function extractPdfText(filePath) {
   try {
-    console.log("🔥 USING PDF-PARSE VERSION");
     const buffer = fs.readFileSync(filePath);
-    const data = await pdfParse(buffer);
-    console.log('📄 PDF parsed:', { pages: data.numpages, length: data.text.length });
-    return {
-      text: data.text || '',
-      pages: data.numpages || 0
-    };
+    const result = await parsePdfBuffer(buffer);
+    const text = (result.text || '')
+      .replace(/^-- \d+ of \d+ --\n?|[\r\n]+-- \d+ of \d+ --[\r\n]*/gm, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    const pages = result.numpages || 1;
+    console.log('📄 PDF parsed:', { pages, length: text.length });
+    return { text, pages };
   } catch (err) {
     console.error('PDF parse error:', err);
     throw new Error('Failed to extract text from PDF: ' + err.message);
@@ -651,14 +659,27 @@ CRITICAL RULES (MANDATORY)
 
 4. INSTRUCTION + BLOCK TEXT
    Each exercise MUST include:
-   - instruction_de (German, copied verbatim from source)
+   - instruction_de (German instruction text — copied verbatim from the source; if the block starts with an "Instruction:" or "Anweisung:" label, extract the text AFTER that label as instruction_de)
    - instruction_en (English, copied verbatim if present in source; otherwise "")
    - content: the FULL raw text of this exercise block from the document (every content line for this Übung), verbatim — never summarize or omit (required for downstream deterministic parsing)
+
+4b. BRACKET MARKERS (AUTHOR CONVENTION — HIGHEST PRIORITY)
+   When the source uses explicit bracket markers:
+   - Text inside curly braces {like this} = instruction (NOT a student question)
+     - If {text} contains " / ", split: German before slash → instruction_de, English after → instruction_en
+     - Otherwise the full {text} → instruction_de
+     - Two separate {DE text} {EN text} pairs → first = instruction_de, second = instruction_en
+   - Text inside square brackets [like this] = worked example → "example" field on the FIRST question row only
+   - Do NOT include the {brackets} or [brackets] in output fields
+   - Remove marker text from "content" and "question" fields (metadata only, not graded items)
 
 5. fill_in_blank LINE FORMAT
    In each question's "question" field put ONLY the sentence with underscore blanks — no leading item numbers ("1.", "2)").
    If a line ends with "→ ____" or "-> ____" where ONLY underscores follow the arrow, omit that arrow and gap unless the answer key gives a separate translation answer for it (layout scaffold, not a second graded blank).
    Optional Beispiel / Example lines for the exercise → put verbatim in an "example" field on the first question row of that exercise.
+
+5b. EXAMPLE FIELD (ALL TYPES)
+   If the exercise block contains a worked example line labelled "Beispiel:", "Example:", "z.B.", or similar, copy it verbatim into the "example" field on the FIRST question row of that exercise block (regardless of exercise type — applies to mcq, true_false, short_answer, fill_in_blank, etc.). Leave "example" as "" on all subsequent rows.
 
 6. ANSWER MAPPING (VERY IMPORTANT)
    If a LÖSUNGSSCHLÜSSEL / Answer Key section exists:
@@ -751,7 +772,8 @@ const EXTRACTION_TYPE_MAP = {
   qa:               'question-answer',
   mcq:              'mcq',
   matching:         'matching',
-  singular_plural:  'singular_plural'
+  singular_plural:  'singular_plural',
+  pronunciation:    'pronunciation'
 };
 
 const EXTRACTION_WORKSHEET_KIND = {
@@ -1135,6 +1157,7 @@ function flattenExtractionResult(parsed) {
 
   for (const topic of (parsed.topics || [])) {
     for (const exercise of (topic.exercises || [])) {
+      const bracketParsed = extractBracketMarkers(exercise.content || '');
       const mappedType = EXTRACTION_TYPE_MAP[exercise.type] || 'question-answer';
       const worksheetKind = EXTRACTION_WORKSHEET_KIND[exercise.type] || null;
       const sectionTitle = [topic.title, exercise.exerciseId].filter(Boolean).join(' | ');
@@ -1142,7 +1165,7 @@ function flattenExtractionResult(parsed) {
       let singularPluralBulkDone = false;
       let spPairsFromRaw = null;
       if (mappedType === 'singular_plural') {
-        const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+        const rawEx = bracketParsed.cleanedContent || String(exercise.content || '').trim();
         if (rawEx.length >= 5) {
           console.log('[SP RAW BLOCK]', rawEx.slice(0, 200));
           spPairsFromRaw = extractSingularPluralPairs(rawEx);
@@ -1156,17 +1179,21 @@ function flattenExtractionResult(parsed) {
       let matchingBulkDone = false;
       let matchingDetPairs = null;
       if (mappedType === 'matching') {
-        const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+        const rawEx = bracketParsed.cleanedContent || String(exercise.content || '').trim();
         console.log('[BLOCK]', rawEx);
         matchingDetPairs = rawEx.length >= 5 ? extractMatchingPairs(rawEx) : [];
         console.log('[MATCH PAIRS]', matchingDetPairs);
       }
 
-      const exDe = String(exercise.instruction_de || '').trim();
-      const exEn = String(exercise.instruction_en || '').trim();
+      const exDe = String(exercise.instruction_de || bracketParsed.instruction_de || '').trim();
+      const exEn = String(exercise.instruction_en || bracketParsed.instruction_en || '').trim();
       const exMergedInstr = mergeWorksheetInstructions(exDe, exEn) || null;
+      const blockExample = String(bracketParsed.example || '').trim();
+      let questionRowIndex = 0;
 
       for (const q of (exercise.questions || [])) {
+        const rowExample = String(q.example || '').trim() || (questionRowIndex === 0 ? blockExample : '');
+        questionRowIndex += 1;
         const base = {
           type: mappedType,
           points: 1,
@@ -1187,7 +1214,8 @@ function flattenExtractionResult(parsed) {
             question: String(q.question || ''),
             options,
             correctAnswerIndex: isNaN(cai) ? 0 : cai,
-            explanation: ''
+            explanation: '',
+            example: rowExample
           }));
         } else if (mappedType === 'matching') {
           if (matchingDetPairs && matchingDetPairs.length > 0) {
@@ -1225,7 +1253,7 @@ function flattenExtractionResult(parsed) {
             }
             continue;
           }
-          const rawEx = typeof exercise.content === 'string' ? exercise.content.trim() : '';
+          const rawEx = bracketParsed.cleanedContent || String(exercise.content || '').trim();
           const pairs = pairsFromSingularPluralQuestion(q, rawEx);
           flatQuestions.push(sanitizeQuestion({
             ...base,
@@ -1242,7 +1270,7 @@ function flattenExtractionResult(parsed) {
             ...base,
             sentence: norm.sentence,
             answers: norm.answers,
-            example: String(q.example || '').trim(),
+            example: rowExample,
             hint: String(q.hint || ''),
             caseSensitive: false
           }));
@@ -1263,7 +1291,8 @@ function flattenExtractionResult(parsed) {
             sampleAnswers: rawAnswers.map(String).filter(Boolean),
             similarityThreshold: threshold,
             scoringMode,
-            aiGradingEnabled: true
+            aiGradingEnabled: true,
+            example: rowExample
           }));
         }
       }
@@ -1427,12 +1456,21 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
     ? allExercises.filter(ex => selection.has(String(ex.exerciseId || '')))
     : allExercises;
 
-  if (!exercises || exercises.length === 0) {
+  // When the frontend provided a selection (from AI detection in Step 2),
+  // the split-based exercises may lack _aiPreExtracted.  Run AI detection
+  // to get structured data and prefer those results.
+  const needsAi = !exercises || exercises.length === 0
+    || (selection && !exercises.some(ex => ex._aiPreExtracted));
+  if (needsAi) {
     const aiDetected = await detectExercisesWithAI(sourceText);
     const rebuilt = buildExercisesFromAiDetection(sourceText, aiDetected);
-    if (selection) {
-      exercises = rebuilt.filter(ex => selection.has(String(ex.exerciseId || '')));
-    } else {
+    // Prefer AI-detected exercises that match the selection.
+    const matched = selection
+      ? rebuilt.filter(ex => selection.has(String(ex.exerciseId || '')))
+      : rebuilt;
+    if (matched.length > 0) {
+      exercises = matched;
+    } else if (rebuilt.length > 0) {
       exercises = rebuilt;
     }
   }
@@ -1486,20 +1524,24 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
       // Normalise type to the internal schema expected by flattenSingleExercise
       const typeMap = {
         matching: 'matching',
+        'true/false': 'true_false',
+        'true-false': 'true_false',
+        true_false: 'true_false',
         jumbled_words: 'jumbled_words',
         jumble_word: 'jumbled_words',
         'jumble-word': 'jumbled_words',
         fill_blank: 'fill_in_blank',
         mcq: 'mcq',
         translation: 'translation',
-        qa: 'short_answer'
+        qa: 'short_answer',
+        pronunciation: 'pronunciation'
       };
       result = {
         type: typeMap[pre.type] || pre.type || 'short_answer',
         exerciseId: block.exerciseId,
         topic: String(pre.title || '').trim(),
-        instruction_de: block.instruction_de || pre.title || '',
-        instruction_en: block.instruction_en || '',
+        instruction_de: '',
+        instruction_en: '',
         questions: pre.questions || []
       };
     } else {
@@ -1529,10 +1571,10 @@ async function runSequentialWorksheetExtraction(sourceText, options = {}) {
     }
 
     try {
-      const questions = flattenSingleExercise(result, block.content || '', {
-        instruction_de: block.instruction_de,
-        instruction_en: block.instruction_en
-      });
+      const blockMeta = block._aiPreExtracted
+        ? { instruction_de: '', instruction_en: '', example: '' }
+        : { instruction_de: block.instruction_de, instruction_en: block.instruction_en, example: block.example };
+      const questions = flattenSingleExercise(result, block.content || '', blockMeta);
       allQuestions.push(...questions);
       extractionLog.push({ exerciseId: block.exerciseId || 'unknown', type: result.type, count: questions.length, ok: true });
     } catch (err) {
@@ -1560,40 +1602,126 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
     if (ex._aiPreExtracted && typeof ex._aiPreExtracted === 'object') {
       const ai = ex._aiPreExtracted;
       const rawQuestions = Array.isArray(ai.questions) ? ai.questions : [];
+      const bracketParsed = extractBracketMarkers(rawText);
       const aiTypeMap = {
         fill_blank: 'fill_in_blank',
         jumbled_words: 'jumbled_words',
         jumble_word: 'jumbled_words',
         'jumble-word': 'jumbled_words',
         qa: 'short_answer',
-        translation: 'short_answer'
+        translation: 'short_answer',
+        true_false: 'true_false',
+        pronunciation: 'pronunciation'
       };
       const type = String(aiTypeMap[ai.type] || ai.type || ex.sectionType || '');
+
+      // Deterministic preview rows (fill-in-blank + matching).
       const pairs = type === 'matching'
         ? rawQuestions.map((q) => ({
             left: String(q?.left || '').trim(),
             right: String(q?.right || '').trim()
           })).filter((p) => p.left || p.right)
-        : [];
+        : type === 'singular_plural'
+          ? rawQuestions.map((q) => ({
+              left: String(q?.singular || q?.left || '').trim(),
+              right: String(q?.plural || q?.right || '').trim()
+            })).filter((p) => p.left || p.right)
+          : [];
       const questions = type === 'fill_in_blank'
         ? rawQuestions.map((q) => ({
             sentence: String(q?.sentence || '').trim(),
             answer: q?.answer == null ? '' : String(q.answer).trim()
           })).filter((q) => q.sentence)
         : [];
+
+      // Build extractedItems for the rich template ngSwitch rendering.
+      const bracketInstruction = mergeWorksheetInstructions(bracketParsed.instruction_de || '', bracketParsed.instruction_en || '');
+      const extractedItems = rawQuestions.map((q) => {
+        const itemType = type === 'true_false' ? 'question-answer' : type;
+        const base = { instruction: bracketInstruction || mergeWorksheetInstructions(ex.instruction_de || '', ex.instruction_en || '') };
+
+        switch (itemType) {
+          case 'mcq':
+            return {
+              ...base, type: 'mcq',
+              question: String(q?.question || q?.sentence || '').trim(),
+              options: Array.isArray(q?.options) ? q.options : [],
+              correctAnswerIndex: q?.answer != null
+                ? (() => {
+                    const opt = Array.isArray(q.options) ? q.options : [];
+                    if (typeof q.answer === 'number') return q.answer;
+                    const label = String(q.answer).trim().replace(/[) .]/g, '');
+                    const idx = opt.findIndex((o) => String(o).trim().startsWith(label));
+                    return idx >= 0 ? idx : null;
+                  })()
+                : null
+            };
+          case 'fill_in_blank':
+            return {
+              ...base, type: 'fill-blank',
+              sentence: String(q?.sentence || '').trim(),
+              answers: q?.answer != null ? [String(q.answer).trim()] : (q?.correct_answer ? [String(q.correct_answer).trim()] : [])
+            };
+          case 'matching':
+            return {
+              ...base, type: 'matching',
+              pairs: [{ left: String(q?.left || '').trim(), right: String(q?.right || '').trim() }]
+            };
+          case 'singular_plural':
+            return {
+              ...base, type: 'singular_plural',
+              pairs: [{ singular: String(q?.singular || '').trim(), plural: String(q?.plural || '').trim() }]
+            };
+          case 'jumbled_words':
+            return {
+              ...base, type: 'jumble-word',
+              scrambledText: String(q?.scrambled || q?.scrambled_text || q?.scrambledText || q?.letters || '').trim(),
+              expectedWord: String(q?.correct_word || q?.correctWord || q?.word || '').trim(),
+              categoryTip: String(q?.category_tip || q?.categoryTip || '').trim(),
+              boldLetter: String(q?.bold_letter || q?.boldLetter || '').trim()
+            };
+          case 'pronunciation':
+            return {
+              ...base, type: 'pronunciation',
+              word: String(q?.word || q?.question || '').trim(),
+              phonetic: String(q?.phonetic || '').trim(),
+              translation: String(q?.translation || '').trim(),
+              acceptedVariants: Array.isArray(q?.acceptedVariants) ? q.acceptedVariants.map(String) : []
+            };
+          case 'translation':
+            return {
+              ...base, type: 'question-answer',
+              prompt: String(q?.source || q?.question || '').trim() + ' → ' + String(q?.target || '').trim(),
+              sampleAnswers: q?.target ? [String(q.target).trim()] : []
+            };
+          case 'short_answer':
+          case 'question-answer':
+            return {
+              ...base, type: 'question-answer',
+              prompt: String(q?.question || '').trim(),
+              sampleAnswers: q?.answer ? [String(q.answer).trim()] : [],
+              worksheetKind: type === 'true_false' ? 'true-false' : ''
+            };
+          default:
+            return { ...base, type: itemType, ...q };
+        }
+      });
+
       return {
         id,
         exerciseId: id,
         topic: ex.topic || '',
         difficulty: ex.difficulty || 'easy',
-        instruction_de: ex.instruction_de || '',
-        instruction_en: ex.instruction_en || '',
-        instruction: mergeWorksheetInstructions(ex.instruction_de || '', ex.instruction_en || ''),
+        instruction_de: bracketParsed.instruction_de || ex.instruction_de || '',
+        instruction_en: bracketParsed.instruction_en || ex.instruction_en || '',
+        instruction: bracketInstruction || mergeWorksheetInstructions(ex.instruction_de || '', ex.instruction_en || ''),
+        example: bracketParsed.example || ex.example || '',
         type,
         questionCount: Math.max(rawQuestions.length, pairs.length, questions.length, 1),
-        rawText: rawText || JSON.stringify(ai),
+        rawText: rawText || (ai ? JSON.stringify(ai) : ''),
         questions,
         pairs,
+        extractedItems,
       };
     }
 
@@ -1630,6 +1758,7 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
       instruction_de: ex.instruction_de || '',
       instruction_en: ex.instruction_en || '',
       instruction: mergedInstruction,
+      example: ex.example || '',
       type,
       questionCount,
       rawText,
@@ -1637,6 +1766,37 @@ function buildDetectedExercisePreview(sourceText, blocks, solutionBlock = '') {
       pairs: preview.pairs || [],
     };
   });
+}
+
+function buildPdfUploadResponse(filePath, filename, pdfResult) {
+  const previewText = pdfResult.text.substring(0, 2000);
+  const rawDetected = detectQuestionTypes(pdfResult.text);
+  const { _worksheetMode, ...detectedTypes } = rawDetected;
+  const split = splitWorksheetIntoExercises(pdfResult.text);
+  const exercises = buildDetectedExercisePreview(pdfResult.text, split.exercises || [], split.solutionBlock || '');
+
+  return {
+    success: true,
+    uploadId: path.basename(filePath),
+    filename,
+    pages: pdfResult.pages,
+    totalChars: pdfResult.text.length,
+    previewText,
+    hasContent: pdfResult.text.trim().length > 50,
+    detectedTypes,
+    worksheetMode: _worksheetMode,
+    exercises,
+  };
+}
+
+function savePdfBufferLocally(buffer, filename) {
+  const dir = path.join(__dirname, '..', 'uploads', 'pdf-exercises');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+  const localName = `${unique}-${String(filename || 'upload.pdf').replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+  const filePath = path.join(dir, localName);
+  fs.writeFileSync(filePath, buffer);
+  return filePath;
 }
 
 // ─── ROUTE: POST /api/pdf-exercises/upload ────────────────────────────────────
@@ -1647,39 +1807,64 @@ router.post('/upload',
   checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
   upload.single('pdf'),
   async (req, res) => {
+    let filePath;
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'No PDF file uploaded' });
       }
 
-      const result = await extractPdfText(req.file.path);
-
-      // Return preview (first 2000 chars of text) and file reference
-      const previewText = result.text.substring(0, 2000);
-      const rawDetected = detectQuestionTypes(result.text);
-      const { _worksheetMode, ...detectedTypes } = rawDetected;
-      const split = splitWorksheetIntoExercises(result.text);
-      const exercises = buildDetectedExercisePreview(result.text, split.exercises || [], split.solutionBlock || '');
-
-      res.json({
-        success: true,
-        uploadId: path.basename(req.file.path),
-        filename: req.file.originalname,
-        pages: result.pages,
-        totalChars: result.text.length,
-        previewText,
-        hasContent: result.text.trim().length > 50,
-        detectedTypes,
-        worksheetMode: _worksheetMode,
-        exercises
-      });
+      filePath = req.file.path;
+      const result = await extractPdfText(filePath);
+      res.json(buildPdfUploadResponse(filePath, req.file.originalname, result));
     } catch (err) {
-      // Clean up on error
-      if (req.file) {
-        try { fs.unlinkSync(req.file.path); } catch {}
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch {}
       }
       console.error('PDF upload error:', err);
       res.status(500).json({ error: err.message || 'Failed to process PDF' });
+    }
+  }
+);
+
+// ─── ROUTE: POST /api/pdf-exercises/register-r2-upload ────────────────────────
+// After browser PUT to R2, pull PDF into local uploads/ and return same preview as /upload.
+
+router.post('/register-r2-upload',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    let filePath;
+    try {
+      if (!isExerciseR2Configured()) {
+        return res.status(503).json({ error: 'R2 is not configured' });
+      }
+
+      const fileUrl = String(req.body?.fileUrl || '').trim();
+      const key = extractMediaKeyFromUrl(fileUrl);
+      if (!key || !key.startsWith('pdf-exercises/')) {
+        return res.status(400).json({ error: 'Invalid PDF storage URL' });
+      }
+
+      const exists = await headExerciseMediaKey(key);
+      if (!exists) {
+        return res.status(404).json({ error: 'Uploaded PDF not found in storage. Try uploading again.' });
+      }
+
+      const buffer = await getExerciseMediaBuffer(key);
+      if (buffer.length > 20 * 1024 * 1024) {
+        return res.status(400).json({ error: 'File is too large. Maximum size is 20 MB.' });
+      }
+
+      const filename = String(req.body?.filename || path.basename(key) || 'upload.pdf');
+      filePath = savePdfBufferLocally(buffer, filename);
+      const result = await extractPdfText(filePath);
+      res.json(buildPdfUploadResponse(filePath, filename, result));
+    } catch (err) {
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch {}
+      }
+      console.error('PDF R2 register error:', err);
+      res.status(500).json({ error: err.message || 'Failed to process PDF from storage' });
     }
   }
 );
@@ -2116,12 +2301,14 @@ CORE RULES (STRICT)
    - transformation → sentence transformation required
    - true_false     → explicitly stated Richtig/Falsch or True/False
    - short_answer   → direct answer expected
+   - pronunciation   → single words or short phrases to speak aloud / Aussprache
    If unsure → leave type as empty string.
 
 3. INSTRUCTION MAPPING
-   - instruction_de = EXACT German instruction from INSTRUCTION_DE above
+   - instruction_de = EXACT German instruction from INSTRUCTION_DE above (strip any leading "Instruction:" or "Anweisung:" label if present)
    - instruction_en = EXACT English instruction (if present)
    - DO NOT merge or rewrite
+   - BRACKET MARKERS: {curly braces} = instruction (split on " / " for DE/EN); [square brackets] = example on FIRST question row only. Strip markers from CONTENT and question text.
 
 4. QUESTION EXTRACTION — TYPE-BASED SPLITTING (MANDATORY)
    Extract the REAL worksheet item count. Do NOT over-group and do NOT over-split.
@@ -2167,7 +2354,7 @@ CORE RULES (STRICT)
    - Put ONLY the clause students fill in inside "question": underscore blanks (_) as in the PDF.
    - Do NOT prefix with worksheet item numbers (no leading "1." / "2)" — those are layout only).
    - If a line ends with a translation scaffold like "→ ____" or "-> ____" where ONLY underscores follow the arrow (no words), OMIT that arrow and second gap — it is not a separate graded blank unless the answer key lists a distinct translation answer for it.
-   - If the worksheet shows a worked example ("Beispiel:", "Example:", "z.B.") that belongs to this exercise block, copy it verbatim into "example" on the FIRST question row only (leave "" on other rows unless an example is tied to one specific item).
+   - If the worksheet shows a worked example ("Beispiel:", "Example:", "z.B.") that belongs to this exercise block, copy it verbatim into "example" on the FIRST question row only (leave "" on other rows unless an example is tied to one specific item). This applies to ALL exercise types (mcq, true_false, short_answer, fill_in_blank, etc.).
 
 7. instruction_en — copy verbatim from INSTRUCTION_EN above when provided; otherwise extract English from bilingual headings in CONTENT (text after " / " or after "Hinweis / Note") into instruction_en.
 
@@ -2200,10 +2387,16 @@ Return ONLY valid JSON in this EXACT shape:
       "correctAnswerIndex": null,
       "answers": [],
       "pairs": [{"singular":"","plural":""}],
-      "correctedText": ""
+      "correctedText": "",
+      "word": "",
+      "phonetic": "",
+      "translation": ""
     }
   ]
 }
+
+NOTE: For type "pronunciation", use "word" for the target word/phrase (not "question"),
+"phonetic" for optional IPA, and "translation" for optional translation.
 
 IMPORTANT JSON RULES:
 - Output MUST be valid JSON
@@ -2424,7 +2617,7 @@ function splitWorksheetIntoExercises(text) {
   console.log('PDF normalized preview:', normalized.slice(0, 500));
 
   let exerciseText = normalized;
-  const solutionRegex = /\n\s*(LÖSUNGSSCHLÜSSEL|Lösungen|Answer Key)\s*\n/i;
+  const solutionRegex = /\n\s*(LÖSUNGSSCHLÜSSEL|Lösungsschlüssel|Lösungen|Lösung|Answer Key|Lösungen:)\s*\n/i;
   const solutionMatch = solutionRegex.exec(exerciseText);
   let solutionIndex = -1;
   if (solutionMatch && solutionMatch.index > exerciseText.length * 0.5) {
@@ -2432,9 +2625,19 @@ function splitWorksheetIntoExercises(text) {
     exerciseText = exerciseText.slice(0, solutionIndex);
   }
 
+  // ─── Pass 0: "Instruction:" / "Anweisung:" markers ──────────────────────────
+  // Handles PDFs that use an explicit "Instruction: ..." label to start each exercise block.
+  const instructionMarkerRegex = /(?:^|\n)[ \t]*(Instruction|Anweisung)\s*:/gi;
+  const instructionMatches = [...exerciseText.matchAll(instructionMarkerRegex)];
+  let matches = [];
+  if (instructionMatches.length >= 2) {
+    console.log('Pass 0: Instruction: markers found', instructionMatches.length);
+    matches = instructionMatches.map(m => ({ 0: m[0].trim(), index: m.index }));
+  }
+
   // ─── Pass 1: classic Übung markers ──────────────────────────────────────────
   const ubungRegex = /(?:Ü\s*b\s*u\s*n\s*g|Übung|Ubung)\s*[A-Z]?\d+(?:\.\d+)?/gi;
-  let matches = [...exerciseText.matchAll(ubungRegex)];
+  if (!matches.length) matches = [...exerciseText.matchAll(ubungRegex)];
 
   // ─── Pass 2: dotted numeric IDs  1.1, 2.3  ──────────────────────────────────
   if (!matches.length) {
@@ -2520,8 +2723,10 @@ function splitWorksheetIntoExercises(text) {
     } else {
       instruction_de = firstLines.replace(/^\d+\.\s*|^[A-Z]\.\s*/g, '').trim();
     }
+    // Strip explicit "Instruction:" / "Anweisung:" label prefix if present
+    instruction_de = instruction_de.replace(/^(?:Instruction|Anweisung)\s*:\s*/i, '').trim();
 
-    exercises.push({
+    exercises.push(applyBracketMarkersToExercise({
       id: exerciseId,
       exerciseId,
       topic: '',
@@ -2531,7 +2736,7 @@ function splitWorksheetIntoExercises(text) {
       sectionType: '',
       content: block,
       solution_key: ''
-    });
+    }));
   }
 
   const solutionBlock = solutionIndex !== -1 ? normalized.slice(solutionIndex) : '';
@@ -2575,6 +2780,8 @@ For each block, detect type:
 - "mcq"  → options like a), b), c), d)
 - "translation"  → German ↔ English conversion
 - "qa"  → direct questions/answers
+- "true_false"  → statements marked Richtig/Falsch or True/False
+- "pronunciation"  → words or phrases for speaking aloud / Aussprache
 
 ----------------------------------------
 STEP 3: EXTRACT CONTENT
@@ -2592,6 +2799,10 @@ STEP 3: EXTRACT CONTENT
 5. TRANSLATION — extract source, target
 
 6. QA — extract question, answer (or null)
+
+7. TRUE_FALSE — extract question, answer (True/False)
+
+8. PRONUNCIATION — extract word, phonetic (if available), translation (if available)
 
 ----------------------------------------
 IMPORTANT RULES
@@ -2617,6 +2828,13 @@ Return ONLY this JSON — no markdown, no explanation, no comments:
       "type": "matching",
       "questions": [
         { "left": "", "right": "" }
+      ]
+    },
+    {
+      "title": "Pronunciation exercise",
+      "type": "pronunciation",
+      "questions": [
+        { "word": "der Tisch", "phonetic": "/deːɐ̯ tɪʃ/", "translation": "the table" }
       ]
     }
   ]
@@ -2648,17 +2866,10 @@ ${sample}`;
   // (buildExercisesFromAiDetection) can slice the source text correctly.
   return rawExercises.map((ex, i) => {
     const firstQuestion = (ex.questions || [])[0];
-    let snippet = '';
-    if (firstQuestion) {
-      snippet = String(
-        firstQuestion.left || firstQuestion.question ||
-        firstQuestion.scrambled || firstQuestion.source || ''
-      ).trim().slice(0, 60);
-    }
     const exerciseId = String(ex.title || (i + 1)).replace(/\s+/g, '_').slice(0, 20) || String(i + 1);
     return {
       exerciseId,
-      startSnippet: snippet || String(ex.title || '').trim().slice(0, 60),
+      startSnippet: String(ex.title || '').trim().slice(0, 60),
       _aiExtracted: ex
     };
   }).filter(item => item.exerciseId);
@@ -2667,61 +2878,88 @@ ${sample}`;
 function buildExercisesFromAiDetection(text, detections) {
   if (!detections || !detections.length) return [];
 
-  // When detectExercisesWithAI ran the new full-extraction path it attaches
-  // _aiExtracted with the already-parsed exercise object.  Use that directly
-  // to avoid a second round-trip to the AI in runSequentialWorksheetExtraction.
-  const fullyExtracted = detections.filter(d => d._aiExtracted);
-  if (fullyExtracted.length === detections.length && fullyExtracted.length > 0) {
-    console.log('[buildExercisesFromAiDetection] Using AI-pre-extracted exercises directly.');
-    return fullyExtracted.map(d => {
-      const ex = d._aiExtracted;
-      // Serialize the pre-extracted questions as the content so later flattening
-      // can still run if needed, and mark the block with ai-pre-extracted flag.
-      return {
-        id: d.exerciseId,
-        exerciseId: d.exerciseId,
-        topic: String(ex.title || '').trim(),
-        difficulty: 'easy',
-        instruction_de: String(ex.title || '').trim(),
-        instruction_en: '',
-        sectionType: String(ex.type || ''),
-        content: JSON.stringify(ex),
-        solution_key: '',
-        _aiPreExtracted: ex
-      };
-    });
-  }
-
-  // Legacy path: locate snippets in the source text and slice blocks.
   const source = normalizePdfText(String(text || ''));
-  const starts = detections
-    .map(d => ({ ...d, index: source.indexOf(d.startSnippet) }))
-    .filter(d => d.index >= 0)
-    .sort((a, b) => a.index - b.index);
 
-  if (!starts.length) return [];
+  // Find snippet positions for all detections in the source text.
+  const withIndex = detections
+    .map(d => ({ ...d, index: d.startSnippet ? source.indexOf(d.startSnippet) : -1 }));
+
+  // Detections whose snippet was found — order by position in the source.
+  const found = withIndex.filter(d => d.index >= 0).sort((a, b) => a.index - b.index);
+  // Detections whose snippet was NOT found — keep them but fallback to AI title.
+  const missing = withIndex.filter(d => d.index < 0);
 
   const exercises = [];
   const seenExerciseIds = new Set();
-  for (let i = 0; i < starts.length; i++) {
-    const cur = starts[i];
-    const next = starts[i + 1];
+
+  // Build from snippets found in the source text.
+  for (let i = 0; i < found.length; i++) {
+    const cur = found[i];
+    const next = found[i + 1];
     const end = next ? next.index : source.length;
-    const content = source.slice(cur.index, end).trim();
+    const prevEnd = i > 0 ? found[i - 1].index : 0;
+    const rawStart = cur.index;
+    const raw = source.slice(rawStart, end).trim();
     if (!cur.exerciseId || seenExerciseIds.has(cur.exerciseId)) continue;
     seenExerciseIds.add(cur.exerciseId);
+    const ai = cur._aiExtracted || null;
     exercises.push({
       id: cur.exerciseId,
       exerciseId: cur.exerciseId,
-      topic: '',
+      topic: ai ? String(ai.title || '').trim() : '',
       difficulty: 'easy',
       instruction_de: '',
       instruction_en: '',
-      content,
-      solution_key: ''
+      sectionType: ai ? String(ai.type || '') : '',
+      content: raw,
+      solution_key: '',
+      _aiPreExtracted: ai
     });
   }
-  return exercises.filter(ex => ex.content && ex.content.length >= 20);
+
+  // Fallback for detections without a matching snippet.
+  for (const d of missing) {
+    const ai = d._aiExtracted;
+    if (!d.exerciseId || seenExerciseIds.has(d.exerciseId)) continue;
+    seenExerciseIds.add(d.exerciseId);
+    exercises.push({
+      id: d.exerciseId,
+      exerciseId: d.exerciseId,
+      topic: ai ? String(ai.title || '').trim() : '',
+      difficulty: 'easy',
+      instruction_de: '',
+      instruction_en: '',
+      sectionType: ai ? String(ai.type || '') : '',
+      content: (() => {
+        if (!ai) return 'exercise';
+        const base = String(ai.title || ai.type || '').trim();
+        if (base.length >= 20) return base;
+        // Try to find question text in source as content.
+        const q1 = Array.isArray(ai.questions) ? ai.questions[0] : null;
+        if (q1) {
+          const qText = String(q1.sentence || q1.question || q1.left || q1.scrambled || q1.source || q1.prompt || '').trim().slice(0, 60);
+          if (qText) {
+            const qIdx = source.indexOf(qText);
+            if (qIdx >= 0) {
+              const preText = source.slice(Math.max(0, qIdx - 500), qIdx);
+              const lastBrace = preText.lastIndexOf('{');
+              const rawStart = lastBrace >= 0 ? Math.max(0, qIdx - 500) + lastBrace : Math.max(0, qIdx - 200);
+              const postText = source.slice(qIdx + qText.length, Math.min(source.length, qIdx + 2000));
+              const nextBrace = postText.indexOf('\n{');
+              const rawEnd = nextBrace >= 0 ? qIdx + qText.length + nextBrace : Math.min(source.length, qIdx + 1000);
+              return source.slice(rawStart, rawEnd).trim();
+            }
+            return qText;
+          }
+        }
+        return base || 'exercise';
+      })(),
+      solution_key: '',
+      _aiPreExtracted: ai
+    });
+  }
+
+  return exercises.filter(ex => ex.content && ex.content.length >= 3);
 }
 
 function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionType = '', exerciseId = '') {
@@ -2746,6 +2984,8 @@ function detectExerciseTypeAndQuestionCount(content, instruction = '', sectionTy
     type = 'short_answer';
   } else if (/fehler|korrigieren|correct.*error|find.*error/i.test(instr)) {
     type = 'error_correction';
+  } else if (/aussprache|pronunciation|phonetic|speak\s*aloud|pronounce/i.test(instr)) {
+    type = 'pronunciation';
   } else if (/schreiben|write/i.test(instr)) {
     if (/frage|question/i.test(instr)) {
       type = 'short_answer';
@@ -2875,13 +3115,15 @@ function normalizeAiJumbleItem(q) {
 }
 
 function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null) {
+  const bracketParsed = extractBracketMarkers(rawExerciseContent);
   const mappedType = EXTRACTION_TYPE_MAP[result.type] || 'question-answer';
   const worksheetKind = EXTRACTION_WORKSHEET_KIND[result.type] || null;
   const sectionTitle = [result.topic, result.exerciseId].filter(Boolean).join(' | ') || null;
-  const raw = String(rawExerciseContent || '').trim();
-  const deInstr = String(result.instruction_de || blockMeta?.instruction_de || '').trim();
-  const enInstr = String(result.instruction_en || blockMeta?.instruction_en || '').trim();
+  const raw = bracketParsed.cleanedContent || String(rawExerciseContent || '').trim();
+  const deInstr = String(result.instruction_de || blockMeta?.instruction_de || bracketParsed.instruction_de || '').trim();
+  const enInstr = String(result.instruction_en || blockMeta?.instruction_en || bracketParsed.instruction_en || '').trim();
   const mergedInstr = mergeWorksheetInstructions(deInstr, enInstr) || null;
+  const blockExample = String(blockMeta?.example || bracketParsed.example || '').trim();
 
   const exerciseBase = () => ({
     type: mappedType,
@@ -2932,8 +3174,9 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
     }
   }
 
-  return (result.questions || []).map(q => {
+  return (result.questions || []).map((q, qi) => {
     const base = exerciseBase();
+    const rowExample = String(q.example || '').trim() || (qi === 0 ? blockExample : '');
 
     if (mappedType === 'jumble-word') {
       const norm = normalizeAiJumbleItem(q);
@@ -3002,7 +3245,7 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
         ? q.options.map(String).filter(Boolean)
         : [];
       const cai = parseInt(q.correctAnswerIndex);
-      return sanitizeQuestion({ ...base, question: String(q.question || ''), options, correctAnswerIndex: isNaN(cai) ? 0 : cai, explanation: '' });
+      return sanitizeQuestion({ ...base, question: String(q.question || ''), options, correctAnswerIndex: isNaN(cai) ? 0 : cai, explanation: '', example: rowExample });
     }
     if (mappedType === 'matching') {
       const directL = String(q.left != null ? q.left : '').trim();
@@ -3050,9 +3293,18 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
         ...base,
         sentence: norm.sentence,
         answers: norm.answers,
-        example: String(q.example || '').trim(),
+        example: rowExample,
         hint: String(q.hint || ''),
         caseSensitive: false
+      });
+    }
+    if (mappedType === 'pronunciation') {
+      return sanitizeQuestion({
+        ...base,
+        word: String(q.word || q.question || '').trim(),
+        phonetic: String(q.phonetic || '').trim(),
+        translation: String(q.translation || '').trim(),
+        acceptedVariants: Array.isArray(q.acceptedVariants) ? q.acceptedVariants.map(String) : []
       });
     }
     const rawAnswers = Array.isArray(q.answers) && q.answers.length
@@ -3060,7 +3312,7 @@ function flattenSingleExercise(result, rawExerciseContent = '', blockMeta = null
       : (q.correctedText ? [q.correctedText] : []);
     const threshold = result.type === 'true_false' ? 75 : result.type === 'open_writing' ? 60 : 70;
     const scoringMode = (result.type === 'open_writing' || result.type === 'short_answer') ? 'proportional' : 'full';
-    return sanitizeQuestion({ ...base, prompt: String(q.question || ''), sampleAnswers: rawAnswers.map(String).filter(Boolean), similarityThreshold: threshold, scoringMode, aiGradingEnabled: true });
+    return sanitizeQuestion({ ...base, prompt: String(q.question || ''), sampleAnswers: rawAnswers.map(String).filter(Boolean), similarityThreshold: threshold, scoringMode, aiGradingEnabled: true, example: rowExample });
   }).filter(Boolean);
 }
 
@@ -3082,13 +3334,19 @@ router.post('/extract-single-exercise',
     }
 
     try {
+      const prepared = applyBracketMarkersToExercise({
+        instruction_de: instruction_de || '',
+        instruction_en: instruction_en || '',
+        content: content.trim()
+      });
+
       const prompt = buildSingleExerciseExtractionPrompt({
         topic: topic || '',
         exerciseId: exerciseId || '',
         level: level || 'easy',
-        instruction_de: instruction_de || '',
-        instruction_en: instruction_en || '',
-        content: content.trim(),
+        instruction_de: prepared.instruction_de || '',
+        instruction_en: prepared.instruction_en || '',
+        content: prepared.content || content.trim(),
         solution_key: solution_key || ''
       });
 
@@ -3102,9 +3360,10 @@ router.post('/extract-single-exercise',
         return res.status(500).json({ error: 'AI returned invalid JSON. Please try again.' });
       }
 
-      const questions = flattenSingleExercise(result, content.trim(), {
-        instruction_de: instruction_de || '',
-        instruction_en: instruction_en || ''
+      const questions = flattenSingleExercise(result, prepared.content || content.trim(), {
+        instruction_de: prepared.instruction_de || '',
+        instruction_en: prepared.instruction_en || '',
+        example: prepared.example || ''
       });
       res.json({ success: true, exerciseId: result.exerciseId, type: result.type, questions });
 
@@ -3230,7 +3489,7 @@ function sanitizeQuestion(q) {
     const maxIdx = Math.max(0, options.length - 1);
     const rawOptionImages = Array.isArray(q.optionImageUrls) ? q.optionImageUrls.map((u) => String(u || '').trim()) : [];
     const optionImageUrls = options.slice(0, 6).map((_, i) => rawOptionImages[i] || '');
-    return {
+    const out = {
       ...base,
       question: String(q.question || ''),
       imageUrl: q.imageUrl || null,
@@ -3239,6 +3498,9 @@ function sanitizeQuestion(q) {
       correctAnswerIndex: options.length === 0 || isNaN(cai) || cai < 0 ? 0 : Math.min(cai, maxIdx),
       explanation: String(q.explanation || '')
     };
+    const ex = String(q.example || '').trim();
+    if (ex) out.example = ex;
+    return out;
   }
 
   if (q.type === 'matching') {
@@ -3327,7 +3589,7 @@ function sanitizeQuestion(q) {
   if (q.type === 'question-answer') {
     const threshold = parseInt(q.similarityThreshold);
     const scoringMode = ['full', 'proportional'].includes(q.scoringMode) ? q.scoringMode : 'proportional';
-    return {
+    const out = {
       ...base,
       prompt: String(q.prompt || ''),
       sampleAnswers: Array.isArray(q.sampleAnswers) ? q.sampleAnswers.map(String).filter(Boolean) : [],
@@ -3335,6 +3597,9 @@ function sanitizeQuestion(q) {
       scoringMode,
       aiGradingEnabled: q.aiGradingEnabled !== false
     };
+    const ex = String(q.example || '').trim();
+    if (ex) out.example = ex;
+    return out;
   }
 
   if (q.type === 'jumble-word') {

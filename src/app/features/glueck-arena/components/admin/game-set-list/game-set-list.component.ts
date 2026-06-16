@@ -71,6 +71,9 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <div class="ga-toolbar__dropdown-item" (click)="setType('gender_stack')">Gender Stack</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('flapjugation')">Flapjugation</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('whackawort')">Whack-a-Wort</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('memory')">Memory Game</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('jumbled_words')">Jumbled Words</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('hangman')">Hangman</div>
           </div>
         </div>
         <div class="ga-toolbar__dropdown-wrap">
@@ -365,6 +368,9 @@ export class GameSetListComponent implements OnInit {
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
       whackawort: 'Whack-a-Wort',
+      memory: 'Memory Game',
+      jumbled_words: 'Jumbled Words',
+      hangman: 'Hangman',
     };
     return map[t] ?? t;
   }

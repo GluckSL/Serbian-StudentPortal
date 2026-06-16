@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, DestroyRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -16,7 +16,10 @@ import { DigitalExercisesComponent } from '../digital-exercises/digital-exercise
 import { GluckBuddyHubComponent } from '../../sprechen-exam/gluck-buddy-hub/gluck-buddy-hub.component';
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
-import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
+import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
+import { digitalExercisePlayCommands } from '../../utils/digital-exercise-id.util';
+import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
+import { SprechenExamModuleSummary, SprechenExamSummary } from '../../sprechen-exam/sprechen-exam.types';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { GameSet } from '../../features/glueck-arena/glueck-arena.types';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
@@ -27,10 +30,22 @@ import {
   JourneyPendingCelebrationDialogComponent,
   JourneyPendingCelebrationData
 } from './journey-pending-celebration-dialog.component';
+import {
+  PaymentHubApiService,
+  PaymentRequestItem,
+} from '../payment-hub-v2/payment-hub-api.service';
+import {
+  clampJourneyDayForBatch,
+  journeyDaysThrough,
+  formatJourneyDayLabel,
+  parseAdminCourseDayOrNull,
+  TRIAL_JOURNEY_DAY
+} from '../../utils/journey-day.util';
 
-type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey';
+type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey' | 'gluck-exam';
 type JourneyFilter = 'all' | 'completed' | 'pending';
 type ProgressRange = 'weekly' | 'overall';
+type GluckExamSubTab = 'weekly-test' | 'exams';
 
 @Component({
   selector: 'app-my-course',
@@ -48,9 +63,18 @@ type ProgressRange = 'weekly' | 'overall';
   styleUrls: ['./my-course.component.scss']
 })
 export class MyCourseComponent implements OnInit {
+  /** Match DigitalExercisesComponent passing threshold. */
+  readonly passScorePercent = 60;
   /** Row placeholders for the loading skeleton (My class tab). */
   readonly skeletonMeetingRows = [0, 1, 2, 3, 4];
   readonly skeletonSideLines = [0, 1, 2];
+
+  /**
+   * Tracks which tabs have been visited so child components only mount when
+   * the user first navigates to a tab (lazy mounting via *ngIf + [hidden]).
+   * 'classes' is pre-seeded because it is the default landing tab.
+   */
+  readonly tabVisited = new Set<MyCourseTab>(['classes']);
 
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
@@ -61,14 +85,26 @@ export class MyCourseComponent implements OnInit {
   loading = true;
   private _tourChecked = false;
   activeTab: MyCourseTab = 'classes';
+  gluckExamSubTab: GluckExamSubTab = 'weekly-test';
   journeyFilter: JourneyFilter = 'all';
+  journeyFilterOpen = false;
   journeySearch = '';
-  selectedJourneyDay = 1;
+  private _selectedJourneyDay: number | null = null;
+
+  get selectedJourneyDay(): number {
+    return this._selectedJourneyDay ?? this.journeyCourseDay;
+  }
+
+  set selectedJourneyDay(day: number) {
+    this._selectedJourneyDay = day;
+  }
   showProgressReport = false;
   progressRange: ProgressRange = 'weekly';
 
   private journeyDayExercises: DigitalExercise[] = [];
   private journeyDayGameSets: GameSet[] = [];
+  /** True when the student's batch has at least one published arena game. */
+  hasJourneyArenaAccess = false;
   private journeyMeetings: any[] = [];
   /** Fallback when journey.profile.profilePic is empty (login/profile API often has photo). */
   private authProfilePicRaw: string | null = null;
@@ -82,8 +118,22 @@ export class MyCourseComponent implements OnInit {
   private currentDayDgModules: DgModuleSummary[] = [];
   /** Manual recordings tagged to the current journey day (for completion badge). */
   private currentDayManualRecs: ClassRecording[] = [];
+
+  // ── Gluck Exam tab data ────────────────────────────────────────────────────
+  gluckExamLoading = false;
+  gluckExamLoadError = '';
+  private gluckExamExercises: DigitalExercise[] = [];
+  private gluckExamDgModules: DgModuleSummary[] = [];
+  private gluckExamSprechenModules: SprechenExamModuleSummary[] = [];
+  gluckExamSummary: SprechenExamSummary | null = null;
   /** Whether the day-completion modal is open. */
   showDayCompletionModal = false;
+  /** Loading exercises / DG / recordings for the day-completion badge. */
+  dayCompletionLoading = false;
+  private _dayCompletionLoadedForDay: number | null = null;
+
+  /** Open LANGUAGE_FEE balance from payment hub (legacy import / requests). */
+  languageFeeDue: { amount: number; currency: string } | null = null;
 
   latestAnnouncement: AnnouncementItem | null = null;
   announcementDismissed = false;
@@ -106,6 +156,7 @@ export class MyCourseComponent implements OnInit {
   /** The class row currently open in the confirmation modal. */
   recordingReqConfirmTarget: EligibleClass | null = null;
   recordingReqSubmitting = false;
+  recordingReqCancellingId: string | null = null;
   recordingReqSuccessMsg = '';
   recordingReqFailMsg = '';
   recordingsRefreshToken = 0;
@@ -170,30 +221,26 @@ export class MyCourseComponent implements OnInit {
     private notify: NotificationService,
     private dgApiService: DgApiService,
     private recordingsService: ClassRecordingsService,
-    private recordingReqService: RecordingAccessRequestService
+    private recordingReqService: RecordingAccessRequestService,
+    private paymentHubApi: PaymentHubApiService,
+    private sprechenApi: SprechenApiService,
   ) {}
 
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.destroyed = true);
-    this.setAuthProfilePicFromUser(this.authService.getSnapshotUser());
-    this.authService.currentUser$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((u) => {
-        this.setAuthProfilePicFromUser(u);
-        if (u) {
-          this.authService.getUserProfile().subscribe({
-            next: (fullU) => this.userProfile = fullU,
-            error: () => {}
-          });
-        }
-      });
-    this.authService.getUserProfile().subscribe({
-      next: (u) => {
-        this.setAuthProfilePicFromUser(u);
-        this.userProfile = u;
-      },
-      error: () => {}
-    });
+    // Use the snapshot user immediately so the template has subscription/role data
+    // without waiting for an HTTP round-trip. A single background refresh keeps it fresh.
+    const snapshotUser = this.authService.getSnapshotUser();
+    this.setAuthProfilePicFromUser(snapshotUser);
+    if (snapshotUser) {
+      this.userProfile = snapshotUser;
+      this.authService.getUserProfile()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (fullU) => { this.userProfile = fullU; this.setAuthProfilePicFromUser(fullU); },
+          error: () => {}
+        });
+    }
 
     // Instant advance: Silver GO students promoted immediately after completing all day tasks.
     this.progressService.journeyInstantAdvance$
@@ -202,7 +249,8 @@ export class MyCourseComponent implements OnInit {
         this.progressService.getStudentJourney().subscribe({
           next: (j) => {
             this.journey = j;
-            this.loadQuickAccess();
+            this._journeyGamesLoaded = false;
+            this.loadDayCompletionData(true);
             if (!this.journeyCongratsDialogRef) {
               const data: JourneyPendingCelebrationData = {
                 currentDay: event.previousDay,
@@ -226,17 +274,14 @@ export class MyCourseComponent implements OnInit {
         });
       });
 
-    // Journey first: unlock the page as soon as progress API returns (fastest paint).
-    // Meetings load in parallel and patch preview when ready — avoids waiting on the slower hop.
+    // Fire journey fetch async — page renders immediately; data populates when it arrives.
     this.progressService
       .getStudentJourney()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (journey) => {
           this.journey = journey;
-          this.loadQuickAccess();
-          this.pickTabHeaderQuote();
-          this.loading = false;
+          this.loadDayCompletionData();
           setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
           if (!this._tourChecked) {
             this._tourChecked = true;
@@ -248,21 +293,28 @@ export class MyCourseComponent implements OnInit {
             });
           }
         },
-        error: () => {
-          this.pickTabHeaderQuote();
-          this.loading = false;
-        },
+        error: () => {},
       });
+    this.loading = false;
+    this.pickTabHeaderQuote();
 
-    this.zoomService
-      .getStudentMeetings({ tab: 'upcoming', page: 1, limit: 25 })
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        catchError(() => of({ success: false, data: [] }))
-      )
-      .subscribe({
-        next: (meetings) => this.applyMeetingsPreview(meetings),
-      });
+    // Defer the payment-hub request so it doesn't compete with journey / meetings on initial load.
+    setTimeout(() => { if (!this.destroyed) this.loadLanguageFeeDue(); }, 1500);
+
+    // Defer the meetings preview by 800 ms so the journey and profile requests
+    // have priority. The "next meeting" card is non-blocking — it appears once data arrives.
+    setTimeout(() => {
+      if (this.destroyed) return;
+      this.zoomService
+        .getStudentMeetings({ tab: 'upcoming', page: 1, limit: 25 })
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          catchError(() => of({ success: false, data: [] }))
+        )
+        .subscribe({
+          next: (meetings) => this.applyMeetingsPreview(meetings),
+        });
+    }, 800);
 
     // Announcements are shown under Help & Support (messenger) → Announcements.
 
@@ -283,42 +335,130 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = 'classes';
       } else if (t === 'exercises' || t === 'talk-buddy' || t === 'classes') {
         this.activeTab = t;
+        this.tabVisited.add(t);
       } else if (t === 'journey') {
         this.activeTab = t;
+        this.tabVisited.add(t);
+        this.loadJourneyTabData();
+        this.loadJourneyGames();
+      } else if (t === 'gluck-exam') {
+        this.activeTab = t;
+        this.tabVisited.add(t);
+        this.loadGluckExamData();
       }
       const d = q.get('day');
-      if (d && Number.isFinite(Number(d)) && Number(d) > 0) {
-        this.selectedJourneyDay = Number(d);
+      if (d != null && d !== '' && Number.isFinite(Number(d))) {
+        const n = Number(d);
+        const min = this.trialDayEnabled ? 0 : 1;
+        if (n >= min && n <= 200) this.selectedJourneyDay = n;
       }
     });
   }
 
-  private loadQuickAccess(): void {
-    if (this.destroyed) return;
-    this.nextNewDigitalExercise = null;
-    const courseDay = this.journeyCourseDay;
-    const levelRaw = this.profile?.currentLevel || this.profile?.currentLevelCode || this.profile?.level;
-    const studentLevel = typeof levelRaw === 'string' ? levelRaw.split(/\s+/)[0] : '';
-
-    // Journey Day tab data sources
-    this.exerciseService
-      .getExercises({ page: 1, limit: 500 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.journeyDayExercises = Array.isArray(res?.exercises) ? res.exercises : [];
-        },
-        error: () => {
-          this.journeyDayExercises = [];
+  private loadLanguageFeeDue(): void {
+    this.paymentHubApi
+      .getMyRequests({ page: 1, limit: 50 })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError(() => of(null)),
+      )
+      .subscribe((res) => {
+        const rows = res?.data ?? [];
+        const open = rows.filter(
+          (r) => r.paymentType === 'LANGUAGE_FEE' && this.languageFeeRemaining(r) > 0,
+        );
+        if (!open.length) {
+          this.languageFeeDue = null;
+          return;
         }
+        const pick = open.reduce((a, b) =>
+          this.languageFeeRemaining(a) >= this.languageFeeRemaining(b) ? a : b,
+        );
+        this.languageFeeDue = {
+          amount: this.languageFeeRemaining(pick),
+          currency: (pick.currency || 'LKR').toUpperCase(),
+        };
       });
+  }
 
+  private languageFeeRemaining(req: PaymentRequestItem): number {
+    if (req.status === 'FULLY_PAID') return 0;
+    const view = req.studentInstallmentView;
+    if (req.installmentAllowed && view && !view.allPaid) {
+      return Math.max(0, view.displayAmount ?? req.amountRemaining ?? 0);
+    }
+    return Math.max(0, req.amountRemaining ?? 0);
+  }
+
+  /** Loads per-day tasks for the completion badge (My class sidebar) and journey quick-access. */
+  loadDayCompletionData(force = false): void {
+    if (this.destroyed || !this.journey) return;
+    const courseDay = this.journeyCourseDay;
+    if (!force && this._dayCompletionLoadedForDay === courseDay && !this.dayCompletionLoading) {
+      return;
+    }
+    this._dayCompletionLoadedForDay = courseDay;
+    this.dayCompletionLoading = true;
+    this.loadQuickAccess(() => {
+      this.dayCompletionLoading = false;
+    });
+  }
+
+  /** Full exercise list (loaded lazily on Journey tab first visit). */
+  private _fullExercisesLoaded = false;
+
+  /**
+   * Loads a paginated exercise list for the Journey tab.
+   * Only called when the Journey tab is first opened; the My Class badge uses
+   * the lighter initial set already stored in journeyDayExercises.
+   */
+  loadFullExercisesForJourney(): void {
+    if (this._fullExercisesLoaded || this.destroyed) return;
+    this._fullExercisesLoaded = true;
+    const courseDay = this.journeyCourseDay;
     this.exerciseService
-      .getExercises({ page: 1, limit: 24 })
+      .getExercises({ page: 1, limit: 50 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
+          this.journeyDayExercises = items;
+          // Refresh quick-access with full dataset
+          const unlocked = items.filter((ex) => {
+            if (ex.studentAttempt) return false;
+            const exDay = ex.courseDay;
+            return exDay == null || exDay <= courseDay;
+          });
+          unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
+          this.nextNewDigitalExercise = unlocked[0] || null;
+        },
+        error: () => {}
+      });
+  }
+
+  private loadQuickAccess(onDone?: () => void): void {
+    if (this.destroyed) return;
+    this.nextNewDigitalExercise = null;
+    const courseDay = this.journeyCourseDay;
+    let pending = 3;
+    const finish = () => {
+      pending -= 1;
+      if (pending <= 0) onDone?.();
+    };
+
+    // Lightweight fetch: only current + adjacent days for the day-completion badge
+    // and the "next exercise" quick-access card on My Class.
+    // The Journey tab triggers loadFullExercisesForJourney() for the full 500-item list.
+    this.exerciseService
+      .getExercises({ page: 1, limit: 60 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
+          // Only replace the full list if Journey hasn't already loaded the 500-item set
+          if (!this._fullExercisesLoaded) {
+            this.journeyDayExercises = items;
+          }
           const unlocked = items.filter((ex) => {
             const noAttempt = !ex.studentAttempt;
             if (!noAttempt) return false;
@@ -327,22 +467,11 @@ export class MyCourseComponent implements OnInit {
           });
           unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
           this.nextNewDigitalExercise = unlocked[0] || null;
-        }
-      });
-
-    this.interactiveGameService
-      .getCatalog({ page: 1, limit: 500 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          const items: GameSet[] = Array.isArray(res?.items) ? res.items : [];
-          this.journeyDayGameSets = items.filter(
-            (g) => (g.targetLanguage || 'German') === 'German'
-          );
         },
         error: () => {
-          this.journeyDayGameSets = [];
-        }
+          this.journeyDayExercises = [];
+        },
+        complete: () => finish()
       });
 
     // Fetch DG modules for the current journey day (completion badge)
@@ -356,12 +485,13 @@ export class MyCourseComponent implements OnInit {
             (m) => Number(m.courseDay) === courseDay
           );
         },
-        error: () => { this.currentDayDgModules = []; }
+        error: () => { this.currentDayDgModules = []; },
+        complete: () => finish()
       });
 
     // Fetch manual recordings for the current journey day (completion badge)
     this.recordingsService
-      .getRecordings()
+      .getRecordings(courseDay)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
@@ -369,7 +499,39 @@ export class MyCourseComponent implements OnInit {
             (r) => Number(r.courseDay) === courseDay
           );
         },
-        error: () => { this.currentDayManualRecs = []; }
+        error: () => { this.currentDayManualRecs = []; },
+        complete: () => finish()
+      });
+  }
+
+  private _journeyTabDataLoaded = false;
+  private _journeyGamesLoaded = false;
+  private _gluckExamDataLoaded = false;
+  private _journeyClassesRefreshed = false;
+
+  private loadJourneyTabData(): void {
+    if (this._journeyTabDataLoaded) return;
+    this._journeyTabDataLoaded = true;
+    this.loadDayCompletionData(true);
+    this.loadGluckExamData();
+    this.loadFullExercisesForJourney();
+  }
+
+  private loadJourneyGames(): void {
+    if (this._journeyGamesLoaded) return;
+    this._journeyGamesLoaded = true;
+    this.interactiveGameService
+      .getJourneyGames()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.hasJourneyArenaAccess = !!res?.hasArenaAccess;
+          this.journeyDayGameSets = Array.isArray(res?.items) ? res.items : [];
+        },
+        error: () => {
+          this.hasJourneyArenaAccess = false;
+          this.journeyDayGameSets = [];
+        }
       });
   }
 
@@ -446,6 +608,7 @@ export class MyCourseComponent implements OnInit {
     if (tab === 'talk-buddy' && !this.allowsTalkBuddyTab) {
       tab = 'classes';
     }
+    this.tabVisited.add(tab);
     this.activeTab = tab;
     this.router.navigate([], {
       relativeTo: this.route,
@@ -453,24 +616,191 @@ export class MyCourseComponent implements OnInit {
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
+    if (tab === 'journey') {
+      this.loadJourneyTabData();
+      this.loadJourneyGames();
+    }
     if (tab === 'classes') {
       this.refreshJourneyForPendingCelebration();
     }
+    if (tab === 'gluck-exam') {
+      this.loadGluckExamData();
+    }
+  }
+
+  setGluckExamSubTab(tab: GluckExamSubTab): void {
+    this.gluckExamSubTab = tab;
+  }
+
+  private loadGluckExamData(): void {
+    if (this.gluckExamLoading || this._gluckExamDataLoaded) return;
+    this._gluckExamDataLoaded = true;
+    this.gluckExamLoading = true;
+    this.gluckExamLoadError = '';
+
+    // Parallel fetch: exercises, DG modules, Sprechen modules.
+    // Student APIs already include attempt/progress (for Completed vs Pending).
+    let done = 0;
+    const finish = () => {
+      done += 1;
+      if (done >= 3) this.gluckExamLoading = false;
+    };
+
+    this.exerciseService
+      .getGluckExamExercises()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.gluckExamExercises = Array.isArray(res?.exercises) ? res.exercises : [];
+          finish();
+        },
+        error: (e) => {
+          this.gluckExamLoadError = e?.error?.message || e?.error?.error || 'Failed to load exam exercises.';
+          this.gluckExamExercises = [];
+          finish();
+        },
+      });
+
+    this.dgApiService
+      .listStudentModules({ gluckExamOnly: true })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.gluckExamDgModules = Array.isArray(res?.modules) ? res.modules : [];
+          finish();
+        },
+        error: (e) => {
+          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Failed to load DG exam modules.';
+          this.gluckExamDgModules = [];
+          finish();
+        },
+      });
+
+    this.sprechenApi
+      .listStudentModules({ gluckExamOnly: true })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.gluckExamSprechenModules = Array.isArray(res?.modules) ? res.modules : [];
+          this.gluckExamSummary = res?.summary || null;
+          finish();
+        },
+        error: (e) => {
+          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Failed to load Sprechen exam modules.';
+          this.gluckExamSprechenModules = [];
+          finish();
+        },
+      });
+  }
+
+  get gluckExamWeeklyExercises(): DigitalExercise[] {
+    return this.gluckExamExercises.filter((x) => !!x.weeklyTestEnabled);
+  }
+  get gluckExamExamExercises(): DigitalExercise[] {
+    return this.gluckExamExercises.filter((x) => !!x.examEnabled);
+  }
+  get gluckExamWeeklyDgModules(): DgModuleSummary[] {
+    return this.gluckExamDgModules.filter((x) => !!x.weeklyTestEnabled);
+  }
+  get gluckExamExamDgModules(): DgModuleSummary[] {
+    return this.gluckExamDgModules.filter((x) => !!x.examEnabled);
+  }
+  get gluckExamWeeklySprechen(): SprechenExamModuleSummary[] {
+    return this.gluckExamSprechenModules.filter((x) => !!x.weeklyTestEnabled);
+  }
+  get gluckExamExamSprechen(): SprechenExamModuleSummary[] {
+    return this.gluckExamSprechenModules.filter((x) => !!x.examEnabled);
+  }
+
+  gluckExamExerciseDone(ex: DigitalExercise): boolean {
+    return this.isAttemptPassing(ex.studentAttempt);
+  }
+
+  isAttemptPassing(att: ExerciseAttempt | null | undefined): boolean {
+    const s = att?.scorePercentage;
+    if (s == null || !Number.isFinite(Number(s))) return false;
+    return Number(s) >= this.passScorePercent;
+  }
+
+  gluckExamDgDone(m: DgModuleSummary): boolean {
+    return !!m.studentProgress?.completed;
+  }
+
+  gluckExamSprechenDone(m: SprechenExamModuleSummary): boolean {
+    return !!m.studentProgress?.lastCompleted;
+  }
+
+  /** Pending Glück Exam items (not yet completed) — drives tab notification badges. */
+  get gluckExamWeeklyPendingCount(): number {
+    return (
+      this.gluckExamWeeklyExercises.filter((x) => !this.gluckExamExerciseDone(x)).length +
+      this.gluckExamWeeklyDgModules.filter((x) => !this.gluckExamDgDone(x)).length +
+      this.gluckExamWeeklySprechen.filter((x) => !this.gluckExamSprechenDone(x)).length
+    );
+  }
+
+  get gluckExamInternalPendingCount(): number {
+    return (
+      this.gluckExamExamExercises.filter((x) => !this.gluckExamExerciseDone(x)).length +
+      this.gluckExamExamDgModules.filter((x) => !this.gluckExamDgDone(x)).length +
+      this.gluckExamExamSprechen.filter((x) => !this.gluckExamSprechenDone(x)).length
+    );
+  }
+
+  get gluckExamAnyPending(): boolean {
+    return this.gluckExamWeeklyPendingCount + this.gluckExamInternalPendingCount > 0;
+  }
+
+  get gluckExamWeeklyHasPending(): boolean {
+    return this.gluckExamWeeklyPendingCount > 0;
+  }
+
+  get gluckExamInternalHasPending(): boolean {
+    return this.gluckExamInternalPendingCount > 0;
+  }
+
+  gluckExamExercisesSectionHasPending(): boolean {
+    const list =
+      this.gluckExamSubTab === 'weekly-test' ? this.gluckExamWeeklyExercises : this.gluckExamExamExercises;
+    return list.some((ex) => !this.gluckExamExerciseDone(ex));
+  }
+
+  gluckExamDgSectionHasPending(): boolean {
+    const list =
+      this.gluckExamSubTab === 'weekly-test' ? this.gluckExamWeeklyDgModules : this.gluckExamExamDgModules;
+    return list.some((mod) => !this.gluckExamDgDone(mod));
+  }
+
+  gluckExamSprechenSectionHasPending(): boolean {
+    const list =
+      this.gluckExamSubTab === 'weekly-test' ? this.gluckExamWeeklySprechen : this.gluckExamExamSprechen;
+    return list.some((mod) => !this.gluckExamSprechenDone(mod));
+  }
+
+  openSprechenExamModule(m: SprechenExamModuleSummary): void {
+    if (!m?._id) return;
+    this.router.navigate(['/sprechen-exam', m._id, 'play']);
   }
 
   /** Refetch journey so attendance → pending flags show in Updates + dialog. */
   refreshJourneyForPendingCelebration(): void {
+    if (this._journeyClassesRefreshed) return;
+    this._journeyClassesRefreshed = true;
     this.progressService
       .getStudentJourney()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (j) => {
           this.journey = j;
-          this.loadQuickAccess();
+          this.loadDayCompletionData(true);
           setTimeout(() => this.maybeShowJourneyCongratulations(), 350);
         },
         error: () => {}
       });
+  }
+
+  onRecordingWatchProgress(): void {
+    this.loadDayCompletionData(true);
   }
 
   get nextJourneyPreviewDay(): number {
@@ -478,7 +808,15 @@ export class MyCourseComponent implements OnInit {
   }
 
   get showJourneyPendingCelebration(): boolean {
-    return !!this.profile?.pendingJourneyDayAdvance;
+    return !!this.profile?.pendingJourneyDayAdvance && this.isSilverSubscriptionStudent;
+  }
+
+  /** Silver-plan students wait until midnight; Platinum advances on live attendance. */
+  get isSilverSubscriptionStudent(): boolean {
+    const sub = String(
+      this.userProfile?.subscription || this.profile?.subscription || ''
+    ).toUpperCase();
+    return sub === 'SILVER';
   }
 
   private maybeShowJourneyCongratulations(): void {
@@ -618,7 +956,14 @@ export class MyCourseComponent implements OnInit {
    * (recordings, exercises, DG bot) and is therefore eligible for midnight promotion.
    */
   get showSilverDayCompletePromotion(): boolean {
-    return this.isSilverGoStudentFrontend && this.isDayComplete && this.journeyCourseDay < 200;
+    const server = this.journey?.currentDayCompletion;
+    const hasTasks = server ? server.totalTasks > 0 : this.dayHasTrackableContent;
+    return (
+      this.isSilverGoStudentFrontend &&
+      hasTasks &&
+      this.isDayComplete &&
+      this.journeyCourseDay < 200
+    );
   }
 
   get allowsLearningContent(): boolean {
@@ -634,15 +979,49 @@ export class MyCourseComponent implements OnInit {
     return this.allowsLearningContent || this.allowsDgBot;
   }
 
+  get trialDayEnabled(): boolean {
+    if (this.isSilverGoStudentFrontend) return false;
+    return !!this.profile?.trialDayEnabled;
+  }
+
   get journeyCourseDay(): number {
     const d = this.profile?.currentCourseDay;
-    if (d == null || !Number.isFinite(Number(d))) return 1;
-    return Math.min(200, Math.max(1, Math.floor(Number(d))));
+    if (d == null || !Number.isFinite(Number(d))) {
+      return this.trialDayEnabled ? 0 : 1;
+    }
+    return clampJourneyDayForBatch(d, 200, this.trialDayEnabled);
+  }
+
+  journeyDayLabel(day: number): string {
+    return formatJourneyDayLabel(day, this.trialDayEnabled);
+  }
+
+  /** Sidebar / progress strip, e.g. "Trial / 200" or "Day 1 / 200". */
+  get journeyDayProgressLabel(): string {
+    return `${this.journeyDayLabel(this.journeyCourseDay)} / 200`;
+  }
+
+  /** Green / yellow / red strip on My class — keyed to teacher-set journey day. */
+  get languageFeeBannerTone(): 'green' | 'yellow' | 'red' {
+    const day = this.journeyCourseDay;
+    if (day <= 4) return 'green';
+    if (day <= 6) return 'yellow';
+    return 'red';
+  }
+
+  get showLanguageFeeDueCard(): boolean {
+    return !!this.languageFeeDue && this.languageFeeDue.amount > 0;
+  }
+
+  get formattedLanguageFeeDue(): string {
+    const due = this.languageFeeDue;
+    if (!due) return '';
+    const n = Math.round(due.amount).toLocaleString();
+    return `${due.currency} ${n}`;
   }
 
   get journeyDays(): number[] {
-    const n = this.journeyCourseDay;
-    return Array.from({ length: n }, (_, i) => i + 1);
+    return journeyDaysThrough(this.journeyCourseDay, this.trialDayEnabled);
   }
 
   get filteredJourneyDays(): number[] {
@@ -681,8 +1060,35 @@ export class MyCourseComponent implements OnInit {
     this.progressRange = range;
   }
 
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.mc-journey-filter-wrap')) {
+      this.journeyFilterOpen = false;
+    }
+  }
+
   private exerciseDone(ex: DigitalExercise): boolean {
     return !!ex?.studentAttempt;
+  }
+
+  private isGluckExamExercise(ex: DigitalExercise): boolean {
+    return !!(ex?.weeklyTestEnabled || ex?.examEnabled);
+  }
+
+  private filterJourneyDayGluckExam<
+    T extends { courseDay?: number | null; weeklyTestEnabled?: boolean; examEnabled?: boolean }
+  >(items: T[], kind: 'weekly-test' | 'exam', isDone: (item: T) => boolean): T[] {
+    let list = items.filter(
+      (x) => x.courseDay != null && Number(x.courseDay) === this.selectedJourneyDay
+    );
+    list =
+      kind === 'weekly-test'
+        ? list.filter((x) => !!x.weeklyTestEnabled)
+        : list.filter((x) => !!x.examEnabled);
+    if (this.journeyFilter === 'completed') list = list.filter((x) => isDone(x));
+    if (this.journeyFilter === 'pending') list = list.filter((x) => !isDone(x));
+    return list;
   }
 
   gameSetDone(set: GameSet): boolean {
@@ -690,36 +1096,187 @@ export class MyCourseComponent implements OnInit {
   }
 
   get selectedDayExercises(): DigitalExercise[] {
-    let list = this.journeyDayExercises.filter((ex) => Number(ex.courseDay || 0) === this.selectedJourneyDay);
+    let list = this.journeyDayExercises.filter(
+      (ex) =>
+        ex.courseDay != null &&
+        Number(ex.courseDay) === this.selectedJourneyDay &&
+        !this.isGluckExamExercise(ex)
+    );
     if (this.journeyFilter === 'completed') list = list.filter((x) => this.exerciseDone(x));
     if (this.journeyFilter === 'pending') list = list.filter((x) => !this.exerciseDone(x));
-    return list;
+    return [...list].sort((a, b) => this.compareJourneyExerciseOrder(a, b));
+  }
+
+  get selectedDayWeeklyTestExercises(): DigitalExercise[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamExercises,
+      'weekly-test',
+      (x) => this.gluckExamExerciseDone(x)
+    );
+  }
+
+  get selectedDayExamExercises(): DigitalExercise[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamExercises,
+      'exam',
+      (x) => this.gluckExamExerciseDone(x)
+    );
+  }
+
+  get selectedDayWeeklyTestDgModules(): DgModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamDgModules,
+      'weekly-test',
+      (x) => this.gluckExamDgDone(x)
+    );
+  }
+
+  get selectedDayExamDgModules(): DgModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamDgModules,
+      'exam',
+      (x) => this.gluckExamDgDone(x)
+    );
+  }
+
+  get selectedDayWeeklyTestSprechen(): SprechenExamModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamSprechenModules,
+      'weekly-test',
+      (x) => this.gluckExamSprechenDone(x)
+    );
+  }
+
+  get selectedDayExamSprechen(): SprechenExamModuleSummary[] {
+    return this.filterJourneyDayGluckExam(
+      this.gluckExamSprechenModules,
+      'exam',
+      (x) => this.gluckExamSprechenDone(x)
+    );
+  }
+
+  get selectedDayHasWeeklyTestItems(): boolean {
+    return (
+      this.selectedDayWeeklyTestExercises.length > 0 ||
+      this.selectedDayWeeklyTestDgModules.length > 0 ||
+      this.selectedDayWeeklyTestSprechen.length > 0
+    );
+  }
+
+  get selectedDayHasExamItems(): boolean {
+    return (
+      this.selectedDayExamExercises.length > 0 ||
+      this.selectedDayExamDgModules.length > 0 ||
+      this.selectedDayExamSprechen.length > 0
+    );
+  }
+
+  private selectedDayGluckExamCompletedCount(): number {
+    return (
+      this.selectedDayWeeklyTestExercises.filter((x) => this.gluckExamExerciseDone(x)).length +
+      this.selectedDayExamExercises.filter((x) => this.gluckExamExerciseDone(x)).length +
+      this.selectedDayWeeklyTestDgModules.filter((x) => this.gluckExamDgDone(x)).length +
+      this.selectedDayExamDgModules.filter((x) => this.gluckExamDgDone(x)).length +
+      this.selectedDayWeeklyTestSprechen.filter((x) => this.gluckExamSprechenDone(x)).length +
+      this.selectedDayExamSprechen.filter((x) => this.gluckExamSprechenDone(x)).length
+    );
+  }
+
+  private selectedDayGluckExamTotalCount(): number {
+    return (
+      this.selectedDayWeeklyTestExercises.length +
+      this.selectedDayExamExercises.length +
+      this.selectedDayWeeklyTestDgModules.length +
+      this.selectedDayExamDgModules.length +
+      this.selectedDayWeeklyTestSprechen.length +
+      this.selectedDayExamSprechen.length
+    );
   }
 
   get selectedDayModules(): any[] {
     return [];
   }
 
+  get showJourneyArenaSection(): boolean {
+    return this.hasJourneyArenaAccess || this.journeyDayGameSets.length > 0;
+  }
+
   get selectedDayGameSets(): GameSet[] {
     let list = this.journeyDayGameSets.filter(
-      (g) => Number(g.courseDay || 0) === this.selectedJourneyDay
+      (g) => g.courseDay != null && Number(g.courseDay) === this.selectedJourneyDay
     );
+    list = [...list].sort((a, b) => this.compareJourneyGameOrder(a, b));
     if (this.journeyFilter === 'completed') list = list.filter((x) => this.gameSetDone(x));
     if (this.journeyFilter === 'pending') list = list.filter((x) => !this.gameSetDone(x));
     return list;
   }
 
+  private compareJourneyGameOrder(a: GameSet, b: GameSet): number {
+    const seqA = (a.sequenceLetter || '').toUpperCase();
+    const seqB = (b.sequenceLetter || '').toUpperCase();
+    if (seqA !== seqB) return seqA.localeCompare(seqB);
+    return (a.title || '').localeCompare(b.title || '');
+  }
+
+  private compareJourneyExerciseOrder(a: DigitalExercise, b: DigitalExercise): number {
+    const seqA = (a.sequenceLetter || '').toUpperCase();
+    const seqB = (b.sequenceLetter || '').toUpperCase();
+    if (seqA !== seqB) {
+      if (!seqA) return 1;
+      if (!seqB) return -1;
+      return seqA.localeCompare(seqB);
+    }
+    return (a.title || '').localeCompare(b.title || '');
+  }
+
+  private exerciseCourseDayNum(ex: DigitalExercise): number | null {
+    return parseAdminCourseDayOrNull(ex.courseDay);
+  }
+
+  isExerciseSequenceLocked(ex: DigitalExercise): boolean {
+    return !!ex?.sequenceLocked;
+  }
+
+  private getPrerequisiteExercise(ex: DigitalExercise): DigitalExercise | null {
+    if (!this.isExerciseSequenceLocked(ex) || !ex.previousSequenceLetter) return null;
+    const prev = String(ex.previousSequenceLetter || '').trim().toLowerCase();
+    if (!prev) return null;
+    const day = this.exerciseCourseDayNum(ex);
+    return (
+      this.journeyDayExercises.find((item) => {
+        return (
+          this.exerciseCourseDayNum(item) === day &&
+          String(item.sequenceLetter || '').trim().toLowerCase() === prev
+        );
+      }) || null
+    );
+  }
+
+  exerciseSequenceUnlockLabel(ex: DigitalExercise): string {
+    if (!this.isExerciseSequenceLocked(ex) || !ex.previousSequenceLetter) return '';
+    const prev = String(ex.previousSequenceLetter || '').trim().toUpperCase();
+    const day = this.exerciseCourseDayNum(ex);
+    if (day === TRIAL_JOURNEY_DAY && this.trialDayEnabled) return `Complete Trial-${prev} first`;
+    if (day != null) return `Complete ${day}-${prev} first`;
+    return `Complete ${prev} first`;
+  }
+
   get selectedDayHasItems(): boolean {
     return (
       this.selectedDayExercises.length > 0 ||
+      this.selectedDayHasWeeklyTestItems ||
+      this.selectedDayHasExamItems ||
       this.selectedDayModules.length > 0 ||
-      this.selectedDayGameSets.length > 0
+      this.selectedDayGameSets.length > 0 ||
+      this.showJourneyArenaSection ||
+      this.allowsTalkBuddyTab
     );
   }
 
   get selectedDayCompletedCount(): number {
     return (
       this.selectedDayExercises.filter((x) => this.exerciseDone(x)).length +
+      this.selectedDayGluckExamCompletedCount() +
       this.selectedDayGameSets.filter((x) => this.gameSetDone(x)).length
     );
   }
@@ -727,6 +1284,7 @@ export class MyCourseComponent implements OnInit {
   get selectedDayTotalCount(): number {
     return (
       this.selectedDayExercises.length +
+      this.selectedDayGluckExamTotalCount() +
       this.selectedDayGameSets.length
     );
   }
@@ -737,14 +1295,20 @@ export class MyCourseComponent implements OnInit {
     const totalSec = Number(r.duration ?? 0);
     const rawWatched = Math.max(0, Math.round(Number(r.watchedSeconds ?? 0)));
     const watchedSec = totalSec > 0 ? Math.min(rawWatched, totalSec) : rawWatched;
-    return totalSec > 0 && watchedSec >= Math.ceil(totalSec * 0.75);
+    const ratio = this.isSilverGoStudentFrontend ? 0.9 : 0.75;
+    return totalSec > 0 && watchedSec >= Math.ceil(totalSec * ratio);
   }
 
   /** Exercises tagged to the current journey day. */
   get currentDayExercisesForBadge(): DigitalExercise[] {
-    return this.journeyDayExercises.filter(
-      (ex) => Number(ex.courseDay) === this.journeyCourseDay
-    );
+    return this.journeyDayExercises
+      .filter((ex) => {
+        if (ex.courseDay == null || this.isGluckExamExercise(ex)) return false;
+        const day = Number(ex.courseDay);
+        if (this.isSilverGoStudentFrontend && day === TRIAL_JOURNEY_DAY) return false;
+        return day === this.journeyCourseDay;
+      })
+      .sort((a, b) => this.compareJourneyExerciseOrder(a, b));
   }
 
   get currentDayGameSetsForBadge(): GameSet[] {
@@ -769,24 +1333,77 @@ export class MyCourseComponent implements OnInit {
     return this.currentDayGameSetsForBadge.filter((g) => !this.gameSetDone(g));
   }
 
-  /** True when at least one content item is tagged to the current day. */
-  get dayHasTrackableContent(): boolean {
-    return (
-      this.currentDayExercisesForBadge.length > 0 ||
-      this.currentDayDgModules.length > 0 ||
-      this.currentDayManualRecs.length > 0 ||
-      this.currentDayGameSetsForBadge.length > 0
-    );
+  /** Silver GO students always see the day completion control on My class. */
+  get showDayCompletionBadge(): boolean {
+    if (this.isSilverGoStudentFrontend && this.journey) return true;
+    return this.dayHasTrackableContent;
   }
 
-  /** True when all content for the current journey day is completed. */
+  /** True when at least one content item is tagged to the current day. */
+  get dayHasTrackableContent(): boolean {
+    const core =
+      this.currentDayExercisesForBadge.length > 0 ||
+      this.currentDayDgModules.length > 0 ||
+      this.currentDayManualRecs.length > 0;
+    if (this.isSilverGoStudentFrontend) return core;
+    return core || this.currentDayGameSetsForBadge.length > 0;
+  }
+
+  /**
+   * True when all required content for the current journey day is completed.
+   * Silver GO: uses server `currentDayCompletion` (same rules as instant advance).
+   */
   get isDayComplete(): boolean {
-    if (!this.dayHasTrackableContent) return false;
-    return (
+    const server = this.journey?.currentDayCompletion;
+    if (this.isSilverGoStudentFrontend && server) {
+      return !!server.complete;
+    }
+    if (!this.dayHasTrackableContent) {
+      return false;
+    }
+    const core =
       this.currentDayIncompleteExercises.length === 0 &&
       this.currentDayIncompleteDg.length === 0 &&
-      this.currentDayIncompleteRecs.length === 0 &&
-      this.currentDayIncompleteGameSets.length === 0
+      this.currentDayIncompleteRecs.length === 0;
+    if (this.isSilverGoStudentFrontend) return core;
+    return core && this.currentDayIncompleteGameSets.length === 0;
+  }
+
+  /** Server-side incomplete tasks (Silver GO) when client lists miss locked day content. */
+  get serverIncompleteExercises(): { title: string }[] {
+    const tasks = this.journey?.currentDayCompletion?.incompleteTasks;
+    if (!Array.isArray(tasks)) return [];
+    return tasks.filter((t) => t?.kind === 'exercise');
+  }
+
+  get serverIncompleteDg(): { title: string }[] {
+    const tasks = this.journey?.currentDayCompletion?.incompleteTasks;
+    if (!Array.isArray(tasks)) return [];
+    return tasks.filter((t) => t?.kind === 'dg-bot');
+  }
+
+  get serverIncompleteRecordings(): { title: string }[] {
+    const tasks = this.journey?.currentDayCompletion?.incompleteTasks;
+    if (!Array.isArray(tasks)) return [];
+    return tasks.filter((t) => t?.kind === 'recording');
+  }
+
+  /** Incomplete tasks shown in the day-completion modal (client lists + Silver GO server fallbacks). */
+  get dayCompletionModalHasIncomplete(): boolean {
+    if (
+      this.currentDayIncompleteExercises.length > 0 ||
+      this.currentDayIncompleteDg.length > 0 ||
+      this.currentDayIncompleteGameSets.length > 0 ||
+      this.currentDayIncompleteRecs.length > 0
+    ) {
+      return true;
+    }
+    if (!this.isSilverGoStudentFrontend) return false;
+    return (
+      this.serverIncompleteExercises.length > 0 ||
+      this.serverIncompleteDg.length > 0 ||
+      this.serverIncompleteRecordings.length > 0 ||
+      (!this.isDayComplete && this.dayHasTrackableContent)
     );
   }
 
@@ -799,8 +1416,30 @@ export class MyCourseComponent implements OnInit {
   }
 
   openExercise(ex: DigitalExercise): void {
-    if (!ex?._id) return;
-    this.router.navigate(['/digital-exercises', ex._id, 'play']);
+    const commands = digitalExercisePlayCommands(ex);
+    if (commands.length === 2) return;
+    if (this.isExerciseSequenceLocked(ex)) {
+      const prerequisite = this.getPrerequisiteExercise(ex);
+      const prevLetter = String(ex.previousSequenceLetter || '').trim().toUpperCase();
+      if (prerequisite?._id) {
+        this.notify.info(
+          prevLetter
+            ? `Complete exercise ${prevLetter} first. Opening the previous item.`
+            : 'Complete the previous exercise in sequence first.'
+        );
+        const preRoute = prerequisite.isFreeMode ? '/play/freemode' : '/play';
+        this.router.navigate([
+          '/digital-exercises',
+          prerequisite._id,
+          ...preRoute.split('/').filter(Boolean)
+        ]);
+        return;
+      }
+      this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
+      return;
+    }
+    const route = ex.isFreeMode ? '/play/freemode' : '/play';
+    this.router.navigate(['/digital-exercises', ex._id, ...route.split('/').filter(Boolean)]);
   }
 
   openModule(mod: { _id?: string }): void {
@@ -808,9 +1447,12 @@ export class MyCourseComponent implements OnInit {
     this.router.navigate(['/ai-tutor', mod._id]);
   }
 
-  getModuleHoverDetails(mod: { title?: string; level?: string; category?: string; studentProgress?: { status?: string } }): string {
-    const status = mod.studentProgress?.status === 'completed' ? 'Completed' : 'Not completed';
-    return `${mod.title || 'Module'} · ${mod.level || 'Level N/A'} · ${mod.category || 'General'} · ${status}`;
+  getModuleHoverDetails(mod: DgModuleSummary): string {
+    const completed = !!mod.studentProgress?.completed;
+    const pct = mod.studentProgress?.bestCompletionPercent;
+    const pctLabel = Number.isFinite(Number(pct)) ? ` (${Math.round(Number(pct))}%)` : '';
+    const status = completed ? `Completed${pctLabel}` : 'Not completed';
+    return `${mod.title || 'Module'} · ${mod.level || 'Level N/A'} · ${mod.language || 'German'} · ${status}`;
   }
 
   openGameSet(set: GameSet): void {
@@ -821,13 +1463,24 @@ export class MyCourseComponent implements OnInit {
   getGameSetHoverDetails(set: GameSet): string {
     const status = this.gameSetDone(set) ? 'Completed' : 'Not completed';
     const type = set.gameType ? set.gameType.replace(/_/g, ' ') : 'Game';
-    return `${set.title} · ${type} · ${status}`;
+    const day =
+      set.courseDay != null && Number.isFinite(Number(set.courseDay))
+        ? `Day ${set.courseDay}`
+        : 'No journey day';
+    const seq = set.sequenceLetter ? ` · ${set.sequenceLetter}` : '';
+    return `${day}${seq} · ${set.title} · ${type} · ${status}`;
   }
 
   getExerciseHoverDetails(ex: DigitalExercise): string {
     const status = this.exerciseDone(ex) ? 'Completed' : 'Not completed';
-    const day = Number.isFinite(Number(ex?.courseDay)) ? `Day ${ex.courseDay}` : 'No fixed day';
-    return `${day} | ${ex?.level || 'Level N/A'} | ${ex?.category || 'General'} | ${status}`;
+    const dayNum = this.exerciseCourseDayNum(ex);
+    const day =
+      dayNum != null
+        ? formatJourneyDayLabel(dayNum, this.trialDayEnabled)
+        : 'No fixed day';
+    const seq = ex.sequenceLetter ? ` · ${String(ex.sequenceLetter).toUpperCase()}` : '';
+    const lock = this.isExerciseSequenceLocked(ex) ? ' · Locked' : '';
+    return `${day}${seq}${lock} | ${ex?.level || 'Level N/A'} | ${ex?.category || 'General'} | ${status}`;
   }
 
   ordinalSuffix(n: number): string {
@@ -894,13 +1547,14 @@ export class MyCourseComponent implements OnInit {
 
   private getMeetingJourneyDay(meeting: any): number | null {
     const direct = Number(meeting?.courseDay);
-    if (Number.isFinite(direct) && direct >= 1 && direct <= 200) return direct;
+    if (Number.isFinite(direct) && direct >= (this.trialDayEnabled ? 0 : 1) && direct <= 200) return direct;
 
     const topic = String(meeting?.topic || '');
     const m = topic.match(/\bday\s*[:\-]?\s*(\d{1,3})\b/i);
     if (!m) return null;
     const parsed = Number(m[1]);
-    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 200 ? parsed : null;
+    const minDay = this.trialDayEnabled ? 0 : 1;
+    return Number.isFinite(parsed) && parsed >= minDay && parsed <= 200 ? parsed : null;
   }
 
   private matchesSelectedJourneyDay(meeting: any): boolean {
@@ -931,7 +1585,7 @@ export class MyCourseComponent implements OnInit {
   private isInWeeklyJourneyWindow(day: number | null | undefined): boolean {
     if (!Number.isFinite(Number(day))) return false;
     const d = Number(day);
-    const min = Math.max(1, this.journeyCourseDay - 6);
+    const min = Math.max(this.trialDayEnabled ? 0 : 1, this.journeyCourseDay - 6);
     return d >= min && d <= this.journeyCourseDay;
   }
 
@@ -1129,15 +1783,7 @@ export class MyCourseComponent implements OnInit {
         const p = res?.pagination;
         this.recordingReqTotal = p?.total ?? list.length;
         this.recordingReqTotalPages = p?.totalPages ?? (list.length ? 1 : 0);
-        const q = res?.quota;
-        this.recordingReqQuota = q
-          ? {
-              level: q.level || this.levelShortLabel,
-              approvedCount: q.approvedCount ?? 0,
-              remaining: q.remaining ?? 0,
-              limit: q.limit ?? 5,
-            }
-          : null;
+        this.recordingReqQuota = this.mapRecordingReqQuota(res?.quota);
         this.recordingReqLoading = false;
       },
       error: (err) => {
@@ -1162,6 +1808,50 @@ export class MyCourseComponent implements OnInit {
 
   closeRecordingReqConfirm(): void {
     this.recordingReqConfirmTarget = null;
+  }
+
+  private mapRecordingReqQuota(q: Partial<RecordingRequestQuota> | null | undefined): RecordingRequestQuota | null {
+    if (!q) return null;
+    const decidedCount = q.decidedCount ?? 0;
+    const pendingCount = q.pendingCount ?? 0;
+    const limit = q.limit ?? 5;
+    return {
+      level: q.level || this.levelShortLabel,
+      decidedCount,
+      pendingCount,
+      approvedCount: q.approvedCount ?? 0,
+      remaining: q.remaining ?? Math.max(0, limit - decidedCount),
+      slotsAvailable: q.slotsAvailable ?? Math.max(0, limit - decidedCount - pendingCount),
+      limit,
+    };
+  }
+
+  onRecordingRequestChanged(): void {
+    this.recordingsRefreshToken += 1;
+    if (this.showRecordingReqPanel) {
+      this.loadEligibleClasses(this.recordingReqPage);
+    }
+  }
+
+  cancelRecordingRequest(cls: EligibleClass): void {
+    const requestId = cls.requestId;
+    if (!requestId || this.recordingReqCancellingId) return;
+    this.recordingReqCancellingId = requestId;
+    this.recordingReqFailMsg = '';
+    this.recordingReqService.cancelRequest(requestId).subscribe({
+      next: (res) => {
+        this.recordingReqCancellingId = null;
+        this.recordingReqSuccessMsg = res?.message || 'Request cancelled.';
+        if (res?.quota) {
+          this.recordingReqQuota = this.mapRecordingReqQuota(res.quota);
+        }
+        this.onRecordingRequestChanged();
+      },
+      error: (err) => {
+        this.recordingReqCancellingId = null;
+        this.recordingReqFailMsg = err?.error?.message || 'Failed to cancel request. Please try again.';
+      },
+    });
   }
 
   confirmRecordingRequest(): void {

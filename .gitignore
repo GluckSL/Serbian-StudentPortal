@@ -93,5 +93,14 @@ students-export.json
 # Dev-only scripts folder
 scripts/
 
+# GlückArena SFX — served from Cloudflare R2 (npm run upload:arena-sfx)
+src/assets/audios/*.mp3
+!src/assets/audios/.gitkeep
+
 # Batch files
 *.bat
+
+# OCR debug & temp artifacts
+ocr-debug/
+temp/
+eng.traineddata

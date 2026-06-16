@@ -281,35 +281,111 @@ async function listCrossBatchRecordingsForStudent(student) {
   const seenManual = new Set();
   const seenZoom = new Set();
 
+  // ── Phase 1: Collect all IDs across all days ────────────────────────────────
+  const allManualIds = [];
+  const allZoomMeetingIds = [];
+  const manualIdsByDay = new Map();
+  const zoomIdsByDay = new Map();
+
   for (const [day, dayRules] of rulesByDay) {
     const manualIds = [];
-    const zoomMeetingIds = [];
+    const zoomIds = [];
     for (const rule of dayRules) {
       if (Array.isArray(rule.mappedManualRecordingIds)) {
         for (const id of rule.mappedManualRecordingIds) manualIds.push(String(id));
       }
       if (Array.isArray(rule.mappedZoomMeetingLinkIds)) {
-        for (const id of rule.mappedZoomMeetingLinkIds) zoomMeetingIds.push(String(id));
+        for (const id of rule.mappedZoomMeetingLinkIds) zoomIds.push(String(id));
       }
     }
-
-    // ── Manual recordings (mapped) ───────────────────────────────────────────
     if (manualIds.length) {
-      const manualRecs = await ClassRecording.find({
-        _id: { $in: [...new Set(manualIds)] },
-        active: true,
-        isPublished: { $ne: false },
-      })
-        .populate('uploadedBy', 'name')
-        .lean();
+      const u = [...new Set(manualIds)];
+      manualIdsByDay.set(day, new Set(u));
+      for (const id of u) allManualIds.push(id);
+    }
+    if (zoomIds.length) {
+      const u = [...new Set(zoomIds)];
+      zoomIdsByDay.set(day, new Set(u));
+      for (const id of u) allZoomMeetingIds.push(id);
+    }
+  }
 
-      for (const rec of manualRecs) {
-        if (seenManual.has(String(rec._id))) continue;
+  // ── Phase 2: Batch fetch all manual recordings ──────────────────────────────
+  const manualRecsById = new Map();
+  if (allManualIds.length) {
+    const uniqueManualIds = [...new Set(allManualIds)];
+    const recs = await ClassRecording.find({
+      _id: { $in: uniqueManualIds },
+      active: true,
+      isPublished: { $ne: false },
+    })
+      .populate('uploadedBy', 'name')
+      .lean();
+    for (const r of recs) manualRecsById.set(String(r._id), r);
+  }
+
+  // ── Phase 3: Auto-publish all zoom recordings ───────────────────────────────
+  if (allZoomMeetingIds.length) {
+    const uniqueZoomIds = [...new Set(allZoomMeetingIds)];
+    for (const meetingId of uniqueZoomIds) {
+      try {
+        await autoPublishZoomRecordingIfSelfPaceMapped(meetingId);
+      } catch (pubErr) {
+        console.warn('[self-pace] auto-publish before feed merge:', pubErr.message);
+      }
+    }
+  }
+
+  // ── Phase 4: Batch fetch all meeting links ──────────────────────────────────
+  const meetingLinksById = new Map();
+  const meetingDayByLinkId = new Map();
+  if (allZoomMeetingIds.length) {
+    const uniqueZoomIds = [...new Set(allZoomMeetingIds)];
+    const meetings = await MeetingLink.find({
+      _id: { $in: uniqueZoomIds },
+      status: { $ne: 'cancelled' },
+    })
+      .select('_id topic batch startTime duration status assignedTeacher courseDay')
+      .populate('assignedTeacher', 'name')
+      .lean();
+    for (const m of meetings) {
+      const mid = String(m._id);
+      meetingLinksById.set(mid, m);
+      for (const [day, daySet] of zoomIdsByDay) {
+        if (daySet.has(mid)) {
+          meetingDayByLinkId.set(mid, day);
+          break;
+        }
+      }
+    }
+  }
+
+  // ── Phase 5: Batch fetch all zoom recordings ────────────────────────────────
+  const zoomRecsByMeetingId = new Map();
+  if (allZoomMeetingIds.length) {
+    const uniqueZoomIds = [...new Set(allZoomMeetingIds)];
+    const recs = await ZoomRecording.find({
+      meetingLinkId: { $in: uniqueZoomIds },
+      status: 'ready',
+      isPublished: true,
+    }).select('meetingLinkId duration createdAt').lean();
+    for (const z of recs) zoomRecsByMeetingId.set(String(z.meetingLinkId), z);
+  }
+
+  // ── Phase 6: Build items per day using cached collections ───────────────────
+  for (const [day, dayRules] of rulesByDay) {
+    // ── Manual recordings for this day ───────────────────────────────────────
+    const dayManualIds = manualIdsByDay.get(day);
+    if (dayManualIds) {
+      for (const id of dayManualIds) {
+        if (seenManual.has(id)) continue;
+        const rec = manualRecsById.get(id);
+        if (!rec) continue;
         if (isContentBlockedForStudent(student, { courseDay: day, level: rec.level })) continue;
         if (rec.level && rec.level !== studentLevel) continue;
         const recPlan = String(rec.plan || 'ALL').toUpperCase();
         if (recPlan !== 'ALL' && !allowedPlans.includes(recPlan)) continue;
-        seenManual.add(String(rec._id));
+        seenManual.add(id);
         manualItems.push({
           type: 'manual',
           id: String(rec._id),
@@ -339,38 +415,20 @@ async function listCrossBatchRecordingsForStudent(student) {
       }
     }
 
-    // ── Zoom recordings (mapped) ─────────────────────────────────────────────
-    if (zoomMeetingIds.length) {
-      const uniqueZoomIds = [...new Set(zoomMeetingIds)];
-      for (const meetingId of uniqueZoomIds) {
-        try {
-          await autoPublishZoomRecordingIfSelfPaceMapped(meetingId);
-        } catch (pubErr) {
-          console.warn('[self-pace] auto-publish before feed merge:', pubErr.message);
-        }
-      }
-
-      const meetings = await MeetingLink.find({
-        _id: { $in: uniqueZoomIds },
-        status: { $ne: 'cancelled' },
-      })
-        .select('_id topic batch startTime duration status assignedTeacher courseDay')
-        .populate('assignedTeacher', 'name')
-        .lean();
-
-      for (const meeting of meetings) {
-        if (seenZoom.has(String(meeting._id))) continue;
-        const zoomRec = await ZoomRecording.findOne({
-          meetingLinkId: meeting._id,
-          status: 'ready',
-          isPublished: true,
-        }).select('meetingLinkId duration createdAt').lean();
+    // ── Zoom recordings for this day ─────────────────────────────────────────
+    const dayZoomIds = zoomIdsByDay.get(day);
+    if (dayZoomIds) {
+      for (const meetingId of dayZoomIds) {
+        if (seenZoom.has(meetingId)) continue;
+        const meeting = meetingLinksById.get(meetingId);
+        if (!meeting) continue;
+        const zoomRec = zoomRecsByMeetingId.get(meetingId);
         if (!zoomRec) continue;
         if (isContentBlockedForStudent(student, { courseDay: day })) continue;
-        seenZoom.add(String(meeting._id));
+        seenZoom.add(meetingId);
         zoomItems.push({
           type: 'zoom',
-          id: String(meeting._id),
+          id: meetingId,
           title: meeting.topic || 'Class Recording',
           description: '',
           date: meeting.startTime || zoomRec.createdAt,
@@ -381,7 +439,7 @@ async function listCrossBatchRecordingsForStudent(student) {
           teacherName: meeting.assignedTeacher?.name || 'Teacher',
           attempted: meeting.status === 'ended',
           attendanceStatus: 'N/A',
-          meetingLinkId: String(meeting._id),
+          meetingLinkId: meetingId,
           courseDay: day,
           watchedSeconds: 0,
           accessRequestStatus: null,

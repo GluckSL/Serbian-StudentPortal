@@ -32,6 +32,8 @@
               "node_modules/shepherd.js/dist/css/shepherd.css",
               "src/styles.scss",
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
+              "node_modules/quill/dist/quill.core.css",
+              "node_modules/quill/dist/quill.snow.css"
             ],
             "scripts": [],
             "allowedCommonJsDependencies": [
@@ -39,6 +41,7 @@
               "core-js",
               "html2canvas",
               "papaparse",
+              "quill-delta",
               "raf",
               "rgbcolor"
             ]
@@ -53,6 +56,11 @@
                 },
                 "fonts": true
               },
+              "outputHashing": "all",
+              "sourceMap": false,
+              "namedChunks": false,
+              "extractLicenses": true,
+              "crossOrigin": "anonymous",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -70,13 +78,13 @@
                   "maximumWarning": "5MB",
                   "maximumError": "10MB"
                 }
-              ],
-              "outputHashing": "all"
+              ]
             },
             "development": {
               "optimization": false,
               "extractLicenses": false,
-              "sourceMap": true
+              "sourceMap": true,
+              "namedChunks": true
             }
           },
           "defaultConfiguration": "production"
@@ -119,6 +127,8 @@
               "node_modules/shepherd.js/dist/css/shepherd.css",
               "src/styles.scss",
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
+              "node_modules/quill/dist/quill.core.css",
+              "node_modules/quill/dist/quill.snow.css",
               "src/styles.css"
             ],
             "scripts": []

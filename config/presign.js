@@ -50,6 +50,7 @@ function urlHasPresignedQuery(url) {
 function questionHasPresignedMedia(q) {
   if (!q || typeof q !== 'object') return false;
   const fields = [q.audioUrl, q.mediaUrl, q.videoUrl, q.imageUrl, q.attachmentUrl];
+  if (Array.isArray(q.attachmentUrls)) fields.push(...q.attachmentUrls);
   if (fields.some(urlHasPresignedQuery)) return true;
   if (Array.isArray(q.optionImageUrls) && q.optionImageUrls.some(urlHasPresignedQuery)) return true;
   if (Array.isArray(q.subQuestions)) {
@@ -79,6 +80,9 @@ function canonicalizeQuestionMedia(q) {
   if (q.videoUrl) q.videoUrl = canonicalizeMediaUrl(q.videoUrl);
   if (q.imageUrl) q.imageUrl = canonicalizeMediaUrl(q.imageUrl);
   if (q.attachmentUrl) q.attachmentUrl = canonicalizeMediaUrl(q.attachmentUrl);
+  if (Array.isArray(q.attachmentUrls)) {
+    q.attachmentUrls = q.attachmentUrls.map((u) => canonicalizeMediaUrl(u));
+  }
   if (Array.isArray(q.optionImageUrls)) {
     q.optionImageUrls = q.optionImageUrls.map((u) => canonicalizeMediaUrl(u));
   }
@@ -315,6 +319,13 @@ async function resignExercise(exercise) {
       if (isS3Url(q.videoUrl))  q.videoUrl  = await presignS3Url(q.videoUrl);
       if (isS3Url(q.imageUrl))  q.imageUrl  = await presignS3Url(q.imageUrl);
       if (isS3Url(q.attachmentUrl)) q.attachmentUrl = await presignS3Url(q.attachmentUrl);
+      if (Array.isArray(q.attachmentUrls)) {
+        for (let ai = 0; ai < q.attachmentUrls.length; ai++) {
+          if (isS3Url(q.attachmentUrls[ai])) {
+            q.attachmentUrls[ai] = await presignS3Url(q.attachmentUrls[ai]);
+          }
+        }
+      }
       if (Array.isArray(q.optionImageUrls)) {
         for (let oi = 0; oi < q.optionImageUrls.length; oi++) {
           if (isS3Url(q.optionImageUrls[oi])) {
@@ -329,6 +340,13 @@ async function resignExercise(exercise) {
           if (isS3Url(sq.videoUrl)) sq.videoUrl = await presignS3Url(sq.videoUrl);
           if (isS3Url(sq.imageUrl)) sq.imageUrl = await presignS3Url(sq.imageUrl);
           if (isS3Url(sq.attachmentUrl)) sq.attachmentUrl = await presignS3Url(sq.attachmentUrl);
+          if (Array.isArray(sq.attachmentUrls)) {
+            for (let ai = 0; ai < sq.attachmentUrls.length; ai++) {
+              if (isS3Url(sq.attachmentUrls[ai])) {
+                sq.attachmentUrls[ai] = await presignS3Url(sq.attachmentUrls[ai]);
+              }
+            }
+          }
           if (Array.isArray(sq.optionImageUrls)) {
             for (let oi = 0; oi < sq.optionImageUrls.length; oi++) {
               if (isS3Url(sq.optionImageUrls[oi])) {
@@ -356,6 +374,7 @@ async function resignExercises(exercises) {
 
 const MEDIA_URL_FIELD_NAMES = new Set([
   'imageUrl',
+  'backgroundUrl',
   'thumbnailUrl',
   'introCardImageUrl',
   'studentCardImageUrl',

@@ -1,6 +1,6 @@
 // src/app/components/digital-exercises/digital-exercises.component.ts
 
-import { Component, OnInit, Input } from '@angular/core';
+import { Component, OnInit, Input, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -9,14 +9,15 @@ import { map } from 'rxjs/operators';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
-import { MaterialModule } from '../../shared/material.module';
+import { parseAdminCourseDayOrNull, TRIAL_JOURNEY_DAY } from '../../utils/journey-day.util';
+import { digitalExercisePlayCommands, exerciseIdForRoute } from '../../utils/digital-exercise-id.util';
 
 type TabType = 'completed' | 'pending' | 'new';
 
 @Component({
   selector: 'app-digital-exercises',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './digital-exercises.component.html',
   styleUrls: ['./digital-exercises.component.css']
 })
@@ -37,6 +38,9 @@ export class DigitalExercisesComponent implements OnInit {
   selectedLevel = '';
   selectedCategory = '';
   selectedDifficulty = '';
+  levelFilterOpen = false;
+  categoryFilterOpen = false;
+  difficultyFilterOpen = false;
 
   /** @deprecated Server now returns the current journey week by default; kept for API compatibility. */
   todayOnly = false;
@@ -96,7 +100,7 @@ export class DigitalExercisesComponent implements OnInit {
     this.loading = true;
     const filters: any = {
       page: 1,
-      limit: 100
+      limit: this.embedded ? 50 : 100
     };
     if (this.searchQuery.trim()) filters.search = this.searchQuery.trim();
     if (this.selectedLevel) filters.level = this.selectedLevel;
@@ -131,6 +135,9 @@ export class DigitalExercisesComponent implements OnInit {
     let list: DigitalExercise[];
     if (isStudent) {
       list = this.exercises.filter((ex) => this.matchesStudentTab(ex, this.activeTab));
+      if (this.isSilverGoStudent()) {
+        list = list.filter((ex) => this.exerciseCourseDayNum(ex) !== TRIAL_JOURNEY_DAY);
+      }
       // Sort: within the same courseDay, order by sequenceLetter (null last)
       list = [...list].sort((a, b) => {
         const dayA = a.courseDay ?? 9999;
@@ -152,13 +159,9 @@ export class DigitalExercisesComponent implements OnInit {
     this.totalPages = Math.max(1, Math.ceil(list.length / this.pageSize));
   }
 
-  /** Normalized journey day 1–200, or null if unassigned. */
+  /** Normalized journey day 0 (Trial)–200, or null if unassigned. */
   exerciseCourseDayNum(ex: DigitalExercise): number | null {
-    const cd = ex.courseDay;
-    if (cd == null || cd === undefined) return null;
-    const n = Number(cd);
-    if (!Number.isFinite(n)) return null;
-    return Math.min(200, Math.max(1, Math.floor(n)));
+    return parseAdminCourseDayOrNull(ex.courseDay);
   }
 
   /**
@@ -242,6 +245,30 @@ export class DigitalExercisesComponent implements OnInit {
     this.currentPage = 1;
   }
 
+  toggleFilter(filter: 'level' | 'category' | 'difficulty'): void {
+    const wasOpen = filter === 'level' ? this.levelFilterOpen
+      : filter === 'category' ? this.categoryFilterOpen
+      : this.difficultyFilterOpen;
+    this.levelFilterOpen = false;
+    this.categoryFilterOpen = false;
+    this.difficultyFilterOpen = false;
+    if (!wasOpen) {
+      if (filter === 'level') this.levelFilterOpen = true;
+      else if (filter === 'category') this.categoryFilterOpen = true;
+      else this.difficultyFilterOpen = true;
+    }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.dex-filter-wrap')) {
+      this.levelFilterOpen = false;
+      this.categoryFilterOpen = false;
+      this.difficultyFilterOpen = false;
+    }
+  }
+
   clearFilters(): void {
     this.searchQuery = '';
     this.selectedLevel = '';
@@ -256,7 +283,9 @@ export class DigitalExercisesComponent implements OnInit {
     if (this.isExerciseJourneyLocked(exercise)) {
       return;
     }
-    this.router.navigate(['/digital-exercises', exercise._id, 'play']);
+    const commands = digitalExercisePlayCommands(exercise);
+    if (commands.length === 2) return;
+    this.router.navigate(commands);
   }
 
   navigateToCreate(): void {
@@ -277,10 +306,13 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   getTypeSummary(exercise: DigitalExercise): string {
-    const counts: Record<string, number> = {};
     const labels: Record<string, string> = { mcq: 'MCQ', matching: 'Match', 'fill-blank': 'Fill', pronunciation: 'Speak' };
-    (exercise.questions || []).forEach(q => { counts[q.type] = (counts[q.type] || 0) + 1; });
+    const counts = exercise.questionTypeSummary || {};
     return Object.entries(counts).map(([t, c]) => `${labels[t] || t}×${c}`).join(' · ');
+  }
+
+  getQuestionCount(ex: DigitalExercise): number {
+    return Number(ex.questionCount ?? ex.questions?.length ?? 0) || 0;
   }
 
   isAttemptPassing(att: ExerciseAttempt | null | undefined): boolean {
@@ -307,12 +339,21 @@ export class DigitalExercisesComponent implements OnInit {
     return !!(this.searchQuery || this.selectedLevel || this.selectedCategory || this.selectedDifficulty || this.todayOnly);
   }
 
+  private isSilverGoStudent(): boolean {
+    const u = this.authService.getSnapshotUser();
+    return (
+      String(u?.goStatus || '').toUpperCase() === 'GO' &&
+      String(u?.subscription || '').toUpperCase() === 'SILVER'
+    );
+  }
+
   isExerciseDayLocked(ex: DigitalExercise): boolean {
     const role = this.authService.getSnapshotUser()?.role || this.userRole;
     if (role !== 'STUDENT') return false;
     const cd = ex.courseDay;
     if (cd == null || cd === undefined) return false;
     const n = Number(cd);
+    if (this.isSilverGoStudent() && n === TRIAL_JOURNEY_DAY) return true;
     return Number.isFinite(n) && n > this.studentCourseDay;
   }
 
@@ -378,6 +419,8 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   hasType(exercise: DigitalExercise, type: string): boolean {
+    const summary = exercise.questionTypeSummary;
+    if (summary) return (Number(summary[type]) || 0) > 0;
     return (exercise.questions || []).some(q => q.type === type);
   }
 
@@ -396,7 +439,7 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   exerciseMetaLine(ex: DigitalExercise): string {
-    const n = ex.questions.length || 0;
+    const n = this.getQuestionCount(ex);
     const m = ex.estimatedDuration || 15;
     const d = ex.difficulty || '—';
     return `${n} qs · ~${m} min · ${d}`;
@@ -440,8 +483,9 @@ export class DigitalExercisesComponent implements OnInit {
 
   openExerciseReview(exercise: DigitalExercise, ev?: Event): void {
     ev?.stopPropagation();
-    if (!exercise._id || !exercise.studentAttempt) return;
-    this.router.navigate(['/digital-exercises', exercise._id, 'review']);
+    const id = exerciseIdForRoute(exercise);
+    if (!id || !exercise.studentAttempt) return;
+    this.router.navigate(['/digital-exercises', id, 'review']);
   }
 
   getCategoryIcon(category: string): string {

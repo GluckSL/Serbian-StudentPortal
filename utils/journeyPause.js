@@ -4,20 +4,16 @@
  */
 
 const { isLearningEnabled } = require('./batchType');
+const {
+  clampJourneyDayForBatch,
+  utcMidnightMs,
+  daysSinceJourneyStart,
+  computeJourneyDayFromBatchConfig,
+  MS_PER_DAY
+} = require('./journeyDay');
 
-const MS_PER_DAY = 86_400_000;
-
-function clampDay(d, max = 200) {
-  const n = parseInt(String(d), 10);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  const cap = max != null ? max : 200;
-  if (n > cap) return cap;
-  return n;
-}
-
-function utcMidnightMs(date) {
-  const d = date instanceof Date ? date : new Date(date);
-  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+function clampDay(d, max = 200, trialDayEnabled = false) {
+  return clampJourneyDayForBatch(d, max, trialDayEnabled);
 }
 
 /**
@@ -25,14 +21,11 @@ function utcMidnightMs(date) {
  */
 function computeBatchDayFromCalendar(cfg) {
   if (!cfg) return 1;
-  if (!cfg.batchStartDate) {
-    return clampDay(cfg.batchCurrentDay, cfg.journeyLength);
+  if (cfg.batchStartDate) {
+    return computeJourneyDayFromBatchConfig(cfg);
   }
-  const now = new Date();
-  const todayUTC = utcMidnightMs(now);
-  const startUTC = utcMidnightMs(new Date(cfg.batchStartDate));
-  const elapsed = Math.floor((todayUTC - startUTC) / MS_PER_DAY);
-  return clampDay(elapsed + 1, cfg.journeyLength);
+  const trial = !!cfg.trialDayEnabled;
+  return clampDay(cfg.batchCurrentDay, cfg.journeyLength, trial);
 }
 
 function isNewBatchPaused(cfg) {
@@ -48,7 +41,7 @@ function computeBatchDay(cfg) {
   if (isNewBatchPaused(cfg)) {
     const frozen = cfg.journeyPausedFrozenDay;
     if (frozen != null && Number.isFinite(Number(frozen))) {
-      return clampDay(frozen, cfg.journeyLength);
+      return clampDay(frozen, cfg.journeyLength, !!cfg.trialDayEnabled);
     }
   }
   return computeBatchDayFromCalendar(cfg);
@@ -58,12 +51,33 @@ function shouldSkipStudentRollover(cfg) {
   return isNewBatchPaused(cfg);
 }
 
+function pauseCalendarDays(pausedAt, resumeAt = new Date()) {
+  if (!pausedAt) return 0;
+  const pausedUTC = utcMidnightMs(pausedAt);
+  const resumeUTC = utcMidnightMs(resumeAt);
+  return Math.max(0, Math.floor((resumeUTC - pausedUTC) / MS_PER_DAY));
+}
+
+function appendPauseHistory(cfg, { day, pausedAt, resumedAt, pauseDays }) {
+  if (!cfg) return;
+  if (!Array.isArray(cfg.journeyPauseHistory)) {
+    cfg.journeyPauseHistory = [];
+  }
+  cfg.journeyPauseHistory.push({
+    day: clampDay(day, cfg.journeyLength),
+    pausedAt: pausedAt instanceof Date ? pausedAt : new Date(pausedAt),
+    resumedAt: resumedAt instanceof Date ? resumedAt : new Date(resumedAt),
+    pauseDays: Math.max(0, pauseDays || 0)
+  });
+}
+
 /**
  * Apply pause / resume when journeyPaused is toggled on a new batch config.
  * @param {import('mongoose').Document} cfg - BatchConfig document (mutated)
  * @param {boolean} wantPaused
+ * @param {Date} [resumeAt] - optional resume timestamp (defaults to now)
  */
-function applyJourneyPauseToggle(cfg, wantPaused) {
+function applyJourneyPauseToggle(cfg, wantPaused, resumeAt) {
   if (!cfg || !isLearningEnabled(cfg.batchType)) {
     cfg.journeyPaused = false;
     cfg.journeyPausedAt = null;
@@ -75,9 +89,9 @@ function applyJourneyPauseToggle(cfg, wantPaused) {
   const pause = !!wantPaused;
 
   if (pause && !wasPaused) {
-    const liveDay = computeBatchDayFromCalendar(cfg);
+    const liveDay = computeBatchDay(cfg);
     cfg.journeyPaused = true;
-    cfg.journeyPausedAt = new Date();
+    cfg.journeyPausedAt = new Date(utcMidnightMs(new Date()));
     cfg.journeyPausedFrozenDay = liveDay;
     if (!cfg.batchStartDate) {
       cfg.batchCurrentDay = liveDay;
@@ -86,14 +100,27 @@ function applyJourneyPauseToggle(cfg, wantPaused) {
   }
 
   if (!pause && wasPaused) {
-    cfg.journeyPaused = false;
     const frozen = cfg.journeyPausedFrozenDay;
-    if (cfg.batchStartDate && frozen != null && Number.isFinite(Number(frozen))) {
-      const day = clampDay(frozen, cfg.journeyLength);
-      const todayUTC = utcMidnightMs(new Date());
-      const startUTC = todayUTC - (day - 1) * MS_PER_DAY;
-      cfg.batchStartDate = new Date(startUTC);
+    const pausedAt = cfg.journeyPausedAt;
+    const resumedAt = resumeAt instanceof Date ? resumeAt : new Date();
+    cfg.journeyPaused = false;
+
+    if (cfg.batchStartDate && pausedAt) {
+      const pauseDays = pauseCalendarDays(pausedAt, resumedAt);
+      if (pauseDays > 0) {
+        const startUTC = utcMidnightMs(new Date(cfg.batchStartDate));
+        cfg.batchStartDate = new Date(startUTC + pauseDays * MS_PER_DAY);
+      }
+      if (frozen != null && Number.isFinite(Number(frozen))) {
+        appendPauseHistory(cfg, {
+          day: frozen,
+          pausedAt,
+          resumedAt,
+          pauseDays: pauseCalendarDays(pausedAt, resumedAt)
+        });
+      }
     }
+
     cfg.journeyPausedAt = null;
     cfg.journeyPausedFrozenDay = null;
     if (!cfg.batchStartDate && frozen != null) {
@@ -115,7 +142,8 @@ function journeyPauseFieldsForApi(cfg) {
     journeyPaused: paused,
     journeyPausedAt: paused && cfg.journeyPausedAt ? cfg.journeyPausedAt : null,
     journeyPausedFrozenDay:
-      paused && cfg.journeyPausedFrozenDay != null ? cfg.journeyPausedFrozenDay : null
+      paused && cfg.journeyPausedFrozenDay != null ? cfg.journeyPausedFrozenDay : null,
+    journeyPauseHistory: Array.isArray(cfg.journeyPauseHistory) ? cfg.journeyPauseHistory : []
   };
 }
 
@@ -126,5 +154,8 @@ module.exports = {
   shouldSkipStudentRollover,
   applyJourneyPauseToggle,
   clearJourneyPauseFields,
-  journeyPauseFieldsForApi
+  journeyPauseFieldsForApi,
+  pauseCalendarDays,
+  utcMidnightMs,
+  MS_PER_DAY
 };

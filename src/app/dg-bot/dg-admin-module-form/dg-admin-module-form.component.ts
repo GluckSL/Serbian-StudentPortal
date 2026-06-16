@@ -8,6 +8,7 @@ import { HttpClient } from '@angular/common/http';
 import { DgApiService } from '../dg-api.service';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { environment } from '../../../environments/environment';
+import { isValidAdminCourseDay } from '../../utils/journey-day.util';
 import type {
   DgCharacterDoc,
   DgConversationFlowStage,
@@ -69,6 +70,8 @@ export class DgAdminModuleFormComponent implements OnInit {
   editCourseDay = '';
   editCharacterId = '';
   editVisible = false;
+  editWeeklyTestEnabled = false;
+  editExamEnabled = false;
   editScenes: DgScene[] = [];
 
   cefrLevels: string[] = [];
@@ -253,10 +256,14 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editMaxPracticeMinutes =
       row.maxPracticeMinutes != null ? row.maxPracticeMinutes : null;
     this.editCourseDay =
-      row.courseDay != null && row.courseDay > 0 ? String(row.courseDay) : '';
+      row.courseDay != null && Number.isFinite(Number(row.courseDay))
+        ? String(row.courseDay)
+        : '';
     this.editCharacterId =
       typeof row.characterId === 'string' ? row.characterId : (row.characterId as any)?._id || '';
     this.editVisible = !!row.visibleToStudents;
+    this.editWeeklyTestEnabled = !!row.weeklyTestEnabled;
+    this.editExamEnabled = !!row.examEnabled;
     this.targetBatches = Array.isArray(row.targetBatches) ? [...row.targetBatches] : [];
     this.editScenes = JSON.parse(JSON.stringify(row.scenes || [])).sort(
       (a: DgScene, b: DgScene) => (a.order || 0) - (b.order || 0),
@@ -279,6 +286,8 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editCharacterId =
       this.characters.find((c) => c.isDefault)?._id || this.characters[0]?._id || '';
     this.editVisible = false;
+    this.editWeeklyTestEnabled = false;
+    this.editExamEnabled = false;
     this.targetBatches = [];
     this.editScenes = [
       {
@@ -593,6 +602,8 @@ export class DgAdminModuleFormComponent implements OnInit {
       courseDay: courseDayPayload,
       characterId: this.editCharacterId,
       visibleToStudents: this.editVisible,
+      weeklyTestEnabled: !!this.editWeeklyTestEnabled && !this.editExamEnabled,
+      examEnabled: !!this.editExamEnabled && !this.editWeeklyTestEnabled,
       targetBatches: this.targetBatches,
       rolePlayScenario: this.editRolePlay,
       allowedVocabulary: this.allowedVocabulary,
@@ -610,6 +621,16 @@ export class DgAdminModuleFormComponent implements OnInit {
         order: s.order,
       })),
     };
+  }
+
+  onWeeklyTestToggle(on: boolean): void {
+    this.editWeeklyTestEnabled = !!on;
+    if (this.editWeeklyTestEnabled) this.editExamEnabled = false;
+  }
+
+  onExamToggle(on: boolean): void {
+    this.editExamEnabled = !!on;
+    if (this.editExamEnabled) this.editWeeklyTestEnabled = false;
   }
 
   async save(navigateAfterSave = true): Promise<boolean> {
@@ -649,8 +670,8 @@ export class DgAdminModuleFormComponent implements OnInit {
     const cdRaw = (this.editCourseDay || '').trim();
     if (cdRaw !== '') {
       const cd = Number(cdRaw);
-      if (Number.isNaN(cd) || cd < 1 || cd > 200) {
-        fail('courseDay', 'Course day (1–200 or leave empty)');
+      if (Number.isNaN(cd) || !isValidAdminCourseDay(cd)) {
+        fail('courseDay', 'Course day (0 = Trial, 1–200, or leave empty)');
       }
     }
     if (this.missingFieldLabels.length) {

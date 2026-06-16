@@ -89,6 +89,34 @@
               <label class="form-check-label" for="spVisible">Live for students</label>
             </div>
           </div>
+          <div class="col-12 mb-2">
+            <label class="form-label">Gluck Exam bucket</label>
+            <div class="d-flex flex-wrap gap-4 align-items-center">
+              <div class="form-check form-switch">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="spWeeklyTest"
+                  [ngModel]="editWeeklyTestEnabled"
+                  (ngModelChange)="onWeeklyTestToggle($event)"
+                  name="weeklyTestEnabled"
+                />
+                <label class="form-check-label" for="spWeeklyTest">Weekly Test</label>
+              </div>
+              <div class="form-check form-switch">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="spExam"
+                  [ngModel]="editExamEnabled"
+                  (ngModelChange)="onExamToggle($event)"
+                  name="examEnabled"
+                />
+                <label class="form-check-label" for="spExam">Exam</label>
+              </div>
+            </div>
+            <small class="text-muted">Only one can be ON. Default is both OFF (not shown under Gluck Exam tab).</small>
+          </div>
         </div>
 
         <div class="row mb-4">
@@ -117,21 +145,21 @@
               <div>
                 <input type="file" class="form-control" accept="image/*" (change)="onIntroCardFile($event)" [disabled]="introCardUploading" />
                 <small class="text-muted d-block mt-1" *ngIf="introCardUploading">Uploading…</small>
-                <button type="button" class="btn btn-sm btn-outline-danger mt-1" *ngIf="introCardImageUrl" (click)="introCardImageUrl = ''">Remove image</button>
+                <button type="button" class="btn btn-sm btn-outline-danger mt-1" *ngIf="introCardImageUrl" (click)="clearIntroCardImage()">Remove image</button>
               </div>
             </div>
           </div>
           <div class="col-12 mb-3">
             <label class="form-label">Keywords fallback (comma-separated, if no image)</label>
-            <input class="form-control" [(ngModel)]="keywordsText" name="keywords" placeholder="Name, Alter, Land, …" />
+            <input class="form-control" [(ngModel)]="keywordsText" (input)="markExamContentDirty()" name="keywords" placeholder="Name, Alter, Land, …" />
           </div>
           <div class="col-md-6 mb-3">
             <label class="form-label">Spell prompts (one per line)</label>
-            <textarea class="form-control" rows="3" [(ngModel)]="spellPromptsText" name="spellPrompts"></textarea>
+            <textarea class="form-control" rows="3" [(ngModel)]="spellPromptsText" (input)="markExamContentDirty()" name="spellPrompts"></textarea>
           </div>
           <div class="col-md-6 mb-3">
             <label class="form-label">Number prompts (one per line)</label>
-            <textarea class="form-control" rows="3" [(ngModel)]="numberPromptsText" name="numberPrompts"></textarea>
+            <textarea class="form-control" rows="3" [(ngModel)]="numberPromptsText" (input)="markExamContentDirty()" name="numberPrompts"></textarea>
           </div>
         </div>
 
@@ -145,15 +173,15 @@
               <div class="row g-2">
                 <div class="col-md-4">
                   <label class="form-label small">Theme name</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="t.name" [name]="'themeName' + i" />
+                  <input class="form-control form-control-sm" [(ngModel)]="t.name" (input)="markExamContentDirty()" [name]="'themeName' + i" />
                 </div>
                 <div class="col-md-3">
                   <label class="form-label small">Student keyword</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="t.studentKeyword" [name]="'sk' + i" />
+                  <input class="form-control form-control-sm" [(ngModel)]="t.studentKeyword" (input)="markExamContentDirty()" [name]="'sk' + i" />
                 </div>
                 <div class="col-md-3">
                   <label class="form-label small">Bot keyword</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="t.botKeyword" [name]="'bk' + i" />
+                  <input class="form-control form-control-sm" [(ngModel)]="t.botKeyword" (input)="markExamContentDirty()" [name]="'bk' + i" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label small">Student card image</label>
@@ -184,18 +212,18 @@
               <div class="row g-2">
                 <div class="col-md-6">
                   <label class="form-label small">Student card label</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.label" />
+                  <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.label" (input)="markExamContentDirty()" />
                   <label class="form-label small mt-1">Object (German)</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.objectDe" placeholder="einen Stift" />
+                  <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.objectDe" (input)="markExamContentDirty()" placeholder="einen Stift" />
                   <label class="form-label small mt-1">Student card image</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onRoundImageFile($event, r, 'student')" />
                   <img *ngIf="r.studentCard.imageUrl" [src]="getCardPreviewUrl(r.studentCard.imageUrl)" alt="" class="mt-1" style="max-height:48px" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label small">Bot card label</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="r.botCard.label" />
+                  <input class="form-control form-control-sm" [(ngModel)]="r.botCard.label" (input)="markExamContentDirty()" />
                   <label class="form-label small mt-1">Object (German)</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="r.botCard.objectDe" placeholder="ein Glas Wasser" />
+                  <input class="form-control form-control-sm" [(ngModel)]="r.botCard.objectDe" (input)="markExamContentDirty()" placeholder="ein Glas Wasser" />
                   <label class="form-label small mt-1">Bot card image</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onRoundImageFile($event, r, 'bot')" />
                   <img *ngIf="r.botCard.imageUrl" [src]="getCardPreviewUrl(r.botCard.imageUrl)" alt="" class="mt-1" style="max-height:48px" />

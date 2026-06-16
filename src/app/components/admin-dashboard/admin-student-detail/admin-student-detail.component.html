@@ -2,62 +2,99 @@
   <header class="asd-hero">
     <div class="asd-hero__left">
       <a routerLink="/admin-dashboard" class="asd-back">
-        <span class="asd-back__icon" aria-hidden="true">←</span>
+        <i class="fas fa-arrow-left"></i>
         Directory
       </a>
       <div class="asd-hero__profile">
         <div class="asd-avatar" aria-hidden="true">{{ avatarInitial }}</div>
-        <div>
-          <h1 class="asd-hero__name">{{ studentName || 'Student' }}</h1>
-          <p class="asd-hero__meta" *ngIf="preview?.regNo || preview?.email">
-            <span *ngIf="preview?.regNo" class="asd-mono">{{ preview?.regNo }}</span>
-            <span *ngIf="preview?.regNo && preview?.email"> · </span>
-            <span *ngIf="preview?.email">{{ preview?.email }}</span>
-          </p>
-          <div class="asd-badges" *ngIf="preview">
+        <div class="asd-hero__profile-body">
+          <div class="asd-hero__name-row">
+            <h1 class="asd-hero__name">{{ studentName || 'Student' }}</h1>
+            <span class="asd-status-badge" *ngIf="preview?.studentStatus"
+              [class.asd-status-badge--active]="preview?.studentStatus === 'ONGOING'"
+              [class.asd-status-badge--inactive]="preview?.studentStatus !== 'ONGOING'"
+            ><i class="fas" [class.fa-check-circle]="preview?.studentStatus === 'ONGOING'" [class.fa-pause-circle]="preview?.studentStatus !== 'ONGOING'"></i> {{ preview?.studentStatus === 'ONGOING' ? 'Active' : preview?.studentStatus }}</span>
+            <app-test-account-badge *ngIf="preview?.isTestAccount" [show]="true"></app-test-account-badge>
+            <a
+              *ngIf="studentId"
+              class="asd-edit-badge"
+              [routerLink]="['/signup', studentId]"
+              target="_blank"
+              rel="noopener"
+              title="Edit profile"
+            ><i class="fas fa-external-link-alt"></i> Edit</a>
+          </div>
+          <div class="asd-hero__badges-row" *ngIf="preview">
             <span class="asd-badge asd-badge--plan" *ngIf="preview.subscription">{{ preview.subscription }}</span>
             <span class="asd-badge" *ngIf="preview.level">Level {{ preview.level }}</span>
             <span class="asd-badge" *ngIf="preview.batch">Batch {{ preview.batch }}</span>
             <span class="asd-badge" *ngIf="preview.medium">{{ preview.medium }}</span>
           </div>
+          <div class="asd-hero__grid" *ngIf="preview">
+            <div class="asd-hero__field asd-hero__field--wide">
+              <span class="asd-hero__field-lbl">Email</span>
+              <span class="asd-hero__field-val">{{ preview.email || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Journey day</span>
+              <span class="asd-hero__field-val">Day {{ preview.currentCourseDay || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Teacher</span>
+              <span class="asd-hero__field-val">{{ preview.teacher || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Service</span>
+              <span class="asd-hero__field-val">{{ preview.servicesOpted || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Visa route</span>
+              <span class="asd-hero__field-val">{{ preview.visaRoute || 'Not set' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Level path</span>
+              <span class="asd-hero__field-val">{{ preview.levelPath || '—' }}</span>
+            </div>
+            <div class="asd-hero__field">
+              <span class="asd-hero__field-lbl">Enrolled</span>
+              <span class="asd-hero__field-val">{{ formatDate(preview.enrollmentDate || '') }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    <a
-      *ngIf="studentId"
-      class="asd-edit-link"
-      [routerLink]="['/signup', studentId]"
-      target="_blank"
-      rel="noopener"
-    >
-      Edit profile ↗
-    </a>
+      <div class="asd-hero__actions">
+        <nav class="asd-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="asd-tab"
+            [class.asd-tab--on]="activeTab === 'overview'"
+            [attr.aria-selected]="activeTab === 'overview'"
+            (click)="setTab('overview')"
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="asd-tab"
+            [class.asd-tab--on]="activeTab === 'learning'"
+            [attr.aria-selected]="activeTab === 'learning'"
+            (click)="setTab('learning')"
+          >
+            Learning &amp; journey
+          </button>
+        </nav>
+        <div class="asd-creds" *ngIf="preview?.regNo">
+          <span class="asd-creds__item"><span class="asd-creds__key">Reg No</span> <strong class="asd-creds__val">{{ preview?.regNo }}</strong></span>
+          <span class="asd-creds__sep"></span>
+          <span class="asd-creds__item"><span class="asd-creds__key">Password</span> <strong class="asd-creds__val" [class.asd-creds__val--missing]="!preview?.displayPassword">{{ preview?.displayPassword || '—' }}</strong></span>
+        </div>
+      </div>
   </header>
 
-  <nav class="asd-tabs" role="tablist">
-    <button
-      type="button"
-      role="tab"
-      class="asd-tab"
-      [class.asd-tab--on]="activeTab === 'overview'"
-      [attr.aria-selected]="activeTab === 'overview'"
-      (click)="setTab('overview')"
-    >
-      Overview
-    </button>
-    <button
-      type="button"
-      role="tab"
-      class="asd-tab"
-      [class.asd-tab--on]="activeTab === 'learning'"
-      [attr.aria-selected]="activeTab === 'learning'"
-      (click)="setTab('learning')"
-    >
-      Learning &amp; journey
-    </button>
-  </nav>
-
-  <section class="asd-panel" *ngIf="activeTab === 'overview'">
+  <section class="asd-panel" [hidden]="activeTab !== 'overview'">
     <app-student-journey-detail-modal
       [embedded]="true"
       [visible]="!!studentId"
@@ -67,13 +104,19 @@
     ></app-student-journey-detail-modal>
   </section>
 
-  <section class="asd-panel" *ngIf="activeTab === 'learning'">
-    <div *ngIf="learningLoading" class="asd-state">
-      <div class="asd-spinner"></div>
-      <p>Loading journey days…</p>
+  <section class="asd-panel" [hidden]="activeTab !== 'learning'">
+    <div *ngIf="learningLoading" class="asd-state asd-state--loading">
+      <div class="sk-container">
+        <div class="sk-skew">
+          <div class="sk-card" *ngFor="let _ of [].constructor(4)"><div class="sk-card__line sk-card__line--60"></div><div class="sk-card__line sk-card__line--40"></div></div>
+        </div>
+        <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--80"></div><div class="sk-card__line sk-card__line--90"></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px"><div class="sk-card__line" *ngFor="let _ of [].constructor(4)"></div></div></div>
+        <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--50"></div><div class="sk-days-sketch"><div class="sk-card" *ngFor="let _ of [].constructor(16)"><div class="sk-card__line" style="height:40px"></div></div></div></div>
+      </div>
     </div>
 
     <div *ngIf="learningError && !learningLoading" class="asd-state asd-state--error">
+      <i class="fas fa-exclamation-triangle" style="font-size:28px;margin-bottom:8px;color:#b91c1c;"></i>
       <p>{{ learningError }}</p>
       <button type="button" class="asd-btn asd-btn--primary" (click)="loadLearning()">Retry</button>
     </div>
@@ -100,7 +143,7 @@
 
       <div class="asd-card asd-card--accent">
         <div class="asd-card__head">
-          <h2 class="asd-card__title">Content access control</h2>
+          <h2 class="asd-card__title"><i class="fas fa-info-circle" style="font-size:14px;margin-right:6px;color:#0369a1;"></i>Content access control</h2>
           <span class="asd-saving" *ngIf="savingBlocks">Saving…</span>
         </div>
         <p class="asd-card__text">
@@ -115,9 +158,7 @@
             [class.asd-btn--outline]="isLevelBlocked('A1')"
             [disabled]="savingBlocks"
             (click)="blockA1ForA2Starter()"
-          >
-            {{ isLevelBlocked('A1') ? '✓ A1 blocked (days 1–42) — click to unblock' : 'Block A1 content (days 1–42)' }}
-          </button>
+          ><i class="fas fa-lock"></i> {{ isLevelBlocked('A1') ? 'A1 blocked (days 1–42) — click to unblock' : 'Block A1 content (days 1–42)' }}</button>
         </div>
         <div class="asd-level-segments">
           <div
@@ -139,9 +180,7 @@
               [class.asd-btn--outline]="seg.blocked"
               [disabled]="savingBlocks"
               (click)="toggleLevelBlock(seg.level)"
-            >
-              {{ seg.blocked ? 'Unblock' : 'Block' }} {{ seg.level }}
-            </button>
+            ><i class="fas" [class.fa-lock]="!seg.blocked" [class.fa-unlock]="seg.blocked"></i> {{ seg.blocked ? 'Unblock' : 'Block' }} {{ seg.level }}</button>
           </div>
         </div>
       </div>
@@ -190,8 +229,8 @@
             <span class="asd-day__num">{{ d.day }}</span>
             <span class="asd-day__lvl">{{ d.level }}</span>
             <span class="asd-day__icons" *ngIf="d.modules + d.exercises + d.dgModules + d.recordings > 0">
-              <span *ngIf="d.modules" title="Modules">📘{{ d.modules }}</span>
-              <span *ngIf="d.exercises" title="Exercises">✏️{{ d.exercises }}</span>
+              <span *ngIf="d.modules" title="Modules"><i class="fas fa-book"></i> {{ d.modules }}</span>
+              <span *ngIf="d.exercises" title="Exercises"><i class="fas fa-pen"></i> {{ d.exercises }}</span>
             </span>
           </button>
         </div>
@@ -204,10 +243,10 @@
             </span>
           </div>
           <div class="asd-day-detail__grid">
-            <div class="asd-mini-stat"><strong>{{ selectedDay.modules }}</strong><span>Modules</span></div>
-            <div class="asd-mini-stat"><strong>{{ selectedDay.exercises }}</strong><span>Exercises</span></div>
-            <div class="asd-mini-stat"><strong>{{ selectedDay.dgModules }}</strong><span>DG bot</span></div>
-            <div class="asd-mini-stat"><strong>{{ selectedDay.recordings }}</strong><span>Recordings</span></div>
+            <div class="asd-mini-stat"><strong><i class="fas fa-book"></i> {{ selectedDay.modules }}</strong><span>Modules</span></div>
+            <div class="asd-mini-stat"><strong><i class="fas fa-pen"></i> {{ selectedDay.exercises }}</strong><span>Exercises</span></div>
+            <div class="asd-mini-stat"><strong><i class="fas fa-robot"></i> {{ selectedDay.dgModules }}</strong><span>DG bot</span></div>
+            <div class="asd-mini-stat"><strong><i class="fas fa-microphone"></i> {{ selectedDay.recordings }}</strong><span>Recordings</span></div>
           </div>
         </div>
       </div>

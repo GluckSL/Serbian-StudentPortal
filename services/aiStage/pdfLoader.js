@@ -1,4 +1,4 @@
-const pdf = require("pdf-parse");
+const { parsePdfBuffer } = require("../pdfParseCompat");
 
 /**
  * Extract raw text from a PDF buffer.
@@ -8,7 +8,7 @@ const pdf = require("pdf-parse");
  * @returns {Promise<string>}
  */
 async function loadPdfText(buffer) {
-  const data = await pdf(buffer);
+  const data = await parsePdfBuffer(buffer);
   return data.text || "";
 }
 

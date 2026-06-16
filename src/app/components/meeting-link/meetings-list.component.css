@@ -354,8 +354,32 @@
 
 .col-actions {
   white-space: nowrap;
-  min-width: 180px;
+  min-width: 240px;
   text-align: right;
+}
+
+.remind-action-btn.mat-mdc-outlined-button {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1.25;
+  min-height: 32px;
+  margin-left: 6px;
+  padding: 0 10px;
+  border-color: #f59e0b !important;
+  color: #b45309 !important;
+}
+
+.remind-action-btn mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.remind-action-btn:hover:not([disabled]) {
+  background: #fffbeb !important;
 }
 
 /* Join — light blue fill, black text, rounded (table + mobile) */

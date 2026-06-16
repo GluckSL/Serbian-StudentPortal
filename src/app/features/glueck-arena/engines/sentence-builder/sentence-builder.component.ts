@@ -365,6 +365,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
   }
 
   onSlotDrop(event: CdkDragDrop<string[]>, targetIndex: number) {
+    this.audio.unlock();
     if (this.allLocked) return;
     if (this.slotLocked[targetIndex]) return;
 
@@ -502,6 +503,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
         if (r.isCorrect) {
           this.score += r.pointsEarned ?? 0;
           this.xpTrigger++;
+          this.audio.playXpGain();
           if (r.questionComplete) {
             this.correctCount++;
           }

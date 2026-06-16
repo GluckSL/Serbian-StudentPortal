@@ -230,7 +230,7 @@
                       </td>
                       <td>
                         <div class="journey-day-cell">
-                          <span class="badge journey-day-badge" *ngIf="m.courseDay != null">Day {{ m.courseDay }}</span>
+                          <span class="badge journey-day-badge" *ngIf="m.courseDay != null">{{ m.courseDay === 0 ? 'Trial' : ('Day ' + m.courseDay) }}</span>
                           <span class="text-muted journey-day-pool" *ngIf="m.courseDay == null">—</span>
                         </div>
                       </td>

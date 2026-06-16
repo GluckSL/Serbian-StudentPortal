@@ -301,14 +301,18 @@ export class StudentDocumentsService {
   // ========== DOCUMENT REQUIREMENTS MANAGEMENT ==========
   
   // Get all document requirements
-  getDocumentRequirements(): Observable<{
+  getDocumentRequirements(options?: { activeOnly?: boolean }): Observable<{
     success: boolean;
     requirements: any[];
   }> {
+    const params: Record<string, string> = {};
+    if (options?.activeOnly) {
+      params['activeOnly'] = 'true';
+    }
     return this.http.get<{
       success: boolean;
       requirements: any[];
-    }>(`${environment.apiUrl}/document-requirements`, { withCredentials: true });
+    }>(`${environment.apiUrl}/document-requirements`, { params, withCredentials: true });
   }
   
   // Create new document requirement (Admin only)

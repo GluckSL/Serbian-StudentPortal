@@ -6,7 +6,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const { requireAdminOrSubAdminTab } = require('../middleware/subAdminTabAccess');
 const {
   getOverview,
   getStudentDetail,
@@ -19,10 +20,12 @@ const {
   MAX_PER_REQUEST,
 } = require('../services/languageTrackingReminders.service');
 
-const ALLOWED_ROLES = ['ADMIN', 'TEACHER_ADMIN'];
+const LANGUAGE_TRACKING_TAB = 'language-tracking';
+const requireLanguageTrackingView = requireAdminOrSubAdminTab(LANGUAGE_TRACKING_TAB, 'view');
+const requireLanguageTrackingEdit = requireAdminOrSubAdminTab(LANGUAGE_TRACKING_TAB, 'edit');
 
 // ── GET /api/language-tracking/filter-options ────────────────────────────────
-router.get('/filter-options', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+router.get('/filter-options', verifyToken, requireLanguageTrackingView, async (req, res) => {
   try {
     const options = await getAnalyticsFilterOptions();
     res.json(options);
@@ -34,7 +37,7 @@ router.get('/filter-options', verifyToken, checkRole(ALLOWED_ROLES), async (req,
 
 // ── GET /api/language-tracking/overview ──────────────────────────────────────
 // Query params: from, to, cohort, batch, level, search, page, limit, sort
-router.get('/overview', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+router.get('/overview', verifyToken, requireLanguageTrackingView, async (req, res) => {
   try {
     const result = await getOverview({
       from: req.query.from,
@@ -57,7 +60,7 @@ router.get('/overview', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) 
 
 // ── GET /api/language-tracking/student/:studentId ────────────────────────────
 // Query params: from, to
-router.get('/student/:studentId', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+router.get('/student/:studentId', verifyToken, requireLanguageTrackingView, async (req, res) => {
   try {
     const result = await getStudentDetail(req.params.studentId, {
       from: req.query.from,
@@ -73,7 +76,7 @@ router.get('/student/:studentId', verifyToken, checkRole(ALLOWED_ROLES), async (
 });
 
 // ── GET /api/language-tracking/student/:studentId/week/:week ───────────────────
-router.get('/student/:studentId/week/:week', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+router.get('/student/:studentId/week/:week', verifyToken, requireLanguageTrackingView, async (req, res) => {
   try {
     const result = await getStudentWeekSummary(req.params.studentId, req.params.week);
     res.json(result);
@@ -86,7 +89,7 @@ router.get('/student/:studentId/week/:week', verifyToken, checkRole(ALLOWED_ROLE
 });
 
 // ── GET /api/language-tracking/student/:studentId/day/:day ───────────────────
-router.get('/student/:studentId/day/:day', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+router.get('/student/:studentId/day/:day', verifyToken, requireLanguageTrackingView, async (req, res) => {
   try {
     const result = await getStudentDayDetail(req.params.studentId, req.params.day);
     res.json(result);
@@ -105,7 +108,7 @@ router.get('/student/:studentId/day/:day', verifyToken, checkRole(ALLOWED_ROLES)
 
 // ── POST /api/language-tracking/send-reminders ───────────────────────────────
 // Body: { studentIds: string[], day?: number } — optional day for historical reminders
-router.post('/send-reminders', verifyToken, checkRole(ALLOWED_ROLES), async (req, res) => {
+router.post('/send-reminders', verifyToken, requireLanguageTrackingEdit, async (req, res) => {
   try {
     const studentIds = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
     const day = req.body?.day != null ? Number(req.body.day) : undefined;

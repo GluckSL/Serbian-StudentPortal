@@ -5,6 +5,7 @@ import { environment } from '../../../../environments/environment';
 import {
   CatalogFilters,
   CatalogResponse,
+  JourneyGamesResponse,
   GameSet,
   StartAttemptResult,
   AnswerResult,
@@ -88,6 +89,35 @@ export class InteractiveGameService {
     return this.http.post<any>(`${this.base}/attempts/${attemptId}/image-match`, payload);
   }
 
+  submitMemoryMatch(attemptId: string, payload: {
+    questionId: string;
+    pairIndex: number;
+    word: string;
+    responseTimeMs?: number;
+  }): Observable<{
+    success: boolean;
+    isCorrect: boolean;
+    pointsEarned: number;
+    questionComplete: boolean;
+    correctMatches: number;
+    totalPairs: number;
+  }> {
+    return this.http.post<any>(`${this.base}/attempts/${attemptId}/memory-match`, payload);
+  }
+
+  submitWordPictureMatchSlot(attemptId: string, payload: {
+    questionId: string;
+    pairIndex: number;
+    word: string;
+    responseTimeMs?: number;
+  }): Observable<{
+    success: boolean;
+    isCorrect: boolean;
+    pointsEarned: number;
+  }> {
+    return this.http.post<any>(`${this.base}/attempts/${attemptId}/word-picture-match`, payload);
+  }
+
   completeAttempt(attemptId: string, payload: {
     timeSpentSeconds: number;
     livesRemaining?: number;
@@ -106,6 +136,11 @@ export class InteractiveGameService {
 
   getArenaAccess(): Observable<{ success: boolean; hasAccess: boolean; gameCount: number }> {
     return this.http.get<any>(`${this.base}/me/arena-access`);
+  }
+
+  /** Published games with a journey day (courseDay) for the Journey to Germany tab. */
+  getJourneyGames(): Observable<JourneyGamesResponse> {
+    return this.http.get<JourneyGamesResponse>(`${this.base}/journey-games`);
   }
 
   getGlobalLeaderboard(period: LeaderboardPeriod = 'all'): Observable<LeaderboardResponse> {
@@ -148,6 +183,12 @@ export class InteractiveGameService {
     const fd = new FormData();
     fd.append('thumbnail', file);
     return this.http.post<any>(`${this.base}/admin/sets/${id}/thumbnail`, fd);
+  }
+
+  adminUploadTapBoxesBackground(id: string, file: File): Observable<any> {
+    const fd = new FormData();
+    fd.append('background', file);
+    return this.http.post<any>(`${this.base}/admin/sets/${id}/tap-boxes-background`, fd);
   }
 
   adminGetQuestions(gameSetId: string): Observable<{ success: boolean; questions: AdminGameQuestion[] }> {

@@ -19,7 +19,8 @@ const JOURNEY_LEVEL_RANGES: { min: number; max: number; level: string }[] = [
 ];
 
 export function levelForJourneyDay(day: number | null | undefined): string {
-  const d = Math.min(200, Math.max(1, Math.floor(Number(day) || 1)));
+  const d = Math.min(200, Math.max(0, Math.floor(Number(day) || 0)));
+  if (d === 0) return 'A1';
   for (const r of JOURNEY_LEVEL_RANGES) {
     if (d >= r.min && d <= r.max) return r.level;
   }
@@ -78,4 +79,15 @@ export function journeyDayRemaining(currentDay: number | null, totalDays: number
 export function journeyProgressRatio(currentDay: number | null, totalDays: number): number | null {
   if (currentDay == null || totalDays <= 0) return null;
   return Math.min(1, Math.max(0, currentDay / totalDays));
+}
+
+/** Display journey progress as "8/42" (current / total for level). */
+export function formatJourneyDayCurrentTotal(
+  student: Parameters<typeof currentJourneyDayFromStudent>[0],
+  level?: string | null,
+): string {
+  const total = totalJourneyDaysForLevel(level);
+  const current = currentJourneyDayFromStudent(student);
+  if (current == null) return `—/${total}`;
+  return `${current}/${total}`;
 }

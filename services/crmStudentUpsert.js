@@ -56,7 +56,14 @@ const STUDENT_DEFAULTS = {
   medium: ['English'],
 };
 
-const VALID_SUBSCRIPTION = new Set(['SILVER', 'PLATINUM', 'VISA_DOC_ONLY']);
+const VALID_SUBSCRIPTION = new Set([
+  'SILVER',
+  'PLATINUM',
+  'DOCS_RECOGNITION',
+  'VISA_DOC',
+  'POST_LANDING',
+  'VISA_DOC_ONLY',
+]);
 const VALID_LEVEL = new Set(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
 const VALID_STUDENT_STATUS = new Set(['UNCERTAIN', 'ONGOING', 'COMPLETED', 'WITHDREW']);
 

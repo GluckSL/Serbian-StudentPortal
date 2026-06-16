@@ -1,0 +1,412 @@
+<div class="ph-insights-page ph-finance-page">
+  <div class="ph-insights-header">
+    <div class="ph-insights-header-inner">
+      <a class="ph-insights-back" routerLink="/admin/finance-dashboard">
+        <mat-icon>arrow_back</mat-icon>
+        Finance overview
+      </a>
+      <h1 class="ph-insights-title">{{ pageTitle }}</h1>
+      <p class="ph-insights-sub">{{ pageSubtitle }}</p>
+    </div>
+  </div>
+
+  <div class="ph-insights-body">
+    <div class="ph-insights-filters ph-finance-filters">
+      <div class="ph-finance-filters-row">
+        <div class="ph-finance-filters-fields">
+          <mat-form-field appearance="outline" class="ph-filter" subscriptSizing="dynamic">
+            <mat-label>Level</mat-label>
+            <mat-select [(ngModel)]="filterLevel" (selectionChange)="applyLevelFilter()" [disabled]="loading">
+              <mat-option *ngFor="let lv of levels; let i = index" [value]="lv">{{ levelLabels[i] }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="ph-filter ph-filter--batches" subscriptSizing="dynamic">
+            <mat-label>
+              Batches
+              <span class="ph-filter-count" *ngIf="hasBatchSelection">{{ selectedBatches.length }}</span>
+            </mat-label>
+            <mat-select
+              [(ngModel)]="selectedBatches"
+              multiple
+              (selectionChange)="onBatchSelectionChange()"
+              [disabled]="loading || !batchOptions.length"
+              placeholder="All batches"
+            >
+              <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field
+            appearance="outline"
+            class="ph-filter ph-filter--preset"
+            subscriptSizing="dynamic"
+            *ngIf="savedPresets.length"
+          >
+            <mat-label>Saved view</mat-label>
+            <mat-select
+              [(ngModel)]="activePresetName"
+              (selectionChange)="applySavedPreset($event.value)"
+              [disabled]="loading"
+            >
+              <mat-option value="">Custom selection</mat-option>
+              <mat-option *ngFor="let p of savedPresets" [value]="p.name">
+                {{ p.name }} ({{ p.batches.length }})
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+        </div>
+
+        <div class="ph-finance-filters-actions">
+          <button
+            type="button"
+            class="ph-filter-pill ph-filter-pill--primary"
+            (click)="openSavePreset()"
+            [disabled]="loading || !selectedBatches.length"
+            matTooltip="Save current batch selection as a named view"
+          >
+            <mat-icon>bookmark_add</mat-icon>
+            Save view
+          </button>
+          <button
+            type="button"
+            class="ph-filter-pill"
+            (click)="clearBatchSelection()"
+            [disabled]="loading || (!selectedBatches.length && !activePresetName)"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="ph-filter-pill ph-filter-pill--danger"
+            *ngIf="activePresetName"
+            (click)="deleteActivePreset()"
+            matTooltip="Delete this saved view"
+            aria-label="Delete saved view"
+          >
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ph-preset-save-panel" *ngIf="showPresetSaveInput">
+      <mat-form-field appearance="outline" class="ph-preset-name-field" subscriptSizing="dynamic">
+        <mat-label>View name</mat-label>
+        <input
+          matInput
+          [(ngModel)]="presetNameInput"
+          placeholder="e.g. New batches"
+          (keyup.enter)="confirmSavePreset()"
+        />
+      </mat-form-field>
+      <button type="button" class="ph-filter-pill ph-filter-pill--primary" (click)="confirmSavePreset()">Save</button>
+      <button type="button" class="ph-filter-pill" (click)="cancelSavePreset()">Cancel</button>
+      <span class="ph-preset-save-hint">{{ selectedBatches.length }} batch(es) will be saved</span>
+    </div>
+
+    <ng-container *ngIf="!loading; else skeleton">
+      <div class="ph-finance-kpi-grid" *ngIf="showPlanPaymentSummary">
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--expected">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Total payment</span>
+            <span class="ph-finance-kpi-card__meta">{{ cardTotals.studentCount }} students</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.expected.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount">{{ fmtPayment(paymentSummaryTotals.expected.lkr) }}</span>
+          </div>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="paymentSummaryTotals.expected.inr > 0">
+            INR {{ fmtPayment(paymentSummaryTotals.expected.inr) }}
+          </p>
+        </article>
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--received">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Total received</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.received.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount">{{ fmtPayment(paymentSummaryTotals.received.lkr) }}</span>
+          </div>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="paymentSummaryTotals.received.inr > 0">
+            INR {{ fmtPayment(paymentSummaryTotals.received.inr) }}
+          </p>
+        </article>
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--pending">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Total pending</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.pending.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount ph-finance-kpi-card__amount--amber">{{ fmtPayment(paymentSummaryTotals.pending.lkr) }}</span>
+          </div>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="paymentSummaryTotals.pending.inr > 0">
+            INR {{ fmtPayment(paymentSummaryTotals.pending.inr) }}
+          </p>
+        </article>
+      </div>
+
+      <div class="ph-health-grid" *ngIf="!showPlanPaymentSummary">
+        <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
+        <div class="ph-health-cards">
+          <button
+            type="button"
+            class="ph-health-card ph-health-card--{{ opt.color }}"
+            *ngFor="let opt of studentInsightOptions"
+            [class.ph-health-card--active]="isInsightActive(opt.value)"
+            [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
+            (click)="applyInsightFilter(opt.value)"
+            [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+          >
+            <div class="ph-health-card-icon">
+              <mat-icon>{{ opt.icon }}</mat-icon>
+            </div>
+            <div class="ph-health-card-body">
+              <span class="ph-health-card-label">{{ opt.label }}</span>
+              <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
+              <div class="ph-health-card-amount" *ngIf="hasInsightAmount(opt.key)">
+                <app-payment-currency-totals
+                  *ngIf="opt.amountKind === 'expected' || opt.amountKind === 'received' || opt.amountKind === 'docs' || opt.amountKind === 'visa'"
+                  [lkr]="insightAmountLkr(opt.key)"
+                  [inr]="insightAmountInr(opt.key)"
+                  [usd]="insightAmountUsd(opt.key)"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+                <app-payment-currency-pending-totals
+                  *ngIf="opt.amountKind === 'pending'"
+                  [lkr]="insightAmountLkr(opt.key)"
+                  [inr]="insightAmountInr(opt.key)"
+                  [usd]="insightAmountUsd(opt.key)"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-pending-totals>
+                <app-payment-currency-overdue-totals
+                  *ngIf="opt.amountKind === 'overdue'"
+                  [lkr]="insightAmountLkr(opt.key)"
+                  [inr]="insightAmountInr(opt.key)"
+                  [usd]="insightAmountUsd(opt.key)"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-overdue-totals>
+              </div>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In current view</span>
+              <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
+                {{ studentPct(insightCount(opt.key), cardTotals.studentCount) }} of students
+              </span>
+            </div>
+            <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <section class="ph-batch-table-section ph-finance-table-section" id="ph-finance-table">
+        <div class="ph-batch-table-head">
+          <div class="ph-batch-table-head__text">
+            <h2 class="ph-insights-panel-title">Batch breakdown</h2>
+            <p class="ph-panel-caption">
+              {{ displayBatchRows.length }} batches
+              <span *ngIf="hasBatchSelection"> · {{ selectedBatches.length }} selected</span>
+              <span *ngIf="activePresetName"> · view: {{ activePresetName }}</span>
+              <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
+              <span *ngIf="paymentFilter !== 'all_language'"> · {{ paymentFilterLabel() }}</span>
+            </p>
+          </div>
+          <div class="ph-finance-table-actions">
+            <button
+              mat-icon-button
+              type="button"
+              class="ph-btn-payment-filter"
+              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
+              [matMenuTriggerFor]="paymentFilterMenu"
+              [matTooltip]="paymentFilterHint()"
+              aria-label="Payment amount filter"
+            >
+              <mat-icon>filter_list</mat-icon>
+            </button>
+            <mat-menu #paymentFilterMenu="matMenu" class="ph-payment-filter-menu">
+              <button
+                mat-menu-item
+                type="button"
+                *ngFor="let opt of paymentFilterOptions"
+                (click)="setPaymentFilter(opt.value)"
+              >
+                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
+              </button>
+            </mat-menu>
+            <button
+              mat-stroked-button
+              type="button"
+              class="ph-btn-export"
+              [matMenuTriggerFor]="exportMenu"
+              [disabled]="exporting || !batchRows.length"
+            >
+              <mat-icon>download</mat-icon>
+              {{ exporting ? 'Exporting…' : 'Export' }}
+            </button>
+            <mat-menu #exportMenu="matMenu">
+              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
+                <mat-icon>grid_on</mat-icon>
+                <span>Excel — all batches ({{ batchRows.length }})</span>
+              </button>
+              <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
+                <mat-icon>description</mat-icon>
+                <span>CSV — all batches</span>
+              </button>
+              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
+                <mat-icon>filter_list</mat-icon>
+                <span>Excel — table filter ({{ displayBatchRows.length }})</span>
+              </button>
+              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'selected')" [disabled]="!selectedBatches.length">
+                <mat-icon>checklist</mat-icon>
+                <span>Excel — selected ({{ selectedBatches.length }})</span>
+              </button>
+            </mat-menu>
+            <div class="ph-finance-search-wrap">
+              <mat-icon class="ph-finance-search-icon" aria-hidden="true">search</mat-icon>
+              <input
+                class="ph-finance-search-input"
+                type="search"
+                [(ngModel)]="tableSearch"
+                placeholder="Search batch or level…"
+                aria-label="Search batch"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="ph-batch-table-scroll" *ngIf="displayBatchRows.length; else emptyTable">
+          <table class="ph-finance-table">
+            <colgroup>
+              <col class="ph-col-batch" />
+              <col class="ph-col-level" />
+              <col class="ph-col-students" />
+              <col class="ph-col-money" />
+              <col class="ph-col-money" />
+              <col class="ph-col-money" />
+              <col class="ph-col-money" />
+              <col class="ph-col-journey" />
+              <col class="ph-col-actions" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="ph-col-batch">Batch</th>
+                <th class="ph-col-level">Level</th>
+                <th class="ph-col-students">Students</th>
+                <th class="ph-num ph-col-money">Total payment</th>
+                <th class="ph-num ph-col-money">Received</th>
+                <th class="ph-num ph-col-money">Pending</th>
+                <th class="ph-num ph-col-money">Overdue</th>
+                <th class="ph-col-journey">Journey</th>
+                <th class="ph-col-actions">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let r of displayBatchRows; let i = index"
+                class="ph-finance-row"
+                [class.ph-finance-row--alt]="i % 2 === 1"
+              >
+                <td class="ph-col-batch">
+                  <div class="ph-batch-cell">
+                    <span class="ph-batch-cell__name">{{ r.batch }}</span>
+                    <span
+                      class="ph-batch-type-pill"
+                      [class.ph-batch-type-pill--old]="r.batchType === 'old'"
+                      [class.ph-batch-type-pill--new]="r.batchType === 'new'"
+                    >{{ batchTypeLabel(r.batchType) }}</span>
+                  </div>
+                </td>
+                <td class="ph-col-level ph-levels-cell">
+                  <span class="ph-level-pill" *ngIf="r.level">{{ r.level }}</span>
+                  <span class="ph-level-breakdown" *ngIf="r.levelSummary !== '—'" [matTooltip]="r.levelSummary">
+                    {{ r.levelSummary }}
+                  </span>
+                </td>
+                <td class="ph-col-students ph-students-cell">
+                  <span class="ph-students-count">{{ r.studentCount }}</span>
+                </td>
+                <td class="ph-num ph-money-cell ph-col-money">
+                  <app-payment-currency-totals
+                    [lkr]="rowExpected(r).lkr"
+                    [inr]="rowExpected(r).inr"
+                    [usd]="rowExpected(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
+                <td class="ph-num ph-money-cell ph-money-cell--received ph-col-money">
+                  <app-payment-currency-totals
+                    [lkr]="rowReceived(r).lkr"
+                    [inr]="rowReceived(r).inr"
+                    [usd]="rowReceived(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
+                <td class="ph-num ph-money-cell ph-col-money">
+                  <app-payment-currency-pending-totals
+                    [lkr]="rowPending(r).lkr"
+                    [inr]="rowPending(r).inr"
+                    [usd]="rowPending(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-pending-totals>
+                </td>
+                <td class="ph-num ph-col-overdue">
+                  <ng-container *ngIf="rowHasOverdue(r); else noOverdue">
+                    <span
+                      class="ph-overdue-days"
+                      [class.ph-overdue-days--hot]="(overdueDaysSince(r.overdueSince) ?? 0) >= 7"
+                      [matTooltip]="r.overdueSince ? 'Overdue since ' + formatOverdueSince(r.overdueSince) : 'Overdue balance'"
+                    >{{ overdueDaysLabel(r) }}</span>
+                    <span class="ph-overdue-since-sub" *ngIf="r.overdueSince">
+                      since {{ formatOverdueSince(r.overdueSince) }}
+                    </span>
+                  </ng-container>
+                  <ng-template #noOverdue><span class="ph-ccy-empty">—</span></ng-template>
+                </td>
+                <td class="ph-col-journey">
+                  <span
+                    class="ph-day-badge ph-day-badge--ratio"
+                    [matTooltip]="r.level ? 'Day ' + journeyDayRatio(r) + ' · level ' + r.level : 'Journey day'"
+                  >{{ journeyDayRatio(r) }}</span>
+                </td>
+                <td class="ph-col-actions">
+                  <button
+                    mat-stroked-button
+                    color="primary"
+                    type="button"
+                    class="ph-details-btn"
+                    (click)="openBatchStudents(r.batch)"
+                    matTooltip="Open all students in new tab"
+                  >
+                    <mat-icon>open_in_new</mat-icon>
+                    Details
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ng-template #emptyTable>
+          <p class="ph-empty-note">
+            {{ tableSearch || batchInsight || hasBatchSelection ? 'No batches match your filter.' : 'No batches found.' }}
+          </p>
+        </ng-template>
+      </section>
+    </ng-container>
+
+    <ng-template #skeleton>
+      <div class="ph-finance-skeleton" aria-busy="true" aria-label="Loading finance dashboard">
+        <div class="ph-health-cards">
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3,4,5,6]"></div>
+        </div>
+        <div class="ph-skeleton-table"></div>
+      </div>
+    </ng-template>
+  </div>
+</div>

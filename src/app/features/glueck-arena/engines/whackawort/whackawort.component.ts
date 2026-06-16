@@ -102,6 +102,7 @@ export class WhackawortComponent implements OnInit, OnDestroy {
   constructor(readonly audio: GameAudioService) {}
 
   ngOnInit() {
+    this.audio.loadMutePreference();
     this.startTime = Date.now();
     this.lives = this.attempt?.livesRemaining ?? 5;
     this.buildGrid();
@@ -221,6 +222,7 @@ export class WhackawortComponent implements OnInit, OnDestroy {
   }
 
   private onCanvasClick = (e: MouseEvent) => {
+    this.audio.unlock();
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -244,6 +246,7 @@ export class WhackawortComponent implements OnInit, OnDestroy {
           this.xpEarned += this.XP_PER_CORRECT;
           this.xpAmount = this.XP_PER_CORRECT;
           this.xpTrigger++;
+          this.audio.playXpGain();
           this.triggerConfetti(x, y);
           this.audio.playCorrect();
           setTimeout(() => this.nextRound(), 600);
@@ -253,6 +256,7 @@ export class WhackawortComponent implements OnInit, OnDestroy {
           this.triggerBoom(x, y);
           this.audio.playWrong();
           if (this.lives <= 0) {
+            this.audio.playLost();
             setTimeout(() => this.finish(), 800);
           }
         }

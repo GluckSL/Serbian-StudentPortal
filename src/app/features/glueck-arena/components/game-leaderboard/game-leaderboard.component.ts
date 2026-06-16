@@ -37,7 +37,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
                   <span *ngIf="!podiumPlayer(1)?.avatarUrl">{{ podiumInitial(podiumPlayer(1)) }}</span>
                 </div>
                 <div class="lb__podium__bar">
-                  🥈
+                  <mat-icon class="podium__medal podium__medal--2">military_tech</mat-icon>
                   <span class="lb__podium__xp">{{ podiumXp(podiumPlayer(1)) }}</span>
                 </div>
                 <span class="lb__podium__name">{{ podiumName(podiumPlayer(1)) }}</span>
@@ -48,7 +48,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
                   <span *ngIf="!podiumPlayer(0)?.avatarUrl">{{ podiumInitial(podiumPlayer(0)) }}</span>
                 </div>
                 <div class="lb__podium__bar">
-                  🥇
+                  <mat-icon class="podium__medal podium__medal--1">emoji_events</mat-icon>
                   <span class="lb__podium__xp">{{ podiumXp(podiumPlayer(0)) }}</span>
                 </div>
                 <span class="lb__podium__name">{{ podiumName(podiumPlayer(0)) }}</span>
@@ -59,7 +59,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
                   <span *ngIf="!podiumPlayer(2)?.avatarUrl">{{ podiumInitial(podiumPlayer(2)) }}</span>
                 </div>
                 <div class="lb__podium__bar">
-                  🥉
+                  <mat-icon class="podium__medal podium__medal--3">military_tech</mat-icon>
                   <span class="lb__podium__xp">{{ podiumXp(podiumPlayer(2)) }}</span>
                 </div>
                 <span class="lb__podium__name">{{ podiumName(podiumPlayer(2)) }}</span>
@@ -210,6 +210,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
     .lb__podium__avatar { width: 44px; height: 44px; border-radius: 50%; background: #e8edf5; color: #405980; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; overflow: hidden; flex-shrink: 0; }
     .lb__podium__avatar img { width: 100%; height: 100%; object-fit: cover; }
     .lb__podium__bar { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 76px; border-radius: 10px 10px 0 0; font-size: 24px; padding: 6px 0; }
+    .lb__podium__bar mat-icon { font-size: 24px; width: 24px; height: 24px; color: #fff; }
     .lb__podium__xp { font-size: 14px; font-weight: 800; color: #fff; }
     .lb__podium__name { font-size: 12px; font-weight: 600; color: #555; max-width: 80px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lb__podium__place--1 .lb__podium__bar { height: 110px; background: linear-gradient(180deg,#ffd700,#ffb300); }

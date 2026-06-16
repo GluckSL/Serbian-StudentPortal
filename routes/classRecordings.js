@@ -4,6 +4,7 @@ const router = express.Router();
 const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const { requireRecordingApprovalStaff } = require('../middleware/recordingStaffAccess');
 const ClassRecording = require('../models/ClassRecording');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
 const ZoomRecordingView = require('../models/ZoomRecordingView');
@@ -16,7 +17,7 @@ const { r2Client, R2_BUCKET, R2_CONFIG_OK, r2ConfigIssues } = require('../config
 const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomRecordingBackfillService');
 const { processManualRecordingUpload, processManualRecordingFromR2 } = require('../services/recordingProcessor');
 const manualRecordingUpload = require('../config/manualRecordingUpload');
-const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
+const { allStudentBatchStringsForContent, recordingAccessBatchKeys, batchesAlign, normalizeBatch } = require('../utils/effectiveStudentBatch');
 const { markPendingAdvanceForStudentDay, checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
 const BatchConfig = require('../models/BatchConfig');
 const {
@@ -27,6 +28,7 @@ const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
+const { clampJourneyDay, isValidJourneyDay } = require('../utils/journeyDay');
 const RecordingAccessRequest = require('../models/RecordingAccessRequest');
 const {
   listSelfPaceRecordingsForStudent,
@@ -39,6 +41,22 @@ const {
   canAccessManualViaCrossBatch,
   canAccessZoomViaCrossBatch,
 } = require('../services/journeyCrossBatchRecordingAccess.service');
+const {
+  resolveSilverGoContentUnlock,
+  reconcileSilverGoCourseDay,
+  silverGoCompletionOptions
+} = require('../utils/silverGoSequentialUnlock');
+const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
+
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Build a case-insensitive regex that matches a normalized batch key (exact or prefix with separator). */
+function batchRegex(batchKey) {
+  const nk = normalizeBatch(batchKey);
+  return new RegExp(`^${escapeRegExp(nk)}(\\s*[-:|]\\s|$)`, 'i');
+}
 
 /** Returns true when a student has an APPROVED recording-access grant for a class. */
 async function hasApprovedGrant(studentId, meetingLinkId) {
@@ -48,10 +66,6 @@ async function hasApprovedGrant(studentId, meetingLinkId) {
     meetingLinkId,
     status: 'APPROVED',
   }));
-}
-
-function escapeRegExp(str) {
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Staff who manage or preview class recordings (includes sub-admins with tab access). */
@@ -161,14 +175,17 @@ function isSilverGoStudent(student) {
 function normalizedStudentCourseDay(student) {
   const v = student && student.currentCourseDay;
   if (v != null && v !== undefined && Number.isFinite(Number(v))) {
-    return Math.min(200, Math.max(1, Math.floor(Number(v))));
+    return clampJourneyDay(v);
   }
   return 1;
 }
 
-/** ClassRecording or MeetingLink: available when courseDay is unset or <= student's journey day. */
+/** ClassRecording or MeetingLink: available when courseDay is unset or <= student's unlocked journey day. */
 function journeyCourseDayUnlockedForStudent(doc, student) {
-  const studentDay = normalizedStudentCourseDay(student);
+  const studentDay =
+    student?._maxUnlockedContentDay != null && Number.isFinite(Number(student._maxUnlockedContentDay))
+      ? clampJourneyDay(student._maxUnlockedContentDay)
+      : normalizedStudentCourseDay(student);
   const raw = doc && doc.courseDay;
   if (raw == null || raw === undefined) return true;
   const cd = Number(raw);
@@ -176,12 +193,19 @@ function journeyCourseDayUnlockedForStudent(doc, student) {
   return cd <= studentDay;
 }
 
+async function applySilverGoContentUnlockToStudent(student) {
+  if (!student) return student;
+  const unlock = await resolveSilverGoContentUnlock(student);
+  student._maxUnlockedContentDay = unlock.maxUnlockedContentDay;
+  return student;
+}
+
 function canUserAccessManualRecording(recording, student) {
   if (!recording?.active) return false;
   if (recording.isPublished === false) return false;
   if (!student) return false;
   if (student.journeyAccessEnabled === false) return false;
-  const batchKeys = allStudentBatchStringsForContent(student);
+  const batchKeys = recordingAccessBatchKeys(student);
   const inBatch = batchKeys.length > 0 && Array.isArray(recording.batches) &&
     recording.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b)));
   if (!inBatch) return false;
@@ -214,7 +238,7 @@ function canUserAccessZoomRecording(zoomRecording, meetingLink, student) {
   if (isContentBlockedForStudent(student, { courseDay: meetingLink?.courseDay, level: meetingLink?.level })) return false;
 
   const { batches, level, plan } = normalizeZoomAccessSettings(zoomRecording, meetingLink);
-  const studentBatchKeys = allStudentBatchStringsForContent(student);
+  const studentBatchKeys = recordingAccessBatchKeys(student);
   const inBatch = studentBatchKeys.length > 0 &&
     batches.length > 0 &&
     batches.some((b) => studentBatchKeys.some((k) => batchesAlign(k, b)));
@@ -244,9 +268,12 @@ router.get('/', verifyToken, async (req, res) => {
     }
 
     // STUDENT — filter by their batch, level, plan, journey day
+    await reconcileSilverGoCourseDay(req.user.id);
     const student = await User.findById(req.user.id)
-      .select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
+      .select(`${SILVER_GO_STUDENT_SELECT} blockedJourneyLevels`)
+      .lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    await applySilverGoContentUnlockToStudent(student);
     const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
     if (!journeyAccess.enabled) {
       return res.json({ success: true, recordings: [] });
@@ -260,17 +287,24 @@ router.get('/', verifyToken, async (req, res) => {
       plan: { $in: allowedRecordingPlansForStudent(student) }
     };
 
+    if (req.query.courseDay) {
+      const cd = parseInt(String(req.query.courseDay), 10);
+      if (isValidJourneyDay(cd)) {
+        baseFilter.courseDay = cd;
+      }
+    }
+
     const recordings = await ClassRecording.find(baseFilter)
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 }).lean();
 
-    const batchKeys = allStudentBatchStringsForContent(student);
-    // Match legacy User.batch and GO-SILVER tags (Silver GO often has both).
-    const filteredRecordings = batchKeys.length
+    // Silver GO: class batch recording only (same rule as instant day advance).
+    const recordingBatchKeys = recordingAccessBatchKeys(student);
+    const filteredRecordings = recordingBatchKeys.length
       ? recordings.filter(
           (r) =>
             Array.isArray(r.batches) &&
-            r.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b))) &&
+            r.batches.some((b) => recordingBatchKeys.some((k) => batchesAlign(k, b))) &&
             journeyCourseDayUnlockedForStudent(r, student)
         )
       : [];
@@ -289,7 +323,8 @@ router.get('/', verifyToken, async (req, res) => {
           {
             $group: {
               _id: '$recording',
-              maxWatchSeconds: { $max: '$watchDuration' }
+              // Accumulated across sessions: 15 min yesterday + 30 min today = 45 min.
+            maxWatchSeconds: { $sum: '$watchDuration' }
             }
           }
         ]);
@@ -305,11 +340,11 @@ router.get('/', verifyToken, async (req, res) => {
     const daySet = new Set(
       filteredRecordings
         .map((r) => Number(r?.courseDay))
-        .filter((d) => Number.isFinite(d) && d >= 1 && d <= 200)
+        .filter((d) => isValidJourneyDay(d))
     );
     let meetingsForDuration = [];
-    if (batchKeys.length && daySet.size) {
-      const batchOr = batchKeys.map((k) => ({ batch: new RegExp(`^${escapeRegex(k)}$`, 'i') }));
+    if (recordingBatchKeys.length && daySet.size) {
+      const batchOr = recordingBatchKeys.map((k) => ({ batch: new RegExp(`^${escapeRegex(k)}$`, 'i') }));
       meetingsForDuration = await MeetingLink.find({
         $or: batchOr,
         courseDay: { $in: Array.from(daySet) },
@@ -322,7 +357,7 @@ router.get('/', verifyToken, async (req, res) => {
       let durationSec = Number.isFinite(Number(r.duration)) ? Number(r.duration) : null;
       if (!durationSec || durationSec <= 0) {
         const recDay = Number(r?.courseDay);
-        if (Number.isFinite(recDay) && recDay >= 1 && recDay <= 200) {
+        if (isValidJourneyDay(recDay)) {
           const recBatches = Array.isArray(r?.batches) ? r.batches : [];
           const match = meetingsForDuration.find((m) =>
             Number(m?.courseDay) === recDay &&
@@ -361,8 +396,11 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     }
 
     const student = await User.findById(userId)
-      .select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
+      .select(`${SILVER_GO_STUDENT_SELECT} blockedJourneyLevels journeyAccessEnabled`)
+      .lean();
     if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+    await reconcileSilverGoCourseDay(userId);
+    await applySilverGoContentUnlockToStudent(student);
 
     const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
     if (!journeyAccess.enabled) {
@@ -383,27 +421,31 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     const courseDayParam = req.query.courseDay;
     const courseDayFilter =
       courseDayParam != null && Number.isFinite(Number(courseDayParam))
-        ? Math.min(200, Math.max(1, Math.floor(Number(courseDayParam))))
+        ? clampJourneyDay(Number(courseDayParam))
         : null;
 
     const studentLevel = String(student.level || 'A1').toUpperCase();
-    const batchKeys = allStudentBatchStringsForContent(student);
+    // Only recordings assigned to the student's own batch (Silver GO: class batch / GO track).
+    const batchKeys = recordingAccessBatchKeys(student);
 
+    const manualBatchFilter = batchKeys.length
+      ? { $or: batchKeys.map(bk => ({ batches: { $regex: batchRegex(bk) } })) }
+      : {};
     const manualBase = await ClassRecording.find({
       active: true,
       isPublished: { $ne: false },
       level: studentLevel,
-      plan: { $in: allowedRecordingPlansForStudent(student) }
+      plan: { $in: allowedRecordingPlansForStudent(student) },
+      ...manualBatchFilter
     })
       .populate('uploadedBy', 'name')
       .sort({ createdAt: -1 })
+      .limit(200)
       .lean();
 
     const manualFiltered = batchKeys.length
       ? manualBase.filter(
           (r) =>
-            Array.isArray(r.batches) &&
-            r.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b))) &&
             journeyCourseDayUnlockedForStudent(r, student) &&
             !isContentBlockedForStudent(student, { courseDay: r.courseDay, level: r.level })
         )
@@ -423,7 +465,8 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         {
           $group: {
             _id: '$recording',
-            maxWatchSeconds: { $max: '$watchDuration' }
+            // Accumulated across sessions: 15 min yesterday + 30 min today = 45 min.
+            maxWatchSeconds: { $sum: '$watchDuration' }
           }
         }
       ]);
@@ -457,19 +500,29 @@ router.get('/student-feed', verifyToken, async (req, res) => {
       watchedSeconds: watchedSecondsByRecording.get(String(r._id)) ?? 0
     }));
 
+    const zoomBatchFilter = batchKeys.length
+      ? { $or: batchKeys.map(bk => ({ accessBatches: { $regex: batchRegex(bk) } })) }
+      : {};
     const zoomRecordings = await ZoomRecording.find({
       status: 'ready',
-      isPublished: { $ne: false }
+      isPublished: { $ne: false },
+      ...zoomBatchFilter
     })
       .select('meetingLinkId r2Key duration status createdAt isPublished accessBatches accessLevel accessPlan')
+      .limit(200)
       .lean();
 
-    const approvedGrants = await RecordingAccessRequest.find({
+    const allAccessRequests = await RecordingAccessRequest.find({
       studentId: userId,
-      status: 'APPROVED'
-    }).select('meetingLinkId').lean();
+    })
+      .select('_id meetingLinkId status classTopic classDate studentBatch requestedAt')
+      .lean();
+
+    const approvedGrants = allAccessRequests.filter((r) => r.status === 'APPROVED');
     const grantedMeetingLinkIds = approvedGrants.map((g) => String(g.meetingLinkId));
     const grantedSet = new Set(grantedMeetingLinkIds);
+
+    const accessRequests = allAccessRequests;
 
     if (grantedMeetingLinkIds.length) {
       const grantedRecs = await ZoomRecording.find({
@@ -485,27 +538,27 @@ router.get('/student-feed', verifyToken, async (req, res) => {
       }
     }
 
-    const accessRequests = await RecordingAccessRequest.find({
-      studentId: userId,
-      status: { $in: ['PENDING', 'APPROVED', 'DECLINED'] },
-    })
-      .select('meetingLinkId status classTopic classDate studentBatch requestedAt')
-      .lean();
-
     const requestStatusPriority = { APPROVED: 3, PENDING: 2, DECLINED: 1 };
     const requestStatusByMeeting = new Map();
+    const pendingRequestIdByMeeting = new Map();
     for (const ar of accessRequests) {
       const mid = String(ar.meetingLinkId);
+      if (ar.status === 'PENDING') {
+        pendingRequestIdByMeeting.set(mid, String(ar._id));
+      }
       const prev = requestStatusByMeeting.get(mid);
       const nextPri = requestStatusPriority[ar.status] || 0;
-      const prevPri = prev ? (requestStatusPriority[prev] || 0) : 0;
-      if (!prev || nextPri > prevPri) requestStatusByMeeting.set(mid, ar.status);
+      const prevPri = prev ? (requestStatusPriority[prev.status] || 0) : 0;
+      if (!prev || nextPri > prevPri) {
+        requestStatusByMeeting.set(mid, { status: ar.status, requestId: String(ar._id) });
+      }
     }
 
     const zoomRecByMeeting = new Map();
     for (const z of zoomRecordings) {
       zoomRecByMeeting.set(String(z.meetingLinkId), z);
     }
+    let allZoomMeetingIds = zoomRecordings.map((z) => z.meetingLinkId);
     if (accessRequests.length) {
       const requestMeetingIds = accessRequests.map((a) => a.meetingLinkId);
       const requestZoomRecs = await ZoomRecording.find({
@@ -518,36 +571,39 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         const mid = String(z.meetingLinkId);
         if (!zoomRecByMeeting.has(mid)) zoomRecByMeeting.set(mid, z);
       }
+      allZoomMeetingIds = [...new Set([...allZoomMeetingIds, ...requestMeetingIds])];
     }
 
     let zoomItems = [];
-    if (zoomRecordings.length) {
-      const meetingLinkIds = zoomRecordings.map((z) => z.meetingLinkId);
-      const meetingLinks = await MeetingLink.find({ _id: { $in: meetingLinkIds } })
-        .select('_id topic batch startTime duration status attendance assignedTeacher courseDay')
-        .populate('assignedTeacher', 'name')
-        .lean();
-      const watchedByMeeting = new Map();
-      const watchAgg = await ZoomRecordingView.aggregate([
-        {
-          $match: {
-            student: new mongoose.Types.ObjectId(String(userId)),
-            meetingLinkId: { $in: meetingLinkIds },
-            watchDuration: { $gt: 0 }
-          }
-        },
-        {
-          $group: {
-            _id: '$meetingLinkId',
-            maxWatchSeconds: { $max: '$watchDuration' }
-          }
+    const meetingLinks = await MeetingLink.find({ _id: { $in: allZoomMeetingIds } })
+      .select('_id topic batch startTime duration status attendance assignedTeacher courseDay')
+      .populate('assignedTeacher', 'name')
+      .lean();
+    const meetingMap = {};
+    meetingLinks.forEach((m) => { meetingMap[String(m._id)] = m; });
+
+    const watchAgg = await ZoomRecordingView.aggregate([
+      {
+        $match: {
+          student: new mongoose.Types.ObjectId(String(userId)),
+          meetingLinkId: { $in: allZoomMeetingIds },
+          watchDuration: { $gt: 0 }
         }
-      ]);
-      for (const row of watchAgg) {
-        watchedByMeeting.set(String(row._id), Math.max(0, Math.round(Number(row?.maxWatchSeconds || 0) / 60)));
+      },
+      {
+        $group: {
+          _id: '$meetingLinkId',
+              // Accumulated across sessions.
+              maxWatchSeconds: { $sum: '$watchDuration' }
+        }
       }
-      const meetingMap = {};
-      meetingLinks.forEach((m) => { meetingMap[String(m._id)] = m; });
+    ]);
+    const watchedByMeeting = new Map();
+    for (const row of watchAgg) {
+      watchedByMeeting.set(String(row._id), Math.max(0, Math.round(Number(row?.maxWatchSeconds || 0) / 60)));
+    }
+
+    if (zoomRecordings.length) {
 
       zoomItems = zoomRecordings
         .filter((rec) => {
@@ -604,9 +660,16 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         return { ...r, accessRequestStatus: null, canPlay: true };
       }
       const mid = String(r.meetingLinkId || r.id);
-      const reqSt = requestStatusByMeeting.get(mid);
+      const reqInfo = requestStatusByMeeting.get(mid);
+      const reqSt = reqInfo?.status;
+      const pendingRequestId = pendingRequestIdByMeeting.get(mid) || null;
       if (reqSt === 'PENDING') {
-        return { ...r, accessRequestStatus: 'PENDING', canPlay: false };
+        return {
+          ...r,
+          accessRequestStatus: 'PENDING',
+          accessRequestId: pendingRequestId || reqInfo?.requestId || null,
+          canPlay: false,
+        };
       }
       if (reqSt === 'DECLINED') {
         return { ...r, accessRequestStatus: 'DECLINED', canPlay: false };
@@ -616,10 +679,11 @@ router.get('/student-feed', verifyToken, async (req, res) => {
         return {
           ...r,
           accessRequestStatus: 'APPROVED',
+          accessRequestId: pendingRequestId,
           canPlay: !!(zoomRec && zoomRec.status === 'ready'),
         };
       }
-      return { ...r, accessRequestStatus: null, canPlay: true };
+      return { ...r, accessRequestStatus: null, accessRequestId: pendingRequestId, canPlay: true };
     });
 
     const mergedZoomIds = new Set(
@@ -630,17 +694,9 @@ router.get('/student-feed', verifyToken, async (req, res) => {
     );
 
     if (missingRequests.length) {
-      const missingIds = missingRequests.map((ar) => ar.meetingLinkId);
-      const extraMeetings = await MeetingLink.find({ _id: { $in: missingIds } })
-        .select('_id topic batch startTime duration assignedTeacher courseDay')
-        .populate('assignedTeacher', 'name')
-        .lean();
-      const extraMeetingMap = {};
-      extraMeetings.forEach((m) => { extraMeetingMap[String(m._id)] = m; });
-
       for (const ar of missingRequests) {
         const mid = String(ar.meetingLinkId);
-        const meeting = extraMeetingMap[mid] || {};
+        const meeting = meetingMap[mid] || {};
         const zoomRec = zoomRecByMeeting.get(mid);
         merged.push({
           type: 'zoom',
@@ -659,6 +715,7 @@ router.get('/student-feed', verifyToken, async (req, res) => {
           courseDay: meeting.courseDay != null ? meeting.courseDay : null,
           watchedSeconds: 0,
           accessRequestStatus: ar.status,
+          accessRequestId: ar.status === 'PENDING' ? String(ar._id) : undefined,
           canPlay:
             ar.status === 'APPROVED' && !!(zoomRec && zoomRec.status === 'ready'),
         });
@@ -1181,7 +1238,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
       if (courseDay !== null && courseDay !== '') {
         const n = parseInt(String(courseDay), 10);
-        normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        normalizedCourseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
       }
     }
 
@@ -1239,7 +1296,7 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
       if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
         if (courseDay !== null && courseDay !== '') {
           const n = parseInt(String(courseDay), 10);
-          normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+          normalizedCourseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
         }
       }
 
@@ -1330,7 +1387,7 @@ router.post('/upload/prepare', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
     let normalizedCourseDay = null;
     if (courseDay !== null && courseDay !== '' && courseDay !== undefined) {
       const n = parseInt(String(courseDay), 10);
-      normalizedCourseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      normalizedCourseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
     }
 
     const recording = await ClassRecording.create({
@@ -1487,7 +1544,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER'])
         updatePayload.courseDay = null;
       } else {
         const n = parseInt(String(courseDay), 10);
-        updatePayload.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        updatePayload.courseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
       }
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'isPublished')) {
@@ -1630,24 +1687,51 @@ router.post('/:id/view', verifyToken, async (req, res) => {
         }
       }
     }
+    // Resume support: last playback position + total watch time across ALL previous sessions.
+    const [lastView, totalAgg] = await Promise.all([
+      RecordingView.findOne({ recording: req.params.id, student: req.user.id })
+        .sort({ lastUpdatedAt: -1 })
+        .select('lastPositionSec')
+        .lean(),
+      RecordingView.aggregate([
+        {
+          $match: {
+            recording: new mongoose.Types.ObjectId(String(req.params.id)),
+            student: new mongoose.Types.ObjectId(String(req.user.id))
+          }
+        },
+        { $group: { _id: null, totalWatchSeconds: { $sum: '$watchDuration' } } }
+      ])
+    ]);
     const view = await RecordingView.create({
       recording: req.params.id,
       student: req.user.id,
-      watchDuration: 0
+      watchDuration: 0,
+      lastPositionSec: Math.max(0, Number(lastView?.lastPositionSec || 0))
     });
-    res.json({ success: true, viewId: view._id });
+    res.json({
+      success: true,
+      viewId: view._id,
+      resumePositionSec: Math.max(0, Number(lastView?.lastPositionSec || 0)),
+      totalWatchedSeconds: Math.max(0, Number(totalAgg?.[0]?.totalWatchSeconds || 0))
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// PUT /api/class-recordings/view/:viewId — Update watch duration (called periodically)
+// PUT /api/class-recordings/view/:viewId — Update watch duration + playback position (called periodically)
 router.put('/view/:viewId', verifyToken, async (req, res) => {
   try {
     const watchDurationSec = Math.max(0, Number(req.body?.watchDuration || 0));
+    const positionSecRaw = Number(req.body?.positionSec);
+    const update = { watchDuration: watchDurationSec, lastUpdatedAt: new Date() };
+    if (Number.isFinite(positionSecRaw) && positionSecRaw >= 0) {
+      update.lastPositionSec = Math.round(positionSecRaw);
+    }
     const view = await RecordingView.findByIdAndUpdate(
       req.params.viewId,
-      { watchDuration: watchDurationSec, lastUpdatedAt: new Date() },
+      update,
       { new: true, select: 'recording student watchDuration' }
     );
 
@@ -1660,15 +1744,19 @@ router.put('/view/:viewId', verifyToken, async (req, res) => {
         const recording = await ClassRecording.findById(view.recording)
           .select('active courseDay duration batches level plan')
           .lean();
-        const studentLean = await User.findById(view.student)
-          .select('batch goStatus subscription level currentCourseDay')
-          .lean();
-        const isSilverGo = isSilverGoStudent(studentLean);
+        const isSilverGo = isSilverGoStudent(req.user);
         const recDurationSec = Number(recording?.duration || 0);
         const watchRatio = isSilverGo ? 0.9 : 0.75;
-        const watchedEnough = recDurationSec > 0 && watchDurationSec >= Math.ceil(recDurationSec * watchRatio);
+        // Total watch time across ALL sessions (e.g. 15 min yesterday + the rest today).
+        const totalAgg = await RecordingView.aggregate([
+          { $match: { recording: view.recording, student: view.student } },
+          { $group: { _id: null, totalWatchSeconds: { $sum: '$watchDuration' } } }
+        ]);
+        const totalWatchedSec = Math.max(0, Number(totalAgg?.[0]?.totalWatchSeconds || 0));
+        const watchedEnough = recDurationSec > 0 && totalWatchedSec >= Math.ceil(recDurationSec * watchRatio);
 
         if (recording?.active && watchedEnough) {
+          await SilverGoUnlockCache.deleteOne({ studentId: view.student });
           const advResult = await checkAndInstantlyAdvanceSilverGoStudent(String(view.student));
           if (advResult.advanced) {
             journeyAdvanced = true;
@@ -1769,25 +1857,52 @@ router.post('/zoom/:meetingLinkId/view', verifyToken, async (req, res) => {
         }
       }
     }
+    // Resume support: last playback position + total watch time across ALL previous sessions.
+    const [lastView, totalAgg] = await Promise.all([
+      ZoomRecordingView.findOne({ meetingLinkId, student: req.user.id })
+        .sort({ lastUpdatedAt: -1 })
+        .select('lastPositionSec')
+        .lean(),
+      ZoomRecordingView.aggregate([
+        {
+          $match: {
+            meetingLinkId: new mongoose.Types.ObjectId(String(meetingLinkId)),
+            student: new mongoose.Types.ObjectId(String(req.user.id))
+          }
+        },
+        { $group: { _id: null, totalWatchSeconds: { $sum: '$watchDuration' } } }
+      ])
+    ]);
     const view = await ZoomRecordingView.create({
       meetingLinkId,
       student: req.user.id,
       watchDuration: 0,
+      lastPositionSec: Math.max(0, Number(lastView?.lastPositionSec || 0)),
     });
-    res.json({ success: true, viewId: view._id });
+    res.json({
+      success: true,
+      viewId: view._id,
+      resumePositionSec: Math.max(0, Number(lastView?.lastPositionSec || 0)),
+      totalWatchedSeconds: Math.max(0, Number(totalAgg?.[0]?.totalWatchSeconds || 0))
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// PUT /api/class-recordings/zoom/view/:viewId — Update Zoom watch duration
+// PUT /api/class-recordings/zoom/view/:viewId — Update Zoom watch duration + playback position
 router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
   try {
     const watchDurationSec = Math.max(0, Number(req.body?.watchDuration || 0));
-    const view = await ZoomRecordingView.findByIdAndUpdate(req.params.viewId, {
+    const positionSecRaw = Number(req.body?.positionSec);
+    const zoomUpdate = {
       watchDuration: watchDurationSec,
       lastUpdatedAt: new Date(),
-    }, {
+    };
+    if (Number.isFinite(positionSecRaw) && positionSecRaw >= 0) {
+      zoomUpdate.lastPositionSec = Math.round(positionSecRaw);
+    }
+    const view = await ZoomRecordingView.findByIdAndUpdate(req.params.viewId, zoomUpdate, {
       new: true,
       select: 'meetingLinkId student watchDuration'
     });
@@ -1805,10 +1920,16 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
       );
       const day = Number(meeting?.courseDay);
       const studentLean = await User.findById(view.student)
-        .select('batch goStatus subscription level currentCourseDay')
+        .select(SILVER_GO_STUDENT_SELECT)
         .lean();
       const isSilverGo = isSilverGoStudent(studentLean);
       const completionWatchRatio = isSilverGo ? 0.9 : 0.75;
+      // Total watch time across ALL sessions (e.g. 15 min yesterday + the rest today).
+      const totalAgg = await ZoomRecordingView.aggregate([
+        { $match: { meetingLinkId: view.meetingLinkId, student: view.student } },
+        { $group: { _id: null, totalWatchSeconds: { $sum: '$watchDuration' } } }
+      ]);
+      const totalWatchedSec = Math.max(0, Number(totalAgg?.[0]?.totalWatchSeconds || 0));
       const isEligibleGate =
         !!meeting &&
         meeting.status !== 'cancelled' &&
@@ -1816,57 +1937,57 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
         day >= 1 &&
         Number.isFinite(recordingDurationSec) &&
         recordingDurationSec > 0 &&
-        watchDurationSec >= Math.ceil(recordingDurationSec * completionWatchRatio);
+        totalWatchedSec >= Math.ceil(recordingDurationSec * completionWatchRatio);
 
       if (isEligibleGate) {
         const dayInt = Math.floor(day);
-        const nextDay = Math.min(200, dayInt + 1);
-        const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
-        const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
-        const primary = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
-        const cfgDoc = primary
-          ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
-          : null;
 
-        let allowInstantAdvance = true;
         if (isSilverGo) {
-          const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
-            creditMeetings: meeting?._id ? [meeting._id] : [],
-            includeRecordings: true,
-            includeDg: true,
-            includeLearningModules: false,
-            studentLevel: studentLean?.level,
-            studentPlan: studentLean?.subscription,
-            goStatus: studentLean?.goStatus,
-            subscription: studentLean?.subscription
-          });
-          allowInstantAdvance = !!comp.complete;
-        } else if (cfgDoc && cfgDoc.strictJourneyRule) {
-          const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
-            creditMeetings: meeting?._id ? [meeting._id] : []
-          });
-          allowInstantAdvance = meetsStrictThreshold(comp, cfgDoc);
-        }
+          await SilverGoUnlockCache.deleteOne({ studentId: view.student });
+          const advResult = await checkAndInstantlyAdvanceSilverGoStudent(String(view.student));
+          if (advResult.advanced) {
+            return res.json({
+              success: true,
+              journeyAdvanced: true,
+              previousCourseDay: advResult.previousDay,
+              newCourseDay: advResult.newDay
+            });
+          }
+        } else {
+          const nextDay = Math.min(200, dayInt + 1);
+          const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
+          const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+          const primary = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
+          const cfgDoc = primary
+            ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
+            : null;
 
-        if (allowInstantAdvance) {
-          const advancedNow = await User.updateOne(
-            { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
-            {
-              $set: withJourneyLevelInSet(
-                nextDay,
-                {
-                  currentCourseDay: nextDay,
-                  pendingJourneyDayAdvance: false,
-                  pendingJourneyDayAdvanceForDay: null
-                },
-                { student: studentLean }
-              )
+          let allowInstantAdvance = true;
+          if (cfgDoc && cfgDoc.strictJourneyRule) {
+            const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
+              creditMeetings: meeting?._id ? [meeting._id] : []
+            });
+            allowInstantAdvance = meetsStrictThreshold(comp, cfgDoc);
+          }
+
+          if (allowInstantAdvance) {
+            const advancedNow = await User.updateOne(
+              { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
+              {
+                $set: withJourneyLevelInSet(
+                  nextDay,
+                  {
+                    currentCourseDay: nextDay,
+                    pendingJourneyDayAdvance: false,
+                    pendingJourneyDayAdvanceForDay: null
+                  },
+                  { student: studentLean }
+                )
+              }
+            );
+            if (advancedNow?.modifiedCount) {
+              return res.json({ success: true, journeyAdvanced: true, previousCourseDay: dayInt, newCourseDay: nextDay });
             }
-          );
-          if (advancedNow?.modifiedCount) {
-            console.log(`🚀 [Instant Advance] Zoom recording Silver GO student ${view.student}: Day ${dayInt} → ${nextDay}`);
-            return res.json({ success: true, journeyAdvanced: true, previousCourseDay: dayInt, newCourseDay: nextDay });
-          } else {
             await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
           }
         }
@@ -1911,7 +2032,8 @@ router.get('/zoom/:meetingLinkId/views', verifyToken, checkRole(['ADMIN', 'TEACH
 
     const access = normalizeZoomAccessSettings(zoomRec, meeting);
     const batchStudents = allStudents.filter((s) => {
-      const keys = allStudentBatchStringsForContent(s);
+      // Same keys as student visibility, so admin analytics match what students see.
+      const keys = recordingAccessBatchKeys(s);
       if (!keys.length || !access.batches.length) return false;
       const inBatch = access.batches.some((b) => keys.some((k) => batchesAlign(k, b)));
       if (!inBatch) return false;
@@ -2073,7 +2195,8 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
         {
           $group: {
             _id: '$meetingLinkId',
-            maxWatchSeconds: { $max: '$watchDuration' }
+            // Accumulated across sessions: 15 min yesterday + 30 min today = 45 min.
+            maxWatchSeconds: { $sum: '$watchDuration' }
           }
         }
       ]);
@@ -2339,7 +2462,7 @@ router.put('/zoom/:meetingLinkId/meta', verifyToken, checkRole(['ADMIN', 'TEACHE
         meeting.courseDay = null;
       } else {
         const n = parseInt(String(courseDay), 10);
-        meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+        meeting.courseDay = Number.isFinite(n) ? clampJourneyDay(n) : null;
       }
     }
 

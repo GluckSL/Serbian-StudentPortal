@@ -16,9 +16,14 @@ const scrambleRushService = require('../services/interactiveGames/scrambleRush')
 const sentenceBuilderService = require('../services/interactiveGames/sentenceBuilder');
 const imageMatchingService = require('../services/interactiveGames/imageMatching');
 const genderStackService = require('../services/interactiveGames/genderStack');
+const memoryService = require('../services/interactiveGames/memory');
+const jumbledWordsService = require('../services/interactiveGames/jumbledWords');
+const hangmanService = require('../services/interactiveGames/hangman');
+const wordPictureMatchService = require('../services/interactiveGames/wordPictureMatch');
+const multipleChoiceService = require('../services/interactiveGames/multipleChoice');
 const leaderboardService = require('../services/interactiveGames/leaderboard');
 const xpService = require('../services/interactiveGames/xp');
-const { uploadThumbnail, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
+const { uploadThumbnail, uploadTapBoxesBackground, uploadQuestionAudio, uploadQuestionImage, uploadPairImage } = require('../services/interactiveGames/mediaUpload');
 const { presignMediaUrl, resignMediaInObject, resignMediaInObjects } = require('../config/presign');
 const analyticsService = require('../services/interactiveGames/analytics');
 const securityService = require('../services/interactiveGames/security');
@@ -26,16 +31,18 @@ const dailyChallengesService = require('../services/interactiveGames/dailyChalle
 const achievementsService = require('../services/interactiveGames/achievements');
 const teacherAnalyticsService = require('../services/interactiveGames/teacherAnalytics');
 const importService = require('../services/interactiveGames/import');
+const wordSearchService = require('../services/interactiveGames/wordSearch');
 const cacheService = require('../services/interactiveGames/cache');
 const questsService = require('../services/interactiveGames/quests');
 const { normalizeBatchKeys } = require('../utils/batchTargeting');
+const { parseAdminCourseDay } = require('../utils/journeyDay');
 const { germanUppercase, trimGermanWord } = require('../utils/germanText');
 
-const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort'];
+const VALID_GAME_TYPES = ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice', 'spin_wheel', 'tap_boxes', 'word_search'];
 const VALID_DIFFICULTIES = ['Beginner', 'Intermediate', 'Advanced'];
 const VALID_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const VALID_CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
-const ARENA_STAFF_ROLES = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
+const ARENA_STAFF_ROLES = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'];
 
 function isArenaStaff(role) {
   return ARENA_STAFF_ROLES.includes(role);
@@ -64,6 +71,20 @@ function normalizeGenderStackSettings(raw) {
   };
 }
 
+function normalizeSpinWheelSettings(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const label = String(src.centerLabel || '').trim();
+  return { centerLabel: label || 'ergänze den Satz!' };
+}
+
+function normalizeTapBoxesSettings(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const url = src.backgroundUrl == null || src.backgroundUrl === ''
+    ? null
+    : String(src.backgroundUrl).trim() || null;
+  return { backgroundUrl: url };
+}
+
 function badRequest(res, msg) { return res.status(400).json({ success: false, message: msg }); }
 function notFound(res, msg = 'Not found') { return res.status(404).json({ success: false, message: msg }); }
 function serverError(res, err) {
@@ -89,6 +110,59 @@ exports.getArenaAccess = async (req, res) => {
   try {
     const result = await journeyFilterService.hasArenaAccess(req.user.id);
     res.json({ success: true, ...result });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
+/** Attach best score + play count for a student across game sets. */
+async function attachStudentProgressToSets(studentId, sets) {
+  if (!studentId || !sets.length) return sets;
+  const setIds = sets.map((s) => s._id);
+  const studentObjId = new mongoose.Types.ObjectId(String(studentId));
+  const bestAttempts = await GameAttempt.aggregate([
+    { $match: { studentId: studentObjId, gameSetId: { $in: setIds }, status: 'completed' } },
+    { $sort: { score: -1 } },
+    { $group: { _id: '$gameSetId', bestScore: { $max: '$score' }, count: { $sum: 1 } } },
+  ]);
+  const studentStats = {};
+  bestAttempts.forEach((a) => {
+    studentStats[String(a._id)] = { bestScore: a.bestScore, timesPlayed: a.count };
+  });
+  return sets.map((s) => ({
+    ...s,
+    studentProgress: studentStats[String(s._id)] || { bestScore: null, timesPlayed: 0 },
+  }));
+}
+
+// ── STUDENT — Journey day map (My Course → Journey to Germany) ───────────────
+
+exports.getJourneyGames = async (req, res) => {
+  try {
+    if (req.user.role !== 'STUDENT') {
+      return res.status(403).json({ success: false, message: 'Students only' });
+    }
+    const access = await journeyFilterService.hasArenaAccess(req.user.id);
+    const filter = await journeyFilterService.buildStudentFilter(req.user.id);
+    Object.assign(filter, {
+      courseDay: { $ne: null, $gte: 0, $lte: 200 },
+      targetLanguage: 'German',
+    });
+
+    const sets = await GameSet.find(filter)
+      .select('-__v')
+      .sort({ courseDay: 1, sequenceLetter: 1, title: 1 })
+      .lean();
+
+    let items = await attachStudentProgressToSets(req.user.id, sets);
+    await resignMediaInObjects(items);
+
+    res.json({
+      success: true,
+      items,
+      hasArenaAccess: access.hasAccess,
+      gameCount: access.gameCount,
+    });
   } catch (err) {
     serverError(res, err);
   }
@@ -133,26 +207,10 @@ exports.getCatalog = async (req, res) => {
       GameSet.countDocuments(filter),
     ]);
 
-    // Attach student's best score + completion status if authenticated student
-    let studentStats = {};
+    let items = sets;
     if (req.user.role === 'STUDENT' && sets.length) {
-      const setIds = sets.map(s => s._id);
-      const mongoose = require('mongoose');
-      const studentObjId = new mongoose.Types.ObjectId(req.user.id);
-      const bestAttempts = await GameAttempt.aggregate([
-        { $match: { studentId: studentObjId, gameSetId: { $in: setIds }, status: 'completed' } },
-        { $sort: { score: -1 } },
-        { $group: { _id: '$gameSetId', bestScore: { $max: '$score' }, count: { $sum: 1 } } },
-      ]);
-      bestAttempts.forEach(a => {
-        studentStats[String(a._id)] = { bestScore: a.bestScore, timesPlayed: a.count };
-      });
+      items = await attachStudentProgressToSets(req.user.id, sets);
     }
-
-    const items = sets.map(s => ({
-      ...s,
-      studentProgress: studentStats[String(s._id)] || { bestScore: null, timesPlayed: 0 },
-    }));
 
     await resignMediaInObjects(items);
 
@@ -210,7 +268,7 @@ exports.startAttempt = async (req, res) => {
     // Determine attempt number
     const prevCount = await GameAttempt.countDocuments({ studentId: req.user.id, gameSetId: set._id });
 
-    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' ? 5 : 3;
+    const initialLives = set.gameType === 'gender_stack' || set.gameType === 'flapjugation' || set.gameType === 'whackawort' || set.gameType === 'memory' || set.gameType === 'word_search' ? 5 : set.gameType === 'jumbled_words' || set.gameType === 'hangman' || set.gameType === 'spin_wheel' || set.gameType === 'tap_boxes' ? 99 : 3;
     const attempt = await GameAttempt.create({
       studentId: req.user.id,
       gameSetId: set._id,
@@ -267,6 +325,38 @@ exports.startAttempt = async (req, res) => {
         const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, sentenceAudioUrl: _sau, randomizeWords: _rw, pairs: _p, tokens: _tk, __v: _v, ...safe } = q;
         return safe;
       }
+      if (set.gameType === 'memory') {
+        // Word is needed for display on word cards — include it
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, __v: _v, ...safe } = q;
+        return safe;
+      }
+      if (set.gameType === 'jumbled_words') {
+        // Expose jumbled letters + word for per-slot validation; hide rest
+        const jumbled = jumbledWordsService.attachJumbled([q])[0];
+        const { articleGender: _ag, hint: _h, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = jumbled;
+        return safe;
+      }
+      if (set.gameType === 'hangman') {
+        // Expose word + hint + letter count for client-side hangman game
+        const { articleGender: _ag, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, __v: _v, ...safe } = q;
+        return { ...safe, letterCount: (q.word || '').length };
+      }
+      if (set.gameType === 'word_picture_match') {
+        // Expose pairs with word + imageUrl for client-side display; word is shown to student
+        const { articleGender: _ag, hint: _h, imageUrl: _img, audioUrl: _au, difficultyLevel: _dl, fallDurationSeconds: _fds, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, __v: _v, ...safe } = q;
+        return safe;
+      }
+      if (set.gameType === 'multiple_choice') {
+        // Strip isCorrect from options — never expose correct answers to client
+        return multipleChoiceService.sanitizeQuestions([q])[0];
+      }
+      if (set.gameType === 'spin_wheel' || set.gameType === 'tap_boxes') {
+        const { word: _w, imageUrl: _img, audioUrl: _au, articleGender: _ag, correctSentence: _cs, translation: _tr, sentenceAudioUrl: _sau, randomizeWords: _rw, tokens: _tk, pairs: _p, options: _opt, questionText: _qt, category: _cat, difficultyLevel: _dl, fallDurationSeconds: _fds, __v: _v, ...safe } = q;
+        return { ...safe, phrase: String(q.hint || '').trim() };
+      }
+      if (set.gameType === 'word_search') {
+        return wordSearchService.attachPuzzle(q);
+      }
       const { __v: _v, ...safe } = q;
       return safe;
     });
@@ -277,9 +367,9 @@ exports.startAttempt = async (req, res) => {
       levels = await GameLevel.find({ gameSetId: set._id }).sort({ levelNumber: 1 }).lean();
     }
 
-    // For image_matching, send shuffled words for drag-drop UI
+    // For image_matching and memory, send shuffled words for drag-drop/card UI
     let shuffledWords = [];
-    if (set.gameType === 'image_matching') {
+    if (set.gameType === 'image_matching' || set.gameType === 'memory' || set.gameType === 'word_picture_match') {
       const allWords = [];
       questions.forEach(q => {
         if (q.pairs) {
@@ -289,14 +379,12 @@ exports.startAttempt = async (req, res) => {
         }
       });
       shuffledWords = imageMatchingService.shuffleWords(allWords);
+    } else if (set.gameType === 'matching' || set.gameType === 'flashcards') {
+      const hints = questions.map(q => q.hint).filter(Boolean);
+      shuffledWords = imageMatchingService.shuffleWords(hints);
     }
 
-    // Presign any S3 media URLs in both the set and the sanitized questions
-    // (pairs[].imageUrl, etc.) so the browser can load them even if the bucket is private.
-    await Promise.all([
-      resignMediaInObject(set),
-      resignMediaInObject(sanitized),
-    ]);
+    await resignMediaInObject(set);
 
     res.json({
       success: true,
@@ -421,8 +509,6 @@ exports.submitImageMatchSlot = async (req, res) => {
       return badRequest(res, 'questionId, pairIndex and word required');
     }
 
-    // Validate attempt is active (skip full validateAnswerSubmission which blocks
-    // multiple answers per question — image_matching needs one answer per pair)
     const active = securityService.validateAttemptActive(attempt);
     if (!active.ok) {
       return res.status(400).json({ success: false, message: active.message });
@@ -457,7 +543,6 @@ exports.submitImageMatchSlot = async (req, res) => {
     pointsEarned = result.points;
 
     if (!staffPreview) {
-      // Check if this pair was already matched
       const existingAnswer = await GameAnswer.findOne({
         attemptId: attempt._id,
         questionId: question._id,
@@ -478,8 +563,6 @@ exports.submitImageMatchSlot = async (req, res) => {
         });
       }
 
-      // Record the answer — use pairIndex as slotIndex so the unique compound index
-      // (attemptId + questionId + slotIndex) supports multiple pairs per question
       await GameAnswer.create({
         attemptId: attempt._id,
         questionId: question._id,
@@ -530,6 +613,199 @@ exports.submitImageMatchSlot = async (req, res) => {
   }
 };
 
+// ── STUDENT — Word-Picture Match (instant per-match) ───────────────────────────
+
+exports.submitWordPictureMatchSlot = async (req, res) => {
+  try {
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
+    if (!attempt) return notFound(res, 'Attempt not found');
+    if (!ownsAttempt(attempt, req)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (attempt.gameType !== 'word_picture_match') {
+      return badRequest(res, 'Invalid game type for word-picture match');
+    }
+
+    const { questionId, pairIndex, word, responseTimeMs } = req.body;
+    if (!questionId || pairIndex === undefined || pairIndex === null || !word) {
+      return badRequest(res, 'questionId, pairIndex and word required');
+    }
+
+    const active = securityService.validateAttemptActive(attempt);
+    if (!active.ok) {
+      return res.status(400).json({ success: false, message: active.message });
+    }
+
+    const question = await GameQuestion.findOne({
+      _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
+    }).lean();
+    if (!question) return notFound(res, 'Question not found');
+
+    const result = wordPictureMatchService.evaluateMatch(question, word, pairIndex);
+    const staffPreview = isArenaStaff(req.user.role);
+
+    if (!result.isCorrect) {
+      return res.json({
+        success: true,
+        isCorrect: false,
+        pointsEarned: 0,
+      });
+    }
+
+    const pointsEarned = result.points;
+
+    if (!staffPreview) {
+      const existingAnswer = await GameAnswer.findOne({
+        attemptId: attempt._id,
+        questionId: question._id,
+        slotIndex: pairIndex,
+      }).lean();
+      if (existingAnswer) {
+        return res.json({
+          success: true,
+          isCorrect: true,
+          alreadyMatched: true,
+          pointsEarned: 0,
+        });
+      }
+
+      await GameAnswer.create({
+        attemptId: attempt._id,
+        questionId: question._id,
+        studentId: req.user.id,
+        typedWord: String(word).trim(),
+        slotIndex: pairIndex,
+        responseTimeMs: responseTimeMs || 0,
+        isCorrect: true,
+        pointsEarned,
+      });
+
+      const totalPairs = await GameAnswer.countDocuments({
+        attemptId: attempt._id, isCorrect: true,
+      });
+      const questionCount = attempt.totalQuestions || 1;
+
+      await GameAttempt.findByIdAndUpdate(attempt._id, {
+        $inc: { score: pointsEarned, correctAnswers: 1, wordsCompleted: 1 },
+      });
+      const xpAmount = scoringService.perAnswerXp('word_picture_match');
+      await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
+    }
+
+    res.json({
+      success: true,
+      isCorrect: true,
+      pointsEarned,
+    });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
+// ── STUDENT — Memory game match (per-pair instant feedback) ────────────────────
+
+exports.submitMemoryMatch = async (req, res) => {
+  try {
+    const attempt = await GameAttempt.findById(req.params.attemptId).lean();
+    if (!attempt) return notFound(res, 'Attempt not found');
+    if (!ownsAttempt(attempt, req)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (attempt.gameType !== 'memory') {
+      return badRequest(res, 'Invalid game type for memory match');
+    }
+
+    const { questionId, pairIndex, word, responseTimeMs } = req.body;
+    if (!questionId || pairIndex === undefined || pairIndex === null || !word) {
+      return badRequest(res, 'questionId, pairIndex and word required');
+    }
+
+    const active = securityService.validateAttemptActive(attempt);
+    if (!active.ok) {
+      return res.status(400).json({ success: false, message: active.message });
+    }
+
+    const question = await GameQuestion.findOne({
+      _id: questionId, gameSetId: attempt.gameSetId, isDeleted: { $ne: true },
+    }).lean();
+    if (!question) return notFound(res, 'Question not found');
+
+    const result = memoryService.evaluateMatch(question, pairIndex, word);
+    const staffPreview = isArenaStaff(req.user.role);
+
+    if (!result.isCorrect) {
+      return res.json({
+        success: true,
+        isCorrect: false,
+        pointsEarned: 0,
+      });
+    }
+
+    const pointsEarned = result.points;
+
+    if (!staffPreview) {
+      const existingAnswer = await GameAnswer.findOne({
+        attemptId: attempt._id,
+        questionId: question._id,
+        slotIndex: pairIndex,
+      }).lean();
+      if (existingAnswer) {
+        return res.json({
+          success: true,
+          isCorrect: true,
+          alreadyMatched: true,
+          pointsEarned: 0,
+        });
+      }
+
+      await GameAnswer.create({
+        attemptId: attempt._id,
+        questionId: question._id,
+        studentId: req.user.id,
+        typedWord: String(word).trim(),
+        slotIndex: pairIndex,
+        responseTimeMs: responseTimeMs || 0,
+        isCorrect: true,
+        pointsEarned,
+      });
+
+      const totalPairs = question.pairs ? question.pairs.length : 0;
+      const correctMatches = await GameAnswer.countDocuments({
+        attemptId: attempt._id, isCorrect: true,
+      });
+      const questionComplete = correctMatches >= totalPairs;
+
+      if (questionComplete) {
+        await GameAttempt.findByIdAndUpdate(attempt._id, {
+          $inc: { score: pointsEarned, correctAnswers: 1, wordsCompleted: 1 },
+        });
+        const xpAmount = scoringService.perAnswerXp('memory');
+        await xpService.award(req.user.id, attempt._id, attempt.gameSetId, 'answer_correct', xpAmount);
+      } else {
+        await GameAttempt.findByIdAndUpdate(attempt._id, { $inc: { score: pointsEarned } });
+      }
+
+      return res.json({
+        success: true,
+        isCorrect: true,
+        pointsEarned,
+        questionComplete,
+        correctMatches,
+        totalPairs,
+      });
+    }
+
+    res.json({
+      success: true,
+      isCorrect: true,
+      pointsEarned,
+      preview: true,
+    });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
 // ── STUDENT — Submit answer ────────────────────────────────────────────────────
 
 exports.submitAnswer = async (req, res) => {
@@ -541,7 +817,7 @@ exports.submitAnswer = async (req, res) => {
     }
 
     const staffPreview = isArenaStaff(req.user.role);
-    const { questionId, typedWord, orderedTokens, articleGender, responseTimeMs, questionElapsedMs } = req.body;
+    const { questionId, typedWord, orderedTokens, articleGender, selectedIndex, responseTimeMs, questionElapsedMs } = req.body;
     if (!questionId) return badRequest(res, 'questionId required');
 
     const validation = await securityService.validateAnswerSubmission(attempt, questionId, responseTimeMs);
@@ -594,6 +870,33 @@ exports.submitAnswer = async (req, res) => {
       if (result.pairIndex >= 0 && question.pairs && question.pairs[result.pairIndex]) {
         correctAnswer.word = question.pairs[result.pairIndex].word;
       }
+    } else if (attempt.gameType === 'jumbled_words') {
+      // Student typed word formed by arranging jumbled letters
+      const letters = Array.isArray(orderedTokens) ? orderedTokens.join('') : (typedWord || '');
+      const result = jumbledWordsService.evaluateAnswer(question, letters);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      correctAnswer.word = question.word;
+    } else if (attempt.gameType === 'hangman') {
+      const result = hangmanService.evaluateAnswer(question, typedWord);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      correctAnswer.word = question.word;
+    } else if (attempt.gameType === 'word_picture_match') {
+      const result = wordPictureMatchService.evaluateMatch(question, typedWord);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      if (result.pairIndex >= 0 && question.pairs && question.pairs[result.pairIndex]) {
+        correctAnswer.word = question.pairs[result.pairIndex].word;
+      }
+    } else if (attempt.gameType === 'multiple_choice') {
+      const result = multipleChoiceService.evaluateAnswer(question, selectedIndex);
+      isCorrect = result.isCorrect;
+      pointsEarned = result.points;
+      correctAnswer.correctIndex = result.correctIndex;
+      if (result.correctIndex >= 0 && question.options && question.options[result.correctIndex]) {
+        correctAnswer.text = question.options[result.correctIndex].text;
+      }
     } else if (attempt.gameType === 'gender_stack') {
       if (!articleGender) return badRequest(res, 'articleGender required');
       const result = genderStackService.evaluateAnswer(question, articleGender);
@@ -612,6 +915,18 @@ exports.submitAnswer = async (req, res) => {
           preview: true,
         });
       }
+    } else if (attempt.gameType === 'matching') {
+      const selected = String(typedWord || '').trim().toLowerCase();
+      const expected = String(question.hint || '').trim().toLowerCase();
+      isCorrect = !!expected && selected === expected;
+      pointsEarned = isCorrect ? scoringService.basePoints('matching') : 0;
+      correctAnswer.hint = question.hint;
+    } else if (attempt.gameType === 'flashcards') {
+      const selected = String(typedWord || '').trim().toLowerCase();
+      const expected = String(question.word || '').trim().toLowerCase();
+      isCorrect = !!expected && selected === expected;
+      pointsEarned = isCorrect ? scoringService.basePoints('flashcards') : 0;
+      correctAnswer.word = question.word;
     }
 
     // Save answer record - update existing if wrong answer exists, else create new
@@ -813,7 +1128,7 @@ exports.adminListSets = async (req, res) => {
 exports.adminCreateSet = async (req, res) => {
   try {
     const { title, description, gameType, difficulty, level, category, tags, xpReward,
-            timerSettings, genderStackSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
+            timerSettings, genderStackSettings, spinWheelSettings, tapBoxesSettings, visibleToStudents, courseDay, sequenceLetter, targetLanguage,
             icon, estimatedDurationMinutes, targetBatches } = req.body;
 
     if (!title || !title.trim()) return badRequest(res, 'title required');
@@ -831,8 +1146,10 @@ exports.adminCreateSet = async (req, res) => {
       xpReward: Math.max(0, parseInt(xpReward, 10) || 50),
       timerSettings: timerSettings || {},
       genderStackSettings: normalizeGenderStackSettings(genderStackSettings),
+      spinWheelSettings: normalizeSpinWheelSettings(spinWheelSettings),
+      tapBoxesSettings: normalizeTapBoxesSettings(tapBoxesSettings),
       visibleToStudents: !!visibleToStudents,
-      courseDay: courseDay ? Number(courseDay) : null,
+      courseDay: parseAdminCourseDay(courseDay),
       sequenceLetter: sequenceLetter || null,
       targetLanguage: ['English', 'German'].includes(targetLanguage) ? targetLanguage : 'German',
       icon: icon || 'sports_esports',
@@ -872,7 +1189,7 @@ exports.adminGetSet = async (req, res) => {
 exports.adminUpdateSet = async (req, res) => {
   try {
     const allowedFields = ['title', 'description', 'difficulty', 'level', 'category', 'tags',
-      'xpReward', 'timerSettings', 'genderStackSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
+      'xpReward', 'timerSettings', 'genderStackSettings', 'spinWheelSettings', 'tapBoxesSettings', 'visibleToStudents', 'courseDay', 'sequenceLetter',
       'targetLanguage', 'icon', 'estimatedDurationMinutes', 'isPublished', 'isArchived'];
 
     const updates = {};
@@ -880,11 +1197,18 @@ exports.adminUpdateSet = async (req, res) => {
       if (req.body[f] !== undefined) {
         updates[f] = f === 'genderStackSettings'
           ? normalizeGenderStackSettings(req.body[f])
-          : req.body[f];
+          : f === 'spinWheelSettings'
+            ? normalizeSpinWheelSettings(req.body[f])
+            : f === 'tapBoxesSettings'
+              ? normalizeTapBoxesSettings(req.body[f])
+              : req.body[f];
       }
     }
     if (req.body.targetBatches !== undefined) {
       updates.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
+    }
+    if (updates.courseDay !== undefined) {
+      updates.courseDay = parseAdminCourseDay(updates.courseDay);
     }
     updates.updatedBy = req.user.id;
 
@@ -941,6 +1265,36 @@ exports.adminUploadThumbnail = async (req, res) => {
   }
 };
 
+exports.adminUploadTapBoxesBackground = async (req, res) => {
+  try {
+    const existing = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
+    if (!existing) return notFound(res);
+    if (existing.gameType !== 'tap_boxes') {
+      return badRequest(res, 'Background upload is only for Tap the Boxes game sets');
+    }
+
+    const canonicalUrl = await uploadTapBoxesBackground(req, res);
+    if (!canonicalUrl) return;
+
+    const set = await GameSet.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          'tapBoxesSettings.backgroundUrl': canonicalUrl,
+          updatedBy: req.user.id,
+        },
+      },
+      { new: true }
+    );
+    if (!set) return notFound(res);
+
+    const backgroundUrl = await presignMediaUrl(canonicalUrl);
+    res.json({ success: true, backgroundUrl, canonicalUrl });
+  } catch (err) {
+    serverError(res, err);
+  }
+};
+
 // ── ADMIN — Questions ──────────────────────────────────────────────────────────
 
 exports.adminGetQuestions = async (req, res) => {
@@ -956,6 +1310,9 @@ exports.adminGetQuestions = async (req, res) => {
 
 exports.adminUpsertQuestions = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(String(req.params.id || ''))) {
+      return badRequest(res, 'Save the game set in Game Details first, then add questions.');
+    }
     const set = await GameSet.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).lean();
     if (!set) return notFound(res);
 
@@ -991,6 +1348,137 @@ exports.adminUpsertQuestions = async (req, res) => {
       }
     }
 
+    if (set.gameType === 'jumbled_words') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: German word required`);
+        if (!String(q.hint || '').trim() && !String(q.imageUrl || '').trim()) {
+          return badRequest(res, `Question ${i + 1}: hint or imageUrl required`);
+        }
+      }
+    }
+
+    if (set.gameType === 'hangman') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!trimGermanWord(q.word)) return badRequest(res, `Question ${i + 1}: German word required`);
+        if (!String(q.hint || '').trim()) return badRequest(res, `Question ${i + 1}: hint required`);
+      }
+    }
+
+    if (set.gameType === 'memory') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!Array.isArray(q.pairs) || q.pairs.length === 0) {
+          return badRequest(res, `Question ${i + 1}: at least one pair required`);
+        }
+        if (q.pairs.length > 8) {
+          return badRequest(res, `Question ${i + 1}: maximum 8 pairs per board (4x4)`);
+        }
+        for (let j = 0; j < q.pairs.length; j++) {
+          const p = q.pairs[j];
+          if (!trimGermanWord(p.word)) return badRequest(res, `Question ${i + 1}, pair ${j + 1}: German word required`);
+        }
+      }
+    }
+
+    if (set.gameType === 'word_picture_match') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!Array.isArray(q.pairs) || q.pairs.length === 0) {
+          return badRequest(res, `Question ${i + 1}: at least one pair required`);
+        }
+        if (q.pairs.length > 6) {
+          return badRequest(res, `Question ${i + 1}: maximum 6 pairs per board`);
+        }
+        for (let j = 0; j < q.pairs.length; j++) {
+          const p = q.pairs[j];
+          if (!trimGermanWord(p.word)) return badRequest(res, `Question ${i + 1}, pair ${j + 1}: German word required`);
+        }
+      }
+    }
+
+    if (set.gameType === 'spin_wheel') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const phrase = String(q.hint || q.phrase || '').trim();
+        if (!phrase) return badRequest(res, `Question ${i + 1}: wheel phrase required`);
+      }
+      if (questions.length < 2) {
+        return badRequest(res, 'Spin wheel needs at least 2 segments');
+      }
+    }
+
+    if (set.gameType === 'tap_boxes') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const phrase = String(q.hint || q.phrase || '').trim();
+        if (!phrase) return badRequest(res, `Question ${i + 1}: box phrase required`);
+      }
+      if (questions.length < 2) {
+        return badRequest(res, 'Tap the Boxes needs at least 2 boxes');
+      }
+    }
+
+    if (set.gameType === 'word_search') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        const words = Array.isArray(q.searchWords)
+          ? q.searchWords.map(w => wordSearchService.normalizeSearchWord(w)).filter(Boolean)
+          : [];
+        if (words.length < 3) {
+          return badRequest(res, `Puzzle ${i + 1}: at least 3 hidden words required`);
+        }
+        if (words.length > 20) {
+          return badRequest(res, `Puzzle ${i + 1}: maximum 20 words per puzzle`);
+        }
+        const hasRows = q.gridRows != null && q.gridRows !== '';
+        const hasCols = q.gridCols != null && q.gridCols !== '';
+        if (hasRows !== hasCols) {
+          return badRequest(res, `Puzzle ${i + 1}: set both grid rows and grid columns, or leave both blank for automatic sizing`);
+        }
+        if (hasRows) {
+          const dims = wordSearchService.normalizeGridDimensions(q.gridRows, q.gridCols);
+          if (!dims) {
+            return badRequest(
+              res,
+              `Puzzle ${i + 1}: grid must be between ${wordSearchService.MIN_ROWS}×${wordSearchService.MIN_COLS} and ${wordSearchService.MAX_ROWS}×${wordSearchService.MAX_COLS}`,
+            );
+          }
+        }
+        try {
+          wordSearchService.generatePuzzle(words, `validate-${i}`, {
+            gridRows: q.gridRows,
+            gridCols: q.gridCols,
+          });
+        } catch (err) {
+          return badRequest(res, `Puzzle ${i + 1}: ${err.message}`);
+        }
+      }
+    }
+
+    if (set.gameType === 'multiple_choice') {
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!String(q.questionText || '').trim()) return badRequest(res, `Question ${i + 1}: question text required`);
+        if (!Array.isArray(q.options) || q.options.length < 2) {
+          return badRequest(res, `Question ${i + 1}: at least 2 options required`);
+        }
+        if (q.options.length > 6) {
+          return badRequest(res, `Question ${i + 1}: maximum 6 options allowed`);
+        }
+        const correctCount = q.options.filter(o => o.isCorrect).length;
+        if (correctCount !== 1) {
+          return badRequest(res, `Question ${i + 1}: exactly one option must be marked as correct`);
+        }
+        for (let j = 0; j < q.options.length; j++) {
+          if (!String(q.options[j].text || '').trim()) {
+            return badRequest(res, `Question ${i + 1}, option ${j + 1}: text required`);
+          }
+        }
+      }
+    }
+
     const ops = questions.map((q, i) => {
       const doc = {
         gameSetId: set._id,
@@ -1013,6 +1501,11 @@ exports.adminUpsertQuestions = async (req, res) => {
           imageUrl: p.imageUrl || null,
           audioUrl: p.audioUrl || null,
         }));
+      } else if (set.gameType === 'memory') {
+        doc.pairs = (q.pairs || []).map(p => ({
+          word: trimGermanWord(p.word),
+          imageUrl: p.imageUrl || null,
+        }));
       } else if (set.gameType === 'gender_stack') {
         doc.word = trimGermanWord(q.word);
         doc.translation = String(q.translation || q.hint || '').trim();
@@ -1026,6 +1519,40 @@ exports.adminUpsertQuestions = async (req, res) => {
         doc.word = trimGermanWord(q.word);
         doc.translation = String(q.translation || '').trim();
         doc.category = String(q.category || '').trim();
+      } else if (set.gameType === 'jumbled_words') {
+        doc.word = germanUppercase(q.word);
+        doc.hint = q.hint || '';
+        doc.imageUrl = q.imageUrl || null;
+        doc.audioUrl = q.audioUrl || null;
+      } else if (set.gameType === 'hangman') {
+        doc.word = germanUppercase(q.word);
+        doc.hint = q.hint || '';
+        doc.imageUrl = q.imageUrl || null;
+        doc.audioUrl = q.audioUrl || null;
+      } else if (set.gameType === 'word_picture_match') {
+        doc.pairs = (q.pairs || []).map(p => ({
+          word: trimGermanWord(p.word),
+          hint: p.hint || '',
+          imageUrl: p.imageUrl || null,
+          audioUrl: p.audioUrl || null,
+        }));
+      } else if (set.gameType === 'multiple_choice') {
+        doc.questionText = String(q.questionText || '').trim();
+        doc.imageUrl = q.imageUrl || null;
+        doc.audioUrl = q.audioUrl || null;
+        doc.options = (q.options || []).map(o => ({
+          text: String(o.text || '').trim(),
+          isCorrect: !!o.isCorrect,
+        }));
+      } else if (set.gameType === 'spin_wheel' || set.gameType === 'tap_boxes') {
+        doc.hint = String(q.hint || q.phrase || '').trim();
+      } else if (set.gameType === 'word_search') {
+        doc.searchWords = (q.searchWords || [])
+          .map(w => wordSearchService.normalizeSearchWord(w))
+          .filter(w => w.length >= 2);
+        const dims = wordSearchService.normalizeGridDimensions(q.gridRows, q.gridCols);
+        doc.gridRows = dims ? dims.rows : null;
+        doc.gridCols = dims ? dims.cols : null;
       } else {
         // scramble_rush, matching, flashcards all use word/hint
         doc.hint = q.hint || '';
@@ -1060,7 +1587,10 @@ exports.adminUpsertQuestions = async (req, res) => {
 
     // Soft-delete questions the client removed from the array
     const incomingIds = questions.filter(q => q._id).map(q => String(q._id));
-    const newIds = Object.values(result.insertedIds || {}).map(id => String(id));
+    const inserted = result.insertedIds;
+    const newIds = inserted instanceof Map
+      ? [...inserted.values()].map((id) => String(id))
+      : Object.values(inserted || {}).map((id) => String(id));
     const keepIds = [...incomingIds, ...newIds].filter(Boolean);
     if (keepIds.length > 0) {
       const keepObjectIds = keepIds.map(id => new mongoose.Types.ObjectId(id));
@@ -1279,7 +1809,7 @@ exports.adminUploadQuestionAudio = async (req, res) => {
       { new: true }
     );
     if (!question) return notFound(res, 'Question not found');
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, question });
   } catch (err) {
     serverError(res, err);
@@ -1297,7 +1827,7 @@ exports.adminUploadQuestionImage = async (req, res) => {
       { new: true }
     );
     if (!question) return notFound(res, 'Question not found');
-    const url = await presignS3Url(canonicalUrl);
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, question });
   } catch (err) {
     serverError(res, err);
@@ -1314,18 +1844,28 @@ exports.adminUploadPairImage = async (req, res) => {
       return badRequest(res, 'Invalid pair index');
     }
 
-    const question = await GameQuestion.findById(req.params.qid).lean();
-    if (!question) return notFound(res, 'Question not found');
-    if (!question.pairs || pairIndex >= question.pairs.length) {
-      return badRequest(res, 'Pair index out of range');
+    let question = await GameQuestion.findById(req.params.qid);
+    if (!question || question.isDeleted) return notFound(res, 'Question not found');
+
+    // Legacy rows stored word/image on the question root with an empty pairs[].
+    if ((!question.pairs || question.pairs.length === 0) && pairIndex === 0) {
+      question.pairs = [{
+        word: question.word || '',
+        hint: question.hint || '',
+        imageUrl: question.imageUrl || null,
+        audioUrl: question.audioUrl || null,
+      }];
+      await question.save();
     }
 
-    const setPath = `pairs.${pairIndex}.imageUrl`;
-    await GameQuestion.findByIdAndUpdate(req.params.qid, {
-      $set: { [setPath]: canonicalUrl },
-    });
+    if (!question.pairs || pairIndex >= question.pairs.length) {
+      return badRequest(res, `Pair index out of range (question has ${question.pairs?.length || 0} pair(s); save questions first)`);
+    }
 
-    const url = await presignS3Url(canonicalUrl);
+    question.pairs[pairIndex].imageUrl = canonicalUrl;
+    await question.save();
+
+    const url = await presignMediaUrl(canonicalUrl);
     res.json({ success: true, url, canonicalUrl, pairIndex });
   } catch (err) {
     serverError(res, err);

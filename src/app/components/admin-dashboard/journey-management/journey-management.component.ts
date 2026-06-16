@@ -11,6 +11,7 @@ import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
 import { AuthService } from '../../../services/auth.service';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
+import { clampJourneyDayForBatch, computeJourneyDayFromStartDate, formatJourneyDayLabel } from '../../../utils/journey-day.util';
 
 interface BatchSummary {
   batchName: string;
@@ -29,14 +30,29 @@ interface BatchSummary {
   autoRecordingEnabled?: boolean;
   /** Shown on home table only when true; false batches appear under “upcoming”. */
   journeyActive?: boolean;
+  /** One-day or multi-day Trial before Day 1 (new batches). */
+  trialDayEnabled?: boolean;
+  /** When set with batchStartDate: trial begins here; batchStartDate is Day 1. */
+  trialAccessStartDate?: string | null;
   /** New batch only: journey day frozen until admin resumes. */
   journeyPaused?: boolean;
   journeyPausedAt?: string | null;
   journeyPausedFrozenDay?: number | null;
+  journeyPauseHistory?: JourneyPauseHistoryEntry[];
   studentCount: number;
+  /** Students whose journey day is below the batch current day. */
+  studentsBehindCount?: number;
+  hasStudentsBehind?: boolean;
   teacherId?: string | null;
   /** Resolved from students' assignedTeacher (most common per batch). */
   teacherName: string | null;
+}
+
+interface JourneyPauseHistoryEntry {
+  day: number;
+  pausedAt: string;
+  resumedAt: string;
+  pauseDays: number;
 }
 
 interface TeacherPick {
@@ -391,17 +407,39 @@ interface TimelineDay {
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let b of filteredBatches; trackBy: trackBatch">
+              <tr *ngFor="let b of filteredBatches; trackBy: trackBatch"
+                  [class.j-row--behind]="batchNeedsAttention(b)">
                 <td>
                   <div class="j-batch-name-cell">
-                    {{ b.batchName }}
+                    <span class="j-batch-name-text">
+                      <i *ngIf="batchHasStudentsBehind(b)"
+                         class="fas fa-exclamation-triangle j-batch-danger-icon"
+                         [title]="studentsBehindTooltip(b)"></i>
+                      {{ b.batchName }}
+                    </span>
                     <span class="j-pause-badge" *ngIf="b.journeyPaused && b.batchType === 'new'">
                       <i class="fas fa-pause"></i> Paused
+                    </span>
+                    <span class="j-behind-batch-badge" *ngIf="batchBehindCalendar(b)"
+                          [title]="'Expected Day ' + calendarDayForBatch(b) + ' but stuck on Day ' + b.batchCurrentDay + '. Students are not advancing.'">
+                      <i class="fas fa-exclamation-triangle"></i>
+                      Batch {{ calendarDayForBatch(b) - b.batchCurrentDay }}d behind calendar
+                    </span>
+                    <span class="j-behind-batch-badge j-behind-batch-badge--students" *ngIf="batchHasStudentsBehind(b)"
+                          [title]="studentsBehindTooltip(b)">
+                      <i class="fas fa-user-clock"></i>
+                      {{ b.studentsBehindCount }} student{{ b.studentsBehindCount === 1 ? '' : 's' }} behind
                     </span>
                   </div>
                 </td>
                 <td>
-                  <span class="j-day-pill j-day-pill--table">Day {{ b.batchCurrentDay }}</span>
+                  <div class="j-day-cell">
+                    <span class="j-day-pill j-day-pill--table"
+                          [class.j-day-pill--behind]="batchBehindCalendar(b)">Day {{ b.batchCurrentDay }}</span>
+                    <span class="j-day-expected" *ngIf="batchBehindCalendar(b)">
+                      → should be Day {{ calendarDayForBatch(b) }}
+                    </span>
+                  </div>
                 </td>
                 <td>{{ b.studentCount }}</td>
                 <td class="j-td-teacher" [title]="b.teacherName || ''">
@@ -418,12 +456,18 @@ interface TimelineDay {
                 </td>
                 <td>{{ b.journeyLength }} days</td>
                 <td>
-                  <div class="j-progress-cell">
+                  <div class="j-progress-cell" [class.j-progress-cell--behind]="batchHasStudentsBehind(b)">
                     <div class="j-progress-track j-progress-track--table">
                       <div class="j-progress-fill"
+                           [class.j-progress-fill--danger]="batchHasStudentsBehind(b)"
                            [style.width.%]="b.journeyLength ? (b.batchCurrentDay / b.journeyLength) * 100 : 0"></div>
                     </div>
-                    <span class="j-progress-label j-progress-label--table">{{ b.batchCurrentDay }} / {{ b.journeyLength }}</span>
+                    <span class="j-progress-label j-progress-label--table">
+                      <i *ngIf="batchHasStudentsBehind(b)"
+                         class="fas fa-exclamation-triangle j-progress-danger-icon"
+                         [title]="studentsBehindTooltip(b)"></i>
+                      {{ b.batchCurrentDay }} / {{ b.journeyLength }}
+                    </span>
                   </div>
                 </td>
                 <td>
@@ -594,8 +638,12 @@ interface TimelineDay {
               </div>
             </div>
             <div class="j-config-field">
-              <label class="j-field-label">Batch start date</label>
+              <label class="j-field-label">{{ editTrialDayEnabled && editTrialAccessStartDate ? 'Day 1 starts' : 'Batch start date' }}</label>
               <input type="date" [(ngModel)]="editBatchStartDate" class="j-input j-input--compact">
+            </div>
+            <div class="j-config-field" *ngIf="editBatchType === 'new' && editTrialDayEnabled">
+              <label class="j-field-label">Trial access starts</label>
+              <input type="date" [(ngModel)]="editTrialAccessStartDate" class="j-input j-input--compact">
             </div>
             <div class="j-config-field">
               <label class="j-field-label">
@@ -603,12 +651,12 @@ interface TimelineDay {
                 <span class="j-auto-badge j-auto-badge--sm" *ngIf="editBatchStartDate"><i class="fas fa-magic"></i> Auto</span>
               </label>
               <div *ngIf="editBatchStartDate" class="j-batch-day-inline">
-                <span class="j-day-pill">Day {{ computedDayFromDate() }}</span>
-                <span class="j-field-hint j-field-hint--inline">{{ daysSinceStart() }}d since {{ editBatchStartDate | date:'dd MMM yyyy' }}</span>
+                <span class="j-day-pill">{{ formatBatchDay(computedDayFromDate()) }}</span>
+                <span class="j-field-hint j-field-hint--inline">{{ batchScheduleHint() }}</span>
               </div>
               <input *ngIf="!editBatchStartDate"
                      type="number" [(ngModel)]="editBatchDay"
-                     min="1" [max]="editJourneyLength" class="j-input j-input--compact">
+                     [min]="editTrialDayEnabled ? 0 : 1" [max]="editJourneyLength" class="j-input j-input--compact">
             </div>
           </div>
         </div>
@@ -654,7 +702,22 @@ interface TimelineDay {
               </div>
             </div>
 
-            <div class="j-toggle-card" *ngIf="editBatchType === 'new'"
+            <div class="j-toggle-card" *ngIf="editBatchType === 'new'" [class.j-toggle-card--on]="editTrialDayEnabled">
+              <div class="j-toggle-card-head">
+                <span class="j-toggle-card-label" title="Start with one Trial orientation day before Day 1">Trial day</span>
+                <span class="j-toggle-card-status" [class.j-toggle-card-status--on]="editTrialDayEnabled">{{ editTrialDayEnabled ? 'On' : 'Off' }}</span>
+                <label class="j-switch j-switch--sm">
+                  <input type="checkbox" [(ngModel)]="editTrialDayEnabled" />
+                  <span class="j-switch-slider" aria-hidden="true"></span>
+                </label>
+              </div>
+              <p class="j-field-hint j-field-hint--toggle" *ngIf="editTrialDayEnabled">
+                Set <strong>Trial access starts</strong> for orientation (e.g. 7 Jun). Set <strong>Day 1 starts</strong> for the first journey day (e.g. 10 Jun).
+                Tag trial recordings, exercises, and games as journey day <strong>0</strong>.
+              </p>
+            </div>
+
+            <div class="j-toggle-card j-toggle-card--pause" *ngIf="editBatchType === 'new'"
                  [class.j-toggle-card--warn]="editJourneyPaused">
               <div class="j-toggle-card-head">
                 <span class="j-toggle-card-label" title="Freeze batch day until resumed">Pause journey</span>
@@ -664,6 +727,9 @@ interface TimelineDay {
                   <span class="j-switch-slider" aria-hidden="true"></span>
                 </label>
               </div>
+              <ul class="j-pause-history" *ngIf="pauseHistoryEntries().length">
+                <li *ngFor="let entry of pauseHistoryEntries()">{{ formatPauseHistoryEntry(entry) }}</li>
+              </ul>
             </div>
 
             <div class="j-toggle-card" [class.j-toggle-card--on]="editAutoRecordingEnabled">
@@ -711,9 +777,12 @@ interface TimelineDay {
         <i class="fas fa-calendar-check"></i>
         <div>
           <strong>Auto-schedule active.</strong>
-          Batch started on <strong>{{ editBatchStartDate | date:'dd MMM yyyy' }}</strong>.
-          Today is automatically <strong>Day {{ computedDayFromDate() }}</strong>.
+          Batch schedule: <strong>{{ scheduleSummaryText() }}</strong>.
+          Today is automatically <strong>{{ formatBatchDay(computedDayFromDate()) }}</strong>.
           {{ editStrictJourneyRule ? 'Strict rule is on: students only move to the next day when they meet the completion % for their current day (checked at daily rollover).' : 'Lenient mode: student journey days advance on the daily rollover even if tasks are not finished.' }}
+          <ul class="j-pause-history j-pause-history--inline" *ngIf="pauseHistoryEntries().length">
+            <li *ngFor="let entry of pauseHistoryEntries()">{{ formatPauseHistoryEntry(entry) }}</li>
+          </ul>
         </div>
         <button *ngIf="!isJourneyReadOnly" type="button" class="j-btn-icon-sm" title="Remove start date (switch to manual)"
                 (click)="clearStartDate()">
@@ -776,11 +845,16 @@ interface TimelineDay {
               </tr>
             </thead>
         <tbody>
-          <tr *ngFor="let s of batchStudents">
+          <tr *ngFor="let s of batchStudents" [class.j-row-behind]="s.currentCourseDay < selectedBatch!.batchCurrentDay">
             <td>
               <div class="j-student-name-row">
                 <span class="j-student-name">{{ s.name }}</span>
                 <app-test-account-badge [show]="!!s.isTestAccount"></app-test-account-badge>
+                <span *ngIf="s.currentCourseDay < selectedBatch!.batchCurrentDay"
+                      class="j-behind-badge"
+                      title="{{ selectedBatch!.batchCurrentDay - s.currentCourseDay }} day(s) behind">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </span>
               </div>
               <div class="j-student-email">{{ s.email }}</div>
             </td>
@@ -815,7 +889,7 @@ interface TimelineDay {
                 <div class="j-day-fill"
                      [style.width.%]="(s.currentCourseDay / selectedBatch!.journeyLength) * 100"></div>
               </div>
-              <span class="j-day-text">Day {{ s.currentCourseDay }} / {{ selectedBatch!.journeyLength }}</span>
+              <span class="j-day-text">{{ formatBatchDay(s.currentCourseDay) }} / {{ selectedBatch!.journeyLength }}</span>
             </td>
             <!-- Batch current day vs student day comparison -->
             <td>
@@ -824,7 +898,7 @@ interface TimelineDay {
                     [class.j-ontrack]="s.currentCourseDay >= selectedBatch!.batchCurrentDay">
                 <i class="fas" [class.fa-exclamation-triangle]="s.currentCourseDay < selectedBatch!.batchCurrentDay"
                                [class.fa-check-circle]="s.currentCourseDay >= selectedBatch!.batchCurrentDay"></i>
-                Day {{ selectedBatch!.batchCurrentDay }}
+                Day {{ formatBatchDay(selectedBatch!.batchCurrentDay) }}
               </span>
               <div class="j-behind-label" *ngIf="s.currentCourseDay < selectedBatch!.batchCurrentDay">
                 {{ selectedBatch!.batchCurrentDay - s.currentCourseDay }} day(s) behind
@@ -857,12 +931,12 @@ interface TimelineDay {
             <!-- Set Day / Advance (admins only) -->
             <td *ngIf="!isJourneyReadOnly">
               <div class="j-student-day-ctrl">
-                <input type="number" [(ngModel)]="s.editDay" min="1" [max]="selectedBatch!.journeyLength"
+                <input type="number" [(ngModel)]="s.editDay" [min]="editTrialDayEnabled ? 0 : 1" [max]="selectedBatch!.journeyLength"
                        class="j-input-sm" placeholder="Day">
                 <button type="button" class="j-btn j-btn-sm j-btn-primary"
                         title="Set to exact day"
                         (click)="setStudentDay(s)"
-                        [disabled]="s.saving || !s.editDay">
+                        [disabled]="s.saving || !isEditDayValueValid(s.editDay)">
                   <i class="fas fa-pen"></i>
                 </button>
                 <button type="button" class="j-btn j-btn-sm"
@@ -909,7 +983,7 @@ interface TimelineDay {
 
       <!-- Search filter -->
       <div *ngIf="!loadingTimeline && timelineDays.length > 0" class="j-timeline-filter">
-        <input type="number" [(ngModel)]="jumpDay" class="j-input-sm" placeholder="Jump to day…" min="1" [max]="selectedBatch!.journeyLength">
+        <input type="number" [(ngModel)]="jumpDay" class="j-input-sm" placeholder="Jump to day…" min="0" [max]="selectedBatch!.journeyLength">
         <button class="j-btn j-btn-outline j-btn-sm" (click)="scrollToDay(jumpDay)" [disabled]="!jumpDay">Go</button>
         <span class="j-timeline-count">{{ timelineDays.length }} day(s) have content</span>
       </div>
@@ -1712,10 +1786,10 @@ interface TimelineDay {
         <span>GO Batch management — {{ activeGoBatchLabel }}</span>
       </div>
       <div class="gs-silver-tab-bar">
-        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'go'" (click)="silverTab = 'go'">
+        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'go'" (click)="setSilverSubTab('go')">
           {{ planTab === 'silver-sinhala' ? 'GO Sinhala Students' : 'GO Students' }}
         </button>
-        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'silver'" (click)="silverTab = 'silver'">
+        <button type="button" class="gs-silver-tab" [class.gs-silver-tab--active]="silverTab === 'silver'" (click)="setSilverSubTab('silver')">
           {{ planTab === 'silver-sinhala' ? 'Silver Sinhala Students' : 'Silver Students' }}
         </button>
       </div>
@@ -1765,16 +1839,64 @@ interface TimelineDay {
           <option value="COMPLETED">COMPLETED</option>
           <option value="UNCERTAIN">UNCERTAIN</option>
         </select>
-        <input type="number" class="j-input-sm gs-day-input" [(ngModel)]="goDayMinFilter" min="1" max="200" placeholder="Day ≥" />
-        <input type="number" class="j-input-sm gs-day-input" [(ngModel)]="goDayMaxFilter" min="1" max="200" placeholder="Day ≤" />
+        <input type="number" class="j-input-sm gs-day-input" [(ngModel)]="goDayMinFilter" min="0" max="200" placeholder="Day ≥" />
+        <input type="number" class="j-input-sm gs-day-input" [(ngModel)]="goDayMaxFilter" min="0" max="200" placeholder="Day ≤" />
         <button type="button" class="j-btn j-btn-outline" (click)="loadGoStudents()">
           <i class="fas fa-sync-alt"></i> Refresh list
         </button>
+        <button
+          type="button"
+          class="j-btn"
+          style="background:#fef9c3;color:#854d0e;border:1px solid #fde047;font-weight:600;"
+          [disabled]="goReconciling"
+          (click)="reconcileAllGoStudents()"
+          title="Check every Silver GO student's completion and pull them back to the correct day if they skipped ahead without finishing recordings/exercises/DG Bot."
+        >
+          <i class="fas" [class.fa-spinner]="goReconciling" [class.fa-wrench]="!goReconciling"></i>
+          {{ goReconciling ? (goReconcileProgress || 'Fixing days…') : 'Fix All Days' }}
+        </button>
       </div>
 
-      <div *ngIf="goLoading" class="j-loading" style="min-height:200px;">
-        <div class="spinner-border text-primary"></div>
-        <p>Loading GO students…</p>
+      <div
+        *ngIf="goReconciling && goReconcileProgress"
+        style="margin:10px 0 0;padding:8px 14px;border-radius:10px;font-size:13px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;"
+      >
+        {{ goReconcileProgress }}
+      </div>
+
+      <div
+        *ngIf="goReconcileResult"
+        style="margin:10px 0 0;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.5;"
+        [style.background]="goReconcileResult.fixedCount > 0 ? '#fef9c3' : '#f0fdf4'"
+        [style.border]="goReconcileResult.fixedCount > 0 ? '1px solid #fde047' : '1px solid #bbf7d0'"
+        [style.color]="goReconcileResult.fixedCount > 0 ? '#854d0e' : '#166534'"
+      >
+        <strong>{{ goReconcileResult.fixedCount > 0 ? '⚠ Days corrected' : '✓ All days correct' }}</strong>
+        &nbsp;—&nbsp;
+        {{ goReconcileResult.fixedCount }} corrected,
+        {{ goReconcileResult.alreadyCorrect }} already correct,
+        {{ goReconcileResult.skipped }} skipped
+        ({{ goReconcileResult.total }} students total).
+        <button type="button" style="margin-left:12px;background:none;border:none;cursor:pointer;font-size:12px;color:inherit;opacity:.7;" (click)="goReconcileResult = null">Dismiss</button>
+      </div>
+
+      <div *ngIf="goLoading" class="j-skeleton-wrap" aria-busy="true" aria-label="Loading GO students">
+        <div class="j-skeleton-table">
+          <div class="j-skeleton-table-head j-skeleton-table-head--go">
+            <span class="j-skeleton-line" *ngFor="let _ of [1,2,3,4,5,6,7,8,9]"></span>
+          </div>
+          <div class="j-skeleton-table-row j-skeleton-table-row--go" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+            <span class="j-skeleton-line j-skeleton-cell--checkbox"></span>
+            <span class="j-skeleton-line j-skeleton-cell--name"></span>
+            <span class="j-skeleton-line j-skeleton-cell--id"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--date"></span>
+            <span class="j-skeleton-line j-skeleton-cell--day"></span>
+            <span class="j-skeleton-line j-skeleton-cell--actions"></span>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="!goLoading && goStudents.length === 0" class="j-empty">
@@ -1831,7 +1953,7 @@ interface TimelineDay {
             type="number"
             class="j-input-sm gs-day-input"
             [(ngModel)]="goBulkDay"
-            min="1"
+            min="0"
             max="200"
             placeholder="Set day"
           />
@@ -1839,7 +1961,7 @@ interface TimelineDay {
             type="button"
             class="j-btn j-btn-sm j-btn-primary"
             (click)="bulkSetGoDay()"
-            [disabled]="goSelectedCount === 0 || !goBulkDay || goBulkUpdating"
+            [disabled]="goSelectedCount === 0 || !isBulkDayValueValid(goBulkDay) || goBulkUpdating"
           >
             <i class="fas" [class.fa-spinner]="goBulkUpdating" [class.fa-calendar-day]="!goBulkUpdating"></i>
             {{ goBulkUpdating ? 'Updating…' : 'Apply Day' }}
@@ -1883,16 +2005,26 @@ interface TimelineDay {
                 <div style="font-weight:600;color:#0f172a;">{{ s.name }}</div>
                 <div style="font-size:11px;color:#64748b;">{{ s.email }}</div>
               </td>
-              <td style="font-family:monospace;font-size:12px;">{{ s.regNo }}</td>
+              <td>
+                <div style="font-family:monospace;font-size:12px;">{{ s.regNo }}</div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;" *ngIf="s.displayPassword">{{ s.displayPassword }}</div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px;" *ngIf="!s.displayPassword">—</div>
+              </td>
               <td>{{ s.batch || '—' }}</td>
               <td><span class="gs-status-go">{{ s.goStatus }}</span></td>
               <td><span class="gs-plan-badge">{{ s.subscription }}</span></td>
               <td>
-                <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
-                <span *ngIf="!s.goJoiningDate" style="color:#94a3b8;">—</span>
+                <div>
+                  <span *ngIf="s.goJoiningDate">{{ s.goJoiningDate | date:'dd MMM yyyy' }}</span>
+                  <span *ngIf="!s.goJoiningDate" style="color:#94a3b8;">—</span>
+                </div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px;">
+                  <span *ngIf="s.lastLogin">{{ s.lastLogin | date:'dd MMM yyyy, HH:mm' }}</span>
+                  <span *ngIf="!s.lastLogin" style="color:#94a3b8;">Never logged in</span>
+                </div>
               </td>
               <td>
-                <div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay || 1 }}</div>
+                <div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay ?? 0 }}</div>
               </td>
               <td>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1982,7 +2114,7 @@ interface TimelineDay {
             type="number"
             class="j-input-sm gs-day-input"
             [(ngModel)]="silverBulkDay"
-            min="1"
+            min="0"
             max="200"
             placeholder="Set day"
           />
@@ -1990,7 +2122,7 @@ interface TimelineDay {
             type="button"
             class="j-btn j-btn-sm j-btn-primary"
             (click)="bulkSetSilverDay()"
-            [disabled]="silverSelectedCount === 0 || !silverBulkDay || silverBulkUpdating"
+            [disabled]="silverSelectedCount === 0 || !isBulkDayValueValid(silverBulkDay) || silverBulkUpdating"
           >
             <i class="fas" [class.fa-spinner]="silverBulkUpdating" [class.fa-calendar-day]="!silverBulkUpdating"></i>
             {{ silverBulkUpdating ? 'Updating…' : 'Apply Day' }}
@@ -1998,9 +2130,22 @@ interface TimelineDay {
         </div>
       </div>
 
-      <div *ngIf="silverLoading" class="j-loading" style="min-height:200px;">
-        <div class="spinner-border text-primary"></div>
-        <p>Loading Silver students…</p>
+      <div *ngIf="silverLoading" class="j-skeleton-wrap" aria-busy="true" aria-label="Loading Silver students">
+        <div class="j-skeleton-table">
+          <div class="j-skeleton-table-head j-skeleton-table-head--silver">
+            <span class="j-skeleton-line" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></span>
+          </div>
+          <div class="j-skeleton-table-row j-skeleton-table-row--silver" *ngFor="let _ of [1,2,3,4,5,6,7,8]">
+            <span class="j-skeleton-line j-skeleton-cell--checkbox"></span>
+            <span class="j-skeleton-line j-skeleton-cell--name"></span>
+            <span class="j-skeleton-line j-skeleton-cell--id"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--chip"></span>
+            <span class="j-skeleton-line j-skeleton-cell--day"></span>
+            <span class="j-skeleton-line j-skeleton-cell--actions"></span>
+          </div>
+        </div>
       </div>
 
       <div *ngIf="!silverLoading && filteredSilverStudents.length === 0" class="j-empty">
@@ -2053,7 +2198,7 @@ interface TimelineDay {
                 }">{{ s.studentStatus || '—' }}</span>
               </td>
               <td><span class="gs-plan-badge">{{ s.subscription }}</span></td>
-              <td><div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay || 1 }}</div></td>
+              <td><div class="j-day-pill" style="display:inline-block;">Day {{ s.currentCourseDay ?? 0 }}</div></td>
               <td>
                 <button
                   type="button"
@@ -2299,6 +2444,57 @@ interface TimelineDay {
     /* ── Loading ── */
     .j-loading { text-align: center; padding: 60px 20px; color: #64748b; }
     .j-loading p { margin-top: 12px; font-size: 14px; }
+    .j-skeleton-wrap {
+      margin-top: 8px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+    }
+    .j-skeleton-table-head,
+    .j-skeleton-table-row {
+      display: grid;
+      gap: 12px;
+      padding: 12px 14px;
+      align-items: center;
+    }
+    .j-skeleton-table-head--go,
+    .j-skeleton-table-row--go {
+      grid-template-columns: 36px 2fr 1fr 0.85fr 0.75fr 0.75fr 1fr 0.75fr 1.2fr;
+    }
+    .j-skeleton-table-head--silver,
+    .j-skeleton-table-row--silver {
+      grid-template-columns: 36px 2fr 1fr 0.9fr 0.75fr 0.75fr 0.8fr 1.1fr;
+    }
+    .j-skeleton-table-head {
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .j-skeleton-table-row {
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .j-skeleton-table-row:last-child { border-bottom: none; }
+    .j-skeleton-line {
+      display: block;
+      height: 10px;
+      width: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #edf2f7 20%, #e2e8f0 50%, #edf2f7 80%);
+      background-size: 200% 100%;
+      animation: j-skeleton-shimmer 1.25s ease-in-out infinite;
+    }
+    .j-skeleton-cell--checkbox { width: 16px; justify-self: center; }
+    .j-skeleton-cell--name { width: 88%; height: 28px; border-radius: 8px; }
+    .j-skeleton-cell--id { width: 70%; }
+    .j-skeleton-cell--chip { width: 58%; }
+    .j-skeleton-cell--date { width: 72%; }
+    .j-skeleton-cell--day { width: 50%; justify-self: start; }
+    .j-skeleton-cell--actions { width: 78%; justify-self: end; }
+    @keyframes j-skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
     .j-loading-inline { padding: 20px; color: #64748b; font-size: 13px; display: flex; align-items: center; gap: 8px; }
     .j-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
     .j-empty p { margin-top: 12px; font-size: 14px; }
@@ -2559,6 +2755,36 @@ interface TimelineDay {
       font-size: 12px; font-weight: 700; white-space: nowrap;
     }
     .j-day-pill--table { font-size: 11px; padding: 2px 8px; }
+    .j-day-pill--behind {
+      background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+    }
+    .j-day-cell { display: flex; flex-direction: column; gap: 2px; }
+    .j-day-expected { font-size: 10px; color: #b91c1c; font-weight: 600; white-space: nowrap; }
+
+    .j-behind-batch-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+      cursor: help;
+    }
+    .j-row--behind td { background: #fff1f2; }
+    .j-row--behind:hover td { background: #ffe4e6; }
+
+    .j-batch-name-text {
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .j-batch-danger-icon {
+      color: #e11d48; font-size: 13px; flex-shrink: 0;
+    }
+    .j-behind-batch-badge--students {
+      background: #fecdd3; color: #9f1239; border-color: #fda4af;
+    }
+    .j-progress-cell--behind .j-progress-label--table { color: #be123c; font-weight: 600; }
+    .j-progress-danger-icon { color: #e11d48; margin-right: 4px; font-size: 11px; }
+    .j-progress-fill--danger {
+      background: linear-gradient(90deg, #e11d48, #fb7185) !important;
+    }
 
     .j-progress-track {
       height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden;
@@ -2611,6 +2837,13 @@ interface TimelineDay {
       background: #fffbeb; border-color: #fde68a; color: #78350f;
     }
     .j-start-date-info--warn > i { color: #b45309; }
+    .j-toggle-card--pause { flex-direction: column; align-items: stretch; }
+    .j-pause-history {
+      list-style: none; margin: 6px 0 0; padding: 0;
+      font-size: 10px; color: #64748b; line-height: 1.45;
+    }
+    .j-pause-history li::before { content: '· '; color: #94a3b8; }
+    .j-pause-history--inline { margin-top: 6px; }
     .j-btn-icon-sm {
       background: none; border: none; cursor: pointer;
       color: #64748b; padding: 4px; border-radius: 6px;
@@ -2944,6 +3177,17 @@ interface TimelineDay {
     .j-date-main { font-size: 12px; font-weight: 600; color: #0f172a; white-space: nowrap; }
     .j-date-sub  { font-size: 10px; color: #94a3b8; }
     .j-date-empty { color: #cbd5e1; font-size: 12px; }
+
+    /* Behind-row highlight */
+    .j-row-behind { border-left: 3px solid #e11d48 !important; background: rgba(225, 29, 72, 0.03) !important; }
+
+    /* Danger badge next to student name */
+    .j-behind-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #ffe0e6; color: #e11d48; font-size: 9px;
+      flex-shrink: 0; cursor: default;
+    }
 
     /* Batch vs student day comparison */
     .j-batch-vs-student {
@@ -4057,6 +4301,8 @@ export class JourneyManagementComponent implements OnInit {
 
   editJourneyLength = 200;
   editBatchDay = 1;
+  editTrialDayEnabled = false;
+  editTrialAccessStartDate = '';
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
   editBatchType: 'new' | 'old' = 'old';
@@ -4155,6 +4401,10 @@ export class JourneyManagementComponent implements OnInit {
   goBulkDay: number | null = null;
   goBulkBatch = '';
   goBulkUpdating = false;
+  goReconciling = false;
+  goReconcileProgress = '';
+  goReconcileResult: { fixedCount: number; alreadyCorrect: number; skipped: number; total: number; message: string } | null = null;
+  private goReconcilePollTimer: ReturnType<typeof setTimeout> | null = null;
   silverBulkDay: number | null = null;
   silverBulkBatch = '';
   silverBulkUpdating = false;
@@ -4253,10 +4503,10 @@ export class JourneyManagementComponent implements OnInit {
       list = list.filter((s) => String(s?.studentStatus || '').toUpperCase() === this.goStatusFilter);
     }
     if (minDay != null && Number.isFinite(minDay)) {
-      list = list.filter((s) => Number(s?.currentCourseDay || 1) >= minDay);
+      list = list.filter((s) => clampJourneyDayForBatch(s?.currentCourseDay ?? (this.editTrialDayEnabled ? 0 : 1), 200, this.editTrialDayEnabled) >= minDay);
     }
     if (maxDay != null && Number.isFinite(maxDay)) {
-      list = list.filter((s) => Number(s?.currentCourseDay || 1) <= maxDay);
+      list = list.filter((s) => clampJourneyDayForBatch(s?.currentCourseDay ?? (this.editTrialDayEnabled ? 0 : 1), 200, this.editTrialDayEnabled) <= maxDay);
     }
     return list;
   }
@@ -4310,7 +4560,15 @@ export class JourneyManagementComponent implements OnInit {
       this.silverStudents = [];
       this.goSelectedIds.clear();
       this.silverSelectedIds.clear();
+      this.silverTab = 'go';
       this.loadGoStudents();
+    }
+  }
+
+  setSilverSubTab(tab: 'go' | 'silver'): void {
+    if (this.silverTab === tab) return;
+    this.silverTab = tab;
+    if (tab === 'silver' && !this.silverLoading && this.silverStudents.length === 0) {
       this.loadSilverStudents();
     }
   }
@@ -4485,8 +4743,8 @@ export class JourneyManagementComponent implements OnInit {
       this.notify.error('Select at least one GO student.');
       return;
     }
-    if (!Number.isFinite(day) || day < 1 || day > 200) {
-      this.notify.error('Enter a valid day between 1 and 200.');
+    if (!Number.isFinite(day) || day < 0 || day > 200) {
+      this.notify.error('Enter a valid day between 0 and 200.');
       return;
     }
 
@@ -4545,6 +4803,84 @@ export class JourneyManagementComponent implements OnInit {
         this.notify.error(e?.error?.message || 'Failed to set batch for selected GO students.');
       }
     });
+  }
+
+  reconcileAllGoStudents(): void {
+    if (this.goReconciling) return;
+    this.goReconciling = true;
+    this.goReconcileResult = null;
+    this.goReconcileProgress = 'Starting…';
+    this.http.post<any>(
+      `${environment.apiUrl}/${this.activeGoApiPath}/reconcile-all`,
+      {},
+      { withCredentials: true }
+    ).subscribe({
+      next: (r) => {
+        if (r?.started) {
+          this.pollGoReconcileStatus();
+          return;
+        }
+        this.finishGoReconcile(r);
+      },
+      error: (e) => {
+        this.goReconciling = false;
+        this.goReconcileProgress = '';
+        this.notify.error(e?.error?.message || 'Reconciliation failed.');
+      }
+    });
+  }
+
+  private pollGoReconcileStatus(): void {
+    if (this.goReconcilePollTimer) {
+      clearTimeout(this.goReconcilePollTimer);
+      this.goReconcilePollTimer = null;
+    }
+    this.http.get<any>(
+      `${environment.apiUrl}/${this.activeGoApiPath}/reconcile-all/status`,
+      { withCredentials: true }
+    ).subscribe({
+      next: (status) => {
+        if (status?.running) {
+          const done = status.done || 0;
+          const total = status.total || 0;
+          this.goReconcileProgress = total > 0 ? `Checking ${done} / ${total} students…` : 'Checking students…';
+          this.goReconcilePollTimer = setTimeout(() => this.pollGoReconcileStatus(), 2000);
+          return;
+        }
+        this.finishGoReconcile(status);
+      },
+      error: (e) => {
+        this.goReconciling = false;
+        this.goReconcileProgress = '';
+        this.notify.error(e?.error?.message || 'Reconciliation status check failed.');
+      }
+    });
+  }
+
+  private finishGoReconcile(r: any): void {
+    if (this.goReconcilePollTimer) {
+      clearTimeout(this.goReconcilePollTimer);
+      this.goReconcilePollTimer = null;
+    }
+    this.goReconciling = false;
+    this.goReconcileProgress = '';
+    if (r?.error) {
+      this.notify.error(r.message || 'Reconciliation failed.');
+      return;
+    }
+    this.goReconcileResult = {
+      fixedCount: r.fixedCount || 0,
+      alreadyCorrect: r.alreadyCorrect || 0,
+      skipped: r.skipped || 0,
+      total: r.total || 0,
+      message: r.message || ''
+    };
+    if ((r.fixedCount || 0) > 0) {
+      this.notify.success(`Fixed ${r.fixedCount} student(s). Refreshing list…`);
+      this.loadGoStudents();
+    } else {
+      this.notify.success(r.message || 'All journey days are already correct.');
+    }
   }
 
   addGoStudentById(student: SilverStudentRow): void {
@@ -4607,8 +4943,8 @@ export class JourneyManagementComponent implements OnInit {
       this.notify.error('Select at least one student.');
       return;
     }
-    if (!Number.isFinite(day) || day < 1 || day > 200) {
-      this.notify.error('Enter a valid day between 1 and 200.');
+    if (!Number.isFinite(day) || day < 0 || day > 200) {
+      this.notify.error('Enter a valid day between 0 and 200.');
       return;
     }
 
@@ -4971,11 +5307,112 @@ export class JourneyManagementComponent implements OnInit {
     return Math.max(0, Math.floor((todayUTC - startUTC) / 86_400_000));
   }
 
+  /** True when a batch has a start date and its stored day has fallen behind the calendar. */
+  batchBehindCalendar(b: BatchSummary): boolean {
+    if (!b.autoDay || !b.batchStartDate) return false;
+    if (b.journeyPaused) return false;
+    return this.calendarDayForBatch(b) > b.batchCurrentDay;
+  }
+
+  batchHasStudentsBehind(b: BatchSummary): boolean {
+    return !!(b.hasStudentsBehind || (b.studentsBehindCount ?? 0) > 0);
+  }
+
+  batchNeedsAttention(b: BatchSummary): boolean {
+    return this.batchBehindCalendar(b) || this.batchHasStudentsBehind(b);
+  }
+
+  studentsBehindTooltip(b: BatchSummary): string {
+    const n = b.studentsBehindCount ?? 0;
+    if (n <= 0) return '';
+    return `${n} student${n === 1 ? '' : 's'} on a lower day than batch Day ${b.batchCurrentDay}. They will catch up at the next midnight rollover (lenient) or after attending live class (Platinum).`;
+  }
+
+  /** Calendar day today for a batch based on its start date. */
+  calendarDayForBatch(b: BatchSummary): number {
+    if (!b.batchStartDate) return b.batchCurrentDay;
+    return computeJourneyDayFromStartDate(
+      b.batchStartDate,
+      new Date(),
+      b.journeyLength,
+      !!b.trialDayEnabled,
+      b.trialAccessStartDate || null
+    );
+  }
+
   computedDayFromDate(): number {
     if (this.editJourneyPaused && this.editBatchType === 'new') {
       return this.selectedBatch?.batchCurrentDay ?? this.editBatchDay;
     }
-    return Math.min(this.editJourneyLength, Math.max(1, this.daysSinceStart() + 1));
+    return computeJourneyDayFromStartDate(
+      this.editBatchStartDate || null,
+      new Date(),
+      this.editJourneyLength,
+      this.editTrialDayEnabled,
+      this.editTrialAccessStartDate || null
+    );
+  }
+
+  batchScheduleHint(): string {
+    if (!this.editBatchStartDate) return '';
+    const day = this.computedDayFromDate();
+    if (this.editTrialDayEnabled && this.editTrialAccessStartDate) {
+      if (day === 0) {
+        return `Trial until ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+      }
+      return `Day 1 since ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+    }
+    return `${this.daysSinceStart()}d since ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+  }
+
+  scheduleSummaryText(): string {
+    if (!this.editBatchStartDate) return 'Manual mode';
+    if (this.editTrialDayEnabled && this.editTrialAccessStartDate) {
+      return `Trial from ${this.formatIsoDateLabel(this.editTrialAccessStartDate)} · Day 1 from ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+    }
+    if (this.editTrialDayEnabled) {
+      return `Trial on ${this.formatIsoDateLabel(this.editBatchStartDate)}, then Day 1 next calendar day`;
+    }
+    return `Started ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
+  }
+
+  private formatIsoDateLabel(iso: string): string {
+    if (!iso) return '';
+    const parts = iso.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  formatBatchDay(day: number): string {
+    return formatJourneyDayLabel(day, this.editTrialDayEnabled);
+  }
+
+  isEditDayValueValid(raw: unknown): boolean {
+    if (!this.selectedBatch) return false;
+    const min = this.editTrialDayEnabled ? 0 : 1;
+    const max = this.selectedBatch.journeyLength;
+    if (raw === null || raw === undefined || raw === '') return false;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
+    return Number.isFinite(n) && n >= min && n <= max;
+  }
+
+  isBulkDayValueValid(raw: unknown): boolean {
+    if (raw === null || raw === undefined || raw === '') return false;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 && n <= 200;
+  }
+
+  pauseHistoryEntries(): JourneyPauseHistoryEntry[] {
+    const raw = this.selectedBatch?.journeyPauseHistory;
+    if (!Array.isArray(raw) || !raw.length) return [];
+    return [...raw].sort(
+      (a, b) => new Date(b.resumedAt).getTime() - new Date(a.resumedAt).getTime()
+    );
+  }
+
+  formatPauseHistoryEntry(entry: JourneyPauseHistoryEntry): string {
+    const days = entry.pauseDays === 1 ? '1 day' : `${entry.pauseDays} days`;
+    return `Day ${entry.day} — paused ${days}`;
   }
 
   clearStartDate(): void {
@@ -4989,6 +5426,10 @@ export class JourneyManagementComponent implements OnInit {
     this.editBatchStartDate = b.batchStartDate
       ? new Date(b.batchStartDate).toISOString().slice(0, 10)
       : '';
+    this.editTrialDayEnabled = !!b.trialDayEnabled;
+    this.editTrialAccessStartDate = b.trialAccessStartDate
+      ? new Date(b.trialAccessStartDate).toISOString().slice(0, 10)
+      : '';
     this.editNotes = b.notes;
     this.editBatchType = b.batchType === 'old' ? 'old' : 'new';
     this.editOldBatchDgBotAccess = !!b.oldBatchDgBotAccess;
@@ -4997,6 +5438,7 @@ export class JourneyManagementComponent implements OnInit {
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
     this.editAutoRecordingEnabled = !!b.autoRecordingEnabled;
     this.editJourneyPaused = !!(b.journeyPaused && b.batchType !== 'old');
+    this.selectedBatch.journeyPauseHistory = b.journeyPauseHistory ?? [];
     this.activeTab = 'students';
     this.batchStudents = [];
     this.studentsLoadedForBatch = null;
@@ -5079,6 +5521,7 @@ export class JourneyManagementComponent implements OnInit {
           this.editJourneyPaused = !!(r.config.journeyPaused && r.config.batchType !== 'old');
           this.selectedBatch.journeyPaused = this.editJourneyPaused;
           this.selectedBatch.journeyPausedFrozenDay = r.config.journeyPausedFrozenDay ?? null;
+          this.selectedBatch.journeyPauseHistory = r.config.journeyPauseHistory ?? [];
         }
         if (this.selectedBatch?.batchName === batchName) {
           this.studentsLoadedForBatch = batchName;
@@ -5157,7 +5600,12 @@ export class JourneyManagementComponent implements OnInit {
       strictJourneyRule: this.editStrictJourneyRule,
       strictJourneyThresholdPercent: this.editStrictThresholdPercent,
       autoRecordingEnabled: this.editAutoRecordingEnabled,
-      journeyPaused: this.editBatchType === 'new' ? !!this.editJourneyPaused : false
+      journeyPaused: this.editBatchType === 'new' ? !!this.editJourneyPaused : false,
+      trialDayEnabled: this.editBatchType === 'new' ? !!this.editTrialDayEnabled : false,
+      trialAccessStartDate:
+        this.editBatchType === 'new' && this.editTrialDayEnabled && this.editTrialAccessStartDate
+          ? this.editTrialAccessStartDate
+          : null
     };
   }
 
@@ -5180,9 +5628,19 @@ export class JourneyManagementComponent implements OnInit {
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
     this.editAutoRecordingEnabled = !!config.autoRecordingEnabled;
     this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
+    this.selectedBatch.trialDayEnabled = !!config.trialDayEnabled;
+    this.editTrialDayEnabled = !!config.trialDayEnabled;
+    this.selectedBatch.trialAccessStartDate = config.trialAccessStartDate || null;
+    this.editTrialAccessStartDate = config.trialAccessStartDate
+      ? new Date(config.trialAccessStartDate).toISOString().slice(0, 10)
+      : '';
     this.editJourneyPaused = !!(config.journeyPaused && config.batchType !== 'old');
     this.selectedBatch.journeyPaused = this.editJourneyPaused;
     this.selectedBatch.journeyPausedFrozenDay = config.journeyPausedFrozenDay ?? null;
+    this.selectedBatch.journeyPauseHistory = config.journeyPauseHistory ?? [];
+    if (config.batchStartDate) {
+      this.editBatchStartDate = new Date(config.batchStartDate).toISOString().slice(0, 10);
+    }
     if (config.batchCurrentDay != null) {
       this.editBatchDay = config.batchCurrentDay;
     }
@@ -5192,12 +5650,13 @@ export class JourneyManagementComponent implements OnInit {
     if (this.editBatchType !== 'old') {
       this.editOldBatchDgBotAccess = false;
     } else {
+      this.editTrialDayEnabled = false;
       this.editJourneyPaused = false;
     }
   }
 
   setStudentDay(s: StudentRow): void {
-    if (!s.editDay || s.editDay < 1) return;
+    if (!this.isEditDayValueValid(s.editDay)) return;
     s.saving = true;
     this.http.patch<any>(`${this.apiUrl}/student/${s._id}/day`, { day: s.editDay }, { withCredentials: true }).subscribe({
       next: r => {
@@ -5205,7 +5664,7 @@ export class JourneyManagementComponent implements OnInit {
         s.editDay = r.student.currentCourseDay;
         s.saving = false;
         s.taskStatus = null;
-        this.notify.success(`Set to Day ${r.student.currentCourseDay}.`);
+        this.notify.success(`Set to ${this.formatBatchDay(r.student.currentCourseDay)}.`);
       },
       error: e => { console.error(e); s.saving = false; this.notify.error('Failed to update student day.'); }
     });
@@ -5313,10 +5772,11 @@ export class JourneyManagementComponent implements OnInit {
   private parsedEditDay(s: StudentRow): number | null {
     if (!this.selectedBatch) return null;
     const max = this.selectedBatch.journeyLength;
+    const min = this.editTrialDayEnabled ? 0 : 1;
     const raw = s.editDay as unknown;
     if (raw === null || raw === undefined || raw === '') return null;
     const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
-    if (!Number.isFinite(n) || n < 1 || n > max) return null;
+    if (!Number.isFinite(n) || n < min || n > max) return null;
     return n;
   }
 
@@ -5327,7 +5787,7 @@ export class JourneyManagementComponent implements OnInit {
     if (jumpTo != null && jumpTo !== s.currentCourseDay) {
       this.notify.confirm(
         'Set journey day',
-        `Set ${s.name} to Day ${jumpTo}? Their scheduled content will follow this day (admin override).`,
+        `Set ${s.name} to ${this.formatBatchDay(jumpTo)}? Their scheduled content will follow this day (admin override).`,
         'Set day',
         'Cancel'
       ).subscribe(ok => {

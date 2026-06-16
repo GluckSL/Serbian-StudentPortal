@@ -61,7 +61,7 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
             Check your answer and earn XP for each correct sentence!
           </p>
           <p *ngIf="set.gameType === 'matching'">
-            Match each item to its correct pair. Coming soon!
+            Match each item on the left with the correct item on the right.
           </p>
           <p *ngIf="set.gameType === 'flashcards'">
             Flip through cards to test your vocabulary. Coming soon!
@@ -78,6 +78,13 @@ import { GameSet, LeaderboardEntry } from '../../glueck-arena.types';
           <p *ngIf="set.gameType === 'whackawort'">
             Whack the German words that match the target category — hit the wrong ones and lose a life!
           </p>
+          <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word!</p>
+          <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word.</p>
+          <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer!</p>
+          <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
+          <p *ngIf="set.gameType === 'spin_wheel'">Spin the wheel, then eliminate phrases one by one or resume to keep them — until one winning phrase remains.</p>
+          <p *ngIf="set.gameType === 'tap_boxes'">Tap numbered boxes on the grid — each opens with a zoom and peel animation to reveal a hidden German phrase.</p>
+          <p *ngIf="set.gameType === 'word_search'">Find hidden words across, down, or diagonally. Drag or tap letters in order to reveal each word — correct finds earn points, wrong selections cost a life.</p>
         </div>
 
         <button mat-raised-button color="primary" class="gd__play-btn" (click)="play()">
@@ -172,6 +179,8 @@ export class GameDetailComponent implements OnInit {
       gender_stack: 'linear-gradient(135deg,#0284c7,#38bdf8)',
       flapjugation: 'linear-gradient(135deg,#be185d,#ec4899)',
       whackawort: 'linear-gradient(135deg,#d97706,#f59e0b)',
+      memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
+      word_picture_match: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
@@ -181,6 +190,8 @@ export class GameDetailComponent implements OnInit {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder', matching: 'Matching',
       flashcards: 'Flashcards', image_matching: 'Image Matching', gender_stack: 'Gender Stack',
       flapjugation: 'Flapjugation', whackawort: 'Whack-a-Wort',
+      memory: 'Memory Game',
+      word_picture_match: 'Word-Picture Match',
     };
     return map[t] ?? t;
   }

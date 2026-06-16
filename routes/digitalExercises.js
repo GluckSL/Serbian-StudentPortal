@@ -12,6 +12,7 @@ const ExerciseAttempt = require('../models/ExerciseAttempt');
 const { sanitizeReportedTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
 const OpenAI = require('openai');
 const s3Client = require('../config/s3');
 const {
@@ -31,8 +32,15 @@ const { recoverExerciseMedia } = require('../utils/exerciseMediaRecover');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { isValidAdminCourseDay } = require('../utils/journeyDay');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const {
+  attachInheritedAttemptsForStudent,
+  resolveInheritedAttempt,
+  isInheritedPassing
+} = require('../services/exerciseSplitInheritance.service');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
 const ATTACHMENT_DIR = path.join(__dirname, '..', 'uploads', 'exercise-attachments');
@@ -127,11 +135,44 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'tags',
   'courseDay',
   'sequenceLetter',
-  'visibleToStudents'
+  'visibleToStudents',
+  'weeklyTestEnabled',
+  'examEnabled',
 ];
 
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
 const VIDEO_PRONUNCIATION_PASS_SCORE = 20;
+const DIGITAL_EXERCISE_LIST_MAX_LIMIT = 100;
+
+function parsePositiveInt(value, fallback, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function buildQuestionTypeSummary(questionTypes = []) {
+  return (Array.isArray(questionTypes) ? questionTypes : []).reduce((acc, type) => {
+    if (typeof type !== 'string' || !type) return acc;
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function isWatchOnlyVideoClip(exercise, q) {
+  return !!exercise?.watchOnlyMode && q?.type === 'video-pronunciation';
+}
+
+/** In Watch Only mode, watching a clip counts as a full pass (no speaking required). */
+function applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer) {
+  if (!isWatchOnlyVideoClip(exercise, q)) {
+    return { isCorrect, pointsEarned, correctAnswer };
+  }
+  return {
+    isCorrect: true,
+    pointsEarned: q.points || 1,
+    correctAnswer: { ...(correctAnswer || {}), score: 100, watchOnlyPass: true },
+  };
+}
 
 function normalizeQuestionContexts(rawQuestions) {
   if (!Array.isArray(rawQuestions)) return rawQuestions;
@@ -239,6 +280,20 @@ function parseTrueFalse(raw) {
   // Accept values from UI, admin selection, and worksheet generator.
   if (/\b(true|richtig|wahr|ja|yes)\b/.test(s)) return true;
   if (/\b(false|falsch|unwahr|nein|no|incorrect)\b/.test(s)) return false;
+  return null;
+}
+
+function isTrueFalseQuestionShape(q) {
+  if (!q || q.type !== 'question-answer') return false;
+  if (q.worksheetKind === 'true-false') return true;
+  const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+  return samples.some((s) => parseTrueFalse(s) !== null);
+}
+
+function formatTrueFalseLabel(raw) {
+  const parsed = parseTrueFalse(raw);
+  if (parsed === true) return 'Richtig';
+  if (parsed === false) return 'Falsch';
   return null;
 }
 
@@ -443,9 +498,25 @@ function exerciseTotalPoints(questions) {
   return (questions || []).reduce((sum, q) => sum + questionTotalPoints(q), 0);
 }
 
+/** Blanks for a fill-blank question: max of underscore runs and configured answers length. */
+function fillBlankSlotCount(q) {
+  if (!q || q.type !== 'fill-blank') return 0;
+  const fromAnswers = Array.isArray(q.answers) ? q.answers.length : 0;
+  const fromSentence = countFillBlankRuns(q.sentence || '');
+  return Math.max(fromAnswers, fromSentence);
+}
+
+function hasNonEmptyFillBlankResponses(arr) {
+  return Array.isArray(arr) && arr.some((x) => String(x ?? '').trim());
+}
+
+function findSubQuestionResponse(subResps, subIndex) {
+  return (subResps || []).find((r) => Number(r.questionIndex) === Number(subIndex));
+}
+
 function gradeFillBlankRawScore(q, fillBlankResponses) {
   const answers = q.answers || [];
-  const total = answers.length;
+  const total = fillBlankSlotCount(q);
   const sanitizedAnswers = (answers || []).map((a) => sanitizeQuestionPlainText(a));
   if (total <= 0 || !Array.isArray(fillBlankResponses)) {
     return { rawScore: 0, correctAnswer: { answers: sanitizedAnswers } };
@@ -481,24 +552,148 @@ function gradeSubQuestionPart(sq, subResp) {
       correctAnswer: { correctAnswerIndex: correctIdx, explanation: sq.explanation }
     };
   }
+  if (sq.type === 'question-answer') {
+    const studentAns = String(sub.textAnswer ?? sub.qaResponse ?? '').trim();
+    const samples = Array.isArray(sq.sampleAnswers) ? sq.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = sq.worksheetKind === 'true-false' || expectedRaw !== null;
+    if (isTrueFalse) {
+      const expected = parseTrueFalse(expectedRaw);
+      const given = parseTrueFalse(studentAns);
+      const rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
+      return { rawScore, correctAnswer: { sampleAnswers: samples } };
+    }
+    const filtered = samples.filter(Boolean);
+    const normalizedStudent = normalizeTextForExactCompare(studentAns);
+    const exact = filtered.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+    return { rawScore: exact ? 100 : 0, correctAnswer: { sampleAnswers: filtered } };
+  }
+  if (sq.type === 'listening') {
+    const studentText = normalizeListeningAnswer(sub.textAnswer ?? sub.listeningText ?? '');
+    const expected = normalizeListeningAnswer(sq.expectedTranscript || '');
+    const rawScore = expected && studentText && studentText === expected ? 100 : 0;
+    return { rawScore, correctAnswer: { expectedTranscript: sq.expectedTranscript } };
+  }
+  if (sq.type === 'matching') {
+    const pairs = sq.pairs || [];
+    const total = pairs.length;
+    if (total > 0 && Array.isArray(sub.matchingResponse)) {
+      const byLeft = {};
+      for (const m of sub.matchingResponse) byLeft[m.leftIndex] = m;
+      let correctCount = 0;
+      for (let li = 0; li < total; li++) {
+        const match = byLeft[li];
+        if (!match) continue;
+        const expectedRight = pairs[li]?.right;
+        const givenRight = match.rightValue != null ? match.rightValue : pairs[match.rightIndex]?.right;
+        if (expectedRight !== undefined && givenRight !== undefined && matchingRightsEqual(expectedRight, givenRight)) {
+          correctCount += 1;
+        }
+      }
+      const useAdvanced = isAdvancedGradingEnabled(sq);
+      const rawScore = useAdvanced
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+      return { rawScore, correctAnswer: { pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: sanitizeQuestionPlainText(p.right) })) } };
+    }
+    return { rawScore: 0, correctAnswer: { pairs: [] } };
+  }
+  if (sq.type === 'word_bank_fill') {
+    const rows = Array.isArray(sq.items) ? sq.items : [];
+    const total = rows.length;
+    if (total > 0 && Array.isArray(sub.wordBankAnswers)) {
+      const byIndex = {};
+      sub.wordBankAnswers.forEach((entry) => {
+        const key = Number(entry?.index);
+        if (Number.isInteger(key) && key >= 0 && key < total) {
+          byIndex[key] = entry?.value;
+        }
+      });
+      let correctCount = 0;
+      for (let idx = 0; idx < total; idx++) {
+        const given = normalizeWordBankValue(byIndex[idx]);
+        if (wordBankRowAcceptsGiven(given, rows[idx])) correctCount += 1;
+      }
+      const useAdvanced = isAdvancedGradingEnabled(sq);
+      const rawScore = useAdvanced
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+      return { rawScore, correctAnswer: { wordBank: (Array.isArray(sq.wordBank) ? sq.wordBank : []).map((w) => sanitizeQuestionPlainText(w)), reusableWords: sq.reusableWords !== false, items: mapWordBankCorrectAnswerPayload(rows) } };
+    }
+    return { rawScore: 0, correctAnswer: { items: [] } };
+  }
+  if (sq.type === 'singular_plural') {
+    const rows = (sq.pairs || []).filter((p) => p.singular && p.plural);
+    const total = rows.length;
+    if (total > 0 && Array.isArray(sub.singularPluralResponses)) {
+      let correctCount = 0;
+      for (let idx = 0; idx < total; idx++) {
+        const given = String(sub.singularPluralResponses[idx] ?? '').trim();
+        const expected = String(rows[idx].plural || '').trim();
+        if (given.toLowerCase().replace(/\s+/g, ' ') === expected.toLowerCase().replace(/\s+/g, ' ')) {
+          correctCount += 1;
+        }
+      }
+      const useAdvanced = isAdvancedGradingEnabled(sq);
+      const rawScore = useAdvanced
+        ? Math.round((correctCount / total) * 100)
+        : (correctCount === total ? 100 : 0);
+      return { rawScore, correctAnswer: { plurals: rows.map((row) => row.plural) } };
+    }
+    return { rawScore: 0, correctAnswer: { plurals: [] } };
+  }
+  if (sq.type === 'jumble-word') {
+    const useAdvanced = isAdvancedGradingEnabled(sq);
+    const rawScore = jumbleWordRawScore(sub.jumbleWordResponse, sq.expectedWord, useAdvanced);
+    return { rawScore, correctAnswer: { expectedWord: sq.expectedWord } };
+  }
+  if (sq.type === 'rearrange') {
+    const useAdvanced = isAdvancedGradingEnabled(sq);
+    const rawScore = rearrangeRawScore(sq, sub, useAdvanced);
+    return { rawScore, correctAnswer: { rearrangeTokens: Array.isArray(sq.rearrangeTokens) ? sq.rearrangeTokens : [], rearrangeAnswer: sq.rearrangeAnswer || '' } };
+  }
+  if (sq.type === 'image_pin_match') {
+    const labels = Array.isArray(sq.labels) ? sq.labels : [];
+    const submitted = Array.isArray(sub.imagePinAnswers) ? sub.imagePinAnswers : [];
+    const byLabel = {};
+    submitted.forEach((entry) => {
+      const lid = String(entry?.labelId || '');
+      const pid = String(entry?.pinId || '');
+      if (lid && pid) byLabel[lid] = pid;
+    });
+    let correctCount = 0;
+    const total = labels.length;
+    for (const l of labels) {
+      if (String(byLabel[String(l.id)] || '') === String(l.correctPinId || '')) correctCount += 1;
+    }
+    const rawScore = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    return { rawScore, correctAnswer: { labels: labels.map((l) => ({ id: l.id, text: l.text, correctPinId: l.correctPinId })), pins: Array.isArray(sq.pins) ? sq.pins : [] } };
+  }
+  if (sq.type === 'pronunciation') {
+    const rawScore = Math.max(0, Math.min(100, Number(sub.pronunciationScore) || 0));
+    return { rawScore, correctAnswer: { word: sq.word, phonetic: sq.phonetic, acceptedVariants: sq.acceptedVariants } };
+  }
+  if (sq.type === 'video-pronunciation') {
+    const rawScore = Math.max(0, Math.min(100, Number(sub.pronunciationScore) || 0));
+    return { rawScore, correctAnswer: { caption: sq.caption, acceptedVariants: sq.acceptedVariants } };
+  }
   return { rawScore: 0, correctAnswer: null };
 }
 
-/** Grade sub-questions attached to a parent; merges points and isCorrect with parent result. */
+/** Grade sub-questions attached to a parent; each part earns its own points independently. */
 function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned, parentCorrectAnswer) {
-  let isCorrect = parentIsCorrect;
   let pointsEarned = parentPointsEarned;
   let correctAnswer = parentCorrectAnswer;
   const subResults = [];
   const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
   if (!subs.length) {
-    return { isCorrect, pointsEarned, correctAnswer, subResults };
+    return { isCorrect: parentIsCorrect, pointsEarned, correctAnswer, subResults };
   }
 
   const subResps = Array.isArray(resp.subQuestionResponses) ? resp.subQuestionResponses : [];
   for (let si = 0; si < subs.length; si++) {
     const sq = subs[si];
-    const subResp = subResps.find((r) => r.questionIndex === si) || { questionIndex: si };
+    const subResp = findSubQuestionResponse(subResps, si) || { questionIndex: si };
     const { rawScore, correctAnswer: subCorrectAnswer } = gradeSubQuestionPart(sq, subResp);
     let subIsCorrect;
     let subPoints;
@@ -521,7 +716,6 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
       subCorrectOut = { ...(subCorrectAnswer || {}), score: rawScore, aiGradingEnabled: false };
     }
 
-    if (!subIsCorrect) isCorrect = false;
     pointsEarned += subPoints;
     subResults.push({
       questionIndex: si,
@@ -541,6 +735,8 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
   if (subResults.length) {
     correctAnswer = { ...(correctAnswer || {}), subResults };
   }
+  const allSubsCorrect = subResults.every((sub) => sub.isCorrect);
+  const isCorrect = parentIsCorrect && allSubsCorrect;
   return { isCorrect, pointsEarned, correctAnswer, subResults, subQuestionGrades };
 }
 
@@ -550,13 +746,15 @@ function countFillBlankRuns(sentence) {
 
 function getFillBlankPartsLayout(q) {
   const parts = [];
-  if (q?.type === 'fill-blank' && countFillBlankRuns(q.sentence) > 0) {
-    parts.push({ kind: 'parent', subIndex: null, blankCount: countFillBlankRuns(q.sentence) });
+  const parentSlots = fillBlankSlotCount(q);
+  if (q?.type === 'fill-blank' && parentSlots > 0) {
+    parts.push({ kind: 'parent', subIndex: null, blankCount: parentSlots });
   }
   const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
   subs.forEach((sq, si) => {
-    if (sq?.type === 'fill-blank' && countFillBlankRuns(sq.sentence) > 0) {
-      parts.push({ kind: 'sub', subIndex: si, blankCount: countFillBlankRuns(sq.sentence) });
+    if (sq?.type === 'fill-blank') {
+      const slots = fillBlankSlotCount(sq);
+      if (slots > 0) parts.push({ kind: 'sub', subIndex: si, blankCount: slots });
     }
   });
   return parts;
@@ -579,11 +777,11 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
 
   const out = { ...resp };
   let subResps = Array.isArray(out.subQuestionResponses)
-    ? out.subQuestionResponses.map((s) => ({ ...s }))
+    ? out.subQuestionResponses.map((s) => ({ ...s, questionIndex: Number(s.questionIndex) }))
     : [];
 
   const ensureSub = (si) => {
-    let s = subResps.find((x) => Number(x.questionIndex) === si);
+    let s = findSubQuestionResponse(subResps, si);
     if (!s) {
       s = { questionIndex: si };
       subResps.push(s);
@@ -594,7 +792,7 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
   for (const part of parts) {
     if (part.kind !== 'sub') continue;
     const sub = ensureSub(part.subIndex);
-    if (!Array.isArray(sub.fillBlankResponses) || !sub.fillBlankResponses.length) {
+    if (!hasNonEmptyFillBlankResponses(sub.fillBlankResponses)) {
       const text = String(sub.textAnswer ?? '').trim();
       if (text) sub.fillBlankResponses = [text];
     }
@@ -606,17 +804,17 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
     : [];
   const parentPart = parts.find((p) => p.kind === 'parent');
   const parentCount = parentPart ? parentPart.blankCount : 0;
-  const subsAlreadyFilled = parts
+  const subsNeedFlat = parts
     .filter((p) => p.kind === 'sub')
-    .some((p) => {
-      const sub = ensureSub(p.subIndex);
-      return Array.isArray(sub.fillBlankResponses) && sub.fillBlankResponses.some((x) => String(x).trim());
-    });
+    .some((p) => !hasNonEmptyFillBlankResponses(ensureSub(p.subIndex).fillBlankResponses));
+  const flatHasContent = flat.some((x) => String(x).trim());
 
-  if (flat.length === totalBlanks && totalBlanks > 0 && !subsAlreadyFilled) {
+  if (totalBlanks > 0 && flatHasContent && subsNeedFlat) {
+    const usableLen = Math.min(flat.length, totalBlanks);
     let offset = 0;
     if (parentPart) {
-      out.fillBlankResponses = flat.slice(offset, offset + parentCount);
+      const take = Math.min(parentCount, usableLen);
+      out.fillBlankResponses = flat.slice(offset, offset + take);
       offset += parentCount;
     } else {
       out.fillBlankResponses = [];
@@ -624,7 +822,10 @@ function migrateFillBlankResponsesForQuestion(q, resp) {
     for (const part of parts) {
       if (part.kind !== 'sub') continue;
       const sub = ensureSub(part.subIndex);
-      sub.fillBlankResponses = flat.slice(offset, offset + part.blankCount);
+      if (!hasNonEmptyFillBlankResponses(sub.fillBlankResponses)) {
+        const take = Math.min(part.blankCount, Math.max(0, usableLen - offset));
+        sub.fillBlankResponses = flat.slice(offset, offset + take);
+      }
       offset += part.blankCount;
     }
   }
@@ -644,7 +845,7 @@ function migrateAttemptFillBlankResponses(exercise, responses) {
 }
 
 /** Grade one question response (same rules as POST /submit). */
-function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap) {
+function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap, exercise = null) {
   const useAdvancedGrading = isAdvancedGradingEnabled(q);
   let isCorrect = false;
   let pointsEarned = 0;
@@ -835,6 +1036,12 @@ function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap) {
     });
   }
 
+  ({
+    isCorrect,
+    pointsEarned,
+    correctAnswer
+  } = applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer));
+
   return {
     isCorrect,
     pointsEarned,
@@ -917,7 +1124,12 @@ function formatStudentAnswerForReview(q, r) {
     return (t || '—') + tail;
   }
   if (q.type === 'question-answer') {
-    return (r.qaResponse && String(r.qaResponse).trim()) ? String(r.qaResponse).trim() : '—';
+    const raw = r.qaResponse && String(r.qaResponse).trim() ? String(r.qaResponse).trim() : '';
+    if (!raw) return '—';
+    if (isTrueFalseQuestionShape(q)) {
+      return formatTrueFalseLabel(raw) || raw;
+    }
+    return raw;
   }
   if (q.type === 'listening') {
     const t = r.listeningText || r.qaResponse || '';
@@ -1033,7 +1245,14 @@ function questionPromptSnippet(q, idx) {
 
 function subResponseToReviewShape(sq, subResp) {
   const sub = subResp || {};
-  if (sq.type === 'fill-blank') return { fillBlankResponses: sub.fillBlankResponses || [] };
+  if (sq.type === 'fill-blank') {
+    let arr = Array.isArray(sub.fillBlankResponses) ? [...sub.fillBlankResponses] : [];
+    if (!hasNonEmptyFillBlankResponses(arr)) {
+      const text = String(sub.textAnswer ?? '').trim();
+      if (text) arr = [text];
+    }
+    return { fillBlankResponses: arr };
+  }
   if (sq.type === 'mcq') return { selectedOptionIndex: sub.selectedOptionIndex };
   if (sq.type === 'listening') return { listeningText: sub.textAnswer };
   return { qaResponse: sub.textAnswer };
@@ -1062,6 +1281,39 @@ function getSubQuestionReviewGrade(q, r, sq, si, subResp) {
   return { ...graded, staffOverride: false };
 }
 
+function gradeParentPartRawScore(q, r) {
+  if (!r) return 0;
+  if (q.type === 'mcq') {
+    return r.selectedOptionIndex === q.correctAnswerIndex ? 100 : 0;
+  }
+  if (q.type === 'fill-blank') {
+    return gradeFillBlankRawScore(q, r.fillBlankResponses).rawScore;
+  }
+  if (q.type === 'question-answer') {
+    const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+    if (isTrueFalse) {
+      const expected = parseTrueFalse(expectedRaw);
+      const given = parseTrueFalse(r.qaResponse);
+      return expected !== null && given !== null && given === expected ? 100 : 0;
+    }
+    const filtered = samples.filter(Boolean);
+    const normalizedStudent = normalizeTextForExactCompare(r.qaResponse || '');
+    const exact = filtered.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
+    return exact ? 100 : 0;
+  }
+  if (q.type === 'listening') {
+    const studentText = normalizeListeningAnswer(r.listeningText || r.qaResponse || '');
+    const expected = normalizeListeningAnswer(q.expectedTranscript || '');
+    return expected && studentText && studentText === expected ? 100 : 0;
+  }
+  if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
+    return Math.max(0, Math.min(100, Number(r.pronunciationScore) || 0));
+  }
+  return r.isCorrect ? 100 : 0;
+}
+
 function getParentPartReviewGrade(q, r) {
   if (!r) return { isCorrect: false, pointsEarned: 0 };
   const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
@@ -1070,14 +1322,14 @@ function getParentPartReviewGrade(q, r) {
   }
   const subPts = (r.subQuestionGrades || []).reduce((sum, g) => sum + (Number(g.pointsEarned) || 0), 0);
   const parentPts = Math.max(0, (Number(r.pointsEarned) || 0) - subPts);
-  const { rawScore } = q.type === 'fill-blank'
-    ? gradeFillBlankRawScore(q, r.fillBlankResponses)
-    : { rawScore: r.isCorrect ? 100 : 0 };
+  const rawScore = gradeParentPartRawScore(q, r);
   let parentCorrect;
   if (isAdvancedGradingEnabled(q)) {
     parentCorrect = applyThresholdScoring(q, rawScore).isCorrect;
-  } else if (q.type === 'pronunciation' || q.type === 'video-pronunciation') {
-    parentCorrect = !!r.isCorrect;
+  } else if (q.type === 'pronunciation') {
+    parentCorrect = rawScore >= 70;
+  } else if (q.type === 'video-pronunciation') {
+    parentCorrect = rawScore >= normalizeThresholdForQuestion(q);
   } else {
     parentCorrect = rawScore >= 100;
   }
@@ -1122,7 +1374,7 @@ function buildPerQuestionReview(exercise, attempt) {
       const subResps = Array.isArray(r?.subQuestionResponses) ? r.subQuestionResponses : [];
       for (let si = 0; si < subs.length; si++) {
         const sq = subs[si];
-        const subResp = subResps.find((s) => Number(s.questionIndex) === si) || { questionIndex: si };
+        const subResp = findSubQuestionResponse(subResps, si) || { questionIndex: si };
         const subGrade = getSubQuestionReviewGrade(q, r, sq, si, subResp);
         serial++;
         rows.push({
@@ -1171,7 +1423,7 @@ async function regradeCompletedAttempt(exercise, attemptDoc) {
   for (let i = 0; i < exercise.questions.length; i++) {
     const q = exercise.questions[i];
     const resp = migrated.find((r) => Number(r.questionIndex) === i) || { questionIndex: i };
-    const graded = gradeQuestionResponseCore(q, resp, i, qaScoreMap);
+    const graded = gradeQuestionResponseCore(q, resp, i, qaScoreMap, exercise);
     earnedPoints += graded.pointsEarned;
     gradedResponses.push(graded.gradedResp);
   }
@@ -1214,10 +1466,35 @@ function exerciseOwnerId(exercise) {
   return String(raw || '');
 }
 
+const EXERCISES_TAB_ID = 'exercises';
+
+function teacherExercisesTabLevel(teacherUser) {
+  const levels = teacherUser?.teacherTabAccessLevels || {};
+  const level = levels[EXERCISES_TAB_ID];
+  if (level === 'view' || level === 'edit' || level === 'full') return level;
+  const perms = teacherUser?.teacherTabPermissions || [];
+  return perms.includes(EXERCISES_TAB_ID) ? 'view' : null;
+}
+
+async function loadTeacherPermissions(userId) {
+  return User.findById(userId)
+    .select('teacherTabPermissions teacherTabAccessLevels')
+    .lean();
+}
+
+async function teacherCanEditExercise(user, exercise) {
+  if (user.role !== 'TEACHER') return true;
+  const owner = exerciseOwnerId(exercise);
+  if (owner === String(user.id)) return true;
+  const teacherUser = await loadTeacherPermissions(user.id);
+  const level = teacherExercisesTabLevel(teacherUser);
+  return level === 'edit' || level === 'full';
+}
+
 async function assertTeacherOwnsExercise(user, exercise) {
   if (user.role === 'TEACHER') {
-    const owner = exerciseOwnerId(exercise);
-    if (owner !== String(user.id)) {
+    const canEdit = await teacherCanEditExercise(user, exercise);
+    if (!canEdit) {
       const err = new Error('Forbidden');
       err.statusCode = 403;
       throw err;
@@ -1243,23 +1520,32 @@ const {
 } = require('../utils/journeyContentBlock');
 
 async function getStudentExerciseAccess(userId) {
-  const u = await User.findById(userId).select('currentCourseDay role level batch goStatus subscription blockedJourneyLevels').lean();
+  const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
+  const { minimumAssignedContentDay } = require('../utils/journeyDay');
+  await reconcileSilverGoCourseDay(userId);
+  const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
+  const u = await User.findById(userId)
+    .select(`${SILVER_GO_STUDENT_SELECT} blockedJourneyLevels`)
+    .lean();
   if (!u || u.role !== 'STUDENT') {
     return {
       enabled: true,
       courseDay: 1,
+      minAssignedContentDay: 1,
       accessibleLevels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
       studentLevel: null
     };
   }
   const journeyAccess = await getJourneyAccessForStudent(u);
-  const courseDay = journeyAccess.courseDay;
+  const courseDay = journeyAccess.contentUnlockDay ?? journeyAccess.courseDay;
+  const minAssignedContentDay = minimumAssignedContentDay(u, journeyAccess.trialDayEnabled);
   const studentLevel = u.level || 'A1';
   const accessibleLevels = getEffectiveAccessibleLevels(studentLevel, u.blockedJourneyLevels);
   return {
     enabled: journeyAccess.enabled,
     learningEnabled: journeyAccess.learningEnabled !== false,
     courseDay,
+    minAssignedContentDay,
     accessibleLevels,
     studentLevel,
     student: u
@@ -1271,12 +1557,26 @@ function exerciseLevelAllowedForStudent(exerciseLevel, accessibleLevels) {
   return accessibleLevels.includes(exerciseLevel);
 }
 
+function normalizeExerciseIdParam(rawId, rawPart2) {
+  const a = String(rawId || '').trim();
+  const b = String(rawPart2 || '').trim();
+  let joined = a;
+  if (b && /^[a-f0-9]+$/i.test(a) && /^[a-f0-9]+$/i.test(b) && a.length + b.length === 24) {
+    joined = a + b;
+  }
+  joined = joined.replace(/\//g, '');
+  if (mongoose.Types.ObjectId.isValid(joined)) return String(joined);
+  return a;
+}
+
 /** Students: exercise has no day lock, or lock is satisfied. */
-function exerciseUnlockedForStudentDay(exercise, studentDay) {
+function exerciseUnlockedForStudentDay(exercise, studentDay, minCourseDay = 1) {
   const cd = exercise.courseDay;
   if (cd == null || cd === undefined) return true;
   const n = Number(cd);
   if (!Number.isFinite(n)) return true;
+  const min = Number.isFinite(Number(minCourseDay)) ? Number(minCourseDay) : 1;
+  if (n < min) return false;
   return n <= studentDay;
 }
 
@@ -1290,7 +1590,9 @@ function exerciseUnlockedForStudentDay(exercise, studentDay) {
  */
 async function checkSequenceLock(studentId, exercise) {
   const sl = exercise.sequenceLetter;
-  if (!sl || !exercise.courseDay) return { locked: false, previousLetter: null, previousTitle: null };
+  if (!sl || exercise.courseDay == null || exercise.courseDay === undefined) {
+    return { locked: false, previousLetter: null, previousTitle: null };
+  }
 
   // Find all exercises on the same day with a letter strictly before ours
   const priorExercises = await DigitalExercise.find({
@@ -1298,7 +1600,7 @@ async function checkSequenceLock(studentId, exercise) {
     sequenceLetter: { $lt: sl, $ne: null, $exists: true },
     visibleToStudents: true,
     isDeleted: { $ne: true }
-  }).select('_id sequenceLetter title').lean();
+  }).select('_id sequenceLetter title splitLineage questions').lean();
 
   if (!priorExercises.length) return { locked: false, previousLetter: null, previousTitle: null };
 
@@ -1312,6 +1614,14 @@ async function checkSequenceLock(studentId, exercise) {
   }).select('exerciseId').lean();
 
   const passedIds = new Set(completedAttempts.map((a) => a.exerciseId.toString()));
+  for (const prior of priorExercises) {
+    if (passedIds.has(prior._id.toString())) continue;
+    if (!prior.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, prior);
+    if (isInheritedPassing(inherited)) {
+      passedIds.add(prior._id.toString());
+    }
+  }
   const unpassedPriors = priorExercises.filter((e) => !passedIds.has(e._id.toString()));
 
   if (!unpassedPriors.length) return { locked: false, previousLetter: null, previousTitle: null };
@@ -1354,7 +1664,7 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     isActive: true,
     isDeleted: { $ne: true }
   })
-    .select('_id courseDay sequenceLetter title')
+    .select('_id courseDay sequenceLetter title splitLineage questions.type questions.points questions.subQuestions.points')
     .lean();
 
   if (!dayExercises.length) {
@@ -1375,6 +1685,14 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     .select('exerciseId')
     .lean();
   const passedIds = new Set(completedAttempts.map((a) => String(a.exerciseId)));
+  for (const d of dayExercises) {
+    if (passedIds.has(String(d._id))) continue;
+    if (!d.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, d);
+    if (isInheritedPassing(inherited)) {
+      passedIds.add(String(d._id));
+    }
+  }
 
   const byDay = {};
   dayExercises.forEach((item) => {
@@ -1400,12 +1718,14 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
 // ─── PUBLIC (STUDENT/TEACHER/ADMIN) ROUTES ───────────────────────────────────
 
 // GET /api/digital-exercises  — Browse exercises
-router.get('/', verifyToken, async (req, res) => {
+router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
     const {
       level, category, difficulty, targetLanguage, search,
       page = 1, limit = 12
     } = req.query;
+    const pageNum = parsePositiveInt(page, 1);
+    const limitNum = parsePositiveInt(limit, 12, DIGITAL_EXERCISE_LIST_MAX_LIMIT);
 
     const andClauses = [
       { isActive: true },
@@ -1420,7 +1740,7 @@ router.get('/', verifyToken, async (req, res) => {
         return res.json({
           exercises: [],
           total: 0,
-          page: parseInt(page),
+          page: pageNum,
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
@@ -1431,7 +1751,7 @@ router.get('/', verifyToken, async (req, res) => {
         return res.json({
           exercises: [],
           total: 0,
-          page: parseInt(page),
+          page: pageNum,
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
@@ -1439,18 +1759,18 @@ router.get('/', verifyToken, async (req, res) => {
         });
       }
       const studentCourseDay = studentExerciseAccess.courseDay;
+      const minAssignedDay = studentExerciseAccess.minAssignedContentDay ?? 1;
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
       if (todayOnly) {
-        andClauses.push({ courseDay: studentCourseDay });
+        if (studentCourseDay >= minAssignedDay) {
+          andClauses.push({ courseDay: studentCourseDay });
+        } else {
+          andClauses.push({ courseDay: -1 });
+        }
       } else {
-        // General browse: no courseDay or only journey days reached (no future preview list).
-        andClauses.push({
-          $or: [
-            { courseDay: null },
-            { courseDay: { $exists: false } },
-            { courseDay: { $lte: studentCourseDay } }
-          ]
-        });
+        // General browse: unassigned or journey days in [minAssignedDay, current] (no Trial for Silver GO).
+        const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
+        andClauses.push(studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay));
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
       appendNotBlockedToAndClauses(
@@ -1487,40 +1807,51 @@ router.get('/', verifyToken, async (req, res) => {
 
     const filter = { $and: andClauses };
 
-    const total = await DigitalExercise.countDocuments(filter);
-    const exercises = await DigitalExercise.find(filter)
-      .populate('createdBy', 'name email')
-      // Keep browse payload lightweight: include only question type metadata.
-      .select(
-        [
-          'title',
-          'description',
-          'targetLanguage',
-          'nativeLanguage',
-          'level',
-          'category',
-          'difficulty',
-          'estimatedDuration',
-          'sharedAudioUrl',
-          'tags',
-          'isActive',
-          'visibleToStudents',
-          'publishedAt',
-          'createdBy',
-          'totalAttempts',
-          'totalCompletions',
-          'averageScore',
-          'courseDay',
-          'sequenceLetter',
-          'createdAt',
-          'updatedAt',
-          'questions.type'
-        ].join(' ')
-      )
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
-      .lean();
+    const [total, exercises] = await Promise.all([
+      DigitalExercise.countDocuments(filter),
+      DigitalExercise.aggregate([
+        { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $skip: (pageNum - 1) * limitNum },
+        { $limit: limitNum },
+        {
+          $project: {
+            title: 1,
+            description: 1,
+            targetLanguage: 1,
+            nativeLanguage: 1,
+            level: 1,
+            category: 1,
+            difficulty: 1,
+            estimatedDuration: 1,
+            tags: 1,
+            isActive: 1,
+            visibleToStudents: 1,
+            publishedAt: 1,
+            courseDay: 1,
+            weeklyTestEnabled: 1,
+            examEnabled: 1,
+            sequenceLetter: 1,
+            splitLineage: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            questionCount: { $size: { $ifNull: ['$questions', []] } },
+            questionTypes: {
+              $map: {
+                input: { $ifNull: ['$questions', []] },
+                as: 'q',
+                in: '$$q.type'
+              }
+            }
+          }
+        }
+      ])
+    ]);
+
+    exercises.forEach((ex) => {
+      ex.questionTypeSummary = buildQuestionTypeSummary(ex.questionTypes);
+      delete ex.questionTypes;
+    });
 
     // For students: attach attempt summary (best score) + wrong/correct counts for analytics
     if (req.user.role === 'STUDENT') {
@@ -1586,7 +1917,7 @@ router.get('/', verifyToken, async (req, res) => {
       attempts.forEach(a => {
         const key = a.exerciseId.toString();
         const ex = exerciseById[key];
-        const totalQ = Array.isArray(ex?.questions) ? ex.questions.length : 0;
+        const totalQ = Number(ex?.questionCount) || 0;
         const summary = {
           _id: a._id,
           exerciseId: a.exerciseId,
@@ -1605,17 +1936,17 @@ router.get('/', verifyToken, async (req, res) => {
         ex.studentAttempt = attemptMap[ex._id.toString()] || null;
       });
 
+      await attachInheritedAttemptsForStudent(req.user.id, exercises);
+
       // Attach sequence lock status in one batched pass.
       await attachSequenceLockStatusForList(req.user.id, exercises);
     }
 
-    await resignExercises(exercises);
-
     const payload = {
       exercises,
       total,
-      page: parseInt(page),
-      pages: Math.ceil(total / parseInt(limit))
+      page: pageNum,
+      pages: Math.ceil(total / limitNum)
     };
     if (req.user.role === 'STUDENT' && studentExerciseAccess) {
       payload.studentCourseDay = studentExerciseAccess.courseDay;
@@ -1629,11 +1960,97 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
-router.get('/:id', verifyToken, async (req, res) => {
+// GET /api/digital-exercises/gluck-exam — Lightweight list for Student → Gluck Exam tab
+router.get('/gluck-exam', verifyToken, blockVisaDocsOnly, async (req, res) => {
   try {
+    if (req.user.role !== 'STUDENT') {
+      return res.json({ exercises: [] });
+    }
+
+    const access = await getStudentExerciseAccess(req.user.id);
+    if (!access.enabled || access.learningEnabled === false) {
+      return res.json({
+        exercises: [],
+        studentCourseDay: access.courseDay,
+        studentLevel: access.studentLevel,
+        accessibleLevels: access.accessibleLevels
+      });
+    }
+
+    const minAssignedDay = access.minAssignedContentDay ?? 1;
+    const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
+    const andClauses = [
+      { isActive: true },
+      { isDeleted: { $ne: true } },
+      { visibleToStudents: true },
+      { $or: [{ weeklyTestEnabled: true }, { examEnabled: true }] },
+      studentAssignedCourseDayOrClause(access.courseDay, minAssignedDay),
+      { level: { $in: access.accessibleLevels } }
+    ];
+    appendNotBlockedToAndClauses(andClauses, access.student?.blockedJourneyLevels);
+
+    const exercises = await DigitalExercise.find({ $and: andClauses })
+      .select('_id title level category courseDay weeklyTestEnabled examEnabled')
+      .sort({ courseDay: 1, title: 1 })
+      .lean();
+
+    if (!exercises.length) {
+      return res.json({
+        exercises: [],
+        studentCourseDay: access.courseDay,
+        studentLevel: access.studentLevel,
+        accessibleLevels: access.accessibleLevels
+      });
+    }
+
+    const exerciseIds = exercises.map((e) => e._id);
+    const studentOid = mongoose.Types.ObjectId.isValid(String(req.user.id))
+      ? new mongoose.Types.ObjectId(String(req.user.id))
+      : req.user.id;
+
+    const attempts = await ExerciseAttempt.aggregate([
+      {
+        $match: {
+          studentId: studentOid,
+          exerciseId: { $in: exerciseIds },
+          status: 'completed'
+        }
+      },
+      { $sort: { exerciseId: 1, scorePercentage: -1, completedAt: -1, attemptNumber: -1, _id: -1 } },
+      {
+        $group: {
+          _id: '$exerciseId',
+          scorePercentage: { $first: '$scorePercentage' }
+        }
+      }
+    ]);
+
+    const attemptMap = {};
+    attempts.forEach((a) => {
+      attemptMap[a._id.toString()] = { scorePercentage: a.scorePercentage };
+    });
+    exercises.forEach((ex) => {
+      ex.studentAttempt = attemptMap[ex._id.toString()] || null;
+    });
+
+    res.json({
+      exercises,
+      studentCourseDay: access.courseDay,
+      studentLevel: access.studentLevel,
+      accessibleLevels: access.accessibleLevels
+    });
+  } catch (err) {
+    console.error('GET /digital-exercises/gluck-exam error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/digital-exercises/:id  — Get full exercise (with answers for non-students, or for playing)
+router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
+  try {
+    const exerciseId = normalizeExerciseIdParam(req.params.id, req.query.idPart2);
     const exercise = await DigitalExercise.findOne({
-      _id: req.params.id,
+      _id: exerciseId,
       isDeleted: { $ne: true }
     }).populate('createdBy', 'name email').lean();
 
@@ -1691,7 +2108,7 @@ router.get('/:id', verifyToken, async (req, res) => {
           code: 'LEARNING_CONTENT_DISABLED'
         });
       }
-      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
+      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED',
@@ -1819,7 +2236,7 @@ router.get('/:id', verifyToken, async (req, res) => {
       });
     }
 
-    // Attach student's best attempt if student
+    // Attach student's best attempt if student (or inherited completion from split source)
     if (req.user.role === 'STUDENT') {
       const bestAttempt = await ExerciseAttempt.findOne({
         studentId: req.user.id,
@@ -1827,6 +2244,10 @@ router.get('/:id', verifyToken, async (req, res) => {
         status: 'completed'
       }).sort({ scorePercentage: -1 }).lean();
       exercise.studentAttempt = bestAttempt;
+      if (!exercise.studentAttempt) {
+        const inherited = await resolveInheritedAttempt(req.user.id, exercise);
+        if (inherited) exercise.studentAttempt = inherited;
+      }
     }
 
     // Repair legacy rows that stored presigned S3 URLs (they expire and break images).
@@ -1877,7 +2298,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       adminAnd.push({ $or: [{ courseDay: null }, { courseDay: { $exists: false } }] });
     } else if (cdRaw && cdRaw !== 'all') {
       const d = parseInt(cdRaw, 10);
-      if (Number.isFinite(d) && d >= 1 && d <= 200) adminAnd.push({ courseDay: d });
+      if (Number.isFinite(d) && isValidAdminCourseDay(d)) adminAnd.push({ courseDay: d });
     }
 
     if (search) {
@@ -1889,17 +2310,12 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       });
     }
 
-    // Teachers only see their own exercises (unless ADMIN/TEACHER_ADMIN)
-    if (req.user.role === 'TEACHER') {
-      adminAnd.push({ createdBy: req.user.id });
-    }
-
     const filter = { $and: adminAnd };
 
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .select(
-        'title description targetLanguage difficulty level category courseDay visibleToStudents isActive createdBy createdAt updatedAt questions.type'
+        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode isActive isFreeMode createdBy createdAt updatedAt questions.type'
       )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
@@ -2019,7 +2435,17 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
       isDeleted: { $ne: true }
     };
     if (req.user.role === 'TEACHER') {
-      filter.createdBy = req.user.id;
+      const exercises = await DigitalExercise.find(filter).select('createdBy').lean();
+      const allowedIds = [];
+      for (const ex of exercises) {
+        if (await teacherCanEditExercise(req.user, ex)) {
+          allowedIds.push(ex._id);
+        }
+      }
+      if (!allowedIds.length) {
+        return res.json({ success: true, modifiedCount: 0 });
+      }
+      filter._id = { $in: allowedIds };
     }
 
     $set.updatedAt = new Date();
@@ -2045,6 +2471,127 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
   }
 });
 
+// POST /api/digital-exercises/:id/split-questions — Move selected questions into a new exercise (atomic)
+router.post(
+  '/:id/split-questions',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const source = await DigitalExercise.findById(req.params.id);
+      if (!source || source.isDeleted) {
+        return res.status(404).json({ error: 'Exercise not found' });
+      }
+
+      if (!(await teacherCanEditExercise(req.user, source))) {
+        return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+      }
+
+      const rawIndices = Array.isArray(req.body.questionIndices) ? req.body.questionIndices : [];
+      const indexSet = new Set();
+      for (const raw of rawIndices) {
+        const n = parseInt(raw, 10);
+        if (Number.isInteger(n) && n >= 0) indexSet.add(n);
+      }
+      const sortedIndices = [...indexSet].sort((a, b) => a - b);
+      const totalQ = source.questions?.length || 0;
+
+      if (!sortedIndices.length) {
+        return res.status(400).json({ error: 'Select at least one question to move' });
+      }
+      if (sortedIndices.some((i) => i >= totalQ)) {
+        return res.status(400).json({ error: 'Invalid question index' });
+      }
+      if (sortedIndices.length >= totalQ) {
+        return res.status(400).json({ error: 'Leave at least one question in the source exercise' });
+      }
+
+      const title = String(req.body.title || '').trim();
+      const description = String(req.body.description || '').trim();
+      if (!title || !description) {
+        return res.status(400).json({ error: 'Title and description are required for the new exercise' });
+      }
+
+      let courseDay = null;
+      if (req.body.courseDay != null && req.body.courseDay !== '') {
+        const cd = parseInt(req.body.courseDay, 10);
+        if (!isValidAdminCourseDay(cd)) {
+          return res.status(400).json({ error: 'Journey day must be empty or a number from 0 (Trial) to 200' });
+        }
+        courseDay = cd;
+      }
+
+      const rawLetter = String(req.body.sequenceLetter || '').trim().toLowerCase();
+      const sequenceLetter = /^[a-z]$/.test(rawLetter) ? rawLetter : null;
+
+      const movedPlain = sortedIndices.map((i) => {
+        const q = source.questions[i];
+        return q && typeof q.toObject === 'function' ? q.toObject() : { ...q };
+      });
+
+      const remainingPlain = source.questions
+        .map((q, i) => ({ q, i }))
+        .filter(({ i }) => !indexSet.has(i))
+        .map(({ q }) => (q && typeof q.toObject === 'function' ? q.toObject() : { ...q }));
+
+      const questionSources = sortedIndices.map((i) => {
+        const q = source.questions[i];
+        const id = q && q._id ? q._id : undefined;
+        return {
+          sourceQuestionIndex: i,
+          ...(id ? { sourceQuestionId: id } : {})
+        };
+      });
+
+      const visibleToStudents = req.body.visibleToStudents === true
+        || String(req.body.visibleToStudents) === 'true';
+
+      const newExerciseData = canonicalizeExerciseForStorage({
+        title,
+        description,
+        targetLanguage: req.body.targetLanguage || source.targetLanguage,
+        nativeLanguage: req.body.nativeLanguage || source.nativeLanguage,
+        level: req.body.level || source.level,
+        category: req.body.category || source.category,
+        difficulty: req.body.difficulty || source.difficulty,
+        estimatedDuration: req.body.estimatedDuration != null
+          ? req.body.estimatedDuration
+          : source.estimatedDuration,
+        tags: Array.isArray(req.body.tags) ? req.body.tags : [],
+        courseDay,
+        sequenceLetter,
+        visibleToStudents,
+        questions: normalizeQuestionContexts(movedPlain),
+        splitLineage: {
+          sourceExerciseId: source._id,
+          questionSources
+        },
+        createdBy: req.user.id,
+        ...(visibleToStudents ? { publishedAt: new Date() } : {})
+      });
+
+      const newExercise = new DigitalExercise(newExerciseData);
+      await newExercise.save();
+
+      source.questions = normalizeQuestionContexts(remainingPlain);
+      source.lastUpdatedBy = req.user.id;
+      source.updatedAt = new Date();
+      canonicalizeExerciseForStorage(source);
+      source.markModified('questions');
+      await source.save();
+
+      const created = await DigitalExercise.findById(newExercise._id).lean();
+      res.status(201).json({
+        exercise: created,
+        sourceExerciseId: source._id
+      });
+    } catch (err) {
+      console.error('POST /digital-exercises/:id/split-questions error:', err);
+      res.status(400).json({ error: err.message || 'Failed to split questions' });
+    }
+  }
+);
+
 // POST /api/digital-exercises  — Create exercise
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
@@ -2062,6 +2609,241 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), 
     res.status(201).json(exercise);
   } catch (err) {
     console.error('POST /digital-exercises error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/digital-exercises/freemode  — Create exercise from Free Mode builder items
+router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one question item is required' });
+    }
+
+    // Track current content block fields to inherit
+    let currentContext = '';
+    let currentInstruction = '';
+    let currentSectionTitle = '';
+    let currentAttachmentUrls = [];
+    let currentExample = '';
+
+    const questions = [];
+
+    for (const item of items) {
+      if (item.kind === 'content') {
+        currentContext = item.context || '';
+        currentInstruction = item.instruction || '';
+        currentSectionTitle = item.sectionTitle || '';
+        currentAttachmentUrls = item.attachmentUrls || [];
+        currentExample = item.example || '';
+      } else if (item.kind === 'question' && item.type) {
+        const question = {
+          type: item.type,
+          context: currentContext,
+          instruction: currentInstruction,
+          sectionTitle: currentSectionTitle || null,
+          attachmentUrls: currentAttachmentUrls,
+          attachmentUrl: (currentAttachmentUrls[0] || ''),
+          example: currentExample,
+          answerExplanation: item.answerExplanation || '',
+          points: item.points || 1,
+          // Copy all type-specific fields
+          question: item.question || '',
+          imageUrl: item.imageUrl || '',
+          options: item.options || [],
+          optionImageUrls: item.optionImageUrls || [],
+          correctAnswerIndex: item.correctAnswerIndex,
+          explanation: item.explanation || '',
+          pairs: item.pairs || [],
+          sentence: item.sentence || '',
+          answers: item.answers || [],
+          hint: item.hint || '',
+          caseSensitive: item.caseSensitive || false,
+          wordBank: item.wordBank || [],
+          items: item.items || [],
+          reusableWords: item.reusableWords !== undefined ? item.reusableWords : true,
+          prompt: item.prompt || '',
+          sampleAnswers: item.sampleAnswers || [],
+          storyParagraph: item.storyParagraph || '',
+          similarityThreshold: item.similarityThreshold || 70,
+          scoringMode: item.scoringMode || 'full',
+          aiGradingEnabled: item.aiGradingEnabled !== undefined ? item.aiGradingEnabled : true,
+          mediaUrl: item.mediaUrl || '',
+          expectedTranscript: item.expectedTranscript || '',
+          attemptMode: item.attemptMode || 'typing',
+          videoUrl: item.videoUrl || '',
+          caption: item.caption || '',
+          secondaryCaption: item.secondaryCaption || '',
+          secondaryCaptionAtSeconds: item.secondaryCaptionAtSeconds || 5,
+          scrambledText: item.scrambledText || '',
+          boldLetter: item.boldLetter || '',
+          expectedWord: item.expectedWord || '',
+          categoryTip: item.categoryTip || '',
+          rearrangePrompt: item.rearrangePrompt || '',
+          rearrangeAnswer: item.rearrangeAnswer || '',
+          rearrangeTokens: item.rearrangeTokens || [],
+          labels: item.labels || [],
+          pins: item.pins || [],
+          settings: item.settings || { randomizeLabels: true, allowRetry: true },
+          worksheetKind: item.worksheetKind || null,
+          tier: item.tier || null,
+        };
+
+        questions.push(question);
+      }
+    }
+
+    if (questions.length === 0) {
+      return res.status(400).json({ error: 'At least one question is required' });
+    }
+
+    const normalizedBody = {
+      title,
+      description,
+      level,
+      category,
+      targetLanguage: targetLanguage || 'German',
+      nativeLanguage: nativeLanguage || 'English',
+      difficulty: difficulty || 'Beginner',
+      estimatedDuration: estimatedDuration || 15,
+      courseDay: courseDay != null ? courseDay : null,
+      tags: tags || [],
+      questions,
+      isFreeMode: true,
+      createdBy: req.user.id,
+      lastUpdatedBy: req.user.id
+    };
+
+    if (Object.prototype.hasOwnProperty.call(normalizedBody, 'questions')) {
+      normalizedBody.questions = normalizeQuestionContexts(normalizedBody.questions);
+    }
+
+    const exerciseData = canonicalizeExerciseForStorage(normalizedBody);
+    const exercise = new DigitalExercise(exerciseData);
+    await exercise.save();
+
+    res.status(201).json({ exercise, message: 'Exercise saved successfully' });
+  } catch (err) {
+    console.error('POST /digital-exercises/freemode error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT /api/digital-exercises/freemode/:id  — Update exercise from Free Mode builder items
+router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findById(req.params.id);
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+
+    if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+    }
+
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one question item is required' });
+    }
+
+    let currentContext = '';
+    let currentInstruction = '';
+    let currentSectionTitle = '';
+    let currentAttachmentUrls = [];
+    let currentExample = '';
+
+    const questions = [];
+
+    for (const item of items) {
+      if (item.kind === 'content') {
+        currentContext = item.context || '';
+        currentInstruction = item.instruction || '';
+        currentSectionTitle = item.sectionTitle || '';
+        currentAttachmentUrls = item.attachmentUrls || [];
+        currentExample = item.example || '';
+      } else if (item.kind === 'question' && item.type) {
+        const question = {
+          type: item.type,
+          context: currentContext,
+          instruction: currentInstruction,
+          sectionTitle: currentSectionTitle || null,
+          attachmentUrls: currentAttachmentUrls,
+          attachmentUrl: (currentAttachmentUrls[0] || ''),
+          example: currentExample,
+          answerExplanation: item.answerExplanation || '',
+          points: item.points || 1,
+          question: item.question || '',
+          imageUrl: item.imageUrl || '',
+          options: item.options || [],
+          optionImageUrls: item.optionImageUrls || [],
+          correctAnswerIndex: item.correctAnswerIndex,
+          explanation: item.explanation || '',
+          pairs: item.pairs || [],
+          sentence: item.sentence || '',
+          answers: item.answers || [],
+          hint: item.hint || '',
+          caseSensitive: item.caseSensitive || false,
+          wordBank: item.wordBank || [],
+          items: item.items || [],
+          reusableWords: item.reusableWords !== undefined ? item.reusableWords : true,
+          prompt: item.prompt || '',
+          sampleAnswers: item.sampleAnswers || [],
+          storyParagraph: item.storyParagraph || '',
+          similarityThreshold: item.similarityThreshold || 70,
+          scoringMode: item.scoringMode || 'full',
+          aiGradingEnabled: item.aiGradingEnabled !== undefined ? item.aiGradingEnabled : true,
+          mediaUrl: item.mediaUrl || '',
+          expectedTranscript: item.expectedTranscript || '',
+          attemptMode: item.attemptMode || 'typing',
+          videoUrl: item.videoUrl || '',
+          caption: item.caption || '',
+          secondaryCaption: item.secondaryCaption || '',
+          secondaryCaptionAtSeconds: item.secondaryCaptionAtSeconds || 5,
+          scrambledText: item.scrambledText || '',
+          boldLetter: item.boldLetter || '',
+          expectedWord: item.expectedWord || '',
+          categoryTip: item.categoryTip || '',
+          rearrangePrompt: item.rearrangePrompt || '',
+          rearrangeAnswer: item.rearrangeAnswer || '',
+          rearrangeTokens: item.rearrangeTokens || [],
+          labels: item.labels || [],
+          pins: item.pins || [],
+          settings: item.settings || { randomizeLabels: true, allowRetry: true },
+          worksheetKind: item.worksheetKind || null,
+          tier: item.tier || null,
+        };
+
+        questions.push(question);
+      }
+    }
+
+    if (questions.length === 0) {
+      return res.status(400).json({ error: 'At least one question is required' });
+    }
+
+    exercise.title = title || exercise.title;
+    exercise.description = description || exercise.description;
+    exercise.level = level || exercise.level;
+    exercise.category = category || exercise.category;
+    exercise.targetLanguage = targetLanguage || exercise.targetLanguage;
+    exercise.nativeLanguage = nativeLanguage || exercise.nativeLanguage;
+    exercise.difficulty = difficulty || exercise.difficulty;
+    exercise.estimatedDuration = estimatedDuration || exercise.estimatedDuration;
+    exercise.courseDay = courseDay != null ? courseDay : exercise.courseDay;
+    exercise.tags = tags || exercise.tags;
+    exercise.questions = normalizeQuestionContexts(questions);
+    exercise.isFreeMode = true;
+    exercise.lastUpdatedBy = req.user.id;
+    exercise.updatedAt = new Date();
+
+    canonicalizeExerciseForStorage(exercise);
+    await exercise.save();
+
+    const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email').lean();
+    res.json({ exercise: updated, message: 'Exercise updated successfully' });
+  } catch (err) {
+    console.error('PUT /digital-exercises/freemode/:id error:', err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -2091,6 +2873,23 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
   }
 });
 
+// PATCH /api/digital-exercises/:id/watch-only  — Set admin-controlled Watch Only mode
+router.patch('/:id/watch-only', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const watchOnlyMode = req.body.watchOnlyMode === true || String(req.body.watchOnlyMode) === 'true';
+    const exercise = await DigitalExercise.findByIdAndUpdate(
+      req.params.id,
+      { $set: { watchOnlyMode, updatedAt: new Date() } },
+      { new: true, runValidators: false }
+    );
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    res.json({ success: true, watchOnlyMode: exercise.watchOnlyMode });
+  } catch (err) {
+    console.error('PATCH /digital-exercises/:id/watch-only error:', err);
+    res.status(500).json({ error: err.message || 'Failed to update watch-only mode' });
+  }
+});
+
 // PATCH /api/digital-exercises/:id/toggle-active  — Toggle active state (must be before PUT /:id)
 router.patch('/:id/toggle-active', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
@@ -2114,7 +2913,7 @@ router.post(
       const exercise = await DigitalExercise.findById(req.params.id);
       if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-      if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+      if (!(await teacherCanEditExercise(req.user, exercise))) {
         return res.status(403).json({ error: 'Not authorized to edit this exercise' });
       }
 
@@ -2152,8 +2951,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
     const exercise = await DigitalExercise.findById(req.params.id);
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    // Teachers can only edit their own exercises
-    if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+    if (!(await teacherCanEditExercise(req.user, exercise))) {
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
@@ -2210,11 +3008,12 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
 // ─── STUDENT ATTEMPT ROUTES ───────────────────────────────────────────────────
 
 // POST /api/digital-exercises/:id/start  — Start a new attempt (students + admin/teacher for testing)
-router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
+    const exerciseId = normalizeExerciseIdParam(req.params.id, req.query.idPart2);
     const isStaff = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'].includes(req.user.role);
     const exercise = await DigitalExercise.findOne({
-      _id: req.params.id,
+      _id: exerciseId,
       isActive: true,
       ...(isStaff ? {} : { visibleToStudents: true }),
       isDeleted: { $ne: true }
@@ -2235,7 +3034,7 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
           code: 'LEARNING_CONTENT_DISABLED'
         });
       }
-      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
+      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
         return res.status(403).json({
           error: 'This exercise unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED'
@@ -2278,6 +3077,17 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
     });
     await attempt.save();
 
+    // Older unfinished attempts are superseded when the student starts a new try
+    await ExerciseAttempt.updateMany(
+      {
+        studentId: req.user.id,
+        exerciseId: req.params.id,
+        status: 'in-progress',
+        _id: { $ne: attempt._id }
+      },
+      { status: 'abandoned' }
+    );
+
     // Update exercise attempt count
     await DigitalExercise.findByIdAndUpdate(req.params.id, { $inc: { totalAttempts: 1 } });
 
@@ -2289,7 +3099,7 @@ router.post('/:id/start', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER',
 });
 
 // POST /api/digital-exercises/:id/submit-question  — Submit a single question (per-question feedback)
-router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, questionIndex, response, timeSpentSeconds } = req.body;
 
@@ -2310,7 +3120,10 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
     }
 
     const q = exercise.questions[idx];
-    const resp = response || { questionIndex: idx };
+    const resp = migrateFillBlankResponsesForQuestion(
+      q,
+      response || { questionIndex: idx }
+    );
     const useAdvancedGrading = isAdvancedGradingEnabled(q);
     let isCorrect = false;
     let pointsEarned = 0;
@@ -2345,25 +3158,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
         pairs: pairs.map((p, i) => ({ leftIndex: i, rightValue: sanitizeQuestionPlainText(p.right) }))
       };
     } else if (q.type === 'fill-blank') {
-      const answers = q.answers || [];
-      const total = answers.length;
-      if (total > 0 && Array.isArray(resp.fillBlankResponses)) {
-        let correctCount = 0;
-        for (let i = 0; i < total; i++) {
-          const ans = String(resp.fillBlankResponses[i] ?? '');
-          const correct = answers[i];
-          const ansNorm = sanitizeQuestionPlainText(ans);
-          const corrNorm = sanitizeQuestionPlainText(correct);
-          const ok = q.caseSensitive
-            ? ansNorm === corrNorm
-            : ansNorm.toLowerCase() === corrNorm.toLowerCase();
-          if (ok) correctCount += 1;
-        }
-        rawScore = useAdvancedGrading
-          ? Math.round((correctCount / total) * 100)
-          : (correctCount === total ? 100 : 0);
-      }
-      correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
+      ({ rawScore, correctAnswer } = gradeFillBlankRawScore(q, resp.fillBlankResponses));
     } else if (q.type === 'word_bank_fill') {
       const rows = Array.isArray(q.items) ? q.items : [];
       const total = rows.length;
@@ -2516,6 +3311,12 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
       subQuestionGrades
     } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
 
+    ({
+      isCorrect,
+      pointsEarned,
+      correctAnswer
+    } = applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer));
+
     const gradedResp = {
       questionIndex: idx,
       questionType: q.type,
@@ -2585,6 +3386,9 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
         totalCompletions: completedCount,
         averageScore: avgResult[0]?.avg ? Math.round(avgResult[0].avg) : 0
       });
+      if (req.user.role === 'STUDENT') {
+        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
+      }
     }
     await attempt.save();
 
@@ -2606,7 +3410,7 @@ router.post('/:id/submit-question', verifyToken, checkRole(['STUDENT', 'ADMIN', 
 });
 
 // POST /api/digital-exercises/:id/submit  — Final submit (all questions)
-router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { attemptId, responses, timeSpentSeconds } = req.body;
 
@@ -2647,7 +3451,10 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
 
     for (let i = 0; i < exercise.questions.length; i++) {
       const q = exercise.questions[i];
-      const resp = (responses || []).find(r => r.questionIndex === i) || { questionIndex: i };
+      const resp = migrateFillBlankResponsesForQuestion(
+        q,
+        (responses || []).find((r) => Number(r.questionIndex) === i) || { questionIndex: i }
+      );
       const useAdvancedGrading = isAdvancedGradingEnabled(q);
       let isCorrect = false;
       let pointsEarned = 0;
@@ -2681,25 +3488,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
           pairs: pairs.map((p, idx) => ({ leftIndex: idx, rightValue: sanitizeQuestionPlainText(p.right) }))
         };
       } else if (q.type === 'fill-blank') {
-        const answers = q.answers || [];
-        const total = answers.length;
-        if (total > 0 && Array.isArray(resp.fillBlankResponses)) {
-          let correctCount = 0;
-          for (let idx = 0; idx < total; idx++) {
-            const ans = String(resp.fillBlankResponses[idx] ?? '');
-            const correct = answers[idx];
-            const ansNorm = sanitizeQuestionPlainText(ans);
-            const corrNorm = sanitizeQuestionPlainText(correct);
-            const ok = q.caseSensitive
-              ? ansNorm === corrNorm
-              : ansNorm.toLowerCase() === corrNorm.toLowerCase();
-            if (ok) correctCount += 1;
-          }
-          rawScore = useAdvancedGrading
-            ? Math.round((correctCount / total) * 100)
-            : (correctCount === total ? 100 : 0);
-        }
-        correctAnswer = { answers: (answers || []).map((a) => sanitizeQuestionPlainText(a)) };
+        ({ rawScore, correctAnswer } = gradeFillBlankRawScore(q, resp.fillBlankResponses));
       } else if (q.type === 'word_bank_fill') {
         const rows = Array.isArray(q.items) ? q.items : [];
         const total = rows.length;
@@ -2843,6 +3632,12 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
         subQuestionGrades
       } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
 
+      ({
+        isCorrect,
+        pointsEarned,
+        correctAnswer
+      } = applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAnswer));
+
       earnedPoints += pointsEarned;
 
       gradedResponses.push({
@@ -2908,6 +3703,7 @@ router.post('/:id/submit', verifyToken, checkRole(['STUDENT', 'ADMIN', 'TEACHER'
     let previousCourseDay = null;
     if (req.user.role === 'STUDENT') {
       try {
+        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
         const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
         if (advResult.advanced) {
           journeyAdvanced = true;
@@ -2947,37 +3743,35 @@ router.get('/:id/my-attempts', verifyToken, async (req, res) => {
   }
 });
 
-// GET /api/digital-exercises/:id/my-review  — Student: per-question breakdown (best completed attempt)
+// GET /api/digital-exercises/:id/my-review  — Per-question breakdown (best completed attempt)
 router.get('/:id/my-review', verifyToken, async (req, res) => {
   try {
-    if (req.user.role !== 'STUDENT') {
-      return res.status(403).json({ error: 'Only students can use this review endpoint' });
-    }
-
     const exercise = await DigitalExercise.findOne({
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
-    if (!exercise.visibleToStudents) {
-      return res.status(403).json({ error: 'Exercise not available' });
-    }
 
-    const access = await getStudentExerciseAccess(req.user.id);
-    if (!access.enabled) {
-      return res.status(403).json({ error: 'Journey content is not enabled for your batch yet.' });
-    }
-    if (access.learningEnabled === false) {
-      return res.status(403).json({ error: 'Exercises are not available for your batch.' });
-    }
-    if (!exerciseUnlockedForStudentDay(exercise, access.courseDay)) {
-      return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
-    }
-    if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
-      return res.status(403).json({ error: 'This exercise is not available for your learning path.' });
-    }
-    if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
-      return res.status(403).json({ error: 'This exercise is above your current language level.' });
+    if (req.user.role === 'STUDENT') {
+      if (!exercise.visibleToStudents) {
+        return res.status(403).json({ error: 'Exercise not available' });
+      }
+      const access = await getStudentExerciseAccess(req.user.id);
+      if (!access.enabled) {
+        return res.status(403).json({ error: 'Journey content is not enabled for your batch yet.' });
+      }
+      if (access.learningEnabled === false) {
+        return res.status(403).json({ error: 'Exercises are not available for your batch.' });
+      }
+      if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
+        return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
+      }
+      if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
+        return res.status(403).json({ error: 'This exercise is not available for your learning path.' });
+      }
+      if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
+        return res.status(403).json({ error: 'This exercise is above your current language level.' });
+      }
     }
 
     const attempt = await ExerciseAttempt.findOne({
@@ -3312,8 +4106,14 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
     await assertTeacherOwnsExercise(req.user, exercise);
 
-    const { date, studentId, page = 1, limit = 50 } = req.query;
-    const filter = { exerciseId: req.params.id, status: 'completed' };
+    const { date, studentId, page = 1, limit = 50, all } = req.query;
+    const filter = { exerciseId: req.params.id };
+    // Default: completed only. all=true returns every attempt row (#1, #2, …) including in-progress.
+    if (all === 'true') {
+      filter.status = { $in: ['completed', 'in-progress', 'abandoned'] };
+    } else {
+      filter.status = 'completed';
+    }
     if (studentId) filter.studentId = studentId;
     if (date) {
       const start = new Date(date);
@@ -3324,14 +4124,20 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
     }
 
     const total = await ExerciseAttempt.countDocuments(filter);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = all === 'true'
+      ? Math.min(10000, Math.max(1, parseInt(limit, 10) || 10000))
+      : Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
+
     const attempts = await ExerciseAttempt.find(filter)
       .populate('studentId', 'name email batch level isTestAccount')
-      .sort({ completedAt: -1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit))
+      .sort({ completedAt: -1, attemptNumber: -1 })
+      .limit(limitNum)
+      .skip(all === 'true' ? 0 : (pageNum - 1) * limitNum)
       .lean();
 
-    res.json({ attempts, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
+    const pages = all === 'true' ? 1 : Math.ceil(total / limitNum);
+    res.json({ attempts, total, page: all === 'true' ? 1 : pageNum, pages });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

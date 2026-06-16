@@ -5,6 +5,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map, switchMap } from 'rxjs/operators';
 import { DigitalExerciseService, DigitalExercise } from '../../../services/digital-exercise.service';
 
 interface Attempt {
@@ -13,12 +15,27 @@ interface Attempt {
   studentName?: string;
   studentBatch?: string;
   attemptNumber: number;
+  status?: 'completed' | 'in-progress' | 'abandoned';
   scorePercentage: number;
   earnedPoints: number;
   totalPoints: number;
   timeSpentSeconds: number;
+  startedAt?: string;
   completedAt: string;
-  responses?: Array<{ questionIndex: number; questionType?: string; isCorrect?: boolean; pointsEarned?: number }>;
+  responses?: Array<{
+    questionIndex: number;
+    questionType?: string;
+    isCorrect?: boolean;
+    pointsEarned?: number;
+    subQuestionGrades?: Array<{ questionIndex: number; isCorrect?: boolean }>;
+  }>;
+}
+
+interface AttemptResultSummary {
+  correctCount: number;
+  wrongCount: number;
+  totalGraded: number;
+  wrongLabels: string[];
 }
 
 interface StudentSummary {
@@ -57,6 +74,8 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
   error = '';
 
   attempts: Attempt[] = [];
+  /** Every attempt row for the table (#1, #2, …), including in-progress. */
+  tableAttempts: Attempt[] = [];
   studentSummaries: StudentSummary[] = [];
   questionStats: QuestionStats[] = [];
   totalCompletions = 0;
@@ -137,9 +156,9 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
 
   loadCompletions(): void {
     this.loading = true;
-    this.exerciseService.getExerciseCompletions(this.exerciseId, { limit: 500 }).subscribe({
-      next: (res) => {
-        this.allAttempts = res.attempts || [];
+    this.fetchAllAttemptsForExercise().subscribe({
+      next: (rows) => {
+        this.allAttempts = rows;
         this.applyFilters();
         this.loading = false;
         this.completionsLoaded = true;
@@ -152,25 +171,59 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
     });
   }
 
-  private computeAnalytics(sourceAttempts: Attempt[]): void {
-    this.attempts = sourceAttempts;
+  /** Load every attempt (#1, #2, …), paginating if the API returns multiple pages. */
+  private fetchAllAttemptsForExercise() {
+    const base = { all: true, limit: 500 };
+    return this.exerciseService.getExerciseCompletions(this.exerciseId, base).pipe(
+      switchMap((res) => {
+        const first = (res.attempts || []) as Attempt[];
+        const pages = Number(res.pages) || 1;
+        if (pages <= 1) return of(first);
+        const rest = Array.from({ length: pages - 1 }, (_, i) =>
+          this.exerciseService.getExerciseCompletions(this.exerciseId, { page: i + 2, limit: 500 }).pipe(
+            map((r) => (r.attempts || []) as Attempt[]),
+            catchError(() => of([] as Attempt[]))
+          )
+        );
+        return forkJoin(rest).pipe(
+          map((chunks) => {
+            const merged = [...first];
+            for (const chunk of chunks) merged.push(...chunk);
+            return merged;
+          })
+        );
+      })
+    );
+  }
+
+  private computeAnalytics(sourceAttempts: Attempt[], tableSource: Attempt[]): void {
+    this.tableAttempts = tableSource;
+    this.attempts = sourceAttempts.filter((a) => (a.status || 'completed') === 'completed');
     this.totalCompletions = this.attempts.length;
 
-    // Student summaries
-    const byStudent: Record<string, { attempts: Attempt[] }> = {};
-    this.attempts.forEach(a => {
+    // Student summaries (attempt count = all rows; best/last from completed only)
+    const byStudent: Record<string, { all: Attempt[]; completed: Attempt[] }> = {};
+    const sidOf = (a: Attempt) => {
       const s = a.studentId as any;
-      const sid = s ? (s._id || s.id || (typeof s === 'string' ? s : 'unknown')) : 'unknown';
-      if (!byStudent[sid]) byStudent[sid] = { attempts: [] };
-      byStudent[sid].attempts.push(a);
+      return s ? (s._id || s.id || (typeof s === 'string' ? s : 'unknown')) : 'unknown';
+    };
+    tableSource.forEach((a) => {
+      const sid = sidOf(a);
+      if (!byStudent[sid]) byStudent[sid] = { all: [], completed: [] };
+      byStudent[sid].all.push(a);
+      if ((a.status || 'completed') === 'completed') byStudent[sid].completed.push(a);
     });
 
     this.studentSummaries = Object.entries(byStudent).map(([sid, data]) => {
-      const first = data.attempts[0];
+      const first = data.all[0];
       const student = first.studentId as any;
-      const best = data.attempts.reduce((max, a) => a.scorePercentage > max ? a.scorePercentage : max, 0);
-      const last = data.attempts.sort((x, y) =>
-        new Date(y.completedAt).getTime() - new Date(x.completedAt).getTime()
+      const completed = data.completed;
+      const best = completed.length
+        ? completed.reduce((max, a) => a.scorePercentage > max ? a.scorePercentage : max, 0)
+        : 0;
+      const lastSource = completed.length ? completed : data.all;
+      const last = [...lastSource].sort((x, y) =>
+        new Date(y.completedAt || y.startedAt || 0).getTime() - new Date(x.completedAt || x.startedAt || 0).getTime()
       )[0];
       return {
         studentId: sid,
@@ -179,9 +232,9 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
         batch: student?.batch || first.studentBatch,
         level: student?.level,
         isTestAccount: !!(student && student.isTestAccount),
-        attempts: data.attempts.length,
+        attempts: data.all.length,
         bestScore: best,
-        lastAttemptAt: last.completedAt
+        lastAttemptAt: last.completedAt || ''
       };
     }).sort((a, b) => b.attempts - a.attempts);
 
@@ -230,7 +283,8 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
         const batch = String(student?.batch || a.studentBatch || '').trim();
         return batch === this.selectedBatch;
       });
-    this.computeAnalytics(filtered);
+    const completedOnly = filtered.filter((a) => (a.status || 'completed') === 'completed');
+    this.computeAnalytics(completedOnly, filtered);
   }
 
   onBatchChange(): void {
@@ -320,7 +374,7 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
   }
 
   get hasAttempts(): boolean {
-    return Array.isArray(this.attempts) && this.attempts.length > 0;
+    return Array.isArray(this.tableAttempts) && this.tableAttempts.length > 0;
   }
 
   get hasStudentSummaries(): boolean {
@@ -351,6 +405,7 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
   openAttemptDetailInNewTab(attempt: Attempt, event?: Event): void {
     event?.preventDefault();
     event?.stopPropagation();
+    if (!this.isAttemptCompleted(attempt)) return;
     const aid = attempt._id;
     if (!aid || !this.exerciseId) return;
     const url = this.router.serializeUrl(
@@ -358,4 +413,89 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
     );
     window.open(url, '_blank', 'noopener,noreferrer');
   }
+
+  /** All attempts per student (#1, then #2, …) — no collapsing to latest only. */
+  get attemptsForTable(): Attempt[] {
+    return [...(this.tableAttempts || [])].sort((a, b) => {
+      const nameA = this.attemptStudentName(a);
+      const nameB = this.attemptStudentName(b);
+      const byName = nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      if (byName !== 0) return byName;
+      return (a.attemptNumber || 0) - (b.attemptNumber || 0);
+    });
+  }
+
+  isAttemptCompleted(attempt: Attempt): boolean {
+    return (attempt.status || 'completed') === 'completed';
+  }
+
+  getAttemptStatusLabel(attempt: Attempt): string {
+    const s = attempt.status || 'completed';
+    if (s === 'in-progress') return 'In progress';
+    if (s === 'abandoned') return 'Abandoned';
+    return 'Completed';
+  }
+
+  attemptStudentName(attempt: Attempt): string {
+    const student = attempt.studentId as { name?: string } | undefined;
+    return student?.name || attempt.studentName || '';
+  }
+
+  getAttemptResultSummary(attempt: Attempt): AttemptResultSummary {
+    const questions = this.exercise?.questions || [];
+    const byIdx: Record<number, NonNullable<Attempt['responses']>[number]> = {};
+    (attempt.responses || []).forEach((r) => {
+      if (r.questionIndex !== undefined && r.questionIndex !== null) {
+        byIdx[r.questionIndex] = r;
+      }
+    });
+
+    let correctCount = 0;
+    let wrongCount = 0;
+    const wrongLabels: string[] = [];
+
+    const qCount = Math.max(questions.length, ...Object.keys(byIdx).map((k) => Number(k) + 1), 0);
+    for (let i = 0; i < qCount; i++) {
+      const q = questions[i];
+      const r = byIdx[i];
+      const subs = Array.isArray((q as any)?.subQuestions) ? (q as any).subQuestions : [];
+      const subGrades = Array.isArray(r?.subQuestionGrades) ? r.subQuestionGrades : [];
+
+      if (subs.length) {
+        if (subGrades.length) {
+          for (let si = 0; si < subs.length; si++) {
+            const g = subGrades.find((x) => Number(x.questionIndex) === si);
+            if (!g || g.isCorrect === undefined) continue;
+            if (g.isCorrect) correctCount++;
+            else {
+              wrongCount++;
+              wrongLabels.push(`${i + 1}.${si + 1}`);
+            }
+          }
+        } else if (r?.isCorrect !== undefined) {
+          if (r.isCorrect) correctCount++;
+          else {
+            wrongCount++;
+            wrongLabels.push(String(i + 1));
+          }
+        }
+        continue;
+      }
+
+      if (!r || r.isCorrect === undefined) continue;
+      if (r.isCorrect) correctCount++;
+      else {
+        wrongCount++;
+        wrongLabels.push(String(i + 1));
+      }
+    }
+
+    return {
+      correctCount,
+      wrongCount,
+      totalGraded: correctCount + wrongCount,
+      wrongLabels
+    };
+  }
+
 }

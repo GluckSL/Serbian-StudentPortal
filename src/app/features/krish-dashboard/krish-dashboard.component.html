@@ -1,0 +1,1071 @@
+<div class="kd-page">
+
+  <!-- ══ HERO BANNER ══════════════════════════════════════════════════════════ -->
+  <header class="kd-hero">
+    <div class="kd-hero__inner">
+      <div class="kd-hero__text">
+        <h1 class="kd-hero__title">Enrollment Overview</h1>
+        <p class="kd-hero__sub">Sales Student Management</p>
+      </div>
+
+      <div class="kd-hero__actions">
+        <button type="button" class="kd-btn kd-btn--filter" (click)="toggleAdvancedFilter()"
+          [class.kd-btn--filter-active]="advancedFilterOpen || hasActiveAdvancedFilters()">
+          <span class="material-icons">tune</span>
+          Filter
+        </button>
+        <button class="kd-btn kd-btn--ghost kd-btn--danger" (click)="resetAllData()" [disabled]="resetLoading">
+          <span class="material-icons">delete_sweep</span> Reset All
+        </button>
+        <button class="kd-btn kd-btn--ghost" (click)="openImportDialog()">
+          <span class="material-icons">upload_file</span> Import
+        </button>
+        <button class="kd-btn kd-btn--ghost" (click)="exportData('csv')" [disabled]="exportLoading">
+          <span class="material-icons">download</span> CSV
+        </button>
+        <button class="kd-btn kd-btn--ghost" (click)="exportData('xlsx')" [disabled]="exportLoading">
+          <span class="material-icons">table_chart</span> Excel
+        </button>
+        <button class="kd-btn kd-btn--primary" (click)="openCreateDialog()">
+          <span class="material-icons">person_add</span> Create Student
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Summary stats — click to filter -->
+  <div class="kd-summary-bar">
+    <ng-container *ngIf="analyticsLoading">
+      <div class="kd-summary-chip kd-skeleton" *ngFor="let s of skeletonRows.slice(0,10)"></div>
+    </ng-container>
+    <ng-container *ngIf="!analyticsLoading && analytics">
+      <div class="kd-summary-group">
+        <span class="kd-summary-group__label">Enrollment</span>
+        <div class="kd-summary-group__chips">
+          <button class="kd-summary-chip" [class.kd-summary-chip--active]="hasSummaryFilters()"
+            (click)="resetOverview()">
+            <strong>{{ analytics.totals.total }}</strong>
+            <span>Total</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--not-started" [class.kd-summary-chip--active]="isSummaryStatusActive('NOT_STARTED')"
+            (click)="applyFilter({ status: 'NOT_STARTED', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.notStarted }}</strong>
+            <span>Not Started</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--ongoing" [class.kd-summary-chip--active]="isSummaryStatusActive('ONGOING')"
+            (click)="applyFilter({ status: 'ONGOING', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.ongoing }}</strong>
+            <span>Ongoing</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--uncertain" [class.kd-summary-chip--active]="isSummaryStatusActive('UNCERTAIN')"
+            (click)="applyFilter({ status: 'UNCERTAIN', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.uncertain }}</strong>
+            <span>Uncertain</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--completed" [class.kd-summary-chip--active]="isSummaryStatusActive('COMPLETED')"
+            (click)="applyFilter({ status: 'COMPLETED', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.completed }}</strong>
+            <span>Completed</span>
+          </button>
+          <button class="kd-summary-chip kd-summary-chip--withdrew" [class.kd-summary-chip--active]="isSummaryStatusActive('WITHDREW')"
+            (click)="applyFilter({ status: 'WITHDREW', package: null, serviceName: null })">
+            <strong>{{ analytics.totals.withdrew }}</strong>
+            <span>Withdrew</span>
+          </button>
+        </div>
+      </div>
+      <div class="kd-summary-group kd-summary-group--packages">
+        <span class="kd-summary-group__label">Packages</span>
+        <div class="kd-summary-group__chips">
+          <button type="button" class="kd-summary-chip kd-summary-chip--platinum"
+            [class.kd-summary-chip--active]="isSummaryPackageActive('PLATINUM')"
+            (click)="applyPackageSummaryFilter('PLATINUM')">
+            <strong>{{ packageTotal('PLATINUM') }}</strong>
+            <span>{{ PACKAGE_CHIP_LABELS.PLATINUM }}</span>
+          </button>
+          <button type="button" class="kd-summary-chip kd-summary-chip--silver"
+            [class.kd-summary-chip--active]="isSummaryPackageActive('SILVER')"
+            (click)="applyPackageSummaryFilter('SILVER')">
+            <strong>{{ packageTotal('SILVER') }}</strong>
+            <span>{{ PACKAGE_CHIP_LABELS.SILVER }}</span>
+          </button>
+          <button type="button" class="kd-summary-chip kd-summary-chip--visa-docs"
+            [class.kd-summary-chip--active]="isSummaryPackageActive('VISA_DOCS')"
+            (click)="applyPackageSummaryFilter('VISA_DOCS')">
+            <strong>{{ packageTotal('VISA_DOCS') }}</strong>
+            <span>{{ PACKAGE_CHIP_LABELS.VISA_DOCS }}</span>
+          </button>
+        </div>
+      </div>
+      <div class="kd-summary-group kd-summary-group--doc">
+        <span class="kd-summary-group__label">Documentation</span>
+        <div class="kd-summary-group__chips">
+          <button class="kd-summary-chip kd-summary-chip--doc-paid" [class.kd-summary-chip--active]="isSummaryDocPaidActive()"
+            (click)="applyDocPaidFilter()">
+            <strong>{{ analytics.totals.docPaid }}</strong>
+            <span>Doc Paid</span>
+          </button>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+
+  <!-- ══ SERVICE OPTED (main area — not in filter sidebar) ═══════════════════ -->
+  <section class="kd-section kd-analytics">
+    <div class="kd-analytics__panel">
+      <div class="kd-analytics__toolbar">
+        <h2 class="kd-analytics__heading">Service Opted</h2>
+        <p class="kd-analytics__hint">Click any number to filter students below</p>
+      </div>
+
+      <div class="kd-service-cards" *ngIf="analyticsLoading">
+        <div class="kd-service-card kd-service-card--skeleton" *ngFor="let s of skeletonRows.slice(0,6)"></div>
+      </div>
+
+      <div class="kd-service-cards" *ngIf="!analyticsLoading && analytics">
+        <article class="kd-service-card"
+          *ngFor="let svc of visibleServices()"
+          [class.kd-service-card--active]="isServiceCardActive(svc.serviceName)">
+          <header class="kd-service-card__head">
+            <h3 class="kd-service-card__title">{{ svc.label }}</h3>
+            <button type="button" class="kd-service-card__total"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: null })">
+              {{ svc.total }}
+            </button>
+          </header>
+          <div class="kd-service-card__stats">
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--ongoing"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'ONGOING' })">
+              <strong>{{ svc.ongoing }}</strong>
+              <span>Ongoing</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--not-started"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'NOT_STARTED' })">
+              <strong>{{ breakdownCount(svc, 'NOT_STARTED') }}</strong>
+              <span>Not Started</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--uncertain"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'UNCERTAIN' })">
+              <strong>{{ breakdownCount(svc, 'UNCERTAIN') }}</strong>
+              <span>Uncertain</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--completed"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'COMPLETED' })">
+              <strong>{{ breakdownCount(svc, 'COMPLETED') }}</strong>
+              <span>Completed</span>
+            </button>
+            <button type="button" class="kd-service-card__stat kd-service-card__stat--withdrew"
+              (click)="applyFilter({ serviceName: svc.serviceName, status: 'WITHDREW' })">
+              <strong>{{ breakdownCount(svc, 'WITHDREW') }}</strong>
+              <span>Withdrew</span>
+            </button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ FILTER PANEL (inline below Service Opted) ═══════════════════════════ -->
+  <section class="kd-section kd-advfilter-inline" *ngIf="advancedFilterOpen" #filterPanel>
+    <div class="kd-advfilter-panel kd-advfilter-panel--inline">
+      <header class="kd-advfilter-panel__head">
+        <h2 class="kd-advfilter-panel__title">Filter students</h2>
+        <button type="button" class="kd-advfilter-panel__close" (click)="closeAdvancedFilter()" aria-label="Close filter">
+          <span class="material-icons">expand_less</span>
+        </button>
+      </header>
+
+      <div class="kd-advfilter-banner" *ngIf="advancedFilterDirty">
+        Unsaved changes — click <strong>Apply</strong> to update the table.
+      </div>
+
+      <div class="kd-advfilter-body">
+        <section class="kd-advfilter-section kd-advfilter-section--dates">
+          <h3 class="kd-advfilter-section__title">Enrollment date</h3>
+          <div class="kd-advfilter-dates-row">
+            <div class="kd-advfilter-dates">
+              <label class="kd-advfilter-date">
+                <span class="sr-only">Start date</span>
+                <input type="date" [(ngModel)]="advDraft.enrolledFrom" (ngModelChange)="markAdvDirty()"
+                  aria-label="Enrollment start date" />
+              </label>
+              <span class="kd-advfilter-dates__sep" aria-hidden="true">to</span>
+              <label class="kd-advfilter-date">
+                <span class="sr-only">End date</span>
+                <input type="date" [(ngModel)]="advDraft.enrolledTo" (ngModelChange)="markAdvDirty()"
+                  aria-label="Enrollment end date" />
+              </label>
+            </div>
+            <button type="button" class="kd-btn kd-btn--outline kd-btn--sm kd-advfilter-add" (click)="addAdvRule()">
+              <span class="material-icons">add</span> Add condition
+            </button>
+          </div>
+        </section>
+
+        <section class="kd-advfilter-section kd-advfilter-section--conditions">
+          <h3 class="kd-advfilter-section__title">Conditions</h3>
+          <div class="kd-advfilter-rule-block" *ngFor="let rule of advDraft.rules; let i = index; trackBy: trackAdvRule">
+            <div class="kd-advfilter-rule">
+              <span class="kd-advfilter-rule__join">{{ i === 0 ? 'Where' : 'And' }}</span>
+              <select class="kd-advfilter-select kd-advfilter-select--field"
+                [ngModel]="rule.field"
+                (ngModelChange)="setAdvRuleField(rule, $event)">
+                <option [ngValue]="''">Select field…</option>
+                <option *ngFor="let f of ADV_FILTER_FIELDS" [ngValue]="f.id">{{ f.label }}</option>
+              </select>
+              <span class="kd-advfilter-rule__op">is</span>
+              <select class="kd-advfilter-select kd-advfilter-select--value"
+                [ngModel]="rule.value"
+                (ngModelChange)="setAdvRuleValue(rule, $event)"
+                [disabled]="!rule.field">
+                <option [ngValue]="''">{{ rule.field ? 'Select value…' : 'Pick a field first' }}</option>
+                <option *ngFor="let opt of advFieldOptions(rule.field); trackBy: trackAdvOption"
+                  [ngValue]="opt.value">{{ opt.label }}</option>
+              </select>
+              <button type="button" class="kd-advfilter-rule__remove" (click)="removeAdvRule(rule.id)" aria-label="Remove rule">
+                <span class="material-icons">delete_outline</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="kd-advfilter-section kd-advfilter-section--groupby">
+          <h3 class="kd-advfilter-section__title">Quick filters</h3>
+          <div class="kd-advfilter-groupby">
+            <button type="button" class="kd-advfilter-tag" *ngFor="let g of GROUP_BY_FIELDS"
+              [class.kd-advfilter-tag--active]="isGroupByFieldActive(g.id)"
+              (click)="addGroupByField(g.id)">
+              {{ g.label }}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <footer class="kd-advfilter-panel__foot">
+        <button type="button" class="kd-btn kd-btn--ghost kd-btn--sm" (click)="resetAdvancedFilters()">Reset</button>
+        <button type="button" class="kd-btn kd-btn--primary kd-btn--sm" (click)="applyAdvancedFilters()">
+          <span class="material-icons">search</span> Apply
+        </button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ══ PROFESSION DRILL-DOWN (Skilled Jobs only) ═══════════════════════════ -->
+  <section class="kd-section kd-section--nested kd-prof-panel" *ngIf="showProfessionPanel()">
+    <div class="kd-prof-head">
+      <button class="kd-btn kd-btn--ghost kd-btn--xs kd-prof-head__close" type="button"
+        (click)="applyFilter({ serviceName: null, profession: null })">
+        <span class="material-icons">close</span> Clear
+      </button>
+    </div>
+
+    <div class="kd-prof-wrap" *ngIf="analyticsLoading && !analytics">
+      <div class="kd-prof-chip kd-skeleton" *ngFor="let s of serviceSkeletonRows"></div>
+    </div>
+
+    <ng-container *ngIf="sheetSkilledProfessions().length">
+      <p class="kd-prof-subhead">Sheet-wide (all services)</p>
+      <div class="kd-prof-wrap kd-prof-wrap--chips">
+        <button type="button" class="kd-prof-chip kd-prof-chip--sheet"
+          *ngFor="let prof of sheetSkilledProfessions()"
+          (click)="applySheetProfessionFilter(prof.profession)">
+          <span class="kd-prof-chip__name">{{ prof.label }}</span>
+          <span class="kd-prof-chip__count">{{ prof.total }}</span>
+        </button>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="professionBreakdown.length">
+      <p class="kd-prof-subhead" *ngIf="sheetSkilledProfessions().length">{{ primaryServiceName() }} only</p>
+      <div class="kd-prof-wrap kd-prof-wrap--chips" *ngIf="skilledProfessionBreakdown().length">
+        <button type="button" class="kd-prof-chip"
+          *ngFor="let prof of skilledProfessionBreakdown()"
+          [class.kd-prof-chip--active]="isProfessionActive(prof.profession)"
+          (click)="applyServiceProfessionTotalFilter(prof.profession)">
+          <span class="kd-prof-chip__name">{{ prof.label }}</span>
+          <span class="kd-prof-chip__count">{{ professionDisplayTotal(prof) }}</span>
+        </button>
+      </div>
+      <div class="kd-prof-wrap kd-prof-wrap--chips kd-prof-wrap--muted" *ngIf="otherProfessionBreakdown().length">
+        <button type="button" class="kd-prof-chip kd-prof-chip--muted"
+          *ngFor="let prof of otherProfessionBreakdown()"
+          [class.kd-prof-chip--active]="isProfessionActive(prof.profession)"
+          (click)="applyServiceProfessionTotalFilter(prof.profession)">
+          <span class="kd-prof-chip__name">{{ prof.label }}</span>
+          <span class="kd-prof-chip__count">{{ professionDisplayTotal(prof) }}</span>
+        </button>
+      </div>
+    </ng-container>
+
+    <p class="kd-prof-empty" *ngIf="analytics && !professionBreakdown.length">
+      No professional data for this service. Re-import with a <strong>Professional</strong> column.
+    </p>
+  </section>
+
+  <!-- ══ STUDENT TABLE (shown after drill-down) ═══════════════════════════════ -->
+  <section class="kd-table-section" #tableAnchor *ngIf="showStudentTable">
+    <div class="kd-table-header">
+      <div class="kd-search-bar">
+        <span class="material-icons kd-search-bar__icon">search</span>
+        <input
+          class="kd-search-bar__input"
+          type="text"
+          placeholder="Search by name, email or phone…"
+          [value]="filters.search"
+          (input)="onSearchInput($any($event.target).value)"
+        />
+      </div>
+
+      <div class="kd-filter-row">
+        <button
+          type="button"
+          class="kd-btn kd-btn--primary kd-btn--sm kd-export-btn"
+          (click)="exportData('xlsx')"
+          [disabled]="exportLoading || pagination.total === 0"
+          [attr.aria-busy]="exportLoading">
+          <span class="material-icons">{{ exportLoading ? 'hourglass_top' : 'download' }}</span>
+          {{ exportLoading ? 'Exporting…' : ('Export Excel (' + pagination.total + ')') }}
+        </button>
+        <select class="kd-select" [(ngModel)]="filters.limit" (change)="applyFilter({ limit: filters.limit })">
+          <option [ngValue]="25">25 per page</option>
+          <option [ngValue]="50">50 per page</option>
+          <option [ngValue]="100">100 per page</option>
+        </select>
+        <button class="kd-btn kd-btn--ghost kd-btn--sm" *ngIf="activeChips.length" (click)="clearFilters()">
+          <span class="material-icons">clear_all</span> Clear filters
+        </button>
+      </div>
+
+      <!-- Active filter chips -->
+      <div class="kd-chips" *ngIf="activeChips.length">
+        <span class="kd-chip" *ngFor="let chip of activeChips">
+          {{ chip.label }}
+          <button class="kd-chip__remove" (click)="removeChip($any(chip.field))">&#x2715;</button>
+        </span>
+      </div>
+    </div>
+
+    <!-- ══ STUDENT TABLE ════════════════════════════════════════════════════ -->
+    <div class="kd-table-wrap" [class.kd-table-wrap--refreshing]="tableRefreshing">
+      <table class="kd-table">
+        <thead>
+          <tr>
+            <th class="kd-th kd-th--sort kd-col--name" (click)="sortBy('name')">
+              Name <span class="material-icons kd-sort-icon">{{ sortIcon('name') }}</span>
+            </th>
+            <th class="kd-th kd-col--contact">Contact<br><span class="kd-th-sub">Email · Phone</span></th>
+            <th class="kd-th kd-th--filterable kd-col--lang"
+              [class.kd-th--filtered]="isColumnFilterActive('languageLevel')">
+              <div class="kd-th__inner">
+                <button type="button" class="kd-th__label-btn" (click)="openColumnFilter('languageLevel', $event)">
+                  Language Level
+                  <span class="material-icons kd-th__filter-icon">filter_list</span>
+                  <span class="kd-th__badge" *ngIf="columnFilterCount('languageLevel')">{{ columnFilterCount('languageLevel') }}</span>
+                </button>
+                <button type="button" class="kd-th__sort-btn" (click)="sortBy('currentLanguageLevel')">
+                  <span class="material-icons kd-sort-icon">{{ sortIcon('currentLanguageLevel') }}</span>
+                </button>
+              </div>
+            </th>
+            <th class="kd-th kd-th--filterable kd-col--package"
+              [class.kd-th--filtered]="isColumnFilterActive('package')">
+              <div class="kd-th__inner">
+                <button type="button" class="kd-th__label-btn" (click)="openColumnFilter('package', $event)">
+                  Package
+                  <span class="material-icons kd-th__filter-icon">filter_list</span>
+                  <span class="kd-th__badge" *ngIf="columnFilterCount('package')">{{ columnFilterCount('package') }}</span>
+                </button>
+                <button type="button" class="kd-th__sort-btn" (click)="sortBy('package')">
+                  <span class="material-icons kd-sort-icon">{{ sortIcon('package') }}</span>
+                </button>
+              </div>
+            </th>
+            <th class="kd-th kd-th--filterable kd-col--service"
+              [class.kd-th--filtered]="isColumnFilterActive('service')">
+              <div class="kd-th__inner">
+                <button type="button" class="kd-th__label-btn" (click)="openColumnFilter('service', $event)">
+                  {{ serviceColumnLabel() }}
+                  <span class="material-icons kd-th__filter-icon">filter_list</span>
+                  <span class="kd-th__badge" *ngIf="columnFilterCount('service')">{{ columnFilterCount('service') }}</span>
+                </button>
+              </div>
+            </th>
+            <th class="kd-th kd-th--filterable kd-col--status"
+              [class.kd-th--filtered]="isColumnFilterActive('status')">
+              <div class="kd-th__inner">
+                <button type="button" class="kd-th__label-btn" (click)="openColumnFilter('status', $event)">
+                  Status
+                  <span class="material-icons kd-th__filter-icon">filter_list</span>
+                  <span class="kd-th__badge" *ngIf="columnFilterCount('status')">{{ columnFilterCount('status') }}</span>
+                </button>
+                <button type="button" class="kd-th__sort-btn" (click)="sortBy('status')">
+                  <span class="material-icons kd-sort-icon">{{ sortIcon('status') }}</span>
+                </button>
+              </div>
+            </th>
+            <th class="kd-th kd-th--filterable kd-col--doc"
+              [class.kd-th--filtered]="isColumnFilterActive('doc')">
+              <div class="kd-th__inner">
+                <button type="button" class="kd-th__label-btn" (click)="openColumnFilter('doc', $event)">
+                  Doc Payment<br><span class="kd-th-sub">· Status</span>
+                  <span class="material-icons kd-th__filter-icon">filter_list</span>
+                  <span class="kd-th__badge" *ngIf="columnFilterCount('doc')">{{ columnFilterCount('doc') }}</span>
+                </button>
+                <button type="button" class="kd-th__sort-btn" (click)="sortBy('documentPaymentStatus')">
+                  <span class="material-icons kd-sort-icon">{{ sortIcon('documentPaymentStatus') }}</span>
+                </button>
+              </div>
+            </th>
+            <th class="kd-th kd-col--remarks">Doc Remarks</th>
+            <th class="kd-th kd-th--filterable kd-col--visa"
+              [class.kd-th--filtered]="isColumnFilterActive('visa')">
+              <div class="kd-th__inner">
+                <button type="button" class="kd-th__label-btn" (click)="openColumnFilter('visa', $event)">
+                  Visa Status
+                  <span class="material-icons kd-th__filter-icon">filter_list</span>
+                  <span class="kd-th__badge" *ngIf="columnFilterCount('visa')">{{ columnFilterCount('visa') }}</span>
+                </button>
+                <button type="button" class="kd-th__sort-btn" (click)="sortBy('visaStatus')">
+                  <span class="material-icons kd-sort-icon">{{ sortIcon('visaStatus') }}</span>
+                </button>
+              </div>
+            </th>
+            <th class="kd-th kd-th--actions kd-col--actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Loading skeleton -->
+          <ng-container *ngIf="tableLoading && students.length === 0">
+            <tr class="kd-tr kd-tr--skeleton" *ngFor="let s of skeletonRows">
+              <td class="kd-td" *ngFor="let c of skeletonCols">
+                <span class="kd-skeleton kd-skeleton--cell"></span>
+              </td>
+            </tr>
+          </ng-container>
+
+          <!-- Data rows -->
+          <ng-container *ngIf="!tableLoading || students.length > 0">
+            <tr class="kd-tr" *ngFor="let s of students; trackBy: trackById"
+              (click)="openDrawer(s)">
+              <td class="kd-td kd-td--name kd-col--name">{{ s.name }}</td>
+              <td class="kd-td kd-td--stack kd-col--contact">
+                <div class="kd-cell-stack">
+                  <span class="kd-cell-stack__primary kd-cell-stack__email">{{ s.email }}</span>
+                  <span class="kd-cell-stack__secondary">{{ s.phone || '—' }}</span>
+                </div>
+              </td>
+              <td class="kd-td kd-td--lang-level kd-col--lang">{{ displayField(s.currentLanguageLevel) }}</td>
+              <td class="kd-td kd-td--package kd-col--package">
+                <span class="kd-pkg-badge kd-pkg-badge--{{ s.package | lowercase }}">
+                  {{ PACKAGE_LABELS[s.package] }}
+                </span>
+              </td>
+              <td class="kd-td kd-td--stack kd-col--service">
+                <div class="kd-cell-stack">
+                  <div class="kd-service-chips kd-service-chips--compact">
+                    <span class="kd-svc-chip" *ngFor="let label of serviceChips(s)">{{ label }}</span>
+                    <span class="kd-svc-chip kd-svc-chip--empty" *ngIf="serviceChips(s).length === 0">—</span>
+                  </div>
+                  <span
+                    class="kd-cell-stack__secondary kd-cell-stack__profession"
+                    *ngIf="showStudentProfession(s)"
+                  >{{ displayProfession(s.profession) }}</span>
+                </div>
+              </td>
+              <td class="kd-td kd-td--status kd-col--status">
+                <span class="kd-status-badge" [style.background]="statusColor(s.status)">
+                  {{ displayStatus(s.status) }}
+                </span>
+              </td>
+              <td class="kd-td kd-td--stack kd-col--doc">
+                <div class="kd-cell-stack">
+                  <span class="kd-cell-stack__primary">{{ displayField(s.documentPaymentStatus) }}</span>
+                  <span class="kd-cell-stack__secondary">{{ displayField(s.documentationStatus) }}</span>
+                </div>
+              </td>
+              <td class="kd-td kd-td--remarks kd-col--remarks" [title]="s.documentationRemarks || ''">
+                {{ displayField(s.documentationRemarks) }}
+              </td>
+              <td class="kd-td kd-td--visa kd-col--visa">{{ displayField(s.visaStatus) }}</td>
+              <td class="kd-td kd-td--actions kd-col--actions" (click)="$event.stopPropagation()">
+                <button class="kd-icon-btn" title="Edit" (click)="openEditDialog(s)">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="kd-icon-btn kd-icon-btn--danger" title="Delete" (click)="confirmDelete(s)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+
+            <tr *ngIf="students.length === 0">
+              <td class="kd-td kd-td--empty" colspan="10">
+                <span class="material-icons">search_off</span>
+                No students match the current filters.
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ══ PAGINATION ═══════════════════════════════════════════════════════ -->
+    <div class="kd-pagination" *ngIf="!tableLoading && pagination.pages > 1">
+      <span class="kd-pagination__info">
+        {{ (filters.page - 1) * filters.limit + 1 }}–{{ minOf(filters.page * filters.limit, pagination.total) }}
+        of {{ pagination.total }}
+      </span>
+      <div class="kd-pagination__pages">
+        <button class="kd-page-btn" [disabled]="filters.page === 1" (click)="goToPage(1)">
+          <span class="material-icons">first_page</span>
+        </button>
+        <button class="kd-page-btn" [disabled]="filters.page === 1" (click)="goToPage(filters.page - 1)">
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <button class="kd-page-btn" *ngFor="let p of pageNumbers"
+          [class.kd-page-btn--active]="p === filters.page"
+          (click)="goToPage(p)">{{ p }}</button>
+        <button class="kd-page-btn" [disabled]="filters.page === pagination.pages" (click)="goToPage(filters.page + 1)">
+          <span class="material-icons">chevron_right</span>
+        </button>
+        <button class="kd-page-btn" [disabled]="filters.page === pagination.pages" (click)="goToPage(pagination.pages)">
+          <span class="material-icons">last_page</span>
+        </button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- STUDENT DETAIL DRAWER                                                     -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="kd-drawer-overlay" *ngIf="drawerStudent" (click)="closeDrawer()"></div>
+<aside class="kd-drawer" *ngIf="drawerStudent" (click)="$event.stopPropagation()">
+  <div class="kd-drawer__head">
+    <div class="kd-drawer__avatar">{{ drawerStudent.name.charAt(0) | uppercase }}</div>
+    <div class="kd-drawer__title-wrap">
+      <h2 class="kd-drawer__title">{{ drawerStudent.name }}</h2>
+      <span class="kd-status-badge" [style.background]="statusColor(drawerStudent.status)">
+        {{ displayStatus(drawerStudent.status) }}
+      </span>
+    </div>
+    <button class="kd-drawer__close" (click)="closeDrawer()">
+      <span class="material-icons">close</span>
+    </button>
+  </div>
+
+  <!-- Drawer tabs -->
+  <div class="kd-drawer__tabs">
+    <button class="kd-drawer__tab" [class.active]="drawerTab === 'info'" (click)="drawerTab = 'info'">Info</button>
+    <button class="kd-drawer__tab" [class.active]="drawerTab === 'notes'" (click)="drawerTab = 'notes'">Notes</button>
+    <button class="kd-drawer__tab" [class.active]="drawerTab === 'followups'" (click)="drawerTab = 'followups'">Follow-ups</button>
+    <button class="kd-drawer__tab" [class.active]="drawerTab === 'timeline'" (click)="drawerTab = 'timeline'">Timeline</button>
+  </div>
+
+  <div class="kd-drawer__body" *ngIf="!drawerLoading">
+    <!-- INFO TAB -->
+    <ng-container *ngIf="drawerTab === 'info'">
+      <div class="kd-info-section">
+        <h3 class="kd-info-section__title">Personal Information</h3>
+        <dl class="kd-dl">
+          <dt>Email</dt><dd>{{ drawerStudent.email }}</dd>
+          <dt>Phone</dt><dd>{{ drawerStudent.phone || '—' }}</dd>
+          <dt>Current Language Level</dt><dd>{{ displayField(drawerStudent.currentLanguageLevel) }}</dd>
+          <dt>Age</dt><dd>{{ drawerStudent.age ?? '—' }}</dd>
+          <dt>Counselor</dt><dd>{{ drawerStudent.counselor || '—' }}</dd>
+          <ng-container *ngIf="showStudentProfession(drawerStudent)">
+            <dt>Professional</dt><dd>{{ displayProfession(drawerStudent.profession) }}</dd>
+          </ng-container>
+        </dl>
+      </div>
+      <div class="kd-info-section">
+        <h3 class="kd-info-section__title">Package Information</h3>
+        <dl class="kd-dl">
+          <dt>Package</dt>
+          <dd>
+            <span class="kd-pkg-badge kd-pkg-badge--{{ drawerStudent.package | lowercase }}">
+              {{ PACKAGE_LABELS[drawerStudent.package] }}
+            </span>
+          </dd>
+          <dt>Status</dt>
+          <dd>
+            <span class="kd-status-badge" [style.background]="statusColor(drawerStudent.status)">
+              {{ displayStatus(drawerStudent.status) }}
+            </span>
+          </dd>
+          <dt>Created</dt><dd>{{ formatDate(drawerStudent.createdAt) }}</dd>
+          <dt>Updated</dt><dd>{{ formatDate(drawerStudent.updatedAt) }}</dd>
+        </dl>
+      </div>
+      <div class="kd-info-section">
+        <h3 class="kd-info-section__title">Documentation & Visa</h3>
+        <dl class="kd-dl">
+          <dt>Document Payment Status</dt><dd>{{ displayField(drawerStudent.documentPaymentStatus) }}</dd>
+          <dt>Documentation Status</dt><dd>{{ displayField(drawerStudent.documentationStatus) }}</dd>
+          <dt>Documentation Remarks</dt><dd class="kd-dl__multiline">{{ displayField(drawerStudent.documentationRemarks) }}</dd>
+          <dt>Visa Status</dt><dd>{{ displayField(drawerStudent.visaStatus) }}</dd>
+        </dl>
+      </div>
+      <div class="kd-info-section" *ngIf="drawerServices().length">
+        <h3 class="kd-info-section__title">Services</h3>
+        <div class="kd-service-chips kd-service-chips--large">
+          <span class="kd-svc-chip" *ngFor="let svc of drawerServices()">
+            {{ svc.serviceName }}
+          </span>
+        </div>
+      </div>
+      <div class="kd-info-section" *ngIf="drawerStudent.notes">
+        <h3 class="kd-info-section__title">Quick Note</h3>
+        <p class="kd-info-note">{{ drawerStudent.notes }}</p>
+      </div>
+      <div class="kd-drawer__actions">
+        <button class="kd-btn kd-btn--primary kd-btn--sm" (click)="openEditDialog(drawerStudent!)">
+          <span class="material-icons">edit</span> Edit Student
+        </button>
+      </div>
+    </ng-container>
+
+    <!-- NOTES TAB -->
+    <ng-container *ngIf="drawerTab === 'notes'">
+      <div class="kd-note-form">
+        <textarea class="kd-textarea" [(ngModel)]="noteForm.content" placeholder="Write a note…" rows="3"></textarea>
+        <button class="kd-btn kd-btn--primary kd-btn--sm" [disabled]="noteSaving || !noteForm.content.trim()"
+          (click)="submitNote()">
+          {{ noteSaving ? 'Saving…' : 'Add Note' }}
+        </button>
+      </div>
+      <div class="kd-notes-list">
+        <div class="kd-note-item" *ngFor="let note of drawerNotes()">
+          <div class="kd-note-item__meta">{{ formatDate(note.createdAt) }}</div>
+          <div class="kd-note-item__content">{{ note.content }}</div>
+        </div>
+        <div class="kd-empty-state" *ngIf="drawerNotes().length === 0">No notes yet.</div>
+      </div>
+    </ng-container>
+
+    <!-- FOLLOW-UPS TAB -->
+    <ng-container *ngIf="drawerTab === 'followups'">
+      <div class="kd-note-form">
+        <textarea class="kd-textarea" [(ngModel)]="noteForm.content" placeholder="Follow-up description…" rows="3"></textarea>
+        <input class="kd-input" type="date" [(ngModel)]="noteForm.followUpDate" />
+        <button class="kd-btn kd-btn--primary kd-btn--sm" [disabled]="noteSaving || !noteForm.content.trim()"
+          (click)="noteForm.type = 'FOLLOW_UP'; submitNote()">
+          {{ noteSaving ? 'Saving…' : 'Add Follow-up' }}
+        </button>
+      </div>
+      <div class="kd-notes-list">
+        <div class="kd-note-item" *ngFor="let fu of drawerFollowUps()"
+          [class.kd-note-item--done]="fu.isCompleted">
+          <div class="kd-note-item__meta">
+            Due: {{ formatDate(fu.followUpDate) }}
+            <span class="kd-fu-badge" *ngIf="fu.isCompleted">Done</span>
+          </div>
+          <div class="kd-note-item__content">{{ fu.content }}</div>
+          <button class="kd-btn kd-btn--ghost kd-btn--xs" *ngIf="!fu.isCompleted"
+            (click)="toggleFollowUp(drawerStudent!._id, fu._id, true)">Mark done</button>
+        </div>
+        <div class="kd-empty-state" *ngIf="drawerFollowUps().length === 0">No follow-ups yet.</div>
+      </div>
+    </ng-container>
+
+    <!-- TIMELINE TAB -->
+    <ng-container *ngIf="drawerTab === 'timeline'">
+      <div class="kd-timeline">
+        <div class="kd-timeline__item" *ngFor="let ev of drawerTimeline()">
+          <div class="kd-timeline__dot"></div>
+          <div class="kd-timeline__body">
+            <div class="kd-timeline__status">
+              <span *ngIf="ev.fromStatus">{{ ev.fromStatus }} → </span>{{ ev.toStatus }}
+            </div>
+            <div class="kd-timeline__date">{{ formatDate(ev.createdAt) }}</div>
+            <div class="kd-timeline__note" *ngIf="ev.note">{{ ev.note }}</div>
+          </div>
+        </div>
+        <div class="kd-empty-state" *ngIf="drawerTimeline().length === 0">No history yet.</div>
+      </div>
+    </ng-container>
+  </div>
+
+  <div class="kd-drawer__body kd-drawer__body--loading" *ngIf="drawerLoading">
+    <div class="kd-spinner"></div>
+  </div>
+</aside>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- CREATE / EDIT DIALOG                                                      -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="kd-modal-overlay" *ngIf="showFormDialog" (click)="closeFormDialog()">
+  <div class="kd-modal" (click)="$event.stopPropagation()">
+    <div class="kd-modal__head">
+      <h2 class="kd-modal__title">{{ formMode === 'create' ? 'Create Student' : 'Edit Student' }}</h2>
+      <button class="kd-drawer__close" (click)="closeFormDialog()"><span class="material-icons">close</span></button>
+    </div>
+    <div class="kd-modal__body">
+      <div class="kd-form-grid">
+        <div class="kd-form-field">
+          <label class="kd-label">Name *</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.name" placeholder="Full name" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Email *</label>
+          <input class="kd-input" type="email" [(ngModel)]="formData.email" placeholder="email@example.com" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Phone</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.phone" placeholder="+94 77 000 0000" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Current Language Level</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.currentLanguageLevel" placeholder="e.g. B1" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Age</label>
+          <input class="kd-input" type="number" [(ngModel)]="formData.age" placeholder="e.g. 24" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Package *</label>
+          <select class="kd-select kd-select--full" [(ngModel)]="formData.package">
+            <option value="PLATINUM">Platinum</option>
+            <option value="SILVER">Silver</option>
+            <option value="VISA_DOCS">Visa & Docs</option>
+          </select>
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Status *</label>
+          <select class="kd-select kd-select--full" [(ngModel)]="formData.status">
+            <option value="NOT_STARTED">Not Started</option>
+            <option value="UNCERTAIN">Uncertain</option>
+            <option value="ONGOING">Ongoing</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="WITHDREW">Withdrew</option>
+          </select>
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Counselor</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.counselor" placeholder="Counselor name" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Notes</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.notes" placeholder="Short note" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Document Payment Status</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.documentPaymentStatus" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Documentation Status</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.documentationStatus" />
+        </div>
+        <div class="kd-form-field">
+          <label class="kd-label">Visa Status</label>
+          <input class="kd-input" type="text" [(ngModel)]="formData.visaStatus" />
+        </div>
+        <div class="kd-form-field kd-form-field--full">
+          <label class="kd-label">Documentation Remarks</label>
+          <textarea class="kd-textarea" [(ngModel)]="formData.documentationRemarks" rows="2"></textarea>
+        </div>
+      </div>
+
+      <!-- Services multi-select -->
+      <div class="kd-form-field kd-form-field--full">
+        <label class="kd-label">Services Opted</label>
+        <div class="kd-service-toggles">
+          <button *ngFor="let name of SERVICE_OPTED_CATALOG"
+            type="button"
+            class="kd-svc-toggle"
+            [class.kd-svc-toggle--active]="isFormServiceSelected(name)"
+            (click)="toggleFormService(name)">
+            {{ name }}
+          </button>
+        </div>
+      </div>
+
+      <p class="kd-form-error" *ngIf="formError">{{ formError }}</p>
+    </div>
+    <div class="kd-modal__foot">
+      <button class="kd-btn kd-btn--ghost" (click)="closeFormDialog()">Cancel</button>
+      <button class="kd-btn kd-btn--primary" [disabled]="formSaving" (click)="saveStudent()">
+        {{ formSaving ? 'Saving…' : (formMode === 'create' ? 'Create' : 'Save changes') }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COLUMN FILTER MODAL (Kanban / pipeline style) ═════════════════════════ -->
+<div class="kd-colfilter-backdrop" *ngIf="columnFilterOpen" (click)="closeColumnFilter()"></div>
+<div class="kd-colfilter-modal" *ngIf="columnFilterOpen" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+  <div class="kd-colfilter-modal__head">
+    <div class="kd-colfilter-modal__head-text">
+      <h3 class="kd-colfilter-modal__title">Filter by {{ columnFilterTitle() }}</h3>
+      <p class="kd-colfilter-modal__sub">Select one or more values, then click Apply</p>
+    </div>
+    <div class="kd-colfilter-modal__head-actions">
+      <button type="button"
+        class="kd-colfilter-order-btn"
+        *ngIf="columnFilterCanOrder()"
+        [class.kd-colfilter-order-btn--active]="columnFilterCustomOrder"
+        (click)="toggleColumnFilterOrder()"
+        [attr.aria-pressed]="columnFilterCustomOrder">
+        <span class="material-icons">sort</span>
+        Order
+      </button>
+      <button type="button" class="kd-drawer__close" (click)="closeColumnFilter()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="kd-colfilter-modal__search" *ngIf="columnFilterHasSearch()">
+    <span class="material-icons">search</span>
+    <input
+      type="text"
+      class="kd-input"
+      placeholder="Search options…"
+      [(ngModel)]="columnFilterSearch"
+      (ngModelChange)="onColumnFilterSearchChange()"
+    />
+  </div>
+
+  <div class="kd-colfilter-modal__body">
+    <ng-container *ngIf="columnFilterOpen === 'service'">
+      <p class="kd-colfilter-section__label">Service</p>
+      <div class="kd-colfilter-options">
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('primary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'primary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'primary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'primary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
+          <span class="kd-colfilter-option__label">{{ opt.label }}</span>
+          <span class="kd-colfilter-option__count">{{ opt.total }}</span>
+        </label>
+        <p class="kd-colfilter-empty" *ngIf="!filteredColumnOptions('primary').length">No services found</p>
+      </div>
+      <ng-container *ngIf="showProfessionInServiceFilter()">
+        <p class="kd-colfilter-section__label">Professional</p>
+        <div class="kd-colfilter-options">
+          <label class="kd-colfilter-option"
+            *ngFor="let opt of filteredColumnOptions('secondary'); trackBy: trackColumnFilterOption"
+            [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'secondary')"
+            (click)="onColumnFilterOptionClick(opt.value, 'secondary')">
+            <span class="kd-colfilter-option__check"
+              [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'secondary')"
+              aria-hidden="true">
+              <span class="material-icons">check</span>
+            </span>
+            <span class="kd-colfilter-option__label">{{ opt.label }}</span>
+            <span class="kd-colfilter-option__count">{{ opt.total }}</span>
+          </label>
+          <p class="kd-colfilter-empty" *ngIf="!filteredColumnOptions('secondary').length">No professions found</p>
+        </div>
+      </ng-container>
+    </ng-container>
+
+    <ng-container *ngIf="columnFilterOpen === 'doc'">
+      <p class="kd-colfilter-section__label">Document Payment</p>
+      <div class="kd-colfilter-options">
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('primary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'primary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'primary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'primary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
+          <span class="kd-colfilter-option__label">{{ opt.label }}</span>
+          <span class="kd-colfilter-option__count">{{ opt.total }}</span>
+        </label>
+      </div>
+      <p class="kd-colfilter-section__label">Documentation Status</p>
+      <div class="kd-colfilter-options">
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('secondary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'secondary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'secondary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'secondary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
+          <span class="kd-colfilter-option__label">{{ opt.label }}</span>
+          <span class="kd-colfilter-option__count">{{ opt.total }}</span>
+        </label>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="columnFilterOpen !== 'service' && columnFilterOpen !== 'doc'">
+      <div class="kd-colfilter-options">
+        <label class="kd-colfilter-option"
+          *ngFor="let opt of filteredColumnOptions('primary'); trackBy: trackColumnFilterOption"
+          [class.kd-colfilter-option--selected]="isDraftSelected(opt.value, 'primary')"
+          (click)="onColumnFilterOptionClick(opt.value, 'primary')">
+          <span class="kd-colfilter-option__check"
+            [class.kd-colfilter-option__check--checked]="isDraftSelected(opt.value, 'primary')"
+            aria-hidden="true">
+            <span class="material-icons">check</span>
+          </span>
+          <span class="kd-colfilter-option__label">{{ opt.label }}</span>
+          <span class="kd-colfilter-option__count">{{ opt.total }}</span>
+        </label>
+        <p class="kd-colfilter-empty" *ngIf="!filteredColumnOptions('primary').length">No values available</p>
+      </div>
+    </ng-container>
+  </div>
+
+  <div class="kd-colfilter-modal__foot">
+    <button type="button" class="kd-btn kd-btn--ghost kd-btn--sm" (click)="selectAllColumnFilter()">
+      Select all
+    </button>
+    <button type="button" class="kd-btn kd-btn--ghost kd-btn--sm" (click)="clearColumnFilterDraft()">
+      Clear
+    </button>
+    <span class="kd-colfilter-modal__spacer"></span>
+    <button type="button" class="kd-btn kd-btn--ghost" (click)="closeColumnFilter()">Cancel</button>
+    <button type="button" class="kd-btn kd-btn--primary" (click)="applyColumnFilter()">Apply filter</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- IMPORT DIALOG                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="kd-modal-overlay" *ngIf="showImportDialog" (click)="closeImportDialog()">
+  <div class="kd-modal kd-modal--wide" (click)="$event.stopPropagation()">
+    <div class="kd-modal__head">
+      <h2 class="kd-modal__title">Import Students</h2>
+      <button class="kd-drawer__close" (click)="closeImportDialog()"><span class="material-icons">close</span></button>
+    </div>
+    <div class="kd-modal__body">
+
+      <!-- Step: Upload -->
+      <ng-container *ngIf="importStep === 'upload'">
+        <div class="kd-import-info">
+          <p>Upload your CRM export (CSV or Excel). These column names are supported automatically:</p>
+          <ul class="kd-import-columns">
+            <li><strong>Candidate Name</strong> → name</li>
+            <li><strong>Email Address</strong> → email</li>
+            <li><strong>Package Opted</strong> → Platinum / Silver / Visa &amp; Docs</li>
+            <li><strong>Current Status</strong> → Not Started / Uncertain / Ongoing / Completed / Withdrew</li>
+            <li><strong>Phone Number</strong>, <strong>WhatsApp Number</strong>, <strong>Age</strong></li>
+            <li><strong>Assigned Sales Representative</strong> → counselor</li>
+            <li><strong>Service Opted</strong> → CV Service, Interview Preparation, etc.</li>
+            <li><strong>Professional</strong> or <strong>Professional Categories</strong> → IT Professional, Nurse, Engineer, O/L, etc.</li>
+            <li><strong>Specialization</strong> → stored separately, not used for profession filters</li>
+          </ul>
+          <p>Short aliases also work: <code>name</code>, <code>email</code>, <code>package</code>, <code>status</code>.</p>
+          <p class="kd-import-isolation-note">
+            <span class="material-icons">shield</span>
+            Import writes only to the Sales database. Language Team student records are never modified.
+          </p>
+        </div>
+        <div class="kd-drop-zone" (click)="triggerFileInput()">
+          <span class="material-icons kd-drop-zone__icon">cloud_upload</span>
+          <p>{{ importFile ? importFile.name : 'Click to choose a CSV or Excel file' }}</p>
+          <input #importFileInput type="file" accept=".csv,.xlsx,.xls" style="display:none"
+            (change)="onImportFileChange($event)" />
+        </div>
+        <p class="kd-form-error" *ngIf="importError">{{ importError }}</p>
+      </ng-container>
+
+      <!-- Step: Preview -->
+      <ng-container *ngIf="importStep === 'preview' && importPreview">
+        <div class="kd-import-summary">
+          <span class="kd-import-summary__item kd-import-summary__item--ok">
+            <span class="material-icons">check_circle</span> {{ importRowCount() }} students ready to import
+          </span>
+          <span class="kd-import-summary__item kd-import-summary__item--ok" *ngIf="importPreview.professionCount">
+            <span class="material-icons">work</span> {{ importPreview.professionCount }} rows with Professional Categories
+          </span>
+          <span class="kd-import-summary__item kd-import-summary__item--warn" *ngIf="importPreview.professionCount === 0">
+            <span class="material-icons">warning</span> No Professional column detected — drill-down will show Unspecified
+          </span>
+          <span class="kd-import-summary__item kd-import-summary__item--warn" *ngIf="importPreview.duplicateNameCount">
+            <span class="material-icons">info</span> {{ importPreview.duplicateNameCount }} rows share a candidate name (unique emails — all {{ importRowCount() }} imported)
+          </span>
+          <span class="kd-import-summary__item kd-import-summary__item--warn" *ngIf="importPreview.duplicateEmailCount">
+            <span class="material-icons">info</span> {{ importPreview.duplicateEmailCount }} shared emails in file (unique address per name/phone)
+          </span>
+          <span class="kd-import-summary__item kd-import-summary__item--warn" *ngIf="importWarningCount() && !importPreview.duplicateEmailCount && !importPreview.duplicateNameCount">
+            <span class="material-icons">info</span> {{ importWarningCount() }} with auto-fixes (still imported)
+          </span>
+        </div>
+        <p class="kd-import-note" *ngIf="importWarningCount()">
+          Rows with missing email, package, or other issues will still be created using available details and sensible defaults.
+        </p>
+        <div class="kd-import-errors kd-import-errors--warn" *ngIf="importPreview.invalid.length">
+          <h4>Auto-fixes applied</h4>
+          <div class="kd-import-error-row" *ngFor="let e of importPreview.invalid">
+            <span class="kd-import-error-row__label">
+              Row {{ e.rowIndex }}<ng-container *ngIf="e.name"> — <strong>{{ e.name }}</strong></ng-container>:
+            </span>
+            {{ (e.warnings || e.errors).join('; ') }} — <em>will still be imported</em>
+          </div>
+        </div>
+        <div class="kd-import-preview-table" *ngIf="importPreview.valid.length">
+          <h4>Preview (first {{ minOf(importPreview.valid.length, 10) }} of {{ importRowCount() }})</h4>
+          <table class="kd-table kd-table--sm">
+            <thead>
+              <tr><th class="kd-th">Name</th><th class="kd-th">Email</th><th class="kd-th">Package</th><th class="kd-th">Professional</th><th class="kd-th">Status</th></tr>
+            </thead>
+            <tbody>
+              <tr class="kd-tr" *ngFor="let r of importPreview.valid.slice(0, 10)">
+                <td class="kd-td">{{ r.record.name }}</td>
+                <td class="kd-td">{{ r.record.email }}</td>
+                <td class="kd-td">{{ r.record.package }}</td>
+                <td class="kd-td">{{ displayProfession(r.record.profession) }}</td>
+                <td class="kd-td">{{ r.record.status }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="kd-form-error" *ngIf="importError">{{ importError }}</p>
+      </ng-container>
+
+      <!-- Step: Committing -->
+      <ng-container *ngIf="importStep === 'committing'">
+        <div class="kd-import-progress">
+          <div class="kd-spinner"></div>
+          <p>Importing {{ importRowCount() }} students…</p>
+        </div>
+      </ng-container>
+
+      <!-- Step: Done -->
+      <ng-container *ngIf="importStep === 'done' && importResult">
+        <div class="kd-import-done">
+          <span class="material-icons kd-import-done__icon">task_alt</span>
+          <h3>Import complete</h3>
+          <p><strong>{{ importResult.imported }}</strong> new students imported.</p>
+          <p *ngIf="importResult.updated">
+            <strong>{{ importResult.updated }}</strong> existing students updated from your file.
+          </p>
+          <p *ngIf="importResult.merged">
+            <strong>{{ importResult.merged }}</strong> duplicate records removed (same candidate name).
+          </p>
+          <p *ngIf="importResult.emailAdjusted">
+            <strong>{{ importResult.emailAdjusted }}</strong> shared emails resolved using name/phone.
+          </p>
+          <p *ngIf="importResult.failed?.length">
+            <strong>{{ importResult.failed.length }}</strong> rows could not be imported.
+          </p>
+        </div>
+      </ng-container>
+
+    </div>
+    <div class="kd-modal__foot">
+      <button class="kd-btn kd-btn--ghost" (click)="closeImportDialog()">
+        {{ importStep === 'done' ? 'Close' : 'Cancel' }}
+      </button>
+      <button class="kd-btn kd-btn--primary" *ngIf="importStep === 'upload'"
+        [disabled]="!importFile || importLoading" (click)="uploadForPreview()">
+        {{ importLoading ? 'Parsing…' : 'Preview' }}
+      </button>
+      <button class="kd-btn kd-btn--primary" *ngIf="importStep === 'preview'"
+        [disabled]="!importRowCount() || importLoading" (click)="commitImport()">
+        {{ importLoading ? 'Importing…' : ('Import ' + importRowCount() + ' students') }}
+      </button>
+    </div>
+  </div>
+</div>

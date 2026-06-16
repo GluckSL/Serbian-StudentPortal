@@ -148,6 +148,14 @@ function xpForLevel(level: number): number {
                 <div class="arena-filters__dropdown-item" (click)="setType('gender_stack')">Gender Stack</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('flapjugation')">Flapjugation</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('whackawort')">Whack-a-Wort</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('memory')">Memory Game</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('jumbled_words')">Jumbled Words</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('hangman')">Hangman</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('word_picture_match')">Word-Picture Match</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('multiple_choice')">Multiple Choice</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('spin_wheel')">Spin the Wheel</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('tap_boxes')">Tap the Boxes</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('word_search')">Word Search</div>
               </div>
             </div>
             <div class="arena-filters__dropdown-wrap">
@@ -888,6 +896,14 @@ export class GameCatalogComponent implements OnInit {
       gender_stack: 'linear-gradient(145deg, #0284c7 0%, #38bdf8 50%, #7dd3fc 100%)',
       flapjugation: 'linear-gradient(145deg, #be185d 0%, #ec4899 50%, #f472b6 100%)',
       whackawort: 'linear-gradient(145deg, #d97706 0%, #f59e0b 50%, #fbbf24 100%)',
+      memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
+      jumbled_words: 'linear-gradient(145deg, #7c3aed 0%, #a78bfa 100%)',
+      hangman: 'linear-gradient(145deg, #b91c1c 0%, #ef4444 100%)',
+      word_picture_match: 'linear-gradient(145deg, #0d9488 0%, #2dd4bf 100%)',
+      multiple_choice: 'linear-gradient(145deg, #0891b2 0%, #06b6d4 50%, #22d3ee 100%)',
+      spin_wheel: 'linear-gradient(145deg, #6d28d9 0%, #a855f7 50%, #c084fc 100%)',
+      tap_boxes: 'linear-gradient(145deg, #0f766e 0%, #14b8a6 50%, #5eead4 100%)',
+      word_search: 'linear-gradient(145deg, #ca8a04 0%, #fb923c 55%, #fef08a 100%)',
     };
     return map[type] ?? 'linear-gradient(145deg, #1e3a5f, #64748b)';
   }
@@ -898,6 +914,14 @@ export class GameCatalogComponent implements OnInit {
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
       whackawort: 'Whack-a-Wort',
+      memory: 'Memory Game',
+      jumbled_words: 'Jumbled Words',
+      hangman: 'Hangman',
+      word_picture_match: 'Word-Picture Match',
+      multiple_choice: 'Multiple Choice',
+      spin_wheel: 'Spin the Wheel',
+      tap_boxes: 'Tap the Boxes',
+      word_search: 'Word Search',
     };
     return map[t] ?? t;
   }

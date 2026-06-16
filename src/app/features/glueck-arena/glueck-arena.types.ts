@@ -1,7 +1,7 @@
 // GlückArena shared TypeScript types
 
 export type ArticleGender = 'der' | 'die' | 'das';
-export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort';
+export type GameType = 'scramble_rush' | 'sentence_builder' | 'matching' | 'flashcards' | 'image_matching' | 'gender_stack' | 'flapjugation' | 'whackawort' | 'memory' | 'jumbled_words' | 'hangman' | 'word_picture_match' | 'multiple_choice' | 'spin_wheel' | 'tap_boxes' | 'word_search';
 export type GameDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type AttemptStatus = 'in-progress' | 'completed' | 'abandoned';
@@ -19,6 +19,16 @@ export interface GenderStackSettings {
   fallDurationSeconds: number;
 }
 
+export interface SpinWheelSettings {
+  /** Text shown in the center hub of the wheel */
+  centerLabel: string;
+}
+
+export interface TapBoxesSettings {
+  /** Custom board background image URL; null = default green board */
+  backgroundUrl: string | null;
+}
+
 export interface GameSet {
   _id: string;
   title: string;
@@ -34,6 +44,8 @@ export interface GameSet {
   xpReward: number;
   timerSettings: TimerSettings;
   genderStackSettings?: GenderStackSettings;
+  spinWheelSettings?: SpinWheelSettings;
+  tapBoxesSettings?: TapBoxesSettings;
   visibleToStudents: boolean;
   courseDay: number | null;
   sequenceLetter: string | null;
@@ -122,7 +134,109 @@ export interface WhackawortQuestion {
   category: string;
 }
 
-export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion;
+export interface MemoryGamePair {
+  word: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export interface MemoryGameQuestion {
+  _id: string;
+  gameType: 'memory';
+  order: number;
+  pairs: MemoryGamePair[];
+}
+
+export interface JumbledWordsQuestion {
+  _id: string;
+  gameType: 'jumbled_words';
+  order: number;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+  jumbledLetters: string[];
+  letterCount: number;
+}
+
+export interface HangmanQuestion {
+  _id: string;
+  gameType: 'hangman';
+  order: number;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+  word: string;
+  letterCount: number;
+}
+
+export interface WordPictureMatchPair {
+  word: string;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export interface WordPictureMatchQuestion {
+  _id: string;
+  gameType: 'word_picture_match';
+  order: number;
+  pairs: WordPictureMatchPair[];
+}
+
+export interface MatchingQuestion {
+  _id: string;
+  gameType: 'matching';
+  order: number;
+  word: string;
+  translation: string;
+}
+
+export interface MultipleChoiceOption {
+  text: string;
+}
+
+export interface MultipleChoiceQuestion {
+  _id: string;
+  gameType: 'multiple_choice';
+  order: number;
+  questionText: string;
+  options: MultipleChoiceOption[];
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+export interface SpinWheelQuestion {
+  _id: string;
+  gameType: 'spin_wheel';
+  order: number;
+  phrase: string;
+}
+
+export interface TapBoxesQuestion {
+  _id: string;
+  gameType: 'tap_boxes';
+  order: number;
+  phrase: string;
+}
+
+export interface WordSearchPlacement {
+  id: string;
+  cells: { row: number; col: number }[];
+}
+
+export interface WordSearchQuestion {
+  _id: string;
+  gameType: 'word_search';
+  order: number;
+  gridRows: number;
+  gridCols: number;
+  gridSize: number;
+  grid: string[][];
+  placements: WordSearchPlacement[];
+  totalWords: number;
+}
+
+export type GameQuestion = ScrambleQuestion | SentenceQuestion | ImageMatchingQuestion | GenderStackQuestion | FlapjugationQuestion | WhackawortQuestion | MemoryGameQuestion | JumbledWordsQuestion | HangmanQuestion | WordPictureMatchQuestion | MatchingQuestion | MultipleChoiceQuestion | SpinWheelQuestion | TapBoxesQuestion | WordSearchQuestion;
 
 // Admin-only question shapes (includes answers)
 export interface AdminScrambleQuestion extends ScrambleQuestion {
@@ -149,7 +263,40 @@ export interface AdminFlapjugationQuestion extends FlapjugationQuestion {
 }
 export interface AdminWhackawortQuestion extends WhackawortQuestion {
 }
-export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion;
+export interface AdminMemoryMatchPair {
+  word: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+
+/** Admin memory board — pairs include words (same shape as MemoryGamePair). */
+export type AdminMemoryGameQuestion = Omit<MemoryGameQuestion, 'pairs'> & {
+  pairs: AdminMemoryMatchPair[];
+};
+export interface AdminJumbledWordsQuestion extends JumbledWordsQuestion {
+  word: string;
+}
+export interface AdminHangmanQuestion extends HangmanQuestion {
+}
+export interface AdminWordPictureMatchPair {
+  word: string;
+  hint: string;
+  imageUrl: string | null;
+  audioUrl: string | null;
+}
+export interface AdminWordPictureMatchQuestion extends WordPictureMatchQuestion {
+  pairs: AdminWordPictureMatchPair[];
+}
+export interface AdminMultipleChoiceOption {
+  text: string;
+  isCorrect: boolean;
+}
+
+export interface AdminMultipleChoiceQuestion extends MultipleChoiceQuestion {
+  options: AdminMultipleChoiceOption[];
+}
+
+export type AdminGameQuestion = AdminScrambleQuestion | AdminSentenceQuestion | AdminImageMatchingQuestion | AdminGenderStackQuestion | AdminFlapjugationQuestion | AdminWhackawortQuestion | AdminMemoryGameQuestion | AdminJumbledWordsQuestion | AdminHangmanQuestion | AdminWordPictureMatchQuestion | AdminMultipleChoiceQuestion;
 
 export interface GameLevel {
   _id?: string;
@@ -188,7 +335,7 @@ export interface AnswerResult {
   isCorrect: boolean;
   pointsEarned: number;
   speedBonus?: number;
-  correctAnswer: { word?: string; sentence?: string; tokens?: string[]; articleGender?: ArticleGender };
+  correctAnswer: { word?: string; sentence?: string; tokens?: string[]; articleGender?: ArticleGender; correctIndex?: number; text?: string };
 }
 
 export interface CompleteResult {
@@ -214,6 +361,14 @@ export interface CatalogResponse {
   success: boolean;
   items: GameSet[];
   pagination: { page: number; limit: number; total: number; pages: number };
+}
+
+/** Games tagged to journey days (courseDay) for My Course → Journey to Germany. */
+export interface JourneyGamesResponse {
+  success: boolean;
+  items: GameSet[];
+  hasArenaAccess: boolean;
+  gameCount: number;
 }
 
 export interface LeaderboardEntry {
@@ -254,10 +409,20 @@ export interface StudentGameStats {
   byGameType: {
     scramble_rush: { gamesCompleted: number; bestScore: number; totalXp: number };
     sentence_builder: { gamesCompleted: number; bestScore: number; totalXp: number };
+    matching: { gamesCompleted: number; bestScore: number; totalXp: number };
+    flashcards: { gamesCompleted: number; bestScore: number; totalXp: number };
     image_matching: { gamesCompleted: number; bestScore: number; totalXp: number };
     gender_stack: { gamesCompleted: number; bestScore: number; totalXp: number };
     flapjugation: { gamesCompleted: number; bestScore: number; totalXp: number };
     whackawort: { gamesCompleted: number; bestScore: number; totalXp: number };
+    memory: { gamesCompleted: number; bestScore: number; totalXp: number };
+    jumbled_words: { gamesCompleted: number; bestScore: number; totalXp: number };
+    hangman: { gamesCompleted: number; bestScore: number; totalXp: number };
+    word_picture_match: { gamesCompleted: number; bestScore: number; totalXp: number };
+    multiple_choice: { gamesCompleted: number; bestScore: number; totalXp: number };
+    spin_wheel: { gamesCompleted: number; bestScore: number; totalXp: number };
+    tap_boxes: { gamesCompleted: number; bestScore: number; totalXp: number };
+    word_search: { gamesCompleted: number; bestScore: number; totalXp: number };
   };
 }
 
@@ -433,7 +598,7 @@ export interface ArenaBattleSentenceQuestion {
 export interface ArenaBattleRound {
   roundIndex: number;
   totalRounds: number;
-  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion | ArenaBattleWhackawortQuestion;
+  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion | ArenaBattleWhackawortQuestion | ArenaBattleJumbledWordsQuestion;
   roundStartedAt?: string;
   roundEndsAt?: string;
   serverTime: number;
@@ -641,4 +806,14 @@ export interface ArenaBattleWhackawortQuestion {
   targetCategory: string;
   words: Array<{ word: string; translation: string; category: string }>;
   duration: number;
+}
+
+export interface ArenaBattleJumbledWordsQuestion {
+  questionId: string;
+  index: number;
+  jumbledLetters: string[];
+  hint?: string;
+  imageUrl?: string | null;
+  audioUrl?: string | null;
+  letterCount: number;
 }

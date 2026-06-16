@@ -1,5 +1,6 @@
-const { allStudentBatchStringsForContent, batchesAlign } = require('./effectiveStudentBatch');
+const { recordingAccessBatchKeys, batchesAlign } = require('./effectiveStudentBatch');
 const { isContentBlockedForStudent } = require('./journeyContentBlock');
+const { isCoursePlan } = require('./studentSubscriptionPlans');
 const RecordingAccessRequest = require('../models/RecordingAccessRequest');
 
 function allowedRecordingPlansForStudent(student) {
@@ -18,8 +19,16 @@ function normalizedStudentCourseDay(student) {
   return 1;
 }
 
-function journeyCourseDayUnlockedForStudent(doc, student) {
-  const studentDay = normalizedStudentCourseDay(student);
+/**
+ * @param {object} doc - ClassRecording or MeetingLink
+ * @param {object} student
+ * @param {number} [maxUnlockedDay] - Silver GO sequential cap (from resolveSilverGoContentUnlock)
+ */
+function journeyCourseDayUnlockedForStudent(doc, student, maxUnlockedDay) {
+  const studentDay =
+    maxUnlockedDay != null && Number.isFinite(Number(maxUnlockedDay))
+      ? Math.min(200, Math.max(1, Math.floor(Number(maxUnlockedDay))))
+      : normalizedStudentCourseDay(student);
   const raw = doc && doc.courseDay;
   if (raw == null || raw === undefined) return true;
   const cd = Number(raw);
@@ -31,8 +40,9 @@ function canUserAccessManualRecording(recording, student) {
   if (!recording?.active) return false;
   if (recording.isPublished === false) return false;
   if (!student) return false;
+  if (!isCoursePlan(student?.subscription)) return false;
   if (student.journeyAccessEnabled === false) return false;
-  const batchKeys = allStudentBatchStringsForContent(student);
+  const batchKeys = recordingAccessBatchKeys(student);
   const inBatch = batchKeys.length > 0 && Array.isArray(recording.batches) &&
     recording.batches.some((b) => batchKeys.some((k) => batchesAlign(k, b)));
   if (!inBatch) return false;
@@ -60,12 +70,13 @@ function normalizeZoomAccessSettings(zoomRecording, meetingLink) {
 function canUserAccessZoomRecording(zoomRecording, meetingLink, student) {
   if (!zoomRecording || zoomRecording.isPublished === false) return false;
   if (!student || !meetingLink) return false;
+  if (!isCoursePlan(student?.subscription)) return false;
   if (student.journeyAccessEnabled === false) return false;
   if (!journeyCourseDayUnlockedForStudent(meetingLink, student)) return false;
   if (isContentBlockedForStudent(student, { courseDay: meetingLink?.courseDay, level: meetingLink?.level })) return false;
 
   const { batches, level, plan } = normalizeZoomAccessSettings(zoomRecording, meetingLink);
-  const studentBatchKeys = allStudentBatchStringsForContent(student);
+  const studentBatchKeys = recordingAccessBatchKeys(student);
   const inBatch = studentBatchKeys.length > 0 &&
     batches.length > 0 &&
     batches.some((b) => studentBatchKeys.some((k) => batchesAlign(k, b)));

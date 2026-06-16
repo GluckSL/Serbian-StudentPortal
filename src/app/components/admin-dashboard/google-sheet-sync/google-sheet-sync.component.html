@@ -1,0 +1,141 @@
+<div class="sync-container">
+  <h2>Document Extraction & Sheet Sync</h2>
+
+  <!-- Message -->
+  @if (message) {
+    <div class="alert" [class.alert-success]="messageType === 'success'"
+         [class.alert-error]="messageType === 'error'"
+         [class.alert-info]="messageType === 'info'">
+      {{ message }}
+    </div>
+  }
+
+  <!-- Activity log (top) -->
+  <div class="activity-log-panel">
+    <div class="activity-log-header">
+      <h3>Activity log</h3>
+      @if (activityJob?.running) {
+        <span class="job-badge job-badge--running">
+          {{ activityJob!.type === 'extract' ? 'Extracting' : (activityJob!.type === 'sync' ? 'Syncing' : 'OCR') }}
+          @if (activityJob!.total) {
+            — {{ activityJob!.current }} / {{ activityJob!.total }} ({{ activityProgressPercent }}%)
+          }
+        </span>
+      } @else if (activityJob && !activityJob.running) {
+        <span class="job-badge job-badge--done">Done</span>
+      }
+      <button type="button" class="btn btn-sm btn-outline" (click)="clearActivityLog()">Clear</button>
+    </div>
+    @if (activityJob?.running && activityJob!.total) {
+      <div class="activity-progress">
+        <div class="activity-progress-fill" [style.width.%]="activityProgressPercent"></div>
+      </div>
+    }
+    <div class="activity-log-body" #activityLogBody>
+      @if (activityLogs.length === 0) {
+        <p class="activity-empty">No activity yet.</p>
+      } @else {
+        @for (entry of activityLogs; track entry.id) {
+          <div class="log-line" [class.log-success]="entry.level === 'success'"
+               [class.log-error]="entry.level === 'error'"
+               [class.log-warn]="entry.level === 'warn'">
+            <span class="log-time">{{ entry.at | date:'HH:mm:ss' }}</span>
+            <span class="log-msg">{{ entry.message }}</span>
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  <!-- Student Selection -->
+  <div class="student-section">
+    <h3>Select Students</h3>
+
+    <div class="toolbar">
+      <input type="text" class="search-input" placeholder="Search by name, email or reg no..."
+             [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" />
+
+      <select class="filter-select" [(ngModel)]="batchFilter" (ngModelChange)="onFilterChange()">
+        <option value="">All Batches</option>
+        @for (b of batchOptions; track b) {
+          <option [value]="b">{{ b }}</option>
+        }
+      </select>
+
+      <select class="filter-select" [(ngModel)]="levelFilter" (ngModelChange)="onFilterChange()">
+        <option value="">All Levels</option>
+        @for (l of levelOptions; track l) {
+          <option [value]="l">{{ l }}</option>
+        }
+      </select>
+
+      <button class="btn btn-outline" (click)="loadStudents()" [disabled]="studentsLoading">
+        Refresh
+      </button>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <span class="selection-count">{{ selectedIds.size }} student{{ selectedIds.size !== 1 ? 's' : '' }} selected</span>
+      <button class="btn btn-primary" (click)="runExtract()"
+              [disabled]="selectedIds.size === 0 || extractLoading">
+        {{ extractLoading ? 'Extracting...' : 'Extract & Sync to Sheet (' + selectedIds.size + ')' }}
+      </button>
+    </div>
+
+    @if (studentsLoading) {
+      <p class="loading-text">Loading students...</p>
+    } @else if (students.length === 0) {
+      <p class="empty-text">{{ searchQuery || batchFilter || levelFilter ? 'No students match your filters.' : 'No students found.' }}</p>
+    } @else {
+      <table class="student-table">
+        <thead>
+          <tr>
+            <th class="col-check">
+              <input type="checkbox" [checked]="isAllOnPageSelected()" (change)="toggleAllOnPage()"
+                     title="Select all on this page" />
+            </th>
+            <th>Name</th>
+            <th>Reg No</th>
+            <th>Email</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th class="col-docs">Docs</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of students; track s._id) {
+            <tr [class.row-selected]="selectedIds.has(s._id)">
+              <td class="col-check">
+                <input type="checkbox" [checked]="isSelected(s._id)" (change)="toggleStudent(s._id)" />
+              </td>
+              <td>{{ s.name }}</td>
+              <td>{{ s.regNo }}</td>
+              <td>{{ s.email }}</td>
+              <td>{{ s.batch || '-' }}</td>
+              <td>{{ s.level || '-' }}</td>
+              <td class="col-docs">{{ s.documentCount ?? 0 }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <div class="pagination">
+        <span class="pagination-info">{{ totalItems }} total — Page {{ currentPage }} of {{ totalPages }}</span>
+        <div class="pagination-controls">
+          <button class="btn btn-sm" (click)="goToPage(1)" [disabled]="currentPage <= 1">&laquo;</button>
+          <button class="btn btn-sm" (click)="goToPage(currentPage - 1)" [disabled]="currentPage <= 1">&lsaquo;</button>
+          @for (p of pages; track $index) {
+            @if (p === -1) {
+              <span class="pagination-ellipsis">&hellip;</span>
+            } @else {
+              <button class="btn btn-sm" [class.btn-active]="p === currentPage" (click)="goToPage(p)">{{ p }}</button>
+            }
+          }
+          <button class="btn btn-sm" (click)="goToPage(currentPage + 1)" [disabled]="currentPage >= totalPages">&rsaquo;</button>
+          <button class="btn btn-sm" (click)="goToPage(totalPages)" [disabled]="currentPage >= totalPages">&raquo;</button>
+        </div>
+      </div>
+    }
+  </div>
+</div>

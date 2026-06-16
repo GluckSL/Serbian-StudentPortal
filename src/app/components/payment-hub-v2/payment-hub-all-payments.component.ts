@@ -14,7 +14,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { PaymentHubApiService, DashboardStats, StudentTableRow } from './payment-hub-api.service';
+import { MatMenuModule } from '@angular/material/menu';
+import { PaymentHubApiService, DashboardStats, PaymentPaidSlotBadge, StudentTableRow } from './payment-hub-api.service';
+import { fmtPaymentAmount, fmtPaymentAmountCompact } from './payment-currency.util';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
 import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
@@ -25,8 +27,21 @@ import { PaymentCorrectReceivedDialogComponent } from './payment-correct-receive
 import { PaymentExcelImportDialogComponent } from './payment-excel-import-dialog.component';
 import {
   currentJourneyDayFromStudent,
-  totalJourneyDaysForLevel,
+  formatJourneyDayCurrentTotal,
 } from './payment-journey-metrics.util';
+import {
+  LANGUAGE_FEE_STATUS_LABELS,
+  LANGUAGE_FEE_STATUS_OPTIONS,
+  languageFeeStatusClass,
+  computeLanguageFeeStatus,
+} from './payment-language-fee-status.util';
+import {
+  defaultPaymentHubExportFormatters,
+  downloadPaymentHubCsv,
+  downloadPaymentHubXlsx,
+  paymentHubRowsToCsv,
+} from './payment-hub-export.util';
+import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
 
 @Component({
   selector: 'app-payment-hub-all-payments',
@@ -46,10 +61,12 @@ import {
     MatIconModule,
     MatTooltipModule,
     MatDialogModule,
+    MatMenuModule,
     MatCheckboxModule,
     PaymentCurrencyTotalsComponent,
     PaymentCurrencyPendingTotalsComponent,
     PaymentCurrencyOverdueTotalsComponent,
+    TestAccountBadgeComponent,
   ],
   templateUrl: './payment-hub-all-payments.component.html',
   styleUrls: ['./payment-hub-all-payments.component.scss'],
@@ -58,6 +75,9 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   loadingStats = true;
   loadingTable = true;
   runningOverdue = false;
+  resettingPayments = false;
+  selectingAllMatching = false;
+  exporting = false;
 
   stats: DashboardStats | null = null;
   rows: StudentTableRow[] = [];
@@ -69,17 +89,91 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   filterBatch = '';
   filterLevel = '';
   filterCurrency = '';
+  filterLanguageFeeStatus = '';
+  filterStudentStatus = '';
+  filterSubscription = '';
   filterDateFrom: Date | null = null;
   filterDateTo: Date | null = null;
+  /** Off by default — test accounts excluded from table and summary counts. */
+  includeTestAccounts = false;
   searchQuery = '';
+  /** Clickable summary filter: paid_full | have_balance | overdue | paid_docs | paid_visa */
+  filterStudentInsight = '';
+
+  readonly studentInsightOptions = [
+    { value: '', key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all students', color: 'slate' },
+    { value: 'paid_full', key: 'paid_full', label: 'Paid full', icon: 'check_circle', hint: 'Language fee fully paid', color: 'green' },
+    { value: 'have_balance', key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', hint: 'Outstanding balance', color: 'amber' },
+    { value: 'overdue', key: 'overdue', label: 'Overdue', icon: 'warning_amber', hint: 'Past due payments', color: 'red' },
+    { value: 'paid_docs', key: 'paid_docs', label: 'Paid docs', icon: 'description', hint: 'Docs payment approved', color: 'teal' },
+    { value: 'paid_visa', key: 'paid_visa', label: 'Paid visa', icon: 'flight', hint: 'Visa payment approved', color: 'indigo' },
+  ] as const;
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly currencies = ['LKR', 'INR', 'USD'];
+  readonly languageFeeStatusOptions = LANGUAGE_FEE_STATUS_OPTIONS;
+  readonly studentStatusOptions = [
+    { value: '', label: 'All student statuses' },
+    { value: 'ONGOING', label: 'Ongoing' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'WITHDREW', label: 'Withdrew' },
+    { value: 'UNCERTAIN', label: 'Uncertain' },
+  ];
+  readonly subscriptionOptions = [
+    { value: '', label: 'All plans' },
+    { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'SILVER', label: 'Silver' },
+    { value: 'VISA_DOC_ONLY', label: 'Visa doc only' },
+  ];
   /** Distinct student `batch` values from `/api/studentLog/batch-options` */
   batchOptions: string[] = [];
 
   /** Student `_id`s selected for bulk language fee (may span pages). */
   private selectedStudentIds = new Set<string>();
+
+  get hasActiveFilters(): boolean {
+    return !!(
+      this.filterBatch ||
+      this.filterLevel ||
+      this.filterCurrency ||
+      this.filterLanguageFeeStatus ||
+      this.filterStudentStatus ||
+      this.filterSubscription ||
+      this.filterDateFrom ||
+      this.filterDateTo ||
+      this.includeTestAccounts
+    );
+  }
+
+  get hasTableInsightFilter(): boolean {
+    return !!this.filterStudentInsight;
+  }
+
+  fmtCompact = fmtPaymentAmountCompact;
+  fmtFull = fmtPaymentAmount;
+
+  get activeFilterLabel(): string {
+    if (this.stats?.filterSummary) return this.stats.filterSummary;
+    const parts: string[] = [];
+    if (this.filterBatch) parts.push(`Batch ${this.filterBatch}`);
+    if (this.filterLevel) parts.push(`Level ${this.filterLevel}`);
+    if (this.filterSubscription) {
+      const o = this.subscriptionOptions.find((x) => x.value === this.filterSubscription);
+      parts.push(o?.label || this.filterSubscription);
+    }
+    if (this.filterStudentStatus) {
+      const o = this.studentStatusOptions.find((x) => x.value === this.filterStudentStatus);
+      parts.push(o?.label || this.filterStudentStatus);
+    }
+    if (this.filterLanguageFeeStatus) {
+      const o = this.languageFeeStatusOptions.find((x) => x.value === this.filterLanguageFeeStatus);
+      parts.push(o?.label || this.filterLanguageFeeStatus);
+    }
+    if (this.filterCurrency) parts.push(this.filterCurrency);
+    if (this.includeTestAccounts) parts.push('Incl. test accounts');
+    else parts.push('Excl. test accounts');
+    return parts.length ? parts.join(' · ') : 'Excl. test accounts';
+  }
 
   constructor(
     private readonly api: PaymentHubApiService,
@@ -140,9 +234,67 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       batch: this.filterBatch || undefined,
       level: this.filterLevel || undefined,
       currency: this.filterCurrency || undefined,
+      languageFeeStatus: this.filterLanguageFeeStatus || undefined,
+      studentStatus: this.filterStudentStatus || undefined,
+      subscription: this.filterSubscription || undefined,
       dateFrom: this.filterDateFrom ? this.filterDateFrom.toISOString() : undefined,
       dateTo: this.filterDateTo ? this.filterDateTo.toISOString() : undefined,
+      includeTestAccounts: this.includeTestAccounts ? 'true' : undefined,
+      studentInsight: this.filterStudentInsight || undefined,
     };
+  }
+
+  applyInsightFilter(insight: string): void {
+    const next = this.filterStudentInsight === insight ? '' : insight;
+    this.filterStudentInsight = next;
+    this.page = 1;
+    this.loadTable();
+    if (next) {
+      setTimeout(() => {
+        document.getElementById('ph-students-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+    }
+  }
+
+  clearInsightFilter(): void {
+    if (!this.filterStudentInsight) return;
+    this.filterStudentInsight = '';
+    this.page = 1;
+    this.loadTable();
+  }
+
+  insightCount(key: string): number {
+    if (!this.stats) return 0;
+    switch (key) {
+      case 'all':
+        return this.stats.totalStudents;
+      case 'paid_full':
+        return this.stats.fullyPaidStudents;
+      case 'have_balance':
+        return this.stats.balanceStudents;
+      case 'overdue':
+        return this.stats.overdueStudents;
+      case 'paid_docs':
+        return this.stats.docsPaidStudents;
+      case 'paid_visa':
+        return this.stats.visaPaidStudents;
+      default:
+        return 0;
+    }
+  }
+
+  isInsightActive(value: string): boolean {
+    return this.filterStudentInsight === value;
+  }
+
+  activeInsightLabel(): string {
+    const opt = this.studentInsightOptions.find((o) => o.value === this.filterStudentInsight);
+    return opt?.label || this.filterStudentInsight;
+  }
+
+  studentPct(count: number, total: number): string {
+    if (!total) return '0%';
+    return `${Math.round((count / total) * 100)}%`;
   }
 
   applyFilters(): void {
@@ -155,8 +307,13 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     this.filterBatch = '';
     this.filterLevel = '';
     this.filterCurrency = '';
+    this.filterLanguageFeeStatus = '';
+    this.filterStudentStatus = '';
+    this.filterSubscription = '';
     this.filterDateFrom = null;
     this.filterDateTo = null;
+    this.includeTestAccounts = false;
+    this.filterStudentInsight = '';
     this.searchQuery = '';
     this.page = 1;
     this.loadStats();
@@ -226,6 +383,159 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       else next.delete(id);
     }
     this.selectedStudentIds = next;
+  }
+
+  selectAllMatchingFilter(): void {
+    if (this.selectingAllMatching) return;
+    this.selectingAllMatching = true;
+    const filters = this.buildFilters();
+    this.api
+      .getStudentTable({
+        ...filters,
+        page: 1,
+        limit: 9999,
+        sort: '-lastRebuiltAt',
+        search: this.searchQuery || undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          const next = new Set(this.selectedStudentIds);
+          for (const r of res.data || []) {
+            next.add(this.rowStudentId(r));
+          }
+          this.selectedStudentIds = next;
+          this.selectingAllMatching = false;
+          this.snack.open(`Selected ${res.data?.length || 0} student(s) matching current filters`, 'OK', { duration: 4000 });
+        },
+        error: () => {
+          this.selectingAllMatching = false;
+          this.snack.open('Could not load students for selection', 'Dismiss', { duration: 4000 });
+        },
+      });
+  }
+
+  clearSelection(): void {
+    this.selectedStudentIds = new Set();
+  }
+
+  exportPayments(format: 'xlsx' | 'csv', scope: 'all' | 'selected'): void {
+    if (this.exporting) return;
+    if (scope === 'selected' && this.selectedCount === 0) {
+      this.snack.open('Select at least one student to export.', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    if (scope === 'all' && this.total === 0) {
+      this.snack.open('No students to export for the current filters.', 'Dismiss', { duration: 3500 });
+      return;
+    }
+
+    this.exporting = true;
+    const filters = this.buildFilters();
+    const limit = Math.min(this.total, 10000);
+
+    this.api
+      .getStudentTable({
+        ...filters,
+        page: 1,
+        limit,
+        sort: '-lastRebuiltAt',
+        search: this.searchQuery || undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          let rows = res.data || [];
+          if (scope === 'selected') {
+            const ids = this.selectedStudentIds;
+            rows = rows.filter((r) => ids.has(this.rowStudentId(r)));
+            if (rows.length < ids.size) {
+              this.fetchSelectedForExport(format, ids);
+              return;
+            }
+          }
+          this.finishExport(format, rows, scope);
+        },
+        error: () => {
+          this.exporting = false;
+          this.snack.open('Could not load students for export', 'Dismiss', { duration: 4000 });
+        },
+      });
+  }
+
+  /** Selected students may span pages — load full matching set then filter by selection. */
+  private fetchSelectedForExport(format: 'xlsx' | 'csv', ids: Set<string>): void {
+    const filters = this.buildFilters();
+    this.api
+      .getStudentTable({
+        ...filters,
+        page: 1,
+        limit: Math.min(this.total, 10000),
+        sort: '-lastRebuiltAt',
+        search: this.searchQuery || undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          const rows = (res.data || []).filter((r) => ids.has(this.rowStudentId(r)));
+          this.finishExport(format, rows, 'selected');
+        },
+        error: () => {
+          this.exporting = false;
+          this.snack.open('Could not load selected students for export', 'Dismiss', { duration: 4000 });
+        },
+      });
+  }
+
+  private finishExport(format: 'xlsx' | 'csv', rows: StudentTableRow[], scope: 'all' | 'selected'): void {
+    this.exporting = false;
+    if (!rows.length) {
+      this.snack.open('No rows to export.', 'Dismiss', { duration: 3500 });
+      return;
+    }
+    const formatters = defaultPaymentHubExportFormatters((r) => this.languageFeeStatusLabel(r));
+    const date = new Date().toISOString().slice(0, 10);
+    const filterSlug = this.activeFilterLabel.replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '').slice(0, 40) || 'all';
+    const base = `payment-hub-${scope}-${filterSlug}-${date}`;
+
+    if (format === 'xlsx') {
+      downloadPaymentHubXlsx(base, rows, formatters);
+    } else {
+      downloadPaymentHubCsv(base, paymentHubRowsToCsv(rows, formatters));
+    }
+    this.snack.open(`Exported ${rows.length} student(s) as ${format === 'xlsx' ? 'Excel' : 'CSV'}`, 'OK', { duration: 4000 });
+  }
+
+  resetSelectedPayments(): void {
+    const ids = Array.from(this.selectedStudentIds);
+    if (!ids.length) {
+      this.snack.open('Select at least one student.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+
+    const msg =
+      `Reset payment data for ${ids.length} selected student(s)?\n\n` +
+      'This clears total received, pending, and overdue to 0 by archiving all their payment records. ' +
+      'Use this before re-importing from Excel. This cannot be undone.';
+    if (!window.confirm(msg)) return;
+
+    this.resettingPayments = true;
+    this.api
+      .bulkResetStudentPayments({
+        studentIds: ids,
+        reason: 'Admin bulk reset before Excel re-import',
+      })
+      .subscribe({
+        next: (res) => {
+          this.resettingPayments = false;
+          this.selectedStudentIds = new Set();
+          this.snack.open(res.message || 'Payment data reset', 'OK', { duration: 5000 });
+          this.loadStats();
+          this.loadTable();
+        },
+        error: (err) => {
+          this.resettingPayments = false;
+          const message = err?.error?.message || 'Reset failed';
+          this.snack.open(message, 'Dismiss', { duration: 6000 });
+        },
+      });
   }
 
   openCorrectReceived(): void {
@@ -354,22 +664,47 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   }
 
-  totalJourneyDays(row: StudentTableRow): number {
-    return totalJourneyDaysForLevel(row.studentId?.level);
+  journeyDayDisplay(row: StudentTableRow): string {
+    return formatJourneyDayCurrentTotal(row.studentId, row.studentId?.level);
   }
 
-  currentJourneyDay(row: StudentTableRow): number | null {
-    return currentJourneyDayFromStudent(row.studentId);
+  rowLanguageFeeStatus(row: StudentTableRow): string {
+    if (row.languageFeeStatus) return row.languageFeeStatus;
+    const day = currentJourneyDayFromStudent(row.studentId);
+    const bal = row.languageFeeBalance ?? 0;
+    return computeLanguageFeeStatus(bal, day);
   }
 
-  statusClass(status: string): string {
-    const map: Record<string, string> = {
-      GOOD_STANDING: 'pill-green',
-      FULLY_PAID: 'pill-green',
-      PENDING: 'pill-amber',
-      OVERDUE: 'pill-red',
-      NO_REQUESTS: 'pill-grey',
+  languageFeeStatusLabel(row: StudentTableRow): string {
+    const key = this.rowLanguageFeeStatus(row) as keyof typeof LANGUAGE_FEE_STATUS_LABELS;
+    return LANGUAGE_FEE_STATUS_LABELS[key] || key || '—';
+  }
+
+  languageFeePillClass(row: StudentTableRow): string {
+    return languageFeeStatusClass(this.rowLanguageFeeStatus(row));
+  }
+
+  paidSlots(row: StudentTableRow): PaymentPaidSlotBadge[] {
+    return row.paidSlots ?? [];
+  }
+
+  paidSlotLabel(slot: PaymentPaidSlotBadge): string {
+    if (slot === 'ALL') return 'All';
+    if (slot === 'DOCS') return 'Docs';
+    if (slot === 'VISA') return 'Visa';
+    return slot.toLowerCase();
+  }
+
+  paidSlotClass(slot: PaymentPaidSlotBadge): string {
+    const map: Record<PaymentPaidSlotBadge, string> = {
+      ALL: 'ph-paid-slot--all',
+      A1: 'ph-paid-slot--a1',
+      A2: 'ph-paid-slot--a2',
+      B1: 'ph-paid-slot--b1',
+      B2: 'ph-paid-slot--b2',
+      DOCS: 'ph-paid-slot--docs',
+      VISA: 'ph-paid-slot--visa',
     };
-    return map[status] || 'pill-grey';
+    return map[slot] || 'ph-paid-slot';
   }
 }

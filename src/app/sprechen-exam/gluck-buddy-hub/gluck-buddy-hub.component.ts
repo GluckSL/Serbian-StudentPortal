@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, inject } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { forkJoin } from 'rxjs';
@@ -8,6 +8,7 @@ import { DgApiService } from '../../dg-bot/dg-api.service';
 import { SprechenApiService } from '../sprechen-api.service';
 import type { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import type { SprechenExamModuleSummary } from '../sprechen-exam.types';
+import { clampJourneyDay } from '../../utils/journey-day.util';
 
 export type GluckBuddySubTab = 'practice' | 'exam';
 
@@ -18,7 +19,7 @@ export type GluckBuddySubTab = 'practice' | 'exam';
   templateUrl: './gluck-buddy-hub.component.html',
   styleUrl: './gluck-buddy-hub.component.scss',
 })
-export class GluckBuddyHubComponent implements OnInit {
+export class GluckBuddyHubComponent implements OnInit, OnChanges {
   @Input() journeyFixedDay: number | null = null;
   @Input() hideEmbeddedHeader = false;
   @Input() showSubTabs = true;
@@ -32,9 +33,17 @@ export class GluckBuddyHubComponent implements OnInit {
   examModuleCount = 0;
   studentCourseDay = 1;
 
+  /** Raw practice response metadata, passed to child DgBotHubComponent so it skips its own API call. */
+  practiceUnlockMode: 'daily' | 'weekly' | 'none' = 'daily';
+  practiceDgUnlockedWeek = 1;
+  practiceDgWeekHint: string | null = null;
+
   private readonly route = inject(ActivatedRoute);
   private readonly dgApi = inject(DgApiService);
   private readonly sprechenApi = inject(SprechenApiService);
+
+  practiceAll: DgModuleSummary[] = [];
+  private examAll: SprechenExamModuleSummary[] = [];
 
   get showPracticeTab(): boolean {
     return this.practiceModuleCount > 0;
@@ -57,6 +66,12 @@ export class GluckBuddyHubComponent implements OnInit {
     this.loadModuleAvailability();
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['journeyFixedDay'] && !changes['journeyFixedDay'].firstChange) {
+      this.recalculateModuleCounts();
+    }
+  }
+
   private loadModuleAvailability(): void {
     this.loadingAvailability = true;
     this.availabilityError = null;
@@ -67,15 +82,16 @@ export class GluckBuddyHubComponent implements OnInit {
     }).subscribe({
       next: ({ practice, exam }) => {
         const day = Number(practice?.studentCourseDay ?? exam?.studentCourseDay);
-        if (Number.isFinite(day) && day >= 1) {
+        if (Number.isFinite(day) && day >= 0) {
           this.studentCourseDay = Math.min(200, Math.floor(day));
         }
 
-        const practiceAll = practice?.modules || [];
-        const examAll = exam?.modules || [];
-        this.practiceModuleCount = this.scopePracticeModules(practiceAll).length;
-        this.examModuleCount = this.scopeExamModules(examAll).length;
-        this.subTab = this.resolveInitialSubTab();
+        this.practiceAll = practice?.modules || [];
+        this.practiceUnlockMode = practice?.unlockMode === 'weekly' ? 'weekly' : practice?.unlockMode === 'none' ? 'none' : 'daily';
+        this.practiceDgUnlockedWeek = Number.isFinite(Number(practice?.dgUnlockedWeek)) && Number(practice?.dgUnlockedWeek) >= 1 ? Math.floor(Number(practice?.dgUnlockedWeek)) : 1;
+        this.practiceDgWeekHint = practice?.dgWeekHint?.trim() || null;
+        this.examAll = exam?.modules || [];
+        this.recalculateModuleCounts();
         this.loadingAvailability = false;
       },
       error: () => {
@@ -85,6 +101,12 @@ export class GluckBuddyHubComponent implements OnInit {
         this.loadingAvailability = false;
       },
     });
+  }
+
+  private recalculateModuleCounts(): void {
+    this.practiceModuleCount = this.scopePracticeModules(this.practiceAll).length;
+    this.examModuleCount = this.scopeExamModules(this.examAll).length;
+    this.subTab = this.resolveInitialSubTab();
   }
 
   private resolveInitialSubTab(): GluckBuddySubTab {
@@ -100,7 +122,7 @@ export class GluckBuddyHubComponent implements OnInit {
 
   private scopePracticeModules(all: DgModuleSummary[]): DgModuleSummary[] {
     if (this.journeyFixedDay != null && Number.isFinite(Number(this.journeyFixedDay))) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       return all.filter((m) => this.moduleCourseDayNum(m) === d);
     }
     return all;
@@ -108,7 +130,7 @@ export class GluckBuddyHubComponent implements OnInit {
 
   private scopeExamModules(all: SprechenExamModuleSummary[]): SprechenExamModuleSummary[] {
     if (this.journeyFixedDay != null && Number.isFinite(Number(this.journeyFixedDay))) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       return all.filter((m) => this.examModuleCourseDayNum(m) === d);
     }
     return all.filter(
@@ -122,13 +144,13 @@ export class GluckBuddyHubComponent implements OnInit {
     const cd = m.courseDay;
     if (cd == null) return null;
     const n = Number(cd);
-    return Number.isFinite(n) ? Math.min(200, Math.max(1, Math.floor(n))) : null;
+    return Number.isFinite(n) ? clampJourneyDay(n) : null;
   }
 
   private examModuleCourseDayNum(m: SprechenExamModuleSummary): number | null {
     const cd = m.courseDay;
     if (cd == null) return null;
     const n = Number(cd);
-    return Number.isFinite(n) ? Math.min(200, Math.max(1, Math.floor(n))) : null;
+    return Number.isFinite(n) ? clampJourneyDay(n) : null;
   }
 }

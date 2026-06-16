@@ -6,10 +6,13 @@ const multerS3 = require('multer-s3');
 const path = require('path');
 const s3Client = require('./s3');
 
-// File filter — only allow specific file types
+const ALLOWED_EXT = /\.(pdf|jpe?g|png|docx?)$/i;
+
+// File filter — MIME and extension (mobile browsers often send empty/wrong MIME for PDFs)
 const fileFilter = (req, file, cb) => {
   const allowedMimeTypes = [
     'application/pdf',
+    'application/x-pdf',
     'image/jpeg',
     'image/jpg',
     'image/png',
@@ -17,7 +20,9 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ];
 
-  if (allowedMimeTypes.includes(file.mimetype)) {
+  const mimeOk = allowedMimeTypes.includes(file.mimetype);
+  const extOk = ALLOWED_EXT.test(file.originalname || '');
+  if (mimeOk || extOk) {
     cb(null, true);
   } else {
     cb(new Error('Invalid file type. Only PDF, JPG, PNG, DOC, and DOCX files are allowed.'), false);

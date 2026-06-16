@@ -29,14 +29,12 @@ export interface CurrencyOverdueTotals {
 export interface CurrencyDisplayMeta {
   code: PaymentCurrencyCode;
   label: string;
-  symbol: string;
   badgeClass: string;
 }
 
 export const PAYMENT_CURRENCIES: CurrencyDisplayMeta[] = [
-  { code: 'LKR', label: 'LKR', symbol: 'Rs', badgeClass: 'ph-ccy-badge--lkr' },
-  { code: 'INR', label: 'INR', symbol: '₹', badgeClass: 'ph-ccy-badge--inr' },
-  { code: 'USD', label: 'Euro', symbol: '€', badgeClass: 'ph-ccy-badge--eur' },
+  { code: 'LKR', label: 'LKR', badgeClass: 'ph-ccy-badge--lkr' },
+  { code: 'INR', label: 'INR', badgeClass: 'ph-ccy-badge--inr' },
 ];
 
 export function normalizePaymentCurrency(code: string | null | undefined): PaymentCurrencyCode {
@@ -61,4 +59,21 @@ export function amountForCurrency(code: PaymentCurrencyCode, totals: CurrencyPai
 
 export function fmtPaymentAmount(n: number | null | undefined): string {
   return (n ?? 0).toLocaleString('en-IN');
+}
+
+/** Indian-style compact (lakhs): 750000 → "7.5L", 236000 → "2.36L". */
+export function fmtPaymentAmountCompact(n: number | null | undefined): string {
+  const v = Number(n) || 0;
+  if (v === 0) return '0';
+  if (v >= 100000) {
+    const lakhs = v / 100000;
+    const decimals = lakhs >= 10 ? 1 : 2;
+    return `${Number(lakhs.toFixed(decimals))}L`;
+  }
+  if (v >= 1000) {
+    const k = v / 1000;
+    const decimals = k >= 100 ? 0 : k >= 10 ? 1 : 2;
+    return `${Number(k.toFixed(decimals))}K`;
+  }
+  return v.toLocaleString('en-IN');
 }

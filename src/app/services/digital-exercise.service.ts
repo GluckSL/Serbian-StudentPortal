@@ -2,7 +2,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, from, of, throwError } from 'rxjs';
+import { Observable, from, of, shareReplay, throwError } from 'rxjs';
 import { switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { StudentProgressService } from './student-progress.service';
@@ -30,6 +30,7 @@ export interface QuestionCommonFields {
   example?: string;
   /** Per-question attachment URL (image / audio / video / PDF). */
   attachmentUrl?: string;
+  attachmentUrls?: string[];
   /**
    * When the attachment is audio: maximum times the student may start playback
    * during one exercise attempt. Omit, null, or 0 = unlimited (default).
@@ -234,6 +235,8 @@ export interface DigitalExercise {
   isActive?: boolean;
   visibleToStudents?: boolean;
   publishedAt?: Date;
+  weeklyTestEnabled?: boolean;
+  examEnabled?: boolean;
   createdBy?: any;
   totalAttempts?: number;
   totalCompletions?: number;
@@ -258,6 +261,18 @@ export interface DigitalExercise {
   /** Admin list optimization: { [type]: count } summary sent by backend. */
   questionTypeSummary?: Record<string, number>;
   studentAttempt?: ExerciseAttempt | null;
+  /**
+   * When true, students skip the pronunciation step — they just watch each
+   * video clip and tap "Next". Controlled by admin only (default: false).
+   */
+  watchOnlyMode?: boolean;
+  /** Present when created via Free Mode builder. */
+  isFreeMode?: boolean;
+  /** Present when created by splitting questions from another exercise. */
+  splitLineage?: {
+    sourceExerciseId?: string;
+    questionSources?: Array<{ sourceQuestionIndex: number; sourceQuestionId?: string }>;
+  };
 }
 
 export interface ExerciseAttempt {
@@ -275,6 +290,10 @@ export interface ExerciseAttempt {
   wrongCount?: number;
   correctCount?: number;
   totalQuestions?: number;
+  /** True when completion is derived from a completed attempt on the split source exercise */
+  inheritedFromSource?: boolean;
+  sourceExerciseId?: string;
+  sourceAttemptId?: string;
 }
 
 /** Per-question row from my-review / staff attempt detail APIs */
@@ -363,6 +382,15 @@ export interface QuestionResponse {
     selectedOptionIndex?: number | null;
     textAnswer?: string | null;
     fillBlankResponses?: string[];
+    spokenText?: string;
+    pronunciationScore?: number;
+    matchingResponse?: Array<{ leftIndex: number; rightIndex: number; rightValue?: string | null }>;
+    wordBankAnswers?: Array<{ index: number; value: string }>;
+    singularPluralResponses?: string[];
+    jumbleWordResponse?: string;
+    rearrangeTextResponse?: string;
+    rearrangeTokensResponse?: string[];
+    imagePinAnswers?: Array<{ labelId: string; pinId: string }>;
   }>;
 }
 
@@ -405,6 +433,8 @@ export type DigitalExerciseBulkMetadata = Partial<
     | 'targetLanguage'
     | 'nativeLanguage'
     | 'estimatedDuration'
+    | 'weeklyTestEnabled'
+    | 'examEnabled'
   >
 >;
 
@@ -426,12 +456,26 @@ export interface ExerciseFilters {
 @Injectable({ providedIn: 'root' })
 export class DigitalExerciseService {
   private apiUrl = `${environment.apiUrl}/digital-exercises`;
+  private readonly exerciseListCache = new Map<string, Observable<any>>();
 
   constructor(private http: HttpClient, private progressService: StudentProgressService) {}
 
   // ─── Student / Browse ─────────────────────────────────────────────────────
 
+  invalidateExerciseListCache(): void {
+    this.exerciseListCache.clear();
+  }
+
+  refreshExercises(filters: ExerciseFilters = {}): Observable<any> {
+    this.exerciseListCache.delete(this.exerciseListCacheKey(filters));
+    return this.getExercises(filters);
+  }
+
   getExercises(filters: ExerciseFilters = {}): Observable<any> {
+    const cacheKey = this.exerciseListCacheKey(filters);
+    const cached = this.exerciseListCache.get(cacheKey);
+    if (cached) return cached;
+
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, val]) => {
       if (val === undefined || val === null || val === '') return;
@@ -441,7 +485,35 @@ export class DigitalExerciseService {
       }
       params = params.set(key, val.toString());
     });
-    return this.http.get<any>(this.apiUrl, { params, withCredentials: true });
+    const request$ = this.http.get<any>(this.apiUrl, { params, withCredentials: true }).pipe(
+      tap({ error: () => this.exerciseListCache.delete(cacheKey) }),
+      shareReplay({ bufferSize: 1, refCount: true }),
+    );
+    this.exerciseListCache.set(cacheKey, request$);
+    return request$;
+  }
+
+  private exerciseListCacheKey(filters: ExerciseFilters = {}): string {
+    return Object.entries(filters)
+      .filter(([, val]) => val !== undefined && val !== null && val !== '')
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `${key}=${String(val)}`)
+      .join('&') || '__default__';
+  }
+
+  /** Lightweight list for Student → Gluck Exam tab (no questions / media). */
+  getGluckExamExercises(): Observable<{
+    exercises: DigitalExercise[];
+    studentCourseDay?: number;
+    studentLevel?: string;
+    accessibleLevels?: string[];
+  }> {
+    return this.http.get<{
+      exercises: DigitalExercise[];
+      studentCourseDay?: number;
+      studentLevel?: string;
+      accessibleLevels?: string[];
+    }>(`${this.apiUrl}/gluck-exam`, { withCredentials: true });
   }
 
   getExercise(id: string, opts: { asStudent?: boolean } = {}): Observable<DigitalExercise> {
@@ -463,23 +535,73 @@ export class DigitalExerciseService {
   }
 
   createExercise(exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {
-    return this.http.post<DigitalExercise>(this.apiUrl, exercise, { withCredentials: true });
+    return this.http.post<DigitalExercise>(this.apiUrl, exercise, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
+  }
+
+  createFreeModeExercise(payload: any): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/freemode`, payload, { withCredentials: true });
+  }
+
+  updateFreeModeExercise(id: string, payload: any): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/freemode/${id}`, payload, { withCredentials: true });
+  }
+
+  /** Move selected questions into a new exercise (atomic; records split lineage). */
+  splitQuestionsToNewExercise(
+    sourceExerciseId: string,
+    payload: {
+      questionIndices: number[];
+      title: string;
+      description: string;
+      targetLanguage?: string;
+      nativeLanguage?: string;
+      level?: string;
+      category?: string;
+      difficulty?: string;
+      estimatedDuration?: number;
+      tags?: string[];
+      courseDay?: number | null;
+      sequenceLetter?: string | null;
+      visibleToStudents?: boolean;
+    }
+  ): Observable<{ exercise: DigitalExercise; sourceExerciseId: string }> {
+    return this.http.post<{ exercise: DigitalExercise; sourceExerciseId: string }>(
+      `${this.apiUrl}/${sourceExerciseId}/split-questions`,
+      payload,
+      { withCredentials: true }
+    ).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   updateExercise(id: string, exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {
-    return this.http.put<DigitalExercise>(`${this.apiUrl}/${id}`, exercise, { withCredentials: true });
+    return this.http.put<DigitalExercise>(`${this.apiUrl}/${id}`, exercise, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   toggleVisibility(id: string, visibleToStudents: boolean): Observable<any> {
-    return this.http.patch(`${this.apiUrl}/${id}/visibility`, { visibleToStudents }, { withCredentials: true });
+    return this.http.patch(`${this.apiUrl}/${id}/visibility`, { visibleToStudents }, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
+  }
+
+  toggleWatchOnlyMode(id: string, watchOnlyMode: boolean): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/${id}/watch-only`, { watchOnlyMode }, { withCredentials: true });
   }
 
   toggleActive(id: string): Observable<any> {
-    return this.http.patch(`${this.apiUrl}/${id}/toggle-active`, {}, { withCredentials: true });
+    return this.http.patch(`${this.apiUrl}/${id}/toggle-active`, {}, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   deleteExercise(id: string): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true });
+    return this.http.delete(`${this.apiUrl}/${id}`, { withCredentials: true }).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   bulkDeleteExercises(ids: string[]): Observable<{ success: boolean; modifiedCount: number }> {
@@ -487,6 +609,8 @@ export class DigitalExerciseService {
       `${this.apiUrl}/admin/bulk-delete`,
       { ids },
       { withCredentials: true }
+    ).pipe(
+      tap(() => this.invalidateExerciseListCache()),
     );
   }
 
@@ -495,6 +619,8 @@ export class DigitalExerciseService {
       `${this.apiUrl}/admin/bulk-update`,
       { ids, updates },
       { withCredentials: true }
+    ).pipe(
+      tap(() => this.invalidateExerciseListCache()),
     );
   }
 
@@ -516,6 +642,7 @@ export class DigitalExerciseService {
       { withCredentials: true }
     ).pipe(
       tap((res: any) => {
+        this.invalidateExerciseListCache();
         if (res?.journeyAdvanced && res.previousCourseDay != null && res.newCourseDay != null) {
           this.progressService.notifyJourneyAdvance({
             previousDay: res.previousCourseDay,
@@ -608,12 +735,15 @@ export class DigitalExerciseService {
 
   // ─── Analytics (Teacher/Admin) ────────────────────────────────────────────
 
-  getExerciseCompletions(exerciseId: string, filters: { date?: string; studentId?: string; page?: number; limit?: number } = {}): Observable<any> {
+  getExerciseCompletions(exerciseId: string, filters: { date?: string; studentId?: string; page?: number; limit?: number; all?: boolean } = {}): Observable<any> {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, val]) => {
-      if (val !== undefined && val !== null && val !== '') {
-        params = params.set(key, val.toString());
+      if (val === undefined || val === null || val === '') return;
+      if (key === 'all') {
+        if (val) params = params.set('all', 'true');
+        return;
       }
+      params = params.set(key, val.toString());
     });
     return this.http.get<any>(`${this.apiUrl}/${exerciseId}/completions`, { params, withCredentials: true });
   }
@@ -634,9 +764,42 @@ export class DigitalExerciseService {
   // ─── PDF Exercise Generator ───────────────────────────────────────────────
 
   uploadPdf(file: File): Observable<any> {
-    const formData = new FormData();
-    formData.append('pdf', file);
-    return this.http.post<any>(`${environment.apiUrl}/pdf-exercises/upload`, formData, { withCredentials: true });
+    // Direct R2 PUT bypasses nginx client_max_body_size limits on production.
+    // Never fall back to multipart /upload — nginx rejects files > ~1 MB with HTTP 413.
+    return this.http
+      .post<{ uploadUrl: string; fileUrl: string }>(
+        `${environment.apiUrl}/r2/generate-upload-url`,
+        {
+          filename: file.name,
+          contentType: 'application/pdf',
+          prefix: 'pdf-exercises',
+        },
+        { withCredentials: true }
+      )
+      .pipe(
+        switchMap(({ uploadUrl, fileUrl }) =>
+          from(
+            fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/pdf' },
+              body: file,
+            })
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                return throwError(
+                  () => new Error(`Cloud storage upload failed (HTTP ${response.status}). Try again or contact support.`)
+                );
+              }
+              return this.http.post<any>(
+                `${environment.apiUrl}/pdf-exercises/register-r2-upload`,
+                { fileUrl, filename: file.name },
+                { withCredentials: true }
+              );
+            })
+          )
+        )
+      );
   }
 
   detectPdfStructureWithAi(uploadId: string): Observable<any> {
@@ -815,7 +978,7 @@ export class DigitalExerciseService {
 
   uploadBlobToR2(
     file: File,
-    prefix: 'listening-media' | 'exercise-attachments'
+    prefix: 'listening-media' | 'exercise-attachments' | 'pdf-exercises'
   ): Observable<{ success: boolean; url: string }> {
     return this.http
       .post<{ uploadUrl: string; fileUrl: string }>(

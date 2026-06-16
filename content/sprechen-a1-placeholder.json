@@ -47,21 +47,21 @@
           "id": "t1_content",
           "label": "Introduces all topics",
           "points": 1,
-          "prompt": "Did the student address at least 5 of the 7 prompt topics (Name, Alter, Land, Wohnort, Sprachen, Beruf, Hobby) in their self-introduction? Award 1 point if yes, 0 if they mentioned fewer than 3 topics.",
+          "prompt": "Score the student's self-introduction using a 3-level scale: FULL (1pt) = student addressed at least 5 of the 7 prompt topics (Name, Alter, Land, Wohnort, Sprachen, Beruf, Hobby) and the response is intelligible; PARTIAL (0.5pt) = student addressed 3-4 topics but missed several, or response is partially unclear; ZERO (0pt) = fewer than 3 topics mentioned or completely unintelligible.",
           "turnType": "teil1_card"
         },
         {
           "id": "t1_spell",
           "label": "Spells correctly",
           "points": 1,
-          "prompt": "Did the student spell out a word or name letter-by-letter in German when asked? Award 1 point if they made a clear spelling attempt using German letter names, 0 if they did not attempt or it was completely unintelligible.",
+          "prompt": "Score the student's spelling attempt using a 3-level scale: FULL (1pt) = clear letter-by-letter spelling attempt using German letter names, fully intelligible; PARTIAL (0.5pt) = attempted spelling but some letters unclear or mixed languages; ZERO (0pt) = no attempt or completely unintelligible.",
           "turnType": "teil1_spell"
         },
         {
           "id": "t1_number",
           "label": "Produces number correctly",
           "points": 1,
-          "prompt": "Did the student say a sequence of numbers (phone number or postal code) in German? Award 1 point if they produced recognisable German numbers in sequence, 0 if the response was absent or entirely unclear.",
+          "prompt": "Score the student's number production using a 3-level scale: FULL (1pt) = recognisable German numbers in sequence, fully intelligible; PARTIAL (0.5pt) = partial number sequence or numbers partially unclear; ZERO (0pt) = no response or entirely unclear.",
           "turnType": "teil1_number"
         }
       ]
@@ -72,15 +72,15 @@
         {
           "id": "t2_question",
           "label": "Forms a question",
-          "points": 1.5,
-          "prompt": "Did the student form a W-question (Wann, Was, Wo, Wie, etc.) or a yes/no question in German related to the keyword shown on the card? Award 1.5 points for a clear, grammatically reasonable A1-level question, 1 point for an understandable but imperfect question, 0 for no recognisable question.",
+          "points": 2,
+          "prompt": "Score the student's question using a 3-level scale: FULL (2pt) = formed a clear W-question (Wann, Was, Wo, Wie, etc.) or yes/no question in German related to the keyword, task fully completed and intelligible; PARTIAL (1pt) = question formed but with vocabulary/syntax weaknesses that briefly confuse the listener, or not fully related to keyword; ZERO (0pt) = no recognisable question or completely unintelligible.",
           "turnType": "teil2_student_ask"
         },
         {
           "id": "t2_answer",
           "label": "Answers the question",
-          "points": 1.5,
-          "prompt": "Did the student understand and respond to the question asked? Award 1.5 points for a relevant, understandable answer in German, 1 point for a partial/fragmented answer, 0 for no response or completely off-topic.",
+          "points": 1,
+          "prompt": "Score the student's answer using a 3-level scale: FULL (1pt) = relevant, understandable answer in German addressing the question; PARTIAL (0.5pt) = partial or fragmented answer, listener briefly confused; ZERO (0pt) = no response or completely off-topic.",
           "turnType": "teil2_student_answer"
         }
       ]
@@ -91,15 +91,15 @@
         {
           "id": "t3_request",
           "label": "Makes polite request",
-          "points": 1.5,
-          "prompt": "Did the student make a polite request in German using or referencing the object/situation shown on the card (e.g., 'Darf ich bitte...', 'Können Sie mir bitte...')? Award 1.5 for a polite, clear request, 1 for an attempt lacking politeness markers, 0 for no request.",
+          "points": 2,
+          "prompt": "Score the student's request using a 3-level scale: FULL (2pt) = formed a polite request in German referencing the object on the card (e.g., 'Darf ich bitte...', 'Können Sie mir bitte...'), task fully completed and intelligible; PARTIAL (1pt) = request made but with vocabulary/syntax/politeness weaknesses that briefly confuse, or wrong speech act used; ZERO (0pt) = no request or completely unintelligible.",
           "turnType": "teil3_student_request"
         },
         {
           "id": "t3_response",
           "label": "Responds to request",
-          "points": 1.5,
-          "prompt": "Did the student respond appropriately to the bot's request (accepting or declining with a natural reason in German)? Award 1.5 for a clear accept/decline with a reason, 1 for minimal response, 0 for no response.",
+          "points": 1,
+          "prompt": "Score the student's response using a 3-level scale: FULL (1pt) = responded appropriately to the bot's request (accepting or declining with a natural reason in German), intelligible; PARTIAL (0.5pt) = minimal or fragmented response, listener briefly confused; ZERO (0pt) = no response or unintelligible.",
           "turnType": "teil3_student_response"
         }
       ]

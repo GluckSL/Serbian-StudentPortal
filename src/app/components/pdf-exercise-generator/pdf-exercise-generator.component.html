@@ -1,6 +1,6 @@
 <!-- pdf-exercise-generator.component.html -->
 <input type="file" #listeningFileInput accept="audio/*,video/*" (change)="onListeningFileSelected($event)" class="file-input-hidden" />
-<input type="file" #attachmentFileInput accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
+<input type="file" #attachmentFileInput multiple accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
 <input type="file" #mcqOptionImageFileInput accept="image/*" (change)="onMcqOptionImageSelected($event)" class="file-input-hidden" />
 <div class="generator-page" [class.generator-page--wide]="currentStep === 5 && aiStageExercises.length > 0">
 
@@ -71,7 +71,8 @@
         </div>
         <p class="drop-title">Drag &amp; drop your PDF here</p>
         <p class="drop-subtitle">or click to browse files</p>
-        <div class="drop-limits">PDF only · Max 15 MB · Text-based PDFs work best</div>
+        <div class="drop-limits">PDF only · Max 20 MB · Text-based PDFs work best</div>
+        <div class="drop-limits drop-bracket-hint">Tip: wrap instructions in <strong>{{ '{' }} {{ '}' }}</strong> and examples in <strong>[ ]</strong> for reliable extraction.</div>
       </div>
 
       <!-- File selected -->
@@ -345,13 +346,13 @@
           <input type="text" [(ngModel)]="customTags" class="meta-input" placeholder="e.g. verbs, grammar, present-tense" />
         </div>
         <div class="meta-field meta-field--journey">
-          <label class="meta-label" for="pdf-step4-course-day">Course day (1–200)</label>
+          <label class="meta-label" for="pdf-step4-course-day">Course day (0 = Trial, 1–200)</label>
           <div class="journey-day-input-wrap journey-day-input-wrap--meta">
             <input
               id="pdf-step4-course-day"
               type="number"
               class="journey-day-num-input"
-              min="1"
+              min="0"
               max="200"
               step="1"
               [ngModel]="courseDayAsNumber"
@@ -361,7 +362,7 @@
             />
             <span class="journey-day-suffix" aria-hidden="true">/ 200</span>
           </div>
-          <p class="meta-hint">Students see this exercise from this day onward; empty = general pool.</p>
+          <p class="meta-hint">0 = Trial day; students see this from that day onward; empty = general pool.</p>
         </div>
         <div class="meta-field">
           <label class="meta-label">
@@ -427,10 +428,11 @@
               <option value="context">Context (background text)</option>
               <option value="audio">Audio URL (listening)</option>
               <option value="attachment">Attachment URL</option>
+              <option value="attachment-upload">Attachment (upload file)</option>
             </select>
           </div>
 
-          <ng-container *ngIf="bulkEditField && bulkEditField !== 'audio'">
+          <ng-container *ngIf="bulkEditField && bulkEditField !== 'audio' && bulkEditField !== 'attachment-upload'">
             <div class="bulk-input-row">
               <textarea
                 *ngIf="bulkEditField === 'context'"
@@ -470,6 +472,18 @@
               <button class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim() || bulkAudioUploading">
                 <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }}
               </button>
+            </div>
+          </ng-container>
+
+          <ng-container *ngIf="bulkEditField === 'attachment-upload'">
+            <div class="bulk-audio-row">
+              <button class="btn-upload-audio" type="button" (click)="triggerBulkAttachmentFile()" [disabled]="bulkAttachmentUploading">
+                <span class="material-icons">upload_file</span>
+                {{ bulkAttachmentUploading ? 'Uploading…' : 'Upload file' }}
+              </button>
+              <span class="bulk-type-hint" style="margin:0">
+                Applies the same file to all {{ selectedIndices.size }} selected question(s) — image, audio, PDF, or video.
+              </span>
             </div>
           </ng-container>
         </div>
@@ -610,35 +624,39 @@
                 <label class="ed-label-with-icon">
                   <span class="material-icons ed-label-icon">attach_file</span>
                   Attachment
-                  <span *ngIf="q.type !== 'listening'" class="opt-label">(optional — image, audio, PDF, video)</span>
+                  <span *ngIf="q.type !== 'listening'" class="opt-label">(optional — image, audio, PDF, video; multiple files allowed)</span>
                   <span *ngIf="q.type === 'listening'" class="opt-label">(optional — or use Audio below)</span>
                 </label>
-                <div *ngIf="!q.attachmentUrl && !q.attachmentUploading" class="attachment-upload-zone">
+                <div *ngIf="!q.attachmentUploading" class="attachment-upload-zone">
                   <button type="button" class="btn-upload-audio" (click)="triggerAttachmentFile(q)">
-                    <span class="material-icons">upload_file</span> Upload file
+                    <span class="material-icons">upload_file</span>
+                    {{ getQuestionAttachments(q).length ? 'Add another file' : 'Upload file' }}
                   </button>
                 </div>
                 <div *ngIf="q.attachmentUploading" class="attachment-uploading">
                   <span class="material-icons spin">sync</span> Uploading…
                 </div>
-                <div *ngIf="q.attachmentUrl && !q.attachmentUploading" class="attachment-preview">
-                  <ng-container [ngSwitch]="getAttachmentType(q.attachmentUrl)">
-                    <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(q.attachmentUrl)" alt="Attachment" class="attachment-img-preview" />
-                    <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-audio-preview"></audio>
-                    <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(q.attachmentUrl)" controls class="attachment-video-preview"></video>
-                    <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" rel="noopener" class="attachment-file-link">
+                <div
+                  *ngFor="let attUrl of getQuestionAttachments(q); let attIdx = index"
+                  class="attachment-preview"
+                >
+                  <ng-container [ngSwitch]="getAttachmentType(attUrl)">
+                    <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(attUrl)" alt="Attachment" class="attachment-img-preview" />
+                    <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-audio-preview"></audio>
+                    <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-video-preview"></video>
+                    <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(attUrl)" target="_blank" rel="noopener" class="attachment-file-link">
                       <span class="material-icons">picture_as_pdf</span> View PDF
                     </a>
-                    <a *ngSwitchDefault [href]="getMediaFullUrl(q.attachmentUrl)" target="_blank" rel="noopener" class="attachment-file-link">
+                    <a *ngSwitchDefault [href]="getMediaFullUrl(attUrl)" target="_blank" rel="noopener" class="attachment-file-link">
                       <span class="material-icons">insert_drive_file</span> View file
                     </a>
                   </ng-container>
-                  <button type="button" class="btn-remove-attachment" (click)="removeAttachment(q)" matTooltip="Remove attachment">
+                  <button type="button" class="btn-remove-attachment" (click)="removeAttachmentAt(q, attIdx)" matTooltip="Remove attachment">
                     <span class="material-icons">delete</span>
                   </button>
                 </div>
               </div>
-              <div *ngIf="q.attachmentUrl && getAttachmentType(q.attachmentUrl) === 'audio'" class="field-group attachment-audio-plays-field">
+              <div *ngIf="hasQuestionAudioAttachment(q)" class="field-group attachment-audio-plays-field">
                 <label class="field-label">Max audio plays per attempt</label>
                 <input
                   type="number"
@@ -1438,6 +1456,26 @@
         </div>
       </div>
     </aside>
+    </div>
+
+    <!-- Duplicate Day Warning -->
+    <div *ngIf="existingExerciseForDay" class="peg-duplicate-warning">
+      <div class="peg-dup-icon"><span class="material-icons">warning</span></div>
+      <div class="peg-dup-body">
+        <strong>A {{ existingExerciseForDay.category }} exercise for Day {{ existingExerciseForDay.courseDay }} already exists</strong>
+        <div class="peg-dup-muted">"{{ existingExerciseForDay.title }}" — updating it will keep existing audio and question data safe (audio URLs are preserved via server-side logic). Creating a new one leaves the old exercise untouched but its audio must be re-linked manually.</div>
+      </div>
+      <div class="peg-dup-actions">
+        <button class="btn-publish" type="button" (click)="updateExistingExercise(true)" [disabled]="saving">
+          <span class="material-icons">sync</span> Update Existing (recommended)
+        </button>
+        <button class="btn-save-draft" type="button" (click)="createNewAnyway(true)" [disabled]="saving">
+          <span class="material-icons">add_circle_outline</span> Create New Anyway
+        </button>
+        <button class="btn-icon-sm" type="button" (click)="cancelDuplicateWarning()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
     </div>
 
     <!-- Save Actions -->

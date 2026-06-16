@@ -1,122 +1,143 @@
 <div class="teacher-analytics-page">
   <div class="analytics-header">
     <div class="title-wrap">
+      <p class="eyebrow">Teacher Management</p>
       <h1><i class="fas fa-chart-pie"></i> Teacher Analytics Report</h1>
-      <p *ngIf="report">{{ report.teacher.name }} ({{ report.teacher.regNo || 'N/A' }})</p>
+      <p class="subtitle" *ngIf="report">{{ report.teacher.name }} · {{ report.teacher.regNo || 'N/A' }}</p>
     </div>
     <div class="header-actions">
-      <a class="btn btn-outline-secondary btn-sm" routerLink="/teachers">
+      <a class="btn-action ghost" routerLink="/teachers">
         <i class="fas fa-arrow-left"></i> Back
       </a>
-      <button class="btn btn-outline-primary btn-sm" (click)="exportStudentsCsv()" [disabled]="!report">
+      <button class="btn-action ghost" (click)="exportStudentsCsv()" [disabled]="!report">
         <i class="fas fa-file-csv"></i> Export CSV
       </button>
-      <button class="btn btn-outline-primary btn-sm" (click)="exportAsJson()" [disabled]="!report">
+      <button class="btn-action ghost" (click)="exportAsJson()" [disabled]="!report">
         <i class="fas fa-file-code"></i> Export JSON
       </button>
-      <button class="btn btn-primary btn-sm" (click)="printReport()" [disabled]="!report">
+      <button class="btn-action primary" (click)="printReport()" [disabled]="!report">
         <i class="fas fa-print"></i> Print / PDF
       </button>
     </div>
   </div>
 
   <div *ngIf="loading" class="state-box">
-    <i class="fas fa-spinner fa-spin me-2"></i> Loading teacher analytics...
+    <div class="loader-ring"></div>
+    <span>Loading teacher analytics...</span>
   </div>
 
   <div *ngIf="error && !loading" class="state-box error">
-    {{ error }}
+    <i class="fas fa-exclamation-circle"></i> {{ error }}
   </div>
 
   <ng-container *ngIf="report && !loading">
     <div class="summary-grid">
       <div class="kpi-card">
-        <span>Total Students</span>
-        <strong>{{ report.summary.totalStudents }}</strong>
-      </div>
-      <div class="kpi-card">
-        <span>Batches</span>
-        <strong>{{ report.summary.totalAssignedBatches }}</strong>
-      </div>
-      <div class="kpi-card">
-        <span>Total Meetings</span>
-        <strong>{{ report.summary.totalMeetings }}</strong>
-      </div>
-      <div class="kpi-card">
-        <span>Teaching Time</span>
-        <strong>{{ getTeachingHours() }}</strong>
-        <small class="kpi-sub">{{ getAttendancePercent() }}% attendance</small>
-      </div>
-      <div class="kpi-card">
-        <span>Average Course Day</span>
-        <strong>{{ report.summary.averageCourseDay }}</strong>
-      </div>
-    </div>
-
-    <div class="row g-3 mt-1">
-      <div class="col-lg-5">
-        <div class="panel">
-          <h5><i class="fas fa-user"></i> Teacher Details</h5>
-          <div class="details-line"><span>Email</span><strong>{{ report.teacher.email }}</strong></div>
-          <div class="details-line"><span>Role</span><strong>{{ report.teacher.role }}</strong></div>
-          <div class="details-line"><span>Medium</span><strong>{{ report.teacher.medium.join(', ') || 'N/A' }}</strong></div>
-          <div class="chips mt-2">
-            <span class="chip course" *ngFor="let c of report.teacher.assignedCourses">{{ c.title }}</span>
-            <span class="chip batch" *ngFor="let b of report.teacher.assignedBatches">Batch {{ b }}</span>
-          </div>
+        <div class="kpi-icon students"><i class="fas fa-users"></i></div>
+        <div class="kpi-body">
+          <span>Total Students</span>
+          <strong>{{ report.summary.totalStudents }}</strong>
         </div>
       </div>
-      <div class="col-lg-7">
-        <div class="panel">
-          <h5><i class="fas fa-user-check"></i> Attendance Snapshot</h5>
-          <div class="attendance-cards">
-            <div class="att-card present">
-              <span>Present</span>
-              <strong>{{ report.attendance.attendedCount }}</strong>
-              <small class="att-hrs">~{{ report.attendance.attendedCount }} hrs</small>
-            </div>
-            <div class="att-card late">
-              <span>Late</span>
-              <strong>{{ report.attendance.lateCount }}</strong>
-              <small class="att-hrs">~{{ report.attendance.lateCount }} hrs</small>
-            </div>
-            <div class="att-card absent">
-              <span>Absent</span>
-              <strong>{{ report.attendance.absentCount }}</strong>
-              <small class="att-hrs">~{{ report.attendance.absentCount }} hrs</small>
-            </div>
-          </div>
+      <div class="kpi-card">
+        <div class="kpi-icon batches"><i class="fas fa-layer-group"></i></div>
+        <div class="kpi-body">
+          <span>Batches</span>
+          <strong>{{ report.summary.totalAssignedBatches }}</strong>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon meetings"><i class="fas fa-video"></i></div>
+        <div class="kpi-body">
+          <span>Total Meetings</span>
+          <strong>{{ report.summary.totalMeetings }}</strong>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="kpi-card kpi-card--interactive"
+        (click)="openTeachingTimeModal()"
+        aria-label="View teaching time breakdown"
+      >
+        <div class="kpi-icon hours"><i class="fas fa-clock"></i></div>
+        <div class="kpi-body">
+          <span>Teaching Time <i class="fas fa-external-link-alt kpi-hint"></i></span>
+          <strong>{{ getTeachingHours() }}</strong>
+          <small class="kpi-sub">{{ getAttendancePercent() }}% student attendance</small>
+        </div>
+      </button>
+      <div class="kpi-card">
+        <div class="kpi-icon course"><i class="fas fa-book-open"></i></div>
+        <div class="kpi-body">
+          <span>Average Course Day</span>
+          <strong>{{ report.summary.averageCourseDay }}</strong>
         </div>
       </div>
     </div>
 
-    <div class="row g-3 mt-1">
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-chart-bar"></i> Performance by Status</h5>
-          <div class="metric-row" *ngFor="let metric of statusMetrics">
-            <div class="metric-label">{{ metric.label }} <strong>{{ metric.count }}</strong></div>
-            <div class="metric-track"><div class="metric-fill status" [style.width.%]="metric.percentage"></div></div>
-            <small>{{ metric.percentage }}%</small>
-          </div>
+    <p class="kpi-footnote">
+      <i class="fas fa-info-circle"></i>
+      Click <strong>Teaching Time</strong> to see how hours are calculated from past class meetings.
+    </p>
+
+    <div class="content-grid">
+      <div class="panel">
+        <h5><i class="fas fa-user"></i> Teacher Details</h5>
+        <div class="details-line"><span>Email</span><strong>{{ report.teacher.email }}</strong></div>
+        <div class="details-line"><span>Role</span><strong>{{ report.teacher.role }}</strong></div>
+        <div class="details-line"><span>Medium</span><strong>{{ report.teacher.medium.join(', ') || 'N/A' }}</strong></div>
+        <div class="chips mt-2">
+          <span class="chip course" *ngFor="let c of report.teacher.assignedCourses">{{ c.title }}</span>
+          <span class="chip batch" *ngFor="let b of report.teacher.assignedBatches">Batch {{ b }}</span>
         </div>
       </div>
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-graduation-cap"></i> Students by Level</h5>
-          <div class="metric-row" *ngFor="let metric of levelMetrics">
-            <div class="metric-label">{{ metric.label }} <strong>{{ metric.count }}</strong></div>
-            <div class="metric-track"><div class="metric-fill level" [style.width.%]="metric.percentage"></div></div>
-            <small>{{ metric.percentage }}%</small>
+
+      <div class="panel">
+        <h5><i class="fas fa-user-check"></i> Attendance Snapshot</h5>
+        <p class="panel-note">Student check-ins across all meetings (not teaching hours)</p>
+        <div class="attendance-cards">
+          <div class="att-card present">
+            <span>Present</span>
+            <strong>{{ report.attendance.attendedCount }}</strong>
+            <small>check-ins</small>
+          </div>
+          <div class="att-card late">
+            <span>Late</span>
+            <strong>{{ report.attendance.lateCount }}</strong>
+            <small>check-ins</small>
+          </div>
+          <div class="att-card absent">
+            <span>Absent</span>
+            <strong>{{ report.attendance.absentCount }}</strong>
+            <small>check-ins</small>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="panel mt-3">
+    <div class="charts-grid">
+      <div class="panel">
+        <h5><i class="fas fa-chart-bar"></i> Performance by Status</h5>
+        <div class="metric-row" *ngFor="let metric of statusMetrics">
+          <div class="metric-label">{{ metric.label }} <strong>{{ metric.count }}</strong></div>
+          <div class="metric-track"><div class="metric-fill status" [style.width.%]="metric.percentage"></div></div>
+          <small>{{ metric.percentage }}%</small>
+        </div>
+      </div>
+      <div class="panel">
+        <h5><i class="fas fa-graduation-cap"></i> Students by Level</h5>
+        <div class="metric-row" *ngFor="let metric of levelMetrics">
+          <div class="metric-label">{{ metric.label }} <strong>{{ metric.count }}</strong></div>
+          <div class="metric-track"><div class="metric-fill level" [style.width.%]="metric.percentage"></div></div>
+          <small>{{ metric.percentage }}%</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
       <h5><i class="fas fa-layer-group"></i> Batch Overview</h5>
       <div class="table-responsive">
-        <table class="table table-sm mb-0">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Batch</th>
@@ -128,7 +149,7 @@
           </thead>
           <tbody>
             <tr *ngFor="let batch of report.batchBreakdown">
-              <td>{{ batch.batch }}</td>
+              <td><span class="batch-pill">{{ batch.batch }}</span></td>
               <td class="text-center">{{ batch.totalStudents }}</td>
               <td class="text-center">{{ batch.ongoing }}</td>
               <td class="text-center">{{ batch.completed }}</td>
@@ -139,72 +160,191 @@
       </div>
     </div>
 
-    <div class="row g-3 mt-1">
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-history"></i> Past Meetings</h5>
-          <div class="table-responsive">
-            <table class="table table-sm mb-0">
-              <thead>
-                <tr>
-                  <th>Topic</th>
-                  <th>Batch</th>
-                  <th>Date</th>
-                  <th class="text-center">Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let meeting of report.meetings.pastMeetings">
-                  <td>{{ meeting.topic }}</td>
-                  <td>{{ meeting.batch }}</td>
-                  <td>{{ meeting.startTime | date:'mediumDate' }}</td>
-                  <td class="text-center">
-                    <span class="badge bg-primary"
-                          *ngIf="meeting.meetingDurationMinutes && meeting.meetingDurationMinutes > 0; else showPercent">
-                      {{ meeting.avgAttendedMinutes || 0 }}/{{ meeting.meetingDurationMinutes }} min
-                    </span>
-                    <ng-template #showPercent>
-                      <span class="badge bg-success">{{ meeting.attendanceRate }}%</span>
-                    </ng-template>
-                  </td>
-                </tr>
-                <tr *ngIf="!report.meetings.pastMeetings?.length">
-                  <td colspan="4" class="text-center text-muted">No past meetings found.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+    <div class="meetings-grid">
+      <div class="panel">
+        <h5><i class="fas fa-history"></i> Past Meetings</h5>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Batch</th>
+                <th>Date</th>
+                <th class="text-center">Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let meeting of report.meetings.pastMeetings">
+                <td>{{ meeting.topic }}</td>
+                <td>{{ meeting.batch }}</td>
+                <td>{{ meeting.startTime | date:'mediumDate' }}</td>
+                <td class="text-center">
+                  <span class="badge duration" *ngIf="meeting.meetingDurationMinutes; else showPercent">
+                    {{ formatMeetingDuration(meeting) }}
+                  </span>
+                  <ng-template #showPercent>
+                    <span class="badge rate">{{ meeting.attendanceRate }}%</span>
+                  </ng-template>
+                </td>
+              </tr>
+              <tr *ngIf="!report.meetings.pastMeetings?.length">
+                <td colspan="4" class="empty-cell">No past meetings found.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-      <div class="col-lg-6">
-        <div class="panel">
-          <h5><i class="fas fa-calendar-day"></i> Upcoming Meetings</h5>
-          <div class="table-responsive">
-            <table class="table table-sm mb-0">
-              <thead>
-                <tr>
-                  <th>Topic</th>
-                  <th>Batch</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let meeting of report.meetings.upcomingMeetings">
-                  <td>{{ meeting.topic }}</td>
-                  <td>{{ meeting.batch }}</td>
-                  <td>{{ meeting.startTime | date:'medium' }}</td>
-                  <td><span class="badge bg-info">{{ meeting.status }}</span></td>
-                </tr>
-                <tr *ngIf="!report.meetings.upcomingMeetings?.length">
-                  <td colspan="4" class="text-center text-muted">No upcoming meetings found.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      <div class="panel">
+        <h5><i class="fas fa-calendar-day"></i> Upcoming Meetings</h5>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Batch</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let meeting of report.meetings.upcomingMeetings">
+                <td>{{ meeting.topic }}</td>
+                <td>{{ meeting.batch }}</td>
+                <td>{{ meeting.startTime | date:'medium' }}</td>
+                <td><span class="badge upcoming">{{ meeting.status }}</span></td>
+              </tr>
+              <tr *ngIf="!report.meetings.upcomingMeetings?.length">
+                <td colspan="4" class="empty-cell">No upcoming meetings found.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
-
   </ng-container>
+</div>
+
+<!-- Teaching Time Breakdown Modal -->
+<div
+  class="modal-backdrop"
+  *ngIf="showTeachingTimeModal && report"
+  (click)="closeTeachingTimeModal()"
+  role="presentation"
+>
+  <div
+    class="modal-panel"
+    role="dialog"
+    aria-labelledby="teaching-time-title"
+    aria-modal="true"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <div>
+        <p class="modal-eyebrow">Breakdown</p>
+        <h2 id="teaching-time-title"><i class="fas fa-clock"></i> Teaching Time</h2>
+        <p class="modal-subtitle">How {{ getTeachingHours() }} is calculated for {{ report.teacher.name }}</p>
+      </div>
+      <div class="modal-header__actions">
+        <button
+          type="button"
+          class="btn-action ghost btn-action--sm"
+          (click)="exportTeachingTimeCsv()"
+          [disabled]="!getTeachingTimeMeetings().length"
+        >
+          <i class="fas fa-file-csv"></i> Export CSV
+        </button>
+        <button type="button" class="btn-action ghost btn-action--sm" (click)="exportTeachingTimeJson()">
+          <i class="fas fa-file-code"></i> Export JSON
+        </button>
+        <button type="button" class="modal-close" (click)="closeTeachingTimeModal()" aria-label="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-body">
+      <div class="formula-card">
+        <h3><i class="fas fa-calculator"></i> Calculation</h3>
+        <p>
+          Teaching time is the <strong>sum of scheduled class durations</strong> for all past meetings assigned to this teacher.
+        </p>
+        <ul class="formula-list">
+          <li>If a meeting has a recorded duration, that value is used.</li>
+          <li>If attendance was recorded but duration is missing, <strong>60 minutes</strong> is estimated per meeting.</li>
+          <li>Meetings without attendance or duration contribute <strong>0 minutes</strong>.</li>
+        </ul>
+        <div class="formula-result">
+          <span>Total</span>
+          <strong>{{ getTeachingHours() }}</strong>
+          <small>({{ getTotalTeachingMinutes() }} minutes)</small>
+        </div>
+      </div>
+
+      <div class="modal-stats" *ngIf="report.teachingTime">
+        <div class="modal-stat">
+          <span>Past meetings</span>
+          <strong>{{ report.teachingTime.pastMeetingCount }}</strong>
+        </div>
+        <div class="modal-stat">
+          <span>Recorded durations</span>
+          <strong>{{ report.teachingTime.meetingsWithRecordedDuration }}</strong>
+        </div>
+        <div class="modal-stat">
+          <span>Estimated (60 min)</span>
+          <strong>{{ report.teachingTime.meetingsUsingDefaultDuration }}</strong>
+        </div>
+        <div class="modal-stat">
+          <span>Student watch time</span>
+          <strong>{{ formatMinutes(report.teachingTime.totalAttendedStudentMinutes) }}</strong>
+        </div>
+      </div>
+
+      <div class="modal-table-wrap">
+        <h3><i class="fas fa-list"></i> Meeting-by-meeting breakdown</h3>
+        <div class="table-responsive">
+          <table class="data-table modal-table">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Batch</th>
+                <th>Date</th>
+                <th class="text-center">Present</th>
+                <th class="text-center">Duration</th>
+                <th class="text-center">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let meeting of getTeachingTimeMeetings()">
+                <td>{{ meeting.topic }}</td>
+                <td>{{ meeting.batch }}</td>
+                <td>{{ meeting.startTime | date:'medium' }}</td>
+                <td class="text-center">
+                  <span class="present-count">{{ meeting.present }}</span>
+                  <span class="late-count" *ngIf="meeting.late">+{{ meeting.late }} late</span>
+                </td>
+                <td class="text-center">
+                  <strong>{{ formatMeetingDuration(meeting) }}</strong>
+                </td>
+                <td class="text-center">
+                  <span class="source-tag" [class.recorded]="(meeting.meetingDurationMinutes ?? 0) > 0"
+                        [class.estimated]="!(meeting.meetingDurationMinutes ?? 0) && (meeting.scheduledMinutes ?? 0) > 0">
+                    {{ getDurationSourceLabel(meeting) }}
+                  </span>
+                </td>
+              </tr>
+              <tr *ngIf="!getTeachingTimeMeetings().length">
+                <td colspan="6" class="empty-cell">No past meetings to include in teaching time.</td>
+              </tr>
+            </tbody>
+            <tfoot *ngIf="getTeachingTimeMeetings().length">
+              <tr>
+                <td colspan="4"><strong>Total teaching time</strong></td>
+                <td class="text-center" colspan="2"><strong>{{ getTeachingHours() }}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>

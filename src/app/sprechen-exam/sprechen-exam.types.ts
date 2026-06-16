@@ -1,9 +1,17 @@
 // ─── Shared types for the Goethe A1 Sprechen exam bot ────────────────────────
 
 export interface SprechenCard {
-  type: 'keywords' | 'keyword' | 'object' | string;
+  type: 'keywords' | 'keyword' | 'object' | 'a2_question' | 'a2_monologue' | 'a2_timetable' | string;
   content: string;
   imageUrl?: string;
+  /** A2 question card — e.g. "Fragen zur Person" */
+  sublabel?: string;
+  /** A2 monologue card — sub-prompt chips */
+  subPrompts?: string[];
+  /** A2 timetable card — date heading */
+  dateLabel?: string;
+  /** A2 timetable card — structured slot list */
+  slots?: SprechenA2TimetableSlot[];
 }
 
 export interface SprechenBotMessage {
@@ -23,12 +31,16 @@ export interface SprechenTurnResult {
   awaitingStudent: boolean;
   done: boolean;
   scores?: SprechenScores;
+  finalScores?: SprechenScores;
+  /** A2 monologue mode — student speaks freely, then presses Fertig to finish. */
+  monologueMode?: boolean;
 }
 
 export interface SprechenScores {
   teil1: number;
   teil2: number;
   teil3: number;
+  pronunciation?: number;
   total: number;
   passed: boolean;
 }
@@ -37,6 +49,9 @@ export interface SprechenEvalCriterion {
   id: string;
   label: string;
   met: boolean;
+  pointsAwarded?: number;
+  level?: string;
+  issueTags?: string[];
   note?: string;
 }
 
@@ -45,6 +60,17 @@ export interface SprechenEvaluation {
   maxPoints: number;
   criteria: SprechenEvalCriterion[];
   modelVersion?: string;
+  examinerId?: number;
+  responseType?: string;
+  taskFulfilled?: boolean;
+  partiallyFulfilled?: boolean;
+  intelligible?: boolean;
+}
+
+export interface SprechenExaminerScore {
+  examinerId: number;
+  scores: SprechenScores;
+  completed: boolean;
 }
 
 export interface SprechenTutorOverride {
@@ -124,22 +150,102 @@ export interface SprechenRubric {
   teil3?: SprechenRubricTeil;
 }
 
+// ─── A2 module types ──────────────────────────────────────────────────────────
+
+export interface SprechenA2QuestionCard {
+  prompt: string;
+  sublabel?: string;
+  imageUrl?: string;
+}
+
+export interface SprechenA2Teil1 {
+  instructionDe?: string;
+  cards: SprechenA2QuestionCard[];
+}
+
+export interface SprechenA2MonologueCard {
+  title: string;
+  subPrompts: string[];
+  imageUrl?: string;
+}
+
+export interface SprechenA2Teil2 {
+  instructionDe?: string;
+  cards: SprechenA2MonologueCard[];
+}
+
+export interface SprechenA2TimetableSlot {
+  start: string;
+  end: string;
+  activity: string;
+  busy: boolean;
+}
+
+export interface SprechenA2Timetable {
+  imageUrl?: string;
+  slots: SprechenA2TimetableSlot[];
+}
+
+export interface SprechenA2Teil3 {
+  scenarioDe?: string;
+  dateLabel?: string;
+  studentTimetable?: SprechenA2Timetable;
+  botTimetable?: SprechenA2Timetable;
+}
+
 export interface SprechenExamModuleSummary {
   _id: string;
   title: string;
   description?: string;
   level?: string;
+  /** 'A1' (default) or 'A2' */
+  examFormat?: string;
   passThreshold?: number;
   visibleToStudents?: boolean;
+  weeklyTestEnabled?: boolean;
+  examEnabled?: boolean;
   courseDay?: number | null;
   targetBatchKeys?: string[];
   characterId?: { _id: string; name: string; avatarUrl?: string; voice?: string } | string | null;
   teil1?: SprechenTeil1;
   teil2?: SprechenTeil2;
   teil3?: SprechenTeil3;
+  a2Teil1?: SprechenA2Teil1;
+  a2Teil2?: SprechenA2Teil2;
+  a2Teil3?: SprechenA2Teil3;
   rubric?: SprechenRubric;
   studentProgress?: { attempts: number; bestTotal: number; lastCompleted: boolean };
   createdAt?: string;
+}
+
+export interface SprechenSessionSummary {
+  sessionId: string;
+  moduleId: string;
+  moduleTitle: string;
+  courseDay: number | null;
+  scores: SprechenScores;
+  completedAt: string;
+}
+
+export interface SprechenExamAggregate {
+  total: number;
+  completed: number;
+  missed: number;
+  passed: number;
+  avgTotal: number;
+  bestTotal: number;
+}
+
+export interface SprechenExamSummary {
+  lastSession: SprechenSessionSummary | null;
+  sessions: SprechenSessionSummary[];
+  aggregate: SprechenExamAggregate;
+}
+
+export interface SprechenModuleListResponse {
+  modules: SprechenExamModuleSummary[];
+  studentCourseDay?: number;
+  summary?: SprechenExamSummary;
 }
 
 export interface SprechenPlayPayload {

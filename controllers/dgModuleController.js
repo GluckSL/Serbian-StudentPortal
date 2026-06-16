@@ -59,6 +59,15 @@ function normalizePracticeWindow(input) {
   return out;
 }
 
+function normalizeExamBucketFlags(input) {
+  const weeklyTestEnabled = input?.weeklyTestEnabled === true || String(input?.weeklyTestEnabled) === 'true';
+  const examEnabled = input?.examEnabled === true || String(input?.examEnabled) === 'true';
+  if (weeklyTestEnabled && examEnabled) {
+    throw new Error('Only one of Weekly Test or Exam can be enabled.');
+  }
+  return { weeklyTestEnabled, examEnabled };
+}
+
 exports.createFromLearning = async (req, res) => {
   try {
     const ids = req.body.learningModuleIds;
@@ -122,8 +131,10 @@ exports.createFromLearning = async (req, res) => {
 
 exports.create = async (req, res) => {
   try {
+    const bucketFlags = normalizeExamBucketFlags(req.body || {});
     const payload = normalizePracticeWindow({
       ...req.body,
+      ...bucketFlags,
       scenes: sortScenes(req.body.scenes || []),
       createdBy: req.user.id,
     });
@@ -146,9 +157,12 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
+    const bucketFlags = normalizeExamBucketFlags(req.body || {});
     const body = normalizePracticeWindow({ ...req.body });
     if (Array.isArray(body.scenes)) body.scenes = sortScenes(body.scenes);
     delete body.createdBy;
+    body.weeklyTestEnabled = bucketFlags.weeklyTestEnabled;
+    body.examEnabled = bucketFlags.examEnabled;
     if (Array.isArray(req.body?.targetBatches)) {
       body.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
     }
@@ -188,7 +202,7 @@ exports.getAdminById = async (req, res) => {
 
 /** Fields for admin grid only — full module (scenes, vocab, role-play, description) loads on GET /modules/:id or /play. */
 const ADMIN_MODULE_LIST_SELECT =
-  'title level language courseDay visibleToStudents characterId targetBatchKeys updatedAt';
+  'title level language courseDay visibleToStudents weeklyTestEnabled examEnabled characterId targetBatchKeys updatedAt';
 
 exports.listAdmin = async (req, res) => {
   try {
@@ -213,6 +227,8 @@ exports.listAdmin = async (req, res) => {
 
 exports.listStudent = async (req, res) => {
   try {
+    const gluckExamOnly =
+      String(req.query.gluckExamOnly) === 'true' || String(req.query.gluckExamOnly) === '1';
     const access = await getStudentDgJourneyAccess(req.user.id);
     if (!access.enabled || access.dgBotEnabled === false) {
       return res.json({
@@ -230,59 +246,78 @@ exports.listStudent = async (req, res) => {
       access.batchKeys && access.batchKeys.length
         ? moduleTargetingQuery(access.batchKeys)
         : {};
-    const modules = await DGModule.find({
+    const moduleFilter = {
       isActive: true,
       visibleToStudents: true,
       ...batchFilter,
-    })
-      .populate('characterId')
-      .select(
-        'title description level characterId visibleToStudents updatedAt createdAt scenes courseDay targetBatchKeys'
-      )
-      .sort({ title: 1 })
-      .lean();
+    };
+    if (gluckExamOnly) {
+      moduleFilter.$or = [{ weeklyTestEnabled: true }, { examEnabled: true }];
+    }
+
+    let moduleQuery = DGModule.find(moduleFilter);
+    if (gluckExamOnly) {
+      moduleQuery = moduleQuery.select(
+        'title level language courseDay weeklyTestEnabled examEnabled'
+      );
+    } else {
+      moduleQuery = moduleQuery.select(
+        'title description level language visibleToStudents weeklyTestEnabled examEnabled scenes courseDay'
+      );
+    }
+    const modules = await moduleQuery.sort({ title: 1 }).lean();
+
     const studentDoc = await User.findById(req.user.id).select('blockedJourneyLevels').lean();
     const unlockedForDay = (modules || []).filter((m) => {
       if (!dgModuleUnlockedForAccess(access, m?.courseDay)) return false;
       if (isContentBlockedForStudent(studentDoc, { courseDay: m?.courseDay, level: m?.level })) return false;
       return true;
     });
-    const sanitized = unlockedForDay.map((m) => ({
-      ...m,
-      scenes: (m.scenes || []).map((s) => ({
-        _id: s._id,
-        type: s.type,
-        order: s.order,
-      })),
-    }));
+    const sanitized = gluckExamOnly
+      ? unlockedForDay
+      : unlockedForDay.map((m) => ({
+          ...m,
+          scenes: (m.scenes || []).map((s) => ({
+            _id: s._id,
+            type: s.type,
+            order: s.order,
+          })),
+        }));
 
     const studentOid =
       typeof req.user.id === 'string' && mongoose.Types.ObjectId.isValid(req.user.id)
         ? new mongoose.Types.ObjectId(req.user.id)
         : req.user.id;
 
-    const [completedModuleIds, bestProgressRows] = await Promise.all([
-      DGSession.distinct('moduleId', {
-        studentId: studentOid,
-        completed: true,
-        $or: [{ moduleFullyComplete: true }, { moduleFullyComplete: { $exists: false } }],
-      }),
-      DGSession.aggregate([
-        {
-          $match: {
-            studentId: studentOid,
-            completed: true,
-            moduleCompletionPercent: { $type: 'number' },
+    const moduleIds = sanitized.map((m) => m._id);
+    let completedModuleIds = [];
+    let bestProgressRows = [];
+    if (moduleIds.length) {
+      [completedModuleIds, bestProgressRows] = await Promise.all([
+        DGSession.distinct('moduleId', {
+          studentId: studentOid,
+          completed: true,
+          moduleId: { $in: moduleIds },
+          $or: [{ moduleFullyComplete: true }, { moduleFullyComplete: { $exists: false } }],
+        }),
+        DGSession.aggregate([
+          {
+            $match: {
+              studentId: studentOid,
+              completed: true,
+              moduleCompletionPercent: { $type: 'number' },
+              moduleId: { $in: moduleIds },
+            },
           },
-        },
-        {
-          $group: {
-            _id: '$moduleId',
-            bestCompletionPercent: { $max: '$moduleCompletionPercent' },
+          {
+            $group: {
+              _id: '$moduleId',
+              bestCompletionPercent: { $max: '$moduleCompletionPercent' },
+            },
           },
-        },
-      ]),
-    ]);
+        ]),
+      ]);
+    }
 
     const completedSet = new Set((completedModuleIds || []).map((id) => String(id)));
     const bestPctByModule = new Map(
@@ -291,10 +326,12 @@ exports.listStudent = async (req, res) => {
 
     const out = sanitized.map((m) => ({
       ...m,
-      studentProgress: {
-        completed: completedSet.has(String(m._id)),
-        bestCompletionPercent: bestPctByModule.get(String(m._id)) ?? 0,
-      },
+      studentProgress: gluckExamOnly
+        ? { completed: completedSet.has(String(m._id)) }
+        : {
+            completed: completedSet.has(String(m._id)),
+            bestCompletionPercent: bestPctByModule.get(String(m._id)) ?? 0,
+          },
     }));
 
     const unlockedRange =

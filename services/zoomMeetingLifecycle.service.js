@@ -146,11 +146,28 @@ async function linkMeetingToTimetable({
     weekEndDate.setDate(weekStartDate.getDate() + 6);
     weekEndDate.setHours(23, 59, 59, 999);
 
-    const firstStudent = students[0];
+    const firstStudent = students[0] || {};
+    let medium = 'English';
+    const rawMedium = firstStudent.medium;
+    if (Array.isArray(rawMedium)) {
+      medium = String(rawMedium[0] || 'English');
+    } else if (typeof rawMedium === 'string') {
+      const trimmed = rawMedium.trim();
+      if (trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          medium = String(Array.isArray(parsed) ? parsed[0] : trimmed) || 'English';
+        } catch {
+          medium = trimmed.replace(/^\[|\]$/g, '').replace(/['"]/g, '').split(',')[0]?.trim() || 'English';
+        }
+      } else {
+        medium = trimmed || 'English';
+      }
+    }
 
     timetable = new TimeTable({
       batch: batch,
-      medium: firstStudent.medium || 'English',
+      medium,
       plan: plan,
       weekStartDate: weekStartDate,
       weekEndDate: weekEndDate,

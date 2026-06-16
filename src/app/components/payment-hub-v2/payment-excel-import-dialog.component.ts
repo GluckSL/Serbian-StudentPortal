@@ -112,7 +112,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
   fileName = '';
   parseErrors: string[] = [];
   previewRows: PreviewRow[] = [];
-  expandedRowKeys = new Set<number>();
+  selectedRow: PreviewRow | null = null;
 
   mappingTotalSteps = 0;
   mappingCompletedSteps = 0;
@@ -406,7 +406,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
     this.fileName = file.name;
     this.parseErrors = [];
     this.previewRows = [];
-    this.expandedRowKeys.clear();
+    this.selectedRow = null;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -615,15 +615,257 @@ export class PaymentExcelImportDialogComponent implements OnInit {
     return Math.min(1, this.mappingCompletedSteps / this.mappingTotalSteps);
   }
 
-  toggleExpand(row: PreviewRow): void {
-    if (!this.rowHasExpandableIssues(row)) return;
-    if (this.expandedRowKeys.has(row.rowIndex)) this.expandedRowKeys.delete(row.rowIndex);
-    else this.expandedRowKeys.add(row.rowIndex);
-    this.expandedRowKeys = new Set(this.expandedRowKeys);
+  openRowDetail(row: PreviewRow): void {
+    this.selectedRow = row;
   }
 
-  isExpanded(row: PreviewRow): boolean {
-    return this.expandedRowKeys.has(row.rowIndex);
+  closeRowDetail(): void {
+    this.selectedRow = null;
+  }
+
+  navigateRowDetail(delta: number): void {
+    if (!this.selectedRow || !this.previewRows.length) return;
+    const idx = this.previewRows.findIndex((r) => r.rowIndex === this.selectedRow!.rowIndex);
+    if (idx < 0) return;
+    const next = (idx + delta + this.previewRows.length) % this.previewRows.length;
+    this.selectedRow = this.previewRows[next];
+  }
+
+  openFullPreviewTab(): void {
+    if (!this.previewRows.length) {
+      this.snack.open('No rows to display.', 'OK', { duration: 3000 });
+      return;
+    }
+
+    const esc = (v: string | number | null | undefined): string => {
+      if (v === null || v === undefined) return '';
+      return String(v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+
+    const statusCell = (row: PreviewRow): string => {
+      const pills: string[] = [`<span class="pill ${esc(this.rowStatusClass(row).replace('ei-pill-', 'pill-'))}">${esc(this.rowStatusLabel(row))}</span>`];
+      if (row.possibleDuplicate) pills.push('<span class="pill pill-dup">Duplicate</span>');
+      if (row.currencyInferred) pills.push('<span class="pill pill-ccy">CCY inferred</span>');
+      return pills.join(' ');
+    };
+
+    const issueText = (row: PreviewRow): string => {
+      const issues = this.issueDetails(row);
+      if (!issues.length) return '—';
+      return issues.map((i) => i.reason).join(' · ');
+    };
+
+    const rowClass = (row: PreviewRow): string => {
+      if (row.parseError) return 'row-bad';
+      if (!row.matchedStudent) return 'row-warn';
+      return 'row-ok';
+    };
+
+    const tableRows = this.previewRows
+      .map(
+        (row) => `<tr class="${rowClass(row)}">
+      <td>${row.rowIndex}</td>
+      <td class="status-cell">${statusCell(row)}</td>
+      <td>${esc(row.name) || '—'}</td>
+      <td>${esc(row.resolvedName) || '—'}</td>
+      <td class="wrap">${esc(row.email) || '—'}</td>
+      <td>${esc(row.level) || '—'}</td>
+      <td>${esc(row.resolvedLevel) || '—'}</td>
+      <td>${esc(row.type || 'Language')}</td>
+      <td>${esc(row.customLabel) || '—'}</td>
+      <td class="num">${esc(this.fmt(row.amount))}</td>
+      <td class="num">${esc(this.fmt(row.totalAmount))}</td>
+      <td class="num">${esc(this.fmt(row.balance))}</td>
+      <td>${esc(row.currency || row.effectiveCurrency)}</td>
+      <td>${esc(this.fmtDate(row.dateOfPayment))}</td>
+      <td class="num">${esc(this.fmt(row.documentQuotation))}</td>
+      <td class="num">${esc(this.fmt(row.documentReceived))}</td>
+      <td class="num">${esc(this.fmt(row.visaQuotation))}</td>
+      <td class="num">${esc(this.fmt(row.visaReceived))}</td>
+      <td class="wrap note">${esc(row.note) || '—'}</td>
+      <td class="wrap issues">${esc(issueText(row))}</td>
+    </tr>`,
+      )
+      .join('');
+
+    const title = this.fileName ? `Payment import — ${this.fileName}` : 'Payment import preview';
+    const generated = new Date().toLocaleString();
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${esc(title)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 28px 40px;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      color: #0f172a;
+      background: #f1f5f9;
+    }
+    h1 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 700; }
+    .meta { color: #64748b; font-size: 0.85rem; margin-bottom: 20px; }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      min-width: 100px;
+    }
+    .stat label {
+      display: block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    .stat strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+    .stat.ok strong { color: #059669; }
+    .stat.warn strong { color: #d97706; }
+    .stat.bad strong { color: #dc2626; }
+    .table-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 200px);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+    }
+    table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      border-bottom: 2px solid #e2e8f0;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #475569;
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    tbody tr:hover td { background: #f8fafc; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .wrap { max-width: 280px; word-break: break-word; white-space: normal; }
+    .note { min-width: 200px; max-width: 360px; }
+    .issues { min-width: 180px; max-width: 320px; font-size: 0.8rem; color: #b45309; }
+    .status-cell { white-space: nowrap; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+    .pill-ok { background: #d1fae5; color: #047857; }
+    .pill-err { background: #fee2e2; color: #b91c1c; }
+    .pill-warn { background: #fef3c7; color: #b45309; }
+    .pill-dup { background: #ffedd5; color: #c2410c; }
+    .pill-ccy { background: #cffafe; color: #0e7490; }
+    tr.row-ok td { background: #f0fdf4; }
+    tr.row-warn td { background: #fffbeb; }
+    tr.row-bad td { background: #fef2f2; }
+    @media print {
+      body { background: #fff; padding: 12px; }
+      .table-wrap { max-height: none; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Bulk payment import — full preview</h1>
+  <p class="meta">${esc(title)} · Generated ${esc(generated)} · ${this.previewRows.length} row(s)</p>
+  <div class="stats">
+    <div class="stat"><label>Total</label><strong>${this.previewRows.length}</strong></div>
+    <div class="stat ok"><label>Matched</label><strong>${this.matchedCount}</strong></div>
+    <div class="stat warn"><label>Unmatched</label><strong>${this.unmatchedCount}</strong></div>
+    <div class="stat warn"><label>Warnings</label><strong>${this.warningRowCount}</strong></div>
+    <div class="stat"><label>Duplicates</label><strong>${this.duplicateRowCount}</strong></div>
+    <div class="stat bad"><label>Invalid</label><strong>${this.invalidCount}</strong></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Row</th>
+          <th>Status</th>
+          <th>Name (sheet)</th>
+          <th>Name (portal)</th>
+          <th>Email</th>
+          <th>Level (sheet)</th>
+          <th>Level (portal)</th>
+          <th>Type</th>
+          <th>Custom label</th>
+          <th>Amount</th>
+          <th>Total</th>
+          <th>Balance</th>
+          <th>CCY</th>
+          <th>Date</th>
+          <th>Doc quote</th>
+          <th>Doc recv</th>
+          <th>Visa quo</th>
+          <th>Visa recv</th>
+          <th>Note</th>
+          <th>Issues</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const tab = window.open(url, '_blank');
+    if (!tab) {
+      URL.revokeObjectURL(url);
+      this.snack.open('Pop-up blocked. Allow pop-ups for this site to open the full preview.', 'Dismiss', {
+        duration: 6000,
+      });
+      return;
+    }
+    tab.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+  }
+
+  rowStatusLabel(row: PreviewRow): string {
+    if (row.parseError) return 'Invalid';
+    if (!row.matchedStudent) return 'No match';
+    return 'Matched';
+  }
+
+  rowStatusClass(row: PreviewRow): string {
+    if (row.parseError) return 'ei-pill-err';
+    if (!row.matchedStudent) return 'ei-pill-warn';
+    return 'ei-pill-ok';
   }
 
   rowHasExpandableIssues(row: PreviewRow): boolean {
@@ -930,7 +1172,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
     this.fileName = '';
     this.parseErrors = [];
     this.previewRows = [];
-    this.expandedRowKeys.clear();
+    this.selectedRow = null;
   }
 
   close(): void {

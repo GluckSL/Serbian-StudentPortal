@@ -44,7 +44,25 @@ export interface StudentCatalog {
   inferredCurrency?: string;
 }
 
+export interface CatalogPaymentLevelRow {
+  level: string;
+  studentCount: number;
+  feeLKR: number;
+  feeINR: number;
+  feeUSD: number;
+  totalLKR: number;
+  totalINR: number;
+  totalUSD: number;
+}
+
 export interface DashboardStats {
+  totalPaymentExpectedLKR: number;
+  totalPaymentExpectedINR: number;
+  totalPaymentExpectedUSD: number;
+  catalogPaymentBreakdown?: CatalogPaymentLevelRow[];
+  totalDueLKR: number;
+  totalDueINR: number;
+  totalDueUSD: number;
   totalReceivedLKR: number;
   totalReceivedINR: number;
   totalReceivedUSD: number;
@@ -59,8 +77,15 @@ export interface DashboardStats {
   totalOverdueUSD: number;
   totalStudents: number;
   fullyPaidStudents: number;
-  activeStudents: number;
+  balanceStudents: number;
+  overdueStudents: number;
+  docsPaidStudents: number;
+  visaPaidStudents: number;
+  activeStudents?: number;
   overdueCount: number;
+  /** True when dashboard stats respect current hub filters */
+  filtered?: boolean;
+  filterSummary?: string;
 }
 
 /** Row returned by GET /students/browse — User-primary with optional profile data */
@@ -108,6 +133,8 @@ export interface StudentBrowseRow extends CurrencyPaidTotals, CurrencyPendingTot
   lastPaymentDate?: string;
 }
 
+export type PaymentPaidSlotBadge = 'ALL' | 'A1' | 'A2' | 'B1' | 'B2' | 'DOCS' | 'VISA';
+
 /** Legacy table row (profile-primary, All Payments hub) */
 export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {
   _id: string;
@@ -122,14 +149,21 @@ export interface StudentTableRow extends CurrencyPaidTotals, CurrencyPendingTota
     dateJoined?: string;
     createdAt?: string;
     currentCourseDay?: number;
+    isTestAccount?: boolean;
   };
   totalPaid: number;
   pendingApprovalAmount: number;
   overdueAmount: number;
   overallStatus: string;
+  /** Open LANGUAGE_FEE amount remaining (0 = full paid for language course). */
+  languageFeeBalance?: number;
+  /** FULL_PAID | BALANCE (journey under 10) | DUE (journey 10+). */
+  languageFeeStatus?: string;
   lastRebuiltAt?: string;
   /** LKR / INR / USD from phone prefix (server-side). */
   inferredCurrency?: string;
+  /** Settled payment slots for Total received badges (ALL = every slot paid). */
+  paidSlots?: PaymentPaidSlotBadge[];
 }
 
 export interface BulkLegacyLanguageRow {
@@ -178,9 +212,13 @@ export interface ApprovalQueueItem {
   paidAmount: number;
   currency: string;
   paymentMethod: string;
+  paymentDateTime?: string;
+  accountHolderName?: string;
   transactionId?: string;
   status: string;
   submittedAt: string;
+  approvedAt?: string;
+  reviewedAt?: string;
   screenshotViewUrl?: string;
   rejectionReason?: string;
   reuploadNote?: string;
@@ -208,6 +246,42 @@ export interface StudentInstallmentView {
   allPaid: boolean;
   /** True when this slice is visible but calendar date has not arrived yet (no upload). */
   scheduleLocked?: boolean;
+}
+
+export interface PaymentHubNotification {
+  _id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  priority?: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  metadata?: {
+    studentId?: string;
+    studentName?: string;
+    studentEmail?: string;
+    batch?: string;
+    level?: string;
+    journeyDay?: number;
+    dueAmount?: number;
+    currency?: string;
+    studentStatus?: 'UNCERTAIN' | 'ONGOING' | 'COMPLETED' | 'WITHDREW' | string;
+    missedCount?: number;
+    missedItems?: string[];
+    absentCount?: number;
+    absentItems?: (string | PaymentHubClassAbsentItem)[];
+  };
+  createdAt: string;
+}
+
+export interface PaymentHubClassAbsentItem {
+  meetingId?: string;
+  topic: string;
+  startTime?: string | null;
+  batch?: string;
+  courseDay?: number;
+  status?: 'missed';
 }
 
 export interface PaymentRequestItem {
@@ -249,6 +323,8 @@ export interface LegacyLineItem {
 
 export interface LegacyCustomPayment extends LegacyLineItem {
   paymentType: string;
+  /** Corrects the slot quoted total (A1–B2) before optional payment recording */
+  quotedTotal?: number;
 }
 
 export interface MapLegacyPaymentsBody {
@@ -263,7 +339,19 @@ export interface MapLegacyPaymentsResult {
   language: { requestId: string; submissionId: string } | null;
   docs: { requestId: string; submissionId: string }[];
   visa: { requestId: string; submissionId: string }[];
-  custom: { requestId: string; submissionId: string }[];
+  custom: Array<{
+    requestId?: string;
+    submissionId?: string;
+    reconciled?: {
+      updated?: boolean;
+      created?: boolean;
+      quotedTotal?: number;
+      totalPaid?: number;
+      amountRemaining?: number;
+      archivedCount?: number;
+    };
+    alreadyMapped?: boolean;
+  }>;
 }
 
 export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPendingTotals, CurrencyOverdueTotals {
@@ -286,29 +374,131 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   lastPaymentCurrency?: string;
   inferredCurrency?: string;
   openRequestCount: number;
+  /** Earliest overdue conversion date (ISO). */
+  overdueSince?: string | null;
+  /** Current-level language fee (A1–B2) — received / pending / overdue. */
+  langPaidLKR?: number;
+  langPaidINR?: number;
+  langPaidUSD?: number;
+  langPendingLKR?: number;
+  langPendingINR?: number;
+  langPendingUSD?: number;
+  langOverdueLKR?: number;
+  langOverdueINR?: number;
+  langOverdueUSD?: number;
+  levelSlots?: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
+  allLanguageFees?: BatchLevelSlotTotals;
 }
+
+export type BatchStudentPaymentFilter = LanguageLevelSlot | 'all_language' | 'all_payment';
 
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];
 }
 
+export type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
+
+export interface BatchLevelSlotTotals {
+  receivedLKR: number;
+  receivedINR: number;
+  receivedUSD: number;
+  pendingLKR: number;
+  pendingINR: number;
+  pendingUSD: number;
+  overdueLKR: number;
+  overdueINR: number;
+  overdueUSD: number;
+  expectedLKR: number;
+  expectedINR: number;
+  expectedUSD: number;
+}
+
 export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
   batch: string;
   studentCount: number;
   totalPaid: number;
+  totalPendingLKR?: number;
+  totalPendingINR?: number;
+  totalPendingUSD?: number;
+  totalOverdueLKR?: number;
+  totalOverdueINR?: number;
+  totalOverdueUSD?: number;
+  totalExpectedLKR?: number;
+  totalExpectedINR?: number;
+  totalExpectedUSD?: number;
+  /** Received for current CEFR level only (A1–B2 language fee). */
+  langPaidLKR?: number;
+  langPaidINR?: number;
+  langPaidUSD?: number;
+  /** All payment types — pending / overdue / expected (received + pending + overdue). */
+  fullPendingLKR?: number;
+  fullPendingINR?: number;
+  fullPendingUSD?: number;
+  fullOverdueLKR?: number;
+  fullOverdueINR?: number;
+  fullOverdueUSD?: number;
+  fullExpectedLKR?: number;
+  fullExpectedINR?: number;
+  fullExpectedUSD?: number;
+  levelSlots?: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
+  allLanguageFees?: BatchLevelSlotTotals;
+  totalDueLKR?: number;
+  totalDueINR?: number;
+  totalDueUSD?: number;
+  fullyPaidStudents?: number;
+  balanceStudents?: number;
+  overdueStudents?: number;
+  docsPaidStudents?: number;
+  visaPaidStudents?: number;
+  insightPaidFullLKR?: number;
+  insightPaidFullINR?: number;
+  insightPaidFullUSD?: number;
+  insightBalanceLKR?: number;
+  insightBalanceINR?: number;
+  insightBalanceUSD?: number;
+  insightOverdueLKR?: number;
+  insightOverdueINR?: number;
+  insightOverdueUSD?: number;
+  insightDocsLKR?: number;
+  insightDocsINR?: number;
+  insightDocsUSD?: number;
+  insightVisaLKR?: number;
+  insightVisaINR?: number;
+  insightVisaUSD?: number;
   levelCounts: Record<string, number>;
   maxStudentDay: number | null;
+  avgJourneyDay?: number | null;
+  collectionRateLKR?: number | null;
+  /** Earliest overdue conversion date in this batch (ISO). */
+  overdueSince?: string | null;
+}
+
+export interface BatchPaymentSummaryTotals extends Omit<BatchPaymentSummaryRow, 'batch' | 'levelCounts'> {
+  levelCounts?: Record<string, number>;
 }
 
 export interface BatchPaymentSummary {
   batches: BatchPaymentSummaryRow[];
   totalStudents: number;
   batchNames: string[];
+  totals?: BatchPaymentSummaryTotals | null;
 }
 
 export interface StudentHistory {
-  student: { _id: string; name: string; email: string; batch?: string; level?: string; subscription?: string; enrollmentDate?: string; createdAt?: string; };
+  student: {
+    _id: string;
+    name: string;
+    email: string;
+    batch?: string;
+    level?: string;
+    subscription?: string;
+    enrollmentDate?: string;
+    createdAt?: string;
+    currentCourseDay?: number | null;
+    studentStatus?: string;
+    regNo?: string;
+  };
   profile: ({
     totalPaid: number;
     totalPaidLKR?: number;
@@ -325,10 +515,16 @@ export interface StudentHistory {
     expectedAmount?: number;
     overdueCount: number;
     overallStatus: string;
+    languageFeeBalance?: number;
+    languageFeeStatus?: string;
     lastPaymentDate?: string;
     lastPaymentAmount?: number;
     lastPaymentCurrency?: string;
   }) | null;
+  languageFeeBalance?: number;
+  languageFeeStatus?: string;
+  /** All active requests — used for payment mapping slot cards */
+  slotRequests?: PaymentRequestItem[];
   requests: PaymentRequestItem[];
   total: number;
   page: number;
@@ -437,12 +633,32 @@ export class PaymentHubApiService {
     return this.http.get<{ success: boolean; data: ApprovalQueueItem }>(`${this.base}/approvals/${submissionId}`);
   }
 
-  approveSubmission(submissionId: string, body: { adminRemarks?: string }): Observable<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }> {
+  approveSubmission(
+    submissionId: string,
+    body: {
+      adminRemarks?: string;
+      paidAmount?: number;
+      reviewUpdates?: Record<string, unknown>;
+    },
+  ): Observable<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }> {
     return this.http.patch<{ success: boolean; data: unknown; receiptNumber?: string; isFullyPaid?: boolean }>(`${this.base}/approvals/${submissionId}/approve`, body);
   }
 
-  rejectSubmission(submissionId: string, body: { rejectionReason: string }): Observable<unknown> {
+  rejectSubmission(
+    submissionId: string,
+    body: { rejectionReason: string; reviewUpdates?: Record<string, unknown> },
+  ): Observable<unknown> {
     return this.http.patch(`${this.base}/approvals/${submissionId}/reject`, body);
+  }
+
+  updateSubmissionReviewDetails(
+    submissionId: string,
+    body: Record<string, unknown>,
+  ): Observable<{ success: boolean; message: string; data: unknown }> {
+    return this.http.patch<{ success: boolean; message: string; data: unknown }>(
+      `${this.base}/approvals/${submissionId}/review-details`,
+      body,
+    );
   }
 
   requestReupload(submissionId: string, body: { reuploadNote?: string }): Observable<unknown> {
@@ -497,6 +713,24 @@ export class PaymentHubApiService {
     return this.http.post<{ success: boolean; message: string; data: MapLegacyPaymentsResult }>(`${this.base}/legacy/map-payment`, body);
   }
 
+  updateLegacyPaymentRequest(
+    requestId: string,
+    body: {
+      amount?: number;
+      paidAmount?: number;
+      amountRemaining?: number;
+      currency?: string;
+      dueDate?: string;
+      remarks?: string;
+      status?: string;
+    },
+  ): Observable<{ success: boolean; message: string; data: { request: PaymentRequestItem } }> {
+    return this.http.patch<{ success: boolean; message: string; data: { request: PaymentRequestItem } }>(
+      `${this.base}/legacy/requests/${requestId}`,
+      body,
+    );
+  }
+
   mapLegacyBulkLanguagePaid(body: { rows: BulkLegacyLanguageRow[] }): Observable<{
     success: boolean;
     message: string;
@@ -504,6 +738,20 @@ export class PaymentHubApiService {
   }> {
     return this.http.post<{ success: boolean; message: string; data: BulkLegacyLanguageResult }>(
       `${this.base}/legacy/bulk-language-paid`,
+      body,
+    );
+  }
+
+  markLevelSlotFullPaid(body: {
+    studentId: string;
+    slotKey: string;
+    fullPaidAmount: number;
+    currency: string;
+    paymentDate?: string;
+    remarks?: string;
+  }): Observable<{ success: boolean; message: string; data: { requestId?: string; submissionId?: string } }> {
+    return this.http.post<{ success: boolean; message: string; data: { requestId?: string; submissionId?: string } }>(
+      `${this.base}/legacy/level-full-paid`,
       body,
     );
   }
@@ -518,6 +766,26 @@ export class PaymentHubApiService {
     );
   }
 
+  bulkResetStudentPayments(body: {
+    studentIds: string[];
+    reason?: string;
+  }): Observable<{ success: boolean; message: string; data: { studentsProcessed: number; requestsArchived: number; submissionsArchived: number } }> {
+    return this.http.post<{ success: boolean; message: string; data: { studentsProcessed: number; requestsArchived: number; submissionsArchived: number } }>(
+      `${this.base}/students/bulk-reset-payments`,
+      body,
+    );
+  }
+
+  resetPaymentSlot(
+    studentId: string,
+    body: { slotKey: string; reason?: string },
+  ): Observable<{ success: boolean; message: string; data: { slot: string; requestsArchived: number; submissionsArchived: number } }> {
+    return this.http.post<{ success: boolean; message: string; data: { slot: string; requestsArchived: number; submissionsArchived: number } }>(
+      `${this.base}/students/${studentId}/reset-slot`,
+      body,
+    );
+  }
+
   correctSubmissionAmount(
     submissionId: string,
     body: { newPaidAmount: number; adminRemarks?: string },
@@ -526,5 +794,54 @@ export class PaymentHubApiService {
       `${this.base}/approvals/${submissionId}/correct-amount`,
       body,
     );
+  }
+
+  // ── Admin notifications (Payment Hub) ───────────────────────────────────
+
+  getPaymentNotifications(params?: {
+    page?: number;
+    limit?: number;
+    unreadOnly?: boolean;
+    type?: string;
+    batch?: string;
+    batchLevel?: string;
+    studentStatus?: string;
+  }): Observable<{
+    success: boolean;
+    data: PaymentHubNotification[];
+    total: number;
+    unreadCount: number;
+    page: number;
+    totalPages: number;
+  }> {
+    return this.http.get<{
+      success: boolean;
+      data: PaymentHubNotification[];
+      total: number;
+      unreadCount: number;
+      page: number;
+      totalPages: number;
+    }>(`${this.base}/notifications`, { params: this.toParams(params || {}) });
+  }
+
+  getPaymentNotificationUnreadCount(params?: { type?: string }): Observable<{ success: boolean; data: { count: number } }> {
+    return this.http.get<{ success: boolean; data: { count: number } }>(`${this.base}/notifications/unread-count`, {
+      params: this.toParams(params || {}),
+    });
+  }
+
+  markPaymentNotificationRead(id: string): Observable<{ success: boolean; data: PaymentHubNotification }> {
+    return this.http.patch<{ success: boolean; data: PaymentHubNotification }>(
+      `${this.base}/notifications/${id}/read`,
+      {},
+    );
+  }
+
+  markAllPaymentNotificationsRead(): Observable<{ success: boolean }> {
+    return this.http.patch<{ success: boolean }>(`${this.base}/notifications/mark-all/read`, {});
+  }
+
+  syncJourneyDueNotifications(): Observable<{ success: boolean; data: unknown }> {
+    return this.http.post<{ success: boolean; data: unknown }>(`${this.base}/notifications/journey-due/sync`, {});
   }
 }

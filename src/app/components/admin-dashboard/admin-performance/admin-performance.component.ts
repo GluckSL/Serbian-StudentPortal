@@ -53,6 +53,16 @@ interface OverviewStudent {
   level?: string;
 }
 
+interface OverviewResponse {
+  data: OverviewStudent[];
+  total: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+  availableBatches: string[];
+  availableLevels: string[];
+}
+
 @Component({
   selector: 'app-admin-performance',
   standalone: true,
@@ -85,6 +95,10 @@ export class AdminPerformanceComponent implements OnInit {
   selectedDatePreset: 'today' | 'yesterday' | 'weekly' | 'overall' = 'weekly';
 
   overviewStudents: OverviewStudent[] = [];
+  overviewTotal = 0;
+  overviewPage = 0;
+  overviewPageSize = 15;
+  availableBatchesFromApi: string[] = [];
   studentSearch = '';
   selectedOverviewBatch = '';
   selectedStudent: OverviewStudent | null = null;
@@ -160,43 +174,20 @@ export class AdminPerformanceComponent implements OnInit {
     return s._id;
   }
 
-  /** Students ranked by overall progress (all batches). */
-  private studentsAfterBatchFilter(): OverviewStudent[] {
-    const selected = String(this.selectedOverviewBatch || '').trim();
-    if (!selected) return this.overviewStudents;
-    return this.overviewStudents.filter((s) => String(s.batch || '').trim() === selected);
-  }
-
-  private studentsRanked(): OverviewStudent[] {
-    return [...this.studentsAfterBatchFilter()].sort(
-      (a, b) => (b.overallPct ?? 0) - (a.overallPct ?? 0) || (a.name || '').localeCompare(b.name || '')
-    );
-  }
-
   get overviewBatchOptions(): string[] {
-    const set = new Set<string>();
-    for (const s of this.overviewStudents) {
-      const b = String(s.batch || '').trim();
-      if (b) set.add(b);
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return this.availableBatchesFromApi;
   }
 
   get top15Students(): OverviewStudent[] {
-    return this.studentsRanked().slice(0, this.topSpotlightCount);
-  }
-
-  get directoryAfterTop(): OverviewStudent[] {
-    return this.studentsRanked();
+    return this.overviewStudents.slice(0, this.topSpotlightCount);
   }
 
   get directorySlice(): OverviewStudent[] {
-    const start = this.dirPageIndex * this.directoryPageSize;
-    return this.directoryAfterTop.slice(start, start + this.directoryPageSize);
+    return this.overviewStudents;
   }
 
   get directoryTotal(): number {
-    return this.directoryAfterTop.length;
+    return this.overviewTotal;
   }
 
   get journeyBatchSlice(): JourneyActiveBatch[] {
@@ -238,11 +229,12 @@ export class AdminPerformanceComponent implements OnInit {
   onDirectoryPage(ev: PageEvent): void {
     this.dirPageIndex = ev.pageIndex;
     this.directoryPageSize = ev.pageSize;
+    this.loadOverviewStudents();
   }
 
   onOverviewBatchChange(): void {
     this.dirPageIndex = 0;
-    this.applyStudentFilter();
+    this.loadOverviewStudents();
   }
 
   isRowSelected(s: OverviewStudent): boolean {
@@ -311,12 +303,29 @@ export class AdminPerformanceComponent implements OnInit {
     return { from: this.dateFrom, to: this.dateTo };
   }
 
+  private buildOverviewParams(): any {
+    const params: any = {
+      sortField: 'overallPct',
+      sortDir: 'desc',
+      page: this.dirPageIndex + 1,
+      limit: this.directoryPageSize
+    };
+    if (this.selectedOverviewBatch) params.batch = this.selectedOverviewBatch;
+    return params;
+  }
+
   loadOverviewStudents(): void {
     this.loadingOverview = true;
-    this.http.get<OverviewStudent[]>('/api/student-progress/admin/overview', { withCredentials: true }).subscribe({
-      next: (rows) => {
-        this.overviewStudents = rows || [];
-        this.dirPageIndex = 0;
+    this.http.get<OverviewResponse>('/api/student-progress/admin/overview', {
+      withCredentials: true,
+      params: this.buildOverviewParams()
+    }).subscribe({
+      next: (res) => {
+        this.overviewStudents = res.data || [];
+        this.overviewTotal = res.total;
+        this.overviewPage = res.page;
+        this.overviewPageSize = res.limit;
+        this.availableBatchesFromApi = res.availableBatches || [];
         this.applyStudentFilter();
         this.loadingOverview = false;
       },
@@ -332,20 +341,23 @@ export class AdminPerformanceComponent implements OnInit {
   }
 
   private applyStudentFilter(): void {
-    const baseRows = this.studentsAfterBatchFilter();
     const q = this.studentSearch.toLowerCase().trim();
     if (!q) {
-      this.filteredStudents = baseRows.slice(0, 80);
+      this.filteredStudents = this.overviewStudents.slice(0, 80);
       return;
     }
-    this.filteredStudents = baseRows
-      .filter(
-        (s) =>
-          (s.name || '').toLowerCase().includes(q) ||
-          (s.email || '').toLowerCase().includes(q) ||
-          (s.regNo || '').toLowerCase().includes(q)
-      )
-      .slice(0, 50);
+    // Use the same endpoint with search param for autocomplete
+    this.http.get<OverviewResponse>('/api/student-progress/admin/overview', {
+      withCredentials: true,
+      params: { search: q, limit: 50, sortField: 'overallPct', sortDir: 'desc' }
+    }).subscribe({
+      next: (res) => {
+        this.filteredStudents = (res.data || []).slice(0, 50);
+      },
+      error: () => {
+        this.filteredStudents = [];
+      }
+    });
   }
 
   /** Prevents [object Object] in the input when the model is an OverviewStudent. */

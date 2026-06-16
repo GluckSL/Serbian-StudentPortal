@@ -82,7 +82,7 @@ export class StudentAnnouncementsComponent implements OnInit {
         <time class="sa-dialog__date">{{ data.createdAt | date:'medium' }}</time>
       </div>
       <h2 class="sa-dialog__title">{{ data.title }}</h2>
-      <p class="sa-dialog__body">{{ data.body }}</p>
+      <div class="sa-dialog__body sa-richtext" [innerHTML]="data.body"></div>
       <div class="sa-dialog__files" *ngIf="data.attachments?.length">
         <div class="sa-dialog__filesTitle">Attachments</div>
         <div class="sa-dialog__fileRow">
@@ -147,10 +147,19 @@ export class StudentAnnouncementsComponent implements OnInit {
     }
     .sa-dialog__body {
       margin: 0;
-      white-space: pre-wrap;
       color: #475569;
       font-size: 14px;
       line-height: 1.6;
+    }
+    .sa-richtext p { margin: 0 0 10px; }
+    .sa-richtext p:last-child { margin-bottom: 0; }
+    .sa-richtext ul, .sa-richtext ol { margin: 8px 0 12px 20px; padding: 0; }
+    .sa-richtext a { color: #1d4ed8; text-decoration: underline; word-break: break-word; }
+    .sa-richtext blockquote {
+      margin: 10px 0;
+      padding-left: 12px;
+      border-left: 3px solid #cbd5e1;
+      color: #475569;
     }
     .sa-dialog__files {
       margin-top: 20px;

@@ -2,15 +2,21 @@
 
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { lastValueFrom } from 'rxjs';
 import { MaterialModule } from '../../shared/material.module';
-import { ZoomService, Student, Teacher, ZoomAccount, ZoomHostConflict } from '../../services/zoom.service';
+import { ZoomService, Student, Teacher, ZoomAccount, ZoomHostConflict, StudentConflict } from '../../services/zoom.service';
 import { environment } from '../../../environments/environment';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { StepperSelectionEvent } from '@angular/cdk/stepper';
+
+export interface JourneyScheduleRow {
+  journeyDay: number;
+  startTime: string;
+  endTime: string;
+}
 
 /** Sunday = 0 .. Saturday = 6 (matches backend journeyMeetingGenerator). */
 const WEEKDAY_META: { sun0: number; label: string; key: string }[] = [
@@ -26,7 +32,7 @@ const WEEKDAY_META: { sun0: number; label: string; key: string }[] = [
 @Component({
   selector: 'app-bulk-journey-meeting',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MaterialModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, MaterialModule],
   templateUrl: './bulk-journey-meeting.component.html',
   styleUrls: ['./bulk-journey-meeting.component.css']
 })
@@ -50,16 +56,23 @@ export class BulkJourneyMeetingComponent implements OnInit {
     journeyActive: boolean;
   }> = [];
 
-  /** Generated slots from server preview */
-  schedules: Array<{
-    journeyDay: number;
-    startTime: string;
-    endTime: string;
-  }> = [];
+  /** Generated or admin-edited slots (used for final bulk create). */
+  schedules: JourneyScheduleRow[] = [];
 
   previewWarnings: string[] = [];
   previewBlocking: string[] = [];
+  studentConflicts: StudentConflict[] = [];
   totalTeachingHours = 0;
+  previewSavedAt: string | null = null;
+  isResolvingConflict = false;
+
+  /** Row being edited on preview step */
+  editingRowIndex: number | null = null;
+  editDraft: { journeyDay: number; startDate: string; startClock: string } | null = null;
+  isSavingRowEdit = false;
+
+  /** Re-run server preview when re-entering confirm step after changing wizard fields. */
+  private shouldRegeneratePreview = true;
 
   isLoading = false;
   isPreviewing = false;
@@ -72,6 +85,11 @@ export class BulkJourneyMeetingComponent implements OnInit {
   bulkScheduleId = '';
 
   readonly weekdayOptions = WEEKDAY_META;
+
+  /** Stable list — avoids select reset when change detection re-runs (e.g. after Zoom busy refresh). */
+  firstClassWeekdayOptionsList: { value: string; label: string }[] = [
+    { value: 'auto', label: 'Automatic (next selected day from today)' }
+  ];
 
   private readonly batchJourneyUrl = `${environment.apiUrl}/batch-journey`;
 
@@ -99,7 +117,9 @@ export class BulkJourneyMeetingComponent implements OnInit {
       scheduleType: ['journey', Validators.required],
       startClock: ['19:00', Validators.required],
       startingJourneyDay: [{ value: 1, disabled: false }, [Validators.required, Validators.min(1), Validators.max(200)]],
-      targetJourneyDay: [100, [Validators.required, Validators.min(1), Validators.max(200)]]
+      targetJourneyDay: [100, [Validators.required, Validators.min(1), Validators.max(200)]],
+      /** 'auto' or Sunday=0 .. Saturday=6 string */
+      firstClassWeekday: ['auto']
     });
 
     const wk: Record<string, boolean> = {};
@@ -107,6 +127,8 @@ export class BulkJourneyMeetingComponent implements OnInit {
       wk[d.key] = d.sun0 === 1 || d.sun0 === 3 || d.sun0 === 5;
     }
     this.weekForm = this.fb.group(wk);
+    this.syncFirstClassWeekdayOptions();
+    this.weekForm.valueChanges.subscribe(() => this.syncFirstClassWeekdayOptions());
 
     this.loadBatchJourney();
     this.loadTeachers();
@@ -118,8 +140,80 @@ export class BulkJourneyMeetingComponent implements OnInit {
     return this.basicForm.get('scheduleType')?.value || 'journey';
   }
 
+  /** True when all Step 1 fields (topic, batch, plan, teacher, duration, journey mode) are valid. */
+  get step1Valid(): boolean {
+    const f = this.basicForm;
+    return !!(
+      f.get('topic')?.valid &&
+      f.get('batch')?.valid &&
+      f.get('plan')?.valid &&
+      f.get('teacherId')?.valid &&
+      f.get('duration')?.valid &&
+      this.scheduleType === 'journey'
+    );
+  }
+
+  /** True when at least one weekday is selected and a Zoom host has been chosen. */
+  get step2Valid(): boolean {
+    return this.selectedWeekdaysSun0.length > 0 && !!this.basicForm.get('zoomHostEmail')?.value;
+  }
+
   get selectedWeekdaysSun0(): number[] {
     return WEEKDAY_META.filter((d) => this.weekForm.get(d.key)?.value === true).map((d) => d.sun0);
+  }
+
+  trackByWeekdayOption(_index: number, o: { value: string; label: string }): string {
+    return o.value;
+  }
+
+  compareFirstClassWeekday(a: string | null | undefined, b: string | null | undefined): boolean {
+    return String(a ?? '') === String(b ?? '');
+  }
+
+  /** Rebuild weekday dropdown from ticked boxes; keep selection when still valid. */
+  private syncFirstClassWeekdayOptions(): void {
+    const opts: { value: string; label: string }[] = [
+      { value: 'auto', label: 'Automatic (next selected day from today)' }
+    ];
+    for (const d of WEEKDAY_META) {
+      if (this.selectedWeekdaysSun0.includes(d.sun0)) {
+        opts.push({ value: String(d.sun0), label: d.label });
+      }
+    }
+    this.firstClassWeekdayOptionsList = opts;
+
+    const ctrl = this.basicForm?.get('firstClassWeekday');
+    if (!ctrl) return;
+    const pick = ctrl.value;
+    if (pick === 'auto' || pick == null || pick === '') return;
+    const normalized = String(pick);
+    const allowed = new Set(opts.map((o) => o.value));
+    if (!allowed.has(normalized)) {
+      ctrl.setValue('auto', { emitEvent: false });
+    } else if (normalized !== pick) {
+      ctrl.setValue(normalized, { emitEvent: false });
+    }
+  }
+
+  firstClassWeekdayLabel(): string {
+    const v = this.basicForm.get('firstClassWeekday')?.value;
+    if (v === 'auto' || v == null || v === '') {
+      return 'Automatic (next selected day from today)';
+    }
+    const n = Number(v);
+    return WEEKDAY_META.find((d) => d.sun0 === n)?.label ?? String(v);
+  }
+
+  onFirstClassWeekdayChange(ev: Event): void {
+    const el = ev.target as HTMLSelectElement | null;
+    const value = el?.value ?? 'auto';
+    this.basicForm.get('firstClassWeekday')?.setValue(value);
+    this.refreshZoomBusyHint();
+  }
+
+  onWeekdayChange(): void {
+    this.syncFirstClassWeekdayOptions();
+    this.refreshZoomBusyHint();
   }
 
   get batchCurrentDayDisplay(): number | null {
@@ -289,21 +383,77 @@ export class BulkJourneyMeetingComponent implements OnInit {
       .join('\n\n');
   }
 
-  /** First journey slot as ISO for Zoom busy check */
-  refreshZoomBusyHint(): void {
-    const dur = Number(this.basicForm.get('duration')?.value) || 120;
-    const startClock = this.basicForm.get('startClock')?.value || '19:00';
-    const wds = this.selectedWeekdaysSun0;
-    if (!wds.length) return;
-    const now = new Date();
-    const ymd = new Intl.DateTimeFormat('sv-SE', {
+  private istYmdFromMs(ms: number): string {
+    return new Intl.DateTimeFormat('sv-SE', {
       timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    }).format(now);
-    const probe = `${ymd}T${String(startClock).substring(0, 5)}`;
-    const startIso = `${probe}:00+05:30`;
+    }).format(new Date(ms));
+  }
+
+  private addDaysToIstYmd(ymd: string, days: number): string {
+    const dt = new Date(`${ymd}T12:00:00+05:30`);
+    dt.setTime(dt.getTime() + days * 86400000);
+    return this.istYmdFromMs(dt.getTime());
+  }
+
+  private istWeekdaySun0(ms: number): number {
+    const long = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'long'
+    }).format(new Date(ms));
+    const map: Record<string, number> = {
+      Sunday: 0,
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6
+    };
+    return map[long] ?? 0;
+  }
+
+  /** IST instant of the first generated class (for Zoom busy probe). */
+  private probeFirstClassStartIso(): string | null {
+    const startClock = String(this.basicForm.get('startClock')?.value || '19:00').substring(0, 5);
+    const wds = new Set(this.selectedWeekdaysSun0);
+    if (!wds.size) return null;
+    const nowMs = Date.now();
+    const pick = this.basicForm.get('firstClassWeekday')?.value;
+    if (pick !== 'auto' && pick != null && pick !== '') {
+      const target = Number(pick);
+      if (wds.has(target)) {
+        let ymd = this.istYmdFromMs(nowMs);
+        for (let g = 0; g < 400; g++) {
+          const ms = new Date(`${ymd}T${startClock}:00+05:30`).getTime();
+          if (this.istWeekdaySun0(ms) === target && ms >= nowMs) {
+            return `${ymd}T${startClock}:00+05:30`;
+          }
+          ymd = this.addDaysToIstYmd(ymd, 1);
+        }
+        return null;
+      }
+    }
+    let ymd = this.istYmdFromMs(nowMs);
+    for (let g = 0; g < 400; g++) {
+      const ms = new Date(`${ymd}T${startClock}:00+05:30`).getTime();
+      if (wds.has(this.istWeekdaySun0(ms)) && ms >= nowMs) {
+        return `${ymd}T${startClock}:00+05:30`;
+      }
+      ymd = this.addDaysToIstYmd(ymd, 1);
+    }
+    return null;
+  }
+
+  /** First journey slot as ISO for Zoom busy check */
+  refreshZoomBusyHint(): void {
+    const dur = Number(this.basicForm.get('duration')?.value) || 120;
+    const wds = this.selectedWeekdaysSun0;
+    if (!wds.length) return;
+    const startIso = this.probeFirstClassStartIso();
+    if (!startIso) return;
     this.zoomService.getAvailableZoomHosts(startIso, dur).subscribe({
       next: (r) => {
         if (r?.success && Array.isArray(r.data)) this.zoomAccounts = r.data;
@@ -326,12 +476,15 @@ export class BulkJourneyMeetingComponent implements OnInit {
       weekdaysSun0: this.selectedWeekdaysSun0,
       startClock: String(v.startClock || '19:00').substring(0, 5),
       startingJourneyDay: Number(v.startingJourneyDay),
-      targetJourneyDay: Number(v.targetJourneyDay)
+      targetJourneyDay: Number(v.targetJourneyDay),
+      firstClassWeekdaySun0:
+        v.firstClassWeekday === 'auto' || v.firstClassWeekday == null || v.firstClassWeekday === ''
+          ? 'auto'
+          : Number(v.firstClassWeekday)
     };
   }
 
-  /** Run preview API and fill schedules + warnings */
-  async runPreview(): Promise<boolean> {
+  private validateBeforePreview(): boolean {
     this.errorMessage = '';
     if (this.basicForm.invalid) {
       this.basicForm.markAllAsTouched();
@@ -350,6 +503,42 @@ export class BulkJourneyMeetingComponent implements OnInit {
       this.errorMessage = 'Select at least one student.';
       return false;
     }
+    return true;
+  }
+
+  private applyPreviewResponse(d: {
+    schedules?: JourneyScheduleRow[];
+    warnings?: string[];
+    blockingErrors?: string[];
+    studentConflicts?: StudentConflict[];
+    totalTeachingHours?: number;
+  }): boolean {
+    this.schedules = (d.schedules || []).map((row) => ({
+      journeyDay: Number(row.journeyDay),
+      startTime: String(row.startTime || '').substring(0, 16),
+      endTime: String(row.endTime || '').substring(0, 16)
+    }));
+    this.previewWarnings = d.warnings || [];
+    this.previewBlocking = d.blockingErrors || [];
+    this.studentConflicts = d.studentConflicts || [];
+    this.totalTeachingHours = d.totalTeachingHours ?? 0;
+    if (this.schedules.length === 0) {
+      this.errorMessage = 'No class dates in preview.';
+      return false;
+    }
+    this.previewSavedAt = new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+    return true;
+  }
+
+  /** Generate schedule from wizard settings (discards manual row edits). */
+  async runPreview(): Promise<boolean> {
+    if (!this.validateBeforePreview()) return false;
+    this.editingRowIndex = null;
+    this.editDraft = null;
 
     this.isPreviewing = true;
     try {
@@ -360,19 +549,9 @@ export class BulkJourneyMeetingComponent implements OnInit {
         this.errorMessage = res?.message || 'Preview failed';
         return false;
       }
-      const d = res.data;
-      this.schedules = (d.schedules || []).map((row: any) => ({
-        journeyDay: row.journeyDay,
-        startTime: row.startTime,
-        endTime: row.endTime
-      }));
-      this.previewWarnings = d.warnings || [];
-      this.previewBlocking = d.blockingErrors || [];
-      this.totalTeachingHours = d.totalTeachingHours ?? 0;
-      if (this.schedules.length === 0) {
-        this.errorMessage = 'No class dates generated. Check journey range and weekdays.';
-        return false;
-      }
+      const ok = this.applyPreviewResponse(res.data);
+      if (!ok) return false;
+      this.shouldRegeneratePreview = false;
       return true;
     } catch (e: any) {
       this.errorMessage = e?.error?.message || 'Preview request failed';
@@ -382,10 +561,135 @@ export class BulkJourneyMeetingComponent implements OnInit {
     }
   }
 
+  /** Re-check conflicts for current schedules (keeps admin edits). */
+  async refreshPreviewWithSchedules(): Promise<boolean> {
+    if (!this.validateBeforePreview()) return false;
+    if (!this.schedules.length) {
+      this.errorMessage = 'No meetings to preview.';
+      return false;
+    }
+
+    this.isPreviewing = true;
+    try {
+      const res = await lastValueFrom(
+        this.zoomService.previewBulkJourneyMeetings({
+          ...this.buildCorePayload(),
+          schedules: this.schedules
+        })
+      );
+      if (!res?.success) {
+        this.errorMessage = res?.message || 'Preview refresh failed';
+        return false;
+      }
+      return this.applyPreviewResponse(res.data);
+    } catch (e: any) {
+      this.errorMessage = e?.error?.message || 'Preview refresh failed';
+      return false;
+    } finally {
+      this.isPreviewing = false;
+    }
+  }
+
+  isEditingRow(idx: number): boolean {
+    return this.editingRowIndex === idx;
+  }
+
+  startEditRow(idx: number): void {
+    const row = this.schedules[idx];
+    if (!row) return;
+    this.editingRowIndex = idx;
+    this.editDraft = {
+      journeyDay: row.journeyDay,
+      startDate: this.rowStartDateIso(row),
+      startClock: this.rowStartClock24(row)
+    };
+  }
+
+  cancelEditRow(): void {
+    this.editingRowIndex = null;
+    this.editDraft = null;
+  }
+
+  async saveEditRow(idx: number): Promise<void> {
+    if (!this.editDraft || this.editingRowIndex !== idx) return;
+    const jd = Math.min(200, Math.max(1, Math.round(Number(this.editDraft.journeyDay))));
+    if (!Number.isFinite(jd)) {
+      this.errorMessage = 'Journey day must be between 1 and 200.';
+      return;
+    }
+    const date = String(this.editDraft.startDate || '').trim();
+    const clock = String(this.editDraft.startClock || '').substring(0, 5);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(clock)) {
+      this.errorMessage = 'Enter a valid date and start time.';
+      return;
+    }
+
+    const startTime = `${date}T${clock}`;
+    const ms = this.slotMs(startTime);
+    if (!Number.isFinite(ms)) {
+      this.errorMessage = 'Invalid date or time.';
+      return;
+    }
+    if (ms < Date.now() - 60000) {
+      this.errorMessage = 'Start time cannot be in the past.';
+      return;
+    }
+
+    const dur = Number(this.basicForm.get('duration')?.value) || 120;
+    const endTime = this.formatIstLocal16(ms + dur * 60000);
+
+    this.schedules[idx] = {
+      journeyDay: jd,
+      startTime: startTime.substring(0, 16),
+      endTime: endTime.substring(0, 16)
+    };
+
+    this.isSavingRowEdit = true;
+    this.editingRowIndex = null;
+    this.editDraft = null;
+    try {
+      await this.refreshPreviewWithSchedules();
+      this.snack.open('Row saved — preview updated with your changes.', 'OK', { duration: 4000 });
+    } finally {
+      this.isSavingRowEdit = false;
+    }
+  }
+
+  rowStartDateIso(row: { startTime: string }): string {
+    return String(row.startTime || '').substring(0, 10);
+  }
+
+  rowStartClock24(row: { startTime: string }): string {
+    const t = String(row.startTime || '').substring(11, 16);
+    return t.length >= 5 ? t : '19:00';
+  }
+
+  private formatIstLocal16(ms: number): string {
+    const ymd = this.istYmdFromMs(ms);
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(new Date(ms));
+    const hh = parts.find((x) => x.type === 'hour')?.value || '00';
+    const mm = parts.find((x) => x.type === 'minute')?.value || '00';
+    return `${ymd}T${hh}:${mm}`;
+  }
+
   /** Load preview when opening the final “Preview & confirm” step. */
   stepperSelectionChanged(ev: StepperSelectionEvent): void {
-    if (ev.selectedIndex === 3) {
+    const prev = ev.previouslySelectedIndex;
+    const cur = ev.selectedIndex;
+    if (cur === 1) {
+      this.refreshZoomBusyHint();
+    }
+    if (cur === 3 && (this.shouldRegeneratePreview || !this.schedules.length)) {
       void this.runPreview();
+    }
+    if (prev === 3 && cur < 3) {
+      this.shouldRegeneratePreview = true;
+      this.cancelEditRow();
     }
   }
 
@@ -410,7 +714,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
     return new Date(`${pad}:00+05:30`).getTime();
   }
 
-  rowWeekday(row: { startTime: string }): string {
+  rowWeekday(row: JourneyScheduleRow): string {
     const ms = this.slotMs(row.startTime);
     if (!Number.isFinite(ms)) return '—';
     return new Date(ms).toLocaleDateString('en-US', {
@@ -456,7 +760,11 @@ export class BulkJourneyMeetingComponent implements OnInit {
 
   async submitBulkCreate(): Promise<void> {
     this.errorMessage = '';
-    const ok = await this.runPreview();
+    if (this.editingRowIndex != null) {
+      this.errorMessage = 'Save or cancel the row you are editing before creating meetings.';
+      return;
+    }
+    const ok = await this.refreshPreviewWithSchedules();
     if (!ok) return;
 
     const hard = this.previewWarnings.filter(
@@ -536,6 +844,36 @@ export class BulkJourneyMeetingComponent implements OnInit {
       this.errorMessage = e?.error?.message || 'Bulk create failed';
     } finally {
       this.isBulkCreating = false;
+    }
+  }
+
+  /** Remove the clashing students from all future meetings of the conflicting batch, then re-run preview. */
+  async resolveStudentConflict(conflict: StudentConflict): Promise<void> {
+    const studentIds = conflict.clashingStudents.map((s) => s.studentId);
+    const names = conflict.clashingStudents.map((s) => s.name || s.email).join(', ');
+    const confirmed = confirm(
+      `Remove ${names} from all future scheduled meetings of Batch "${conflict.conflictingBatch}"?\n\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
+    this.isResolvingConflict = true;
+    try {
+      const res = await lastValueFrom(
+        this.zoomService.removeStudentsFromBatch(conflict.conflictingBatch, studentIds)
+      );
+      if (res?.success) {
+        this.snack.open(
+          `Removed ${names} from ${res.updatedCount} Batch ${conflict.conflictingBatch} meeting(s). Re-running preview…`,
+          'OK',
+          { duration: 5000 }
+        );
+        await this.runPreview();
+      } else {
+        this.errorMessage = res?.message || 'Failed to remove students from conflicting meetings.';
+      }
+    } catch (e: any) {
+      this.errorMessage = e?.error?.message || 'Failed to remove students from conflicting meetings.';
+    } finally {
+      this.isResolvingConflict = false;
     }
   }
 

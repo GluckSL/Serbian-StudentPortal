@@ -4,6 +4,7 @@ const GameQuestion = require('../../models/GameQuestion');
 const GameLevel = require('../../models/GameLevel');
 const GameSet = require('../../models/GameSet');
 const { germanUppercase, trimGermanWord } = require('../../utils/germanText');
+const genderStackService = require('./genderStack');
 
 function normalizeKey(key) {
   return String(key || '')
@@ -135,8 +136,330 @@ function validateLevelRow(row, index) {
   };
 }
 
+function validateGenderStackRow(row, index) {
+  const errors = [];
+  const word = trimGermanWord(row.word);
+  const translation = String(row.translation || row.hint || '').trim();
+  const articleGender = genderStackService.normalizeGender(
+    row.article_gender || row.articlegender || row.gender
+  );
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Gender Stack`);
+  if (!translation) errors.push(`Row ${index + 1}: "translation" column is required for Gender Stack`);
+  if (!articleGender) {
+    errors.push(`Row ${index + 1}: "article_gender" must be der, die, or das`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      translation,
+      articleGender,
+      audioUrl: String(row.audio_url || row.audiourl || '').trim() || null,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function flapjugationTokenColumns() {
+  return ['ich', 'du', 'er_sie_es', 'wir', 'ihr', 'sie_formal'];
+}
+
+function readFlapjugationTokens(row) {
+  const cols = flapjugationTokenColumns();
+  const legacy = [
+    row.conjugation_1, row.conjugation_2, row.conjugation_3,
+    row.conjugation_4, row.conjugation_5, row.conjugation_6,
+  ];
+  return cols.map((col, i) => {
+    const alt = col === 'er_sie_es' ? row['er/sie/es'] : null;
+    return String(row[col] ?? alt ?? legacy[i] ?? '').trim();
+  });
+}
+
+function validateFlapjugationRow(row, index) {
+  const errors = [];
+  const word = trimGermanWord(row.word || row.infinitive);
+  const translation = String(row.translation || '').trim();
+  const tokens = readFlapjugationTokens(row);
+
+  if (!word) errors.push(`Row ${index + 1}: "word" (infinitive) is required for Flapjugation`);
+  if (!translation) errors.push(`Row ${index + 1}: "translation" is required for Flapjugation`);
+  tokens.forEach((t, i) => {
+    if (!t) {
+      const label = flapjugationTokenColumns()[i];
+      errors.push(`Row ${index + 1}: "${label}" conjugation is required`);
+    }
+  });
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      translation,
+      tokens,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function validateWhackawortRow(row, index) {
+  const errors = [];
+  const word = trimGermanWord(row.word);
+  const translation = String(row.translation || '').trim();
+  const category = String(row.category || '').trim();
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Whack-a-Wort`);
+  if (!translation) errors.push(`Row ${index + 1}: "translation" column is required for Whack-a-Wort`);
+  if (!category) errors.push(`Row ${index + 1}: "category" column is required for Whack-a-Wort`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      translation,
+      category,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function validateJumbledWordsRow(row, index) {
+  const errors = [];
+  const word = germanUppercase(row.word);
+  const hint = String(row.hint || row.translation || '').trim();
+  const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Jumbled Words`);
+  if (!hint && !imageUrl) {
+    errors.push(`Row ${index + 1}: "hint" or "image_url" is required for Jumbled Words`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      hint,
+      imageUrl,
+      audioUrl: String(row.audio_url || row.audiourl || '').trim() || null,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function validateSpinWheelRow(row, index) {
+  const errors = [];
+  const phrase = String(row.phrase || row.hint || row.segment || '').trim();
+  if (!phrase) errors.push(`Row ${index + 1}: "phrase" column is required for Spin the Wheel`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      hint: phrase,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function validateTapBoxesRow(row, index) {
+  const errors = [];
+  const phrase = String(row.phrase || row.hint || row.text || '').trim();
+  if (!phrase) errors.push(`Row ${index + 1}: "phrase" column is required for Tap the Boxes`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      hint: phrase,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+/** Word search: group rows by question_index into one puzzle per index */
+function parseWordSearchRows(normalized) {
+  const groups = new Map();
+
+  normalized.forEach((row, i) => {
+    const qIdx = parseInt(row.question_index ?? row.question_number ?? row.question ?? '0', 10);
+    const questionIndex = Number.isFinite(qIdx) && qIdx >= 0 ? qIdx : 0;
+    if (!groups.has(questionIndex)) groups.set(questionIndex, []);
+    groups.get(questionIndex).push({ row, fileRow: i });
+  });
+
+  const results = [];
+  const sortedKeys = [...groups.keys()].sort((a, b) => a - b);
+
+  sortedKeys.forEach((questionIndex) => {
+    const items = groups.get(questionIndex);
+    const errors = [];
+    const searchWords = [];
+
+    items.forEach(({ row, fileRow }) => {
+      const word = germanUppercase(row.word);
+      const rowLabel = fileRow + 1;
+      if (!word) {
+        errors.push(`Row ${rowLabel}: "word" is required`);
+        return;
+      }
+      if (word.length < 2) {
+        errors.push(`Row ${rowLabel}: word must be at least 2 letters`);
+        return;
+      }
+      searchWords.push(word);
+    });
+
+    if (searchWords.length < 3) {
+      errors.push(`Question ${questionIndex + 1}: at least 3 words required per puzzle`);
+    }
+    if (searchWords.length > 20) {
+      errors.push(`Question ${questionIndex + 1}: maximum 20 words per puzzle`);
+    }
+
+    results.push({
+      valid: errors.length === 0 && searchWords.length >= 3,
+      errors,
+      doc: { searchWords, order: questionIndex },
+      type: 'question',
+    });
+  });
+
+  return results;
+}
+
+function validateHangmanRow(row, index) {
+  const errors = [];
+  const word = germanUppercase(row.word);
+  const hint = String(row.hint || row.translation || '').trim();
+  const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+
+  if (!word) errors.push(`Row ${index + 1}: "word" column is required for Hangman`);
+  if (!hint) errors.push(`Row ${index + 1}: "hint" column is required for Hangman`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      word,
+      hint,
+      imageUrl,
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+function readMultipleChoiceOptions(row) {
+  const options = [];
+  for (let n = 1; n <= 6; n += 1) {
+    const text = String(row[`option_${n}`] ?? row[`option${n}`] ?? '').trim();
+    if (text) options.push(text);
+  }
+  return options;
+}
+
+function validateMultipleChoiceRow(row, index) {
+  const errors = [];
+  const questionText = String(row.question_text || row.questiontext || '').trim();
+  const options = readMultipleChoiceOptions(row);
+  const correctOption = parseInt(row.correct_option || row.correctoption, 10);
+
+  if (!questionText) errors.push(`Row ${index + 1}: "question_text" column is required for Multiple Choice`);
+  if (options.length < 2) {
+    errors.push(`Row ${index + 1}: at least two options (option_1, option_2, …) are required`);
+  }
+  if (!Number.isFinite(correctOption) || correctOption < 1 || correctOption > options.length) {
+    errors.push(`Row ${index + 1}: "correct_option" must be 1–${options.length || 'n'} matching a filled option`);
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    doc: {
+      questionText,
+      options: options.map((text, i) => ({
+        text,
+        isCorrect: i + 1 === correctOption,
+      })),
+      order: parseInt(row.order, 10) || index,
+    },
+  };
+}
+
+/** Image Matching / Memory: one CSV row per pair; group by question_index */
+function parsePairBasedRows(normalized, gameType) {
+  const groups = new Map();
+
+  normalized.forEach((row, i) => {
+    const qIdx = parseInt(row.question_index ?? row.question_number ?? row.question ?? '0', 10);
+    const questionIndex = Number.isFinite(qIdx) && qIdx >= 0 ? qIdx : 0;
+    if (!groups.has(questionIndex)) groups.set(questionIndex, []);
+    groups.get(questionIndex).push({ row, fileRow: i });
+  });
+
+  const results = [];
+  const sortedKeys = [...groups.keys()].sort((a, b) => a - b);
+
+  sortedKeys.forEach((questionIndex) => {
+    const items = groups.get(questionIndex);
+    const errors = [];
+    const pairs = [];
+
+    if (items.length > 8) {
+      errors.push(`Question ${questionIndex + 1}: maximum 8 pairs per question`);
+    }
+
+    items.forEach(({ row, fileRow }, pairIdx) => {
+      const word = trimGermanWord(row.word);
+      const hint = String(row.hint || row.translation || '').trim();
+      const imageUrl = String(row.image_url || row.imageurl || '').trim() || null;
+      const audioUrl = String(row.audio_url || row.audiourl || '').trim() || null;
+      const rowLabel = fileRow + 1;
+
+      if (!word) {
+        errors.push(`Row ${rowLabel}: "word" is required`);
+        return;
+      }
+
+      pairs.push({
+        word,
+        hint: gameType === 'image_matching' ? hint : '',
+        imageUrl,
+        audioUrl: gameType === 'image_matching' ? audioUrl : null,
+        order: parseInt(row.order, 10) ?? pairIdx,
+      });
+    });
+
+    if (pairs.length === 0 && errors.length === 0) {
+      errors.push(`Question ${questionIndex + 1}: at least one pair with a word is required`);
+    }
+
+    results.push({
+      valid: errors.length === 0 && pairs.length > 0,
+      errors,
+      doc: { pairs, order: questionIndex },
+      type: 'question',
+    });
+  });
+
+  return results;
+}
 function parseRows(rows, gameType, importType) {
   const normalized = rows.map(r => normalizeRow(r));
+
+  if (gameType === 'image_matching' || gameType === 'memory') {
+    return parsePairBasedRows(normalized, gameType);
+  }
+
+  if (gameType === 'word_search') {
+    return parseWordSearchRows(normalized);
+  }
+
   const results = [];
   const seen = new Set();
 
@@ -182,6 +505,62 @@ function parseRows(rows, gameType, importType) {
             else seen.add(key);
           }
         }
+      } else if (gameType === 'gender_stack') {
+        parsed = validateGenderStackRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'flapjugation') {
+        parsed = validateFlapjugationRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate infinitive`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'whackawort') {
+        parsed = validateWhackawortRow(row, i);
+        if (parsed.valid) {
+          const key = `${parsed.doc?.word}|${parsed.doc?.category}`.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word in category`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'jumbled_words') {
+        parsed = validateJumbledWordsRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word;
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word "${key}"`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'hangman') {
+        parsed = validateHangmanRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.word;
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate word "${key}"`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'multiple_choice') {
+        parsed = validateMultipleChoiceRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.questionText?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate question`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'spin_wheel') {
+        parsed = validateSpinWheelRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.hint?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate phrase`);
+          else if (key) seen.add(key);
+        }
+      } else if (gameType === 'tap_boxes') {
+        parsed = validateTapBoxesRow(row, i);
+        if (parsed.valid) {
+          const key = parsed.doc?.hint?.toLowerCase();
+          if (key && seen.has(key)) parsed.errors.push(`Row ${i + 1}: duplicate phrase`);
+          else if (key) seen.add(key);
+        }
       } else {
         parsed = { valid: false, errors: [`Row ${i + 1}: unsupported game type "${gameType}"`], doc: null };
       }
@@ -200,6 +579,18 @@ async function previewImport(gameSetId, rows, importType, gameType) {
   const activeGameType = gameType || set.gameType;
   const parsedResults = parseRows(rows, activeGameType, importType);
   const allErrors = parsedResults.flatMap(r => r.errors);
+  if (activeGameType === 'spin_wheel' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Spin the Wheel requires at least 2 phrase rows');
+    }
+  }
+  if (activeGameType === 'tap_boxes' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Tap the Boxes requires at least 2 phrase rows');
+    }
+  }
 
   return {
     ok: allErrors.length === 0,
@@ -217,6 +608,18 @@ async function commitImport(gameSetId, rows, importType, gameType) {
   const activeGameType = gameType || set.gameType;
   const parsedResults = parseRows(rows, activeGameType, importType);
   const allErrors = parsedResults.flatMap(r => r.errors);
+  if (activeGameType === 'spin_wheel' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Spin the Wheel requires at least 2 phrase rows');
+    }
+  }
+  if (activeGameType === 'tap_boxes' && importType !== 'levels') {
+    const phraseCount = parsedResults.filter(r => r.valid && r.type === 'question').length;
+    if (phraseCount > 0 && phraseCount < 2) {
+      allErrors.push('Tap the Boxes requires at least 2 phrase rows');
+    }
+  }
 
   if (allErrors.length > 0) {
     return { ok: false, errors: allErrors.slice(0, 50), message: 'Validation failed' };
@@ -297,7 +700,118 @@ function getImportTemplate(gameType) {
       { front: 'Banane', back: 'Banana', image_url: '', audio_url: '', order: 1 },
     ];
   }
+  if (gameType === 'gender_stack') {
+    return [
+      { word: 'Tisch', translation: 'table', article_gender: 'der', audio_url: '', order: 0 },
+      { word: 'Lampe', translation: 'lamp', article_gender: 'die', audio_url: '', order: 1 },
+      { word: 'Buch', translation: 'book', article_gender: 'das', audio_url: '', order: 2 },
+    ];
+  }
+  if (gameType === 'flapjugation') {
+    return [
+      {
+        word: 'spielen',
+        translation: 'to play',
+        ich: 'spiele',
+        du: 'spielst',
+        er_sie_es: 'spielt',
+        wir: 'spielen',
+        ihr: 'spielt',
+        sie_formal: 'spielen',
+        order: 0,
+      },
+      {
+        word: 'sein',
+        translation: 'to be',
+        ich: 'bin',
+        du: 'bist',
+        er_sie_es: 'ist',
+        wir: 'sind',
+        ihr: 'seid',
+        sie_formal: 'sind',
+        order: 1,
+      },
+    ];
+  }
+  if (gameType === 'whackawort') {
+    return [
+      { word: 'Apfel', translation: 'apple', category: 'Food', order: 0 },
+      { word: 'Hund', translation: 'dog', category: 'Animals', order: 1 },
+      { word: 'Auto', translation: 'car', category: 'Transport', order: 2 },
+    ];
+  }
+  if (gameType === 'image_matching') {
+    return [
+      { question_index: 0, word: 'Hund', hint: 'Dog', image_url: '', order: 0 },
+      { question_index: 0, word: 'Katze', hint: 'Cat', image_url: '', order: 1 },
+      { question_index: 1, word: 'Apfel', hint: 'Apple', image_url: '', order: 0 },
+      { question_index: 1, word: 'Banane', hint: 'Banana', image_url: '', order: 1 },
+    ];
+  }
+  if (gameType === 'memory') {
+    return [
+      { question_index: 0, word: 'Hund', image_url: '', order: 0 },
+      { question_index: 0, word: 'Katze', image_url: '', order: 1 },
+      { question_index: 0, word: 'Vogel', image_url: '', order: 2 },
+      { question_index: 0, word: 'Fisch', image_url: '', order: 3 },
+    ];
+  }
+  if (gameType === 'jumbled_words') {
+    return [
+      { word: 'HAUS', hint: 'house', image_url: '', order: 0 },
+      { word: 'BUCH', hint: 'book', image_url: '', order: 1 },
+    ];
+  }
+  if (gameType === 'hangman') {
+    return [
+      { word: 'HAUS', hint: 'A place to live', image_url: '', order: 0 },
+      { word: 'GARTEN', hint: 'Where flowers grow', image_url: '', order: 1 },
+    ];
+  }
+  if (gameType === 'multiple_choice') {
+    return [
+      { question_text: 'Wie lautet der Imperativ von "essen"?', option_1: 'iss!', option_2: 'isst!', option_3: 'esse!', correct_option: '1', order: 0 },
+      { question_text: 'Was ist der Plural von "Kind"?', option_1: 'Kind', option_2: 'Kinder', option_3: 'Kindern', correct_option: '2', order: 1 },
+    ];
+  }
+  if (gameType === 'spin_wheel') {
+    return [
+      { phrase: 'Obwohl es regnet,', order: 0 },
+      { phrase: 'Wenn ich böse bin,', order: 1 },
+      { phrase: '..., deswegen lerne ich Deutsch.', order: 2 },
+      { phrase: '..., daher muss ich ein neues Handy kaufen.', order: 3 },
+    ];
+  }
+  if (gameType === 'tap_boxes') {
+    return [
+      { phrase: 'nicht den ganzen Tag sitzen', order: 0 },
+      { phrase: 'jeden Tag Sport machen', order: 1 },
+      { phrase: 'jeden Tag lachen', order: 2 },
+      { phrase: 'jeden Tag Deutsch lernen', order: 3 },
+    ];
+  }
+  if (gameType === 'word_search') {
+    return [
+      { question_index: 0, word: 'SCHULE', order: 0 },
+      { question_index: 0, word: 'COMPUTER', order: 1 },
+      { question_index: 0, word: 'LEHRER', order: 2 },
+      { question_index: 0, word: 'SPIELPLATZ', order: 3 },
+    ];
+  }
   return [];
 }
 
-module.exports = { previewImport, commitImport, getImportTemplate };
+const SUPPORTED_GAME_TYPES = [
+  'scramble_rush', 'sentence_builder', 'matching', 'flashcards',
+  'image_matching', 'gender_stack', 'flapjugation', 'whackawort',
+  'memory', 'jumbled_words', 'hangman', 'multiple_choice', 'spin_wheel', 'tap_boxes', 'word_search',
+];
+
+module.exports = {
+  previewImport,
+  commitImport,
+  getImportTemplate,
+  parseRows,
+  normalizeRow,
+  SUPPORTED_GAME_TYPES,
+};

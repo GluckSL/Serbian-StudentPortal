@@ -12,14 +12,18 @@ const JOURNEY_LEVEL_RANGES = [
   { min: 146, max: 200, level: 'B2' }
 ];
 
+const { clampStandardJourneyDay } = require('../utils/journeyDay');
+
 function normalizeJourneyDay(day) {
   const n = parseInt(String(day), 10);
   if (!Number.isFinite(n)) return 1;
-  return Math.min(200, Math.max(1, n));
+  if (n === 0) return 0;
+  return clampStandardJourneyDay(n);
 }
 
 function levelForJourneyDay(day) {
   const d = normalizeJourneyDay(day);
+  if (d === 0) return 'A1';
   for (const r of JOURNEY_LEVEL_RANGES) {
     if (d >= r.min && d <= r.max) return r.level;
   }

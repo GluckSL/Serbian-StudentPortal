@@ -1,0 +1,48 @@
+.ph-notif-page {
+  min-height: 100%;
+  padding: 20px 24px 48px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 100%);
+}
+
+.ph-notif-page__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 20px 22px;
+  border-radius: 20px;
+  background: linear-gradient(128deg, #fdf2f8 0%, #fce7f3 42%, #fbcfe8 100%);
+  border: 1px solid #f9a8d4;
+  box-shadow:
+    0 1px 2px rgba(190, 24, 93, 0.06),
+    0 12px 32px rgba(219, 39, 119, 0.1);
+}
+
+.ph-notif-page__back {
+  margin-top: 4px;
+  color: #9d174d;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+}
+
+.ph-notif-page__titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.ph-notif-page__title {
+  margin: 0 0 8px;
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-weight: 800;
+  color: #831843;
+  letter-spacing: -0.03em;
+}
+
+.ph-notif-page__sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #9d174d;
+  max-width: 36rem;
+}

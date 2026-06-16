@@ -1,4 +1,5 @@
-import { Component, OnInit, Output, EventEmitter } from '@angular/core';
+import { Component, DestroyRef, OnInit, Output, EventEmitter, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -6,6 +7,8 @@ import { NavService, NavGroup } from '../services/nav.service';
 import { TourService } from '../../services/tour.service';
 import { PortalTrackingService } from '../../services/portal-tracking.service';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
+import { PaymentRequestNavService } from '../../components/payment-hub-v2/payment-request-nav.service';
+import { PaymentNotificationNavService } from '../../components/payment-hub-v2/payment-notification-nav.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -23,6 +26,10 @@ export class SidebarComponent implements OnInit {
   userName: string = '';
   userEmail: string = '';
   sidebarPermissions: string[] = [];
+  paymentRequestPendingCount = 0;
+  paymentDueNotificationCount = 0;
+
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private authService: AuthService,
@@ -30,7 +37,9 @@ export class SidebarComponent implements OnInit {
     private router: Router,
     private tourService: TourService,
     private portalTracking: PortalTrackingService,
-    private arenaService: InteractiveGameService
+    private arenaService: InteractiveGameService,
+    private paymentRequestNav: PaymentRequestNavService,
+    private paymentNotificationNav: PaymentNotificationNavService,
   ) {}
 
   ngOnInit(): void {
@@ -76,8 +85,36 @@ export class SidebarComponent implements OnInit {
           return;
         }
         this.navGroups = groups;
+        this.bindPaymentRequestNavBadge();
+        this.bindPaymentDueNotificationBadge();
       }
     });
+  }
+
+  get showPaymentDueNotifications(): boolean {
+    return ['ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'].includes(this.userRole);
+  }
+
+  private bindPaymentRequestNavBadge(): void {
+    if (!['ADMIN', 'TEACHER_ADMIN'].includes(this.userRole)) {
+      this.paymentRequestPendingCount = 0;
+      return;
+    }
+    this.paymentRequestNav.pendingCount$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((count) => { this.paymentRequestPendingCount = count; });
+    this.paymentRequestNav.refresh();
+  }
+
+  private bindPaymentDueNotificationBadge(): void {
+    if (!this.showPaymentDueNotifications) {
+      this.paymentDueNotificationCount = 0;
+      return;
+    }
+    this.paymentNotificationNav.unreadCount$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((count) => { this.paymentDueNotificationCount = count; });
+    this.paymentNotificationNav.refresh();
   }
 
   getRoute(item: any): string {

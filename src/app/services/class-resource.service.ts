@@ -2,12 +2,17 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { getAuthToken } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class ClassResourceService {
   private base = `${environment.apiUrl}/class-resources`;
 
   constructor(private http: HttpClient) {}
+
+  private getToken(): string {
+    return getAuthToken() || '';
+  }
 
   list(meetingId: string): Observable<any> {
     return this.http.get(`${this.base}/${meetingId}`, { withCredentials: true });
@@ -23,16 +28,11 @@ export class ClassResourceService {
     return this.http.delete(`${this.base}/${resourceId}`, { withCredentials: true });
   }
 
-  /** Open the resource URL in a new tab (inline preview when the browser supports it). */
   openInBrowser(fileUrl: string): void {
     if (!fileUrl) return;
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   }
 
-  /**
-   * View a class resource. Uses API presigned URL with correct Content-Type.
-   * ZIP/Office files trigger download instead of opening raw XML in the browser.
-   */
   viewClassResource(r: { _id?: string; fileUrl?: string; originalName?: string; mimeType?: string }): void {
     const id = r._id != null ? String(r._id) : '';
     const fallbackUrl = r.fileUrl || '';
@@ -45,25 +45,29 @@ export class ClassResourceService {
         .subscribe({
           next: (res) => {
             if (!res?.url) {
-              this.viewFallback(fallbackUrl, r.originalName, r.mimeType);
+              this.viewFallback(fallbackUrl, r.originalName, r.mimeType, id);
               return;
             }
             if (res.mode === 'download') {
-              this.triggerAttachmentDownload(res.url);
+              this.triggerServerDownload(id);
               return;
             }
             this.openInBrowser(res.url);
           },
-          error: () => this.viewFallback(fallbackUrl, r.originalName, r.mimeType)
+          error: () => this.viewFallback(fallbackUrl, r.originalName, r.mimeType, id)
         });
       return;
     }
-    this.viewFallback(fallbackUrl, r.originalName, r.mimeType);
+    this.viewFallback(fallbackUrl, r.originalName, r.mimeType, '');
   }
 
-  private viewFallback(fileUrl: string, originalName?: string, mimeType?: string): void {
+  private viewFallback(fileUrl: string, originalName?: string, mimeType?: string, resourceId?: string): void {
     if (!fileUrl) return;
     if (this.shouldDownloadInsteadOfView(originalName, mimeType)) {
+      if (resourceId) {
+        this.triggerServerDownload(resourceId);
+        return;
+      }
       this.downloadViaFetchOrOpen(fileUrl, originalName || 'download');
       return;
     }
@@ -88,34 +92,20 @@ export class ClassResourceService {
     return false;
   }
 
-  /**
-   * Download a class resource. Uses API + S3 presigned URL with Content-Disposition: attachment
-   * so the browser saves the file (avoids cross-origin fetch to S3, which usually fails without CORS).
-   */
   downloadClassResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
-    const name = (r.originalName || 'download').trim() || 'download';
     const id = r._id != null ? String(r._id) : '';
     const fallbackUrl = r.fileUrl || '';
+    const name = (r.originalName || 'download').trim() || 'download';
     if (id) {
-      this.http
-        .get<{ success?: boolean; url?: string }>(`${this.base}/download/${id}`, { withCredentials: true })
-        .subscribe({
-          next: (res) => {
-            if (res?.url) {
-              this.triggerAttachmentDownload(res.url);
-              return;
-            }
-            this.downloadViaFetchOrOpen(fallbackUrl, name);
-          },
-          error: () => this.downloadViaFetchOrOpen(fallbackUrl, name)
-        });
+      this.triggerServerDownload(id);
       return;
     }
     this.downloadViaFetchOrOpen(fallbackUrl, name);
   }
 
-  /** Load URL in a hidden iframe — works with S3 responses that send Content-Disposition: attachment. */
-  private triggerAttachmentDownload(url: string): void {
+  private triggerServerDownload(resourceId: string): void {
+    const token = encodeURIComponent(this.getToken());
+    const url = `${this.base}/download/${resourceId}?token=${token}`;
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'display:none;width:0;height:0;border:none;position:fixed';
     iframe.setAttribute('aria-hidden', 'true');
@@ -130,7 +120,6 @@ export class ClassResourceService {
     }, 300000);
   }
 
-  /** Last resort when no resource id or API fails: blob download if CORS allows, else open tab. */
   private downloadViaFetchOrOpen(fileUrl: string, originalName: string): void {
     if (!fileUrl) return;
     const name = originalName?.trim() || 'download';

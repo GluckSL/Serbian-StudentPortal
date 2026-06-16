@@ -31,13 +31,30 @@
 .stat-pill mat-icon { font-size: 18px; width: 18px; height: 18px; }
 .stat-pill--word { background: #e8f5e9; color: #2e7d32; }
 .stat-pill--overlay { background: #fff3e0; color: #e65100; }
-.search-field { min-width: 220px; max-width: 320px; margin: 0; }
+.toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.search-field { min-width: 200px; max-width: 280px; margin: 0; flex: 1; }
+.refresh-btn { flex-shrink: 0; color: #5c6bc0; }
+.spin-icon { animation: at-spin 0.8s linear infinite; }
+@keyframes at-spin { to { transform: rotate(360deg); } }
+.template-grid--dim { opacity: 0.65; pointer-events: none; transition: opacity 0.15s; }
 
 /* Template grid */
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
+}
+@media (min-width: 1200px) {
+  .template-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 .template-card {
   display: flex;
@@ -129,8 +146,60 @@
 .empty-icon { font-size: 48px; color: #9fa8da; width: 48px; height: 48px; }
 .empty-hint { font-size: 0.85rem; color: #888; margin-top: 8px; }
 
-/* Loading */
-.center-spinner { display: flex; justify-content: center; padding: 48px; }
+/* Skeleton loading */
+@keyframes at-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.at-sk {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #eceff1 25%, #f5f7fa 50%, #eceff1 75%);
+  background-size: 200% 100%;
+  animation: at-shimmer 1.4s ease-in-out infinite;
+}
+.at-skeleton__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.at-skeleton__pills { display: flex; flex-wrap: wrap; gap: 10px; }
+.at-sk--pill { width: 120px; height: 36px; border-radius: 999px; }
+.at-sk--search { width: min(280px, 100%); height: 48px; border-radius: 8px; flex: 1; max-width: 280px; margin-left: auto; }
+.at-skeleton__card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  border: 1px solid #e8eaf6;
+  background: #fff;
+  overflow: hidden;
+}
+.at-skeleton__card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: #f5f6fa;
+}
+.at-sk--icon { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; }
+.at-skeleton__card-head-text { flex: 1; min-width: 0; }
+.at-sk--title { height: 18px; width: 72%; margin-bottom: 8px; }
+.at-sk--meta { height: 12px; width: 45%; }
+.at-sk--badge { width: 64px; height: 22px; border-radius: 999px; flex-shrink: 0; }
+.at-skeleton__card-body { padding: 14px 16px; }
+.at-sk--line { height: 12px; width: 55%; margin-bottom: 12px; }
+.at-skeleton__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.at-sk--chip { width: 72px; height: 22px; border-radius: 999px; }
+.at-skeleton__card-foot {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #f0f0f0;
+}
+.at-sk--btn { flex: 1; height: 36px; border-radius: 6px; }
+.at-sk--btn-icon { width: 40px; height: 36px; border-radius: 6px; flex-shrink: 0; }
 
 /* Wizard card */
 .wizard-card { max-width: 640px; margin: 0 auto; }

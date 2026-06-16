@@ -81,7 +81,7 @@ function extractMediaKeyFromUrl(url) {
   const s = String(url || '').trim();
   if (!s) return null;
   const lower = s.toLowerCase();
-  const markers = ['listening-media/', 'exercise-attachments/', 'glueck-arena/'];
+  const markers = ['listening-media/', 'exercise-attachments/', 'pdf-exercises/', 'glueck-arena/', 'job-openings/'];
   for (const m of markers) {
     const idx = lower.indexOf(m);
     if (idx !== -1) return s.slice(idx).replace(/^\/+/, '');
@@ -98,6 +98,19 @@ function publicUrlForKey(key) {
 
 function isExerciseR2Url(url) {
   return !!extractMediaKeyFromUrl(url);
+}
+
+async function getExerciseMediaBuffer(key) {
+  const cfg = getExerciseR2Config();
+  if (!cfg) throw new Error('R2 is not configured');
+  const normalizedKey = String(key || '').replace(/^\/+/, '');
+  const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  const resp = await cfg.client.send(new GetObjectCommand({ Bucket: cfg.bucket, Key: normalizedKey }));
+  const chunks = [];
+  for await (const chunk of resp.Body) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 /** Short-lived presigned GET for private R2 buckets (game thumbnails, attachments, etc.). */
@@ -121,6 +134,7 @@ module.exports = {
   getExerciseR2Config,
   isExerciseR2Configured,
   putExerciseMediaBuffer,
+  getExerciseMediaBuffer,
   headExerciseMediaKey,
   extractMediaKeyFromUrl,
   publicUrlForKey,

@@ -49,6 +49,7 @@ export class ExerciseStructurePreviewComponent implements OnChanges {
     'fill_in_blank',
     'singular_plural',
     'jumbled_words',
+    'pronunciation',
     'error_correction',
     'open_writing',
     'transformation',

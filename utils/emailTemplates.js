@@ -125,6 +125,8 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+const { formatSubscriptionLabel } = require('./studentSubscriptionPlans');
+
 /** OTP sent to current email when student requests an email change during setup. */
 function buildEmailChangeOtpEmail({ name, otp, newEmail, expiresMinutes = 15 }) {
   return {
@@ -379,7 +381,7 @@ function buildSignupProofReceivedAdminEmail({
     proofDetailRow('Address', address),
     proofDetailRow('Learn-from language', learnFromLanguage),
     proofDetailRow('German Level', level),
-    proofDetailRow('Plan', subscription),
+    proofDetailRow('Plan', formatSubscriptionLabel(subscription)),
     proofDetailRow('Amount', amountStr),
     proofDetailRow('Payment method', paymentMethod || 'Bank transfer (manual proof)'),
     proofDetailRow('Proof file', proofFileName),
@@ -403,6 +405,102 @@ function buildSignupProofReceivedAdminEmail({
         </td></tr>
       </table>
     ` + emailFooter(),
+  };
+}
+
+// ─── Job portal: new application (operations inbox) ─────────────────────────
+
+/**
+ * @param {object} params
+ * @param {string} params.studentName
+ * @param {string} params.studentEmail
+ * @param {string} [params.studentRegNo]
+ * @param {string} [params.studentBatch]
+ * @param {string} [params.phone]
+ * @param {string} [params.linkedIn]
+ * @param {string} [params.coverLetter]
+ * @param {string} [params.resumeFileName]
+ * @param {string} params.companyName
+ * @param {string} params.jobTitle
+ * @param {string} [params.jobType]
+ * @param {string} [params.location]
+ * @param {string} [params.locationType]
+ * @param {string} [params.salary]
+ * @param {string} params.appliedAt
+ * @param {string} params.adminUrl
+ * @param {string} [params.resumeNote]
+ */
+function buildJobApplicationReceivedAdminEmail({
+  studentName,
+  studentEmail,
+  studentRegNo,
+  studentBatch,
+  phone,
+  linkedIn,
+  coverLetter,
+  resumeFileName,
+  companyName,
+  jobTitle,
+  jobType,
+  location,
+  locationType,
+  salary,
+  appliedAt,
+  adminUrl,
+  resumeNote,
+}) {
+  const locationStr = [locationType, location].filter(Boolean).join(' · ');
+  const coverRaw = String(coverLetter || '').trim();
+  const coverShort =
+    coverRaw.length > 2000 ? `${coverRaw.slice(0, 2000)}…` : coverRaw;
+  const coverHtml = coverShort
+    ? escapeHtml(coverShort).replace(/\n/g, '<br/>')
+    : '';
+
+  const detailRows = [
+    proofDetailRow('Student', studentName),
+    proofDetailRow('Email', studentEmail),
+    proofDetailRow('Web App ID', studentRegNo),
+    proofDetailRow('Batch', studentBatch),
+    proofDetailRow('Phone', phone),
+    proofDetailRow('LinkedIn', linkedIn),
+    proofDetailRow('Company', companyName),
+    proofDetailRow('Job title', jobTitle),
+    proofDetailRow('Job type', jobType),
+    proofDetailRow('Location', locationStr),
+    proofDetailRow('Salary', salary),
+    proofDetailRow('Resume file', resumeFileName),
+    proofDetailRow('Applied at', appliedAt),
+  ].join('');
+
+  return {
+    subject: `New Job Application — ${escapeHtml(studentName)} · ${escapeHtml(jobTitle || 'Opening')}`,
+    html:
+      emailHeader('New Job Application') +
+      `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
+        A student submitted an application for <strong>${escapeHtml(jobTitle || 'a job opening')}</strong>
+        at <strong>${escapeHtml(companyName || '—')}</strong>. Review the details below.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;border:1px solid #e2e8f0;border-radius:10px;">
+        ${detailRows}
+      </table>
+      ${
+        coverHtml
+          ? `<p style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;">Cover letter</p>
+      <div style="margin:0 0 20px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#1e293b;font-size:14px;line-height:1.6;">${coverHtml}</div>`
+          : ''
+      }
+      ${resumeNote ? `<p style="margin:0 0 20px;color:#64748b;font-size:13px;">${escapeHtml(resumeNote)}</p>` : ''}
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        <tr><td align="center" style="padding:4px 0 24px;">
+          <a href="${adminUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 30px;border-radius:8px;">
+            View applications in Admin →
+          </a>
+        </td></tr>
+      </table>
+    ` +
+      emailFooter(),
   };
 }
 
@@ -607,6 +705,7 @@ module.exports = {
   buildRegisterInviteEmail,
   buildSignupEmailOtpEmail,
   buildSignupProofReceivedAdminEmail,
+  buildJobApplicationReceivedAdminEmail,
   buildSignupApprovedWelcomeEmail,
   buildJourneyDayReminderEmail,
 };

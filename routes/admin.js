@@ -5,22 +5,198 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
+const SignupApplication = require('../models/StudentSignupApplication');
 const MeetingLink = require('../models/MeetingLink');
 const Course = require('../models/Course');
 const CourseProgress = require('../models/CourseProgress');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
-const { decryptPassword } = require('../utils/passwordRecoverable');
+const { readRecoverablePassword } = require('../utils/passwordRecoverable');
 const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 const { computeStudentDataIssues } = require('../services/studentDataIssues');
 const {
   applyStudentCountryFilters,
-  scheduleCountryBackfills,
   backfillPhoneCountries,
   STUDENT_COUNTRY_FILTER_OPTIONS,
 } = require('../utils/studentCountry');
+
+const FILTER_OPTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+let filterOptionsCache = { at: 0, payload: null };
+
+function noStoreJson(res, body) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('ETag', false);
+  return res.json(body);
+}
+
+function mapAdminStudentListRows(students) {
+  return students.map((s) => {
+    const displayPassword = readRecoverablePassword(s.passwordRecoverable);
+    const { passwordRecoverable, ...rest } = s;
+    return {
+      ...rest,
+      displayPassword,
+      passwordDisplayState: displayPassword ? 'VISIBLE' : 'UNAVAILABLE',
+    };
+  });
+}
+
+async function loadStudentFilterOptions() {
+  const now = Date.now();
+  if (filterOptionsCache.payload && now - filterOptionsCache.at < FILTER_OPTIONS_CACHE_TTL_MS) {
+    return filterOptionsCache.payload;
+  }
+
+  const base = { role: 'STUDENT' };
+  const clean = (arr) =>
+    [...new Set((arr || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    );
+
+  const visaDocSubscriptions = ['VISA_DOC', 'VISA_DOC_ONLY', 'DOCS_RECOGNITION'];
+  const nonTestBase = { role: 'STUDENT', isTestAccount: { $ne: true } };
+
+  function summarizePlanGroup(rows, matchSubscription) {
+    const byStatus = {};
+    let total = 0;
+    for (const row of rows) {
+      const subscription = String(row._id?.subscription || '').toUpperCase();
+      if (!matchSubscription(subscription)) continue;
+      const status = String(row._id?.status || 'UNCERTAIN').toUpperCase();
+      total += row.count;
+      byStatus[status] = (byStatus[status] || 0) + row.count;
+    }
+    const statusOrder = ['UNCERTAIN', 'COMPLETED', 'WITHDREW', 'DROPPED'];
+    const statusBreakdown = statusOrder
+      .map((status) => ({ status, count: byStatus[status] || 0 }))
+      .filter((entry) => entry.count > 0);
+    return {
+      total,
+      ongoing: byStatus.ONGOING || 0,
+      statusBreakdown,
+    };
+  }
+
+  const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, signupAppUserIds, countAgg, planStatusAgg] =
+    await Promise.all([
+      User.distinct('batch', base),
+      User.distinct('servicesOpted', base),
+      User.distinct('qualifications', base),
+      User.distinct('languageLevelOpted', base),
+      User.distinct('leadSource', base),
+      User.distinct('stream', base),
+      SignupApplication.distinct('userId', { userId: { $ne: null } }),
+      User.aggregate([
+        { $match: base },
+        {
+          $group: {
+            _id: null,
+            portalTotal: { $sum: 1 },
+            portalActive: {
+              $sum: { $cond: [{ $ne: ['$studentStatus', 'WITHDREW'] }, 1, 0] },
+            },
+            portalWithdrew: {
+              $sum: { $cond: [{ $eq: ['$studentStatus', 'WITHDREW'] }, 1, 0] },
+            },
+            portalCrmLinked: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: [{ $ifNull: ['$crmExternalId', ''] }, ''] },
+                      { $ne: ['$crmExternalId', null] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            portalSignupForm: {
+              $sum: {
+                $cond: [{ $eq: ['$signupSource', 'public_signup'] }, 1, 0],
+              },
+            },
+            portalTestAccounts: {
+              $sum: {
+                $cond: [{ $eq: ['$isTestAccount', true] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]),
+      User.aggregate([
+        { $match: nonTestBase },
+        {
+          $group: {
+            _id: { subscription: '$subscription', status: '$studentStatus' },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+  const counts = countAgg[0] || {};
+  const planStatusRows = planStatusAgg || [];
+  let portalNonTest = 0;
+  let ongoingNonTest = 0;
+  for (const row of planStatusRows) {
+    portalNonTest += row.count;
+    if (String(row._id?.status || '').toUpperCase() === 'ONGOING') {
+      ongoingNonTest += row.count;
+    }
+  }
+  const platinumStats = summarizePlanGroup(planStatusRows, (sub) => sub === 'PLATINUM');
+  const silverStats = summarizePlanGroup(planStatusRows, (sub) => sub === 'SILVER');
+  const visaDocsStats = summarizePlanGroup(planStatusRows, (sub) => visaDocSubscriptions.includes(sub));
+  const signupFormUserIds = (signupAppUserIds || []).filter((id) => id != null);
+  let portalSignupForm = counts.portalSignupForm ?? 0;
+  if (signupFormUserIds.length) {
+    portalSignupForm = await User.countDocuments({
+      ...base,
+      $or: [{ signupSource: 'public_signup' }, { _id: { $in: signupFormUserIds } }],
+    });
+  }
+  const payload = {
+    success: true,
+    batches: mergePortalBatchNames(clean(batches)),
+    servicesOpted: clean(servicesOpted),
+    qualifications: clean(qualifications),
+    languageLevelOpted: clean(languageLevelOpted),
+    leadSource: clean(leadSource),
+    stream: clean(stream),
+    studentCounts: {
+      portalTotal: counts.portalTotal ?? 0,
+      portalActive: counts.portalActive ?? 0,
+      portalWithdrew: counts.portalWithdrew ?? 0,
+      portalCrmLinked: counts.portalCrmLinked ?? 0,
+      portalSignupForm,
+      portalTestAccounts: counts.portalTestAccounts ?? 0,
+      portalNonTest,
+      ongoingNonTest,
+      platinumTotal: platinumStats.total,
+      platinumOngoing: platinumStats.ongoing,
+      platinumStatusBreakdown: platinumStats.statusBreakdown,
+      silverTotal: silverStats.total,
+      silverOngoing: silverStats.ongoing,
+      silverStatusBreakdown: silverStats.statusBreakdown,
+      visaDocsTotal: visaDocsStats.total,
+      visaDocsOngoing: visaDocsStats.ongoing,
+      visaDocsStatusBreakdown: visaDocsStats.statusBreakdown,
+    },
+    phoneCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
+    loginCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
+  };
+
+  filterOptionsCache = { at: now, payload };
+  return payload;
+}
+
+function bustFilterOptionsCache() {
+  filterOptionsCache = { at: 0, payload: null };
+}
 
 /** Whitelist: API key → User schema path (advanced filter + distinct values) */
 const ADV_STUDENT_FILTER_FIELDS = {
@@ -53,43 +229,8 @@ router.get("/admin-dashboard", verifyToken, checkRole("admin"), (req, res) => {
 // Distinct CRM filter values for student list (Monday-synced fields)
 router.get('/students/filter-options', verifyToken, isAdmin, async (req, res) => {
   try {
-    scheduleCountryBackfills();
-    const base = { role: 'STUDENT' };
-    const clean = (arr) =>
-      [...new Set((arr || []).map((v) => String(v).trim()).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, undefined, { sensitivity: 'base' })
-      );
-
-    const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, portalTotal, portalActive, portalWithdrew, portalCrmLinked] = await Promise.all([
-      User.distinct('batch', base),
-      User.distinct('servicesOpted', base),
-      User.distinct('qualifications', base),
-      User.distinct('languageLevelOpted', base),
-      User.distinct('leadSource', base),
-      User.distinct('stream', base),
-      User.countDocuments(base),
-      User.countDocuments({ ...base, studentStatus: { $ne: 'WITHDREW' } }),
-      User.countDocuments({ ...base, studentStatus: 'WITHDREW' }),
-      User.countDocuments({ ...base, crmExternalId: { $exists: true, $nin: [null, ''] } }),
-    ]);
-
-    res.json({
-      success: true,
-      batches: mergePortalBatchNames(clean(batches)),
-      servicesOpted: clean(servicesOpted),
-      qualifications: clean(qualifications),
-      languageLevelOpted: clean(languageLevelOpted),
-      leadSource: clean(leadSource),
-      stream: clean(stream),
-      studentCounts: {
-        portalTotal,
-        portalActive,
-        portalWithdrew,
-        portalCrmLinked,
-      },
-      phoneCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
-      loginCountries: STUDENT_COUNTRY_FILTER_OPTIONS,
-    });
+    const payload = await loadStudentFilterOptions();
+    return noStoreJson(res, payload);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -135,9 +276,6 @@ router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
 // Get all students
 router.get('/students', verifyToken, isAdmin, async (req, res) => {
   try {
-    if (req.query.phoneCountry) {
-      scheduleCountryBackfills();
-    }
     const toPositiveInt = (value, fallback) => {
       const parsed = parseInt(String(value), 10);
       return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -212,7 +350,7 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     const [total, students] = await Promise.all([
       User.countDocuments(query),
       User.find(query)
-        .select(isFullAdmin ? '+password +passwordRecoverable' : '-password -passwordRecoverable')
+        .select(isFullAdmin ? '+passwordRecoverable' : '-password -passwordRecoverable')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -224,23 +362,9 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
     ]);
 
     const pages = Math.max(1, Math.ceil(total / limit));
+    const data = isFullAdmin ? mapAdminStudentListRows(students) : students;
 
-    // For ADMIN: fast list path (recoverable decrypt + at most one bcrypt per row)
-    const data = isFullAdmin
-      ? await Promise.all(
-          students.map(async (s) => {
-            const displayPassword = await resolveStudentDisplayPassword(s, { listView: true });
-            const { password, passwordRecoverable, ...rest } = s;
-            return {
-              ...rest,
-              displayPassword,
-              passwordDisplayState: displayPassword ? 'VISIBLE' : 'UNAVAILABLE',
-            };
-          })
-        )
-      : students;
-
-    res.json({
+    return noStoreJson(res, {
       success: true,
       data,
       pagination: {
@@ -281,6 +405,7 @@ router.post('/students/sync-display-passwords', verifyToken, checkRole(['ADMIN']
       }
     }
 
+    bustFilterOptionsCache();
     return res.json({ success: true, withDisplay, backfilled });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -301,7 +426,6 @@ router.get('/teachers', verifyToken, isAdmin, async (req, res) => {
       { $match: { role: 'STUDENT', assignedTeacher: { $exists: true, $ne: null } } },
       { $group: { _id: '$assignedTeacher', count: { $sum: 1 } } }
     ]);
-    console.log('📊 Student counts per teacher:', studentCounts);
     const countMap = {};
     studentCounts.forEach(sc => { countMap[sc._id.toString()] = sc.count; });
 
@@ -499,10 +623,46 @@ router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res)
       .filter((meeting) => meeting.startTime && new Date(meeting.startTime) >= now)
       .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
       .slice(0, 10);
-    const pastMeetings = mappedMeetings
+    const allPastMeetings = mappedMeetings
       .filter((meeting) => meeting.startTime && new Date(meeting.startTime) < now)
-      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
-      .slice(0, 15);
+      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+    const pastMeetings = allPastMeetings.slice(0, 15);
+
+    let totalScheduledMinutes = 0;
+    let totalAttendedStudentMinutes = 0;
+    let meetingsWithRecordedDuration = 0;
+    let meetingsUsingDefaultDuration = 0;
+
+    const teachingTimeMeetings = allPastMeetings.map((meeting) => {
+      const hasRecordedDuration = meeting.meetingDurationMinutes > 0;
+      const scheduledMinutes = hasRecordedDuration
+        ? meeting.meetingDurationMinutes
+        : (meeting.attendanceRecorded ? 60 : 0);
+
+      if (hasRecordedDuration) meetingsWithRecordedDuration += 1;
+      else if (scheduledMinutes > 0) meetingsUsingDefaultDuration += 1;
+
+      totalScheduledMinutes += scheduledMinutes;
+      totalAttendedStudentMinutes += meeting.totalAttendedMinutes || 0;
+
+      return {
+        _id: meeting._id,
+        topic: meeting.topic,
+        batch: meeting.batch,
+        startTime: meeting.startTime,
+        status: meeting.status,
+        attendanceRecorded: meeting.attendanceRecorded,
+        present: meeting.present,
+        late: meeting.late,
+        absent: meeting.absent,
+        attendanceRate: meeting.attendanceRate,
+        scheduledMinutes,
+        meetingDurationMinutes: meeting.meetingDurationMinutes,
+        totalAttendedMinutes: meeting.totalAttendedMinutes || 0,
+        avgAttendedMinutes: meeting.avgAttendedMinutes || 0
+      };
+    });
 
     const overallAttendanceRate = totalAttendanceRecords
       ? Math.round(((attendedCount + lateCount) / totalAttendanceRecords) * 100)
@@ -548,7 +708,16 @@ router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res)
           totalMeetings: meetings.length,
           totalAttendanceRecords,
           overallAttendanceRate,
-          averageCourseDay: courseDayCount ? Math.round(courseDaySum / courseDayCount) : 0
+          averageCourseDay: courseDayCount ? Math.round(courseDaySum / courseDayCount) : 0,
+          totalTeachingMinutes: totalScheduledMinutes
+        },
+        teachingTime: {
+          totalMinutes: totalScheduledMinutes,
+          totalAttendedStudentMinutes,
+          pastMeetingCount: allPastMeetings.length,
+          meetingsWithRecordedDuration,
+          meetingsUsingDefaultDuration,
+          meetings: teachingTimeMeetings
         },
         performance: {
           statusBreakdown: statusTemplate,
@@ -743,6 +912,15 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       { $set: updateData }
     );
 
+    if (updates.currentCourseDay !== undefined) {
+      try {
+        const journeyDue = require('../modules/payments-v2/backend/services/journeyLanguageFeeDueService');
+        for (const sid of studentIds) {
+          journeyDue.syncForStudent(sid).catch(() => {});
+        }
+      } catch (_) { /* payment module optional */ }
+    }
+
     res.json({ 
       success: true, 
       message: `Successfully updated ${result.modifiedCount} student(s)`,
@@ -881,7 +1059,6 @@ router.post('/bulk-delete', verifyToken, isAdmin, async (req, res) => {
 // Email Change Requests (first-login setup — admin approval flow)
 // ─────────────────────────────────────────────────────────────────────
 const EmailChangeRequest = require('../models/EmailChangeRequest');
-const { decryptPassword: decryptPwd } = require('../utils/passwordRecoverable');
 const { setUserPassword } = require('../utils/setUserPassword');
 const nodemailer = require('nodemailer');
 
@@ -911,10 +1088,13 @@ router.post('/email-change-requests/:id/approve', verifyToken, checkRole(['ADMIN
     const user = await User.findById(ecr.userId);
     if (!user) return res.status(404).json({ success: false, message: 'Student account not found.' });
 
-    // Decrypt and apply the password they chose during setup
-    const plainPassword = decryptPwd(ecr.newPasswordEncrypted);
+    // Read password chosen during setup (AES-encrypted or legacy plain text)
+    const plainPassword = readRecoverablePassword(ecr.newPasswordEncrypted);
     if (!plainPassword) {
-      return res.status(500).json({ success: false, message: 'Could not decrypt stored password.' });
+      return res.status(500).json({
+        success: false,
+        message: 'Could not decrypt stored password. If encryption is enabled, verify PASSWORD_RECOVERABLE_KEY matches the key used when the student submitted this request.',
+      });
     }
 
     user.email = ecr.newEmail;
@@ -978,6 +1158,75 @@ router.post('/email-change-requests/:id/reject', verifyToken, checkRole(['ADMIN'
   } catch (err) {
     console.error('[POST /admin/email-change-requests/:id/reject]', err);
     return res.status(500).json({ success: false, message: 'Failed to reject request.' });
+  }
+});
+
+// POST /admin/students/lookup-by-emails
+// Returns portal student snapshots for a given list of emails (for detail correction comparison)
+router.post('/students/lookup-by-emails', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { emails } = req.body;
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ success: false, message: 'emails array required' });
+    }
+    const normalised = emails.map(e => String(e).toLowerCase().trim()).filter(Boolean);
+    const students = await User.find(
+      { email: { $in: normalised }, role: 'STUDENT' },
+      { _id: 1, regNo: 1, name: 1, email: 1, subscription: 1, level: 1, studentStatus: 1, servicesOpted: 1, batch: 1, medium: 1 }
+    ).lean();
+    return res.json({ success: true, students });
+  } catch (err) {
+    console.error('[POST /admin/students/lookup-by-emails]', err);
+    return res.status(500).json({ success: false, message: 'Failed to lookup students' });
+  }
+});
+
+// POST /admin/batch-correct-details
+// Applies per-student field corrections from an Excel reconciliation
+router.post('/batch-correct-details', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { corrections } = req.body;
+    if (!corrections || !Array.isArray(corrections) || corrections.length === 0) {
+      return res.status(400).json({ success: false, message: 'corrections array required' });
+    }
+
+    const ALLOWED = ['subscription', 'level', 'studentStatus', 'servicesOpted', 'batch', 'medium'];
+    let updated = 0;
+    let skipped = 0;
+    const failed = [];
+
+    for (const c of corrections) {
+      const { studentId, updates } = c;
+      if (!studentId || !updates || typeof updates !== 'object') {
+        failed.push({ studentId, reason: 'Invalid format' });
+        continue;
+      }
+      const sanitized = {};
+      for (const field of ALLOWED) {
+        if (updates[field] !== undefined && updates[field] !== null && String(updates[field]).trim() !== '') {
+          sanitized[field] = String(updates[field]).trim();
+        }
+      }
+      if (Object.keys(sanitized).length === 0) {
+        skipped++;
+        continue;
+      }
+      try {
+        const result = await User.findByIdAndUpdate(studentId, { $set: sanitized }, { new: false });
+        if (!result) {
+          failed.push({ studentId, reason: 'Student not found' });
+        } else {
+          updated++;
+        }
+      } catch (e) {
+        failed.push({ studentId, reason: e.message });
+      }
+    }
+
+    return res.json({ success: true, updated, skipped, failed });
+  } catch (err) {
+    console.error('[POST /admin/batch-correct-details]', err);
+    return res.status(500).json({ success: false, message: 'Failed to apply corrections' });
   }
 });
 

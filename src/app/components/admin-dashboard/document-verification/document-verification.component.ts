@@ -1405,7 +1405,8 @@ export class DocumentVerificationComponent implements OnInit {
   // ========== REQUIREMENTS MANAGEMENT ==========
   
   loadRequirements(): void {
-    this.documentService.getDocumentRequirements().subscribe({
+    // Deleted requirements are soft-deleted (active: false) — hide them in admin list.
+    this.documentService.getDocumentRequirements({ activeOnly: true }).subscribe({
       next: (response) => {
         if (response.success) {
           this.requirements = response.requirements;
@@ -1509,13 +1510,23 @@ export class DocumentVerificationComponent implements OnInit {
   deleteRequirement(requirement: any): void {
     this.notify.confirm(
       'Delete Requirement',
-      `Delete "${requirement.label}"? This will hide it from students but won't delete existing uploaded documents of this type.`,
+      `Delete "${requirement.label}"? It will be removed from this list and hidden from students. Existing uploads of this type are not deleted.`,
       'Yes, Delete', 'Cancel'
     ).subscribe(ok => {
       if (!ok) return;
-      this.documentService.deleteDocumentRequirement(requirement._id).subscribe({
+      const reqId = requirement._id || requirement.id;
+      this.documentService.deleteDocumentRequirement(reqId).subscribe({
         next: (response) => {
           if (response.success) {
+            this.requirements = this.requirements.filter(
+              (r) => String(r._id || r.id) !== String(reqId)
+            );
+            this.documentTypes = this.requirements.map((r) => ({
+              value: r.type,
+              label: r.name || r.label,
+              id: r._id || r.id,
+            }));
+            this.buildStudentGroups();
             this.snackBar.open('Requirement deleted successfully', 'Close', { duration: 3000 });
             this.loadRequirements();
           }

@@ -85,14 +85,24 @@ router.get('/students', verifyToken, async (req, res) => {
   }
 });
 
-// Distinct batch names from meetings this teacher created or was assigned (for My Classes filters)
+// Distinct batch names from meetings this teacher hosts (for My Classes filters)
 router.get('/class-batches', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const teacherId = req.user.id;
-    const batches = await MeetingLink.distinct('batch', {
+    const { batchesAlign } = require('../utils/effectiveStudentBatch');
+    const teacher = await User.findById(teacherId).select('assignedBatches').lean();
+
+    let batches = await MeetingLink.distinct('batch', {
       $or: [{ createdBy: teacherId }, { assignedTeacher: teacherId }],
-      batch: { $exists: true, $nin: [null, ''] }
+      status: { $ne: 'cancelled' },
+      batch: { $exists: true, $nin: [null, ''] },
     });
+
+    const profileBatches = (teacher?.assignedBatches || []).map((b) => String(b || '').trim()).filter(Boolean);
+    if (profileBatches.length > 0) {
+      batches = batches.filter((b) => profileBatches.some((pb) => batchesAlign(pb, b)));
+    }
+
     const sorted = batches
       .filter(Boolean)
       .map(String)

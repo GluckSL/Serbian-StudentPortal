@@ -8,7 +8,8 @@ import {
   OnInit,
   ViewChild
 } from '@angular/core';
-import { AuthService, SKIP_SESSION_RESTORE_KEY } from '../../services/auth.service';
+import { AuthService, getAuthToken, SKIP_SESSION_RESTORE_KEY } from '../../services/auth.service';
+import { catchError, finalize, of, timeout } from 'rxjs';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { isSafeReturnUrl } from '../../services/join-class-flow.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -64,8 +65,9 @@ export class LoginComponent implements OnInit {
   setupError = '';
   setupSuccess = '';
   setupLoading = false;
-  /** 'start' | 'otp' | 'change-email' | 'change-email-sent' */
-  setupStep: 'start' | 'otp' | 'change-email' | 'change-email-sent' = 'start';
+  setupVerificationCode = '';
+  /** 'start' | 'otp-verify' | 'password-set' | 'change-email' | 'change-email-sent' */
+  setupStep: 'start' | 'otp-verify' | 'password-set' | 'change-email' | 'change-email-sent' = 'start';
   setupChangeNewEmail = '';
   setupChangeNewPassword = '';
   setupChangeConfirmPassword = '';
@@ -120,18 +122,31 @@ export class LoginComponent implements OnInit {
       /* ignore */
     }
 
+    // No stored token — show the login form immediately (do not wait on the API).
+    if (!getAuthToken()) {
+      this.checkingExistingSession = false;
+      return;
+    }
+
     this.checkingExistingSession = true;
-    this.authService.refreshUserProfile().subscribe({
-      next: (user) => {
+    this.authService.refreshUserProfile().pipe(
+      timeout(8000),
+      catchError(() => {
+        this.authService.clearClientSession();
+        return of(null);
+      }),
+      finalize(() => {
         this.checkingExistingSession = false;
-        const path = this.authService.getPostLoginPath(user);
+      })
+    ).subscribe({
+      next: (user) => {
+        if (!user) return;
+        const resolved = this.authService.resolveUserForNavigation(user);
+        const path = this.authService.getPostLoginPath(resolved);
         if (path) {
-          this.router.navigateByUrl(path);
+          void this.router.navigateByUrl(path);
         }
       },
-      error: () => {
-        this.checkingExistingSession = false;
-      }
     });
   }
 
@@ -232,10 +247,7 @@ export class LoginComponent implements OnInit {
           this.setupChangeConfirmPassword = '';
           this.setupError = '';
           this.setupSuccess = '';
-          this.setupStep = response.otpPreSent ? 'otp' : 'start';
-          this.setupSuccess = response.otpPreSent
-            ? 'Enter the verification code from your email. You can request a new code if needed.'
-            : '';
+          this.setupStep = 'start';
           this.showPasswordSetupModal = true;
           return;
         }
@@ -257,22 +269,33 @@ export class LoginComponent implements OnInit {
   }
 
   navigateAfterLogin(userFromResponse?: { role?: string; subscription?: string }): void {
+    const redirect = (profile?: { role?: string; subscription?: string } | null) => {
+      this.loading = false;
+      this.setupLoading = false;
+      const resolved = this.authService.resolveUserForNavigation(profile, userFromResponse);
+
+      if (this.pendingReturnUrl) {
+        void this.router.navigateByUrl(this.pendingReturnUrl);
+        return;
+      }
+
+      const path = this.authService.getPostLoginPath(resolved);
+      if (path) {
+        void this.router.navigateByUrl(path);
+      } else {
+        this.errorMessage = 'Unknown user role.';
+      }
+    };
+
+    // Login already returned role — redirect immediately; refresh profile in background.
+    if (userFromResponse?.role || this.authService.getRoleFromToken()) {
+      redirect(userFromResponse);
+      this.authService.refreshUserProfile().subscribe({ error: () => {} });
+      return;
+    }
+
     this.authService.refreshUserProfile().subscribe({
-      next: (profile) => {
-        this.loading = false;
-        this.setupLoading = false;
-        const merged = profile || userFromResponse;
-        if (this.pendingReturnUrl) {
-          this.router.navigateByUrl(this.pendingReturnUrl);
-        } else {
-          const path = this.authService.getPostLoginPath(merged);
-          if (path) {
-            this.router.navigateByUrl(path);
-          } else {
-            this.errorMessage = 'Unknown user role.';
-          }
-        }
-      },
+      next: (profile) => redirect(profile),
       error: () => {
         this.loading = false;
         this.setupLoading = false;
@@ -337,7 +360,7 @@ export class LoginComponent implements OnInit {
     this.authService.sendSetupOtp(this.setupToken).subscribe({
       next: (res: any) => {
         this.setupLoading = false;
-        this.setupStep = 'otp';
+        this.setupStep = 'otp-verify';
         this.setupSuccess = res.msg || `A verification code was sent to ${this.setupEmail}.`;
       },
       error: (err: any) => {
@@ -347,14 +370,38 @@ export class LoginComponent implements OnInit {
     });
   }
 
-  /** Flow B step 2: verify OTP + set password → log in */
-  completePasswordSetup(): void {
+  /** Flow B step 2a: verify OTP only → get verificationCode */
+  verifyOtp(): void {
     this.setupError = '';
-    this.setupSuccess = '';
     if (!this.setupOtp.trim()) {
       this.setupError = 'Enter the verification code sent to your email.';
       return;
     }
+    this.setupLoading = true;
+    this.authService.verifySetupOtp({
+      setupToken: this.setupToken,
+      otp: this.setupOtp.trim(),
+    }).subscribe({
+      next: (res: any) => {
+        this.setupLoading = false;
+        this.setupVerificationCode = res.verificationCode;
+        this.setupOtp = '';
+        this.setupNewPassword = '';
+        this.setupConfirmPassword = '';
+        this.setupError = '';
+        this.setupStep = 'password-set';
+      },
+      error: (err: any) => {
+        this.setupLoading = false;
+        this.setupError = err?.error?.msg || 'Could not verify code. Please try again.';
+      },
+    });
+  }
+
+  /** Flow B step 2b: set password after OTP verification → log in */
+  setPassword(): void {
+    this.setupError = '';
+    this.setupSuccess = '';
     if (this.setupNewPassword.length < 8) {
       this.setupError = 'Password must be at least 8 characters.';
       return;
@@ -364,9 +411,9 @@ export class LoginComponent implements OnInit {
       return;
     }
     this.setupLoading = true;
-    this.authService.completePasswordSetup({
+    this.authService.setSetupPassword({
       setupToken: this.setupToken,
-      otp: this.setupOtp.trim(),
+      verificationCode: this.setupVerificationCode,
       newPassword: this.setupNewPassword,
       confirmPassword: this.setupConfirmPassword,
       keepSessionActive: this.keepSessionActive,
@@ -379,7 +426,7 @@ export class LoginComponent implements OnInit {
       },
       error: (err: any) => {
         this.setupLoading = false;
-        this.setupError = err?.error?.msg || 'Could not complete setup. Please try again.';
+        this.setupError = err?.error?.msg || 'Could not set password. Please try again.';
       },
     });
   }

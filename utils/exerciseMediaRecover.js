@@ -17,12 +17,17 @@ const {
 } = require('../services/exerciseMediaR2');
 
 const MEDIA_SCALAR_FIELDS = ['imageUrl', 'attachmentUrl', 'mediaUrl', 'videoUrl', 'audioUrl'];
-
 function collectMediaUrlsFromQuestion(q, out) {
   if (!q || typeof q !== 'object') return;
   for (const field of MEDIA_SCALAR_FIELDS) {
     const v = String(q[field] ?? '').trim();
     if (v) out.push({ container: q, field, value: v });
+  }
+  if (Array.isArray(q.attachmentUrls)) {
+    q.attachmentUrls.forEach((u, index) => {
+      const v = String(u ?? '').trim();
+      if (v) out.push({ container: q, field: 'attachmentUrls', index, value: v });
+    });
   }
   if (Array.isArray(q.optionImageUrls)) {
     q.optionImageUrls.forEach((u, oi) => {
@@ -158,6 +163,12 @@ function applyRefToContainer(ref, newUrl) {
   if (field === 'optionImageUrls' && typeof index === 'number') {
     if (!Array.isArray(container.optionImageUrls)) container.optionImageUrls = [];
     container.optionImageUrls[index] = newUrl;
+    return;
+  }
+  if (field === 'attachmentUrls' && typeof index === 'number') {
+    if (!Array.isArray(container.attachmentUrls)) container.attachmentUrls = [];
+    container.attachmentUrls[index] = newUrl;
+    if (index === 0) container.attachmentUrl = newUrl;
     return;
   }
   container[field] = newUrl;

@@ -7,15 +7,24 @@ import { DigitalExerciseService } from '../../../../services/digital-exercise.se
 import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth.service';
 import {
-  GameAttempt, GameQuestion, GameLevel, GameSet,
-  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, AchievementDto, LeaderboardEntry,
+  GameAttempt, GameQuestion, GameLevel, GameSet, StartAttemptResult,
+  SentenceQuestion, ScrambleQuestion, ImageMatchingQuestion, GenderStackQuestion, FlapjugationQuestion, WhackawortQuestion, MemoryGameQuestion, JumbledWordsQuestion, HangmanQuestion, WordPictureMatchQuestion, MatchingQuestion, MultipleChoiceQuestion,   SpinWheelQuestion, TapBoxesQuestion, WordSearchQuestion, AchievementDto, LeaderboardEntry,
 } from '../../glueck-arena.types';
+import { MultipleChoiceComponent, MCResult } from '../../engines/multiple-choice/multiple-choice.component';
 import { SentenceBuilderComponent, SBResult } from '../../engines/sentence-builder/sentence-builder.component';
 import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
 import { ImageMatchingComponent } from '../../engines/image-matching/image-matching.component';
+import { MatchingComponent, MatchResult } from '../../engines/matching/matching.component';
 import { GenderStackComponent, GSResult } from '../../engines/gender-stack/gender-stack.component';
 import { FlapjugationComponent, FJResult } from '../../engines/flapjugation/flapjugation.component';
 import { WhackawortComponent, WWResult } from '../../engines/whackawort/whackawort.component';
+import { JumbledWordsComponent, JWResult } from '../../engines/jumbled-words/jumbled-words.component';
+import { MemoryGameComponent, MemoryResult } from '../../engines/memory-game/memory-game.component';
+import { HangmanGameComponent, HangmanResult } from '../../engines/hangman-game/hangman-game.component';
+import { WordPictureMatchComponent, WPMResult } from '../../engines/word-picture-match/word-picture-match.component';
+import { SpinWheelComponent, SWResult } from '../../engines/spin-wheel/spin-wheel.component';
+import { TapBoxesComponent, TBResult } from '../../engines/tap-boxes/tap-boxes.component';
+import { WordSearchComponent, WSResult } from '../../engines/word-search/word-search.component';
 
 export interface IMResult {
   score: number;
@@ -29,7 +38,7 @@ export interface IMResult {
   standalone: true,
   imports: [
     CommonModule, RouterModule, MaterialModule,
-    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent
+    SentenceBuilderComponent, ScrambleRushComponent, ImageMatchingComponent, GenderStackComponent, FlapjugationComponent, WhackawortComponent, JumbledWordsComponent, MemoryGameComponent, MatchingComponent, HangmanGameComponent, WordPictureMatchComponent,     MultipleChoiceComponent, SpinWheelComponent, TapBoxesComponent, WordSearchComponent
   ],
   template: `
     <div class="shell">
@@ -58,13 +67,8 @@ export interface IMResult {
         <button mat-raised-button (click)="back()">Go Back</button>
       </div>
 
-      <div class="shell-preview-banner" *ngIf="isAdminPreview">
-        <mat-icon>visibility</mat-icon>
-        <span>Admin preview — scores and XP are not saved to student leaderboards.</span>
-      </div>
-
       <!-- Unified shell layout for intro and playing phases -->
-      <div class="shell-game-wrap" *ngIf="phase === 'intro' || phase === 'playing' || phase === 'results'">
+      <div class="shell-game-wrap" [class.shell-game-wrap--playing]="phase === 'playing'" *ngIf="phase === 'intro' || phase === 'playing' || phase === 'results'">
 
         <div class="shell-game-wrap__left">
 
@@ -85,7 +89,7 @@ export interface IMResult {
               <div class="sb-panel__meta-row"><mat-icon>bolt</mat-icon><span>+{{ set.xpReward }} XP</span></div>
               <div class="sb-panel__meta-row"><mat-icon>schedule</mat-icon><span>~{{ set.estimatedDurationMinutes }} min</span></div>
               <div class="sb-panel__meta-row"><mat-icon>quiz</mat-icon><span>{{ questions.length }} questions</span></div>
-              <div class="sb-panel__meta-row" *ngIf="set.courseDay"><mat-icon>flag</mat-icon><span>Journey day {{ set.courseDay }}</span></div>
+              <div class="sb-panel__meta-row" *ngIf="set.courseDay != null"><mat-icon>flag</mat-icon><span>Journey {{ set.courseDay === 0 ? 'Trial' : ('day ' + set.courseDay) }}</span></div>
             </section>
             <section class="sb-panel__block">
               <h3><mat-icon>info</mat-icon> How it works</h3>
@@ -93,16 +97,25 @@ export interface IMResult {
               <p *ngIf="set.gameType === 'scramble_rush'">Type words before letters fall. Limited lives — complete all levels to win.</p>
               <p *ngIf="set.gameType === 'image_matching'">Drag each word to the matching image. Match all pairs to complete the game.</p>
               <p *ngIf="set.gameType === 'gender_stack'">Words fall from the sky and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.</p>
-              <p *ngIf="set.gameType === 'matching' || set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
-              <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each pronoun cycles after 3 correct hits.</p>
+              <p *ngIf="set.gameType === 'matching'">Match each item on the left with the correct item on the right, then check your answers.</p>
+              <p *ngIf="set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
+              <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each correct hit advances to the next pronoun.</p>
               <p *ngIf="set.gameType === 'whackawort'">Whack the German words that match the target category — hit the wrong ones and lose a life!</p>
+              <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word. Match all pairs to win!</p>
+              <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word. Drag each letter tile into the right slot and submit your answer.</p>
+              <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer — guess all letters before the figure is complete to win!</p>
+              <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
+              <p *ngIf="set.gameType === 'multiple_choice'">Read the question and choose the correct answer from the options. Each correct answer earns points — answer as many as you can before time runs out!</p>
+              <p *ngIf="set.gameType === 'spin_wheel'">Spin the wheel to land on a German phrase. After each spin, choose <strong>Eliminate</strong> to remove that phrase from the wheel or <strong>Resume</strong> to keep it and spin again. Narrow the wheel until one phrase remains!</p>
+              <p *ngIf="set.gameType === 'tap_boxes'">Tap a numbered box on the classroom grid. The view zooms in cinematically and peels back to reveal the hidden German phrase. Open every box to finish!</p>
+              <p *ngIf="set.gameType === 'word_search'">Find hidden words across, down, or diagonally. Drag from the first letter to the last, or tap each letter in order. Wrong selections cost a life!</p>
             </section>
           </aside>
 
         </div>
 
         <!-- Main game content -->
-        <div class="shell-game-wrap__main">
+        <div class="shell-game-wrap__main" [class.shell-game-wrap__main--active]="phase === 'playing'">
 
           <!-- Intro -->
           <div *ngIf="phase === 'intro' && set" class="shell-intro">
@@ -120,7 +133,7 @@ export interface IMResult {
                 <span class="shell-tag">{{ set.difficulty }}</span>
                 <span class="shell-tag" *ngIf="set.level">{{ set.level }}</span>
                 <span class="shell-tag shell-tag--muted" *ngIf="set.category">{{ set.category }}</span>
-                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay">Day {{ set.courseDay }}</span>
+                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay != null">{{ set.courseDay === 0 ? 'Trial' : ('Day ' + set.courseDay) }}</span>
               </div>
               <h1>{{ set.title }}</h1>
               <p class="shell-intro__desc">{{ set.description || 'Get ready to practice your German skills.' }}</p>
@@ -187,6 +200,79 @@ export interface IMResult {
             (onComplete)="handleWhackawortComplete($event)"
           ></app-whackawort>
 
+          <app-jumbled-words
+            *ngIf="phase === 'playing' && set?.gameType === 'jumbled_words' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asJumbledWordsQuestions()"
+            (onComplete)="handleJumbledWordsComplete($event)"
+          ></app-jumbled-words>
+
+          <app-memory-game
+            *ngIf="phase === 'playing' && set?.gameType === 'memory' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asMemoryQuestions()"
+            (onComplete)="handleMemoryComplete($event)"
+          ></app-memory-game>
+
+          <app-hangman-game
+            *ngIf="phase === 'playing' && set?.gameType === 'hangman' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asHangmanQuestions()"
+            (onComplete)="handleHangmanComplete($event)"
+          ></app-hangman-game>
+
+          <app-word-picture-match
+            *ngIf="phase === 'playing' && set?.gameType === 'word_picture_match' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asWordPictureMatchQuestions()"
+            [shuffledWords]="shuffledWords"
+            (onComplete)="handleWordPictureMatchComplete($event)"
+          ></app-word-picture-match>
+
+          <app-multiple-choice
+            *ngIf="phase === 'playing' && set?.gameType === 'multiple_choice' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asMultipleChoiceQuestions()"
+            (onComplete)="handleMultipleChoiceComplete($event)"
+          ></app-multiple-choice>
+
+          <app-spin-wheel
+            *ngIf="phase === 'playing' && set?.gameType === 'spin_wheel' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asSpinWheelQuestions()"
+            (onComplete)="handleSpinWheelComplete($event)"
+          ></app-spin-wheel>
+
+          <app-tap-boxes
+            *ngIf="phase === 'playing' && set?.gameType === 'tap_boxes' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asTapBoxesQuestions()"
+            (onComplete)="handleTapBoxesComplete($event)"
+          ></app-tap-boxes>
+
+          <app-word-search
+            *ngIf="phase === 'playing' && set?.gameType === 'word_search' && attempt && set"
+            [attempt]="attempt!"
+            [gameSet]="set"
+            [questions]="asWordSearchQuestions()"
+            (onComplete)="handleWordSearchComplete($event)"
+          ></app-word-search>
+
+          <app-matching
+            *ngIf="phase === 'playing' && set?.gameType === 'matching' && attempt"
+            [attempt]="attempt!"
+            [questions]="asMatchingQuestions()"
+            [shuffledRightOptions]="shuffledWords"
+            (onComplete)="handleMatchingComplete($event)"
+          ></app-matching>
+
           <!-- Placeholder -->
           <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
             <mat-icon>construction</mat-icon>
@@ -222,8 +308,9 @@ export interface IMResult {
               <span>{{ finalAccuracy }}%</span>
             </div>
             <div class="shell__results__actions">
-              <button class="shell__results__btn shell__results__btn--replay" (click)="replay()">
-                <mat-icon>replay</mat-icon> Play Again
+              <button class="shell__results__btn shell__results__btn--replay" (click)="replay()" [disabled]="replayLoading">
+                <mat-icon>{{ replayLoading ? 'hourglass_top' : 'replay' }}</mat-icon>
+                {{ replayLoading ? 'Starting…' : 'Play Again' }}
               </button>
               <button class="shell__results__btn" routerLink="/glueck-arena/leaderboard">
                 <mat-icon>leaderboard</mat-icon> Leaderboard
@@ -238,7 +325,7 @@ export interface IMResult {
 
 
         <!-- Leaderboard (right) -->
-        <aside class="shell-game-wrap__right" *ngIf="!isAdminPreview">
+        <aside class="shell-game-wrap__right">
           <div class="shell-side shell-side--lb">
             <div class="shell-side__lb">
               <header class="shell-side__lb-head">
@@ -294,13 +381,29 @@ export interface IMResult {
     </div>
   `,
   styles: [`
-    .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 16px 12px; box-sizing: border-box; }
+    :host {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
+    .shell {
+      width: 100%;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 20px;
+      box-sizing: border-box;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
     .shell-preview-banner {
       display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px 16px;
       border-radius: 12px; background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af;
       font-size: 14px; font-weight: 600;
     }
-    .shell-preview-banner mat-icon { color: #2563eb; }
     .shell__loading { padding: 0; }
     .shell__loading-grid { display: grid; grid-template-columns: 280px 1fr 300px; gap: 16px; width: 100%; margin: 0 auto; padding: 0; }
     .shell__loading-side, .shell__loading-right { display: flex; flex-direction: column; gap: 16px; }
@@ -316,12 +419,27 @@ export interface IMResult {
       gap: 16px;
       align-items: start;
       width: 100%;
+      flex: 1;
+      min-height: 0;
+    }
+    .shell-game-wrap--playing {
+      align-items: stretch;
+      min-height: calc(100vh - 120px);
     }
     .shell-game-wrap__left {
       display: flex; flex-direction: column; gap: 16px;
       min-width: 0;
     }
     .shell-game-wrap__main { min-width: 0; display: flex; flex-direction: column; }
+    .shell-game-wrap__main--active {
+      flex: 1;
+      min-height: 0;
+    }
+    .shell-game-wrap__main--active > * {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
     .shell-game-wrap__right { min-width: 0; display: flex; flex-direction: column; }
     @media (max-width: 960px) {
       .shell-game-wrap { grid-template-columns: 250px 1fr; }
@@ -409,7 +527,9 @@ export interface IMResult {
     .shell-side__back {
       position: absolute; top: 12px; left: 12px;
       display: flex; align-items: center; justify-content: center;
-      width: 36px; height: 36px; border: none; border-radius: 10px;
+      width: 36px; height: 36px; min-width: 36px; min-height: 36px;
+      flex-shrink: 0; aspect-ratio: 1;
+      border: none; border-radius: 10px;
       background: #f1f5f9; cursor: pointer; z-index: 1;
       color: #475569; transition: background 0.15s;
       padding: 0;
@@ -754,6 +874,7 @@ export interface IMResult {
     .shell__results__btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,.4); }
     .shell__results__btn--replay { background: linear-gradient(135deg, #f59e0b, #ea580c); box-shadow: 0 4px 16px rgba(245,158,11,.35); }
     .shell__results__btn--replay:hover { box-shadow: 0 8px 24px rgba(245,158,11,.45); }
+    .shell__results__btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; box-shadow: none; }
     .shell__results__btn--outline { background: transparent; color: #64748b; box-shadow: none; border: 2px solid #e2e8f0; }
     .shell__results__btn--outline:hover { border-color: #94a3b8; color: #0f172a; box-shadow: none; }
     .shell__results__btn mat-icon { font-size: 20px !important; width: 20px !important; height: 20px !important; }
@@ -791,6 +912,8 @@ export class GamePlayShellComponent implements OnInit {
 
   isAdminPreview = false;
   thumbnailBroken = false;
+  replayLoading = false;
+  playSessionKey = 0;
   private thumbnailUrl = '';
 
   constructor(
@@ -817,31 +940,74 @@ export class GamePlayShellComponent implements OnInit {
   }
 
   ngOnInit() {
-    const id = this.route.snapshot.paramMap.get('id')!;
     this.isAdminPreview = !!this.route.snapshot.data['arenaPreview'];
-    if (!this.isAdminPreview) {
-      this.loadLeaderboard();
+    this.loadLeaderboard();
+    this.loadGameSession();
+  }
+
+  private loadGameSession(fromReplay = false) {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) {
+      this.error = 'Game not found';
+      this.phase = 'error';
+      return;
     }
+
+    if (fromReplay) {
+      this.replayLoading = true;
+    } else {
+      this.phase = 'loading';
+    }
+
     this.svc.startAttempt(id).subscribe({
-      next: (r) => {
-        this.set = r.set;
-        this.attempt = r.attempt;
-        this.questions = r.questions;
-        this.shuffledWords = r.shuffledWords || [];
-        this.levels = r.levels || [];
-        this.phase = 'intro';
-        if (r.preview) this.isAdminPreview = true;
-        this.thumbnailBroken = false;
-        this.resolveThumbnail(this.set?.thumbnailUrl);
-        if (!this.isAdminPreview) {
-          this.fetchGameLeaderboard(id);
-        }
-      },
-      error: (err) => {
-        this.error = err?.error?.message || 'Could not start game';
-        this.phase = 'error';
-      }
+      next: (r) => this.onSessionStarted(r, id, fromReplay),
+      error: (err) => this.onSessionStartFailed(err, fromReplay),
     });
+  }
+
+  private onSessionStarted(r: StartAttemptResult, gameSetId: string, fromReplay: boolean) {
+    this.applyStartAttempt(r);
+    this.playSessionKey++;
+    this.fetchGameLeaderboard(gameSetId);
+
+    if (fromReplay) {
+      this.replayLoading = false;
+      this.resetFinalStats();
+      this.phase = 'playing';
+      return;
+    }
+
+    this.phase = 'intro';
+  }
+
+  private onSessionStartFailed(err: { error?: { message?: string } }, fromReplay: boolean) {
+    const message = err?.error?.message || 'Could not start game';
+    if (fromReplay) {
+      this.replayLoading = false;
+      this.notify.error(message);
+      return;
+    }
+    this.error = message;
+    this.phase = 'error';
+  }
+
+  private applyStartAttempt(r: StartAttemptResult) {
+    this.set = r.set;
+    this.attempt = r.attempt;
+    this.questions = r.questions;
+    this.shuffledWords = r.shuffledWords || [];
+    this.levels = r.levels || [];
+    if (r.preview) this.isAdminPreview = true;
+    this.thumbnailBroken = false;
+    this.resolveThumbnail(this.set?.thumbnailUrl);
+  }
+
+  private resetFinalStats() {
+    this.finalScore = 0;
+    this.finalXp = 0;
+    this.finalAccuracy = 0;
+    this.finalTimeSeconds = 0;
+    this.newBadges = [];
   }
 
   private fetchGameLeaderboard(gameSetId: string) {
@@ -919,7 +1085,10 @@ export class GamePlayShellComponent implements OnInit {
 
   startPlay() { this.phase = 'playing'; }
 
-  replay() { window.location.reload(); }
+  replay() {
+    if (this.replayLoading) return;
+    this.loadGameSession(true);
+  }
 
   back() { this.router.navigate([this.arenaExitPath]); }
 
@@ -929,9 +1098,18 @@ export class GamePlayShellComponent implements OnInit {
   asGenderStackQuestions(): GenderStackQuestion[] { return this.questions as GenderStackQuestion[]; }
   asFlapjugationQuestions(): FlapjugationQuestion[] { return this.questions as FlapjugationQuestion[]; }
   asWhackawortQuestions(): WhackawortQuestion[] { return this.questions as WhackawortQuestion[]; }
+  asJumbledWordsQuestions(): JumbledWordsQuestion[] { return this.questions as JumbledWordsQuestion[]; }
+  asMemoryQuestions(): MemoryGameQuestion[] { return this.questions as MemoryGameQuestion[]; }
+  asHangmanQuestions(): HangmanQuestion[] { return this.questions as HangmanQuestion[]; }
+  asWordPictureMatchQuestions(): WordPictureMatchQuestion[] { return this.questions as WordPictureMatchQuestion[]; }
+  asMultipleChoiceQuestions(): MultipleChoiceQuestion[] { return this.questions as MultipleChoiceQuestion[]; }
+  asSpinWheelQuestions(): SpinWheelQuestion[] { return this.questions as SpinWheelQuestion[]; }
+  asTapBoxesQuestions(): TapBoxesQuestion[] { return this.questions as TapBoxesQuestion[]; }
+  asWordSearchQuestions(): WordSearchQuestion[] { return this.questions as WordSearchQuestion[]; }
+  asMatchingQuestions(): MatchingQuestion[] { return this.questions as MatchingQuestion[]; }
 
   isPlaceholderType(): boolean {
-    return ['matching', 'flashcards'].includes(this.set?.gameType ?? '');
+    return ['flashcards'].includes(this.set?.gameType ?? '');
   }
 
   handleComplete(result: SBResult) {
@@ -1048,6 +1226,29 @@ export class GamePlayShellComponent implements OnInit {
     });
   }
 
+  handleMatchingComplete(result: MatchResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
   handleWhackawortComplete(result: WWResult) {
     this.finalScore = result.score;
     this.finalAccuracy = result.accuracy;
@@ -1057,6 +1258,190 @@ export class GamePlayShellComponent implements OnInit {
     this.svc.completeAttempt(this.attempt._id, {
       timeSpentSeconds: result.timeSpentSeconds,
       livesRemaining: result.livesRemaining,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleMemoryComplete(result: MemoryResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleJumbledWordsComplete(result: JWResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleHangmanComplete(result: HangmanResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleMultipleChoiceComplete(result: MCResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleSpinWheelComplete(result: SWResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleTapBoxesComplete(result: TBResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleWordSearchComplete(result: WSResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
+    }).subscribe({
+      next: (r) => {
+        this.finalXp = r.xpBonus ?? 0;
+        this.newBadges = r.newAchievements || [];
+        this.phase = 'results';
+        if (!r.preview && (r.xpBonus ?? 0) > 0) {
+          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        } else if (r.preview) {
+          this.notify.success('Preview complete');
+        }
+      },
+      error: () => { this.phase = 'results'; }
+    });
+  }
+
+  handleWordPictureMatchComplete(result: WPMResult) {
+    this.finalScore = result.score;
+    this.finalAccuracy = result.accuracy;
+    this.finalTimeSeconds = result.timeSpentSeconds;
+    if (!this.attempt) return;
+
+    this.svc.completeAttempt(this.attempt._id, {
+      timeSpentSeconds: result.timeSpentSeconds,
     }).subscribe({
       next: (r) => {
         this.finalXp = r.xpBonus ?? 0;
@@ -1083,7 +1468,13 @@ export class GamePlayShellComponent implements OnInit {
       scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
       matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
       gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
-      whackawort: 'Whack-a-Wort',
+      whackawort: 'Whack-a-Wort', memory: 'Memory Game',
+      jumbled_words: 'Jumbled Words', hangman: 'Hangman',
+      word_picture_match: 'Word-Picture Match',
+      multiple_choice: 'Multiple Choice',
+      spin_wheel: 'Spin the Wheel',
+      tap_boxes: 'Tap the Boxes',
+      word_search: 'Word Search',
     };
     return map[t] ?? t;
   }
@@ -1096,6 +1487,15 @@ export class GamePlayShellComponent implements OnInit {
       gender_stack: 'linear-gradient(135deg,#0ea5e9,#38bdf8)',
       flapjugation: 'linear-gradient(135deg,#be185d,#ec4899)',
       whackawort: 'linear-gradient(135deg,#d97706,#f59e0b)',
+      memory: 'linear-gradient(135deg,#0891b2,#22d3ee)',
+      jumbled_words: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+      hangman: 'linear-gradient(135deg,#b91c1c,#ef4444)',
+      matching: 'linear-gradient(135deg,#15803d,#4ade80)',
+      word_picture_match: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
+      multiple_choice: 'linear-gradient(135deg,#0891b2,#22d3ee)',
+      spin_wheel: 'linear-gradient(135deg,#7c3aed,#a855f7)',
+      tap_boxes: 'linear-gradient(135deg,#0d9488,#2dd4bf)',
+      word_search: 'linear-gradient(135deg,#ca8a04,#fb923c)',
     };
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }

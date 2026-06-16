@@ -16,10 +16,12 @@ import { HttpHeaders } from '@angular/common/http';
 import {TeacherService} from '../../services/teacher.service';
 import { environment } from '../../../environments/environment';
 import { BulkStudentUploadComponent } from './bulk-student-upload.component';
+import { CorrectDetailsComponent } from './correct-details.component';
 import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
-import { Observable } from 'rxjs';
+import { forkJoin, Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { NotificationService } from '../../services/notification.service';
+import * as XLSX from 'xlsx';
 
 const apiUrl = environment.apiUrl;  // Base API URL
 
@@ -109,6 +111,31 @@ interface StudentDataIssueRow {
   severity: 'danger' | 'warning';
 }
 
+interface PlanStatusBreakdownEntry {
+  status: string;
+  count: number;
+}
+
+interface PortalStudentCounts {
+  portalTotal: number;
+  portalActive: number;
+  portalWithdrew: number;
+  portalCrmLinked: number;
+  portalSignupForm: number;
+  portalTestAccounts: number;
+  portalNonTest: number;
+  ongoingNonTest: number;
+  platinumTotal: number;
+  platinumOngoing: number;
+  platinumStatusBreakdown: PlanStatusBreakdownEntry[];
+  silverTotal: number;
+  silverOngoing: number;
+  silverStatusBreakdown: PlanStatusBreakdownEntry[];
+  visaDocsTotal: number;
+  visaDocsOngoing: number;
+  visaDocsStatusBreakdown: PlanStatusBreakdownEntry[];
+}
+
 interface StudentDataIssuesResponse {
   success: boolean;
   students: StudentDataIssueRow[];
@@ -139,6 +166,7 @@ interface StudentDataIssuesResponse {
     NgChartsModule,
     RouterModule,
     BulkStudentUploadComponent,
+    CorrectDetailsComponent,
     TestAccountBadgeComponent
   ],
   templateUrl: './admin-dashboard.component.html',
@@ -155,6 +183,7 @@ export class AdminDashboardComponent implements OnInit {
   isFullAdmin = false;
   /** Tracks which student rows have their password revealed */
   loading = true;
+  exportingAll = false;
   readonly skeletonActionPills = [0, 1, 2];
   readonly skeletonFilterFields = [0, 1, 2, 3, 4, 5];
   readonly skeletonTableRows = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -221,6 +250,9 @@ export class AdminDashboardComponent implements OnInit {
   // Bulk upload
   showBulkUpload = false;
 
+  // Correct Details (Excel reconciliation)
+  showCorrectDetails = false;
+
   toggleFiltersPanel(): void {
     this.filtersPanelOpen = !this.filtersPanelOpen;
   }
@@ -285,9 +317,10 @@ export class AdminDashboardComponent implements OnInit {
         }
         this.isFullAdmin = user.role === 'ADMIN';
         this.initColumnVisibility();
-        this.fetchFilterOptions();
         this.fetchStudents();
-        this.fetchTeachers();
+        this.fetchFilterOptions();
+        // Teachers only power autocomplete — load after the student table request starts.
+        setTimeout(() => this.fetchTeachers(), 0);
       },
       error: () => {
         this.loading = false;
@@ -304,14 +337,22 @@ export class AdminDashboardComponent implements OnInit {
   displayStudentCount(): number {
     return this.hasActiveStudentFilters() ? this.filteredStudentCount : this.totalStudentsCount();
   }
-  
-  fetchStudents(page: number = this.currentPage): void {
-    this.loading = true;
-    this.currentPage = page;
 
+  formatStudentStatus(status: string): string {
+    const labels: Record<string, string> = {
+      UNCERTAIN: 'Uncertain',
+      COMPLETED: 'Completed',
+      WITHDREW: 'Withdrew',
+      DROPPED: 'Dropped',
+      ONGOING: 'Ongoing',
+    };
+    return labels[String(status || '').toUpperCase()] || status;
+  }
+  
+  private buildStudentListParams(page: number, limit: number): HttpParams {
     let params = new HttpParams()
-      .set('page', String(this.currentPage))
-      .set('limit', String(this.pageSize));
+      .set('page', String(page))
+      .set('limit', String(limit));
 
     if (this.filters.level) params = params.set('level', this.filters.level);
     if (this.filters.plan) params = params.set('plan', this.filters.plan);
@@ -324,6 +365,15 @@ export class AdminDashboardComponent implements OnInit {
     if (this.filters.languageLevelOpted) params = params.set('languageLevelOpted', this.filters.languageLevelOpted);
     if (this.filters.phoneCountry) params = params.set('phoneCountry', this.filters.phoneCountry);
     if (this.filters.loginCountry) params = params.set('loginCountry', this.filters.loginCountry);
+
+    return params;
+  }
+
+  fetchStudents(page: number = this.currentPage): void {
+    this.loading = true;
+    this.currentPage = page;
+
+    const params = this.buildStudentListParams(this.currentPage, this.pageSize);
 
     this.http.get<StudentListResponse>(`${apiUrl}/admin/students`, { params, withCredentials: true }).subscribe({
       next: res => {
@@ -359,7 +409,25 @@ export class AdminDashboardComponent implements OnInit {
     });
     }
 
-  portalStudentCounts = { portalTotal: 0, portalActive: 0, portalWithdrew: 0, portalCrmLinked: 0 };
+  portalStudentCounts: PortalStudentCounts = {
+    portalTotal: 0,
+    portalActive: 0,
+    portalWithdrew: 0,
+    portalCrmLinked: 0,
+    portalSignupForm: 0,
+    portalTestAccounts: 0,
+    portalNonTest: 0,
+    ongoingNonTest: 0,
+    platinumTotal: 0,
+    platinumOngoing: 0,
+    platinumStatusBreakdown: [],
+    silverTotal: 0,
+    silverOngoing: 0,
+    silverStatusBreakdown: [],
+    visaDocsTotal: 0,
+    visaDocsOngoing: 0,
+    visaDocsStatusBreakdown: [],
+  };
 
   dataIssuesPanelOpen = false;
   dataIssuesLoading = false;
@@ -389,7 +457,7 @@ export class AdminDashboardComponent implements OnInit {
         languageLevelOpted?: string[];
         phoneCountries?: string[];
         loginCountries?: string[];
-        studentCounts?: { portalTotal: number; portalActive: number; portalWithdrew: number; portalCrmLinked: number };
+        studentCounts?: PortalStudentCounts;
       }>(`${apiUrl}/admin/students/filter-options`, { withCredentials: true })
       .subscribe({
         next: (res) => {
@@ -400,7 +468,15 @@ export class AdminDashboardComponent implements OnInit {
           this.filterOptions.languageLevelOpted = res.languageLevelOpted ?? [];
           this.filterOptions.phoneCountries = res.phoneCountries ?? [];
           this.filterOptions.loginCountries = res.loginCountries ?? [];
-          if (res.studentCounts) this.portalStudentCounts = res.studentCounts;
+          if (res.studentCounts) {
+            this.portalStudentCounts = {
+              ...this.portalStudentCounts,
+              ...res.studentCounts,
+              platinumStatusBreakdown: res.studentCounts.platinumStatusBreakdown ?? [],
+              silverStatusBreakdown: res.studentCounts.silverStatusBreakdown ?? [],
+              visaDocsStatusBreakdown: res.studentCounts.visaDocsStatusBreakdown ?? [],
+            };
+          }
         },
         error: () => {
           /* non-blocking */
@@ -1130,79 +1206,97 @@ export class AdminDashboardComponent implements OnInit {
       return;
     }
 
-    // Get selected students data
-    const selectedStudents = this.students.filter(student => 
+    const selectedStudents = this.students.filter((student) =>
       this.selectedStudentIds.has(student._id)
     );
+    this.downloadStudentsExcel(selectedStudents, 'selected');
+    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to Excel`);
+  }
 
-    // Define CSV headers (all 13 fields from Monday.com CRM + additional fields)
-    const headers = [
-      'RegNo',
-      'Name',
-      'Email',
-      'Level',
-      'Subscription',
-      'Student Status',
-      'Batch',
-      'Medium',
-      'Phone Number',
-      'Address',
-      'Age',
-      'Program Enrolled',
-      'Lead Source',
-      'Assigned Teacher',
-      'Created At',
-      'Last Credentials Sent',
-      'Last Login',
-    ];
+  exportAllStudents(): void {
+    if (this.exportingAll) return;
 
-    // Build CSV rows
-    const rows = selectedStudents.map(student => {
-      const teacherName = typeof student.assignedTeacher === 'object' 
-        ? student.assignedTeacher?.name || 'Unassigned'
-        : student.assignedTeacher || 'Unassigned';
+    const total = this.displayStudentCount();
+    if (total === 0) {
+      this.notify.warning('No students to export');
+      return;
+    }
 
-      return [
-        student.regNo || 'N/A',
-        student.name || 'N/A',
-        student.email || 'N/A',
-        student.level || 'N/A',
-        student.subscription || 'N/A',
-        student.studentStatus || 'N/A',
-        student.batch || 'N/A',
-        student.medium || 'N/A',
-        (student as any).phoneNumber || 'N/A',
-        (student as any).address || 'N/A',
-        (student as any).age || 'N/A',
-        (student as any).servicesOpted || 'N/A',
-        (student as any).leadSource || 'N/A',
-        teacherName,
-        student.registeredAt ? new Date(student.registeredAt).toLocaleDateString() : 'N/A',
-        this.formatDate(student.lastCredentialsEmailSent),
-        this.formatLastLogin(student.lastLogin),
-      ];
+    this.exportingAll = true;
+    const limit = 100;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const requests: Observable<StudentListResponse>[] = [];
+
+    for (let page = 1; page <= pages; page++) {
+      requests.push(
+        this.http.get<StudentListResponse>(`${apiUrl}/admin/students`, {
+          params: this.buildStudentListParams(page, limit),
+          withCredentials: true,
+        })
+      );
+    }
+
+    forkJoin(requests).subscribe({
+      next: (responses) => {
+        const allStudents: Student[] = [];
+        for (const res of responses) {
+          if (res.success && Array.isArray(res.data)) {
+            allStudents.push(...res.data);
+          }
+        }
+        this.downloadStudentsExcel(allStudents, 'all');
+        this.notify.success(`Successfully exported ${allStudents.length} student(s) to Excel`);
+        this.exportingAll = false;
+      },
+      error: () => {
+        this.notify.error('Failed to export students');
+        this.exportingAll = false;
+      },
     });
+  }
 
-    // Create CSV content
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(value => `"${value}"`).join(','))
-    ].join('\n');
+  private readonly studentExportHeaders = [
+    'Name',
+    'Email',
+    'Address',
+    'Current Level',
+    'Service Opted',
+    'Package Opted',
+    'Batch',
+    'Status',
+    'Medium',
+  ] as const;
 
-    // Download CSV file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
+  private studentToExportRow(student: Student): Record<(typeof this.studentExportHeaders)[number], string> {
+    const raw = student as Student & {
+      address?: string;
+      servicesOpted?: string;
+      medium?: string | string[];
+    };
+    const medium = Array.isArray(raw.medium)
+      ? raw.medium.filter(Boolean).join(', ')
+      : String(raw.medium || '');
+
+    return {
+      Name: raw.name || '',
+      Email: raw.email || '',
+      Address: raw.address || '',
+      'Current Level': raw.level || '',
+      'Service Opted': raw.servicesOpted || '',
+      'Package Opted': raw.subscription || '',
+      Batch: raw.batch || '',
+      Status: this.formatStudentStatus(raw.studentStatus) || raw.studentStatus || '',
+      Medium: medium,
+    };
+  }
+
+  private downloadStudentsExcel(students: Student[], scope: 'selected' | 'all'): void {
+    const rows = students.map((student) => this.studentToExportRow(student));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: [...this.studentExportHeaders] });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
     const timestamp = new Date().toISOString().split('T')[0];
-    link.setAttribute('href', url);
-    link.setAttribute('download', `students_export_${timestamp}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    this.notify.success(`Successfully exported ${selectedStudents.length} student(s) to CSV`);
+    XLSX.writeFile(wb, `students_export_${scope}_${timestamp}.xlsx`);
   }
 
   openInviteModal(): void {

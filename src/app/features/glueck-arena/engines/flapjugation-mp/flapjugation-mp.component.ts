@@ -394,7 +394,7 @@ export class FlapjugationMpComponent implements AfterViewInit, OnDestroy, OnChan
   }
 
   private onCorrectHit(card: FormCard) {
-    this.audio.playUrl('/assets/audios/correct-flappy.mp3');
+    this.audio.playCorrect();
     card.hitState = 'hit';
     card.hitCorrect = true;
     card.hitTimer = 30;
@@ -405,6 +405,7 @@ export class FlapjugationMpComponent implements AfterViewInit, OnDestroy, OnChan
     this.pronounProgress = Math.round((this.correctHitsThisPronoun / HITS_PER_PRONOUN) * 100);
     this.xpBurst = 10;
     this.xpTrigger++;
+    this.audio.playXpGain();
 
     this.showFeedback('✓', '#22c55e');
     this.phase = 'feedback';
@@ -448,7 +449,7 @@ export class FlapjugationMpComponent implements AfterViewInit, OnDestroy, OnChan
     card.hitTimer = 25;
     const cx = card.x + (CARD_WIDTH * this.scaleFactor) / 2;
     const cy = card.y + (CARD_HEIGHT * this.scaleFactor) / 2;
-    this.audio.playUrl('/assets/audios/incorrect-flappy.mp3');
+    this.audio.playWrong();
     this.spawnParticles(cx, cy, '#ef4444', 30);
     this.spawnFragments(cx, cy);
     this.boomRingX = cx;

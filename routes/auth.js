@@ -52,7 +52,8 @@ const {
   forgotPasswordResetLimiter,
   loginLimiter,
   setupEmailOtpLimiter,
-  setupCompleteLimiter,
+  setupVerifyOtpLimiter,
+  setupSetPasswordLimiter,
 } = require('../middleware/authRateLimit');
 
 function signPasswordSetupToken(userId) {
@@ -136,15 +137,31 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "class-recordings",
   "ai-bot-report",
   "documents",
+  "google-sheet-sync",
   "visa-tracking",
   "student-progress",
   "admin-performance",
-  "payments",
-  "invoices",
-  "payment-approvals",
+  "language-tracking",
+  "portal-analytics",
+  "glueck-arena-analytics",
+  "glueck-arena-command",
+  "glueck-arena-teacher",
+  "bf-team-battles",
+  "finance-dashboard",
+  "enrollment-overview",
+  "enrollment-overdue",
+  "krish-dashboard",
+  "payment-hub",
+  "payment-request",
+  "test-accounts",
+  // "payments",
+  // "invoices",
+  // "payment-approvals",
   "timetable",
   "monday-sync",
   "support-tickets",
+  "job-openings",
+  "olly-chat",
   "announcements",
   "reminders",
   "glueck-arena",
@@ -1655,8 +1672,12 @@ router.post("/setup/send-otp", setupEmailOtpLimiter, async (req, res) => {
     await EmailChangeOtp.create({ userId: user._id, pendingNewEmail: user.email, otpHash, expiresAt });
 
     const { subject, html } = buildPasswordResetOtpEmail({ name: user.name, otp, expiresMinutes: 15 });
-    await transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject, html });
-    console.log('[setup/send-otp] OTP sent to user email:', user.email);
+
+    try {
+      await transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject, html });
+    } catch (mailErr) {
+      console.error('[setup/send-otp] Email send failed:', mailErr.message);
+    }
 
     return res.json({ msg: `A verification code was sent to ${user.email}.`, email: user.email });
   } catch (err) {
@@ -1668,19 +1689,13 @@ router.post("/setup/send-otp", setupEmailOtpLimiter, async (req, res) => {
   }
 });
 
-// ✅ First-login setup — Flow B Step 2: verify OTP + set password → log in
-router.post("/setup/complete", setupCompleteLimiter, async (req, res) => {
+// ✅ First-login setup — Flow B Step 2a: verify OTP only → returns verificationCode
+router.post("/setup/verify-otp", setupVerifyOtpLimiter, async (req, res) => {
   try {
-    const { setupToken, otp, newPassword, confirmPassword, keepSessionActive } = req.body;
+    const { setupToken, otp } = req.body;
 
-    if (!setupToken || !otp || !newPassword || !confirmPassword) {
-      return res.status(400).json({ msg: 'All fields are required.' });
-    }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
-    }
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({ msg: 'Passwords do not match.' });
+    if (!setupToken || !otp) {
+      return res.status(400).json({ msg: 'Setup token and verification code are required.' });
     }
 
     const decoded = verifyPasswordSetupToken(setupToken);
@@ -1709,6 +1724,54 @@ router.post("/setup/complete", setupCompleteLimiter, async (req, res) => {
       return res.status(400).json({ msg: 'Incorrect verification code. Please try again.' });
     }
 
+    const verificationCode = crypto.randomBytes(32).toString('hex');
+    otpDoc.verified = true;
+    otpDoc.verificationCode = verificationCode;
+    await otpDoc.save();
+
+    console.log('[setup/verify-otp] OTP verified for user:', user.email);
+    return res.json({ verificationCode });
+  } catch (err) {
+    console.error('[setup/verify-otp]', err);
+    if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
+    }
+    return res.status(500).json({ msg: 'Could not verify code. Please try again.' });
+  }
+});
+
+// ✅ First-login setup — Flow B Step 2b: set password after OTP verification
+router.post("/setup/set-password", setupSetPasswordLimiter, async (req, res) => {
+  try {
+    const { setupToken, verificationCode, newPassword, confirmPassword, keepSessionActive } = req.body;
+
+    if (!setupToken || !verificationCode || !newPassword || !confirmPassword) {
+      return res.status(400).json({ msg: 'All fields are required.' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ msg: 'Passwords do not match.' });
+    }
+
+    const decoded = verifyPasswordSetupToken(setupToken);
+    const user = await User.findById(decoded.id);
+    if (!user || user.role !== 'STUDENT') {
+      return res.status(400).json({ msg: 'Invalid setup session.' });
+    }
+    if (!studentRequiresPasswordSetup(user)) {
+      return res.status(400).json({ msg: 'Password setup is not required for this account.' });
+    }
+
+    const otpDoc = await EmailChangeOtp.findOne({ userId: user._id, used: false, verified: true });
+    if (!otpDoc) {
+      return res.status(400).json({ msg: 'Please verify your code first.' });
+    }
+    if (otpDoc.verificationCode !== verificationCode) {
+      return res.status(400).json({ msg: 'Invalid verification session. Please verify your code again.' });
+    }
+
     otpDoc.used = true;
     await otpDoc.save();
 
@@ -1719,15 +1782,15 @@ router.post("/setup/complete", setupCompleteLimiter, async (req, res) => {
 
     const credsMail = buildPortalCredentialsEmail({ name: user.name, regNo: user.regNo, email: user.email, password: newPassword });
     transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject: credsMail.subject, html: credsMail.html })
-      .catch((e) => console.error('[setup/complete] email failed:', e?.message));
+      .catch((e) => console.error('[setup/set-password] email failed:', e?.message));
 
     return issueLoginResponse(user, keepSessionActive, res);
   } catch (err) {
-    console.error('[setup/complete]', err);
+    console.error('[setup/set-password]', err);
     if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
       return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
     }
-    return res.status(500).json({ msg: 'Could not complete setup. Please try again.' });
+    return res.status(500).json({ msg: 'Could not set password. Please try again.' });
   }
 });
 
@@ -1762,7 +1825,6 @@ router.post("/forgot-password/request", forgotPasswordRequestLimiter, async (req
 
     try {
       await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject, html });
-      console.log('[forgot-password/request] OTP sent to user email:', email);
     } catch (mailErr) {
       console.error('[forgot-password] Email send failed:', mailErr.message);
       // Still return generic 200; OTP is in DB but mail failed — user can retry
@@ -2790,6 +2852,8 @@ async function initiateStudentForcePasswordReset(user) {
   user.authTokenVersion = (user.authTokenVersion || 0) + 1;
   user.mustChangePassword = true;
   await user.save();
+  const { invalidateSessionVersionCache } = require('../middleware/auth');
+  invalidateSessionVersionCache(user._id);
 
   await EmailChangeOtp.deleteMany({ userId: user._id });
 

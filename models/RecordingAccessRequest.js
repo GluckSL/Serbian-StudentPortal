@@ -1,7 +1,8 @@
 // models/RecordingAccessRequest.js
 // Tracks per-student requests for access to recordings of specific past classes.
-// Platinum students get 5 approved requests per CEFR level (A1/A2/...).
-// Only APPROVED requests count toward the quota; DECLINED/PENDING do not.
+// Platinum students get 5 recording requests per CEFR level (A1/A2/...).
+// APPROVED and DECLINED count toward the limit; PENDING does not until reviewed.
+// Students may cancel a PENDING request before admin acts (frees a slot).
 
 const mongoose = require('mongoose');
 

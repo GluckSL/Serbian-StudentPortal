@@ -44,10 +44,8 @@ async function updateStudentStats(studentId, attempt, set) {
 
     const gameTypeKey = attempt.gameType;
     const byTypeInc = {};
-    if (['scramble_rush', 'sentence_builder'].includes(gameTypeKey)) {
-      byTypeInc[`byGameType.${gameTypeKey}.gamesCompleted`] = 1;
-      byTypeInc[`byGameType.${gameTypeKey}.totalXp`] = attempt.xpEarned || 0;
-    }
+    byTypeInc[`byGameType.${gameTypeKey}.gamesCompleted`] = 1;
+    byTypeInc[`byGameType.${gameTypeKey}.totalXp`] = attempt.xpEarned || 0;
 
     const incPayload = {
       totalXp: attempt.xpEarned || 0,
@@ -64,9 +62,7 @@ async function updateStudentStats(studentId, attempt, set) {
     if (streakReset) setPayload.currentStreak = 1;
 
     const maxPayload = { bestScore: attempt.score || 0 };
-    if (['scramble_rush', 'sentence_builder'].includes(gameTypeKey)) {
-      maxPayload[`byGameType.${gameTypeKey}.bestScore`] = attempt.score || 0;
-    }
+    maxPayload[`byGameType.${gameTypeKey}.bestScore`] = attempt.score || 0;
 
     // Use findOneAndUpdate with upsert
     const updated = await StudentGameStats.findOneAndUpdate(

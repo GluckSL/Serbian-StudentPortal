@@ -22,8 +22,8 @@ const classRecordingSchema = new mongoose.Schema({
     default: null,
     required: false,
     validate: {
-      validator(v) { return v == null || (Number.isFinite(v) && v >= 1 && v <= 200); },
-      message: 'courseDay must be between 1 and 200 or unset'
+      validator(v) { return v == null || (Number.isFinite(v) && v >= 0 && v <= 200); },
+      message: 'courseDay must be between 0 and 200 or unset'
     }
   },
   /** Recording duration in seconds (optional; set when known). */
@@ -36,5 +36,6 @@ const classRecordingSchema = new mongoose.Schema({
 
 classRecordingSchema.index({ active: 1, level: 1, batches: 1 });
 classRecordingSchema.index({ courseDay: 1, active: 1, isPublished: 1 });
+classRecordingSchema.index({ active: 1, isPublished: 1, level: 1, plan: 1, batches: 1, createdAt: -1 });
 
 module.exports = mongoose.model('ClassRecording', classRecordingSchema);

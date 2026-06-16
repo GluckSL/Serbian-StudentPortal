@@ -44,7 +44,11 @@ const UserSchema = new mongoose.Schema({
     of: { type: String, enum: ["view", "edit", "full"] },
     default: {}
   },
-  subscription: { type: String, enum: ["SILVER", "PLATINUM", "VISA_DOC_ONLY"], required: function() { return this.role === "STUDENT"; } },
+  subscription: {
+    type: String,
+    enum: ["SILVER", "PLATINUM", "DOCS_RECOGNITION", "VISA_DOC", "POST_LANDING", "VISA_DOC_ONLY"],
+    required: function() { return this.role === "STUDENT"; },
+  },
   level: { type: String, enum: ["A1", "A2", "B1", "B2", "C1", "C2"], required: function() { return this.role === "STUDENT"; }},
   batch: {
     type: String,
@@ -110,7 +114,7 @@ const UserSchema = new mongoose.Schema({
   isTestAccount: { type: Boolean, default: false, index: true },
 
   /** 200-day journey: current unlocked working day (1–200). Admins can set via bulk-update. */
-  currentCourseDay: { type: Number, default: 1, min: 1, max: 200, required: false },
+  currentCourseDay: { type: Number, default: 1, min: 0, max: 200, required: false },
 
   /**
    * CEFR levels whose journey content this student cannot access (e.g. ['A1'] blocks days 1–42).
@@ -126,7 +130,7 @@ const UserSchema = new mongoose.Schema({
    * Cleared after midnight rollover when currentCourseDay increments, or when admin changes day.
    */
   pendingJourneyDayAdvance: { type: Boolean, default: false },
-  pendingJourneyDayAdvanceForDay: { type: Number, default: null, min: 1, max: 200, required: false },
+  pendingJourneyDayAdvanceForDay: { type: Number, default: null, min: 0, max: 200, required: false },
 
   // ✅ move these inside schema
   courseProgress: [{
@@ -161,6 +165,7 @@ UserSchema.index(
 );
 UserSchema.index({ role: 1, createdAt: -1 });
 UserSchema.index({ role: 1, assignedTeacher: 1 });
+UserSchema.index({ role: 1, isTestAccount: 1 });
 
 UserSchema.pre('save', function setPhoneCountry(next) {
   if (this.role === 'STUDENT') {

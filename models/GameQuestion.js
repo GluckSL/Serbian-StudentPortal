@@ -13,7 +13,7 @@ const GameQuestionSchema = new mongoose.Schema({
 
   gameType: {
     type: String,
-    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort'],
+    enum: ['scramble_rush', 'sentence_builder', 'matching', 'flashcards', 'image_matching', 'gender_stack', 'flapjugation', 'whackawort', 'memory', 'jumbled_words', 'hangman', 'word_picture_match', 'multiple_choice', 'spin_wheel', 'tap_boxes', 'word_search'],
     required: true,
   },
 
@@ -53,6 +53,19 @@ const GameQuestionSchema = new mongoose.Schema({
   randomizeWords: { type: Boolean, default: true },
   // precomputed tokens derived from correctSentence (stored for efficiency)
   tokens: [{ type: String }],
+
+  /** Word search: hidden words placed in generated grid */
+  searchWords: [{ type: String }],
+  /** Word search: optional grid size (rows × columns). Omitted = auto-sized. */
+  gridRows: { type: Number, min: 4, max: 20, default: null },
+  gridCols: { type: Number, min: 4, max: 20, default: null },
+
+  // ── Multiple Choice fields ──────────────────────────────────────────────────
+  questionText: { type: String, default: '' },
+  options: [{
+    text: { type: String, default: '' },
+    isCorrect: { type: Boolean, default: false },
+  }],
 
   // ── Whack-a-Wort fields ─────────────────────────────────────────────────────
   category: { type: String, default: '' },

@@ -6,6 +6,7 @@ import {
   StudentJourneyDetailModalComponent,
   StudentJourneyPreview
 } from '../student-journey-detail-modal/student-journey-detail-modal.component';
+import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 import { NotificationService } from '../../../services/notification.service';
 
 interface LearningDayRow {
@@ -28,7 +29,7 @@ interface LevelSegment {
 @Component({
   selector: 'app-admin-student-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, StudentJourneyDetailModalComponent],
+  imports: [CommonModule, RouterLink, StudentJourneyDetailModalComponent, TestAccountBadgeComponent],
   templateUrl: './admin-student-detail.component.html',
   styleUrls: ['./admin-student-detail.component.css']
 })
@@ -57,12 +58,9 @@ export class AdminStudentDetailComponent implements OnInit {
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
       this.studentId = params.get('studentId') || '';
-      this.loadQueryPreview();
-      if (this.activeTab === 'learning') {
-        this.loadLearning();
-      }
+      this.studentName = this.route.snapshot.queryParamMap.get('name') || this.studentName || '';
+      this.loadLearning();
     });
-    this.route.queryParamMap.subscribe(() => this.loadQueryPreview());
   }
 
   get avatarInitial(): string {
@@ -83,19 +81,6 @@ export class AdminStudentDetailComponent implements OnInit {
       (s, d) => s + d.modules + d.exercises + d.dgModules + d.recordings,
       0
     );
-  }
-
-  private loadQueryPreview(): void {
-    const q = this.route.snapshot.queryParamMap;
-    this.studentName = q.get('name') || this.studentName || '';
-    this.preview = {
-      email: q.get('email') || undefined,
-      subscription: q.get('subscription') || undefined,
-      medium: q.get('medium') || undefined,
-      level: q.get('level') || undefined,
-      regNo: q.get('regNo') || undefined,
-      batch: q.get('batch') || undefined
-    };
   }
 
   setTab(tab: 'overview' | 'learning'): void {
@@ -131,7 +116,16 @@ export class AdminStudentDetailComponent implements OnInit {
               medium: res.profile.medium,
               level: res.profile.level,
               regNo: res.profile.regNo,
-              batch: res.profile.batch
+              batch: res.profile.batch,
+              studentStatus: res.profile.studentStatus,
+              servicesOpted: res.profile.servicesOpted,
+              enrollmentDate: res.profile.enrollmentDate,
+              isTestAccount: res.profile.isTestAccount,
+              teacher: res.profile.teacher,
+              currentCourseDay: res.profile.currentCourseDay,
+              displayPassword: res.profile.displayPassword,
+              visaRoute: res.profile.visaRoute,
+              levelPath: res.profile.levelPath
             };
           }
           this.learningLoading = false;
@@ -139,8 +133,32 @@ export class AdminStudentDetailComponent implements OnInit {
         error: () => {
           this.learningLoading = false;
           this.learningError = 'Could not load learning journey.';
+          this.loadProfileFallback();
         }
       });
+  }
+
+  private loadProfileFallback(): void {
+    if (!this.studentId) return;
+    this.http.get(`/api/student-progress/admin/journey/${this.studentId}`).subscribe({
+      next: (res: any) => {
+        const p = res?.profile;
+        if (p) {
+          this.preview = {
+            ...this.preview,
+            studentStatus: p.studentStatus,
+            servicesOpted: p.servicesOpted,
+            enrollmentDate: p.enrollmentDate,
+            isTestAccount: p.isTestAccount,
+            teacher: p.teacher,
+            currentCourseDay: p.currentCourseDay,
+            visaRoute: res.visa?.route || null,
+            levelPath: (res.levelProgression || []).map((l: any) => l.level).join(' → ') || null
+          };
+          if (p.name) this.studentName = p.name;
+        }
+      }
+    });
   }
 
   isLevelBlocked(level: string): boolean {
@@ -200,4 +218,10 @@ export class AdminStudentDetailComponent implements OnInit {
     this.levelFilter = level;
     this.selectedDay = null;
   }
+
+  formatDate(d: string | Date): string {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
 }

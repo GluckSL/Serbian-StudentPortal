@@ -38,8 +38,8 @@
 
 .ann-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.9fr) minmax(210px, 260px);
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 16px;
   align-items: start;
   background:
     radial-gradient(1000px 260px at 0% 0%, rgba(79, 70, 229, 0.06), transparent 65%),
@@ -131,6 +131,68 @@
   font: inherit;
   color: #0f172a;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.ann-editor {
+  display: block;
+}
+
+/* Quill editor container styling to match existing inputs. */
+.ann-editor ::ng-deep .ql-toolbar.ql-snow {
+  border: 1px solid #d7dbeb;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: #f9faff;
+}
+
+.ann-editor ::ng-deep .ql-container.ql-snow {
+  border: 1px solid #d7dbeb;
+  border-radius: 0 0 10px 10px;
+  background: #ffffff;
+  height: 320px;
+  max-height: 420px;
+}
+
+.ann-title-editor ::ng-deep .ql-container.ql-snow {
+  min-height: 74px;
+}
+
+.ann-editor ::ng-deep .ql-editor {
+  font-family: inherit;
+  font-size: 14px;
+  color: #0f172a;
+  min-height: 280px;
+}
+
+.ann-richtext {
+  white-space: normal;
+}
+
+.ann-richtext ::ng-deep p {
+  margin: 0 0 8px;
+}
+
+.ann-richtext ::ng-deep p:last-child {
+  margin-bottom: 0;
+}
+
+.ann-richtext ::ng-deep ul,
+.ann-richtext ::ng-deep ol {
+  margin: 6px 0 10px 18px;
+  padding: 0;
+}
+
+.ann-richtext ::ng-deep a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  word-break: break-word;
+}
+
+.ann-richtext ::ng-deep blockquote {
+  margin: 10px 0;
+  padding-left: 12px;
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
 }
 
 .ann-field input[type='text']:focus,
@@ -704,6 +766,16 @@
 }
 
 @media (max-width: 1400px) {
+  .ann-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ann-block--side {
+    position: static;
+  }
+}
+
+@media (max-width: 1100px) {
   .ann-layout {
     grid-template-columns: 1fr;
   }

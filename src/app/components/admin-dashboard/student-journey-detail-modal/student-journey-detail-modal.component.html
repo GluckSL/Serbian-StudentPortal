@@ -6,7 +6,22 @@
   <div class="jm" (click)="$event.stopPropagation()">
     <div class="jm-head">
       <h3>Student details — {{ displayName }}</h3>
-      <button type="button" class="jm-close" (click)="close()" aria-label="Close">✕</button>
+      <div class="jm-head__actions">
+        <span class="jm-refresh" *ngIf="loadedAt && !loading">{{ formatRelativeTime() }}</span>
+        <button type="button" class="jm-action-btn jm-action-btn--reload" (click)="refresh()" [disabled]="reloading" title="Refresh data">
+          <i class="fas fa-sync" [class.fa-spin]="reloading"></i>
+        </button>
+        <a class="jm-action-btn" *ngIf="studentId" [href]="studentDashboardUrl()" target="_blank" rel="noopener" title="Open student dashboard">
+          <i class="fas fa-external-link-alt"></i>
+        </a>
+        <a class="jm-action-btn" *ngIf="preview?.email" [href]="mailTo()" title="Email student">
+          <i class="fas fa-envelope"></i>
+        </a>
+        <a class="jm-action-btn" *ngIf="studentId" [href]="paymentHubUrl()" target="_blank" rel="noopener" title="Open payment hub">
+          <i class="fas fa-credit-card"></i>
+        </a>
+        <button type="button" class="jm-close" (click)="close()" aria-label="Close">✕</button>
+      </div>
     </div>
     <ng-container *ngTemplateOutlet="journeyBody"></ng-container>
   </div>
@@ -15,183 +30,387 @@
 <ng-template #journeyBody>
 
     <div class="jm-body" [class.jm-body--embedded]="embedded" *ngIf="!loading && journeyData && !loadError">
-      <div class="sp-row sp-row--top">
-        <div class="sp-card sp-card--profile">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Student profile</span>
-            <span
-              class="sp-badge"
-              [class.sp-badge--green]="jProfile.studentStatus === 'ONGOING'"
-              [class.sp-badge--gray]="jProfile.studentStatus !== 'ONGOING'"
-            >{{ jProfile.studentStatus === 'ONGOING' ? 'Active' : (jProfile.studentStatus || '—') }}</span>
-          </div>
-          <table class="sp-table"><tbody>
-            <tr>
-              <td class="sp-table__label">Student ID</td>
-              <td>{{ jProfile.regNo || preview?.regNo || '—' }}</td>
-              <td class="sp-table__label">Name</td>
-              <td>
-                {{ jProfile.name || studentName }}
-                <app-test-account-badge [show]="!!jProfile.isTestAccount"></app-test-account-badge>
-              </td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Email</td>
-              <td colspan="3">{{ preview?.email || '—' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Batch</td>
-              <td>{{ jProfile.batch || preview?.batch || '—' }}</td>
-              <td class="sp-table__label">Medium</td>
-              <td>{{ preview?.medium || '—' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Plan</td>
-              <td>{{ preview?.subscription || '—' }}</td>
-              <td class="sp-table__label">Journey day</td>
-              <td><span class="sp-day-pill">Day {{ jProfile.currentCourseDay || 1 }}</span></td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Teacher</td>
-              <td>{{ jProfile.teacher || '—' }}</td>
-              <td class="sp-table__label">Current level</td>
-              <td>{{ jProfile.currentLevel || preview?.level || '—' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Service</td>
-              <td>{{ jProfile.servicesOpted || '—' }}</td>
-              <td class="sp-table__label">Visa route</td>
-              <td>{{ jVisa.route || 'Not set' }}</td>
-            </tr>
-            <tr>
-              <td class="sp-table__label">Level path</td>
-              <td>{{ jLevelPath || '—' }}</td>
-              <td class="sp-table__label">Enrolled</td>
-              <td>{{ formatDate(jProfile.enrollmentDate) }}</td>
-            </tr>
-          </tbody></table>
-        </div>
-        <div class="sp-card sp-card--status">
-          <div class="sp-card__head"><span class="sp-card__title">Performance snapshot</span></div>
-          <div class="sp-status-grid">
-            <div class="sp-stat sp-stat--blue">
-              <div class="sp-stat__val">{{ jAttendanceRate }}%</div>
-              <div class="sp-stat__lbl">Attendance</div>
-            </div>
-            <div class="sp-stat sp-stat--green">
-              <div class="sp-stat__val">{{ jDocsSubmitted }}/{{ jDocuments.length }}</div>
-              <div class="sp-stat__lbl">Docs verified</div>
-            </div>
-            <div class="sp-stat sp-stat--orange">
-              <div class="sp-stat__val">{{ jBotUsage.weekMinutes }}m</div>
-              <div class="sp-stat__lbl">AI bot / week</div>
-            </div>
-            <div class="sp-stat sp-stat--purple">
-              <div class="sp-stat__val">{{ jOverallPct }}%</div>
-              <div class="sp-stat__lbl">Overall journey</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="sp-row sp-row--mid">
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Language progress</span>
-            <span class="sp-card__meta">{{ jCurrentLevelLabel }}</span>
+      <!-- ═══ 6-CARD KPI GRID ═══ -->
+      <div class="kpi-grid kpi-grid--6">
+
+        <!-- Card 1: Attendance (non-GO) / Recordings (GO) -->
+        <div class="kpi-card" [class.kpi-card--attendance]="!isGo" [class.kpi-card--recordings]="isGo">
+          <div class="kpi-card__body">
+            <span class="kpi-card__lbl">{{ !isGo ? 'Attendance' : 'Recordings' }}</span>
+            <span class="kpi-card__val">{{ !isGo ? jAttendanceRate + '%' : jRecordingPct + '%' }}</span>
+            <span class="kpi-card__sub" *ngIf="!isGo">{{ jAttendance.attended }}/{{ jAttendance.total }} sessions</span>
+            <span class="kpi-card__sub" *ngIf="isGo">{{ jRecordingProgress.watched }}/{{ jRecordingProgress.total }} watched</span>
           </div>
-          <div class="sp-levels">
-            <div
-              *ngFor="let lv of jLevelProgression"
-              class="sp-level"
-              [class.sp-level--done]="lv.status === 'completed'"
-              [class.sp-level--active]="lv.status === 'in-progress'"
-            >{{ lv.level }}</div>
+          <i class="fas" [class.fa-calendar-check]="!isGo" [class.fa-video]="isGo"></i>
+        </div>
+
+        <!-- Card 2: Exercise -->
+        <div class="kpi-card kpi-card--exercise">
+          <div class="kpi-card__body">
+            <span class="kpi-card__lbl">Exercises</span>
+            <span class="kpi-card__val">{{ jExerciseProgress.completed }}/{{ jExerciseProgress.total }}</span>
+            <span class="kpi-card__sub">{{ jExerciseProgress.pending }} pending</span>
           </div>
-          <div class="sp-lesson-rows">
-            <div class="sp-lesson-row" *ngFor="let lv of jLevelProgression">
-              <ng-container *ngIf="jLessonsByLevel[lv.level]">
-                <span class="sp-lesson-row__lbl">{{ lv.level }}</span>
-                <div class="sp-bar">
-                  <div
-                    class="sp-bar__fill sp-bar__fill--blue"
-                    [style.width.%]="jLessonsByLevel[lv.level].total ? (jLessonsByLevel[lv.level].completed / jLessonsByLevel[lv.level].total * 100) : 0"
-                  ></div>
-                </div>
-                <span class="sp-lesson-row__ct">{{ jLessonsByLevel[lv.level].completed }}/{{ jLessonsByLevel[lv.level].total }}</span>
+          <i class="fas fa-pen"></i>
+        </div>
+
+        <!-- Card 3: DG Modules -->
+        <div class="kpi-card kpi-card--dg">
+          <div class="kpi-card__body">
+            <span class="kpi-card__lbl">DG Modules</span>
+            <span class="kpi-card__val">{{ jDgModuleProgress.completed }}/{{ jDgModuleProgress.total }}</span>
+            <span class="kpi-card__sub">{{ jDgModuleProgress.pending }} pending</span>
+          </div>
+          <i class="fas fa-robot"></i>
+        </div>
+
+        <!-- Card 4: Payments -->
+        <div class="kpi-card kpi-card--payments">
+          <div class="kpi-card__body">
+            <div class="kpi-card__lbl-row">
+              <span class="kpi-card__lbl">Payments</span>
+              <span class="kpi-pay-badge kpi-pay-badge--overdue" *ngIf="jPayments.overdueAmountLKR > 0">
+                {{ jPayments.overdueAmountLKR | number:'1.0-0' }} overdue
+              </span>
+            </div>
+            <span class="kpi-card__val">{{ jPayments.paidAmount | number:'1.0-0' }} LKR</span>
+            <span class="kpi-card__sub">of {{ jPayments.totalAmount | number:'1.0-0' }} LKR · {{ jPayPct }}% settled</span>
+            <div class="kpi-pay-badges">
+              <ng-container *ngFor="let slot of jPaymentSlotKeys">
+                <span class="kpi-pay-badge"
+                  *ngIf="jPaymentSlotStatus(slot) !== 'none'"
+                  [class.kpi-pay-badge--paid]="jPaymentSlotStatus(slot) === 'paid'"
+                  [class.kpi-pay-badge--partial]="jPaymentSlotStatus(slot) === 'partial'"
+                  [class.kpi-pay-badge--pending]="jPaymentSlotStatus(slot) === 'pending'"
+                >{{ slot }}</span>
               </ng-container>
             </div>
           </div>
-          <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
+          <i class="fas fa-credit-card"></i>
         </div>
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Payments</span>
-            <span class="sp-card__meta">{{ jPayments.currency }}</span>
+
+        <!-- Card 5: Documents -->
+        <div class="kpi-card kpi-card--docs">
+          <div class="kpi-card__body">
+            <span class="kpi-card__lbl">Documents</span>
+            <span class="kpi-card__val">{{ jDocsSubmitted }}/{{ jDocuments.length }}</span>
+            <span class="kpi-card__sub">verified</span>
           </div>
-          <div class="sp-kv-row"><span>Total amount</span><span class="sp-kv-val">{{ jPayments.totalAmount | number:'1.0-0' }}</span></div>
-          <div class="sp-kv-row"><span>Paid amount</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ jPayments.paidAmount | number:'1.0-0' }}</span></div>
-          <div class="sp-kv-row">
-            <span>Balance</span>
-            <span class="sp-kv-val" [style.color]="jPayments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ jPayments.pendingAmount | number:'1.0-0' }}</span>
+          <i class="fas fa-file-alt"></i>
+        </div>
+
+        <!-- Card 6: Overall journey -->
+        <div class="kpi-card kpi-card--overall">
+          <div class="kpi-card__body">
+            <span class="kpi-card__lbl">Overall journey</span>
+            <span class="kpi-card__val">{{ jOverallJourneyPct }}%</span>
+            <span class="kpi-card__sub">{{ jOverallJourneyDay }}/200 days</span>
           </div>
-          <div class="sp-bar sp-bar--lg" style="margin-top:10px;">
-            <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jPayPct"></div>
+          <i class="fas fa-chart-line"></i>
+        </div>
+
+      </div>
+
+      <!-- ═══ Detail API error banner ═══ -->
+      <div class="ld-error" *ngIf="detailError">
+        <i class="fas fa-exclamation-triangle"></i> {{ detailError }}
+        <button type="button" class="ld-error__retry" (click)="loadDetailData()">Retry</button>
+      </div>
+
+      <!-- ═══ LANGUAGE LEARNING DETAIL GRID ═══ -->
+      <div class="sp-card">
+        <div class="ld-tabular">
+          <!-- ═══ Section: Live Classes ═══ -->
+          <div class="ld-section" *ngIf="isPlatinum">
+            <h4 class="ld-section__title">
+              <i class="fas fa-chalkboard-teacher"></i> Live Classes
+            </h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Attendance</span>
+                <strong class="ld-strip__val">{{ jAttendanceRate }}%</strong>
+                ({{ jAttendance.attended }}/{{ jAttendance.total }})
+              </span>
+              <span class="ld-strip__item" *ngIf="jAttendance.lastSessionDate">
+                <span class="ld-strip__lbl">Last session</span>
+                <strong class="ld-strip__val">{{ formatDate(jAttendance.lastSessionDate) }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!liveClassFilter" (click)="setLiveClassFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="liveClassFilter === 'Attended'" (click)="setLiveClassFilter('Attended')">Attended</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="liveClassFilter === 'Missed'" (click)="setLiveClassFilter('Missed')">Missed</button>
+              </span>
+            </div>
+            <div class="ld-table-wrap" *ngIf="liveClasses.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Topic</th>
+                      <th>Day</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let c of filteredLiveClasses">
+                      <td class="ld-cell--title" [title]="c.topic">{{ c.topic }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ c.courseDay }}</span></td>
+                    <td>
+                      <span class="ld-badge" [class.ld-badge--ok]="c.attended" [class.ld-badge--no]="!c.attended && !isUpcomingLiveClass(c)" [class.ld-badge--scheduled]="!c.attended && isUpcomingLiveClass(c)">
+                        {{ c.attended ? 'Attended' : isUpcomingLiveClass(c) ? 'Scheduled' : 'Missed' }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ld-empty" *ngIf="liveClasses.length === 0">No live classes found.</div>
           </div>
-          <div class="sp-small-text" style="margin-top:4px;">{{ jPayPct }}% paid</div>
-          <table class="sp-pay-table" *ngIf="jPayments.paymentHistory.length">
-            <thead>
-              <tr><th>Date</th><th>Amount</th><th>Method</th><th>Note</th></tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let p of $any(jPayments.paymentHistory | slice:0:8)">
-                <td>{{ formatDate(p.date) }}</td>
-                <td>{{ p.amount | number:'1.0-0' }}</td>
-                <td>{{ p.method || '—' }}</td>
-                <td>{{ p.note || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <table class="sp-pay-table" *ngIf="!jPayments.paymentHistory.length && jPayments.invoices.length">
-            <thead>
-              <tr><th>Invoice</th><th>Total</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let inv of $any(jPayments.invoices | slice:0:6)">
-                <td>{{ inv.invoiceNumber || '—' }}</td>
-                <td>{{ inv.totalPayable | number:'1.0-0' }}</td>
-                <td>{{ inv.paymentStatus || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="sp-empty" *ngIf="!jPayments.paymentHistory.length && !jPayments.invoices.length">No payment records yet</div>
+
+          <!-- ═══ Section: Recordings ═══ -->
+          <div class="ld-section" *ngIf="isSilver">
+            <h4 class="ld-section__title">
+              <i class="fas fa-video"></i> Class Recordings
+            </h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Watched</span>
+                <strong class="ld-strip__val">{{ jRecordingPct }}%</strong>
+                ({{ jRecordingProgress.watched }}/{{ jRecordingProgress.total }})
+              </span>
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Remaining</span>
+                <strong class="ld-strip__val">{{ jRecordingProgress.remaining }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!recordingFilter" (click)="setRecordingFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="recordingFilter === 'Watched'" (click)="setRecordingFilter('Watched')">Watched</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--partial]="recordingFilter === 'Partial'" (click)="setRecordingFilter('Partial')">Partial</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="recordingFilter === 'Unwatched'" (click)="setRecordingFilter('Unwatched')">Unwatched</button>
+              </span>
+            </div>
+            <div class="ld-table-wrap" *ngIf="recordings.length > 0 || zoomRecordings.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Day</th>
+                      <th>Watched</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of filteredRecordings">
+                      <td class="ld-cell--title" [title]="r.title || r.topic">{{ r.title || r.topic }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ r.courseDay }}</span></td>
+                      <td>{{ r.watchDuration ? (r.watchDuration / 60 | number:'1.0-0') + ' min' : '—' }}</td>
+                      <td>
+                        <span class="ld-badge" [class.ld-badge--ok]="r.watched" [class.ld-badge--partial]="!r.watched && r.watchDuration > 0" [class.ld-badge--no]="!r.watched && !r.watchDuration">
+                          {{ r.watched ? 'Watched' : r.watchDuration > 0 ? 'Partial' : 'Unwatched' }}
+                        </span>
+                      </td>
+                    </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ld-empty" *ngIf="recordings.length === 0 && zoomRecordings.length === 0">No recordings found.</div>
+          </div>
+
+          <!-- ═══ Section: Exercises ═══ -->
+          <div class="ld-section">
+            <h4 class="ld-section__title"><i class="fas fa-pen"></i> Exercises</h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Completed</span>
+                <strong class="ld-strip__val">{{ jExerciseProgress.completed }}/{{ jExerciseProgress.total }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!exerciseFilter" (click)="setExerciseFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="exerciseFilter === 'Done'" (click)="setExerciseFilter('Done')">Done</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="exerciseFilter === 'Pending'" (click)="setExerciseFilter('Pending')">Pending</button>
+              </span>
+            </div>
+            <div class="ld-table-wrap" *ngIf="exercises.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Day</th>
+                      <th>Score</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let e of filteredExercises">
+                      <td class="ld-cell--title" [title]="e.title">{{ e.title }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ e.courseDay }}</span></td>
+                      <td>
+                        <span *ngIf="e.attempted" class="ld-score" [class.ld-score--good]="e.scorePercent >= 70" [class.ld-score--mid]="e.scorePercent >= 40 && e.scorePercent < 70" [class.ld-score--low]="e.scorePercent < 40">
+                          {{ e.scorePercent }}%
+                        </span>
+                        <span *ngIf="!e.attempted">—</span>
+                      </td>
+                      <td>
+                        <span class="ld-badge" [class.ld-badge--ok]="e.attempted" [class.ld-badge--no]="!e.attempted">
+                          {{ e.attempted ? 'Done' : 'Pending' }}
+                        </span>
+                      </td>
+                    </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ld-empty" *ngIf="exercises.length === 0">No exercises found.</div>
+          </div>
+
+          <!-- ═══ Section: DG Bot ═══ -->
+          <div class="ld-section">
+            <h4 class="ld-section__title"><i class="fas fa-robot"></i> DG Bot</h4>
+            <div class="ld-strip">
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Modules</span>
+                <strong class="ld-strip__val">{{ jDgModuleProgress.completed }}/{{ jDgModuleProgress.total }}</strong>
+              </span>
+              <span class="ld-strip__item">
+                <span class="ld-strip__lbl">Pending</span>
+                <strong class="ld-strip__val">{{ jDgModuleProgress.pending }}</strong>
+              </span>
+              <span class="ld-filter-bar">
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--active]="!dgFilter" (click)="setDgFilter(null)">All</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--ok]="dgFilter === 'Completed'" (click)="setDgFilter('Completed')">Completed</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--progress]="dgFilter === 'In Progress'" (click)="setDgFilter('In Progress')">In Progress</button>
+                <button type="button" class="ld-filter-btn" [class.ld-filter-btn--no]="dgFilter === 'Not Started'" (click)="setDgFilter('Not Started')">Not Started</button>
+              </span>
+            </div>
+            <div class="ld-table-wrap" *ngIf="dgModules.length > 0">
+              <table class="ld-table">
+                  <thead>
+                    <tr>
+                      <th>Module</th>
+                      <th>Day</th>
+                      <th>Score</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let dm of filteredDgModules">
+                      <td class="ld-cell--title" [title]="dm.title">{{ dm.title }}</td>
+                      <td><span class="ld-pill ld-pill--day">Day {{ dm.courseDay }}</span></td>
+                      <td>{{ dm.score != null ? dm.score + '%' : '—' }}</td>
+                    <td>
+                      <span class="ld-badge" [class.ld-badge--ok]="dm.status === 'completed'" [class.ld-badge--progress]="dm.status === 'in_progress'" [class.ld-badge--no]="dm.status === 'not_started'">
+                        {{ dm.status === 'completed' ? 'Completed' : dm.status === 'in_progress' ? 'In Progress' : 'Not Started' }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ld-empty" *ngIf="dgModules.length === 0">No DG modules found.</div>
+          </div>
+
+          <!-- ═══ Section: Exam ═══ -->
+          <div class="ld-section">
+            <h4 class="ld-section__title"><i class="fas fa-certificate"></i> Exam (Sprechen)</h4>
+            <ng-container *ngIf="jSprechenLastSession; else noExamGrid">
+              <div class="ld-strip">
+                <span class="ld-strip__item">
+                  <span class="ld-strip__lbl">Last score</span>
+                  <strong class="ld-strip__val">{{ jSprechenLastSession.scores?.total || 0 }}/15</strong>
+                </span>
+                <span class="ld-strip__item">
+                  <span class="ld-strip__lbl">Status</span>
+                  <strong class="ld-strip__val" [class.ld-val--pass]="jSprechenLastSession.scores?.passed" [class.ld-val--fail]="!jSprechenLastSession.scores?.passed">
+                    {{ jSprechenLastSession.scores?.passed ? 'Passed' : 'Failed' }}
+                  </strong>
+                </span>
+                <span class="ld-strip__item">
+                  <span class="ld-strip__lbl">Module</span>
+                  <strong class="ld-strip__val ld-val--truncate" style="max-width:160px">{{ jSprechenLastSession.moduleTitle }}</strong>
+                </span>
+              </div>
+              <div class="ld-sub">Breakdown</div>
+              <div class="ld-table-wrap">
+                <table class="ld-table ld-table--narrow">
+                  <thead>
+                    <tr><th>Part</th><th>Score</th><th>Max</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Teil 1</td><td>{{ jSprechenLastSession.scores?.teil1 || 0 }}</td><td>3</td></tr>
+                    <tr><td>Teil 2</td><td>{{ jSprechenLastSession.scores?.teil2 || 0 }}</td><td>6</td></tr>
+                    <tr><td>Teil 3</td><td>{{ jSprechenLastSession.scores?.teil3 || 0 }}</td><td>6</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="ld-sub">Aggregate</div>
+              <div class="ld-table-wrap">
+                <table class="ld-table ld-table--narrow">
+                  <thead>
+                    <tr><th>Metric</th><th>Value</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Given</td><td><strong>{{ jSprechenAggregate?.total || 0 }}</strong></td></tr>
+                    <tr><td>Passed</td><td><strong class="ld-val--pass">{{ jSprechenAggregate?.passed || 0 }}</strong></td></tr>
+                    <tr><td>Missed</td><td><strong class="ld-val--fail">{{ jSprechenAggregate?.missed || 0 }}</strong></td></tr>
+                    <tr><td>Avg score</td><td><strong>{{ jSprechenAggregate?.avgTotal || 0 }}/15</strong></td></tr>
+                    <tr><td>Best score</td><td><strong>{{ jSprechenAggregate?.bestTotal || 0 }}/15</strong></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="ld-sub" *ngIf="jSprechenSummary?.sessions?.length">History</div>
+              <div class="ld-table-wrap" *ngIf="jSprechenSummary?.sessions?.length">
+                <table class="ld-table">
+                  <thead>
+                    <tr><th>Module</th><th>Teil 1</th><th>Teil 2</th><th>Teil 3</th><th>Total</th><th>Status</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let s of jSprechenSummary.sessions">
+                      <td class="ld-cell--title" [title]="s.moduleTitle">{{ s.moduleTitle }}</td>
+                      <td>{{ s.scores?.teil1 || 0 }}/3</td>
+                      <td>{{ s.scores?.teil2 || 0 }}/6</td>
+                      <td>{{ s.scores?.teil3 || 0 }}/6</td>
+                      <td><strong>{{ s.scores?.total || 0 }}/15</strong></td>
+                      <td>
+                        <span class="ld-badge" [class.ld-badge--ok]="s.scores?.passed" [class.ld-badge--no]="!s.scores?.passed">
+                          {{ s.scores?.passed ? 'Passed' : 'Failed' }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </ng-container>
+            <ng-template #noExamGrid>
+              <div class="ld-empty">No exams taken yet</div>
+            </ng-template>
+          </div>
         </div>
       </div>
 
+      <!-- ═══ BOTTOM ROW: Documents + Visa ═══ -->
       <div class="sp-row sp-row--bottom">
-        <div class="sp-card">
+        <div class="sp-card sp-card--docs">
           <div class="sp-card__head">
             <span class="sp-card__title">Documents</span>
             <span class="sp-card__meta">{{ jDocsSubmitted }} verified / {{ jDocuments.length }}</span>
           </div>
-          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--yellow" [style.width.%]="jDocsPct"></div></div>
-          <table class="sp-doc-table">
-            <thead><tr><th>Document</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr *ngFor="let doc of $any(jDocuments | slice:0:6)">
-                <td>{{ doc.name }}</td>
-                <td>
-                  <span
-                    class="sp-doc-badge"
-                    [class.sp-doc-badge--ok]="doc.status === 'verified'"
-                    [class.sp-doc-badge--pending]="doc.status !== 'verified'"
-                  >{{ doc.status === 'verified' ? 'Verified' : 'Pending' }}</span>
-                </td>
-              </tr>
-              <tr *ngIf="jDocuments.length > 6"><td colspan="2" class="sp-doc-more">+ {{ jDocuments.length - 6 }} more documents</td></tr>
-              <tr *ngIf="!jDocuments.length"><td colspan="2" class="sp-empty">No documents uploaded yet</td></tr>
-            </tbody>
-          </table>
+          <div class="sp-doc-scroll">
+            <table class="sp-doc-table">
+              <thead><tr><th>Document</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let doc of $any(jDocuments)">
+                  <td>{{ doc.name }}</td>
+                  <td>
+                    <span
+                      class="sp-doc-badge"
+                      [class.sp-doc-badge--ok]="doc.status === 'verified'"
+                      [class.sp-doc-badge--pending]="doc.status !== 'verified'"
+                    >{{ doc.status === 'verified' ? 'Verified' : 'Pending' }}</span>
+                  </td>
+                </tr>
+                <tr *ngIf="!jDocuments.length"><td colspan="2" class="sp-empty">No documents uploaded yet</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
         <div class="sp-card">
           <div class="sp-card__head">
@@ -226,41 +445,126 @@
         </div>
       </div>
 
-      <div class="sp-row sp-row--triple">
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Attendance</span>
-            <span class="sp-card__meta">{{ jAttendance.attended }}/{{ jAttendance.total }}</span>
-          </div>
-          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="jAttendanceRate"></div></div>
-          <div class="sp-kv-row"><span>Rate</span><span class="sp-kv-val">{{ jAttendanceRate }}%</span></div>
-          <div class="sp-kv-row">
-            <span>Last session</span>
-            <span class="sp-kv-val">{{ jAttendance.lastSessionDate ? formatDate(jAttendance.lastSessionDate) : '—' }}</span>
+      <!-- ═══ MID ROW: Language Progress Grid ═══ -->
+      <div class="sp-card">
+        <div class="sp-card__head">
+          <span class="sp-card__title">Language progress</span>
+          <span class="sp-card__meta">{{ jCurrentLevelLabel }}</span>
+        </div>
+        <div class="sp-level-grid">
+          <div
+            class="sp-level-grid__item"
+            *ngFor="let lv of jLevelProgression"
+            [class.sp-level-grid__item--done]="lv.status === 'completed'"
+            [class.sp-level-grid__item--active]="lv.status === 'in-progress'"
+          >
+            <div class="sp-level-grid__top">
+              <span class="sp-level-grid__level">{{ lv.level }}</span>
+              <span class="sp-level-grid__icon">
+                <i class="fas" [class.fa-check-circle]="lv.status === 'completed'" [class.fa-play-circle]="lv.status === 'in-progress'"></i>
+              </span>
+            </div>
+            <div class="sp-bar sp-bar--sm">
+              <div
+                class="sp-bar__fill sp-bar__fill--blue"
+                [style.width.%]="jLessonsByLevel[lv.level]?.total ? (jLessonsByLevel[lv.level].completed / jLessonsByLevel[lv.level].total * 100) : 0"
+              ></div>
+            </div>
+            <span class="sp-level-grid__count">{{ jLessonsByLevel[lv.level]?.completed || 0 }}/{{ jLessonsByLevel[lv.level]?.total || 0 }}</span>
           </div>
         </div>
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">AI bot usage</span>
-            <span class="sp-card__meta">{{ jBotUsage.weekMinutes }}/{{ jBotUsage.targetMinutesPerWeek }} min</span>
-          </div>
-          <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--purple" [style.width.%]="jBotWeekPct"></div></div>
-          <div class="sp-kv-row"><span>Today</span><span class="sp-kv-val">{{ jBotUsage.todayMinutes }} min</span></div>
-          <div class="sp-kv-row"><span>This week</span><span class="sp-kv-val">{{ jBotUsage.weekMinutes }} min</span></div>
-        </div>
-        <div class="sp-card">
-          <div class="sp-card__head">
-            <span class="sp-card__title">Overall journey</span>
-            <span class="sp-card__meta">{{ jOverallPct }}%</span>
-          </div>
-          <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jOverallPct"></div></div>
-          <div class="sp-kv-row"><span>Learning</span><span class="sp-kv-val">{{ jLearningPct }}%</span></div>
-          <div class="sp-kv-row"><span>Documents</span><span class="sp-kv-val">{{ jDocsPct }}%</span></div>
-          <div class="sp-kv-row"><span>Payments</span><span class="sp-kv-val">{{ jPayPct }}%</span></div>
-          <div class="sp-kv-row"><span>Visa</span><span class="sp-kv-val">{{ jVisaPct }}%</span></div>
-        </div>
+        <div class="sp-small-text">Study hours: {{ journeyData.totalStudyHours || 0 }}h total</div>
       </div>
 
+      <!-- ═══ PAYMENTS ═══ -->
+      <div class="sp-card sp-card--payments">
+        <div class="sp-card__head">
+          <span class="sp-card__title">Payments</span>
+          <span class="sp-pay-source" *ngIf="jPayments.isHub">Synced with Payment Hub</span>
+          <a *ngIf="studentId" class="sp-pay-hub-link" [href]="paymentHubUrl()" target="_blank" rel="noopener">Open hub ↗</a>
+        </div>
+
+        <div class="sp-pay-totals" *ngIf="hasMultiCurrencyPaid(); else spPaySingleCurrency">
+          <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidLKR > 0">
+            <span class="sp-pay-total-chip__lbl">Paid LKR</span>
+            <strong>{{ jPayments.totalPaidLKR | number:'1.0-0' }}</strong>
+          </div>
+          <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidINR > 0">
+            <span class="sp-pay-total-chip__lbl">Paid INR</span>
+            <strong>{{ jPayments.totalPaidINR | number:'1.0-0' }}</strong>
+          </div>
+          <div class="sp-pay-total-chip" *ngIf="jPayments.totalPaidUSD > 0">
+            <span class="sp-pay-total-chip__lbl">Paid USD</span>
+            <strong>{{ jPayments.totalPaidUSD | number:'1.0-0' }}</strong>
+          </div>
+        </div>
+        <ng-template #spPaySingleCurrency>
+          <div class="sp-pay-summary">
+            <div class="sp-pay-summary__item"><span class="sp-pay-summary__lbl">Total quoted</span><span class="sp-pay-summary__val">{{ jPayments.totalAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
+            <div class="sp-pay-summary__item"><span class="sp-pay-summary__lbl">Paid</span><span class="sp-pay-summary__val sp-pay-summary__val--green">{{ jPayments.paidAmount | number:'1.0-0' }} {{ jPayments.currency }}</span></div>
+            <div class="sp-pay-summary__item">
+              <span class="sp-pay-summary__lbl">Balance</span>
+              <span class="sp-pay-summary__val" [class.sp-pay-summary__val--green]="jPayments.pendingAmount <= 0" [class.sp-pay-summary__val--red]="jPayments.pendingAmount > 0">
+                {{ jPayments.pendingAmount | number:'1.0-0' }} {{ jPayments.currency }}
+              </span>
+            </div>
+          </div>
+        </ng-template>
+
+        <div class="sp-bar sp-bar--lg sp-pay-progress">
+          <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="jPayPct"></div>
+        </div>
+        <div class="sp-pay-progress-meta">
+          <span>{{ jPayPct }}% settled</span>
+          <span *ngIf="jPayments.requestCount">{{ jPayments.requestCount }} request(s)</span>
+        </div>
+
+        <div class="pay-collapse" *ngIf="jPayments.paymentHistory.length || jPayments.invoices.length">
+          <button type="button" class="pay-collapse__btn" (click)="payTableOpen = !payTableOpen">
+            <span class="pay-collapse__arrow" [class.pay-collapse__arrow--open]="payTableOpen">▶</span>
+            Show payment history ({{ jPayments.paymentHistory.length || jPayments.invoices.length }} record(s))
+          </button>
+          <div class="pay-collapse__body" *ngIf="payTableOpen">
+            <div class="sp-pay-list-wrap" *ngIf="jPayments.paymentHistory.length">
+              <table class="sp-pay-table sp-pay-table--hub">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Paid</th>
+                    <th>Balance</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let p of $any(jPayments.paymentHistory)">
+                    <td class="sp-pay-type">{{ p.label || p.note || '—' }}</td>
+                    <td class="sp-pay-amt">{{ (p.paidAmount ?? p.amount) | number:'1.0-0' }} {{ p.currency || jPayments.currency }}</td>
+                    <td [class.sp-pay-amt--due]="(p.balance ?? 0) > 0">{{ (p.balance ?? 0) | number:'1.0-0' }}</td>
+                    <td><span class="sp-pay-status" [ngClass]="payStatusClass(p.status || p.method)">{{ formatPayStatus(p.status || p.method) }}</span></td>
+                    <td class="sp-pay-date">{{ formatDate(p.createdAt || p.date) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <table class="sp-pay-table" *ngIf="!jPayments.paymentHistory.length && jPayments.invoices.length">
+              <thead>
+                <tr><th>Invoice</th><th>Total</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let inv of $any(jPayments.invoices | slice:0:6)">
+                  <td>{{ inv.invoiceNumber || '—' }}</td>
+                  <td>{{ inv.totalPayable | number:'1.0-0' }}</td>
+                  <td>{{ inv.paymentStatus || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="sp-empty" *ngIf="!jPayments.paymentHistory.length && !jPayments.invoices.length">No payment records yet</div>
+      </div>
+
+      <!-- ═══ JOURNEY HISTORY ═══ -->
       <div class="sp-card">
         <div class="sp-card__head">
           <span class="sp-card__title">Journey history</span>
@@ -281,9 +585,27 @@
     </div>
 
     <div class="jm-body jm-loading" *ngIf="loading">
-      <div>
-        <div class="jm-spinner"></div>
-        <p style="margin-top:14px;color:#6b7280;font-size:13px;">Loading student details…</p>
+      <div class="sk-container">
+        <div class="sk-row sk-row--top">
+          <div class="sk-card"><div class="sk-card__head-shim"></div><div class="sk-card__grid"><div class="sk-card__line"></div><div class="sk-card__line"></div><div class="sk-card__line"></div><div class="sk-card__line"></div></div></div>
+          <div class="sk-grid">
+            <div class="sk-card sk-card--kpi" *ngFor="let _ of [].constructor(4)"><div class="sk-card__line sk-card__line--60"></div><div class="sk-card__line sk-card__line--80"></div></div>
+          </div>
+        </div>
+        <div class="sk-row sk-row--mid">
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--50"></div><div class="sk-card__line sk-card__line--80"></div></div>
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--90" style="height:80px;border-radius:8px;"></div></div>
+        </div>
+        <div class="sk-row sk-row--pair">
+          <div class="sk-card"><div class="sk-card__line sk-card__line--40"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--50"></div></div>
+          <div class="sk-card"><div class="sk-card__line sk-card__line--40"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--50"></div></div>
+        </div>
+        <div class="sk-card"><div class="sk-card__line sk-card__line--40"></div><div class="sk-card__line sk-card__line--80"></div><div class="sk-card__line sk-card__line--30"></div><div class="sk-row sk-row--table"><div class="sk-card__line" *ngFor="let _ of [].constructor(3)"></div></div></div>
+        <div class="sk-row sk-row--bottom">
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--80"></div></div>
+          <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--70"></div><div class="sk-card__line sk-card__line--80"></div></div>
+        </div>
+        <div class="sk-card"><div class="sk-card__line sk-card__line--30"></div><div class="sk-card__line sk-card__line--90"></div><div class="sk-card__line sk-card__line--70"></div></div>
       </div>
     </div>
 

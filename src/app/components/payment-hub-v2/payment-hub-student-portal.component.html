@@ -180,6 +180,45 @@
       </div>
     </div>
 
+    <section class="sp-slot-section">
+      <div class="sp-slot-head">
+        <h2>Payment Mapping</h2>
+        <span>A1, A2, B1, B2, Docs, Visa</span>
+      </div>
+      <div class="sp-slot-grid">
+        <article class="sp-slot-card" *ngFor="let slot of paymentSlots">
+          <div class="sp-slot-card__top">
+            <h3>{{ slot.label }}</h3>
+            <span class="sp-slot-pill">{{ slotSummary(slot.key).requestCount }} requests</span>
+          </div>
+          <div class="sp-slot-meta">
+            Settled {{ slotSummary(slot.key).settledCount }}/{{ slotSummary(slot.key).requestCount }}
+          </div>
+          <div class="sp-slot-line">
+            <span class="sp-slot-line__label">Paid</span>
+            <app-payment-currency-totals
+              [lkr]="slotSummary(slot.key).paid.LKR"
+              [inr]="slotSummary(slot.key).paid.INR"
+              [usd]="slotSummary(slot.key).paid.USD"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-totals>
+          </div>
+          <div class="sp-slot-line">
+            <span class="sp-slot-line__label">Balance</span>
+            <app-payment-currency-totals
+              [lkr]="slotSummary(slot.key).balance.LKR"
+              [inr]="slotSummary(slot.key).balance.INR"
+              [usd]="slotSummary(slot.key).balance.USD"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-totals>
+          </div>
+          <p class="sp-slot-empty" *ngIf="slotSummary(slot.key).requestCount === 0">No mapped payments yet.</p>
+        </article>
+      </div>
+    </section>
+
     <!-- Level fee card (conditional) -->
     <section class="sp-catalog-card sp-level-fee-card" *ngIf="showDefaultLevelFeeUploadCard">
       <div class="sp-catalog-head sp-level-fee-head">
@@ -283,8 +322,13 @@
                   <span class="sp-status-badge" [ngClass]="statusClass(req)">{{ displayStatus(req) }}</span>
                 </td>
                 <td class="sp-cell-actions">
-                  <button mat-icon-button color="primary" matTooltip="Download Invoice" (click)="downloadInvoice(req)">
-                    <mat-icon>receipt_long</mat-icon>
+                  <button
+                    mat-icon-button
+                    color="primary"
+                    matTooltip="Download Proforma Invoice"
+                    [disabled]="downloadingInvoiceId === req._id"
+                    (click)="downloadInvoice(req)">
+                    <mat-icon>{{ downloadingInvoiceId === req._id ? 'hourglass_top' : 'receipt_long' }}</mat-icon>
                   </button>
                   <!--<button mat-flat-button
                     *ngIf="canUpload(req)"

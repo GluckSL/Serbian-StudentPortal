@@ -184,15 +184,30 @@
         </div>
         <div
           class="review-q-block"
-          [class.correct]="pq.isCorrect === true"
-          [class.wrong]="pq.isCorrect === false"
+          [class.correct]="hasSubQuestions(pq.data) ? isMultipartFullyCorrect(pq) : pq.isCorrect === true"
+          [class.partial]="hasSubQuestions(pq.data) && isMultipartPartial(pq)"
+          [class.wrong]="hasSubQuestions(pq.data) ? (hasMultipartBeenGraded(pq) && getMultipartPointsEarned(pq) === 0) : pq.isCorrect === false"
         >
           <div class="review-q-head">
             <span class="review-q-num">Question {{ i + 1 }}</span>
             <span class="review-q-type-pill" [class]="'pill-' + pq.data.type">
               {{ getQuestionTypeLabelForDisplay(pq.data) }}
             </span>
-            <span class="review-q-pts">{{ pq.data.points || 1 }} pt</span>
+            <span class="review-q-pts">{{ (hasSubQuestions(pq.data) ? getMultipartMaxPoints(pq) : (pq.data.points || 1)) }} pt</span>
+            <ng-container *ngIf="hasSubQuestions(pq.data); else simpleReviewBadge">
+              <span
+                class="review-q-badge"
+                [class.correct]="isMultipartFullyCorrect(pq)"
+                [class.partial]="isMultipartPartial(pq)"
+                [class.wrong]="hasMultipartBeenGraded(pq) && getMultipartPointsEarned(pq) === 0"
+              >
+                <span class="material-icons">{{
+                  isMultipartFullyCorrect(pq) ? "check_circle" : (getMultipartPointsEarned(pq) > 0 ? "adjust" : "cancel")
+                }}</span>
+                {{ getMultipartPointsEarned(pq) }}/{{ getMultipartMaxPoints(pq) }} pts
+              </span>
+            </ng-container>
+            <ng-template #simpleReviewBadge>
             <span
               class="review-q-badge"
               [class.correct]="pq.isCorrect"
@@ -203,6 +218,7 @@
               }}</span>
               {{ pq.isCorrect ? "Correct" : "Incorrect" }}
             </span>
+            </ng-template>
           </div>
           <div class="review-q-body">
             <div
@@ -342,10 +358,11 @@
             <!-- Shared audio above prompts when Q&A has sub-parts -->
             <div
               class="q-attachment-box review-passage-audio-top"
-              *ngIf="shouldShowPassageAudioAtTop(pq.data)"
+              *ngFor="let attUrl of getQuestionAudioAttachmentUrls(pq.data)"
+              [hidden]="!shouldShowPassageAudioAtTop(pq.data)"
             >
               <audio
-                [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                [src]="getMediaFullUrl(attUrl)"
                 controls
                 class="q-attachment-audio"
               ></audio>
@@ -354,18 +371,17 @@
             <!-- Attachment after stem; with sub-questions, non-audio stays after sub-parts -->
             <div
               class="q-attachment-box"
-              *ngIf="
-                pq.data.attachmentUrl &&
-                !shouldShowPassageAudioAtTop(pq.data) &&
-                !shouldShowPassageAttachmentAtBottom(pq.data)
+              *ngFor="let attUrl of getQuestionAttachmentUrls(pq.data)"
+              [hidden]="
+                shouldShowPassageAudioAtTop(pq.data) ||
+                shouldShowPassageAttachmentAtBottom(pq.data) ||
+                (hasSubQuestions(pq.data) && getAttachmentType(attUrl) === 'audio')
               "
             >
-              <ng-container
-                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
-              >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
                 <img
                   *ngSwitchCase="'image'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   alt="Attachment"
                   class="q-attachment-img"
                   loading="lazy"
@@ -373,19 +389,19 @@
                 />
                 <audio
                   *ngSwitchCase="'audio'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-audio"
                 ></audio>
                 <video
                   *ngSwitchCase="'video'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-video"
                 ></video>
                 <a
                   *ngSwitchCase="'pdf'"
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -393,7 +409,7 @@
                 </a>
                 <a
                   *ngSwitchDefault
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -438,13 +454,20 @@
             </div>
 
             <ng-container *ngIf="!hasFillBlankReviewItems(pq, i)">
-            <div class="review-answer-row">
+            <div class="review-answer-row" *ngIf="!hasSubQuestions(pq.data) || !isParentAnswerPartEmpty(pq.data)">
               <span class="review-label">Your answer:</span>
-              <span class="review-value" [class.wrong]="!pq.isCorrect">{{
+              <span
+                class="review-value"
+                [class.correct]="hasSubQuestions(pq.data) ? getParentPartIsCorrect(pq) : pq.isCorrect === true"
+                [class.wrong]="hasSubQuestions(pq.data) ? hasMultipartBeenGraded(pq) && !getParentPartIsCorrect(pq) : !pq.isCorrect"
+              >{{
                 getReviewAnswerText(pq)
               }}</span>
             </div>
-            <div class="review-answer-row" *ngIf="!pq.isCorrect">
+            <div
+              class="review-answer-row"
+              *ngIf="hasSubQuestions(pq.data) ? (hasMultipartBeenGraded(pq) && !getParentPartIsCorrect(pq)) : !pq.isCorrect"
+            >
               <span class="review-label">Correct answer:</span>
               <span class="review-value correct">{{
                 getReviewCorrectText(pq)
@@ -489,17 +512,24 @@
                   <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Fill in the blanks</div>
 
                   <!-- Sub-question answer -->
-                  <div class="review-sub-q-answer" *ngIf="sq.type !== 'fill-blank' || !hasFillBlankReviewItems(pq, i)">
+                  <div class="review-sub-q-answer">
                     <span class="review-label">Your answer:</span>
-                    <span class="review-value">{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
+                    <span
+                      class="review-value"
+                      [class.correct]="getSubQuestionIsCorrect(pq, sqIndex)"
+                      [class.wrong]="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex)"
+                    >{{ getSubQuestionAnswerText(pq, sqIndex) }}</span>
                   </div>
-                  <div class="review-sub-q-correct" *ngIf="sq.type === 'fill-blank' && !hasFillBlankReviewItems(pq, i)">
+                  <div
+                    class="review-sub-q-correct"
+                    *ngIf="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex)"
+                  >
                     <span class="review-label">Correct answer:</span>
-                    <span class="review-value correct">{{ getSubCorrectAnswerText(pq, sqIndex) }}</span>
-                  </div>
-                  <div class="review-sub-q-correct" *ngIf="sq.type === 'mcq'">
-                    <span class="review-label">Correct:</span>
-                    <span class="review-value correct">{{ sq.options?.[sq.correctAnswerIndex] || '-' }}</span>
+                    <span class="review-value correct">{{
+                      sq.type === 'mcq'
+                        ? (sq.options?.[sq.correctAnswerIndex] || '—')
+                        : getSubCorrectAnswerText(pq, sqIndex)
+                    }}</span>
                   </div>
                 </div>
               </div>
@@ -508,14 +538,13 @@
 
             <div
               class="q-attachment-box review-passage-ref"
-              *ngIf="shouldShowPassageAttachmentAtBottom(pq.data)"
+              *ngFor="let attUrl of getQuestionMediaAttachmentUrls(pq.data)"
+              [hidden]="!shouldShowPassageAttachmentAtBottom(pq.data)"
             >
-              <ng-container
-                [ngSwitch]="getAttachmentType(pq.data.attachmentUrl)"
-              >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
                 <img
                   *ngSwitchCase="'image'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   alt="Attachment"
                   class="q-attachment-img"
                   loading="lazy"
@@ -523,19 +552,19 @@
                 />
                 <audio
                   *ngSwitchCase="'audio'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-audio"
                 ></audio>
                 <video
                   *ngSwitchCase="'video'"
-                  [src]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-video"
                 ></video>
                 <a
                   *ngSwitchCase="'pdf'"
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -543,7 +572,7 @@
                 </a>
                 <a
                   *ngSwitchDefault
-                  [href]="getMediaFullUrl(pq.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -827,7 +856,13 @@
             class="vp-detail-card vp-detail-card--info vp-detail-card--rich"
           >
             <div class="vp-detail-header">
-              <span class="vp-detail-card-label">Exercise</span>
+              <div class="vp-detail-header-left">
+                <span class="vp-detail-card-label">Exercise</span>
+                <div class="watch-only-indicator" *ngIf="watchOnlyMode">
+                  <span class="material-icons">mic_off</span>
+                  <span>Watch Only</span>
+                </div>
+              </div>
               <button
                 class="btn-icon-back btn-back-nav"
                 (click)="goBack()"
@@ -837,38 +872,39 @@
                 <span class="btn-back-label">Back</span>
               </button>
             </div>
-            <div>
-              <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
-              <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
-                {{ exercise?.description }}
-              </p>
-            </div>
-            <div class="vp-detail-specs-row">
-              <div class="vp-detail-spec-item">Journey to Germany</div>
-              <div class="vp-detail-spec-item" *ngIf="exercise?.category">
-                {{ exercise?.category }}
+            <div class="vp-detail-content-row">
+              <div class="vp-detail-content-left">
+                <div>
+                  <h3 class="vp-detail-title">{{ exercise?.title }}</h3>
+                  <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
+                    {{ exercise?.description }}
+                  </p>
+                  <div class="vp-detail-specs-row">
+                    <div class="vp-detail-spec-item">Journey to Germany</div>
+                    <div class="vp-detail-spec-item" *ngIf="exercise?.category">
+                      {{ exercise?.category }}
+                    </div>
+                    <span
+                      class="vp-detail-pill level vp-detail-pill--inline"
+                      [style.background]="
+                        exerciseService.getLevelColor(exercise?.level || 'A1')
+                      "
+                      >{{ exercise?.level }}</span
+                    >
+                    <div class="vp-detail-spec-item">
+                      ~{{ exercise?.estimatedDuration || 15 }} min
+                    </div>
+                  </div>
+                </div>
+                <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
+                  <span
+                    class="vp-detail-tag"
+                    *ngFor="let t of exercise?.tags || []"
+                    >{{ t }}</span
+                  >
+                </div>
               </div>
-              <div class="vp-detail-spec-item">
-                <span
-                  class="vp-detail-pill level vp-detail-pill--inline"
-                  [style.background]="
-                    exerciseService.getLevelColor(exercise?.level || 'A1')
-                  "
-                  >{{ exercise?.level }}</span
-                >
-              </div>
-              <div class="vp-detail-spec-item">
-                ~{{ exercise?.estimatedDuration || 15 }} min
-              </div>
-            </div>
-            <div class="vp-detail-tags" *ngIf="exercise?.tags?.length">
-              <span
-                class="vp-detail-tag"
-                *ngFor="let t of exercise?.tags || []"
-                >{{ t }}</span
-              >
-            </div>
-            <div class="vp-ring-wrap">
+              <div class="vp-ring-wrap">
               <svg class="vp-ring-svg" viewBox="0 0 36 36">
                 <circle
                   class="vp-ring-track"
@@ -894,7 +930,8 @@
               <span class="vp-ring-label">{{ vpRingPercent }}%</span>
             </div>
           </div>
-          <div class="vp-detail-card vp-detail-card--clips">
+          </div>
+          <div class="vp-detail-card vp-detail-card--clips vp-detail-card--clips-desktop">
             <span class="vp-detail-card-label"
               >Clips · {{ playerQuestions.length }} total</span
             >
@@ -928,14 +965,14 @@
         <div class="vp-video-col" *ngIf="currentQuestion.data.videoUrl">
             <div class="vp-stage-video-column">
               <div class="vp-stage-video-frame">
-                <div class="vp-stage-clip-badge" aria-label="Current clip">
+                <!-- <div class="vp-stage-clip-badge" aria-label="Current clip">
                   <span class="material-icons">videocam</span>
                   <span
                     >Clip {{ currentIndex + 1 }} · {{ currentIndex + 1 }}/{{
                       playerQuestions.length
                     }}</span
                   >
-                </div>
+                </div> -->
                 <video
                   class="vp-stage-video"
                   [src]="getMediaFullUrl(currentQuestion.data.videoUrl)"
@@ -959,15 +996,6 @@
 
                 <div class="vp-stage-frame-ui">
                   <div class="vp-stage-ui-head">
-                    <div
-                      class="vp-stage-turn-row"
-                      *ngIf="vpPostPlayScrimVisible && !showVpFinalSubmit"
-                    >
-                      <span class="vp-stage-kicker">Your turn</span>
-                      <span class="material-icons vp-stage-kicker-mic"
-                        >mic</span
-                      >
-                    </div>
                     <div
                       class="vp-stage-overlay-text vp-stage-overlay-text--in-frame"
                       [class.vp-stage-overlay-text--playing]="
@@ -1013,9 +1041,53 @@
                       </button>
                     </div>
 
+                    <!-- Watch Only: Replay + Next/Submit (no speaking required) -->
+                    <div
+                      class="vp-stage-watch-only-block"
+                      *ngIf="
+                        watchOnlyMode &&
+                        !showVpFinalSubmit &&
+                        currentQuestion.vpPlaybackEnded &&
+                        (currentQuestion.vpResult === 'idle' ||
+                          !currentQuestion.vpResult) &&
+                        !currentQuestion.isRecording &&
+                        !hasCurrentSubmitted
+                      "
+                    >
+                      <button
+                        type="button"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--subtle vp-stage-foot-pill--replay"
+                        (click)="replayVpVideo()"
+                      >
+                        <span class="material-icons">replay</span>
+                        Replay
+                      </button>
+                      <button
+                        *ngIf="!isLastQuestion"
+                        type="button"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--next"
+                        (click)="skipWatchOnlyClip()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">skip_next</span>
+                        Next Clip
+                      </button>
+                      <button
+                        *ngIf="isLastQuestion"
+                        type="button"
+                        class="vp-stage-foot-pill vp-stage-foot-pill--next"
+                        (click)="skipWatchOnlyClip()"
+                        [disabled]="finishingAll || submitting"
+                      >
+                        <span class="material-icons">flag</span>
+                        {{ finishingAll ? "Submitting…" : "Finish" }}
+                      </button>
+                    </div>
+
                     <div
                       class="vp-stage-mic-block"
                       *ngIf="
+                        !watchOnlyMode &&
                         !showVpFinalSubmit &&
                         currentQuestion.vpPlaybackEnded &&
                         (currentQuestion.vpResult === 'idle' ||
@@ -1435,6 +1507,7 @@
                   <div
                     class="vp-stage-ui-foot"
                     *ngIf="
+                      !watchOnlyMode &&
                       !showVpFinalSubmit &&
                       currentQuestion.vpPlaybackEnded &&
                       (currentQuestion.vpResult === 'idle' ||
@@ -1470,6 +1543,36 @@
                 </div>
               </div>
             </div>
+        </div>
+
+        <div class="vp-detail-card vp-detail-card--clips vp-detail-card--clips-mobile">
+          <span class="vp-detail-card-label"
+            >Clips · {{ playerQuestions.length }} total</span
+          >
+          <div class="vp-clip-cells">
+            <button
+              *ngFor="let _ of playerQuestions; let i = index"
+              class="{{ vpClipCellClass(i) }}"
+              [class.vp-clip-cell--jumpable]="
+                !(
+                  finishingAll ||
+                  submitting ||
+                  currentQuestion.isRecording ||
+                  currentQuestion.pronUiState === 'processing'
+                )
+              "
+              [attr.title]="'Clip ' + (i + 1)"
+              [disabled]="
+                finishingAll ||
+                submitting ||
+                currentQuestion.isRecording ||
+                currentQuestion.pronUiState === 'processing'
+              "
+              (click)="goToQuestion(i)"
+            >
+              {{ i + 1 }}
+            </button>
+          </div>
         </div>
 
         <aside
@@ -1820,6 +1923,59 @@
             >
           </div>
 
+          <div
+            class="q-top-media-stack"
+            *ngIf="
+              ['mcq', 'fill-blank', 'word_bank_fill', 'singular_plural'].includes(currentQuestion.data.type) &&
+              (hasMediaAttachment(currentQuestion.data) || currentQuestion.data.imageUrl)
+            "
+          >
+            <div
+              class="q-attachment-box"
+              *ngFor="let attUrl of getQuestionMediaAttachmentUrls(currentQuestion.data)"
+              [hidden]="!hasMediaAttachment(currentQuestion.data)"
+            >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
+                <img
+                  *ngSwitchCase="'image'"
+                  [src]="getMediaFullUrl(attUrl)"
+                  alt="Question attachment"
+                  class="q-attachment-img"
+                />
+                <video
+                  *ngSwitchCase="'video'"
+                  [src]="getMediaFullUrl(attUrl)"
+                  controls
+                  class="q-attachment-video"
+                ></video>
+                <a
+                  *ngSwitchCase="'pdf'"
+                  [href]="getMediaFullUrl(attUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
+                </a>
+                <a
+                  *ngSwitchDefault
+                  [href]="getMediaFullUrl(attUrl)"
+                  target="_blank"
+                  class="q-attachment-file-link"
+                >
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
+                </a>
+              </ng-container>
+            </div>
+            <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
+              <img
+                [src]="currentQuestion.data.imageUrl"
+                alt="Question image"
+                class="q-image"
+              />
+            </div>
+          </div>
+
           <!-- Guidance: 1. Instruction → 2. Example → 3. Context (+ TF reading passage), then q-body: 4. Question(s) → 5. Shared image (after sub-questions when present) -->
           <div
             class="q-guidance-stack"
@@ -1888,10 +2044,11 @@
           <ng-template #playerQuestionAudioAttachment>
             <div
               class="q-attachment-box q-attachment-box--audio"
-              *ngIf="shouldShowQuestionAudio(currentQuestion.data)"
+              *ngFor="let attUrl of getQuestionAudioAttachmentUrls(currentQuestion.data); let audioIdx = index"
+              [hidden]="!shouldShowQuestionAudio(currentQuestion.data)"
             >
               <ng-container
-                *ngIf="getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
+                *ngIf="audioIdx === 0 && getAttachmentAudioCap(currentQuestion) !== null; else unlimitedPlayerAttachmentAudio"
               >
                     <div class="q-attachment-audio-capped">
                       <p class="q-attachment-audio-capped-hint" role="status">
@@ -1908,7 +2065,7 @@
                       <button
                         type="button"
                         class="btn-q-attachment-audio-play"
-                        (click)="playQuestionAttachmentAudio(currentQuestion)"
+                        (click)="playQuestionAttachmentAudio(currentQuestion, attUrl)"
                         [disabled]="isAttachmentAudioLimitReached(currentQuestion)"
                       >
                         <span class="material-icons" aria-hidden="true">play_arrow</span>
@@ -1918,7 +2075,7 @@
                   </ng-container>
               <ng-template #unlimitedPlayerAttachmentAudio>
                 <audio
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-audio"
                 ></audio>
@@ -1929,28 +2086,25 @@
           <ng-template #playerQuestionMediaAttachment>
             <div
               class="q-attachment-box"
-              *ngIf="hasMediaAttachment(currentQuestion.data)"
+              *ngFor="let attUrl of getQuestionMediaAttachmentUrls(currentQuestion.data)"
+              [hidden]="!hasMediaAttachment(currentQuestion.data)"
             >
-              <ng-container
-                [ngSwitch]="
-                  getAttachmentType(currentQuestion.data.attachmentUrl)
-                "
-              >
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
                 <img
                   *ngSwitchCase="'image'"
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   alt="Question attachment"
                   class="q-attachment-img"
                 />
                 <video
                   *ngSwitchCase="'video'"
-                  [src]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [src]="getMediaFullUrl(attUrl)"
                   controls
                   class="q-attachment-video"
                 ></video>
                 <a
                   *ngSwitchCase="'pdf'"
-                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -1958,7 +2112,7 @@
                 </a>
                 <a
                   *ngSwitchDefault
-                  [href]="getMediaFullUrl(currentQuestion.data.attachmentUrl)"
+                  [href]="getMediaFullUrl(attUrl)"
                   target="_blank"
                   class="q-attachment-file-link"
                 >
@@ -2049,16 +2203,6 @@
                 </span>
               </div>
               </div>
-            </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
-            <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
-              <img
-                [src]="currentQuestion.data.imageUrl"
-                alt="Question image"
-                class="q-image"
-              />
             </div>
             <div
               class="q-feedback-incorrect"
@@ -2178,6 +2322,10 @@
               <ng-container
                 *ngTemplateOutlet="playerQuestionAudioAttachment"
               ></ng-container>
+              <div class="hint-label" *ngIf="currentQuestion.data.hint">
+                <span class="material-icons">lightbulb</span>
+                Hint: {{ currentQuestion.data.hint }}
+              </div>
               <div class="sentence-container">
                 <ng-container
                   *ngFor="
@@ -2228,13 +2376,6 @@
                   </span>
                 </ng-container>
               </div>
-            </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
-            <div class="hint-label" *ngIf="currentQuestion.data.hint">
-              <span class="material-icons">lightbulb</span>
-              Hint: {{ currentQuestion.data.hint }}
             </div>
             <div
               class="special-char-pad"
@@ -2297,37 +2438,6 @@
             <ng-container
               *ngTemplateOutlet="playerQuestionAudioAttachment"
             ></ng-container>
-            <div
-              class="word-bank-box"
-              *ngIf="currentQuestion.data.wordBank?.length"
-            >
-              <div class="word-bank-box-label">
-                Word bank — select a blank, then tap a word (or type your answer)
-              </div>
-              <div class="word-bank-pills">
-                <button
-                  type="button"
-                  class="word-bank-pill"
-                  *ngFor="
-                    let word of currentQuestion.data.wordBank;
-                    trackBy: trackByIndex
-                  "
-                  [class.used]="
-                    !isWordBankReusable(currentQuestion) &&
-                    isWordAlreadyUsed(currentQuestion, word, null)
-                  "
-                  [disabled]="
-                    hasCurrentSubmitted ||
-                    (!isWordBankReusable(currentQuestion) &&
-                      isWordAlreadyUsed(currentQuestion, word, null))
-                  "
-                  (click)="fillActiveWordBankBlank(currentQuestion, word)"
-                >
-                  {{ word }}
-                </button>
-              </div>
-            </div>
-
             <div class="word-bank-items">
               <div
                 class="word-bank-item-row"
@@ -2389,6 +2499,37 @@
             </div>
 
             <div
+              class="word-bank-box"
+              *ngIf="currentQuestion.data.wordBank?.length"
+            >
+              <div class="word-bank-box-label">
+                Word bank — select a blank, then tap a word (or type your answer)
+              </div>
+              <div class="word-bank-pills">
+                <button
+                  type="button"
+                  class="word-bank-pill"
+                  *ngFor="
+                    let word of currentQuestion.data.wordBank;
+                    trackBy: trackByIndex
+                  "
+                  [class.used]="
+                    !isWordBankReusable(currentQuestion) &&
+                    isWordAlreadyUsed(currentQuestion, word, null)
+                  "
+                  [disabled]="
+                    hasCurrentSubmitted ||
+                    (!isWordBankReusable(currentQuestion) &&
+                      isWordAlreadyUsed(currentQuestion, word, null))
+                  "
+                  (click)="fillActiveWordBankBlank(currentQuestion, word)"
+                >
+                  {{ word }}
+                </button>
+              </div>
+            </div>
+
+            <div
               class="special-char-pad"
               *ngIf="
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
@@ -2411,9 +2552,6 @@
                 </button>
               </div>
             </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
             <div
               class="fill-feedback"
               *ngIf="hasCurrentSubmitted && currentQuestion.feedback"
@@ -2453,7 +2591,7 @@
                     <td class="sp-plural-cell">
                       <input
                         type="text"
-                        class="blank-input sp-plural-input"
+                         class="sp-box-input"
                         [(ngModel)]="currentQuestion.singularPluralInputs![ri]"
                         (ngModelChange)="markAttempted(currentQuestion)"
                         (focus)="
@@ -2487,9 +2625,6 @@
                 </tbody>
               </table>
             </div>
-            <ng-container
-              *ngTemplateOutlet="playerQuestionMediaAttachment"
-            ></ng-container>
             <div
               class="special-char-pad"
               *ngIf="
@@ -3015,7 +3150,7 @@
             <ng-container
               *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
-            <label class="qa-input-label">Form the word:</label>
+            <label class="qa-input-label">Form the word: <strong>{{ currentQuestion.data.scrambledText || currentQuestion.data.word }}</strong></label>
             <input
               type="text"
               class="jumble-input"
@@ -3301,10 +3436,53 @@
                     Watch the clip — buttons appear when it finishes
                   </p>
 
-                  <!-- After video ends: Replay + Speak -->
+                  <!-- After video ends: Watch Only Mode — Replay + Next/Finish (no speaking) -->
                   <div
                     class="vp-mob-btn-row"
                     *ngIf="
+                      watchOnlyMode &&
+                      (currentQuestion.vpResult === 'idle' ||
+                        !currentQuestion.vpResult) &&
+                      currentQuestion.vpPlaybackEnded &&
+                      !currentQuestion.isRecording &&
+                      currentQuestion.pronUiState !== 'processing'
+                    "
+                  >
+                    <button
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--secondary"
+                      (click)="replayVpVideo()"
+                    >
+                      <span class="material-icons">replay</span>
+                      <span>Replay</span>
+                    </button>
+                    <button
+                      *ngIf="!isLastQuestion"
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--primary"
+                      (click)="skipWatchOnlyClip()"
+                      [disabled]="finishingAll || submitting"
+                    >
+                      <span class="material-icons">skip_next</span>
+                      <span>Next Clip</span>
+                    </button>
+                    <button
+                      *ngIf="isLastQuestion"
+                      type="button"
+                      class="vp-mob-btn vp-mob-btn--finish"
+                      (click)="skipWatchOnlyClip()"
+                      [disabled]="finishingAll || submitting"
+                    >
+                      <span class="material-icons">flag</span>
+                      <span>{{ finishingAll ? "Submitting…" : "Finish" }}</span>
+                    </button>
+                  </div>
+
+                  <!-- After video ends: Normal Mode — Replay + Speak -->
+                  <div
+                    class="vp-mob-btn-row"
+                    *ngIf="
+                      !watchOnlyMode &&
                       (currentQuestion.vpResult === 'idle' ||
                         !currentQuestion.vpResult) &&
                       currentQuestion.vpPlaybackEnded &&
@@ -3766,10 +3944,10 @@
                     <div *ngIf="sq.type === 'mcq'" class="sub-q-mcq">
                       <div
                         class="q-attachment-box q-attachment-box--audio"
-                        *ngIf="hasSubQuestionOwnAudio(currentQuestion.data, sq)"
+                        *ngFor="let attUrl of getSubQuestionOwnAudioUrls(currentQuestion.data, sq)"
                       >
                         <audio
-                          [src]="getMediaFullUrl(sq.attachmentUrl)"
+                          [src]="getMediaFullUrl(attUrl)"
                           controls
                           class="q-attachment-audio"
                         ></audio>
@@ -3832,31 +4010,61 @@
 
                     <!-- Matching -->
                     <div *ngIf="sq.type === 'matching'" class="sub-q-matching">
-                      <p class="sub-q-text">Match the items on the left with their correct pairs.</p>
-                      <div class="matching-cols">
-                        <div class="matching-left">
-                          <div class="match-item" *ngFor="let item of sq.leftItems; let li = index"
-                            [class.matched]="currentQuestion.subQuestionMatching?.[sqIndex]?.[li] !== null"
-                            (click)="selectSubQuestionMatchingLeft(currentQuestion, sqIndex, li)">
-                            <span class="match-label">{{ sq.leftLabels?.[li] || 'A' + li }}</span>
-                            <span class="match-text">{{ item }}</span>
-                          </div>
+                      <div class="matching-container">
+                      <div class="matching-row labels-row">
+                        <div class="matching-col-label">Match these...</div>
+                        <div class="connector-spacer"></div>
+                        <div class="matching-col-label">...with these</div>
+                      </div>
+                      <div class="matching-row" *ngFor="let i of getSubMatchingIndices(currentQuestion, sqIndex)">
+                        <button
+                          *ngIf="getSubMatchingLeftItems(sq)[i] as item"
+                          class="match-item left-item"
+                          [ngClass]="getSubLeftMatchClass(currentQuestion, sqIndex, i)"
+                          [class.selected]="currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] === i"
+                          [class.matched]="currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== null && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== undefined"
+                          [class.correct]="hasCurrentSubmitted && isSubMatchCorrect(currentQuestion, sqIndex, i)"
+                          [class.wrong]="hasCurrentSubmitted && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== null && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== undefined && !isSubMatchCorrect(currentQuestion, sqIndex, i)"
+                          (click)="selectSubQuestionMatchingLeft(currentQuestion, sqIndex, i)"
+                        >
+                          <span [innerHTML]="item | safeHtml"></span>
+                        </button>
+                        <div
+                          *ngIf="!getSubMatchingLeftItems(sq)[i]"
+                          class="match-item-placeholder"
+                        ></div>
+                        <div class="matching-connector">
+                          <div class="connector-dot"></div>
                         </div>
-                        <div class="matching-right">
-                          <div class="match-item" *ngFor="let item of sq.rightItems; let ri = index"
-                            [class.matched]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, ri)"
-                            (click)="selectSubQuestionMatchingRight(currentQuestion, sqIndex, ri)">
-                            <span class="match-text">{{ item }}</span>
-                            <span class="match-label">{{ sq.rightLabels?.[ri] || ri + 1 }}</span>
-                          </div>
-                        </div>
+                        <button
+                          *ngIf="getSubMatchingRightItems(sq)[i] as rItem"
+                          class="match-item right-item"
+                          [ngClass]="getSubRightMatchClass(currentQuestion, sqIndex, i)"
+                          [class.available]="!isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== undefined && currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== null"
+                          [class.matched]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i)"
+                          [class.disabled]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i)"
+                          [class.correct]="hasCurrentSubmitted && isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && isSubMatchCorrect(currentQuestion, sqIndex, getLeftIndexForSubRight(currentQuestion, sqIndex, i))"
+                          [class.wrong]="hasCurrentSubmitted && isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && !isSubMatchCorrect(currentQuestion, sqIndex, getLeftIndexForSubRight(currentQuestion, sqIndex, i))"
+                          (click)="selectSubQuestionMatchingRight(currentQuestion, sqIndex, i)"
+                        >
+                          <span [innerHTML]="rItem | safeHtml"></span>
+                        </button>
+                        <div
+                          *ngIf="!getSubMatchingRightItems(sq)[i]"
+                          class="match-item-placeholder"
+                        ></div>
+                      </div>
+                      <div class="matching-hint" *ngIf="currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== null && currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== undefined">
+                        <span class="material-icons">info</span>
+                        Now click the matching item on the right →
+                      </div>
                       </div>
                     </div>
 
-                    <!-- Word Bank Fill -->
+                     <!-- Word Bank Fill -->
                     <div *ngIf="sq.type === 'word_bank_fill'" class="sub-q-word-bank">
                       <div class="word-bank-box" *ngIf="sq.wordBank?.length">
-                        <div class="word-bank-box-label">Word bank</div>
+                        <div class="word-bank-box-label">Word bank — select a blank, then tap a word</div>
                         <div class="word-bank-pills">
                           <button type="button" class="word-bank-pill"
                             *ngFor="let word of sq.wordBank; trackBy: trackByIndex"
@@ -3873,6 +4081,8 @@
                             <input type="text" class="blank-input word-bank-answer-input"
                               [ngModel]="getSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii)"
                               (ngModelChange)="setSubQuestionWordBankAnswer(currentQuestion, sqIndex, ii, $event)"
+                              (focus)="onSubQuestionWordBankBlankFocus(currentQuestion, sqIndex, ii)"
+                              [class.active]="currentQuestion.subQuestionActiveBlankIndex?.[sqIndex] === ii"
                               [disabled]="hasCurrentSubmitted"
                               [placeholder]="'Blank ' + (ii + 1)" />
                           </div>
@@ -3910,6 +4120,7 @@
                           [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
                           (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                           [disabled]="hasCurrentSubmitted"
+                          name="sq-qa-{{ currentQuestion.index }}-{{ sqIndex }}"
                           placeholder="Type your answer..." />
                       </ng-template>
                     </div>
@@ -3917,9 +4128,157 @@
                     <!-- Pronunciation -->
                     <div *ngIf="sq.type === 'pronunciation'" class="sub-q-pronunciation">
                       <div class="pronunciation-word-card">
-                        <div class="big-word">{{ sq.word }}</div>
-                        <div class="word-phonetic" *ngIf="sq.phonetic">{{ sq.phonetic }}</div>
-                        <div class="word-translation" *ngIf="sq.translation">= {{ sq.translation }}</div>
+                        <div>
+                          <div class="big-word">{{ sq.word }}</div>
+                          <div class="word-phonetic" *ngIf="sq.phonetic">{{ sq.phonetic }}</div>
+                          <div class="word-translation" *ngIf="sq.translation">= {{ sq.translation }}</div>
+                        </div>
+                        <div class="pronunciation-word-card-right">
+                          <button
+                            class="btn-audio"
+                            (click)="playSubQuestionAudio(sq)"
+                          >
+                            <span class="material-icons">volume_up</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="pronunciation-controls">
+                        <div class="pronunciation-controls-btns">
+                          <button type="button" class="btn-record--subtle btn-record"
+                            (click)="openMicTest()"
+                            [disabled]="currentQuestion.subQuestionIsRecording?.[sqIndex] || currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing'"
+                            title="Check your microphone is working">
+                            <span class="material-icons">settings_voice</span>
+                            <span>Test microphone</span>
+                          </button>
+                          <button class="btn-record"
+                            [class.recording]="currentQuestion.subQuestionIsRecording?.[sqIndex]"
+                            [class.processing]="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing'"
+                            [class.has-result]="currentQuestion.subQuestionHasRecorded?.[sqIndex] && !currentQuestion.subQuestionIsRecording?.[sqIndex] && currentQuestion.subQuestionPronUiState?.[sqIndex] !== 'processing'"
+                            (click)="
+                              currentQuestion.subQuestionIsRecording?.[sqIndex]
+                                ? stopSubQuestionPronunciation(currentQuestion, sqIndex)
+                                : startSubQuestionPronunciation(currentQuestion, sqIndex)
+                            "
+                            [disabled]="hasCurrentSubmitted || currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing'">
+                            <span class="material-icons">
+                              {{ currentQuestion.subQuestionIsRecording?.[sqIndex] ? 'stop' : currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' ? 'hourglass_top' : 'mic' }}
+                            </span>
+                            <span>
+                              {{ currentQuestion.subQuestionIsRecording?.[sqIndex] ? 'Stop' : currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' ? 'Processing…' : currentQuestion.subQuestionHasRecorded?.[sqIndex] ? 'Re-record' : 'Speak' }}
+                            </span>
+                          </button>
+                        </div>
+
+                        <div class="pronunciation-listening" *ngIf="currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          <span class="material-icons">mic</span>
+                          🎤 Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+                          <app-audio-visualizer class="pronunciation-visualizer"
+                            [analyser]="getPronAnalyser()"
+                            [active]="!!currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          </app-audio-visualizer>
+                        </div>
+
+                        <div class="pronunciation-listening" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          <span class="material-icons">hourglass_top</span>
+                          Processing<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+                          <span class="pronunciation-processing-slow" *ngIf="pronProcessingSlow">— this may take a moment.</span>
+                        </div>
+
+                        <div class="pronunciation-listening pronunciation-listening--error" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'error' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          <span class="material-icons">error_outline</span>
+                          {{ currentQuestion.subQuestionPronMessage?.[sqIndex] || 'No speech detected, try again' }}
+                        </div>
+                      </div>
+
+                      <div class="pronunciation-result" *ngIf="currentQuestion.subQuestionHasRecorded?.[sqIndex] || hasCurrentSubmitted">
+                        <div class="score-circle"
+                          [class]="getPronunciationClass(currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0)">
+                          <div class="score-value">{{ currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0 }}%</div>
+                          <div class="score-label">Match</div>
+                        </div>
+
+                        <div class="pronunciation-feedback"
+                          [class.pron-feedback--correct]="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex] && (currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) >= 60"
+                          [class.pron-feedback--almost]="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]"
+                          [class.pron-feedback--incorrect]="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex] && (currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) < 60">
+                          <ng-container *ngIf="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            {{ getPronunciationFeedback(currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) }}
+                          </ng-container>
+                          <ng-container *ngIf="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            Almost there — try once more
+                          </ng-container>
+                        </div>
+
+                        <div class="pronunciation-confidence" *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
+                          [attr.data-confidence]="conf">
+                          {{ confidenceHeadline(conf) }}
+                        </div>
+                        <div class="pron-confidence-nudge" *ngIf="confidenceNudge(lastConfidenceByIndex[currentQuestion.index])">
+                          {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index]) }}
+                        </div>
+                        <div class="pron-audio-quality-banner" *ngIf="currentQuestion.subQuestionPronLowAudioQuality?.[sqIndex]">
+                          Your microphone input seems low. Try speaking louder or closer to the mic.
+                        </div>
+
+                        <app-pronunciation-comparison-view
+                          *ngIf="currentQuestion.subQuestionSpokenText?.[sqIndex] || currentQuestion.subQuestionPronExpectedText?.[sqIndex]"
+                          [expectedText]="currentQuestion.subQuestionPronExpectedText?.[sqIndex] || ''"
+                          [transcriptText]="currentQuestion.subQuestionSpokenText?.[sqIndex] || ''"
+                          [missingWords]="currentQuestion.subQuestionPronMissingWords?.[sqIndex] || []"
+                          [extraWords]="currentQuestion.subQuestionPronExtraWords?.[sqIndex] || []"
+                          [matchedWords]="currentQuestion.subQuestionPronMatchedWords?.[sqIndex] || []">
+                        </app-pronunciation-comparison-view>
+
+                        <div class="pron-word-analysis" *ngIf="currentQuestion.subQuestionPronWordAnalysis?.[sqIndex]?.length">
+                          <span class="pron-word-analysis-label">Word breakdown:</span>
+                          <div class="pron-word-chips">
+                            <span *ngFor="let w of currentQuestion.subQuestionPronWordAnalysis?.[sqIndex]"
+                              class="pron-chip"
+                              [class.pron-chip--correct]="w.status === 'correct'"
+                              [class.pron-chip--incorrect]="w.status === 'incorrect'"
+                              [class.pron-chip--missing]="w.status === 'missing'"
+                              [title]="w.status === 'missing' ? 'Missing' : 'You said: ' + (w.spoken || '—')">
+                              {{ w.expected }}
+                              <span class="pron-chip-icon material-icons">
+                                {{ w.status === 'correct' ? 'check' : w.status === 'missing' ? 'remove' : 'close' }}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div class="pron-hints" *ngIf="currentQuestion.subQuestionPronHints?.[sqIndex]?.length">
+                          <div class="pron-hint" *ngFor="let h of currentQuestion.subQuestionPronHints?.[sqIndex]">
+                            <span class="material-icons">lightbulb</span> {{ h }}
+                          </div>
+                        </div>
+
+                        <div class="pronunciation-retry-row" *ngIf="currentQuestion.subQuestionHasRecorded?.[sqIndex] && !hasCurrentSubmitted && (currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex] || (currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) < 60)">
+                          <span class="pronunciation-retry-nudge" *ngIf="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            ❌ Not quite — 👉 try again clearly.
+                          </span>
+                          <span class="pronunciation-retry-nudge pronunciation-retry-nudge--almost" *ngIf="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
+                            🔶 So close! Give it one more try.
+                          </span>
+                          <button type="button" class="btn-record btn-record--subtle"
+                            (click)="playSubQuestionAudio(sq)"
+                            title="Replay the reference word">
+                            <span class="material-icons">replay</span>
+                            <span>Replay word</span>
+                          </button>
+                        </div>
+
+                        <div class="pron-help-wrap" *ngIf="shouldShowNeedHelp(currentQuestion)">
+                          <button type="button" class="btn-record btn-record--subtle"
+                            (click)="togglePronHelp(currentQuestion)">
+                            <span class="material-icons">help_outline</span>
+                            Need help?
+                          </button>
+                          <div class="pron-help-chunks" *ngIf="currentQuestion.pronHelpOpen">
+                            <span class="pron-help-chip" *ngFor="let c of expectedChunks(currentQuestion.subQuestionPronExpectedText?.[sqIndex] || '')">{{ c }}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -3933,12 +4292,13 @@
                         [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
                         (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                         [disabled]="hasCurrentSubmitted"
+                        name="sq-listening-{{ currentQuestion.index }}-{{ sqIndex }}"
                         placeholder="Type what you hear..." />
                     </div>
 
                     <!-- Singular Plural -->
                     <div *ngIf="sq.type === 'singular_plural'" class="sub-q-singular-plural">
-                      <table class="sp-pairs-table" *ngIf="sq.singularPluralPairs?.length">
+                      <table class="sp-pairs-table" *ngIf="getSubQuestionSpRows(sq).length">
                         <thead>
                           <tr>
                             <th>Singular</th>
@@ -3946,10 +4306,10 @@
                           </tr>
                         </thead>
                         <tbody>
-                          <tr *ngFor="let sp of sq.singularPluralPairs; let ri = index">
+                          <tr *ngFor="let sp of getSubQuestionSpRows(sq); let ri = index">
                             <td class="sp-singular-cell">{{ sp.singular }}</td>
                             <td class="sp-plural-cell">
-                              <input type="text" class="blank-input"
+                              <input type="text" class="sp-box-input"
                                 [ngModel]="getSubQuestionSpInput(currentQuestion, sqIndex, ri)"
                                 (ngModelChange)="setSubQuestionSpInput(currentQuestion, sqIndex, ri, $event)"
                                 [disabled]="hasCurrentSubmitted"
@@ -3999,6 +4359,10 @@
                           </div>
                         </div>
                       </div>
+                      <div class="rearrange-answer-box" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex).length">
+                        <div class="rearrange-answer-label">Your answer is</div>
+                        <div class="rearrange-answer-text">{{ getSubQuestionRearrangeTokens(currentQuestion, sqIndex).join(' ') || '—' }}</div>
+                      </div>
                     </div>
 
                     <!-- Image Pin Match -->
@@ -4010,6 +4374,18 @@
                     <div *ngIf="sq.type === 'video-pronunciation'" class="sub-q-video-pron">
                       <p class="sub-q-text">Say: <strong>{{ sq.caption }}</strong></p>
                       <p *ngIf="sq.context" class="sub-q-text-sub">{{ sq.context }}</p>
+                    </div>
+
+                    <!-- Fallback for any unmatched sub-question type (e.g. worksheet-kind-based) -->
+                    <div *ngIf="!['mcq','fill-blank','matching','word_bank_fill','question-answer','pronunciation','listening','singular_plural','jumble-word','rearrange','image_pin_match','video-pronunciation'].includes(sq.type)" class="sub-q-fallback">
+                      <p class="sub-q-text" *ngIf="sq.prompt" [innerHTML]="sq.prompt | safeHtml"></p>
+                      <p class="sub-q-text" *ngIf="!sq.prompt && sq.question" [innerHTML]="sq.question | safeHtml"></p>
+                      <input type="text" class="sub-q-input"
+                        [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
+                        (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
+                        [disabled]="hasCurrentSubmitted"
+                        name="sq-fallback-{{ currentQuestion.index }}-{{ sqIndex }}"
+                        placeholder="Type your answer..." />
                     </div>
                   </div>
                 </div>
@@ -4031,6 +4407,20 @@
             class="result-banner"
             *ngIf="hasCurrentSubmitted && currentQuestion.isCorrect !== null"
           >
+            <ng-container *ngIf="hasSubQuestions(currentQuestion.data); else simpleResultBanner">
+              <div class="result-correct" *ngIf="getMultipartPointsEarned(currentQuestion) > 0">
+                <span class="material-icons">{{
+                  isMultipartFullyCorrect(currentQuestion) ? "check_circle" : "adjust"
+                }}</span>
+                +{{ getMultipartPointsEarned(currentQuestion) }}/{{ getMultipartMaxPoints(currentQuestion) }}
+                point{{ getMultipartMaxPoints(currentQuestion) !== 1 ? "s" : "" }}
+                <span class="result-partial-hint" *ngIf="isMultipartPartial(currentQuestion)">(partial credit)</span>
+              </div>
+              <div class="result-wrong" *ngIf="getMultipartPointsEarned(currentQuestion) === 0">
+                <span class="material-icons">cancel</span> Incorrect — 0/{{ getMultipartMaxPoints(currentQuestion) }} points
+              </div>
+            </ng-container>
+            <ng-template #simpleResultBanner>
             <div class="result-correct" *ngIf="currentQuestion.isCorrect">
               <span class="material-icons">check_circle</span> Correct! +{{
                 currentQuestion.data.points || 1
@@ -4040,37 +4430,63 @@
             <div class="result-wrong" *ngIf="!currentQuestion.isCorrect">
               <span class="material-icons">cancel</span> Incorrect
             </div>
+            </ng-template>
           </div>
 
-          <!-- Navigation Buttons (inside card) -->
-          <div class="question-nav-btns">
-            <button
-              class="btn-nav btn-prev"
-              (click)="prevQuestion()"
-              [disabled]="isFirstQuestion || finishingAll"
-            >
-              <span class="material-icons">arrow_back</span> Previous
-            </button>
-            <button
-              class="btn-nav btn-next"
-              *ngIf="!isLastQuestion"
-              (click)="nextQuestion()"
-              [disabled]="finishingAll"
-            >
-              Next <span class="material-icons">arrow_forward</span>
-            </button>
-            <button
-              class="btn-submit btn-finish"
-              *ngIf="isLastQuestion"
-              (click)="openFinishSummary()"
-              [disabled]="finishingAll || !canCompleteByAttemptRate"
-            >
-              <span class="material-icons">{{
-                finishingAll ? "hourglass_empty" : "flag"
-              }}</span>
-              {{ finishingAll ? "Finishing..." : "Finish & Submit" }}
-            </button>
-          </div>
+        </div>
+
+        <div
+          class="ipm-auto-advance"
+          *ngIf="showImagePinAutoAdvance()"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="material-icons" aria-hidden="true">arrow_forward</span>
+          <span>
+            Going to next question in
+            <strong>{{ imagePinAutoAdvanceSeconds }}</strong>
+            second{{ imagePinAutoAdvanceSeconds !== 1 ? "s" : "" }}…
+          </span>
+          <button
+            type="button"
+            class="ipm-auto-advance-skip"
+            (click)="skipImagePinAutoAdvance()"
+          >
+            Go now
+          </button>
+        </div>
+
+        <!-- Navigation (outside question card — avoids pin-drag touch conflicts) -->
+        <div class="question-nav-btns question-nav-btns--outside">
+          <button
+            type="button"
+            class="btn-nav btn-prev"
+            (click)="navPrev($event)"
+            [disabled]="isFirstQuestion || finishingAll"
+          >
+            <span class="material-icons">arrow_back</span> Previous
+          </button>
+          <button
+            type="button"
+            class="btn-nav btn-next"
+            *ngIf="!isLastQuestion"
+            (click)="navNext($event)"
+            [disabled]="finishingAll"
+          >
+            Next <span class="material-icons">arrow_forward</span>
+          </button>
+          <button
+            type="button"
+            class="btn-submit btn-finish"
+            *ngIf="isLastQuestion"
+            (click)="navFinish($event)"
+            [disabled]="finishingAll || !canCompleteByAttemptRate"
+          >
+            <span class="material-icons">{{
+              finishingAll ? "hourglass_empty" : "flag"
+            }}</span>
+            {{ finishingAll ? "Finishing..." : "Finish & Submit" }}
+          </button>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface Student {
@@ -62,6 +62,18 @@ export interface ZoomAccount {
   conflicts?: ZoomHostConflict[];
 }
 
+export interface StudentConflictEntry {
+  studentId: string;
+  name: string;
+  email: string;
+}
+
+export interface StudentConflict {
+  conflictingBatch: string;
+  conflictingTopic: string;
+  clashingStudents: StudentConflictEntry[];
+}
+
 export interface Teacher {
   _id: string;
   name: string;
@@ -75,6 +87,8 @@ export interface Teacher {
 })
 export class ZoomService {
   private apiUrl = `${environment.apiUrl}/zoom`;
+  private readonly studentMeetingsCacheTtlMs = 45_000;
+  private readonly studentMeetingsCache = new Map<string, { timestamp: number; request$: Observable<any> }>();
 
   constructor(private http: HttpClient) {}
 
@@ -90,6 +104,13 @@ export class ZoomService {
   /** Server-side journey preview + conflict strings (no Zoom). */
   previewBulkJourneyMeetings(body: Record<string, unknown>): Observable<any> {
     return this.http.post(`${this.apiUrl}/preview-bulk-journey-meetings`, body, {
+      withCredentials: true
+    });
+  }
+
+  /** Remove specific students from all future scheduled meetings of the given batch. */
+  removeStudentsFromBatch(batchName: string, studentIds: string[]): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meetings/remove-students-from-batch`, { batchName, studentIds }, {
       withCredentials: true
     });
   }
@@ -336,7 +357,18 @@ export class ZoomService {
     if (filters?.includeTabCounts) params.append('includeTabCounts', 'true');
     const qs = params.toString();
     const url = qs ? `${this.apiUrl}/student-meetings?${qs}` : `${this.apiUrl}/student-meetings`;
-    return this.http.get(url, { withCredentials: true });
+    const cacheKey = qs || '__all__';
+    const now = Date.now();
+    const cached = this.studentMeetingsCache.get(cacheKey);
+    if (cached && now - cached.timestamp < this.studentMeetingsCacheTtlMs) {
+      return cached.request$;
+    }
+    const request$ = this.http.get(url, { withCredentials: true }).pipe(
+      tap({ error: () => this.studentMeetingsCache.delete(cacheKey) }),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+    this.studentMeetingsCache.set(cacheKey, { timestamp: now, request$ });
+    return request$;
   }
 
   /**
@@ -376,5 +408,21 @@ export class ZoomService {
     return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/manual-mark-all`, {}, {
       withCredentials: true
     });
+  }
+
+  /** Join status for live class reminder modal (ongoing meetings). */
+  getJoinReminderPreview(meetingId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/meeting/${meetingId}/join-reminder-preview`, {
+      withCredentials: true,
+    });
+  }
+
+  /** Send live join reminder emails to selected students. */
+  sendJoinReminder(meetingId: string, studentIds: string[]): Observable<any> {
+    return this.http.post(
+      `${this.apiUrl}/meeting/${meetingId}/send-join-reminder`,
+      { studentIds },
+      { withCredentials: true },
+    );
   }
 }

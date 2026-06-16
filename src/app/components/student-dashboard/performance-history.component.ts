@@ -1,90 +1,109 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
-import { forkJoin, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import { DgApiService } from '../../dg-bot/dg-api.service';
-import type { DgModuleSummary } from '../../dg-bot/dg-bot.types';
-import { DigitalExercise, DigitalExerciseService } from '../../services/digital-exercise.service';
-import { StudentProgressService } from '../../services/student-progress.service';
-import { ZoomService } from '../../services/zoom.service';
+import { NgChartsModule } from 'ng2-charts';
+import { ChartConfiguration } from 'chart.js';
 
-type RangeMode = 'weekly' | 'overall';
-type TrackTab = 'classes' | 'exercises' | 'dgBot';
+interface Kpis {
+  overallCompletionPct: number; overallDone: number; overallTotal: number;
+  exerciseCompleted: number; exerciseTotal: number; exercisePct: number;
+  classAttended: number; classTotal: number; classPct: number;
+  dgBotCompleted: number; dgBotTotal: number; dgBotPct: number;
+  sessionCount: number; avgScore: number; totalStudyMinutes: number; totalVocabulary: number;
+}
 
-interface SessionHistory {
-  sessionId: string;
-  sessionState: string;
-  module?: { id?: string; title?: string; level?: string; category?: string };
-  summary?: {
-    totalScore?: number;
-    accuracy?: number;
-    conversationCount?: number;
-    timeSpentMinutes?: number;
-    vocabularyUsed?: string[];
-  };
-  createdAt: string;
+interface DayRow {
+  day: number; exercisesDone: number; classesAttended: number; classesTotal: number;
+  avgScore: number; sessions: number; studyMinutes: number;
+}
+
+interface CatPerf {
+  category: string; attempts: number; avgScore: number;
+}
+
+interface Day6Test {
+  day: number; type: string; id: string; title: string;
+  category: string | null; score: number; timeSpentMinutes: number; status: string;
+}
+
+interface SummaryResponse {
+  student: any;
+  kpis: Kpis;
+  dayBreakdown: DayRow[];
+  categoryPerformance: CatPerf[];
+  day6Tests: Day6Test[];
+  exercises: any[];
+  liveClasses: any[];
+  sessions: any[];
+  dgBotModules: any[];
 }
 
 @Component({
   selector: 'app-performance-history',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, NgChartsModule],
   templateUrl: './performance-history.component.html',
   styleUrls: ['./performance-history.component.scss']
 })
 export class PerformanceHistoryComponent implements OnInit {
-  isLoading = false;
-  rangeMode: RangeMode = 'weekly';
-  activeTab: TrackTab = 'classes';
-  searchText = '';
-  pageSize = 8;
-  classPage = 1;
-  exercisePage = 1;
-  dgBotPage = 1;
+  isLoading = true;
+  data: SummaryResponse | null = null;
+  rangeMode: 'overall' | 'weekly' = 'overall';
+  activeTable: 'classes' | 'exercises' | 'dg' | 'tests' = 'classes';
 
-  journeyCourseDay = 1;
-  sessionHistory: SessionHistory[] = [];
-  exercises: DigitalExercise[] = [];
-  dgBotModules: DgModuleSummary[] = [];
-  meetings: any[] = [];
-  totalVocabulary = 0;
+  lineChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
+  lineChartOptions: ChartConfiguration['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'top' }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 100,
+        title: { display: true, text: 'Score %' }
+      }
+    }
+  };
 
-  constructor(
-    private http: HttpClient,
-    private router: Router,
-    private exerciseService: DigitalExerciseService,
-    private dgApi: DgApiService,
-    private progressService: StudentProgressService,
-    private zoomService: ZoomService
-  ) {}
+  radarChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
+  radarChartOptions: ChartConfiguration['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'top' }
+    },
+    scales: {
+      r: {
+        beginAtZero: true,
+        max: 100,
+        ticks: { display: false }
+      }
+    }
+  };
+
+  constructor(private http: HttpClient) {}
 
   ngOnInit(): void {
-    this.loadAll();
+    this.loadSummary();
   }
 
-  loadAll(): void {
+  setRange(mode: 'overall' | 'weekly'): void {
+    if (mode === this.rangeMode) return;
+    this.rangeMode = mode;
+    this.loadSummary();
+  }
+
+  loadSummary(): void {
     this.isLoading = true;
-    forkJoin({
-      journey: this.progressService.getStudentJourney().pipe(catchError(() => of(null))),
-      exercises: this.exerciseService.getExercises({ page: 1, limit: 500 }).pipe(catchError(() => of({ exercises: [] }))),
-      dgBot: this.dgApi.listStudentModules().pipe(catchError(() => of({ modules: [], studentCourseDay: undefined }))),
-      meetings: this.zoomService.getStudentMeetings().pipe(catchError(() => of({ success: false, data: [] }))),
-      sessions: this.http.get<any>(`${environment.apiUrl}/session-records/my-history`, { withCredentials: true }).pipe(catchError(() => of({ sessionHistory: [] })))
+    this.http.get<SummaryResponse>(`${environment.apiUrl}/student-progress/performance-summary?range=${this.rangeMode}`, {
+      withCredentials: true
     }).subscribe({
-      next: ({ journey, exercises, dgBot, meetings, sessions }) => {
-        const dgDay = 'studentCourseDay' in dgBot ? dgBot.studentCourseDay : undefined;
-        this.journeyCourseDay = Number(journey?.profile?.currentCourseDay || dgDay || 1);
-        this.exercises = Array.isArray(exercises?.exercises) ? exercises.exercises : [];
-        this.dgBotModules = Array.isArray(dgBot?.modules) ? dgBot.modules : [];
-        this.meetings = meetings?.success && Array.isArray(meetings?.data) ? meetings.data : [];
-        this.sessionHistory = Array.isArray(sessions?.sessionHistory) ? sessions.sessionHistory : [];
-        this.totalVocabulary = new Set(
-          this.sessionHistory.flatMap((s) => Array.isArray(s.summary?.vocabularyUsed) ? s.summary?.vocabularyUsed || [] : [])
-        ).size;
+      next: (res) => {
+        this.data = res;
+        this.buildCharts();
         this.isLoading = false;
       },
       error: () => {
@@ -93,389 +112,111 @@ export class PerformanceHistoryComponent implements OnInit {
     });
   }
 
-  setRange(mode: RangeMode): void {
-    this.rangeMode = mode;
-    this.resetPages();
+  private buildCharts(): void {
+    if (!this.data) return;
+    this.buildLineChart();
+    this.buildRadarChart();
+  }
+
+  private buildLineChart(): void {
+    const breakdown = this.data!.dayBreakdown;
+    this.lineChartData = {
+      labels: breakdown.map(d => String(d.day)),
+      datasets: [
+        {
+          label: 'Avg Score',
+          data: breakdown.map(d => d.avgScore),
+          borderColor: '#4f46e5',
+          backgroundColor: 'rgba(79, 70, 229, 0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3
+        },
+        {
+          label: 'Exercises Done',
+          data: breakdown.map(d => d.exercisesDone),
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          yAxisID: 'y1'
+        }
+      ]
+    };
+    this.lineChartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top' }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Days' },
+          ticks: {
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 20
+          }
+        },
+        y: {
+          beginAtZero: true,
+          max: 100,
+          title: { display: true, text: 'Score %' },
+          position: 'left'
+        },
+        y1: {
+          beginAtZero: true,
+          title: { display: true, text: 'Count' },
+          position: 'right',
+          grid: { drawOnChartArea: false }
+        }
+      }
+    };
+  }
+
+  private buildRadarChart(): void {
+    const cats = this.data!.categoryPerformance;
+    this.radarChartData = {
+      labels: cats.map(c => c.category),
+      datasets: [
+        {
+          label: 'Avg Score by Category',
+          data: cats.map(c => c.avgScore),
+          borderColor: '#8b5cf6',
+          backgroundColor: 'rgba(139, 92, 246, 0.2)',
+          pointBackgroundColor: '#8b5cf6',
+          pointRadius: 4
+        }
+      ]
+    };
+  }
+
+  formatMinutes(m: number): string {
+    if (m < 60) return `${Math.round(m)}m`;
+    const h = Math.floor(m / 60);
+    const min = Math.round(m % 60);
+    return min ? `${h}h ${min}m` : `${h}h`;
+  }
+
+  get studentName(): string {
+    return this.data?.student?.name || '';
+  }
+
+  get currentDay(): number {
+    return this.data?.student?.currentCourseDay || 0;
+  }
+
+  get currentTableEmpty(): boolean {
+    if (!this.data) return true;
+    if (this.activeTable === 'classes') return !this.endedClasses.length;
+    if (this.activeTable === 'exercises') return !this.data.exercises.length;
+    if (this.activeTable === 'dg') return !this.data.dgBotModules?.length;
+    if (this.activeTable === 'tests') return !this.data.day6Tests.length;
+    return true;
   }
 
-  setTab(tab: TrackTab): void {
-    this.activeTab = tab;
-    this.searchText = '';
-    this.resetPages();
-  }
-
-  onSearchChange(): void {
-    this.resetPages();
-  }
-
-  private resetPages(): void {
-    this.classPage = 1;
-    this.exercisePage = 1;
-    this.dgBotPage = 1;
-  }
-
-  get skeletonRows(): number[] {
-    return [1, 2, 3, 4, 5, 6];
-  }
-
-  get filteredMeetings(): any[] {
-    const q = this.searchText.trim().toLowerCase();
-    // Only ended classes should contribute to tracking and KPI counts.
-    const items = this.meetings.filter((m) => m?.hasEnded && this.isInRangeByDay(this.getMeetingDay(m)));
-    if (!q) return items;
-    return items.filter((m) => {
-      const text = `${m.topic || ''} ${m.teacher?.name || ''} ${this.getMeetingDay(m)}`.toLowerCase();
-      return text.includes(q);
-    });
-  }
-
-  get filteredDgBotModules(): DgModuleSummary[] {
-    const q = this.searchText.trim().toLowerCase();
-    const items = this.dgBotModules.filter((m) => this.isInRangeByDay(Number(m.courseDay || 0)));
-    if (!q) return items;
-    return items.filter((m) => `${m.title || ''} ${m.level || ''} ${m.language || ''} ${m.courseDay || ''}`.toLowerCase().includes(q));
-  }
-
-  get filteredExercises(): DigitalExercise[] {
-    const q = this.searchText.trim().toLowerCase();
-    const items = this.exercises.filter((e) => this.isInRangeByDay(Number(e.courseDay || 0)));
-    if (!q) return items;
-    return items.filter((e) => `${e.title || ''} ${e.level || ''} ${e.category || ''} ${e.courseDay || ''}`.toLowerCase().includes(q));
-  }
-
-  get filteredSessions(): SessionHistory[] {
-    if (this.rangeMode === 'overall') return this.sessionHistory;
-    const from = new Date();
-    from.setDate(from.getDate() - 6);
-    from.setHours(0, 0, 0, 0);
-    return this.sessionHistory.filter((s) => new Date(s.createdAt).getTime() >= from.getTime());
-  }
-
-  get overallDone(): number {
-    return this.classAttended + this.dgBotCompleted + this.exerciseCompleted;
-  }
-
-  get overallTotal(): number {
-    return this.classTotal + this.dgBotTotal + this.exerciseTotal;
-  }
-
-  get overallPct(): number {
-    return this.ratio(this.overallDone, this.overallTotal);
-  }
-
-  get classAttended(): number {
-    return this.filteredMeetings.filter((m) => this.getAttendancePercent(m) >= 75).length;
-  }
-
-  get classTotal(): number {
-    return this.filteredMeetings.length;
-  }
-
-  get classPct(): number {
-    return this.ratio(this.classAttended, this.classTotal);
-  }
-
-  get dgBotCompleted(): number {
-    return this.filteredDgBotModules.filter((m) => !!m.studentProgress?.completed).length;
-  }
-
-  get dgBotTotal(): number {
-    return this.filteredDgBotModules.length;
-  }
-
-  get dgBotPct(): number {
-    return this.ratio(this.dgBotCompleted, this.dgBotTotal);
-  }
-
-  get exerciseCompleted(): number {
-    return this.filteredExercises.filter((e) => !!e.studentAttempt).length;
-  }
-
-  get exerciseTotal(): number {
-    return this.filteredExercises.length;
-  }
-
-  get exercisePct(): number {
-    return this.ratio(this.exerciseCompleted, this.exerciseTotal);
-  }
-
-  get sessionCount(): number {
-    return this.filteredSessions.length;
-  }
-
-  get avgScore(): number {
-    const scores = [
-      ...this.filteredSessions.map((s) => Number(s.summary?.totalScore || 0)).filter((n) => n > 0),
-      ...this.filteredExercises.map((e) => Number(e.studentAttempt?.scorePercentage || 0)).filter((n) => n > 0)
-    ];
-    if (!scores.length) return 0;
-    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  }
-
-  get totalStudyMinutes(): number {
-    const sessionMinutes = this.filteredSessions.reduce((sum, s) => sum + Number(s.summary?.timeSpentMinutes || 0), 0);
-    const exerciseMinutes = this.filteredExercises.reduce((sum, e) => sum + Math.round(Number(e.studentAttempt?.timeSpentSeconds || 0) / 60), 0);
-    const classMinutes = this.filteredMeetings.reduce((sum, m) => sum + Number(m.attendedDurationMinutes || 0), 0);
-    return sessionMinutes + exerciseMinutes + classMinutes;
-  }
-
-  get pagedMeetings(): any[] {
-    return this.paginate(this.filteredMeetings, this.classPage);
-  }
-
-  get pagedExercises(): DigitalExercise[] {
-    return this.paginate(this.filteredExercises, this.exercisePage);
-  }
-
-  get pagedDgBotModules(): DgModuleSummary[] {
-    return this.paginate(this.filteredDgBotModules, this.dgBotPage);
-  }
-
-  get classPages(): number {
-    return this.totalPages(this.filteredMeetings.length);
-  }
-
-  get exercisePages(): number {
-    return this.totalPages(this.filteredExercises.length);
-  }
-
-  get dgBotPages(): number {
-    return this.totalPages(this.filteredDgBotModules.length);
-  }
-
-  get currentPage(): number {
-    if (this.activeTab === 'classes') return this.classPage;
-    if (this.activeTab === 'exercises') return this.exercisePage;
-    return this.dgBotPage;
-  }
-
-  get totalPagesForActiveTab(): number {
-    if (this.activeTab === 'classes') return this.classPages;
-    if (this.activeTab === 'exercises') return this.exercisePages;
-    return this.dgBotPages;
-  }
-
-  get totalRowsForActiveTab(): number {
-    if (this.activeTab === 'classes') return this.filteredMeetings.length;
-    if (this.activeTab === 'exercises') return this.filteredExercises.length;
-    return this.filteredDgBotModules.length;
-  }
-
-  get showingFromForActiveTab(): number {
-    if (!this.totalRowsForActiveTab) return 0;
-    return (this.currentPage - 1) * this.pageSize + 1;
-  }
-
-  get showingToForActiveTab(): number {
-    if (!this.totalRowsForActiveTab) return 0;
-    return Math.min(this.totalRowsForActiveTab, this.currentPage * this.pageSize);
-  }
-
-  get activeTabLabel(): string {
-    if (this.activeTab === 'classes') return 'classes';
-    if (this.activeTab === 'exercises') return 'exercises';
-    return 'DG bot lessons';
-  }
-
-  canGoPrev(): boolean {
-    return this.currentPage > 1;
-  }
-
-  canGoNext(): boolean {
-    return this.currentPage < this.totalPagesForActiveTab;
-  }
-
-  changeActivePage(dir: -1 | 1): void {
-    this.changePage(this.activeTab, dir);
-  }
-
-  changePage(tab: TrackTab, dir: -1 | 1): void {
-    if (tab === 'classes') {
-      this.classPage = Math.min(this.classPages, Math.max(1, this.classPage + dir));
-      return;
-    }
-    if (tab === 'exercises') {
-      this.exercisePage = Math.min(this.exercisePages, Math.max(1, this.exercisePage + dir));
-      return;
-    }
-    this.dgBotPage = Math.min(this.dgBotPages, Math.max(1, this.dgBotPage + dir));
-  }
-
-  getMeetingStatus(meeting: any): string {
-    if (meeting?.hasEnded) {
-      const pct = this.getAttendancePercent(meeting);
-      if (pct >= 75) return 'Completed';
-      if (pct > 0) return 'Partial';
-      return 'Missed';
-    }
-    if (meeting?.isOngoing) return 'Live';
-    return 'Upcoming';
-  }
-
-  getMeetingStatusClass(meeting: any): string {
-    const s = this.getMeetingStatus(meeting).toLowerCase();
-    if (s === 'completed') return 'ok';
-    if (s === 'partial') return 'partial';
-    if (s === 'missed') return 'bad';
-    if (s === 'live') return 'live';
-    return 'upcoming';
-  }
-
-  getDgBotStatus(module: DgModuleSummary): string {
-    if (module?.studentProgress?.completed) return 'Completed';
-    const pct = Number(module?.studentProgress?.bestCompletionPercent);
-    if (Number.isFinite(pct) && pct > 0) return 'In progress';
-    return 'Pending';
-  }
-
-  getDgBotStatusClass(module: DgModuleSummary): string {
-    const s = this.getDgBotStatus(module).toLowerCase();
-    if (s === 'completed') return 'ok';
-    if (s === 'in progress') return 'partial';
-    return 'pending';
-  }
-
-  formatDgBotProgress(module: DgModuleSummary): string {
-    const pct = Number(module?.studentProgress?.bestCompletionPercent);
-    return Number.isFinite(pct) && pct > 0 ? `${Math.round(pct)}%` : '—';
-  }
-
-  openDgBot(module: DgModuleSummary): void {
-    if (!module?._id) return;
-    this.router.navigate(['/dg-bot', module._id, 'play']);
-  }
-
-  getExerciseStatus(ex: any): string {
-    return ex?.studentAttempt ? 'Completed' : 'Pending';
-  }
-
-  getExerciseStatusClass(ex: any): string {
-    return ex?.studentAttempt ? 'ok' : 'pending';
-  }
-
-  formatExerciseScore(ex: any): string {
-    if (!ex?.studentAttempt) return '---';
-    const earned = Number(ex.studentAttempt?.earnedPoints ?? NaN);
-    const total = Number(ex.studentAttempt?.totalPoints ?? NaN);
-    if (Number.isFinite(earned) && Number.isFinite(total) && total > 0) {
-      return `${Math.round(earned)}/${Math.round(total)}`;
-    }
-    const pct = Number(ex.studentAttempt?.scorePercentage ?? NaN);
-    return Number.isFinite(pct) ? `${Math.round(pct)}/100` : '---';
-  }
-
-  classRowCountText(): string {
-    return `${this.filteredMeetings.length} classes`;
-  }
-
-  exerciseRowCountText(): string {
-    return `${this.filteredExercises.length} exercises`;
-  }
-
-  dgBotRowCountText(): string {
-    return `${this.filteredDgBotModules.length} DG bot lessons`;
-  }
-
-  openJourney(): void {
-    this.router.navigate(['/student/my-course'], { queryParams: { tab: 'journey' } });
-  }
-
-  private ratio(done: number, total: number): number {
-    if (!total) return 0;
-    return Math.round((done / total) * 100);
-  }
-
-  private paginate<T>(arr: T[], page: number): T[] {
-    const start = (page - 1) * this.pageSize;
-    return arr.slice(start, start + this.pageSize);
-  }
-
-  private totalPages(totalItems: number): number {
-    return Math.max(1, Math.ceil(totalItems / this.pageSize));
-  }
-
-  private isInRangeByDay(day: number): boolean {
-    if (!Number.isFinite(day) || day <= 0) return this.rangeMode === 'overall';
-    if (this.rangeMode === 'overall') return day >= 1 && day <= this.journeyCourseDay;
-    const min = Math.max(1, this.journeyCourseDay - 6);
-    return day >= min && day <= this.journeyCourseDay;
-  }
-
-  getMeetingDay(meeting: any): number {
-    const direct = Number(meeting?.courseDay || 0);
-    if (Number.isFinite(direct) && direct > 0) return direct;
-    const topic = String(meeting?.topic || '');
-    const matched = topic.match(/\bday\s*[:\-]?\s*(\d{1,3})\b/i);
-    return matched ? Number(matched[1]) : 0;
-  }
-
-  getAttendancePercent(meeting: any): number {
-    if (!meeting?.hasEnded) return 0;
-    const total = Number(meeting?.duration || 0);
-    if (total <= 0) return 0;
-    const attended = Number(meeting?.attendedDurationMinutes ?? meeting?.durationMinutes ?? 0);
-    if (meeting?.attended === true && attended <= 0) return 100;
-    return Math.max(0, Math.min(100, Math.round((attended / total) * 100)));
-  }
-
-  getAttendanceColor(meeting: any): string {
-    const pct = this.getAttendancePercent(meeting);
-    if (pct >= 75) return 'good';
-    if (pct > 0) return 'warn';
-    return 'bad';
-  }
-
-  getClassCode(meeting: any): string {
-    const topic = String(meeting?.topic || 'CL').trim();
-    const words = topic.split(/\s+/).filter(Boolean);
-    const letters = words.slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('');
-    return letters || 'CL';
-  }
-
-  getClassSubTitle(meeting: any): string {
-    const batch = String(meeting?.batch || '').trim();
-    const level = String(meeting?.level || '').trim();
-    return [batch, level].filter(Boolean).join(' · ') || 'Live class';
-  }
-
-  getMeetingWeekday(meeting: any): string {
-    return new Date(meeting?.startTime).toLocaleDateString('en-US', { weekday: 'long' });
-  }
-
-  formatMeetingTimeRange(meeting: any): string {
-    const start = new Date(meeting?.startTime);
-    const end = new Date(start.getTime() + (Number(meeting?.duration || 0) * 60000));
-    const fmt = (d: Date) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    return `${fmt(start)} - ${fmt(end)}`;
-  }
-
-  formatMinutes(mins: number): string {
-    if (mins < 60) return `${mins}m`;
-    const h = Math.floor(mins / 60);
-    const r = mins % 60;
-    return `${h}h ${r}m`;
-  }
-
-  formatSecondsAsMinutes(seconds: number | undefined): string {
-    const mins = Math.round(Number(seconds || 0) / 60);
-    return this.formatMinutes(mins);
-  }
-
-  formatDate(date: Date): string {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  }
-
-  formatDateTime(date: any): string {
-    return new Date(date).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  get endedClasses(): any[] {
+    return this.data?.liveClasses?.filter(c => c.hasEnded) || [];
   }
 }

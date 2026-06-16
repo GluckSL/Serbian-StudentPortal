@@ -142,6 +142,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
     points: { type: Number, default: 1 },
     // Per-question attachment (image, audio, PDF, video) visible only for this question
     attachmentUrl: { type: String, default: '' },
+    attachmentUrls: [{ type: String }],
     // When attachment is audio: max play-button presses per exercise attempt (omit/null = unlimited)
     attachmentAudioMaxPlaysPerAttempt: { type: Number, default: null, min: 1, max: 99 },
     // Teacher explanation of why the correct answer is right; shown to students in review
@@ -238,6 +239,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
       // Common
       points: { type: Number, default: 1 },
       attachmentUrl: { type: String, default: '' },
+      attachmentUrls: [{ type: String }],
       attachmentAudioMaxPlaysPerAttempt: { type: Number, default: null, min: 1, max: 99 },
       answerExplanation: { type: String, default: '' },
       sectionTitle: { type: String, default: null },
@@ -293,7 +295,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
    * Omit or null = general pool (any student who can see published exercises).
    * If set, students only see it when currentCourseDay >= courseDay (browse + play).
    */
-  courseDay: { type: Number, default: null, min: 1, max: 200 },
+  courseDay: { type: Number, default: null, min: 0, max: 200 },
 
   /**
    * Optional within-day sequence letter (a, b, c …).
@@ -314,6 +316,33 @@ const DigitalExerciseSchema = new mongoose.Schema({
   visibleToStudents: { type: Boolean, default: false },
   publishedAt: { type: Date, default: null },
 
+  /**
+   * Exam bucket flags (mutually exclusive).
+   * - weeklyTestEnabled: visible under Student → My Course → Gluck Exam → Weekly Test
+   * - examEnabled:       visible under Student → My Course → Gluck Exam → Exams
+   * Default: both false (not shown under Gluck Exam).
+   */
+  weeklyTestEnabled: { type: Boolean, default: false },
+  examEnabled: { type: Boolean, default: false },
+
+  /**
+   * When true, students skip the pronunciation step — they just watch each
+   * video clip and tap "Next". Controlled by admin only (default: false).
+   */
+  watchOnlyMode: { type: Boolean, default: false },
+
+  /**
+   * Set when this exercise was created by splitting questions from another exercise.
+   * Used to inherit completion from the student's completed attempt on the source.
+   */
+  splitLineage: {
+    sourceExerciseId: { type: mongoose.Schema.Types.ObjectId, ref: 'DigitalExercise' },
+    questionSources: [{
+      sourceQuestionIndex: { type: Number, required: true },
+      sourceQuestionId: { type: mongoose.Schema.Types.ObjectId }
+    }]
+  },
+
   // Metadata
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -322,6 +351,9 @@ const DigitalExerciseSchema = new mongoose.Schema({
   totalAttempts: { type: Number, default: 0 },
   totalCompletions: { type: Number, default: 0 },
   averageScore: { type: Number, default: 0 },
+
+  // Free mode flag (created via free mode builder)
+  isFreeMode: { type: Boolean, default: false },
 
   // Soft delete
   isDeleted: { type: Boolean, default: false },
@@ -333,12 +365,19 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
 DigitalExerciseSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
+  if (this.weeklyTestEnabled && this.examEnabled) {
+    this.invalidate('examEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+    this.invalidate('weeklyTestEnabled', 'Only one of Weekly Test or Exam can be enabled.');
+  }
   next();
 });
 
 DigitalExerciseSchema.index({ level: 1, category: 1, isActive: 1 });
 DigitalExerciseSchema.index({ createdBy: 1 });
 DigitalExerciseSchema.index({ visibleToStudents: 1, isActive: 1, isDeleted: 1 });
+DigitalExerciseSchema.index({ isActive: 1, isDeleted: 1, visibleToStudents: 1, createdAt: -1 });
+DigitalExerciseSchema.index({ isActive: 1, isDeleted: 1, visibleToStudents: 1, level: 1, category: 1, difficulty: 1, createdAt: -1 });
+DigitalExerciseSchema.index({ isActive: 1, isDeleted: 1, visibleToStudents: 1, courseDay: 1, createdAt: -1 });
 DigitalExerciseSchema.index({ courseDay: 1, visibleToStudents: 1, isDeleted: 1 });
 DigitalExerciseSchema.index({ courseDay: 1, sequenceLetter: 1 });
 DigitalExerciseSchema.index({ isDeleted: 1, createdAt: -1 });

@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { TeacherService } from '../../services/teacher.service';
 import { ZoomService } from '../../services/zoom.service';
 import { ClassResourceService } from '../../services/class-resource.service';
@@ -9,11 +10,13 @@ import { ClassDoubtService } from '../../services/class-doubt.service';
 import { ClassSubmissionService } from '../../services/class-submission.service';
 import { NotificationService } from '../../services/notification.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import { MeetingRemindDialogComponent } from '../meeting-link/meeting-remind-dialog.component';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-teacher-my-classes',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatDialogModule],
   templateUrl: './teacher-my-classes.component.html',
   styleUrls: ['./teacher-my-classes.component.css']
 })
@@ -39,6 +42,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   private joinLabelTimer?: ReturnType<typeof setInterval>;
 
   filters = { batch: '', date: '', plan: '', status: '' };
+  private teacherUserId = '';
   /** 'all' = no date filter (show every class for this teacher); 'one' = filter by `filters.date` */
   dateFilterType: 'all' | 'one' = 'all';
 
@@ -75,12 +79,24 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     private submissionService: ClassSubmissionService,
     private notify: NotificationService,
     private joinClassFlow: JoinClassFlowService,
-    private cdr: ChangeDetectorRef
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
     this.dateFilterType = 'all';
     this.filters.date = '';
+    const snap = this.authService.getSnapshotUser();
+    this.teacherUserId = String(snap?._id || snap?.id || '');
+    if (!this.teacherUserId) {
+      this.authService.getUserProfile().subscribe({
+        next: (profile) => {
+          this.teacherUserId = String(profile?._id || profile?.id || '');
+          this.cdr.markForCheck();
+        },
+      });
+    }
     this.loadBatchOptions();
     this.loadClasses();
     this.joinLabelTimer = setInterval(() => this.cdr.markForCheck(), 30000);
@@ -259,14 +275,46 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     });
   }
 
-  showJoinButton(_m: any): boolean {
-    return this.statusTab !== 'ended';
+  teacherHostsMeeting(m: any): boolean {
+    const uid = this.teacherUserId;
+    if (!uid) return false;
+    const assigned = String(m?.assignedTeacher?._id || m?.assignedTeacher || '');
+    const created = String(m?.createdBy?._id || m?.createdBy || '');
+    return uid === assigned || uid === created;
+  }
+
+  showJoinButton(m: any): boolean {
+    return this.statusTab !== 'ended' && this.teacherHostsMeeting(m);
   }
 
   joinMeeting(m: any, event: Event): void {
     event.stopPropagation();
     event.preventDefault();
     this.joinClassFlow.openJoin(m, (msg) => this.notify.error(msg));
+  }
+
+  canShowRemindButton(m: any): boolean {
+    return (
+      this.statusTab === 'ongoing' &&
+      this.getMeetingStatus(m) === 'ongoing' &&
+      this.teacherHostsMeeting(m)
+    );
+  }
+
+  openRemindDialog(m: any, event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    const ref = this.dialog.open(MeetingRemindDialogComponent, {
+      data: { meetingId: m._id, topic: m.topic },
+      width: '480px',
+      maxWidth: '98vw',
+    });
+    ref.afterClosed().subscribe((result) => {
+      if (result?.sent) {
+        const n = result.sent;
+        this.notify.success(`Reminder email sent to ${n} student${n !== 1 ? 's' : ''}.`);
+      }
+    });
   }
 
   joinButtonLabel(m: any): string {

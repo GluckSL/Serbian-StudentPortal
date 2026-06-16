@@ -282,13 +282,16 @@ export class StudentDocumentsComponent implements OnInit {
     }
     const allowedTypes = [
       'application/pdf',
+      'application/x-pdf',
       'image/jpeg',
       'image/jpg',
       'image/png',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ];
-    if (!allowedTypes.includes(file.type)) {
+    const nameOk = /\.(pdf|jpe?g|png|docx?)$/i.test(file.name || '');
+    const mimeOk = !!file.type && allowedTypes.includes(file.type);
+    if (!mimeOk && !nameOk) {
       return 'Invalid file type. Only PDF, JPG, PNG, DOC, and DOCX files are allowed.';
     }
     return null;

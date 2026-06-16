@@ -11,6 +11,7 @@ import { MaterialModule } from '../../shared/material.module';
 import { AuthService } from '../../services/auth.service';
 import { DgApiService } from '../dg-api.service';
 import type { DgModuleSummary } from '../dg-bot.types';
+import { clampJourneyDay } from '../../utils/journey-day.util';
 
 type HubTab = 'completed' | 'pending' | 'new';
 
@@ -33,6 +34,19 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   /** Hide the Gluck Buddy title strip (parent supplies a section heading, e.g. Journey day). */
   @Input() hideEmbeddedHeader = false;
+
+  /**
+   * Pre-loaded modules + metadata from a parent that already called
+   * `listStudentModules()`. When provided, the component skips its own API
+   * call in `ngOnInit` and uses these values directly.
+   */
+  @Input() preloadedData: {
+    modules: DgModuleSummary[];
+    studentCourseDay?: number;
+    unlockMode?: 'daily' | 'weekly' | 'none';
+    dgUnlockedWeek?: number;
+    dgWeekHint?: string | null;
+  } | null = null;
 
   /** Raw list from API before optional `journeyFixedDay` filter. */
   private allModules: DgModuleSummary[] = [];
@@ -93,7 +107,24 @@ export class DgBotHubComponent implements OnInit, OnChanges {
       });
       return;
     }
-    this.loadModules();
+    if (this.preloadedData) {
+      this.allModules = this.preloadedData.modules || [];
+      this.rawModuleCount = this.allModules.length;
+      const d = Number(this.preloadedData?.studentCourseDay);
+      if (Number.isFinite(d) && d >= 1) {
+        this.studentCourseDay = Math.min(200, Math.floor(d));
+      }
+      this.unlockMode = this.preloadedData?.unlockMode === 'weekly' ? 'weekly' : this.preloadedData?.unlockMode === 'none' ? 'none' : 'daily';
+      const w = Number(this.preloadedData?.dgUnlockedWeek);
+      if (Number.isFinite(w) && w >= 1) {
+        this.dgUnlockedWeek = Math.floor(w);
+      }
+      this.apiWeekHint = this.preloadedData?.dgWeekHint?.trim() || null;
+      this.loading = false;
+      this.applyDayScope();
+    } else {
+      this.loadModules();
+    }
   }
 
   loadModules(): void {
@@ -170,7 +201,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   applyDayScope(): void {
     if (this.journeyFixedDay != null && Number.isFinite(Number(this.journeyFixedDay))) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       this.modules = this.allModules.filter((m) => this.moduleCourseDayNum(m) === d);
     } else {
       this.modules = [...this.allModules];
@@ -180,7 +211,9 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   private applyFilters(): void {
     const q = this.searchQuery.trim().toLowerCase();
-    let list = this.modules.filter((m) => this.matchesStudentTab(m, this.activeTab));
+    let list = this.journeyFixedDay != null
+      ? [...this.modules]
+      : this.modules.filter((m) => this.matchesStudentTab(m, this.activeTab));
 
     if (q) {
       list = list.filter((m) => {
@@ -264,7 +297,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     if (cd == null || cd === undefined) return null;
     const n = Number(cd);
     if (!Number.isFinite(n)) return null;
-    return Math.min(200, Math.max(1, Math.floor(n)));
+    return clampJourneyDay(n);
   }
 
   isModuleCompleted(m: DgModuleSummary): boolean {
@@ -303,7 +336,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     const cur = this.studentCourseDay;
 
     if (this.journeyFixedDay != null) {
-      const d = Math.min(200, Math.max(1, Math.floor(Number(this.journeyFixedDay))));
+      const d = clampJourneyDay(this.journeyFixedDay);
       if (tab === 'completed') {
         return completed;
       }
@@ -330,7 +363,8 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   journeyDayLabel(m: DgModuleSummary): string {
     const d = this.moduleCourseDayNum(m);
-    return d == null ? 'Any day' : `Day ${d}`;
+    if (d == null) return 'Any day';
+    return d === 0 ? 'Trial' : `Day ${d}`;
   }
 
   trackModule = (_: number, m: DgModuleSummary): string => m._id;

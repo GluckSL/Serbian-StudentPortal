@@ -31,6 +31,7 @@ import { ArenaTournamentDto } from '../../../glueck-arena.types';
               <mat-option value="sentence_builder">Sentence Builder</mat-option>
               <mat-option value="flapjugation">Flapjugation</mat-option>
               <mat-option value="whackawort">Whack-a-Wort</mat-option>
+              <mat-option value="memory">Memory Game</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline"><mat-label>Starts at</mat-label>

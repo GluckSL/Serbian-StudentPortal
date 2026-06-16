@@ -13,6 +13,14 @@ import { ImageMatchingQuestionFormComponent } from '../image-matching-question-f
 import { GenderStackQuestionFormComponent } from '../gender-stack-question-form/gender-stack-question-form.component';
 import { FlapjugationQuestionFormComponent } from '../flapjugation-question-form/flapjugation-question-form.component';
 import { WhackawortQuestionFormComponent } from '../whackawort-question-form/whackawort-question-form.component';
+import { JumbledWordsQuestionFormComponent } from '../jumbled-words-question-form/jumbled-words-question-form.component';
+import { MemoryGameQuestionFormComponent } from '../memory-game-question-form/memory-game-question-form.component';
+import { HangmanQuestionFormComponent } from '../hangman-question-form/hangman-question-form.component';
+import { WordPictureMatchQuestionFormComponent } from '../word-picture-match-question-form/word-picture-match-question-form.component';
+import { MultipleChoiceQuestionFormComponent } from '../multiple-choice-question-form/multiple-choice-question-form.component';
+import { SpinWheelQuestionFormComponent } from '../spin-wheel-question-form/spin-wheel-question-form.component';
+import { TapBoxesQuestionFormComponent } from '../tap-boxes-question-form/tap-boxes-question-form.component';
+import { WordSearchQuestionFormComponent } from '../word-search-question-form/word-search-question-form.component';
 
 interface BatchSummary { batchName: string; }
 import { ScrambleQuestionFormComponent } from '../scramble-question-form/scramble-question-form.component';
@@ -20,6 +28,7 @@ import { SentenceQuestionFormComponent } from '../sentence-question-form/sentenc
 import { SimpleQuestionFormComponent } from '../simple-question-form/simple-question-form.component';
 import { LevelEditorComponent } from '../level-editor/level-editor.component';
 import { GameImportPanelComponent } from '../game-import-panel/game-import-panel.component';
+import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util';
 
 @Component({
   selector: 'app-game-set-editor',
@@ -29,7 +38,13 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     ScrambleQuestionFormComponent, SentenceQuestionFormComponent, SimpleQuestionFormComponent,
     LevelEditorComponent, GameImportPanelComponent, ImageMatchingQuestionFormComponent,
     GenderStackQuestionFormComponent, FlapjugationQuestionFormComponent,
-    WhackawortQuestionFormComponent,
+    WhackawortQuestionFormComponent, JumbledWordsQuestionFormComponent, MemoryGameQuestionFormComponent,
+    HangmanQuestionFormComponent,
+    WordPictureMatchQuestionFormComponent,
+    MultipleChoiceQuestionFormComponent,
+    SpinWheelQuestionFormComponent,
+    TapBoxesQuestionFormComponent,
+    WordSearchQuestionFormComponent,
   ],
   template: `
     <div class="ga-editor">
@@ -64,6 +79,14 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
                   <mat-option value="gender_stack">Gender Stack</mat-option>
                   <mat-option value="flapjugation">Flapjugation</mat-option>
                   <mat-option value="whackawort">Whack-a-Wort</mat-option>
+                  <mat-option value="memory">Memory Game</mat-option>
+                  <mat-option value="jumbled_words">Jumbled Words</mat-option>
+                  <mat-option value="hangman">Hangman</mat-option>
+                  <mat-option value="word_picture_match">Word-Picture Match</mat-option>
+                  <mat-option value="multiple_choice">Multiple Choice</mat-option>
+                  <mat-option value="spin_wheel">Spin the Wheel</mat-option>
+                  <mat-option value="tap_boxes">Tap the Boxes</mat-option>
+                  <mat-option value="word_search">Word Search</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -159,9 +182,9 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </div>
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Course Day (unlock)</mat-label>
-                <input matInput type="number" formControlName="courseDay" min="1">
-                <mat-hint>Leave empty for no gating</mat-hint>
+                <mat-label>Journey day</mat-label>
+                <input matInput type="number" formControlName="courseDay" min="0" max="200">
+                <mat-hint>0 = Trial. Maps to Journey to Germany (My Course). Leave empty for arena-only.</mat-hint>
               </mat-form-field>
 
               <div class="ga-toggle-group">
@@ -212,6 +235,52 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
               </div>
             </div>
 
+            <div class="ga-card" *ngIf="form.get('gameType')?.value === 'spin_wheel'">
+              <div class="ga-card__head">
+                <mat-icon>casino</mat-icon>
+                <div>
+                  <h3>Spin Wheel</h3>
+                  <p>Label shown in the center of the wheel during play.</p>
+                </div>
+              </div>
+              <mat-form-field appearance="outline" class="ga-editor__field ga-editor__field--full">
+                <mat-label>Center label</mat-label>
+                <input matInput formControlName="swCenterLabel" placeholder="ergänze den Satz!">
+              </mat-form-field>
+            </div>
+
+            <div class="ga-card" *ngIf="form.get('gameType')?.value === 'tap_boxes'">
+              <div class="ga-card__head">
+                <mat-icon>wallpaper</mat-icon>
+                <div>
+                  <h3>Tap the Boxes — play background</h3>
+                  <p>Replaces the default green board behind the numbered boxes. JPG, PNG, or WebP recommended (wide landscape works best).</p>
+                </div>
+              </div>
+              <div class="ga-tb-bg-row">
+                <div class="ga-tb-bg-preview" *ngIf="tapBoxesBgPreview">
+                  <img [src]="tapBoxesBgPreview" alt="Board background preview">
+                </div>
+                <div class="ga-tb-bg-actions">
+                  <button type="button" mat-stroked-button (click)="tbBgInput.click()" [disabled]="!isEdit">
+                    <mat-icon>upload</mat-icon> Upload background
+                  </button>
+                  <button
+                    type="button"
+                    mat-stroked-button
+                    color="warn"
+                    *ngIf="tapBoxesBgPreview"
+                    [disabled]="!isEdit || clearingTapBoxesBg"
+                    (click)="clearTapBoxesBackground()"
+                  >
+                    <mat-icon>delete</mat-icon> Remove
+                  </button>
+                  <p class="ga-tb-bg-hint" *ngIf="!isEdit">Save the game set first, then upload a background.</p>
+                </div>
+                <input #tbBgInput type="file" accept="image/*" style="display:none" (change)="onTapBoxesBackgroundFile($event)">
+              </div>
+            </div>
+
             <!-- Thumbnail -->
             <div class="ga-section-title">Thumbnail</div>
             <div class="ga-thumb-row">
@@ -242,6 +311,14 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
             <app-gender-stack-question-form *ngSwitchCase="'gender_stack'" #genderStackForm [gameSetId]="setId || ''"></app-gender-stack-question-form>
             <app-flapjugation-question-form *ngSwitchCase="'flapjugation'" #flapjugationForm [gameSetId]="setId || ''"></app-flapjugation-question-form>
             <app-whackawort-question-form *ngSwitchCase="'whackawort'" #whackawortForm [gameSetId]="setId || ''"></app-whackawort-question-form>
+            <app-jumbled-words-question-form *ngSwitchCase="'jumbled_words'" #jumbledWordsForm [gameSetId]="setId || ''"></app-jumbled-words-question-form>
+            <app-memory-game-question-form *ngSwitchCase="'memory'" #memoryForm [gameSetId]="setId || ''"></app-memory-game-question-form>
+            <app-hangman-question-form *ngSwitchCase="'hangman'" #hangmanForm [gameSetId]="setId || ''"></app-hangman-question-form>
+            <app-word-picture-match-question-form *ngSwitchCase="'word_picture_match'" #wordPictureMatchForm [gameSetId]="setId || ''"></app-word-picture-match-question-form>
+            <app-multiple-choice-question-form *ngSwitchCase="'multiple_choice'" #multipleChoiceForm [gameSetId]="setId || ''"></app-multiple-choice-question-form>
+            <app-spin-wheel-question-form *ngSwitchCase="'spin_wheel'" #spinWheelForm [gameSetId]="setId || ''"></app-spin-wheel-question-form>
+            <app-tap-boxes-question-form *ngSwitchCase="'tap_boxes'" #tapBoxesForm [gameSetId]="setId || ''"></app-tap-boxes-question-form>
+            <app-word-search-question-form *ngSwitchCase="'word_search'" #wordSearchForm [gameSetId]="setId || ''"></app-word-search-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
               <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
@@ -254,7 +331,7 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
           <app-level-editor *ngIf="setId" [gameSetId]="setId!"></app-level-editor>
         </mat-tab>
 
-        <mat-tab label="Import">
+        <mat-tab label="Import" [disabled]="!setId">
           <app-game-import-panel
             [gameSetId]="setId || ''"
             [gameType]="form.get('gameType')?.value"
@@ -265,9 +342,15 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     </div>
   `,
   styles: [`
-    .ga-editor { max-width: 900px; margin: 0 auto; padding: 24px; }
-    .ga-editor__header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-    .ga-editor__header h1 { margin: 0; font-size: 22px; font-weight: 600; color: #405980; }
+    .ga-editor { max-width: 1040px; margin: 0 auto; padding: 24px 28px 40px; }
+    .ga-editor__header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+      padding-bottom: 16px; border-bottom: 1px solid #e2e8f0;
+    }
+    .ga-editor__header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #1e3a5f; }
+    ::ng-deep .ga-editor .mat-mdc-tab-group { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06); }
+    ::ng-deep .ga-editor .mat-mdc-tab-header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    ::ng-deep .ga-editor .mat-mdc-tab-body-content { padding: 0 24px 24px; }
     .ga-editor__form { padding: 24px 0; }
     .ga-editor__row { display: flex; gap: 16px; flex-wrap: wrap; }
     .ga-editor__field { flex: 1; min-width: 180px; }
@@ -291,6 +374,14 @@ import { GameImportPanelComponent } from '../game-import-panel/game-import-panel
     .ga-card__head p { margin: 0; font-size: 13px; color: #64748b; line-height: 1.45; }
     .ga-batch-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
     .ga-batch-empty { margin: 8px 0 0; font-size: 13px; color: #64748b; }
+    .ga-tb-bg-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+    .ga-tb-bg-preview {
+      width: 200px; height: 112px; border-radius: 10px; overflow: hidden;
+      border: 1px solid #cbd5e1; background: #e2e8f0;
+    }
+    .ga-tb-bg-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ga-tb-bg-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+    .ga-tb-bg-hint { margin: 0; font-size: 12px; color: #64748b; }
   `]
 })
 export class GameSetEditorComponent implements OnInit {
@@ -299,6 +390,13 @@ export class GameSetEditorComponent implements OnInit {
   @ViewChild('simpleForm') simpleForm?: SimpleQuestionFormComponent;
   @ViewChild('imageMatchForm') imageMatchForm?: ImageMatchingQuestionFormComponent;
   @ViewChild('genderStackForm') genderStackForm?: GenderStackQuestionFormComponent;
+  @ViewChild('jumbledWordsForm') jumbledWordsForm?: JumbledWordsQuestionFormComponent;
+  @ViewChild('memoryForm') memoryForm?: MemoryGameQuestionFormComponent;
+  @ViewChild('hangmanForm') hangmanForm?: HangmanQuestionFormComponent;
+  @ViewChild('wordPictureMatchForm') wordPictureMatchForm?: WordPictureMatchQuestionFormComponent;
+  @ViewChild('multipleChoiceForm') multipleChoiceForm?: MultipleChoiceQuestionFormComponent;
+  @ViewChild('flapjugationForm') flapjugationForm?: FlapjugationQuestionFormComponent;
+  @ViewChild('whackawortForm') whackawortForm?: WhackawortQuestionFormComponent;
 
   form!: FormGroup;
   isEdit = false;
@@ -307,6 +405,9 @@ export class GameSetEditorComponent implements OnInit {
   saving = false;
   thumbnailPreview: string | null = null;
   pendingThumbnail: File | null = null;
+  tapBoxesBgPreview: string | null = null;
+  pendingTapBoxesBg: File | null = null;
+  clearingTapBoxesBg = false;
   batches: BatchSummary[] = [];
   batchToAdd = '';
   targetBatches: string[] = [];
@@ -345,6 +446,13 @@ export class GameSetEditorComponent implements OnInit {
     this.simpleForm?.load();
     this.imageMatchForm?.load();
     this.genderStackForm?.load();
+    this.flapjugationForm?.load();
+    this.whackawortForm?.load();
+    this.jumbledWordsForm?.load();
+    this.memoryForm?.load();
+    this.hangmanForm?.load();
+    this.wordPictureMatchForm?.load();
+    this.multipleChoiceForm?.load();
     if (this.setId) this.loadSet(this.setId);
   }
 
@@ -388,11 +496,12 @@ export class GameSetEditorComponent implements OnInit {
       icon: ['sports_esports'],
       visibleToStudents: [false],
       isPublished: [false],
-      courseDay: [null],
+      courseDay: [null, [Validators.min(0), Validators.max(200)]],
       sessionLimitSeconds: [null],
       perQuestionSeconds: [null],
       gsSpawnIntervalSeconds: [4, [Validators.min(3), Validators.max(5)]],
       gsFallDurationSeconds: [1.2, [Validators.min(0.5), Validators.max(3)]],
+      swCenterLabel: ['ergänze den Satz!'],
       questionCount: [0],
     });
   }
@@ -408,8 +517,11 @@ export class GameSetEditorComponent implements OnInit {
           perQuestionSeconds: s.timerSettings?.perQuestionSeconds ?? null,
           gsSpawnIntervalSeconds: s.genderStackSettings?.spawnIntervalSeconds ?? 4,
           gsFallDurationSeconds: s.genderStackSettings?.fallDurationSeconds ?? 1.2,
+          swCenterLabel: s.spinWheelSettings?.centerLabel ?? 'ergänze den Satz!',
+          questionCount: s.questionCount ?? (r.questions?.length ?? 0),
         });
         this.thumbnailPreview = s.thumbnailUrl || null;
+        this.tapBoxesBgPreview = s.tapBoxesSettings?.backgroundUrl || null;
         this.targetBatches = Array.isArray(s.targetBatches) ? [...s.targetBatches] : [];
         this.loading = false;
       },
@@ -445,6 +557,51 @@ export class GameSetEditorComponent implements OnInit {
     });
   }
 
+  onTapBoxesBackgroundFile(e: Event): void {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (!this.isEdit || !this.setId) {
+      this.notify.error('Save the game set before uploading a background');
+      return;
+    }
+    this.pendingTapBoxesBg = file;
+    const reader = new FileReader();
+    reader.onload = ev => { this.tapBoxesBgPreview = ev.target?.result as string; };
+    reader.readAsDataURL(file);
+    this.uploadTapBoxesBackgroundNow(this.setId, file);
+    (e.target as HTMLInputElement).value = '';
+  }
+
+  private uploadTapBoxesBackgroundNow(setId: string, file: File): void {
+    this.svc.adminUploadTapBoxesBackground(setId, file).subscribe({
+      next: (r) => {
+        this.tapBoxesBgPreview = r.backgroundUrl;
+        this.pendingTapBoxesBg = null;
+        this.notify.success('Play background uploaded');
+      },
+      error: (err) => {
+        this.notify.error(err?.error?.message || 'Background upload failed');
+      },
+    });
+  }
+
+  clearTapBoxesBackground(): void {
+    if (!this.setId) return;
+    this.clearingTapBoxesBg = true;
+    this.svc.adminUpdateSet(this.setId, { tapBoxesSettings: { backgroundUrl: null } }).subscribe({
+      next: () => {
+        this.tapBoxesBgPreview = null;
+        this.pendingTapBoxesBg = null;
+        this.clearingTapBoxesBg = false;
+        this.notify.success('Background removed');
+      },
+      error: (err) => {
+        this.clearingTapBoxesBg = false;
+        this.notify.error(err?.error?.message || 'Failed to remove background');
+      },
+    });
+  }
+
   save() {
     if (this.form.invalid) return;
     this.saving = true;
@@ -453,7 +610,7 @@ export class GameSetEditorComponent implements OnInit {
     const payload: any = {
       ...v,
       level: v.level || null,
-      courseDay: v.courseDay ? Number(v.courseDay) : null,
+      courseDay: parseAdminCourseDayOrNull(v.courseDay),
       targetBatches: this.targetBatches,
       timerSettings: {
         sessionLimitSeconds: v.sessionLimitSeconds ? Number(v.sessionLimitSeconds) : null,
@@ -463,11 +620,15 @@ export class GameSetEditorComponent implements OnInit {
         spawnIntervalSeconds: Number(v.gsSpawnIntervalSeconds) || 4,
         fallDurationSeconds: Number(v.gsFallDurationSeconds) || 1.2,
       } : undefined,
+      spinWheelSettings: v.gameType === 'spin_wheel' ? {
+        centerLabel: String(v.swCenterLabel || '').trim() || 'ergänze den Satz!',
+      } : undefined,
     };
     delete payload.sessionLimitSeconds;
     delete payload.perQuestionSeconds;
     delete payload.gsSpawnIntervalSeconds;
     delete payload.gsFallDurationSeconds;
+    delete payload.swCenterLabel;
 
     const obs = this.isEdit
       ? this.svc.adminUpdateSet(this.setId!, payload)
@@ -488,6 +649,7 @@ export class GameSetEditorComponent implements OnInit {
           this.setId = savedId;
           this.router.navigate(['/admin/glueck-arena', savedId, 'edit'], { replaceUrl: true });
         }
+        this.refreshQuestions();
       },
       error: (err) => { this.saving = false; this.notify.error(err?.error?.message || 'Save failed'); }
     });

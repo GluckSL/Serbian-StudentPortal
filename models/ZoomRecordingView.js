@@ -14,7 +14,12 @@ const zoomRecordingViewSchema = new mongoose.Schema(
     },
     watchDuration: {
       type: Number,
-      default: 0, // seconds
+      default: 0, // seconds (this session)
+    },
+    /** Last playback position (seconds into the video) — used to resume where the student left off. */
+    lastPositionSec: {
+      type: Number,
+      default: 0,
     },
     startedAt: {
       type: Date,

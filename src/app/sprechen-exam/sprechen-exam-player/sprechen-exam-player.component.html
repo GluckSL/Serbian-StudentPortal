@@ -1,180 +1,196 @@
-<div class="dg-player" *ngIf="loading">
-  <div class="dg-player__sk-grid">
-    <div class="dg-player__sk-char"></div>
-    <div class="dg-player__sk-chat-wrap">
-      <div class="dg-player__sk-chat-body">
-        <div class="dg-player__sk-bubble"></div>
-      </div>
-    </div>
-  </div>
+<!-- ── Skeleton loader ─────────────────────────────────────────────────────── -->
+<div class="sp-exam-player__skeleton" *ngIf="loading">
+  <div class="sp-sk__col sp-sk__col--fox"></div>
+  <div class="sp-sk__col sp-sk__col--stage"></div>
+  <div class="sp-sk__col sp-sk__col--chat"></div>
 </div>
 
+<!-- ── Error ────────────────────────────────────────────────────────────────── -->
 <div class="dg-player__err" *ngIf="error && !loading">{{ error }}</div>
 
-<div class="dg-player sp-exam-player" *ngIf="!loading && !error && payload && !examDone">
-  <div class="dg-player__ambient" aria-hidden="true"></div>
+<!-- ── Main exam layout ─────────────────────────────────────────────────────── -->
+<div class="sp-exam-player" *ngIf="!loading && !error && payload && !examDone">
 
-  <header class="dg-player__top sp-exam-player__top">
-    <div class="dg-player__progress-block">
-      <div class="dg-player__progress-head">
-        <span class="dg-player__module-title">{{ payload.module.title }}</span>
-        <span class="sp-exam-player__exam-label">Goethe A1 — Sprechprüfung</span>
-      </div>
-      <app-exam-progress [activeTeil]="teilNumber" class="sp-exam-player__teil-progress"></app-exam-progress>
+  <!-- Top bar -->
+  <header class="sp-exam-player__topbar">
+    <div class="sp-exam-player__topbar-left">
+      <span class="sp-exam-player__title">{{ payload.module.title }}</span>
+      <span class="sp-exam-player__exam-label">{{ examLabel }}</span>
     </div>
-    <div class="dg-player__exit" (click)="onExit()" role="button" tabindex="0" aria-label="Exit">
+    <button class="sp-exam-player__exit" (click)="onExit()" aria-label="Exit">
       <mat-icon>close</mat-icon>
-    </div>
+    </button>
   </header>
 
-  <div class="dg-player__stage-wrap">
-    <div class="dg-conv">
-      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
-        <div class="dg-conv__char-header" *ngIf="isMobile">
-          <div class="dg-conv__mic-area">
-            <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
-            <ng-container *ngTemplateOutlet="examMic"></ng-container>
-          </div>
+  <!-- Three-column stage -->
+  <div class="sp-exam-player__stage">
+
+    <!-- ── Left 30 % — Fox character ─────────────────────────────────────── -->
+    <aside class="sp-exam-player__fox-col">
+      <div class="sp-exam-player__fox-wrap">
+        <div class="sp-exam-player__speech-bubble" *ngIf="mascotSpeechText">
+          <p>{{ mascotSpeechText }}</p>
         </div>
-        <app-exam-card-panel *ngIf="currentCard" [card]="currentCard" class="sp-exam-player__card-panel"></app-exam-card-panel>
-        <div class="dg-conv__mascot">
-          <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
-            <p>{{ mascotSpeechText }}</p>
-          </div>
-          <app-dg-character
-            [minimalChrome]="true"
-            [name]="characterName"
-          ></app-dg-character>
-        </div>
+        <app-dg-character
+          [minimalChrome]="true"
+          [name]="characterName"
+          class="sp-exam-player__fox-char"
+        ></app-dg-character>
         <p class="sp-exam-player__char-name">{{ characterName }}</p>
-        <p class="sp-exam-player__char-role">Olly Tutor · Prüfer</p>
-      </aside>
+        <p class="sp-exam-player__char-role">Prüfer</p>
+      </div>
 
-      <main class="dg-conv__chat">
-        <header class="dg-conv__chat-head">
-          <div class="dg-conv__brand">
-            <div class="dg-conv__brand-avatar" aria-hidden="true">
-              <mat-icon>record_voice_over</mat-icon>
-            </div>
-            <div class="dg-conv__brand-text">
-              <h3>Sprechen Exam</h3>
-              <p>{{ payload.module.title }}</p>
-              <div class="dg-conv__actions-row">
-                <button
-                  type="button"
-                  class="dg-conv__action-btn"
-                  [class.dg-conv__action-btn--active]="ccMode === 'en'"
-                  (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
-                >
-                  CC EN
-                </button>
-                <button
-                  type="button"
-                  class="dg-conv__action-btn"
-                  [class.dg-conv__action-btn--active]="ccMode === 'ta'"
-                  (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
-                >
-                  CC தமிழ்
-                </button>
-                <button
-                  type="button"
-                  class="dg-conv__action-btn dg-conv__action-btn--replay"
-                  [disabled]="botSpeaking || micProcessing"
-                  (click)="replayTts()"
-                >
-                  <mat-icon>volume_up</mat-icon>
-                  Replay
-                </button>
-              </div>
-            </div>
+      <!-- CC + Replay controls tucked under fox on desktop -->
+      <div class="sp-exam-player__fox-controls">
+        <button
+          type="button"
+          class="sp-exam-player__cc-btn"
+          [class.sp-exam-player__cc-btn--on]="ccMode === 'en'"
+          (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
+        >CC EN</button>
+        <button
+          type="button"
+          class="sp-exam-player__cc-btn"
+          [class.sp-exam-player__cc-btn--on]="ccMode === 'ta'"
+          (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
+        >CC தமிழ்</button>
+        <button
+          type="button"
+          class="sp-exam-player__replay-btn"
+          [disabled]="botSpeaking || micProcessing"
+          (click)="replayTts()"
+        >
+          <mat-icon>volume_up</mat-icon>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── Center 50 % — Current speech + Card ───────────────────────────── -->
+    <main class="sp-exam-player__center-col">
+
+      <!-- Welcome screen -->
+      <div class="sp-exam-player__welcome" *ngIf="isWelcomePhase && !botSpeaking && !micProcessing">
+        <div class="sp-exam-player__welcome-fox">🦊</div>
+        <p class="sp-exam-player__welcome-head">Bereit für die Prüfung?</p>
+        <p class="sp-exam-player__welcome-sub">
+          {{ characterName }} führt Sie durch drei Teile der
+          {{ isA2 ? 'Goethe A2' : 'Goethe A1' }} Sprechprüfung.
+        </p>
+        <button
+          mat-flat-button
+          color="primary"
+          class="sp-exam-player__start-btn"
+          [disabled]="botSpeaking"
+          (click)="onReady()"
+        >
+          <mat-icon>play_arrow</mat-icon>
+          Ja, ich bin bereit
+        </button>
+      </div>
+
+      <!-- Latest bot speech text -->
+      <div
+        class="sp-exam-player__bot-speech"
+        *ngIf="latestBotText && !isWelcomePhase"
+        [class.sp-exam-player__bot-speech--speaking]="botSpeaking"
+      >
+        <span class="sp-exam-player__bot-speech-icon">🦊</span>
+        <p>{{ latestBotText }}</p>
+        <p class="sp-exam-player__bot-speech-cc" *ngIf="latestBotCc">{{ latestBotCc }}</p>
+      </div>
+
+      <!-- Typing indicator when bot is generating -->
+      <div class="sp-exam-player__typing" *ngIf="botSpeaking">
+        <span></span><span></span><span></span>
+      </div>
+
+      <!-- Card / image — large, centered -->
+      <div class="sp-exam-player__card-stage" *ngIf="currentCard && !isWelcomePhase">
+        <app-exam-card-panel [card]="currentCard" [hero]="true" class="sp-exam-player__card-inner"></app-exam-card-panel>
+      </div>
+
+      <!-- Status strip -->
+      <div class="sp-exam-player__status" *ngIf="statusLabel && !isWelcomePhase" aria-live="polite">
+        <span class="sp-exam-player__status-dot" [class.sp-exam-player__status-dot--active]="micProcessing"></span>
+        {{ statusLabel }}
+      </div>
+
+      <!-- Mic + Fertig (center, below card) -->
+      <div class="sp-exam-player__mic-zone" *ngIf="showStudentTurnUi">
+        <div class="sp-exam-player__turn-pill">IHR TURN</div>
+        <p class="sp-exam-player__mic-hint" *ngIf="!isMonologueMode">
+          🎧 Headset empfohlen.
+        </p>
+        <p class="sp-exam-player__mic-hint" *ngIf="isMonologueMode">
+          🎤 Sprechen Sie frei — klicken Sie <strong>Fertig</strong> wenn Sie fertig sind.
+        </p>
+        <ng-container *ngTemplateOutlet="examMic"></ng-container>
+        <button
+          *ngIf="isMonologueMode"
+          mat-flat-button
+          color="accent"
+          class="sp-exam-player__fertig-btn"
+          [disabled]="micProcessing || botSpeaking"
+          (click)="onFertig()"
+        >
+          <mat-icon>check_circle</mat-icon>
+          Fertig
+        </button>
+      </div>
+
+    </main>
+
+    <!-- ── Right 20 % — Conversation history ─────────────────────────────── -->
+    <aside class="sp-exam-player__chat-col">
+      <p class="sp-exam-player__chat-label">Gespräch</p>
+
+      <div class="sp-exam-player__chat-scroll" #chatScroll>
+        <div
+          *ngFor="let msg of chatHistory"
+          class="sp-exam-player__msg"
+          [class.sp-exam-player__msg--bot]="msg.speaker === 'ai'"
+          [class.sp-exam-player__msg--student]="msg.speaker === 'student'"
+        >
+          <span class="sp-exam-player__msg-who">
+            {{ msg.speaker === 'ai' ? '🦊' : '👤' }}
+          </span>
+          <div class="sp-exam-player__msg-body">
+            <span class="sp-exam-player__msg-name">
+              {{ msg.speaker === 'ai' ? characterName : 'Sie' }}
+            </span>
+            <p class="sp-exam-player__msg-text">{{ msg.text }}</p>
+            <p class="sp-exam-player__msg-cc" *ngIf="msg.speaker === 'ai' && getCcCaption(msg)">
+              {{ getCcCaption(msg) }}
+            </p>
           </div>
-        </header>
-
-        <div class="dg-conv__session-divider">
-          <span>Prüfung gestartet</span>
         </div>
 
-        <div class="dg-conv__status" *ngIf="statusLabel" aria-live="polite">
-          <span class="dg-conv__status-dot" [class.dg-conv__status-dot--thinking]="micProcessing"></span>
-          {{ statusLabel }}
-        </div>
-
-        <div class="dg-conv__history" #chatScroll>
-          <div
-            *ngFor="let msg of chatHistory"
-            class="dg-conv__msg"
-            [class.dg-conv__msg--ai]="msg.speaker === 'ai'"
-            [class.dg-conv__msg--student]="msg.speaker === 'student'"
-          >
-            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" *ngIf="msg.speaker === 'ai'" aria-hidden="true">🦊</div>
-            <div class="dg-conv__msg-stack">
-              <span class="dg-conv__msg-label" *ngIf="msg.speaker === 'ai'">{{ characterName }}</span>
-              <span class="dg-conv__msg-label dg-conv__msg-label--student" *ngIf="msg.speaker === 'student'">Sie</span>
-              <div class="dg-conv__msg-bubble">
-                <span class="dg-conv__msg-text">{{ msg.text }}</span>
-                <span class="dg-conv__msg-translation" *ngIf="msg.speaker === 'ai' && getCcCaption(msg)">
-                  {{ getCcCaption(msg) }}
-                </span>
-              </div>
-            </div>
-            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--student" *ngIf="msg.speaker === 'student'" aria-hidden="true">👤</div>
-          </div>
-
-          <div class="dg-conv__msg dg-conv__msg--ai" *ngIf="botSpeaking && chatHistory.length > 0">
-            <div class="dg-conv__msg-avatar dg-conv__msg-avatar--bot" aria-hidden="true">🦊</div>
-            <div class="dg-conv__msg-stack">
-              <span class="dg-conv__msg-label">{{ characterName }}</span>
-              <div class="dg-conv__msg-bubble">
-                <div class="dg-conv__typing-bubble">
-                  <span class="dg-conv__typing-dot"></span>
-                  <span class="dg-conv__typing-dot"></span>
-                  <span class="dg-conv__typing-dot"></span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="dg-conv__waiting" *ngIf="isWelcomePhase && !botSpeaking && !micProcessing">
-            <div class="dg-conv__start-prompt">
-              <div class="dg-conv__start-icon">🦊</div>
-              <p class="dg-conv__start-heading">Bereit für die Prüfung?</p>
-              <p class="dg-conv__start-sub">
-                {{ characterName }} führt Sie durch drei Teile der Goethe A1 Sprechprüfung.
-                Klicken Sie unten, wenn Sie bereit sind.
-              </p>
-              <button
-                mat-flat-button
-                color="primary"
-                class="dg-conv__start-btn"
-                [disabled]="botSpeaking"
-                (click)="onReady()"
-              >
-                <mat-icon>play_arrow</mat-icon>
-                Ja, ich bin bereit
-              </button>
+        <!-- Typing dots in chat while bot speaks -->
+        <div class="sp-exam-player__msg sp-exam-player__msg--bot" *ngIf="botSpeaking && chatHistory.length > 0">
+          <span class="sp-exam-player__msg-who">🦊</span>
+          <div class="sp-exam-player__msg-body">
+            <span class="sp-exam-player__msg-name">{{ characterName }}</span>
+            <div class="sp-exam-player__typing-dots">
+              <span></span><span></span><span></span>
             </div>
           </div>
         </div>
+      </div>
+    </aside>
 
-        <div class="dg-conv__mic-area" *ngIf="!isMobile">
-          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
-          <p class="dg-conv__mic-hint" *ngIf="showStudentTurnUi">
-            🎧 Für Zahlen und Buchstabieren: Headset und ruhiger Raum empfohlen.
-          </p>
-          <ng-container *ngTemplateOutlet="examMic"></ng-container>
-        </div>
-      </main>
-    </div>
-  </div>
-</div>
+  </div><!-- /stage -->
+</div><!-- /exam player -->
 
+<!-- ── Mic template ──────────────────────────────────────────────────────────── -->
 <ng-template #examMic>
   <app-dg-practice
+    #practiceRef
     *ngIf="showStudentTurnUi"
     [expected]="''"
     [allowFreeSpeech]="true"
     [instantStart]="true"
     [hideFeedback]="true"
+    [monologueMode]="isMonologueMode"
     language="German"
     [hint]="''"
     [disabled]="micProcessing || botSpeaking"
@@ -186,6 +202,7 @@
   ></app-dg-practice>
 </ng-template>
 
+<!-- ── Summary screen ───────────────────────────────────────────────────────── -->
 <ng-container *ngIf="examDone">
   <div class="sp-exam-player__summary-wrap">
     <app-exam-summary

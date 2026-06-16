@@ -2,9 +2,10 @@
 // Factory for GO Silver student routes (Tamil GO-SILVER / Sinhala GO-SINHALA).
 
 const express = require('express');
+const mongoose = require('mongoose');
+const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const User = require('../models/User');
 const BatchConfig = require('../models/BatchConfig');
-const LearningModule = require('../models/LearningModule');
 const DigitalExercise = require('../models/DigitalExercise');
 const MeetingLink = require('../models/MeetingLink');
 const ClassRecording = require('../models/ClassRecording');
@@ -12,19 +13,32 @@ const RecordingView = require('../models/RecordingView');
 const ZoomRecording = require('../models/ZoomRecording');
 const ZoomRecordingView = require('../models/ZoomRecordingView');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
-const StudentProgress = require('../models/StudentProgress');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
+const GameSet = require('../models/GameSet');
+const GameAttempt = require('../models/GameAttempt');
+const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { verifyToken, checkRole } = require('../middleware/auth');
-const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { allStudentBatchStringsForContent, recordingAccessBatchKeys, batchesAlign } = require('../utils/effectiveStudentBatch');
 const { withJourneyLevelInSet, levelForJourneyDay } = require('../services/journeyLevelSync.service');
 const { getStudentDgJourneyAccess, dgModuleUnlockedForAccess } = require('../utils/dgStudentJourneyGate');
 const {
   getTrackConfig,
   normalizeTrack,
   goStudentQuery,
-  silverPoolQuery
+  silverPoolQuery,
+  isSilverGoStudent
 } = require('../utils/goSilverTrack');
+const {
+  resolveSilverGoContentUnlock,
+  reconcileSilverGoCourseDay
+} = require('../utils/silverGoSequentialUnlock');
+const {
+  recordingWatchCountsAsComplete,
+  recordingWatchSecondsForComplete
+} = require('../utils/recordingWatchCompletion');
+const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { readRecoverablePassword } = require('../utils/passwordRecoverable');
 
 function createGoStudentsRouter(trackKey) {
   const track = normalizeTrack(trackKey);
@@ -32,6 +46,8 @@ function createGoStudentsRouter(trackKey) {
   const GO_BATCH_NAME = trackCfg.batchName;
   const GO_LANGUAGE = trackCfg.language;
   const router = express.Router();
+  /** @type {null | { running: boolean, total: number, done: number, fixedCount: number, alreadyCorrect: number, skipped: number, message: string, results: object[], startedAt?: string, finishedAt?: string, error?: string }} */
+  let reconcileJob = null;
 
   function toGoStudentRow(student) {
     return {
@@ -46,7 +62,9 @@ function createGoStudentsRouter(trackKey) {
       currentCourseDay: student.currentCourseDay,
       batch: student.batch || '',
       level: student.level || '',
-      studentStatus: student.studentStatus || ''
+      studentStatus: student.studentStatus || '',
+      displayPassword: readRecoverablePassword(student.passwordRecoverable) || null,
+      lastLogin: student.lastLogin || null
     };
   }
   
@@ -110,14 +128,38 @@ function createGoStudentsRouter(trackKey) {
   });
   
   // ─── GET /api/go-students ─────────────────────────────────────────────────────
-  // List all GO Silver students
+  // List all GO Silver students. Default is a fast list (DB fields only).
+  // Pass ?enrich=1 to resolve sequential unlock days (expensive; use sparingly).
   router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
     try {
       const students = await User.find(goStudentQuery(track))
-        .select('name regNo email subscription goStatus goLanguage goJoiningDate currentCourseDay level batch studentStatus medium')
+        .select('name regNo email subscription goStatus goLanguage goJoiningDate currentCourseDay level batch studentStatus medium passwordRecoverable lastLogin')
+        .sort({ name: 1 })
         .lean();
-  
-      res.json({ students });
+
+      const enrich =
+        req.query.enrich === '1' ||
+        req.query.enrich === 'true' ||
+        req.query.enrich === 'yes';
+
+      if (!enrich) {
+        return res.json({ students: students.map((s) => toGoStudentRow(s)) });
+      }
+
+      const enriched = await Promise.all(
+        students.map(async (s) => {
+          const row = toGoStudentRow(s);
+          if (!isSilverGoStudent(s)) return row;
+          const unlock = await resolveSilverGoContentUnlock(s);
+          const stored = s.currentCourseDay || 1;
+          row.currentCourseDay = unlock.maxUnlockedContentDay;
+          row.storedCourseDay = stored;
+          row.needsJourneySync = unlock.maxUnlockedContentDay < stored;
+          return row;
+        })
+      );
+
+      res.json({ students: enriched });
     } catch (err) {
       console.error('go-students GET /', err);
       res.status(500).json({ message: 'Failed to fetch GO students.', error: err.message });
@@ -382,6 +424,106 @@ function createGoStudentsRouter(trackKey) {
     }
   });
   
+  // ─── GET /api/go-students/reconcile-all/status ───────────────────────────────
+  router.get('/reconcile-all/status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), (req, res) => {
+    if (!reconcileJob) {
+      return res.json({
+        running: false,
+        total: 0,
+        done: 0,
+        fixedCount: 0,
+        alreadyCorrect: 0,
+        skipped: 0,
+        message: ''
+      });
+    }
+    res.json(reconcileJob);
+  });
+
+  // ─── POST /api/go-students/reconcile-all ─────────────────────────────────────
+  // Runs in the background (~3s per student). Returns 202 immediately; poll /status.
+  router.post('/reconcile-all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+    try {
+      if (reconcileJob?.running) {
+        return res.status(409).json({
+          message: 'Reconciliation already in progress.',
+          running: true,
+          done: reconcileJob.done,
+          total: reconcileJob.total
+        });
+      }
+
+      const students = await User.find(goStudentQuery(track))
+        .select('_id name regNo currentCourseDay')
+        .lean();
+
+      reconcileJob = {
+        running: true,
+        total: students.length,
+        done: 0,
+        fixedCount: 0,
+        alreadyCorrect: 0,
+        skipped: 0,
+        results: [],
+        message: `Reconciling ${students.length} GO ${GO_LANGUAGE} student(s)…`,
+        startedAt: new Date().toISOString()
+      };
+
+      res.status(202).json({
+        started: true,
+        message: `Started reconciliation for ${students.length} student(s). This may take a few minutes.`,
+        total: students.length
+      });
+
+      setImmediate(async () => {
+        try {
+          for (const student of students) {
+            try {
+              await SilverGoUnlockCache.deleteOne({ studentId: student._id });
+              const result = await reconcileSilverGoCourseDay(student._id);
+              if (result.adjusted) {
+                reconcileJob.fixedCount++;
+                reconcileJob.results.push({
+                  _id: student._id,
+                  name: student.name,
+                  regNo: student.regNo,
+                  status: 'fixed',
+                  storedDay: result.previousCourseDay,
+                  correctDay: result.maxUnlockedContentDay
+                });
+              } else {
+                reconcileJob.alreadyCorrect++;
+              }
+            } catch (studentErr) {
+              reconcileJob.skipped++;
+              reconcileJob.results.push({
+                _id: student._id,
+                name: student.name,
+                regNo: student.regNo,
+                status: 'error',
+                error: studentErr.message
+              });
+            }
+            reconcileJob.done++;
+          }
+          reconcileJob.message =
+            `Reconciled ${students.length} student(s): ${reconcileJob.fixedCount} corrected, ` +
+            `${reconcileJob.alreadyCorrect} already correct, ${reconcileJob.skipped} skipped/errored.`;
+        } catch (err) {
+          reconcileJob.error = err.message;
+          reconcileJob.message = 'Reconciliation failed.';
+          console.error('go-students reconcile-all background', err);
+        } finally {
+          reconcileJob.running = false;
+          reconcileJob.finishedAt = new Date().toISOString();
+        }
+      });
+    } catch (err) {
+      console.error('go-students POST /reconcile-all', err);
+      res.status(500).json({ message: 'Reconciliation failed.', error: err.message });
+    }
+  });
+
   // ─── PATCH /api/go-students/:studentId/journey-day ─────────────────────────────
   // Set the student's journey day (what they can access in the portal); clears pending auto-advance flags.
   router.patch('/:studentId/journey-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
@@ -455,6 +597,150 @@ function createGoStudentsRouter(trackKey) {
     }
   });
   
+  async function upsertManualRecordingView(studentId, recordingId, durationSec) {
+    const targetSec = recordingWatchSecondsForComplete(durationSec);
+    const existing = await RecordingView.findOne({ student: studentId, recording: recordingId })
+      .sort({ startedAt: -1 });
+    if (existing) {
+      existing.watchDuration = Math.max(Number(existing.watchDuration) || 0, targetSec);
+      existing.lastUpdatedAt = new Date();
+      await existing.save();
+      return existing.watchDuration;
+    }
+    const created = await RecordingView.create({
+      student: studentId,
+      recording: recordingId,
+      watchDuration: targetSec
+    });
+    return created.watchDuration;
+  }
+
+  async function upsertZoomRecordingView(studentId, meetingLinkId, durationSec) {
+    const targetSec = recordingWatchSecondsForComplete(durationSec);
+    const existing = await ZoomRecordingView.findOne({ student: studentId, meetingLinkId })
+      .sort({ startedAt: -1 });
+    if (existing) {
+      existing.watchDuration = Math.max(Number(existing.watchDuration) || 0, targetSec);
+      existing.lastUpdatedAt = new Date();
+      await existing.save();
+      return existing.watchDuration;
+    }
+    const created = await ZoomRecordingView.create({
+      student: studentId,
+      meetingLinkId,
+      watchDuration: targetSec
+    });
+    return created.watchDuration;
+  }
+
+  // ─── POST /api/go-students/:studentId/recordings/:recordingId/mark-watched ─
+  router.post(
+    '/:studentId/recordings/:recordingId/mark-watched',
+    verifyToken,
+    checkRole(['ADMIN', 'TEACHER_ADMIN']),
+    async (req, res) => {
+      try {
+        const { studentId, recordingId } = req.params;
+        const student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
+          .select('_id goStatus subscription')
+          .lean();
+        if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
+
+        const recording = await ClassRecording.findOne({
+          _id: recordingId,
+          active: true,
+          isPublished: { $ne: false }
+        })
+          .select('duration title')
+          .lean();
+        if (!recording) return res.status(404).json({ message: 'Recording not found.' });
+
+        const watchDuration = await upsertManualRecordingView(
+          studentId,
+          recordingId,
+          Number(recording.duration || 0)
+        );
+        const watched = recordingWatchCountsAsComplete(
+          watchDuration,
+          Number(recording.duration || 0)
+        );
+
+        let journeyAdvanced = false;
+        if (isSilverGoStudent(student)) {
+          await SilverGoUnlockCache.deleteOne({ studentId });
+          const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
+          journeyAdvanced = !!adv?.advanced;
+        }
+
+        res.json({
+          success: true,
+          watched,
+          watchDuration,
+          journeyAdvanced
+        });
+      } catch (err) {
+        console.error('go-students POST mark-watched (manual)', err);
+        res.status(500).json({ message: 'Failed to mark recording as watched.', error: err.message });
+      }
+    }
+  );
+
+  // ─── POST /api/go-students/:studentId/zoom-meetings/:meetingLinkId/mark-watched
+  router.post(
+    '/:studentId/zoom-meetings/:meetingLinkId/mark-watched',
+    verifyToken,
+    checkRole(['ADMIN', 'TEACHER_ADMIN']),
+    async (req, res) => {
+      try {
+        const { studentId, meetingLinkId } = req.params;
+        const student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
+          .select('_id goStatus subscription')
+          .lean();
+        if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
+
+        const meeting = await MeetingLink.findById(meetingLinkId)
+          .select('topic duration courseDay')
+          .lean();
+        if (!meeting) return res.status(404).json({ message: 'Class meeting not found.' });
+
+        const zoomRec = await ZoomRecording.findOne({
+          meetingLinkId,
+          isPublished: { $ne: false }
+        })
+          .select('duration status')
+          .lean();
+        if (!zoomRec) return res.status(404).json({ message: 'Zoom recording not found for this class.' });
+
+        const durationSec =
+          Number(zoomRec.duration) > 0
+            ? Number(zoomRec.duration)
+            : meeting?.duration != null && Number(meeting.duration) > 0
+              ? Math.round(Number(meeting.duration) * 60)
+              : 0;
+
+        const watchDuration = await upsertZoomRecordingView(studentId, meetingLinkId, durationSec);
+        const watched = recordingWatchCountsAsComplete(watchDuration, durationSec);
+
+        let journeyAdvanced = false;
+        if (isSilverGoStudent(student)) {
+          await SilverGoUnlockCache.deleteOne({ studentId });
+          const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
+          journeyAdvanced = !!adv?.advanced;
+        }
+
+        res.json({
+          success: true,
+          watched,
+          watchDuration,
+          journeyAdvanced
+        });
+      } catch (err) {
+        console.error('go-students POST mark-watched (zoom)', err);
+        res.status(500).json({ message: 'Failed to mark zoom recording as watched.', error: err.message });
+      }
+    }
+  );
+
   // ─── GET /api/go-students/:studentId/detail ──────────────────────────────────
   // Full detail for one GO student: recordings, modules, exercises, progress
   router.get('/:studentId/detail', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
@@ -465,42 +751,148 @@ function createGoStudentsRouter(trackKey) {
         .select('name regNo email level batch subscription goStatus goLanguage goJoiningDate currentCourseDay medium')
         .lean();
       if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
-  
-      const goBatchCfg = await BatchConfig.findOne({ batchName: GO_BATCH_NAME }).select('journeyLength').lean();
+
+      const storedCourseDay = student.currentCourseDay || 1;
+      // Same keys as student visibility + journey completion (own class batch / GO track).
+      const batchKeys = recordingAccessBatchKeys(student);
+      const studentLevel = String(student.level || 'A1').toUpperCase();
+      const batchRecOr = batchKeys.map((k) => ({
+        batches: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+      }));
+
+      // Force a fresh completion re-check on every admin detail load so stale cache
+      // (e.g. recordings uploaded after a student auto-advanced) doesn't hide the true day.
+      if (isSilverGoStudent(student)) {
+        await SilverGoUnlockCache.deleteOne({ studentId });
+      }
+
+      const [goBatchCfg, unlock] = await Promise.all([
+        BatchConfig.findOne({ batchName: GO_BATCH_NAME }).select('journeyLength').lean(),
+        isSilverGoStudent(student)
+          ? resolveSilverGoContentUnlock(student)
+          : Promise.resolve({
+              maxUnlockedContentDay: storedCourseDay,
+              currentCourseDay: storedCourseDay
+            })
+      ]);
+
       const journeyLength =
         goBatchCfg?.journeyLength >= 1 ? Math.min(Math.floor(goBatchCfg.journeyLength), 200) : 200;
-  
-      const currentDay = student.currentCourseDay || 1;
-  
-      // ── Class Recordings (manual uploads) ────────────────────────────────────
-      const batchKeys = allStudentBatchStringsForContent(student);
-      const batchRecFilter = batchKeys.length
-        ? {
-            $or: batchKeys.map((k) => ({
-              batches: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
-            }))
+      const accessDay = unlock.maxUnlockedContentDay || storedCourseDay;
+
+      // Reconcile: if the student is stored ahead of what they've completed, pull them back.
+      let reconciled = false;
+      if (isSilverGoStudent(student) && accessDay < storedCourseDay) {
+        const updateResult = await User.updateOne(
+          { _id: studentId, role: 'STUDENT', currentCourseDay: storedCourseDay },
+          {
+            $set: withJourneyLevelInSet(
+              accessDay,
+              {
+                currentCourseDay: accessDay,
+                pendingJourneyDayAdvance: false,
+                pendingJourneyDayAdvanceForDay: null
+              },
+              { student }
+            )
           }
-        : {};
-  
-      const classRecordings = await ClassRecording.find({
-        active: true,
-        isPublished: true,
-        ...batchRecFilter,
-        $or: [{ plan: 'ALL' }, { plan: 'SILVER' }, { plan: 'PLATINUM' }]
-      }).select('title description courseDay plan level batches uploadedBy createdAt').lean();
-  
-      // Get view counts for this student
-      const recViews = await RecordingView.find({ student: studentId })
-        .select('recording watchDuration lastUpdatedAt')
-        .lean();
-      const recViewMap = {};
-      for (const v of recViews) {
-        recViewMap[String(v.recording)] = { watchDuration: v.watchDuration, lastUpdatedAt: v.lastUpdatedAt };
+        );
+        reconciled = updateResult.modifiedCount > 0;
       }
-  
+
+      const batchOrForMeetings = batchKeys.map((k) => ({
+        batch: new RegExp(`^${String(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+      }));
+      const studentObjectId = mongoose.Types.ObjectId.isValid(String(studentId))
+        ? new mongoose.Types.ObjectId(String(studentId))
+        : null;
+
+      const [classRecordings, recViewsAgg, goMeetings, meetingsForDuration, allExercises, attempts] =
+        await Promise.all([
+        batchRecOr.length
+          ? ClassRecording.find({
+              active: true,
+              isPublished: { $ne: false },
+              level: studentLevel,
+              plan: { $in: ['ALL', 'SILVER', 'PLATINUM'] },
+              $or: batchRecOr
+            })
+              .select('title courseDay plan level duration batches createdAt')
+              .lean()
+          : Promise.resolve([]),
+        studentObjectId
+          ? RecordingView.aggregate([
+              { $match: { student: studentObjectId } },
+              {
+                $group: {
+                  _id: '$recording',
+                  maxWatchDuration: { $sum: '$watchDuration' },
+                  lastUpdatedAt: { $max: '$lastUpdatedAt' }
+                }
+              }
+            ])
+          : Promise.resolve([]),
+        batchOrForMeetings.length
+          ? MeetingLink.find({
+              $or: batchOrForMeetings,
+              status: { $ne: 'cancelled' }
+            })
+              .select('topic startTime duration courseDay status')
+              .lean()
+          : Promise.resolve([]),
+        batchOrForMeetings.length
+          ? MeetingLink.find({ $or: batchOrForMeetings, status: { $ne: 'cancelled' } })
+              .select('batch courseDay duration')
+              .lean()
+          : Promise.resolve([]),
+        DigitalExercise.find({
+          isDeleted: { $ne: true },
+          isActive: true,
+          visibleToStudents: true,
+          courseDay: { $gte: 1, $lte: journeyLength }
+        })
+          .select('title level category courseDay sequenceLetter')
+          .lean(),
+        ExerciseAttempt.find({ studentId })
+          .select('exerciseId status scorePercentage earnedPoints totalPoints completedAt')
+          .lean()
+      ]);
+
+      const recViewMap = {};
+      for (const row of recViewsAgg) {
+        recViewMap[String(row._id)] = {
+          watchDuration: Math.max(0, Math.round(Number(row.maxWatchDuration || 0))),
+          lastUpdatedAt: row.lastUpdatedAt || null
+        };
+      }
+
+      const resolveManualDurationSec = (recording) => {
+        let durationSec = Number.isFinite(Number(recording.duration))
+          ? Number(recording.duration)
+          : 0;
+        if (durationSec > 0) return durationSec;
+        const recDay = Number(recording?.courseDay);
+        const recBatches = Array.isArray(recording?.batches) ? recording.batches : [];
+        if (!Number.isFinite(recDay) || recDay < 1 || !recBatches.length) return 0;
+        const match = meetingsForDuration.find(
+          (m) =>
+            Number(m?.courseDay) === recDay &&
+            Number(m?.duration) > 0 &&
+            recBatches.some((rb) => batchesAlign(rb, m?.batch))
+        );
+        return match && Number(match.duration) > 0
+          ? Math.round(Number(match.duration) * 60)
+          : 0;
+      };
+
       const recordings = classRecordings.map(r => {
-        const locked = r.courseDay != null && r.courseDay > currentDay;
+        const locked = r.courseDay != null && r.courseDay > accessDay;
         const viewData = recViewMap[String(r._id)];
+        const durationSec = resolveManualDurationSec(r);
+        const rawWatchSec = viewData?.watchDuration || 0;
+        const watchSec =
+          durationSec > 0 ? Math.min(rawWatchSec, durationSec) : rawWatchSec;
+        const watched = recordingWatchCountsAsComplete(watchSec, durationSec);
         return {
           _id: r._id,
           title: r.title,
@@ -508,42 +900,60 @@ function createGoStudentsRouter(trackKey) {
           plan: r.plan,
           level: r.level,
           locked,
-          watchDuration: viewData?.watchDuration || 0,
+          watchDuration: watchSec,
           lastWatchedAt: viewData?.lastUpdatedAt || null,
-          watched: !!viewData,
+          watched,
           uploadedAt: r.createdAt
         };
       });
   
-      // ── Zoom Recordings ───────────────────────────────────────────────────────
-      const goMeetings = await MeetingLink.find({
-        $or: [
-          { batch: new RegExp(`^${GO_BATCH_NAME}$`, 'i') },
-          { plan: 'SILVER' }
-        ],
-        status: { $ne: 'cancelled' }
-      }).select('topic startTime duration courseDay status').lean();
-  
-      const meetingIds = goMeetings.map(m => m._id);
-      const zoomRecs = await ZoomRecording.find({ meetingLinkId: { $in: meetingIds }, isPublished: true })
-        .select('meetingLinkId duration status publishedAt')
-        .lean();
-  
+      const meetingIds = goMeetings.map((m) => m._id);
+      const zoomRecs =
+        meetingIds.length > 0
+          ? await ZoomRecording.find({ meetingLinkId: { $in: meetingIds }, isPublished: true })
+              .select('meetingLinkId duration status')
+              .lean()
+          : [];
+
       const zoomViewMap = {};
-      if (zoomRecs.length > 0) {
-        const zoomViews = await ZoomRecordingView.find({
-          student: studentId,
-          meetingLinkId: { $in: meetingIds }
-        }).select('meetingLinkId watchDuration lastUpdatedAt').lean();
-        for (const v of zoomViews) {
-          zoomViewMap[String(v.meetingLinkId)] = { watchDuration: v.watchDuration, lastUpdatedAt: v.lastUpdatedAt };
+      if (meetingIds.length > 0 && studentObjectId) {
+        const zoomViewsAgg = await ZoomRecordingView.aggregate([
+          {
+            $match: {
+              student: studentObjectId,
+              meetingLinkId: { $in: meetingIds }
+            }
+          },
+          {
+            $group: {
+              _id: '$meetingLinkId',
+              maxWatchDuration: { $sum: '$watchDuration' },
+              lastUpdatedAt: { $max: '$lastUpdatedAt' }
+            }
+          }
+        ]);
+        for (const row of zoomViewsAgg) {
+          zoomViewMap[String(row._id)] = {
+            watchDuration: Math.max(0, Math.round(Number(row.maxWatchDuration || 0))),
+            lastUpdatedAt: row.lastUpdatedAt || null
+          };
         }
       }
   
       const zoomRecordings = zoomRecs.map(zr => {
         const meeting = goMeetings.find(m => String(m._id) === String(zr.meetingLinkId));
-        const locked = meeting?.courseDay != null && meeting.courseDay > currentDay;
+        const locked = meeting?.courseDay != null && meeting.courseDay > accessDay;
         const viewData = zoomViewMap[String(zr.meetingLinkId)];
+        const durationSec =
+          Number(zr.duration) > 0
+            ? Number(zr.duration)
+            : meeting?.duration != null && Number(meeting.duration) > 0
+              ? Math.round(Number(meeting.duration) * 60)
+              : 0;
+        const rawWatchSec = viewData?.watchDuration || 0;
+        const watchSec =
+          durationSec > 0 ? Math.min(rawWatchSec, durationSec) : rawWatchSec;
+        const watched = recordingWatchCountsAsComplete(watchSec, durationSec);
         return {
           _id: zr._id,
           meetingLinkId: zr.meetingLinkId,
@@ -552,54 +962,12 @@ function createGoStudentsRouter(trackKey) {
           startTime: meeting?.startTime || null,
           duration: zr.duration,
           locked,
-          watchDuration: viewData?.watchDuration || 0,
+          watchDuration: watchSec,
           lastWatchedAt: viewData?.lastUpdatedAt || null,
-          watched: !!viewData
+          watched
         };
       });
   
-      // ── Learning Modules ──────────────────────────────────────────────────────
-      const allModules = await LearningModule.find({
-        isDeleted: { $ne: true },
-        isActive: true,
-        courseDay: { $exists: true, $ne: null }
-      }).select('title level category courseDay estimatedDuration').lean();
-  
-      const moduleProgressRecords = await StudentProgress.find({ studentId })
-        .select('moduleId status progressPercentage timeSpent lastAccessedAt')
-        .lean();
-      const modProgressMap = {};
-      for (const p of moduleProgressRecords) {
-        modProgressMap[String(p.moduleId)] = p;
-      }
-  
-      const modules = allModules.map(m => {
-        const locked = m.courseDay > currentDay;
-        const progress = modProgressMap[String(m._id)];
-        return {
-          _id: m._id,
-          title: m.title,
-          level: m.level,
-          category: m.category,
-          courseDay: m.courseDay,
-          estimatedDuration: m.estimatedDuration,
-          locked,
-          status: progress?.status || 'not_started',
-          progressPercent: progress?.progressPercentage || 0,
-          timeSpent: progress?.timeSpent || 0,
-          lastAccessedAt: progress?.lastAccessedAt || null
-        };
-      });
-  
-      // ── Digital Exercises ─────────────────────────────────────────────────────
-      const allExercises = await DigitalExercise.find({
-        isDeleted: { $ne: true },
-        courseDay: { $exists: true, $ne: null }
-      }).select('title level category courseDay sequenceLetter').lean();
-  
-      const attempts = await ExerciseAttempt.find({ studentId })
-        .select('exerciseId status scorePercentage earnedPoints totalPoints completedAt timeSpentSeconds')
-        .lean();
       const attemptMap = {};
       for (const a of attempts) {
         const key = String(a.exerciseId);
@@ -609,7 +977,7 @@ function createGoStudentsRouter(trackKey) {
       }
   
       const exercises = allExercises.map(e => {
-        const locked = e.courseDay > currentDay;
+        const locked = e.courseDay > accessDay;
         const attempt = attemptMap[String(e._id)];
         return {
           _id: e._id,
@@ -628,48 +996,25 @@ function createGoStudentsRouter(trackKey) {
         };
       });
   
-      // ── Progress Summary ──────────────────────────────────────────────────────
-      const dayBreakdown = [];
-      for (let d = 1; d <= currentDay; d++) {
-        const dayExercises = exercises.filter(e => e.courseDay === d);
-        const dayModules = modules.filter(m => m.courseDay === d);
-        const attempted = dayExercises.filter(e => e.attempted).length;
-        const completed = dayModules.filter(m => m.status === 'completed').length;
-        const avgScore = dayExercises.filter(e => e.attempted).length > 0
-          ? Math.round(dayExercises.filter(e => e.attempted).reduce((s, e) => s + e.scorePercent, 0) / dayExercises.filter(e => e.attempted).length)
-          : 0;
-        dayBreakdown.push({
-          day: d,
-          exercisesAttempted: attempted,
-          exercisesTotal: dayExercises.length,
-          modulesCompleted: completed,
-          modulesTotal: dayModules.length,
-          avgScore
-        });
-      }
-  
       const totalExercises = exercises.length;
-      const attemptedExercises = exercises.filter(e => e.attempted).length;
-      const completedModules = modules.filter(m => m.status === 'completed').length;
-      const totalModules = modules.length;
-  
+      const attemptedExercises = exercises.filter((e) => e.attempted).length;
+
       // ── Glück Buddy (DG Bot) modules ─────────────────────────────────────────
       let dgModules = [];
       try {
-        const dgAccess = await getStudentDgJourneyAccess(studentId);
-        const allDg = await DGModule.find({
-          isActive: true,
-          visibleToStudents: true,
-        })
-          .select('title level courseDay')
-          .sort({ courseDay: 1, title: 1 })
-          .lean();
-  
-        const dgCompletedIds = await DGSession.distinct('moduleId', { studentId, completed: true });
-        const dgAnyIds = await DGSession.distinct('moduleId', { studentId });
+        const [dgAccess, allDg, dgCompletedIds, dgAnyIds] = await Promise.all([
+          getStudentDgJourneyAccess(studentId),
+          DGModule.find({ isActive: true, visibleToStudents: true })
+            .select('title level courseDay')
+            .sort({ courseDay: 1, title: 1 })
+            .lean(),
+          DGSession.distinct('moduleId', { studentId, completed: true }),
+          DGSession.distinct('moduleId', { studentId })
+        ]);
+
         const dgCompletedSet = new Set((dgCompletedIds || []).map((id) => String(id)));
         const dgAnySet = new Set((dgAnyIds || []).map((id) => String(id)));
-  
+
         dgModules = (allDg || []).map((m) => {
           const dayLocked =
             !dgAccess.enabled ||
@@ -695,9 +1040,58 @@ function createGoStudentsRouter(trackKey) {
   
       const completedDgModules = dgModules.filter((d) => d.status === 'completed').length;
       const totalDgModules = dgModules.length;
+
+      // ── GlückArena (journey-day games) ───────────────────────────────────────
+      let arenaGames = [];
+      try {
+        const arenaBatchKeys = studentTargetBatchKeys(student);
+        const arenaFilter = {
+          isDeleted: { $ne: true },
+          isPublished: true,
+          visibleToStudents: true,
+          targetLanguage: 'German',
+          courseDay: { $ne: null, $gte: 1, $lte: 200 },
+          ...moduleTargetingQuery(arenaBatchKeys),
+        };
+        const arenaSets = await GameSet.find(arenaFilter)
+          .select('title level category courseDay sequenceLetter gameType difficulty')
+          .sort({ courseDay: 1, sequenceLetter: 1, title: 1 })
+          .lean();
+        const arenaIds = arenaSets.map((g) => g._id);
+        const playedArenaIds =
+          arenaIds.length > 0
+            ? await GameAttempt.find({
+                studentId,
+                gameSetId: { $in: arenaIds },
+                status: 'completed',
+              }).distinct('gameSetId')
+            : [];
+        const playedArenaSet = new Set((playedArenaIds || []).map((id) => String(id)));
+        arenaGames = arenaSets.map((g) => ({
+          _id: g._id,
+          title: g.title,
+          level: g.level,
+          category: g.category,
+          courseDay: g.courseDay,
+          sequenceLetter: g.sequenceLetter,
+          gameType: g.gameType,
+          difficulty: g.difficulty,
+          locked: Number(g.courseDay) > accessDay,
+          played: playedArenaSet.has(String(g._id)),
+        }));
+      } catch (arenaErr) {
+        console.warn('go-students detail: arena games skipped', arenaErr?.message || arenaErr);
+      }
   
       res.json({
         journeyLength,
+        journeySync: {
+          effectiveAccessDay: accessDay,
+          storedCourseDayBeforeSync: storedCourseDay,
+          reconciled,
+          needsSync: storedCourseDay > accessDay,
+          sequentialUnlock: isSilverGoStudent(student)
+        },
         student: {
           _id: student._id,
           name: student.name,
@@ -707,25 +1101,20 @@ function createGoStudentsRouter(trackKey) {
           subscription: student.subscription,
           goStatus: student.goStatus,
           goJoiningDate: student.goJoiningDate,
-          currentDay
+          currentDay: accessDay,
+          storedCourseDay: student.currentCourseDay || 1
         },
         recordings,
         zoomRecordings,
-        modules,
         exercises,
         dgModules,
+        arenaGames,
         progress: {
-          currentDay,
+          currentDay: accessDay,
           totalExercises,
           attemptedExercises,
-          totalModules,
-          completedModules,
           totalDgModules,
-          completedDgModules,
-          overallPercent: totalExercises + totalModules > 0
-            ? Math.round((attemptedExercises + completedModules) / (totalExercises + totalModules) * 100)
-            : 0,
-          dayBreakdown
+          completedDgModules
         }
       });
     } catch (err) {

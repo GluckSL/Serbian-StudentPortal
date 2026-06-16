@@ -3,6 +3,37 @@
 const axios = require('axios');
 const zoomConfig = require('../config/zoomConfig');
 
+/** null = unknown, true = API works, false = OAuth scopes missing — skip further calls. */
+let userSettingsScopeAvailable = null;
+let accountSettingsScopeAvailable = null;
+let userSettingsScopeWarned = false;
+let accountSettingsScopeWarned = false;
+
+function isMissingZoomSettingsScope(error) {
+  const code = error.response?.data?.code;
+  const msg = String(error.response?.data?.message || error.message || '');
+  return code === 4711 || /update:settings/.test(msg);
+}
+
+function logMissingUserSettingsScopeOnce() {
+  if (userSettingsScopeWarned) return;
+  userSettingsScopeWarned = true;
+  console.warn(
+    '⚠️  Zoom OAuth app is missing user:update:settings scope. ' +
+      'Skipping per-user private chat enforcement; meetings still use private_chat:false at meeting level. ' +
+      'Add user:update:settings (or user:update:settings:admin) in the Zoom Marketplace app to enable user-level enforcement.'
+  );
+}
+
+function logMissingAccountSettingsScopeOnce() {
+  if (accountSettingsScopeWarned) return;
+  accountSettingsScopeWarned = true;
+  console.warn(
+    '⚠️  Zoom OAuth app is missing account settings scope. ' +
+      'Skipping account-wide private chat enforcement; meetings still use private_chat:false at meeting level.'
+  );
+}
+
 /**
  * Gmail-style normalisation for dedupe keys (dots removed in local part).
  */
@@ -604,6 +635,10 @@ class ZoomService {
    * @param {string} userEmail  - The Zoom user's email / user-id
    */
   async disablePrivateChatForUser(userEmail) {
+    if (userSettingsScopeAvailable === false) {
+      return { success: false, skipped: true, reason: 'missing_scope' };
+    }
+
     try {
       const token = await this.getAccessToken();
       await axios.patch(
@@ -616,9 +651,15 @@ class ZoomService {
           }
         }
       );
+      userSettingsScopeAvailable = true;
       console.log(`✅ Private chat disabled at user level for: ${userEmail}`);
       return { success: true };
     } catch (error) {
+      if (isMissingZoomSettingsScope(error)) {
+        userSettingsScopeAvailable = false;
+        logMissingUserSettingsScopeOnce();
+        return { success: false, skipped: true, reason: 'missing_scope' };
+      }
       console.error(
         `⚠️  Could not disable private chat for user ${userEmail}:`,
         error.response?.data || error.message
@@ -633,6 +674,10 @@ class ZoomService {
    * regardless of per-meeting or per-user overrides.
    */
   async disablePrivateChatAccountWide() {
+    if (accountSettingsScopeAvailable === false) {
+      return { success: false, skipped: true, reason: 'missing_scope' };
+    }
+
     try {
       const token = await this.getAccessToken();
       await axios.patch(
@@ -645,9 +690,15 @@ class ZoomService {
           }
         }
       );
+      accountSettingsScopeAvailable = true;
       console.log('✅ Private chat disabled at account level');
       return { success: true };
     } catch (error) {
+      if (isMissingZoomSettingsScope(error)) {
+        accountSettingsScopeAvailable = false;
+        logMissingAccountSettingsScopeOnce();
+        return { success: false, skipped: true, reason: 'missing_scope' };
+      }
       console.error(
         '⚠️  Could not disable private chat at account level:',
         error.response?.data || error.message

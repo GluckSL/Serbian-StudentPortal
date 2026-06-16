@@ -43,7 +43,16 @@ router.post(
       if (!contentType) return res.status(400).json({ error: 'contentType is required' });
 
       const p = String(req.body?.prefix || 'listening-media').trim();
-      const prefix = p === 'exercise-attachments' ? 'exercise-attachments' : 'listening-media';
+      const allowedPrefixes = [
+        'listening-media',
+        'exercise-attachments',
+        'pdf-exercises',
+        'glueck-arena/game-audio',
+        'glueck-arena/game-images',
+        'glueck-arena/game-thumbnails',
+        'job-openings/logos',
+      ];
+      const prefix = allowedPrefixes.includes(p) ? p : 'listening-media';
 
       const key = `${prefix}/${Date.now()}-${filename}`;
 

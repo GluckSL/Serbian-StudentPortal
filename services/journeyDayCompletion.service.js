@@ -15,6 +15,11 @@ const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
 const { batchesAlign } = require('../utils/effectiveStudentBatch');
+const {
+  resolveInheritedAttempt,
+  isInheritedPassing
+} = require('./exerciseSplitInheritance.service');
+const { recordingWatchCountsAsComplete } = require('../utils/recordingWatchCompletion');
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -31,6 +36,11 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   const creditMeetingIds = new Set((options.creditMeetings || []).map((id) => String(id)));
   const includeRecordings = options.includeRecordings === true;
   const includeDg = options.includeDg === true;
+  const includeLiveClasses = options.includeLiveClasses !== false;
+  const recordingWatchRatio =
+    options.recordingWatchRatio != null && Number.isFinite(Number(options.recordingWatchRatio))
+      ? Math.min(1, Math.max(0.5, Number(options.recordingWatchRatio)))
+      : 0.9;
   const studentLevel = String(options.studentLevel || '').toUpperCase().trim();
   const studentPlan = String(options.studentPlan || '').toUpperCase().trim();
   const batchNames = Array.isArray(batchNameOrNames)
@@ -38,6 +48,10 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     : batchNameOrNames
       ? [String(batchNameOrNames).trim()]
       : [];
+  const recordingBatchNames =
+    Array.isArray(options.recordingBatchNames) && options.recordingBatchNames.length
+      ? options.recordingBatchNames.map((b) => String(b || '').trim()).filter(Boolean)
+      : batchNames;
   const studentObjectId = mongoose.Types.ObjectId.isValid(String(studentId))
     ? new mongoose.Types.ObjectId(String(studentId))
     : null;
@@ -48,7 +62,7 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     isActive: true,
     courseDay: day
   })
-    .select('_id title')
+    .select('_id title splitLineage questions')
     .lean();
 
   const exerciseIds = exercises.map((e) => e._id);
@@ -61,6 +75,14 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     : [];
 
   const completedExerciseIdSet = new Set(completedAttempts.map((id) => String(id)));
+  for (const ex of exercises) {
+    if (completedExerciseIdSet.has(String(ex._id))) continue;
+    if (!ex.splitLineage?.sourceExerciseId) continue;
+    const inherited = await resolveInheritedAttempt(studentId, ex);
+    if (isInheritedPassing(inherited)) {
+      completedExerciseIdSet.add(String(ex._id));
+    }
+  }
   const exerciseDone = completedExerciseIdSet.size;
   const exerciseTotal = exerciseIds.length;
   const incompleteExercises = exercises
@@ -72,8 +94,10 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     }));
 
   let classes = [];
-  if (batchNames.length) {
-    const batchOr = batchNames.map((n) => ({
+  const meetingBatchNames = includeRecordings ? recordingBatchNames : batchNames;
+  const needsMeetings = (includeLiveClasses || includeRecordings) && meetingBatchNames.length;
+  if (needsMeetings) {
+    const batchOr = meetingBatchNames.map((n) => ({
       batch: new RegExp(`^${escapeRegExp(n)}$`, 'i')
     }));
     classes = await MeetingLink.find({
@@ -81,25 +105,27 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       courseDay: day,
       status: { $ne: 'cancelled' }
     })
-      .select('_id topic attendance')
+      .select('_id topic attendance duration')
       .lean();
   }
 
   let classDone = 0;
-  const classTotal = classes.length;
+  const classTotal = includeLiveClasses ? classes.length : 0;
   const incompleteClasses = [];
-  for (const cls of classes) {
-    const record = (cls.attendance || []).find(
-      (a) => String(a.studentId) === String(studentId) && a.attended === true
-    );
-    if (record || creditMeetingIds.has(String(cls._id))) {
-      classDone++;
-    } else {
-      incompleteClasses.push({
-        kind: 'class',
-        title: cls.topic && String(cls.topic).trim() ? cls.topic : 'Live class',
-        courseDay: day
-      });
+  if (includeLiveClasses) {
+    for (const cls of classes) {
+      const record = (cls.attendance || []).find(
+        (a) => String(a.studentId) === String(studentId) && a.attended === true
+      );
+      if (record || creditMeetingIds.has(String(cls._id))) {
+        classDone++;
+      } else {
+        incompleteClasses.push({
+          kind: 'class',
+          title: cls.topic && String(cls.topic).trim() ? cls.topic : 'Live class',
+          courseDay: day
+        });
+      }
     }
   }
 
@@ -119,23 +145,28 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       manualFilter.plan = { $in: [studentPlan, 'ALL'] };
     }
     const manualRecordings = await ClassRecording.find(manualFilter)
-      .select('_id title batches')
+      .select('_id title batches duration')
       .lean();
     const visibleManual = manualRecordings.filter((r) => {
       const recBatches = Array.isArray(r.batches) ? r.batches : [];
-      if (!recBatches.length || !batchNames.length) return false;
-      return recBatches.some((rb) => batchNames.some((sb) => batchesAlign(sb, rb)));
+      if (!recBatches.length || !recordingBatchNames.length) return false;
+      return recBatches.some((rb) => recordingBatchNames.some((sb) => batchesAlign(sb, rb)));
     });
     if (visibleManual.length) {
       const manualIds = visibleManual.map((r) => r._id);
       const watchedManual = studentObjectId ? await RecordingView.aggregate([
-        { $match: { student: studentObjectId, recording: { $in: manualIds }, watchDuration: { $gt: 0 } } },
-        { $group: { _id: '$recording' } }
+        { $match: { student: studentObjectId, recording: { $in: manualIds } } },
+        // Accumulated watch time across all sessions (resume-friendly).
+        { $group: { _id: '$recording', maxWatchSeconds: { $sum: '$watchDuration' } } }
       ]) : [];
-      const watchedManualSet = new Set(watchedManual.map((w) => String(w._id)));
+      const watchedManualMap = new Map(
+        watchedManual.map((w) => [String(w._id), Math.max(0, Number(w.maxWatchSeconds || 0))])
+      );
       recordingTotal += visibleManual.length;
       for (const rec of visibleManual) {
-        if (watchedManualSet.has(String(rec._id))) recordingDone++;
+        const watchedSec = watchedManualMap.get(String(rec._id)) || 0;
+        const durationSec = Number(rec.duration || 0);
+        if (recordingWatchCountsAsComplete(watchedSec, durationSec, recordingWatchRatio)) recordingDone++;
         else {
           incompleteRecordings.push({
             kind: 'recording',
@@ -153,30 +184,48 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
         status: 'ready',
         isPublished: { $ne: false }
       })
-        .select('meetingLinkId accessBatches accessLevel accessPlan')
+        .select('meetingLinkId accessBatches accessLevel accessPlan duration')
         .lean();
+      const meetingDurationMap = new Map(
+        classes.map((c) => [
+          String(c._id),
+          Number(c.duration) > 0 ? Math.round(Number(c.duration) * 60) : 0
+        ])
+      );
       const visibleZoom = zoomRows.filter((zr) => {
         const levelOk = !zr.accessLevel || !studentLevel || String(zr.accessLevel).toUpperCase() === studentLevel;
         const plan = String(zr.accessPlan || 'ALL').toUpperCase();
         const planOk = plan === 'ALL' || !studentPlan || plan === studentPlan;
         if (!levelOk || !planOk) return false;
         const recBatches = Array.isArray(zr.accessBatches) ? zr.accessBatches : [];
-        if (!recBatches.length || !batchNames.length) return false;
-        return recBatches.some((rb) => batchNames.some((sb) => batchesAlign(sb, rb)));
+        if (!recBatches.length || !recordingBatchNames.length) return false;
+        return recBatches.some((rb) => recordingBatchNames.some((sb) => batchesAlign(sb, rb)));
       });
       if (visibleZoom.length) {
         const zoomMeetingIds = visibleZoom.map((z) => z.meetingLinkId);
         const watchedZoom = studentObjectId ? await ZoomRecordingView.aggregate([
-          { $match: { student: studentObjectId, meetingLinkId: { $in: zoomMeetingIds }, watchDuration: { $gt: 0 } } },
-          { $group: { _id: '$meetingLinkId' } }
+          { $match: { student: studentObjectId, meetingLinkId: { $in: zoomMeetingIds } } },
+          // Accumulated watch time across all sessions (resume-friendly).
+          { $group: { _id: '$meetingLinkId', maxWatchSeconds: { $sum: '$watchDuration' } } }
         ]) : [];
-        const watchedZoomSet = new Set(watchedZoom.map((w) => String(w._id)));
+        const watchedZoomMap = new Map(
+          watchedZoom.map((w) => [String(w._id), Math.max(0, Number(w.maxWatchSeconds || 0))])
+        );
         const classTopicMap = new Map(classes.map((c) => [String(c._id), c.topic]));
         recordingTotal += visibleZoom.length;
         for (const zr of visibleZoom) {
           const id = String(zr.meetingLinkId);
-          if (watchedZoomSet.has(id) || creditMeetingIds.has(id)) recordingDone++;
-          else {
+          const watchedSec = watchedZoomMap.get(id) || 0;
+          const durationSec =
+            Number(zr.duration) > 0
+              ? Number(zr.duration)
+              : meetingDurationMap.get(id) || 0;
+          if (
+            creditMeetingIds.has(id) ||
+            recordingWatchCountsAsComplete(watchedSec, durationSec, recordingWatchRatio)
+          ) {
+            recordingDone++;
+          } else {
             incompleteRecordings.push({
               kind: 'recording',
               title: classTopicMap.get(id) || 'Class recording',

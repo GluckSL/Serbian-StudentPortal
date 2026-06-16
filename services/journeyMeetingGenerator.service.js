@@ -96,6 +96,26 @@ function findNextSlotStartingAt(minMs, weekdaysSun0, clock) {
   return null;
 }
 
+/**
+ * Next occurrence of a specific IST weekday at clock, on or after minMs.
+ * @param {number} minMs
+ * @param {number} weekdaySun0 0=Sun .. 6=Sat
+ * @param {string} clock HH:mm
+ */
+function findFirstSlotOnWeekday(minMs, weekdaySun0, clock) {
+  let ymd = istYmdFromMs(minMs);
+  for (let guard = 0; guard < 800; guard++) {
+    const ms = istSlotMs(ymd, clock);
+    const wd = istWeekdaySun0(ms);
+    if (wd === weekdaySun0 && ms >= minMs) {
+      const startLocal16 = `${ymd}T${clock.trim().substring(0, 5)}`;
+      return { ymd, ms, startLocal16 };
+    }
+    ymd = addDaysToIstYmd(ymd, 1);
+  }
+  return null;
+}
+
 function clampCourseDay(n) {
   const x = parseInt(String(n), 10);
   if (!Number.isFinite(x)) return null;
@@ -113,6 +133,7 @@ function clampCourseDay(n) {
  * @param {string} p.startClock "HH:mm" IST wall time
  * @param {number} p.startingJourneyDay
  * @param {number} p.targetJourneyDay
+ * @param {number} [p.firstClassWeekdaySun0] If set (0–6), first class is the next occurrence of this weekday (must be selected).
  * @param {number} [p.durationMinutes=120]
  * @returns {{ schedules: Array<{ journeyDay: number, startTime: string, endTime: string }>, warnings: string[] }}
  */
@@ -151,8 +172,33 @@ function generateJourneySchedules(p) {
   let prevYmd = null;
   let prevJd = null;
 
+  let firstSlotForced = null;
+  const firstWdRaw = p.firstClassWeekdaySun0;
+  if (firstWdRaw != null && firstWdRaw !== '' && String(firstWdRaw) !== 'auto') {
+    const firstWd = Number(firstWdRaw);
+    if (!Number.isFinite(firstWd) || firstWd < 0 || firstWd > 6) {
+      return { schedules: [], warnings: ['Invalid first class weekday.'] };
+    }
+    if (!weekdaysSun0.has(firstWd)) {
+      return {
+        schedules: [],
+        warnings: ['First class weekday must be one of the selected weekdays.']
+      };
+    }
+    firstSlotForced = findFirstSlotOnWeekday(nowMs, firstWd, clockNorm);
+    if (!firstSlotForced) {
+      return { schedules: [], warnings: ['Could not find a valid first class date for that weekday.'] };
+    }
+  }
+
   while (schedules.length < MAX_AUTO_SLOTS) {
-    const slot = findNextSlotStartingAt(minMs, weekdaysSun0, clockNorm);
+    const slot =
+      firstSlotForced != null
+        ? firstSlotForced
+        : findNextSlotStartingAt(minMs, weekdaysSun0, clockNorm);
+    if (firstSlotForced != null) {
+      firstSlotForced = null;
+    }
     if (!slot) {
       warnings.push('Could not find further valid dates within the search window.');
       break;
@@ -271,7 +317,7 @@ async function findDuplicateBatchCourseDay(batch, courseDay) {
 
 /**
  * Run conflict checks for one slot (no Zoom calls).
- * @returns {Promise<string[]>} human-readable warnings
+ * @returns {Promise<{ warnings: string[], studentConflicts: Array<{ conflictingBatch: string, conflictingTopic: string, clashingStudents: Array<{ studentId: string, name: string, email: string }> }> }>}
  */
 async function collectSlotConflicts({
   batch,
@@ -283,6 +329,8 @@ async function collectSlotConflicts({
   courseDay
 }) {
   const warnings = [];
+  const studentConflicts = [];
+
   const meetingStart = new Date(`${slotStartTime16}:00+05:30`);
   if (meetingStart.getTime() < Date.now() - 60000) {
     warnings.push(`Past date skipped or invalid: ${slotStartTime16}`);
@@ -308,9 +356,29 @@ async function collectSlotConflicts({
       ? await findAnyStudentOverlap(studentIds, meetingStart, meetingEnd)
       : null;
   if (stHit) {
-    warnings.push(
-      `Student overlap at ${slotStartTime16} with meeting "${stHit.topic || ''}" (${stHit.batch})`
+    const requestedIds = new Set((studentIds || []).map((id) => String(id)));
+    const clashingAttendees = (stHit.attendees || []).filter(
+      (a) => requestedIds.has(String(a.studentId))
     );
+    const studentDesc = clashingAttendees.length
+      ? clashingAttendees
+          .map((a) => (a.name && a.email ? `${a.name} (${a.email})` : a.name || a.email || String(a.studentId)))
+          .join(', ')
+      : 'unknown students';
+    warnings.push(
+      `Student overlap at ${slotStartTime16} with meeting "${stHit.topic || ''}" (${stHit.batch}): ${studentDesc}`
+    );
+    if (clashingAttendees.length) {
+      studentConflicts.push({
+        conflictingBatch: stHit.batch || '',
+        conflictingTopic: stHit.topic || '',
+        clashingStudents: clashingAttendees.map((a) => ({
+          studentId: String(a.studentId),
+          name: a.name || '',
+          email: a.email || ''
+        }))
+      });
+    }
   }
 
   if (courseDay != null && Number.isFinite(Number(courseDay))) {
@@ -322,7 +390,7 @@ async function collectSlotConflicts({
     }
   }
 
-  return warnings;
+  return { warnings, studentConflicts };
 }
 
 /**
@@ -339,7 +407,8 @@ async function previewJourneyWithConflicts(opts) {
     weekdaysSun0,
     startClock,
     startingJourneyDay,
-    targetJourneyDay
+    targetJourneyDay,
+    firstClassWeekdaySun0
   } = opts;
 
   const gen = generateJourneySchedules({
@@ -347,14 +416,16 @@ async function previewJourneyWithConflicts(opts) {
     startClock,
     startingJourneyDay,
     targetJourneyDay,
+    firstClassWeekdaySun0,
     durationMinutes
   });
 
   const allWarnings = [...gen.warnings];
   const blockingErrors = [];
+  const allStudentConflicts = [];
 
   for (const row of gen.schedules) {
-    const w = await collectSlotConflicts({
+    const { warnings: slotWarnings, studentConflicts: slotSC } = await collectSlotConflicts({
       batch,
       teacherId,
       zoomHostEmail,
@@ -363,7 +434,8 @@ async function previewJourneyWithConflicts(opts) {
       durationMinutes,
       courseDay: row.journeyDay
     });
-    allWarnings.push(...w.map((x) => `[Day ${row.journeyDay}] ${x}`));
+    allWarnings.push(...slotWarnings.map((x) => `[Day ${row.journeyDay}] ${x}`));
+    allStudentConflicts.push(...slotSC);
   }
 
   const v = validateSchedulePayload(
@@ -382,7 +454,98 @@ async function previewJourneyWithConflicts(opts) {
   );
   if (!v.ok) blockingErrors.push(...v.errors);
 
-  return { schedules: gen.schedules, allWarnings, blockingErrors };
+  return { schedules: gen.schedules, allWarnings, blockingErrors, studentConflicts: deduplicateStudentConflicts(allStudentConflicts) };
+}
+
+/**
+ * Deduplicate student conflicts: merge clashing students per conflicting batch.
+ * @param {Array<{ conflictingBatch: string, conflictingTopic: string, clashingStudents: Array }>} list
+ */
+function deduplicateStudentConflicts(list) {
+  const byBatch = new Map();
+  for (const item of list) {
+    const key = item.conflictingBatch;
+    if (!byBatch.has(key)) {
+      byBatch.set(key, { conflictingBatch: item.conflictingBatch, conflictingTopic: item.conflictingTopic, clashingStudents: new Map() });
+    }
+    for (const s of item.clashingStudents) {
+      byBatch.get(key).clashingStudents.set(s.studentId, s);
+    }
+  }
+  return Array.from(byBatch.values()).map((entry) => ({
+    conflictingBatch: entry.conflictingBatch,
+    conflictingTopic: entry.conflictingTopic,
+    clashingStudents: Array.from(entry.clashingStudents.values())
+  }));
+}
+
+/**
+ * Re-run conflict checks on admin-edited schedule rows (no regeneration).
+ * @param {object} opts
+ * @param {Array<{ journeyDay: number, startTime: string, endTime?: string }>} opts.schedules
+ */
+async function previewCustomJourneySchedules(opts) {
+  const {
+    batch,
+    plan,
+    topic,
+    teacherId,
+    zoomHostEmail,
+    studentIds,
+    durationMinutes,
+    schedules,
+    startingJourneyDay,
+    targetJourneyDay
+  } = opts;
+
+  const rows = Array.isArray(schedules) ? schedules : [];
+  const allWarnings = [];
+  const blockingErrors = [];
+  const allStudentConflicts = [];
+  const dur = Math.max(1, parseInt(String(durationMinutes ?? 120), 10) || 120);
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i] || {};
+    const jd = clampCourseDay(row.journeyDay);
+    if (!jd) {
+      blockingErrors.push(`Row ${i + 1}: journey day must be 1–200`);
+      continue;
+    }
+    const start16 = String(row.startTime || '').trim().substring(0, 16);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(start16)) {
+      blockingErrors.push(`Row ${i + 1}: invalid start time (use date and time)`);
+      continue;
+    }
+    const { warnings: slotWarnings, studentConflicts: slotSC } = await collectSlotConflicts({
+      batch,
+      teacherId,
+      zoomHostEmail,
+      studentIds,
+      slotStartTime16: start16,
+      durationMinutes: dur,
+      courseDay: jd
+    });
+    allWarnings.push(...slotWarnings.map((x) => `[Day ${jd}] ${x}`));
+    allStudentConflicts.push(...slotSC);
+  }
+
+  const v = validateSchedulePayload(
+    {
+      batch,
+      plan,
+      topic,
+      teacherId,
+      zoomHostEmail,
+      studentIds,
+      duration: dur,
+      startingJourneyDay,
+      targetJourneyDay
+    },
+    { allowEmptyStudents: true }
+  );
+  if (!v.ok) blockingErrors.push(...v.errors);
+
+  return { schedules: rows, allWarnings, blockingErrors, studentConflicts: deduplicateStudentConflicts(allStudentConflicts) };
 }
 
 module.exports = {
@@ -390,11 +553,13 @@ module.exports = {
   istCalendarDaysBetween,
   validateSchedulePayload,
   findNextSlotStartingAt,
+  findFirstSlotOnWeekday,
   findTeacherOverlap,
   findAnyStudentOverlap,
   findDuplicateBatchCourseDay,
   collectSlotConflicts,
   previewJourneyWithConflicts,
+  previewCustomJourneySchedules,
   istYmdFromMs,
   istWeekdaySun0,
   MAX_AUTO_SLOTS

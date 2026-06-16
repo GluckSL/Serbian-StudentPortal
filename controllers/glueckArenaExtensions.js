@@ -25,6 +25,7 @@ const rankedService = require('../services/interactiveGames/ranked');
 const replayService = require('../services/interactiveGames/replays');
 const observabilityService = require('../services/interactiveGames/observability');
 const { getOnlineSocketCount } = require('../sockets/glueckArenaMultiplayer');
+const { getArenaMediaConfig } = require('../services/interactiveGames/arenaMediaConfig');
 
 function serverError(res, err) {
   console.error('[glueck-arena]', err);
@@ -381,6 +382,15 @@ exports.publicHealth = async (_req, res) => {
     const health = await productionHealthService.getHealth();
     res.status(health.status === 'healthy' ? 200 : 503).json(health);
   } catch (err) { serverError(res, err); }
+};
+
+/** Public SFX / media base URLs (Cloudflare R2). No auth — used by GameAudioService. */
+exports.getArenaMediaConfig = (_req, res) => {
+  try {
+    res.json({ success: true, ...getArenaMediaConfig() });
+  } catch (err) {
+    serverError(res, err);
+  }
 };
 
 exports.adminMetrics = async (_req, res) => {

@@ -52,6 +52,20 @@ export class NavService {
     'go-students-sinhala': [
       '/admin/go-students'
     ],
+    'finance-dashboard': [
+      '/admin/finance-dashboard',
+      '/admin/finance-dashboard/batches',
+      '/admin/payment-hub/insights/batches'
+    ],
+    'enrollment-overview': [
+      '/admin/enrollment-overview'
+    ],
+    'krish-dashboard': [
+      '/admin/enrollment-overview'
+    ],
+    'enrollment-overdue': [
+      '/admin/enrollment-overview'
+    ],
     'class-recordings': [
       '/class-recordings/approval-requests',
       '/class-recordings/access-recording',
@@ -114,7 +128,8 @@ export class NavService {
     {
       group: 'Documents',
       items: [
-        { id: 'documents', label: 'Documents', icon: 'description', route: '/admin/document-verification', subGroup: null }
+        { id: 'documents', label: 'Documents', icon: 'description', route: '/admin/document-verification', subGroup: null },
+        { id: 'google-sheet-sync', label: 'Sheet Sync', icon: 'table_chart', route: '/admin/google-sheet-sync', subGroup: null }
       ]
     },
     {
@@ -132,13 +147,21 @@ export class NavService {
       ]
     },
     {
+      group: 'Sales',
+      items: [
+        { id: 'enrollment-overview', label: 'Enrollment Overview', icon: 'storefront', route: '/admin/enrollment-overview', subGroup: null }
+      ]
+    },
+    {
       group: 'Payments',
       items: [
+        { id: 'finance-dashboard', label: 'Finance Dashboard', icon: 'account_balance_wallet', route: '/admin/finance-dashboard', subGroup: null },
         { id: 'payment-hub', label: 'Payment Hub (New)', icon: 'credit_card', route: '/admin/payment-hub', subGroup: null },
         { id: 'payment-request', label: 'Req Payment', icon: 'send', route: '/admin/payment-request', subGroup: null },
-        { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
-        { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
-        { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
+        // Legacy payment tabs hidden — use Payment Hub (New) instead
+        // { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
+        // { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
+        // { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
       ]
     },
     {
@@ -158,7 +181,9 @@ export class NavService {
       items: [
         { id: 'reminders', label: 'Reminders', icon: 'alarm', route: '/admin/reminders', subGroup: null },
         { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
+        { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/admin/job-openings', subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets', icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
+        { id: 'olly-chat', label: 'Olly Live Chat 🦊', icon: 'forum', route: '/admin/olly-chat', subGroup: null },
         { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
       ]
     },
@@ -247,6 +272,7 @@ export class NavService {
         { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
         { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
+        { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/student/job-openings', subGroup: null },
         { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]
     },
@@ -468,16 +494,30 @@ export class NavService {
 
   // ── Sub-Admin permissions ─────────────────────────────────────────────────
 
+  private readonly LEGACY_PERMISSION_ALIASES: Record<string, string> = {
+    'krish-dashboard': 'enrollment-overview',
+    'enrollment-overdue': 'enrollment-overview',
+  };
+
   normalizeSidebarPermissions(
     sidebarPermissions: string[] = [],
     sidebarAccessLevels: Record<string, AccessLevel> = {}
   ): string[] {
     const validIds = new Set(this.getAllAdminNavItems().map(item => item.id));
-    const normalizedAccessLevels = this.normalizeAccessLevels(sidebarAccessLevels);
+    const remappedPermissions = (sidebarPermissions || []).map(
+      (id) => this.LEGACY_PERMISSION_ALIASES[id] || id
+    );
+    const remappedAccessLevels = { ...sidebarAccessLevels };
+    for (const [legacyId, nextId] of Object.entries(this.LEGACY_PERMISSION_ALIASES)) {
+      if (remappedAccessLevels[legacyId] && !remappedAccessLevels[nextId]) {
+        remappedAccessLevels[nextId] = remappedAccessLevels[legacyId];
+      }
+    }
+    const normalizedAccessLevels = this.normalizeAccessLevels(remappedAccessLevels);
     const normalized = Array.from(
       new Set(
         [
-          ...(sidebarPermissions || []).filter(permissionId => validIds.has(permissionId)),
+          ...remappedPermissions.filter(permissionId => validIds.has(permissionId)),
           ...Object.entries(normalizedAccessLevels)
             .filter(([, level]) => this.canAccessLevel(level, 'view'))
             .map(([permissionId]) => permissionId)

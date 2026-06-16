@@ -62,6 +62,8 @@ export class AgreementTemplatesComponent implements OnInit, OnDestroy {
 
   templates: AgreementTemplate[] = [];
   loading = false;
+  refreshing = false;
+  readonly skeletonCards = [0, 1, 2];
   deletingId: string | null = null;
   menuContext: AgreementTemplate | null = null;
   templateSearch = '';
@@ -120,12 +122,35 @@ export class AgreementTemplatesComponent implements OnInit, OnDestroy {
     this.clearUploadProgressTimers();
   }
 
-  loadTemplates(): void {
-    this.loading = true;
-    this.svc.getTemplates().subscribe({
-      next: r => { this.templates = r.templates; this.loading = false; },
-      error: e => { this.snack.open(e.error?.message || 'Failed to load templates', 'Close', { duration: 3000 }); this.loading = false; }
+  loadTemplates(force = false): void {
+    const cached = !force ? this.svc.peekTemplatesList() : null;
+    if (cached) {
+      this.templates = cached;
+      this.loading = false;
+      this.refreshing = false;
+      return;
+    }
+
+    const hasData = this.templates.length > 0;
+    if (!hasData) this.loading = true;
+    else if (force) this.refreshing = true;
+
+    this.svc.getTemplates({ force }).subscribe({
+      next: (r) => {
+        this.templates = r.templates;
+        this.loading = false;
+        this.refreshing = false;
+      },
+      error: (e) => {
+        this.snack.open(e.error?.message || 'Failed to load templates', 'Close', { duration: 3000 });
+        this.loading = false;
+        this.refreshing = false;
+      }
     });
+  }
+
+  trackByTemplateId(_index: number, t: AgreementTemplate): string {
+    return t._id;
   }
 
   startCreate(): void {
@@ -494,7 +519,8 @@ export class AgreementTemplatesComponent implements OnInit, OnDestroy {
         this.saving = false;
         this.snack.open('Template saved successfully!', 'Close', { duration: 3000 });
         this.step = 'list';
-        this.loadTemplates();
+        this.svc.invalidateTemplatesCache();
+        this.loadTemplates(true);
         this.resetWizard();
       },
       error: e => { this.saving = false; this.snack.open(e.error?.message || 'Save failed', 'Close', { duration: 3000 }); }
@@ -507,11 +533,24 @@ export class AgreementTemplatesComponent implements OnInit, OnDestroy {
     this.templateDescription = t.description || '';
     this.totalPages = t.pageCount;
     this.editingFillMode = t.fillMode === 'docx' || !!t.docxR2Key ? 'docx' : 'overlay';
-    this.fields = (t.dynamicFields || []).map(fieldDraftFromDynamic);
     this.step = 'preview';
     this.pdfPreviewUrl = null;
     this.docxUpgradeFile = null;
-    this.loadPdfPreview(t._id);
+    this.fields = [];
+
+    this.svc.getTemplate(t._id).subscribe({
+      next: (r) => {
+        const full = r.template;
+        this.totalPages = full.pageCount;
+        this.editingFillMode = full.fillMode === 'docx' || !!full.docxR2Key ? 'docx' : 'overlay';
+        this.fields = (full.dynamicFields || []).map(fieldDraftFromDynamic);
+        this.loadPdfPreview(full._id);
+      },
+      error: (e) => {
+        this.step = 'list';
+        this.snack.open(e.error?.message || 'Could not load template', 'Close', { duration: 3000 });
+      }
+    });
   }
 
   onDocxUpgradeSelect(event: Event): void {

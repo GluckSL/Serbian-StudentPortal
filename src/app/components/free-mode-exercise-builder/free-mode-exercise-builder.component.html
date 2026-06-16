@@ -1,0 +1,503 @@
+<div class="fm-container">
+  <!-- Header -->
+  <div class="fm-header">
+    <button class="fm-back-btn" (click)="goBack()">
+      <span class="material-icons">arrow_back</span> Back
+    </button>
+    <h1><span class="material-icons">auto_awesome</span> Free Mode Exercise Builder</h1>
+  </div>
+
+  <!-- Hidden file input for attachment uploads -->
+  <input type="file" #attachmentFileInput multiple accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
+
+  <!-- Exercise Metadata -->
+  <div class="fm-meta">
+    <div class="meta-row">
+      <div class="meta-field">
+        <label>Title</label>
+        <input type="text" [(ngModel)]="title" placeholder="Exercise title" />
+      </div>
+      <div class="meta-field">
+        <label>Description</label>
+        <input type="text" [(ngModel)]="description" placeholder="Brief description" />
+      </div>
+    </div>
+    <div class="meta-row">
+      <div class="meta-field">
+        <label>Level</label>
+        <select [(ngModel)]="level">
+          <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
+        </select>
+      </div>
+      <div class="meta-field">
+        <label>Category</label>
+        <select [(ngModel)]="category">
+          <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+        </select>
+      </div>
+      <div class="meta-field">
+        <label>Difficulty</label>
+        <select [(ngModel)]="difficulty">
+          <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
+        </select>
+      </div>
+      <div class="meta-field">
+        <label>Language</label>
+        <select [(ngModel)]="targetLanguage">
+          <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
+        </select>
+      </div>
+      <div class="meta-field">
+        <label>Native</label>
+        <select [(ngModel)]="nativeLanguage">
+          <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
+        </select>
+      </div>
+      <div class="meta-field sm">
+        <label>Day</label>
+        <input type="number" [(ngModel)]="courseDay" min="0" max="200" placeholder="—" />
+      </div>
+      <div class="meta-field sm">
+        <label>Min</label>
+        <input type="number" [(ngModel)]="estimatedDuration" min="1" placeholder="15" />
+      </div>
+      <div class="meta-field">
+        <label>Tags</label>
+        <input type="text" [(ngModel)]="tags" placeholder="comma, separated" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Utilities Row (above question types) -->
+  <div class="fm-utilities">
+    <span class="utilities-label">Utilities</span>
+    <button class="util-btn" (click)="addContentBlock()">
+      <span class="material-icons">article</span> + Content Block
+    </button>
+  </div>
+
+  <!-- Question Types Row -->
+  <div class="fm-types">
+    <span class="types-label">Question Types</span>
+    <div class="type-cards">
+      <button
+        *ngFor="let qt of questionTypes"
+        class="type-card"
+        (click)="addQuestion(qt.value)"
+        [matTooltip]="qt.description"
+      >
+        <span class="material-icons type-card-icon">{{ qt.icon }}</span>
+        <span class="type-card-label">{{ qt.label }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Items List -->
+  <div class="fm-items" *ngIf="items.length > 0">
+    <div
+      *ngFor="let item of items; let idx = index"
+      class="fm-item"
+      [class.is-content]="item.kind === 'content'"
+      [class.is-question]="item.kind === 'question'"
+    >
+      <!-- Item Header -->
+      <div class="item-header">
+        <span class="item-badge" [class.content-badge]="item.kind === 'content'" [class.question-badge]="item.kind === 'question'">
+          <span class="material-icons">{{ item.kind === 'content' ? 'article' : getTypeIcon(item.type!) }}</span>
+          {{ item.kind === 'content' ? 'CONTENT' : getTypeLabel(item.type!) }}
+        </span>
+        <div class="item-actions">
+          <button class="item-btn" (click)="moveItem(item.uid, -1)" [disabled]="idx === 0" matTooltip="Move up">
+            <span class="material-icons">arrow_upward</span>
+          </button>
+          <button class="item-btn" (click)="moveItem(item.uid, 1)" [disabled]="idx === items.length - 1" matTooltip="Move down">
+            <span class="material-icons">arrow_downward</span>
+          </button>
+          <button class="item-btn item-btn-delete" (click)="deleteItem(item.uid)" matTooltip="Delete">
+            <span class="material-icons">delete</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Content Block Fields -->
+      <div class="item-body" *ngIf="item.kind === 'content'">
+        <div class="field-row">
+          <div class="field-group full">
+            <label>Section Title</label>
+            <input type="text" [(ngModel)]="item.sectionTitle" placeholder="e.g. Stufe 1 – Leicht" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group full">
+            <label>Context</label>
+            <textarea [(ngModel)]="item.context" rows="3" placeholder="Shared context text for following questions..."></textarea>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group full">
+            <label>Instruction</label>
+            <input type="text" [(ngModel)]="item.instruction" placeholder="What students should do..." />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group full">
+            <label>Attachments</label>
+            <div *ngIf="!attachmentUploading" class="attachment-upload-row">
+              <button type="button" class="btn-upload-attachment" (click)="triggerAttachmentFile(item)">
+                <span class="material-icons">upload_file</span>
+                {{ (item.attachmentUrls?.length) ? 'Add another file' : 'Upload file' }}
+              </button>
+            </div>
+            <div *ngIf="attachmentUploading" class="attachment-uploading">
+              <span class="material-icons spin">sync</span> Uploading…
+            </div>
+            <div *ngFor="let attUrl of item.attachmentUrls; let ai = index; trackBy: trackByIndex" class="attachment-preview">
+              <ng-container [ngSwitch]="getAttachmentType(attUrl)">
+                <img *ngSwitchCase="'image'" [src]="getMediaFullUrl(attUrl)" alt="Attachment" class="attachment-img-preview" />
+                <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-audio-preview"></audio>
+                <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-video-preview"></video>
+                <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(attUrl)" target="_blank" class="attachment-file-link">
+                  <span class="material-icons">picture_as_pdf</span> View PDF
+                </a>
+                <a *ngSwitchDefault [href]="getMediaFullUrl(attUrl)" target="_blank" class="attachment-file-link">
+                  <span class="material-icons">insert_drive_file</span> View file
+                </a>
+              </ng-container>
+              <button type="button" class="btn-remove-attachment" (click)="removeAttachmentAt(item, ai)" matTooltip="Remove attachment">
+                <span class="material-icons">delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Question Fields -->
+      <div class="item-body" *ngIf="item.kind === 'question'">
+        <!-- MCQ -->
+        <ng-container *ngIf="item.type === 'mcq'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Question</label>
+              <textarea [(ngModel)]="item.question" rows="2" placeholder="Enter the question..."></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Options</label>
+              <div *ngFor="let opt of item.options!; let oi = index; trackBy: trackByIndex" class="option-row">
+                <span class="option-letter">{{ 'ABCDEFGHIJ'[oi] }}</span>
+                <input type="text" [(ngModel)]="item.options![oi]" placeholder="Option {{ 'ABCDEFGHIJ'[oi] }}" />
+                <mat-checkbox
+                  [checked]="item.correctAnswerIndex === oi"
+                  (change)="item.correctAnswerIndex = $event.checked ? oi : undefined"
+                  matTooltip="Correct answer"
+                ></mat-checkbox>
+              </div>
+              <button class="add-btn" (click)="addOption(item)">+ Add Option</button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Explanation</label>
+              <textarea [(ngModel)]="item.explanation" rows="2" placeholder="Why this answer is correct..."></textarea>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Matching -->
+        <ng-container *ngIf="item.type === 'matching'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Instruction</label>
+              <input type="text" [(ngModel)]="item.instruction" placeholder="Match the items..." />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Pairs</label>
+              <div *ngFor="let pair of item.pairs!; let pi = index" class="pair-row">
+                <input type="text" [(ngModel)]="pair.left" placeholder="Left item" />
+                <span class="pair-arrow">↔</span>
+                <input type="text" [(ngModel)]="pair.right" placeholder="Right item" />
+                <button class="item-btn item-btn-delete sm" (click)="removePair(item, pi)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addPair(item)">+ Add Pair</button>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Fill Blank -->
+        <ng-container *ngIf="item.type === 'fill-blank'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Sentence (use ___ for blanks)</label>
+              <textarea [(ngModel)]="item.sentence" rows="2" placeholder="The ___ is on the ___."></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Answers (one per blank, in order)</label>
+              <div *ngFor="let ans of item.answers!; let ai = index; trackBy: trackByIndex" class="answer-row">
+                <span class="ans-number">{{ ai + 1 }}.</span>
+                <input type="text" [(ngModel)]="item.answers![ai]" placeholder="Answer {{ ai + 1 }}" />
+                <button class="item-btn item-btn-delete sm" (click)="removeAnswer(item, ai)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addAnswer(item)">+ Add Answer</button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group half">
+              <label>Hint</label>
+              <input type="text" [(ngModel)]="item.hint" placeholder="Optional hint" />
+            </div>
+            <div class="field-group half">
+              <mat-checkbox [(ngModel)]="item.caseSensitive">Case sensitive</mat-checkbox>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Word Bank Fill -->
+        <ng-container *ngIf="item.type === 'word_bank_fill'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Word Bank</label>
+              <div *ngFor="let w of item.wordBank!; let wi = index; trackBy: trackByIndex" class="inline-row">
+                <input type="text" [(ngModel)]="item.wordBank![wi]" placeholder="Word {{ wi + 1 }}" />
+                <button class="item-btn item-btn-delete sm" (click)="item.wordBank!.splice(wi, 1)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addWordBankWord(item)">+ Add Word</button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Prompts & Answers</label>
+              <div *ngFor="let wbi of item.items!; let wii = index" class="pair-row">
+                <input type="text" [(ngModel)]="wbi.prompt" placeholder="Prompt / sentence with ___" />
+                <span class="pair-arrow">→</span>
+                <input type="text" [(ngModel)]="wbi.answer" placeholder="Correct answer" />
+                <button class="item-btn item-btn-delete sm" (click)="removeWordBankItem(item, wii)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addWordBankItem(item)">+ Add Item</button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group half">
+              <mat-checkbox [(ngModel)]="item.reusableWords">Reusable words</mat-checkbox>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Question Answer + Worksheet Kinds -->
+        <ng-container *ngIf="item.type === 'question-answer'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Prompt</label>
+              <textarea [(ngModel)]="item.prompt" rows="2" placeholder="Enter the question or prompt..."></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Sample Answers</label>
+              <div *ngFor="let sa of item.sampleAnswers!; let si = index; trackBy: trackByIndex" class="inline-row">
+                <input type="text" [(ngModel)]="item.sampleAnswers![si]" placeholder="Sample answer {{ si + 1 }}" />
+                <button class="item-btn item-btn-delete sm" (click)="removeSampleAnswer(item, si)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addSampleAnswer(item)">+ Add Sample Answer</button>
+            </div>
+          </div>
+          <div class="field-row" *ngIf="item.worksheetKind">
+            <div class="field-group half">
+              <label>Kind</label>
+              <input type="text" [value]="item.worksheetKind" disabled class="kind-display" />
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Listening -->
+        <ng-container *ngIf="item.type === 'listening'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Media URL</label>
+              <input type="text" [(ngModel)]="item.mediaUrl" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Expected Transcript</label>
+              <textarea [(ngModel)]="item.expectedTranscript" rows="2" placeholder="The correct transcript..."></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group half">
+              <label>Attempt Mode</label>
+              <select [(ngModel)]="item.attemptMode">
+                <option value="typing">Typing</option>
+                <option value="typing-or-speech">Typing or Speech</option>
+              </select>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Singular Plural -->
+        <ng-container *ngIf="item.type === 'singular_plural'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Singular / Plural Pairs</label>
+              <div *ngFor="let pair of item.pairs!; let pi = index" class="pair-row">
+                <input type="text" [(ngModel)]="pair.singular" placeholder="Singular" />
+                <span class="pair-arrow">→</span>
+                <input type="text" [(ngModel)]="pair.plural" placeholder="Plural" />
+                <button class="item-btn item-btn-delete sm" (click)="removePair(item, pi)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addPair(item)">+ Add Pair</button>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Jumble Word -->
+        <ng-container *ngIf="item.type === 'jumble-word'">
+          <div class="field-row">
+            <div class="field-group half">
+              <label>Scrambled Text (letters with spaces)</label>
+              <input type="text" [(ngModel)]="item.scrambledText" placeholder="e.g. Z I M M E R" />
+            </div>
+            <div class="field-group half">
+              <label>Expected Word</label>
+              <input type="text" [(ngModel)]="item.expectedWord" placeholder="e.g. ZIMMER" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group half">
+              <label>Bold Letter (hint)</label>
+              <input type="text" [(ngModel)]="item.boldLetter" placeholder="e.g. Z" maxlength="1" />
+            </div>
+            <div class="field-group half">
+              <label>Category Tip</label>
+              <input type="text" [(ngModel)]="item.categoryTip" placeholder="e.g. furniture" />
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Rearrange -->
+        <ng-container *ngIf="item.type === 'rearrange'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Prompt</label>
+              <textarea [(ngModel)]="item.rearrangePrompt" rows="2" placeholder="Arrange the words to form a sentence..."></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Correct Answer</label>
+              <input type="text" [(ngModel)]="item.rearrangeAnswer" placeholder="The correct ordered sentence" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Tokens (drag order)</label>
+              <div *ngFor="let tok of item.rearrangeTokens!; let ti = index; trackBy: trackByIndex" class="inline-row">
+                <input type="text" [(ngModel)]="item.rearrangeTokens![ti]" placeholder="Token {{ ti + 1 }}" />
+                <button class="item-btn item-btn-delete sm" (click)="item.rearrangeTokens!.splice(ti, 1)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addToken(item)">+ Add Token</button>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Image Pin Match -->
+        <ng-container *ngIf="item.type === 'image_pin_match'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Image URL</label>
+              <input type="text" [(ngModel)]="item.imageUrl" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group half">
+              <label>Labels</label>
+              <div *ngFor="let lbl of item.labels!; let li = index" class="inline-row">
+                <input type="text" [(ngModel)]="lbl.text" placeholder="Label {{ li + 1 }}" />
+                <input type="text" [(ngModel)]="lbl.correctPinId" placeholder="Pin ID" class="pin-id-input" />
+                <button class="item-btn item-btn-delete sm" (click)="removeLabel(item, li)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addLabel(item)">+ Add Label</button>
+            </div>
+            <div class="field-group half">
+              <label>Pins (x, y %)</label>
+              <div *ngFor="let pin of item.pins!; let pi = index" class="inline-row">
+                <input type="number" [(ngModel)]="pin.x" min="0" max="100" placeholder="X" class="pin-input" />
+                <input type="number" [(ngModel)]="pin.y" min="0" max="100" placeholder="Y" class="pin-input" />
+                <span class="pin-id-label">{{ pin.id }}</span>
+                <button class="item-btn item-btn-delete sm" (click)="removePin(item, pi)"><span class="material-icons">close</span></button>
+              </div>
+              <button class="add-btn" (click)="addPin(item)">+ Add Pin</button>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group half">
+              <mat-checkbox [(ngModel)]="item.settings!.randomizeLabels">Randomize labels</mat-checkbox>
+            </div>
+            <div class="field-group half">
+              <mat-checkbox [(ngModel)]="item.settings!.allowRetry">Allow retry</mat-checkbox>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Video Pronunciation -->
+        <ng-container *ngIf="item.type === 'video-pronunciation'">
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Video URL</label>
+              <input type="text" [(ngModel)]="item.videoUrl" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group full">
+              <label>Caption</label>
+              <textarea [(ngModel)]="item.caption" rows="2" placeholder="What the student should speak..."></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group half">
+              <label>Secondary Caption</label>
+              <input type="text" [(ngModel)]="item.secondaryCaption" placeholder="Optional" />
+            </div>
+            <div class="field-group half">
+              <label>Secondary At (seconds)</label>
+              <input type="number" [(ngModel)]="item.secondaryCaptionAtSeconds" min="0" step="0.5" />
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Explanation field for all question types -->
+        <div class="field-row" *ngIf="item.type !== 'mcq'">
+          <div class="field-group full">
+            <label>Explanation / Reason</label>
+            <textarea [(ngModel)]="item.answerExplanation" rows="2" placeholder="Explain why the answer is correct..."></textarea>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group sm">
+            <label>Points</label>
+            <input type="number" [(ngModel)]="item.points" min="1" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="fm-empty" *ngIf="!hasQuestionItems() && !hasContentItems()">
+    <span class="material-icons empty-icon">auto_awesome</span>
+    <h3>Build Your Exercise</h3>
+    <p>Add a <strong>Content Block</strong> for shared context, or choose a <strong>Question Type</strong> above to start adding questions.</p>
+  </div>
+
+  <!-- Save -->
+  <div class="fm-footer" *ngIf="hasQuestionItems()">
+    <button class="btn-save" (click)="save()" [disabled]="saving || !isValid()">
+      <span class="material-icons">{{ saving ? 'hourglass_top' : 'save' }}</span>
+      {{ saving ? 'Saving...' : 'Save Exercise' }}
+    </button>
+  </div>
+</div>

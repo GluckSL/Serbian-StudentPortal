@@ -66,7 +66,9 @@ function computeAdminProgressMetrics(student, doc, pay, visa) {
     visaPct,
     overallPct,
     levelsCompleted,
-    totalLevels: displayLevels.length
+    totalLevels: displayLevels.length,
+    visaSteps,
+    visaCurrent
   };
 }
 

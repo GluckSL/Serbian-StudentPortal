@@ -44,13 +44,22 @@ const {
   journeyPauseFieldsForApi
 } = require('../utils/journeyPause');
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+const {
+  clampStandardJourneyDay,
+  clampJourneyDayForBatch,
+  journeyDayRangeStart,
+  isValidJourneyDay
+} = require('../utils/journeyDay');
 
-function clampDay(d, max = 200) {
-  const n = parseInt(String(d), 10);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  if (n > max) return max;
-  return n;
+function clampDay(d, max = 200, trialDayEnabled = false) {
+  return clampJourneyDayForBatch(d, max, trialDayEnabled);
+}
+
+function resolveCourseDay(raw, trialDayEnabled = false) {
+  if (raw == null || !Number.isFinite(Number(raw))) return trialDayEnabled ? 0 : 1;
+  const n = Number(raw);
+  if (n === 0 && trialDayEnabled) return 0;
+  return clampJourneyDayForBatch(n, 200, trialDayEnabled);
 }
 
 function escapeRegExp(str) {
@@ -302,6 +311,53 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
       return null;
     }
 
+    function defaultCfgForName(name) {
+      return {
+        batchName: name,
+        journeyLength: 200,
+        batchCurrentDay: 1,
+        batchStartDate: null,
+        strictJourneyRule: false,
+        strictJourneyThresholdPercent: 100,
+        trialDayEnabled: false
+      };
+    }
+
+    const studentsBehindMap = {};
+    allBatchNames.forEach((name) => {
+      studentsBehindMap[name] = 0;
+    });
+    if (allBatchNames.length) {
+      const batchDayCache = new Map();
+      function activeDayForBatch(batchName) {
+        if (batchDayCache.has(batchName)) return batchDayCache.get(batchName);
+        const cfg = cfgForName(batchName) || defaultCfgForName(batchName);
+        const day = computeBatchDay(cfg);
+        batchDayCache.set(batchName, day);
+        return day;
+      }
+
+      const studentRows = await User.find({
+        role: 'STUDENT',
+        batch: { $in: allBatchNames },
+        ...EXCLUDE_TEST
+      })
+        .select('batch currentCourseDay')
+        .lean();
+
+      for (const s of studentRows) {
+        const batch = s.batch;
+        if (!batch) continue;
+        const cfg = cfgForName(batch) || defaultCfgForName(batch);
+        const trial = !!cfg.trialDayEnabled;
+        const cur = resolveCourseDay(s.currentCourseDay, trial);
+        const activeDay = activeDayForBatch(batch);
+        if (cur < activeDay) {
+          studentsBehindMap[batch] = (studentsBehindMap[batch] || 0) + 1;
+        }
+      }
+    }
+
     const allRows = allBatchNames.map(name => {
       const savedCfg = cfgForName(name);
       const cfg = savedCfg || {
@@ -315,7 +371,8 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         strictJourneyRule: false,
         strictJourneyThresholdPercent: 100,
         autoRecordingEnabled: false,
-        journeyActive: false
+        journeyActive: false,
+        trialDayEnabled: false
       };
       const activeBatchDay = computeBatchDay(cfg);
       return {
@@ -333,8 +390,12 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
         autoRecordingEnabled: !!(cfg && cfg.autoRecordingEnabled),
         journeyActive: !!(cfg && cfg.journeyActive),
+        trialDayEnabled: !!(cfg && cfg.trialDayEnabled),
+        trialAccessStartDate: cfg.trialAccessStartDate || null,
         ...journeyPauseFieldsForApi(cfg),
         studentCount: countMap[name] || 0,
+        studentsBehindCount: studentsBehindMap[name] || 0,
+        hasStudentsBehind: (studentsBehindMap[name] || 0) > 0,
         teacherId: teacherByBatch[name]?.teacherId ?? null,
         teacherName: teacherByBatch[name]?.teacherName ?? null
       };
@@ -353,8 +414,9 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
 // All students in batches that have journeyActive (Platinum journey list).
 router.get('/active-platinum-students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    let activeConfigs = await BatchConfig.find({ journeyActive: true }).select('batchName').lean();
+    let activeConfigs = await BatchConfig.find({ journeyActive: true }).select('batchName trialDayEnabled').lean();
     let batchNames = activeConfigs.map((c) => String(c.batchName || '').trim()).filter(Boolean);
+    const trial = activeConfigs.some((c) => !!c.trialDayEnabled);
 
     if (req.user.role === 'TEACHER' || req.user.role === 'TEACHER_ADMIN') {
       const allowed = await buildTeacherAllowedBatchSet(req.user.id);
@@ -389,7 +451,7 @@ router.get('/active-platinum-students', verifyToken, checkRole(['ADMIN', 'TEACHE
         email: s.email,
         level: s.level,
         studentStatus: s.studentStatus,
-        currentCourseDay: s.currentCourseDay || 1,
+        currentCourseDay: resolveCourseDay(s.currentCourseDay, trial),
         batch: s.batch,
         enrollmentDate: s.enrollmentDate || null
       }))
@@ -397,6 +459,26 @@ router.get('/active-platinum-students', verifyToken, checkRole(['ADMIN', 'TEACHE
   } catch (err) {
     console.error('batch-journey GET /active-platinum-students', err);
     res.status(500).json({ message: 'Failed to load students', error: err.message });
+  }
+});
+
+// ─── GET /api/batch-journey/student/timetable ───────────────────────────────
+// Automatic timetable from journey schedule (live classes, exercises, DG bot, arena).
+router.get('/student/timetable', verifyToken, checkRole(['STUDENT']), async (req, res) => {
+  try {
+    const student = await User.findById(req.user.id)
+      .select('role batch subscription medium goStatus currentCourseDay studentStatus level')
+      .lean();
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    const { buildStudentJourneyTimetable } = require('../services/studentJourneyTimetable.service');
+    const horizonDays = parseInt(String(req.query.horizonDays || '14'), 10);
+    const payload = await buildStudentJourneyTimetable(student, { horizonDays });
+    res.json({ success: true, ...payload });
+  } catch (err) {
+    console.error('batch-journey GET /student/timetable', err);
+    res.status(500).json({ message: 'Failed to load journey timetable', error: err.message });
   }
 });
 
@@ -493,6 +575,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     const cfg = await getOrCreateConfig(batchName);
     const activeBatchDay = computeBatchDay(cfg);
+    const trial = !!cfg.trialDayEnabled;
 
     res.json({
       batchName,
@@ -504,6 +587,8 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         notes: cfg.notes,
         batchType: normalizeBatchType(cfg.batchType),
         oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
+        trialDayEnabled: trial,
+        trialAccessStartDate: cfg.trialAccessStartDate || null,
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
@@ -518,7 +603,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         email: s.email,
         level: s.level,
         studentStatus: s.studentStatus,
-        currentCourseDay: s.currentCourseDay || 1,
+        currentCourseDay: resolveCourseDay(s.currentCourseDay, trial),
         enrollmentDate: s.enrollmentDate || null,
         accountCreatedAt: s.createdAt || null
       }))
@@ -542,32 +627,32 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     // IMPORTANT: classes must be filtered by the requested batch, otherwise teachers can see other batches.
     const batchRegex = new RegExp(`^${escapeRegExp(batchName)}$`, 'i');
+    const dayStart = journeyDayRangeStart(!!cfg.trialDayEnabled);
     const [exercises, classes, recordings] = await Promise.all([
-      DigitalExercise.find({ isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: length } })
+      DigitalExercise.find({ isDeleted: { $ne: true }, courseDay: { $gte: dayStart, $lte: length } })
         .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
-      MeetingLink.find({ batch: batchRegex, courseDay: { $gte: 1, $lte: length }, status: { $ne: 'cancelled' } })
+      MeetingLink.find({ batch: batchRegex, courseDay: { $gte: dayStart, $lte: length }, status: { $ne: 'cancelled' } })
         .select('topic batch courseDay startTime duration').sort({ courseDay: 1 }).lean(),
-      // Include unpublished recordings: admins schedule content before publishing to students.
       ClassRecording.find({
         active: true,
-        courseDay: { $gte: 1, $lte: length },
+        courseDay: { $gte: dayStart, $lte: length },
         batches: batchRegex
       })
         .select('title level plan courseDay batches isPublished').sort({ courseDay: 1 }).lean()
     ]);
 
     const timeline = {};
-    for (let d = 1; d <= length; d++) {
+    for (let d = dayStart; d <= length; d++) {
       timeline[d] = { day: d, exercises: [], classes: [], recordings: [] };
     }
     exercises.forEach(e => {
-      if (timeline[e.courseDay]) timeline[e.courseDay].exercises.push({ _id: e._id, title: e.title, category: e.category, level: e.level });
+      if (e.courseDay != null && timeline[e.courseDay]) timeline[e.courseDay].exercises.push({ _id: e._id, title: e.title, category: e.category, level: e.level });
     });
     classes.forEach(c => {
-      if (timeline[c.courseDay]) timeline[c.courseDay].classes.push({ _id: c._id, topic: c.topic, batch: c.batch, startTime: c.startTime, duration: c.duration });
+      if (c.courseDay != null && timeline[c.courseDay]) timeline[c.courseDay].classes.push({ _id: c._id, topic: c.topic, batch: c.batch, startTime: c.startTime, duration: c.duration });
     });
     recordings.forEach(rec => {
-      if (timeline[rec.courseDay]) {
+      if (rec.courseDay != null && timeline[rec.courseDay]) {
         timeline[rec.courseDay].recordings.push({
           _id: rec._id,
           title: rec.title,
@@ -615,6 +700,8 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       autoRecordingEnabled,
       journeyActive,
       journeyPaused,
+      trialDayEnabled,
+      trialAccessStartDate,
       newBatchName
     } = req.body || {};
 
@@ -644,6 +731,29 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     if (journeyLength !== undefined) {
       cfg.journeyLength = Math.min(200, Math.max(1, clampDay(journeyLength)));
     }
+    if (trialDayEnabled !== undefined) {
+      cfg.trialDayEnabled = !!trialDayEnabled;
+      if (!cfg.trialDayEnabled) {
+        cfg.trialAccessStartDate = null;
+      }
+      if (cfg.batchStartDate) {
+        cfg.batchCurrentDay = computeBatchDay(cfg);
+      }
+    }
+    if (trialAccessStartDate !== undefined) {
+      if (!trialAccessStartDate || trialAccessStartDate === '') {
+        cfg.trialAccessStartDate = null;
+      } else {
+        const parsedTrial = new Date(trialAccessStartDate);
+        if (isNaN(parsedTrial.getTime())) {
+          return res.status(400).json({ message: 'Invalid trialAccessStartDate' });
+        }
+        cfg.trialAccessStartDate = parsedTrial;
+      }
+      if (cfg.batchStartDate) {
+        cfg.batchCurrentDay = computeBatchDay(cfg);
+      }
+    }
     if (batchStartDate !== undefined) {
       // Allow null/empty to clear the start date
       if (!batchStartDate || batchStartDate === '') {
@@ -660,7 +770,8 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     }
     // Manual override only accepted when no start date is set
     if (batchCurrentDay !== undefined && !cfg.batchStartDate) {
-      cfg.batchCurrentDay = Math.min(cfg.journeyLength, Math.max(1, clampDay(batchCurrentDay)));
+      const minDay = cfg.trialDayEnabled ? 0 : 1;
+      cfg.batchCurrentDay = Math.min(cfg.journeyLength, Math.max(minDay, clampDay(batchCurrentDay, cfg.journeyLength, !!cfg.trialDayEnabled)));
     }
     if (notes !== undefined) {
       cfg.notes = String(notes).substring(0, 500);
@@ -742,8 +853,8 @@ router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     const { day } = req.body;
     if (day === undefined || day === null) return res.status(400).json({ message: 'day is required' });
 
-    const targetDay = clampDay(day);
     const cfg = await getOrCreateConfig(batchName);
+    const targetDay = clampDay(day, cfg.journeyLength, !!cfg.trialDayEnabled);
     if (targetDay > cfg.journeyLength) {
       return res.status(400).json({ message: `day (${targetDay}) exceeds journeyLength (${cfg.journeyLength})` });
     }
@@ -823,7 +934,13 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
       .select('name regNo batch currentCourseDay goStatus subscription').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    const day = student.currentCourseDay || 1;
+    const stBatchCfg = student.batch
+      ? await BatchConfig.findOne({ batchName: batchNameRegex(student.batch) }).select('trialDayEnabled').lean()
+      : null;
+    const studentTrial = !!stBatchCfg?.trialDayEnabled;
+    const dayStart = journeyDayRangeStart(studentTrial);
+
+    const day = resolveCourseDay(student.currentCourseDay, studentTrial);
     const batchKeys = allStudentBatchStringsForContent(student);
     const result = await checkDayCompletion(student._id, batchKeys, day);
     const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
@@ -870,7 +987,10 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
     const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
     const cfgBatch = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
     const cfg = await getOrCreateConfig(cfgBatch);
-    const currentDay = student.currentCourseDay || 1;
+    const stBatchCfg = student.batch
+      ? await BatchConfig.findOne({ batchName: batchNameRegex(student.batch) }).select('trialDayEnabled').lean()
+      : null;
+    const currentDay = resolveCourseDay(student.currentCourseDay, !!stBatchCfg?.trialDayEnabled);
 
     if (currentDay >= cfg.journeyLength) {
       return res.json({ advanced: false, message: 'Student has already completed the journey.', currentDay });
@@ -931,11 +1051,36 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
     const { day } = req.body;
     if (day === undefined || day === null) return res.status(400).json({ message: 'day is required' });
 
-    const targetDay = clampDay(day);
     const existing = await User.findOne({ _id: studentId, role: 'STUDENT' })
       .select('goStatus batch subscription level')
       .lean();
     if (!existing) return res.status(404).json({ message: 'Student not found' });
+
+    const batchName = String(existing.batch || '').trim();
+    let trialDayEnabled = false;
+    let maxDay = 200;
+    if (batchName) {
+      const cfg = await BatchConfig.findOne({ batchName })
+        .select('trialDayEnabled journeyLength')
+        .lean();
+      if (cfg) {
+        trialDayEnabled = !!cfg.trialDayEnabled;
+        maxDay =
+          cfg.journeyLength >= 1 ? Math.min(Math.floor(cfg.journeyLength), 200) : 200;
+      }
+    }
+
+    const minDay = journeyDayRangeStart(trialDayEnabled);
+    const n = Math.floor(Number(day));
+    if (!Number.isFinite(n) || n < minDay || n > maxDay) {
+      return res.status(400).json({
+        message: trialDayEnabled
+          ? `day must be between 0 (Trial) and ${maxDay}`
+          : `day must be between 1 and ${maxDay}`
+      });
+    }
+
+    const targetDay = clampDay(n, maxDay, trialDayEnabled);
 
     const student = await User.findOneAndUpdate(
       { _id: studentId, role: 'STUDENT' },
@@ -1185,6 +1330,8 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
+    const batchCfg = await BatchConfig.findOne({ batchName: batchRegex }).select('trialDayEnabled').lean();
+    const trial = !!batchCfg?.trialDayEnabled;
 
     // All students in batch (test accounts excluded from analytics)
     const students = await User.find({ batch: batchRegex, role: 'STUDENT', ...EXCLUDE_TEST })
@@ -1252,7 +1399,7 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
           name: s.name,
           regNo: s.regNo,
           level: s.level,
-          currentDay: s.currentCourseDay || 1,
+          currentDay: resolveCourseDay(s.currentCourseDay, trial),
           avgScore: ex.scoreCount ? Math.round(ex.totalScore / ex.scoreCount) : 0,
           exercisesDone: ex.count,
           classesAttended: studentAttendanceMap[sid] || 0
@@ -1325,7 +1472,7 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         name: s.name,
         regNo: s.regNo,
         level: s.level,
-        currentDay: s.currentCourseDay || 1,
+        currentDay: resolveCourseDay(s.currentCourseDay, trial),
         avgScore: ex.scoreCount ? Math.round(ex.totalScore / ex.scoreCount) : 0,
         exercisesDone: ex.count,
         classesAttended: studentAttendanceMap[sid] || 0
@@ -1346,21 +1493,25 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       avgDayReached
     };
 
+    const dayStart = journeyDayRangeStart(trial);
+
     // --- Daily breakdown ---
-    // Determine days covered (max student day)
-    const maxDay = Math.max(...students.map(s => s.currentCourseDay || 1), 1);
+    const maxDay = Math.max(
+      ...students.map((s) => (s.currentCourseDay != null ? s.currentCourseDay : dayStart)),
+      dayStart
+    );
     const dailyMap = {};
     /** Unique students who attended ≥1 live class on that journey day (for charts: reached vs joined) */
     const liveUniqueByDay = {};
-    for (let d = 1; d <= maxDay; d++) {
+    for (let d = dayStart; d <= maxDay; d++) {
       dailyMap[d] = { day: d, studentsCompleted: 0, totalScore: 0, scoreCount: 0, classesHeld: 0, classesAttended: 0 };
       liveUniqueByDay[d] = new Set();
     }
 
     // Students who reached or passed each day
     students.forEach(s => {
-      const reached = s.currentCourseDay || 1;
-      for (let d = 1; d <= reached && d <= maxDay; d++) {
+      const reached = s.currentCourseDay != null ? s.currentCourseDay : dayStart;
+      for (let d = dayStart; d <= reached && d <= maxDay; d++) {
         if (dailyMap[d]) dailyMap[d].studentsCompleted += 1;
       }
     });
@@ -1368,7 +1519,7 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     // Average score per day from attempts
     attempts.forEach(a => {
       const day = a.exerciseId?.courseDay;
-      if (day && dailyMap[day] && a.scorePercentage !== undefined) {
+      if (day != null && dailyMap[day] && a.scorePercentage !== undefined) {
         dailyMap[day].totalScore += a.scorePercentage;
         dailyMap[day].scoreCount += 1;
       }
@@ -1376,7 +1527,7 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     meetings.forEach(m => {
       const day = m.courseDay;
-      if (day && dailyMap[day]) {
+      if (day != null && dailyMap[day]) {
         dailyMap[day].classesHeld += 1;
         (m.attendance || []).forEach(a => {
           if (a.attended) {
@@ -1390,7 +1541,7 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     // Scheduled exercises & modules per journey day (visible to students)
     const exForDays = await DigitalExercise.find({
-      courseDay: { $gte: 1, $lte: maxDay },
+      courseDay: { $gte: dayStart, $lte: maxDay },
       isDeleted: { $ne: true },
       visibleToStudents: true,
       isActive: true
@@ -1572,7 +1723,7 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
         regNo: s.regNo,
         email: s.email,
         level: s.level,
-        currentDay: s.currentCourseDay || 1,
+        currentDay: resolveCourseDay(s.currentCourseDay, trial),
         classesAttended: 0,
         classTopics: new Set(),
         exercisesDone: 0,
@@ -1666,38 +1817,69 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
       .select('name regNo email level batch currentCourseDay goStatus subscription').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    // --- Exercise attempts with question responses ---
-    const attempts = await ExerciseAttempt.find({ studentId, status: 'completed' })
-      .populate('exerciseId', 'title courseDay category level')
-      .sort({ completedAt: 1 })
-      .lean();
+    const stBatchCfg = student.batch
+      ? await BatchConfig.findOne({ batchName: batchNameRegex(student.batch) }).select('trialDayEnabled').lean()
+      : null;
+    const studentTrial = !!stBatchCfg?.trialDayEnabled;
+    const dayStart = journeyDayRangeStart(studentTrial);
 
-    const exercises = attempts.map(a => ({
-      attemptId: a._id,
-      exerciseId: a.exerciseId?._id,
-      title: a.exerciseId?.title || 'Untitled',
-      courseDay: a.exerciseId?.courseDay || null,
-      category: a.exerciseId?.category || null,
-      level: a.exerciseId?.level || null,
-      scorePercent: a.scorePercentage || 0,
-      earnedPoints: a.earnedPoints || 0,
-      totalPoints: a.totalPoints || 0,
-      completedAt: a.completedAt,
-      timeSpentSeconds: a.timeSpentSeconds || 0,
-      responses: (a.responses || []).map(r => ({
-        questionIndex: r.questionIndex,
-        questionType: r.questionType,
-        selectedOptionIndex: r.selectedOptionIndex,
-        matchingResponse: r.matchingResponse,
-        fillBlankResponses: r.fillBlankResponses,
-        spokenText: r.spokenText,
-        pronunciationScore: r.pronunciationScore,
-        qaResponse: r.qaResponse,
-        listeningText: r.listeningText,
-        isCorrect: r.isCorrect,
-        pointsEarned: r.pointsEarned
-      }))
-    }));
+    // --- Exercises with full catalog (all exercises, mapped with attempt data) ---
+    const exJourneyLength = Math.max(student.currentCourseDay || 0, 200);
+
+    const [allExercises, exAttempts] = await Promise.all([
+      DigitalExercise.find({
+        isDeleted: { $ne: true },
+        isActive: true,
+        visibleToStudents: true,
+        courseDay: { $gte: 1, $lte: exJourneyLength }
+      })
+        .select('title level category courseDay sequenceLetter')
+        .lean(),
+
+      ExerciseAttempt.find({ studentId })
+        .select('exerciseId status scorePercentage earnedPoints totalPoints completedAt timeSpentSeconds responses')
+        .lean()
+    ]);
+
+    const attemptMap = {};
+    for (const a of exAttempts) {
+      const key = String(a.exerciseId);
+      if (!attemptMap[key] || (a.completedAt > (attemptMap[key].completedAt || 0))) {
+        attemptMap[key] = a;
+      }
+    }
+
+    const exercises = allExercises.map(e => {
+      const attempt = attemptMap[String(e._id)];
+      return {
+        _id: e._id,
+        title: e.title,
+        level: e.level,
+        category: e.category,
+        courseDay: e.courseDay,
+        sequenceLetter: e.sequenceLetter,
+        attempted: !!attempt,
+        status: attempt?.status || 'not_attempted',
+        scorePercent: attempt?.scorePercentage || 0,
+        earnedPoints: attempt?.earnedPoints || 0,
+        totalPoints: attempt?.totalPoints || 0,
+        completedAt: attempt?.completedAt || null,
+        timeSpentSeconds: attempt?.timeSpentSeconds || 0,
+        responses: (attempt?.responses || []).map(r => ({
+          questionIndex: r.questionIndex,
+          questionType: r.questionType,
+          selectedOptionIndex: r.selectedOptionIndex,
+          matchingResponse: r.matchingResponse,
+          fillBlankResponses: r.fillBlankResponses,
+          spokenText: r.spokenText,
+          pronunciationScore: r.pronunciationScore,
+          qaResponse: r.qaResponse,
+          listeningText: r.listeningText,
+          isCorrect: r.isCorrect,
+          pointsEarned: r.pointsEarned
+        }))
+      };
+    });
 
     // --- Live classes ---
     const journeyKeys = allStudentBatchStringsForContent(student);
@@ -1718,32 +1900,77 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
         startTime: m.startTime,
         duration: m.duration,
         courseDay: m.courseDay,
-        attended: !!(attendEntry?.attended)
+        attended: !!(attendEntry?.attended),
+        attendedDurationMin: attendEntry?.durationMinutes || (attendEntry?.duration ? Math.round(attendEntry.duration / 60) : 0),
+        attendancePercent: attendEntry?.attendancePercent || 0,
+        status: attendEntry?.status || (attendEntry?.attended ? 'attended' : 'absent')
       };
     });
 
+    // --- Glück Buddy (DG Bot) modules ---
+    let modules = [];
+    try {
+      const { getStudentDgJourneyAccess, dgModuleUnlockedForAccess } = require('../utils/dgStudentJourneyGate');
+      const [dgAccess, allDg, dgCompletedIds, dgAnyIds] = await Promise.all([
+        getStudentDgJourneyAccess(studentId),
+        DGModule.find({ isActive: true, visibleToStudents: true })
+          .select('title level courseDay')
+          .sort({ courseDay: 1, title: 1 })
+          .lean(),
+        DGSession.distinct('moduleId', { studentId, completed: true }),
+        DGSession.distinct('moduleId', { studentId })
+      ]);
+
+      const dgCompletedSet = new Set((dgCompletedIds || []).map((id) => String(id)));
+      const dgAnySet = new Set((dgAnyIds || []).map((id) => String(id)));
+
+      modules = (allDg || []).map((m) => {
+        const dayLocked =
+          !dgAccess.enabled ||
+          dgAccess.dgBotEnabled === false ||
+          !dgModuleUnlockedForAccess(dgAccess, m.courseDay);
+        const completed = dgCompletedSet.has(String(m._id));
+        const started = dgAnySet.has(String(m._id));
+        let status = 'not_started';
+        if (completed) status = 'completed';
+        else if (started) status = 'in_progress';
+        return {
+          _id: m._id,
+          title: m.title,
+          level: m.level,
+          courseDay: m.courseDay ?? null,
+          locked: dayLocked,
+          status,
+        };
+      });
+    } catch (dgErr) {
+      console.warn('batch-journey detail: DG module summary skipped', dgErr?.message || dgErr);
+    }
+
     // --- Day-by-day breakdown ---
-    const maxDay = student.currentCourseDay || 1;
+    const maxDay = student.currentCourseDay != null ? student.currentCourseDay : dayStart;
     const dayMap = {};
-    for (let d = 1; d <= maxDay; d++) {
+    for (let d = dayStart; d <= maxDay; d++) {
       dayMap[d] = { day: d, exercisesDone: 0, exercisesTotal: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0 };
     }
 
-    // exercises done per day
+    // exercises done per day (attempted only) + total count
     exercises.forEach(e => {
       const d = e.courseDay;
-      if (d && dayMap[d]) {
-        dayMap[d].exercisesDone += 1;
-        dayMap[d].totalScore += e.scorePercent;
-        dayMap[d].scoreCount += 1;
+      if (d != null && dayMap[d]) {
+        if (e.attempted) {
+          dayMap[d].exercisesDone += 1;
+          dayMap[d].totalScore += e.scorePercent;
+          dayMap[d].scoreCount += 1;
+        }
+        dayMap[d].exercisesTotal += 1;
       }
     });
 
-    // Total exercises available per day from attempts (approximation: count distinct exerciseId per day in exercises)
     // and class info per day
     liveClasses.forEach(c => {
       const d = c.courseDay;
-      if (d && dayMap[d]) {
+      if (d != null && dayMap[d]) {
         dayMap[d].classesTotal += 1;
         if (c.attended) dayMap[d].classesAttended += 1;
       }
@@ -1764,10 +1991,11 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
         regNo: student.regNo,
         email: student.email,
         level: student.level,
-        currentDay: student.currentCourseDay || 1
+        currentDay: resolveCourseDay(student.currentCourseDay, studentTrial)
       },
       exercises,
       liveClasses,
+      modules,
       dayBreakdown
     });
   } catch (err) {

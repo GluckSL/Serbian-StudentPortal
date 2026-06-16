@@ -128,7 +128,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   private refreshCurrentTab(): void {
     if (this.loading || this.tabLoading) return;
     const page = this.getPageForTab(this.activeTab);
-    this.fetchTab(this.activeTab, page, false, true);
+    this.fetchTab(this.activeTab, page, false, false);
   }
 
   private fetchTab(tab: ClassTab, page: number, resolveInitialTab: boolean, includeCounts: boolean): void {

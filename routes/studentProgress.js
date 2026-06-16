@@ -5,6 +5,7 @@ const router = express.Router();
 const StudentProgress = require('../models/StudentProgress');
 const LearningModule = require('../models/LearningModule');
 const AiTutorSession = require('../models/AiTutorSession');
+const DGSession = require('../models/DGSession');
 const mongoose = require('mongoose');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { EXCLUDE_TEST } = require('../utils/analyticsFilters');
@@ -12,10 +13,12 @@ const { computeAdminProgressMetrics } = require('../utils/studentProgressMetrics
 const DocumentRequirement = require('../models/DocumentRequirement');
 const StudentDocument = require('../models/StudentDocument');
 const DigitalExercise = require('../models/DigitalExercise');
-const DGSession = require('../models/DGSession');
+const DGModule = require('../models/DGModule');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const MeetingLink = require('../models/MeetingLink');
+const BatchConfig = require('../models/BatchConfig');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
+const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { BATCH_TYPE_NEW, normalizeBatchType } = require('../utils/batchType');
 const {
   normalizeBlockedJourneyLevels,
@@ -29,6 +32,99 @@ const {
   countExerciseAttemptsForStudent
 } = require('../utils/journeyContentBlock');
 const ClassRecording = require('../models/ClassRecording');
+const User = require('../models/User');
+const SessionRecord = require('../models/SessionRecord');
+const VisaTracking = require('../models/VisaTracking');
+const { readRecoverablePassword } = require('../utils/passwordRecoverable');
+const { resolveJourneyPayments } = require('../modules/payments-v2/backend/utils/journeyPaymentsHelper');
+const RecordingView = require('../models/RecordingView');
+const { recordingWatchCountsAsComplete } = require('../utils/recordingWatchCompletion');
+const SprechenExamModule = require('../models/SprechenExamModule');
+const SprechenExamSession = require('../models/SprechenExamSession');
+
+const escapeRegexEmail = (str) => String(str || '').replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+async function buildLegacyJourneyPayments(studentId, email, { includeTotalInvoiced = false } = {}) {
+  const StudentPayment = require('../models/StudentPayment');
+  const Invoice = require('../models/Invoice');
+  const normalizedEmail = String(email || '').toLowerCase();
+  const sp = await StudentPayment.findOne({
+    $or: [{ studentId }, { email: normalizedEmail }],
+  }).populate('payments.recordedBy', 'name').lean();
+  if (sp) {
+    const paidInvoices = await Invoice.find({
+      customer_email: { $regex: new RegExp('^' + escapeRegexEmail(normalizedEmail) + '$', 'i') },
+      payment_status: 'paid',
+    }).lean();
+    const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+    const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
+    const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
+    const base = {
+      source: 'ledger',
+      currency: sp.currency || 'LKR',
+      totalPackageAmount: sp.totalPackageAmount || 0,
+      totalAmount: sp.totalPackageAmount || 0,
+      paidAmount: livePaid,
+      pendingAmount: liveBalance > 0 ? liveBalance : 0,
+      payments: (sp.payments || []).map((p) => ({
+        amount: p.amount,
+        date: p.date,
+        method: p.method || '',
+        note: p.note || '',
+        recordedBy: p.recordedBy?.name || '',
+      })),
+      invoices: [],
+    };
+    if (includeTotalInvoiced) base.totalInvoiced = sp.totalInvoiced || 0;
+    return base;
+  }
+  const invoices = await Invoice.find({ customer_email: email }).sort({ created_at: 1 }).lean();
+  const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+  const paidAmount = invoices
+    .filter((i) => i.payment_status === 'paid')
+    .reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
+  const base = {
+    source: 'invoices',
+    currency: 'LKR',
+    totalPackageAmount: totalAmount,
+    totalAmount,
+    paidAmount,
+    pendingAmount: totalAmount - paidAmount,
+    payments: [],
+    invoices: invoices.map((inv) => ({
+      invoiceNumber: inv.invoice_number,
+      description: inv.items?.map((i) => i.description).join(', ') || '',
+      invoiceDate: inv.invoice_date,
+      dueDate: inv.due_date,
+      subtotal: inv.subtotal || 0,
+      tax: inv.total_tax || 0,
+      totalPayable: inv.total_payable || 0,
+      paymentStatus: inv.payment_status || 'unpaid',
+      paymentDate: inv.payment_date || '',
+    })),
+  };
+  if (includeTotalInvoiced) base.totalInvoiced = totalAmount;
+  return base;
+}
+const StudentPayment = require('../models/StudentPayment');
+
+function documentRequirementAppliesToService(requirement, service = '') {
+  const scopedServices = [
+    ...(Array.isArray(requirement.applicableServices) ? requirement.applicableServices : []),
+    ...(Array.isArray(requirement.programKeys) ? requirement.programKeys : [])
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+
+  if (scopedServices.length === 0) return true;
+
+  const trimmedService = String(service || '').trim();
+  if (!trimmedService) return false;
+
+  const normalized = trimmedService.replace(/[\s\-]+/g, '[\\s\\-]*');
+  const serviceRegex = new RegExp('^' + normalized + '$', 'i');
+  return scopedServices.some((s) => serviceRegex.test(String(s).trim()));
+}
 
 // Helper: build documents list cross-referencing requirements with uploads
 async function buildDocumentsList(studentId, servicesOpted) {
@@ -36,13 +132,12 @@ async function buildDocumentsList(studentId, servicesOpted) {
   const studentService = servicesOpted || '';
   let docRequirements = [];
   if (studentService && studentService !== 'German Language Only') {
-    // Normalize service name for flexible matching (e.g. "Au Pair" vs "Au-pair")
-    const normalized = studentService.trim().replace(/[\s\-]+/g, '[\\s\\-]*');
-    const serviceRegex = new RegExp('^' + normalized + '$', 'i');
-    docRequirements = await DocumentRequirement.find({
-      active: true,
-      $or: [{ applicableServices: { $size: 0 } }, { applicableServices: serviceRegex }]
-    }).sort({ order: 1 }).lean();
+    const allRequirements = await DocumentRequirement.find({ active: true }).sort({ order: 1 }).lean();
+    docRequirements = allRequirements.map((r) => {
+      const applies = documentRequirementAppliesToService(r, studentService);
+      const baseRequired = typeof r.isRequired === 'boolean' ? r.isRequired : !!r.required;
+      return { ...r, required: applies && baseRequired };
+    });
   }
   const documents = docRequirements.map(r => {
     const uploaded = uploadedDocs.find(d => d.documentType === r.type);
@@ -250,9 +345,13 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       try {
         const {
           recomputePendingForStudent,
+          reconcilePlatinumAdvanceFromAttendance,
           checkAndInstantlyAdvanceSilverGoStudent
         } = require('../services/journeyDayAdvance.service');
+        const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
         const { ensureStudentLevelMatchesJourneyDay } = require('../services/journeyLevelSync.service');
+        await reconcileSilverGoCourseDay(studentId);
+        await reconcilePlatinumAdvanceFromAttendance(studentId);
         await recomputePendingForStudent(studentId);
         await checkAndInstantlyAdvanceSilverGoStudent(studentId);
         await ensureStudentLevelMatchesJourneyDay(studentId);
@@ -371,9 +470,12 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
     let accessibleLevelsForEx = curIdx === -1 ? ['A1'] : levelOrder.slice(0, curIdx + 1);
     accessibleLevelsForEx = filterOutBlockedLevels(accessibleLevelsForEx, student.blockedJourneyLevels);
     const rawCourseDay = student.currentCourseDay;
+    const trialDayEnabled = !!journeyAccess.trialDayEnabled;
     const studentCourseDay = (rawCourseDay != null && Number.isFinite(Number(rawCourseDay)))
-      ? Math.min(200, Math.max(1, Math.floor(Number(rawCourseDay))))
-      : 1;
+      ? (Number(rawCourseDay) === 0 && trialDayEnabled
+        ? 0
+        : Math.min(200, Math.max(trialDayEnabled ? 0 : 1, Math.floor(Number(rawCourseDay)))))
+      : (trialDayEnabled ? 0 : 1);
 
     let nextLockedDigitalExercise = null;
     if (student.role === 'STUDENT' && journeyAccess.learningEnabled !== false) {
@@ -399,6 +501,33 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       }
     }
 
+    let currentDayCompletion = null;
+    if (student.role === 'STUDENT') {
+      try {
+        const { isSilverGoStudent } = require('../utils/goSilverTrack');
+        const { silverGoCompletionOptions } = require('../utils/silverGoSequentialUnlock');
+        const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
+        if (isSilverGoStudent(student)) {
+          const batchKeys = allStudentBatchStringsForContent(student);
+          const dc = await computeJourneyDayCompletion(
+            studentId,
+            batchKeys,
+            studentCourseDay,
+            silverGoCompletionOptions(student)
+          );
+          currentDayCompletion = {
+            complete: !!dc.complete,
+            completionPercent: dc.completionPercent,
+            doneTasks: dc.doneTasks,
+            totalTasks: dc.totalTasks,
+            incompleteTasks: dc.incompleteTasks || []
+          };
+        }
+      } catch (e) {
+        console.warn('currentDayCompletion:', e.message);
+      }
+    }
+
     res.json({
       profile: {
         regNo: student.regNo, name: student.name, batch: student.batch,
@@ -415,14 +544,16 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         dgBotEnabled: journeyAccess.dgBotEnabled !== false,
         dgUnlockMode: journeyAccess.dgUnlockMode || 'none',
         batchType: normalizeBatchType(journeyAccess.batchType),
+        trialDayEnabled: !!journeyAccess.trialDayEnabled,
         pendingJourneyDayAdvance: !!student.pendingJourneyDayAdvance,
         pendingJourneyDayAdvanceForDay:
           student.pendingJourneyDayAdvanceForDay != null
-            ? Math.min(200, Math.max(1, Math.floor(Number(student.pendingJourneyDayAdvanceForDay))))
+            ? Math.min(200, Math.max(journeyAccess.trialDayEnabled ? 0 : 1, Math.floor(Number(student.pendingJourneyDayAdvanceForDay))))
             : null,
         blockedJourneyLevels: normalizeBlockedJourneyLevels(student.blockedJourneyLevels)
       },
       nextLockedDigitalExercise,
+      currentDayCompletion,
       levelProgression, lessonsByLevel,
       totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
@@ -438,67 +569,12 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
       documents, docsSummary,
       feedbackByLevel, history: history.slice(0, 20),
-      payments: await (async () => {
-        // Try StudentPayment (CSV-imported ledger) first — match by studentId OR email
-        const sp = await StudentPayment.findOne({
-          $or: [
-            { studentId: studentId },
-            { email: student.email.toLowerCase() }
-          ]
-        }).populate('payments.recordedBy', 'name').lean();
-        if (sp) {
-          // Also check for paid invoices to add to the total
-          const paidInvoices = await Invoice.find({
-            customer_email: { $regex: new RegExp('^' + student.email.toLowerCase().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$' + '&') + '$', 'i') },
-            payment_status: 'paid'
-          }).lean();
-          const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-          const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
-          const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
-          return {
-            source: 'ledger',
-            currency: sp.currency || 'LKR',
-            totalPackageAmount: sp.totalPackageAmount || 0,
-            totalInvoiced: sp.totalInvoiced || 0,
-            totalAmount: sp.totalPackageAmount || 0,
-            paidAmount: livePaid,
-            pendingAmount: liveBalance > 0 ? liveBalance : 0,
-            payments: (sp.payments || []).map(p => ({
-              amount: p.amount,
-              date: p.date,
-              method: p.method || '',
-              note: p.note || '',
-              recordedBy: p.recordedBy?.name || ''
-            })),
-            invoices: []
-          };
-        }
-        // Fallback to Invoice collection
-        const invoices = await Invoice.find({ customer_email: student.email }).sort({ created_at: 1 }).lean();
-        const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-        const paidAmount = invoices.filter(i => i.payment_status === 'paid').reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-        return {
-          source: 'invoices',
-          currency: 'LKR',
-          totalPackageAmount: totalAmount,
-          totalInvoiced: totalAmount,
-          totalAmount,
-          paidAmount,
-          pendingAmount: totalAmount - paidAmount,
-          payments: [],
-          invoices: invoices.map((inv, idx) => ({
-            invoiceNumber: inv.invoice_number,
-            description: inv.items?.map(i => i.description).join(', ') || '',
-            invoiceDate: inv.invoice_date,
-            dueDate: inv.due_date,
-            subtotal: inv.subtotal || 0,
-            tax: inv.total_tax || 0,
-            totalPayable: inv.total_payable || 0,
-            paymentStatus: inv.payment_status || 'unpaid',
-            paymentDate: inv.payment_date || ''
-          }))
-        };
-      })(),
+      payments: await resolveJourneyPayments(
+        studentId,
+        student.email,
+        student.level,
+        (id, em) => buildLegacyJourneyPayments(id, em, { includeTotalInvoiced: true }),
+      ),
       visa: await (async () => {
         const PORTAL_STEP_NAMES = [
           'Application Filed', 'Preliminary Review', 'Embassy Review',
@@ -561,6 +637,267 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
   } catch (error) {
     console.error('Error fetching student journey:', error);
     res.status(500).json({ message: 'Error fetching journey data' });
+  }
+});
+
+// ─── GET /api/student-progress/performance-summary ─────────────────────
+// Student-facing aggregated data for the new performance-history page
+router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (req, res) => {
+  try {
+    const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const studentId = req.user.id;
+
+    const student = await User.findById(studentId)
+      .select('name email regNo level batch currentCourseDay')
+      .lean();
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    const currentDay = student.currentCourseDay || 1;
+
+    const batchConfig = student.batch
+      ? await BatchConfig.findOne({ batchName: student.batch }).select('journeyLength').lean()
+      : null;
+    const journeyLength = batchConfig?.journeyLength || 200;
+
+    const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
+    const minDay = range === 'weekly' ? Math.max(1, currentDay - 6) : 1;
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const attempts = await ExerciseAttempt.find({ studentId, status: 'completed' })
+      .populate('exerciseId', 'title courseDay category level')
+      .sort({ completedAt: 1 })
+      .lean();
+    const exercisesWithData = attempts.filter(a => {
+      if (!a.exerciseId) return false;
+      if (!a.exerciseId?.courseDay) return range === 'overall';
+      return a.exerciseId.courseDay >= minDay;
+    });
+    const completedExerciseIds = new Set(exercisesWithData.map(a => String(a.exerciseId._id)));
+
+    const journeyKeys = allStudentBatchStringsForContent(student);
+    const meetings = journeyKeys.length
+      ? await MeetingLink.find({
+          $or: journeyKeys.map(k => ({ batch: new RegExp(`^${escapeRegExp(k)}$`, 'i') })),
+          status: { $ne: 'cancelled' }
+        }).select('topic startTime duration courseDay attendance status').lean()
+      : [];
+    const filteredMeetings = meetings.filter(m => {
+      if (!m.courseDay) return range === 'overall';
+      return m.courseDay >= minDay;
+    });
+
+    const sessions = await SessionRecord.find({ studentId })
+      .populate('moduleId', 'title level category courseDay')
+      .sort({ createdAt: -1 })
+      .lean();
+    const filteredSessions = range === 'overall'
+      ? sessions
+      : sessions.filter(s => new Date(s.createdAt).getTime() >= weekAgo.getTime());
+
+    const studentOid = new mongoose.Types.ObjectId(studentId);
+    const completedDgModuleIds = await DGSession.distinct('moduleId', {
+      studentId: studentOid, completed: true
+    });
+    const dgBotTotal = await DGModule.countDocuments({
+      isActive: true, visibleToStudents: true,
+      courseDay: { $gte: 1 }
+    });
+    const dgModulesList = await DGModule.find({
+      isActive: true, visibleToStudents: true,
+      courseDay: { $gte: 1 }
+    }).select('title level courseDay').lean();
+    const activeDgModuleIds = new Set(dgModulesList.map(m => String(m._id)));
+    const dgBotCompleted = completedDgModuleIds.filter(id => activeDgModuleIds.has(String(id))).length;
+    const completedSet = new Set(completedDgModuleIds.map(id => String(id)));
+    const dgBotModules = dgModulesList.map(m => ({
+      moduleId: m._id, title: m.title, level: m.level,
+      courseDay: m.courseDay,
+      completed: completedSet.has(String(m._id))
+    }));
+
+    const exerciseTotal = await DigitalExercise.countDocuments({
+      level: student.level, isActive: true, visibleToStudents: true,
+      isDeleted: { $ne: true },
+      courseDay: { $gte: 1 }
+    });
+
+    const exerciseCompleted = completedExerciseIds.size;
+    const exercisePct = exerciseTotal
+      ? Math.min(100, Math.round((exerciseCompleted / exerciseTotal) * 100))
+      : (exerciseCompleted ? 100 : 0);
+
+    const now = new Date();
+    const endedMeetings = filteredMeetings.filter(m => {
+      if (m.status === 'ended') return true;
+      if (m.status === 'cancelled') return false;
+      const meetingEnd = new Date(m.startTime).getTime() + (m.duration || 0) * 60000;
+      return meetingEnd < now.getTime();
+    });
+    const classTotal = endedMeetings.length;
+    const classAttended = endedMeetings.filter(m =>
+      (m.attendance || []).some(a => String(a.studentId || a.userId) === String(studentId) && a.attended)
+    ).length;
+    const classPct = classTotal ? Math.round((classAttended / classTotal) * 100) : 0;
+
+    const dgBotPct = dgBotTotal ? Math.min(100, Math.round((dgBotCompleted / dgBotTotal) * 100)) : 0;
+
+    const sessionCount = filteredSessions.length;
+    const allScores = [
+      ...exercisesWithData.map(a => a.scorePercentage || 0).filter(n => n > 0),
+      ...filteredSessions.map(s => Number(s.summary?.totalScore || 0)).filter(n => n > 0)
+    ];
+    const avgScore = allScores.length
+      ? Math.min(100, Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length))
+      : 0;
+
+    const sessionMinutes = filteredSessions.reduce((s, r) => s + (r.durationMinutes || 0), 0);
+    const exerciseMinutes = exercisesWithData.reduce((s, a) => s + Math.round((a.timeSpentSeconds || 0) / 60), 0);
+    const classMinutes = endedMeetings.reduce((s, m) => s + Number(m.duration || 0), 0);
+    const totalStudyMinutes = sessionMinutes + exerciseMinutes + classMinutes;
+
+    const allVocab = new Set();
+    filteredSessions.forEach(s => { if (s.summary?.vocabularyUsed) s.summary.vocabularyUsed.forEach(w => allVocab.add(w)); });
+
+    const overallDone = currentDay;
+    const overallTotal = journeyLength;
+    const overallCompletionPct = overallTotal
+      ? Math.min(100, Math.round((overallDone / overallTotal) * 100))
+      : 0;
+
+    const kpis = {
+      overallCompletionPct, overallDone, overallTotal,
+      exerciseCompleted, exerciseTotal, exercisePct,
+      classAttended, classTotal, classPct,
+      dgBotCompleted, dgBotTotal, dgBotPct,
+      sessionCount, avgScore, totalStudyMinutes,
+      totalVocabulary: allVocab.size
+    };
+
+    const dayMap = {};
+    for (let d = minDay; d <= currentDay; d++) {
+      dayMap[d] = { day: d, exercisesDone: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0, sessions: 0, studyMinutes: 0, _exIds: new Set() };
+    }
+    exercisesWithData.forEach(a => {
+      const d = a.exerciseId?.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d]._exIds.add(String(a.exerciseId._id));
+        dayMap[d].totalScore += a.scorePercentage || 0;
+        dayMap[d].scoreCount += 1;
+        dayMap[d].studyMinutes += Math.round((a.timeSpentSeconds || 0) / 60);
+      }
+    });
+    Object.values(dayMap).forEach(d => { d.exercisesDone = d._exIds.size; delete d._exIds; });
+    filteredMeetings.forEach(m => {
+      const d = m.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].classesTotal += 1;
+        if ((m.attendance || []).some(a => String(a.studentId || a.userId) === String(studentId) && a.attended)) {
+          dayMap[d].classesAttended += 1;
+        }
+        if (m.status === 'ended') dayMap[d].studyMinutes += Number(m.duration || 0);
+      }
+    });
+    filteredSessions.forEach(s => {
+      const d = s.moduleId?.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].sessions += 1;
+        dayMap[d].studyMinutes += s.durationMinutes || 0;
+      }
+    });
+    const dayBreakdown = Object.values(dayMap).map(d => ({
+      day: d.day, exercisesDone: d.exercisesDone, classesAttended: d.classesAttended,
+      classesTotal: d.classesTotal, avgScore: d.scoreCount ? Math.round(d.totalScore / d.scoreCount) : 0,
+      sessions: d.sessions, studyMinutes: d.studyMinutes
+    }));
+
+    const CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
+    const catMap = {};
+    CATEGORIES.forEach(c => { catMap[c] = { totalScore: 0, count: 0 }; });
+    exercisesWithData.forEach(a => {
+      const cat = a.exerciseId?.category;
+      if (cat && catMap[cat]) {
+        catMap[cat].totalScore += a.scorePercentage || 0;
+        catMap[cat].count += 1;
+      }
+    });
+    const categoryPerformance = CATEGORIES.map(cat => ({
+      category: cat, attempts: catMap[cat].count,
+      avgScore: catMap[cat].count ? Math.round(catMap[cat].totalScore / catMap[cat].count) : 0
+    }));
+
+    const day6Tests = [];
+    exercisesWithData.forEach(a => {
+      const d = a.exerciseId?.courseDay;
+      if (d && d % 6 === 0) {
+        day6Tests.push({
+          day: d, type: 'exercise', id: a._id,
+          title: a.exerciseId?.title || 'Untitled',
+          category: a.exerciseId?.category || null,
+          score: a.scorePercentage || 0,
+          timeSpentMinutes: Math.round((a.timeSpentSeconds || 0) / 60),
+          status: 'completed'
+        });
+      }
+    });
+    filteredSessions.filter(s => s.sessionType === 'test').forEach(s => {
+      const d = s.moduleId?.courseDay;
+      if (d && d % 6 === 0) {
+        day6Tests.push({
+          day: d, type: 'session', id: s._id,
+          title: `${s.moduleTitle || 'AI'} Test`,
+          category: s.moduleId?.category || null,
+          score: s.summary?.totalScore || 0,
+          timeSpentMinutes: s.durationMinutes || 0,
+          status: s.sessionState
+        });
+      }
+    });
+    day6Tests.sort((a, b) => a.day - b.day);
+
+    const liveClasses = filteredMeetings.map(m => {
+      const attended = (m.attendance || []).some(
+        a => String(a.studentId || a.userId) === String(studentId) && a.attended
+      );
+      const meetingEnd = new Date(m.startTime).getTime() + (m.duration || 0) * 60000;
+      const hasEnded = m.status === 'ended' || (m.status !== 'cancelled' && meetingEnd < now.getTime());
+      return {
+        meetingId: m._id, topic: m.topic, startTime: m.startTime,
+        duration: m.duration, courseDay: m.courseDay, attended,
+        status: m.status, hasEnded
+      };
+    });
+
+    const exerciseRows = exercisesWithData.map(a => ({
+      attemptId: a._id, exerciseId: a.exerciseId?._id,
+      title: a.exerciseId?.title || 'Untitled',
+      courseDay: a.exerciseId?.courseDay, category: a.exerciseId?.category,
+      scorePercent: a.scorePercentage || 0, timeSpentSeconds: a.timeSpentSeconds || 0,
+      completedAt: a.completedAt
+    }));
+
+    const sessionRows = filteredSessions.map(s => ({
+      id: s._id, sessionId: s.sessionId, sessionType: s.sessionType,
+      sessionState: s.sessionState, module: s.moduleId ? {
+        id: s.moduleId._id, title: s.moduleTitle, level: s.moduleLevel,
+        category: s.moduleId.category, courseDay: s.moduleId.courseDay
+      } : null,
+      summary: s.summary, durationMinutes: s.durationMinutes,
+      startTime: s.startTime, createdAt: s.createdAt
+    }));
+
+    res.json({
+      student: {
+        _id: student._id, name: student.name, email: student.email,
+        regNo: student.regNo, level: student.level, batch: student.batch,
+        currentCourseDay: currentDay, journeyLength
+      },
+      kpis, dayBreakdown, categoryPerformance, day6Tests,
+      exercises: exerciseRows, liveClasses, sessions: sessionRows, dgBotModules
+    });
+  } catch (err) {
+    console.error('performance-summary error:', err);
+    res.status(500).json({ message: 'Failed to fetch performance summary', error: err.message });
   }
 });
 
@@ -911,16 +1248,17 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
       return { level, status, startDate, completedDate };
     });
 
-    // Module progress per level
-    const moduleProgress = await StudentProgress.aggregate([
+    // Module progress per level (DG Bot)
+    const moduleProgress = await DGSession.aggregate([
       { $match: { studentId: new mongoose.Types.ObjectId(studentId) } },
-      { $lookup: { from: 'learningmodules', localField: 'moduleId', foreignField: '_id', as: 'module' } },
-      { $unwind: '$module' },
-      { $group: { _id: '$module.level', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }, totalTime: { $sum: '$timeSpent' } } }
+      { $lookup: { from: 'dgmodules', localField: 'moduleId', foreignField: '_id', as: 'dgmodule' } },
+      { $unwind: '$dgmodule' },
+      { $group: { _id: '$moduleId', level: { $first: '$dgmodule.level' }, fullyComplete: { $first: '$moduleFullyComplete' }, totalTimeMs: { $sum: { $sum: '$timePerSceneMs' } } } },
+      { $group: { _id: '$level', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$fullyComplete', true] }, 1, 0] } }, totalTimeMs: { $sum: '$totalTimeMs' } } }
     ]);
     const lessonsByLevel = {};
     let totalStudyMinutes = 0;
-    moduleProgress.forEach(mp => { lessonsByLevel[mp._id] = { total: mp.total, completed: mp.completed }; totalStudyMinutes += mp.totalTime || 0; });
+    moduleProgress.forEach(mp => { lessonsByLevel[mp._id] = { total: mp.total, completed: mp.completed }; totalStudyMinutes += (mp.totalTimeMs || 0) / 60000; });
 
     // AI Bot usage this week
     const now = new Date();
@@ -964,36 +1302,12 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
     if (student.enrollmentDate) history.push({ date: student.enrollmentDate, title: 'Enrollment confirmed', desc: 'Student enrolled in ' + (student.servicesOpted || 'program') + '.' });
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Payments
-    const escapeRegex = (str) => str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\' + '$' + '&');
-    const payments = await (async () => {
-      const sp = await StudentPayment.findOne({
-        $or: [{ studentId: studentId }, { email: student.email.toLowerCase() }]
-      }).populate('payments.recordedBy', 'name').lean();
-      if (sp) {
-        const paidInvoices = await Invoice.find({
-          customer_email: { $regex: new RegExp('^' + escapeRegex(student.email.toLowerCase()) + '$', 'i') },
-          payment_status: 'paid'
-        }).lean();
-        const invoicePaidTotal = paidInvoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-        const livePaid = (sp.totalPaid || 0) + invoicePaidTotal;
-        const liveBalance = (sp.totalPackageAmount || 0) - livePaid;
-        return {
-          source: 'ledger', currency: sp.currency || 'LKR',
-          totalPackageAmount: sp.totalPackageAmount || 0, totalAmount: sp.totalPackageAmount || 0,
-          paidAmount: livePaid, pendingAmount: liveBalance > 0 ? liveBalance : 0,
-          payments: (sp.payments || []).map(p => ({ amount: p.amount, date: p.date, method: p.method || '', note: p.note || '', recordedBy: p.recordedBy?.name || '' })),
-          invoices: []
-        };
-      }
-      const invoices = await Invoice.find({ customer_email: student.email }).sort({ created_at: 1 }).lean();
-      const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-      const paidAmount = invoices.filter(i => i.payment_status === 'paid').reduce((sum, inv) => sum + (inv.total_payable || 0), 0);
-      return {
-        source: 'invoices', currency: 'LKR', totalPackageAmount: totalAmount, totalAmount, paidAmount, pendingAmount: totalAmount - paidAmount, payments: [],
-        invoices: invoices.map(inv => ({ invoiceNumber: inv.invoice_number, description: inv.items?.map(i => i.description).join(', ') || '', invoiceDate: inv.invoice_date, dueDate: inv.due_date, subtotal: inv.subtotal || 0, tax: inv.total_tax || 0, totalPayable: inv.total_payable || 0, paymentStatus: inv.payment_status || 'unpaid', paymentDate: inv.payment_date || '' }))
-      };
-    })();
+    const payments = await resolveJourneyPayments(
+      studentId,
+      student.email,
+      student.level,
+      (id, em) => buildLegacyJourneyPayments(id, em),
+    );
 
     // Visa
     const PORTAL_STEP_NAMES = ['Application Filed', 'Preliminary Review', 'Embassy Review', 'Embassy Feedback', 'Changes / Appointment', 'Final Submission & Decision'];
@@ -1021,6 +1335,119 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
       };
     }
 
+    const currentDay = student.currentCourseDay != null && Number.isFinite(Number(student.currentCourseDay))
+      ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay))))
+      : 1;
+
+    // Exercise progress — only exercises visible to this student
+    const studentOid = new mongoose.Types.ObjectId(studentId);
+    const exerciseTotal = await DigitalExercise.countDocuments({
+      isActive: true, visibleToStudents: true,
+      isDeleted: { $ne: true }, courseDay: { $gte: 1, $lte: currentDay }
+    });
+    const completedExIds = await ExerciseAttempt.distinct('exerciseId', {
+      studentId: studentOid, status: 'completed',
+      exerciseId: { $exists: true, $ne: null }
+    });
+    const exerciseCompleted = await DigitalExercise.countDocuments({
+      _id: { $in: completedExIds }, courseDay: { $gte: 1, $lte: currentDay }
+    });
+
+    // DG Module progress
+    const dgModuleTotal = await DGModule.countDocuments({
+      isActive: true, visibleToStudents: true,
+      courseDay: { $gte: 1, $lte: currentDay }
+    });
+    const dgModuleCompleted = await DGSession.countDocuments({
+      studentId: studentOid, completed: true
+    });
+
+    // Exam summary (weekly test + internal exam — digital exercises + DG modules + Sprechen)
+    const allExamExercises = await DigitalExercise.find({
+      isActive: true, visibleToStudents: true, isDeleted: { $ne: true },
+      $or: [{ weeklyTestEnabled: true }, { examEnabled: true }],
+      level: { $in: displayLevels }
+    }).select('_id title level weeklyTestEnabled examEnabled').lean();
+    const examExerciseIds = allExamExercises.map(e => e._id);
+    const examCompletedCount = await ExerciseAttempt.countDocuments({
+      studentId: studentOid, exerciseId: { $in: examExerciseIds }, status: 'completed'
+    });
+    const examDgModules = await DGModule.find({
+      isActive: true, visibleToStudents: true,
+      $or: [{ weeklyTestEnabled: true }, { examEnabled: true }],
+      level: { $in: displayLevels }
+    }).select('_id title level weeklyTestEnabled examEnabled').lean();
+    const examDgModuleIds = examDgModules.map(m => m._id);
+    const examDgCompleted = await DGSession.countDocuments({
+      studentId: studentOid, moduleId: { $in: examDgModuleIds }, completed: true
+    });
+    // Sprechen exam summary
+    const sprechenMods = await SprechenExamModule.find({
+      isActive: true, visibleToStudents: true,
+      $or: [{ weeklyTestEnabled: true }, { examEnabled: true }],
+      level: { $in: displayLevels }
+    }).select('title level courseDay weeklyTestEnabled examEnabled').lean();
+    const sprechenModuleIds = sprechenMods.map(m => m._id);
+    const allSprechenSessions = sprechenModuleIds.length
+      ? await SprechenExamSession.find({
+          studentId: studentOid, moduleId: { $in: sprechenModuleIds }
+        }).select('moduleId completed scores completedAt').sort({ completedAt: -1, createdAt: -1 }).lean()
+      : [];
+    const moduleInfoMap = {};
+    for (const m of sprechenMods) {
+      moduleInfoMap[String(m._id)] = { title: m.title, courseDay: m.courseDay };
+    }
+    const completedSprechenSessions = allSprechenSessions.filter(s => s.completed);
+    const lastSprechenSession = completedSprechenSessions.length > 0 ? completedSprechenSessions[0] : null;
+    const sprechenExamSummary = sprechenModuleIds.length ? {
+      lastSession: lastSprechenSession ? {
+        sessionId: lastSprechenSession._id,
+        moduleId: lastSprechenSession.moduleId,
+        moduleTitle: moduleInfoMap[String(lastSprechenSession.moduleId)]?.title || '',
+        courseDay: moduleInfoMap[String(lastSprechenSession.moduleId)]?.courseDay ?? null,
+        scores: lastSprechenSession.scores,
+        completedAt: lastSprechenSession.completedAt
+      } : null,
+      sessions: completedSprechenSessions.map(s => {
+        const info = moduleInfoMap[String(s.moduleId)] || {};
+        return {
+          sessionId: s._id, moduleId: s.moduleId,
+          moduleTitle: info.title || '',
+          courseDay: info.courseDay != null ? info.courseDay : null,
+          scores: s.scores, completedAt: s.completedAt
+        };
+      }),
+      aggregate: {
+        total: allSprechenSessions.length,
+        completed: completedSprechenSessions.length,
+        missed: allSprechenSessions.length - completedSprechenSessions.length,
+        passed: completedSprechenSessions.filter(s => s.scores?.passed).length,
+        avgTotal: completedSprechenSessions.length > 0
+          ? Math.round(completedSprechenSessions.reduce((sum, s) => sum + (s.scores?.total || 0), 0) / completedSprechenSessions.length * 10) / 10
+          : 0,
+        bestTotal: completedSprechenSessions.length > 0
+          ? Math.max(...completedSprechenSessions.map(s => s.scores?.total || 0))
+          : 0
+      }
+    } : { lastSession: null, sessions: [], aggregate: { total: 0, completed: 0, missed: 0, passed: 0, avgTotal: 0, bestTotal: 0 } };
+
+    // Recording watch progress (≥90% threshold for non-Platinum)
+    const totalRecordings = await ClassRecording.countDocuments({
+      active: true, isPublished: true,
+      courseDay: { $gte: 1, $lte: currentDay }
+    });
+    const recordingViewAgg = await RecordingView.aggregate([
+      { $match: { student: studentOid } },
+      { $sort: { startedAt: -1 } },
+      { $group: { _id: '$recording', maxWatch: { $sum: '$watchDuration' } } },
+      { $lookup: { from: 'classrecordings', localField: '_id', foreignField: '_id', as: 'rec' } },
+      { $unwind: { path: '$rec', preserveNullAndEmptyArrays: true } },
+      { $match: { 'rec.active': true, 'rec.isPublished': true, 'rec.courseDay': { $gte: 1, $lte: currentDay } } }
+    ]);
+    const recordingWatched = recordingViewAgg.filter(r =>
+      recordingWatchCountsAsComplete(r.maxWatch || 0, r.rec?.duration || 0, 0.9)
+    ).length;
+
     res.json({
       profile: {
         regNo: student.regNo, name: student.name, batch: student.batch,
@@ -1039,7 +1466,29 @@ router.get('/admin/journey/:studentId', verifyToken, checkRole(['ADMIN', 'TEACHE
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
       documents, docsSummary,
-      feedbackByLevel, history: history.slice(0, 20), payments, visa
+      feedbackByLevel, history: history.slice(0, 20), payments, visa,
+      exerciseProgress: {
+        total: exerciseTotal,
+        completed: exerciseCompleted,
+        pending: Math.max(0, exerciseTotal - exerciseCompleted)
+      },
+      dgModuleProgress: {
+        total: dgModuleTotal,
+        completed: dgModuleCompleted,
+        pending: Math.max(0, dgModuleTotal - dgModuleCompleted)
+      },
+      recordingProgress: {
+        total: totalRecordings,
+        watched: recordingWatched,
+        remaining: Math.max(0, totalRecordings - recordingWatched)
+      },
+      examSummary: {
+        totalExercises: allExamExercises.length,
+        completedExercises: examCompletedCount,
+        totalDgModules: examDgModules.length,
+        completedDgModules: examDgCompleted,
+        sprechen: sprechenExamSummary
+      }
     });
   } catch (err) {
     console.error('Admin journey error:', err);
@@ -1055,7 +1504,8 @@ router.get('/admin/students/:studentId/learning-overview', verifyToken, checkRol
     const studentId = req.params.studentId;
 
     const student = await User.findOne({ _id: studentId, role: 'STUDENT' })
-      .select('name regNo email level currentCourseDay blockedJourneyLevels batch subscription medium')
+      .select('name regNo email level currentCourseDay blockedJourneyLevels batch subscription medium studentStatus servicesOpted enrollmentDate isTestAccount teacherIncharge assignedTeacher passwordRecoverable languageLevelOpted')
+      .populate('assignedTeacher', 'name')
       .lean();
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
@@ -1063,6 +1513,30 @@ router.get('/admin/students/:studentId/learning-overview', verifyToken, checkRol
 
     const blocked = normalizeBlockedJourneyLevels(student.blockedJourneyLevels);
     const currentDay = Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay) || 1)));
+
+    // Visa route
+    const visaTracking = await VisaTracking.findOne({ studentId }).lean();
+    const visaRoute = visaTracking?.visaType === 'AU_PAIR' ? 'Au Pair' : visaTracking?.visaType === 'PORTAL' ? 'Portal Visa' : null;
+
+    // Level path
+    const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const currentLevelIndex = allLevels.indexOf(student.level);
+    const opted = (student.languageLevelOpted || '').trim();
+    let displayLevels;
+    if (!opted) {
+      displayLevels = ['A1', 'A2', 'B1', 'B2'];
+    } else if (opted.includes('-')) {
+      const [s, e] = opted.split('-');
+      const si = allLevels.indexOf(s), ei = allLevels.indexOf(e);
+      displayLevels = (si >= 0 && ei >= 0 && ei >= si) ? allLevels.slice(si, ei + 1) : ['A1', 'A2', 'B1', 'B2'];
+    } else {
+      const oi = allLevels.indexOf(opted);
+      displayLevels = oi >= 0 ? allLevels.slice(0, Math.max(oi, currentLevelIndex) + 1) : ['A1', 'A2', 'B1', 'B2'];
+    }
+    if (!displayLevels.includes(student.level)) {
+      displayLevels = allLevels.slice(allLevels.indexOf(displayLevels[0]), currentLevelIndex + 1);
+    }
+    const levelPath = displayLevels.join(' → ');
 
     const [moduleCounts, exerciseCounts, dgCounts, recordingCounts] = await Promise.all([
       LearningModule.aggregate([
@@ -1107,6 +1581,8 @@ router.get('/admin/students/:studentId/learning-overview', verifyToken, checkRol
       });
     }
 
+    const displayPassword = readRecoverablePassword(student.passwordRecoverable);
+
     res.json({
       profile: {
         _id: student._id,
@@ -1118,7 +1594,15 @@ router.get('/admin/students/:studentId/learning-overview', verifyToken, checkRol
         subscription: student.subscription,
         medium: student.medium,
         currentCourseDay: currentDay,
-        blockedJourneyLevels: blocked
+        blockedJourneyLevels: blocked,
+        studentStatus: student.studentStatus,
+        servicesOpted: student.servicesOpted,
+        enrollmentDate: student.enrollmentDate,
+        isTestAccount: !!student.isTestAccount,
+        teacher: student.assignedTeacher?.name || student.teacherIncharge || null,
+        displayPassword: displayPassword || null,
+        visaRoute: visaRoute,
+        levelPath: levelPath
       },
       levelSegments: levelMetaForAdmin(blocked),
       days
@@ -1163,39 +1647,108 @@ router.patch('/admin/students/:studentId/blocked-journey-levels', verifyToken, c
 // GET /api/student-progress/admin/overview - All students progress overview (admin)
 router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const User = require('../models/User');
-    const SessionRecord = require('../models/SessionRecord');
-    const StudentDocument = require('../models/StudentDocument');
-    const StudentPayment = require('../models/StudentPayment');
-    const VisaTracking = require('../models/VisaTracking');
+    // ═════════════════════════════════════════════════════════════════════
+    // 1. Parse query params
+    // ═════════════════════════════════════════════════════════════════════
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 50));
+    const search = String(req.query.search || '').trim();
+    const batchFilter = String(req.query.batch || '').trim();
+    const statusFilter = String(req.query.status || '').trim();
+    const levelFilter = String(req.query.level || '').trim();
+    const sortField = ['name', 'overallPct', 'learningPct', 'classPct', 'exercisePct', 'dgPct'].includes(req.query.sortField)
+      ? req.query.sortField : 'overallPct';
+    const sortDir = req.query.sortDir === 'asc' ? 1 : -1;
 
-    // Get all students (test accounts excluded from analytics export)
-    const students = await User.find({ role: 'STUDENT', ...EXCLUDE_TEST })
-      .select('name email regNo batch level servicesOpted languageLevelOpted studentStatus assignedTeacher enrollmentDate courseStartDates courseCompletionDates currentCourseDay')
-      .populate('assignedTeacher', 'name')
-      .lean();
-
-    // Batch fetch related data
-    const studentIds = students.map(s => s._id);
-
-    // Journey-based class progress:
-    // for each student => classes in student's batch where courseDay <= currentCourseDay
-    const batchKeys = Array.from(new Set(students.map((s) => String(s.batch || '').trim()).filter(Boolean)));
-    const meetingBatchOr = [];
-    for (const b of batchKeys) {
-      meetingBatchOr.push({ batch: b });
-      const bn = Number(b);
-      if (Number.isFinite(bn) && String(bn) === b) meetingBatchOr.push({ batch: bn });
+    // ═════════════════════════════════════════════════════════════════════
+    // 2. Build User filter + get total count
+    // ═════════════════════════════════════════════════════════════════════
+    const userFilter = { role: 'STUDENT', ...EXCLUDE_TEST };
+    if (batchFilter) userFilter.batch = batchFilter;
+    if (statusFilter) userFilter.studentStatus = statusFilter;
+    if (levelFilter) userFilter.level = levelFilter;
+    if (search) {
+      const safe = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      userFilter.$or = [
+        { name: { $regex: safe, $options: 'i' } },
+        { email: { $regex: safe, $options: 'i' } },
+        { regNo: { $regex: safe, $options: 'i' } }
+      ];
     }
-    const journeyMeetings = meetingBatchOr.length
-      ? await MeetingLink.find({
-          $or: meetingBatchOr,
-          status: { $ne: 'cancelled' },
-          courseDay: { $gte: 1, $lte: 200 }
-        })
-          .select('batch courseDay attendance')
-          .lean()
-      : [];
+
+    const total = await User.countDocuments(userFilter);
+    const totalPages = Math.ceil(total / limit);
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 3. Fetch ALL matching students (minimal fields — display fields fetched
+    //    later for only the paginated page; keeps BSON transfer ~1.7s vs 3.5s)
+    // ═════════════════════════════════════════════════════════════════════
+    const allStudents = await User.find(userFilter)
+      .select('name batch level languageLevelOpted courseCompletionDates currentCourseDay')
+      .lean();
+    const studentMap = {};
+    allStudents.forEach(s => { studentMap[s._id.toString()] = s; });
+    const allStudentIds = allStudents.map(s => s._id);
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 4. Batch-fetch shared cross-collection data for ALL students
+    //    (MeetingLink, ExerciseAttempt, DigitalExercise, DGSession)
+    //    Run ALL 4 queries in parallel to save Atlas round-trips.
+    // ═════════════════════════════════════════════════════════════════════
+    const batchKeys = Array.from(new Set(allStudents.map((s) => String(s.batch || '').trim()).filter(Boolean)));
+    const allBatchVals = [];
+    for (const b of batchKeys) {
+      allBatchVals.push(b);
+      const bn = Number(b);
+      if (Number.isFinite(bn) && String(bn) === b) allBatchVals.push(bn);
+    }
+
+    const [journeyMeetings, meetingAttendanceAgg, exerciseAgg, allJourneyExercises, dgAgg] = await Promise.all([
+      // 4a. Journey-based class progress — WITHOUT attendance (avoids 23s BSON deserialization)
+      allBatchVals.length
+        ? MeetingLink.find({
+            batch: { $in: allBatchVals },
+            status: { $ne: 'cancelled' },
+            courseDay: { $gte: 1, $lte: 200 }
+          }).select('batch courseDay').lean()
+        : Promise.resolve([]),
+
+      // 4a'. Attendance stats per-student per-courseDay via lightweight $unwind
+      allBatchVals.length
+        ? MeetingLink.aggregate([
+            { $match: { batch: { $in: allBatchVals }, status: { $ne: 'cancelled' }, courseDay: { $gte: 1, $lte: 200 } } },
+            { $unwind: '$attendance' },
+            { $group: {
+                _id: { studentId: '$attendance.studentId', courseDay: '$courseDay' },
+                attended: { $max: { $cond: ['$attendance.attended', true, false] } }
+            }}
+          ])
+        : Promise.resolve([]),
+
+      // 4b. Exercise attempts per student
+      ExerciseAttempt.aggregate([
+        { $match: { studentId: { $in: allStudentIds } } },
+        { $group: { _id: '$studentId', attemptedExerciseIds: { $addToSet: '$exerciseId' } } }
+      ]),
+
+      // 4c. Exercises scheduled by journey day (1..200)
+      DigitalExercise.find({
+        isDeleted: { $ne: true },
+        isActive: true,
+        visibleToStudents: true,
+        courseDay: { $gte: 1, $lte: 200 }
+      }).select('_id courseDay').lean(),
+
+      // 4d. DG: highest minutes per student — NO $unwind
+      DGSession.aggregate([
+        { $match: { studentId: { $in: allStudentIds } } },
+        { $addFields: { sessionMaxMs: { $max: '$logs.durationMs' } } },
+        { $group: { _id: '$studentId', maxMs: { $max: '$sessionMaxMs' } } },
+        { $project: { maxMinutes: { $ifNull: [{ $round: [{ $divide: ['$maxMs', 60000] }] }, 0] } } }
+      ])
+    ]);
+
+    // Process MeetingLink results
     const meetingsByBatch = {};
     for (const m of journeyMeetings) {
       const key = String(m.batch || '').trim();
@@ -1204,16 +1757,17 @@ router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
       meetingsByBatch[key].push(m);
     }
 
-    // Highest exercise score per student
-    const exerciseAgg = await ExerciseAttempt.aggregate([
-      { $match: { studentId: { $in: studentIds } } },
-      {
-        $group: {
-          _id: '$studentId',
-          attemptedExerciseIds: { $addToSet: '$exerciseId' }
-        }
+    // Build attendedDaysByStudent lookup from attendance aggregate
+    const attendedDaysByStudent = {};
+    for (const a of meetingAttendanceAgg) {
+      const sid = a._id.studentId.toString();
+      if (a.attended) {
+        if (!attendedDaysByStudent[sid]) attendedDaysByStudent[sid] = new Set();
+        attendedDaysByStudent[sid].add(a._id.courseDay);
       }
-    ]);
+    }
+
+    // Process ExerciseAttempt results
     const exerciseAttemptedMap = {};
     exerciseAgg.forEach(e => {
       exerciseAttemptedMap[e._id.toString()] = new Set(
@@ -1221,114 +1775,63 @@ router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
       );
     });
 
-    // Exercises scheduled by journey day (1..200), same source as Journey timeline.
-    const allJourneyExercises = await DigitalExercise.find({
-      isDeleted: { $ne: true },
-      isActive: true,
-      visibleToStudents: true,
-      courseDay: { $gte: 1, $lte: 200 }
-    })
-      .select('_id courseDay')
-      .lean();
-
-    // DG: highest minutes spent in a single session per student
-    const dgSessions = await DGSession.find({ studentId: { $in: studentIds } })
-      .select('studentId logs')
-      .lean();
-    const dgMinutesByStudent = {};
-    for (const s of dgSessions) {
-      const sid = s.studentId?.toString();
-      if (!sid) continue;
-      const sessionMs = (Array.isArray(s.logs) ? s.logs : []).reduce(
-        (sum, l) => sum + (Number.isFinite(l?.durationMs) ? l.durationMs : 0),
-        0
-      );
-      const sessionMinutes = Math.round(sessionMs / 60000);
-      if (sessionMinutes > (dgMinutesByStudent[sid] || 0)) {
-        dgMinutesByStudent[sid] = sessionMinutes;
-      }
+    // Pre-compute exercise map: courseDay -> exerciseId[]
+    const exercisesByDay = {};
+    for (const ex of allJourneyExercises) {
+      const day = ex.courseDay;
+      if (!exercisesByDay[day]) exercisesByDay[day] = [];
+      exercisesByDay[day].push(String(ex._id));
     }
-    const maxDgMinutes = Math.max(0, ...Object.values(dgMinutesByStudent));
+    const sortedDays = Object.keys(exercisesByDay).map(Number).sort((a, b) => a - b);
 
-    // Documents per student
-    const docAgg = await StudentDocument.aggregate([
-      { $match: { studentId: { $in: studentIds } } },
-      { $group: {
-        _id: '$studentId',
-        total: { $sum: 1 },
-        verified: { $sum: { $cond: [{ $eq: ['$status', 'VERIFIED'] }, 1, 0] } }
-      }}
-    ]);
-    const docMap = {};
-    docAgg.forEach(d => { docMap[d._id.toString()] = d; });
+    // Process DGSession results
+    const dgMinutesByStudent = {};
+    let maxDgMinutes = 0;
+    for (const d of dgAgg) {
+      const sid = d._id.toString();
+      const mins = d.maxMinutes || 0;
+      dgMinutesByStudent[sid] = mins;
+      if (mins > maxDgMinutes) maxDgMinutes = mins;
+    }
 
-    // Payments
-    const payments = await StudentPayment.find({ studentId: { $in: studentIds } }).select('studentId totalPackageAmount totalPaid pendingPayment currency').lean();
-    const payMap = {};
-    payments.forEach(p => { payMap[p.studentId.toString()] = p; });
-
-    // Visa
-    const visas = await VisaTracking.find({ studentId: { $in: studentIds } }).select('studentId visaType currentStage stages').lean();
-    const visaMap = {};
-    visas.forEach(v => { visaMap[v.studentId.toString()] = v; });
-
-    // Build response
-    const result = students.map(s => {
+    // ═════════════════════════════════════════════════════════════════════
+    // 5. Compute per-student core metrics (classPct, exercisePct, dgPct,
+    //    learningPct, overallPct) for ALL students
+    //    This drives sorting and summary.
+    // ═════════════════════════════════════════════════════════════════════
+    const coreResults = allStudents.map(s => {
       const sid = s._id.toString();
-      const doc = docMap[sid] || { total: 0, verified: 0 };
-      const pay = payMap[sid] || null;
-      const visa = visaMap[sid] || null;
       const studentDay = Math.max(1, Math.min(200, Number(s.currentCourseDay || 1)));
       const batchMeetings = meetingsByBatch[String(s.batch || '').trim()] || [];
       const scheduledMeetings = batchMeetings.filter((m) => Number(m.courseDay || 0) <= studentDay);
       const totalClasses = scheduledMeetings.length;
-      const attendedClasses = scheduledMeetings.reduce((sum, m) => {
-        const row = (m.attendance || []).find((a) => String(a?.studentId || '') === sid);
-        const joined = !!row && (row.attended === true || row.status === 'attended');
-        return sum + (joined ? 1 : 0);
-      }, 0);
+      const attendedDays = attendedDaysByStudent[sid] || new Set();
+      const attendedClasses = scheduledMeetings.filter((m) => attendedDays.has(m.courseDay)).length;
 
-      const {
-        learningPct,
-        docsPct,
-        payPct,
-        visaPct,
-        levelsCompleted,
-        totalLevels
-      } = computeAdminProgressMetrics(s, doc, pay, visa);
-
-      let visaSteps = 0;
-      let visaCurrent = 0;
-      if (visa) {
-        visaSteps = visa.visaType === 'au_pair' ? 5 : 6;
-        if (visa.stages && visa.stages.length) {
-          for (let i = 0; i < visa.stages.length; i++) {
-            if (visa.stages[i].outcome !== 'completed') {
-              visaCurrent = i;
-              break;
-            }
-            if (i === visa.stages.length - 1) visaCurrent = i;
-          }
-        }
-      }
+      const { learningPct, levelsCompleted, totalLevels } = computeAdminProgressMetrics(s, { total: 0, verified: 0 }, null, null);
 
       const attRate = totalClasses ? Math.round((attendedClasses / totalClasses) * 100) : 0;
       const classPct = attRate;
-      const eligibleExerciseIds = allJourneyExercises
-        .filter((ex) => Number(ex.courseDay || 0) <= studentDay)
-        .map((ex) => String(ex._id));
-      const exerciseTotal = eligibleExerciseIds.length;
+
+      let exerciseAttempted = 0;
+      let eligibleCount = 0;
       const attemptedSet = exerciseAttemptedMap[sid] || new Set();
-      const exerciseAttempted = exerciseTotal
-        ? eligibleExerciseIds.reduce((sum, id) => sum + (attemptedSet.has(id) ? 1 : 0), 0)
-        : 0;
-      const exercisePct = exerciseTotal ? Math.round((exerciseAttempted / exerciseTotal) * 100) : 0;
+      for (const day of sortedDays) {
+        if (day > studentDay) break;
+        const ids = exercisesByDay[day];
+        for (const id of ids) {
+          eligibleCount++;
+          if (attemptedSet.has(id)) exerciseAttempted++;
+        }
+      }
+      const exercisePct = eligibleCount ? Math.round((exerciseAttempted / eligibleCount) * 100) : 0;
+
       const dgMaxMinutes = dgMinutesByStudent[sid] || 0;
       const dgPct = maxDgMinutes > 0 ? Math.round((dgMaxMinutes / maxDgMinutes) * 100) : 0;
       const overallPct = Math.round((classPct + exercisePct + dgPct) / 3);
 
       return {
-        _id: sid,
+        sid,
         name: s.name,
         email: s.email,
         regNo: s.regNo,
@@ -1338,26 +1841,141 @@ router.get('/admin/overview', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'])
         teacher: s.assignedTeacher?.name || '',
         status: s.studentStatus || '',
         enrollmentDate: s.enrollmentDate,
+        currentLevel: s.level,
         overallPct,
         learningPct,
         classPct,
         exercisePct,
         dgPct,
         classProgressText: `${attendedClasses}/${totalClasses}`,
-        exerciseTopScore: exercisePct,
-        exerciseProgressText: `${exerciseAttempted}/${exerciseTotal}`,
+        exerciseProgressText: `${exerciseAttempted}/${eligibleCount}`,
         dgTopMinutes: dgMaxMinutes,
-        currentLevel: s.level,
         levelsCompleted,
         totalLevels,
         attendance: { attended: attendedClasses, total: totalClasses, rate: attRate },
+        studentDay
+      };
+    });
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 6. Compute summary from ALL filtered results (same as client-side)
+    // ═════════════════════════════════════════════════════════════════════
+    const withAtt = coreResults.filter(s => s.attendance.total > 0);
+    const summary = {
+      avgOverall: coreResults.length ? Math.round(coreResults.reduce((s, st) => s + st.overallPct, 0) / coreResults.length) : 0,
+      avgLearning: coreResults.length ? Math.round(coreResults.reduce((s, st) => s + st.learningPct, 0) / coreResults.length) : 0,
+      avgAttendance: withAtt.length ? Math.round(withAtt.reduce((s, st) => s + st.attendance.rate, 0) / withAtt.length) : 0,
+      lowAttendanceCount: withAtt.filter(s => s.attendance.rate < 75).length
+    };
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 7. Available filter values
+    // ═════════════════════════════════════════════════════════════════════
+    const availableBatches = Array.from(new Set(coreResults.map(s => s.batch).filter(Boolean)))
+      .sort((a, b) => Number(a) - Number(b));
+    const availableLevels = Array.from(new Set(coreResults.map(s => s.level).filter(Boolean)))
+      .sort();
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 8. Sort core results
+    // ═════════════════════════════════════════════════════════════════════
+    if (sortField === 'name') {
+      coreResults.sort((a, b) => {
+        const va = (a.name || '').toLowerCase();
+        const vb = (b.name || '').toLowerCase();
+        return sortDir * (va < vb ? -1 : va > vb ? 1 : 0);
+      });
+    } else {
+      coreResults.sort((a, b) => {
+        const va = a[sortField] ?? 0;
+        const vb = b[sortField] ?? 0;
+        return sortDir * (va - vb);
+      });
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 9. Paginate — get IDs for the current page
+    // ═════════════════════════════════════════════════════════════════════
+    const skip = (page - 1) * limit;
+    const pageCore = coreResults.slice(skip, skip + limit);
+    const pageStudentIds = pageCore.map(s => new mongoose.Types.ObjectId(s.sid));
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 10. Fetch docs/payment/visa ONLY for the paginated page
+    // ═════════════════════════════════════════════════════════════════════
+    const [docAgg, payments, visas, fullStudentDetails] = await Promise.all([
+      StudentDocument.aggregate([
+        { $match: { studentId: { $in: pageStudentIds } } },
+        { $group: { _id: '$studentId', total: { $sum: 1 }, verified: { $sum: { $cond: [{ $eq: ['$status', 'VERIFIED'] }, 1, 0] } } } }
+      ]),
+      StudentPayment.find({ studentId: { $in: pageStudentIds } })
+        .select('studentId totalPackageAmount totalPaid pendingPayment currency').lean(),
+      VisaTracking.find({ studentId: { $in: pageStudentIds } })
+        .select('studentId visaType currentStage stages').lean(),
+      pageStudentIds.length
+        ? User.find({ _id: { $in: pageStudentIds } })
+            .select('name email regNo servicesOpted assignedTeacher studentStatus enrollmentDate')
+            .populate('assignedTeacher', 'name')
+            .lean()
+        : Promise.resolve([])
+    ]);
+    const fullStudentMap = {};
+    fullStudentDetails.forEach(s => { fullStudentMap[s._id.toString()] = s; });
+
+    const docMap = {};
+    docAgg.forEach(d => { docMap[d._id.toString()] = d; });
+    const payMap = {};
+    payments.forEach(p => { payMap[p.studentId.toString()] = p; });
+    const visaMap = {};
+    visas.forEach(v => { visaMap[v.studentId.toString()] = v; });
+
+    // ═════════════════════════════════════════════════════════════════════
+    // 11. Build full response objects for the current page
+    // ═════════════════════════════════════════════════════════════════════
+    const data = pageCore.map(s => {
+      const sid = s.sid;
+      const full = fullStudentMap[sid] || {};
+      const student = studentMap[sid] || {};
+      const doc = docMap[sid] || { total: 0, verified: 0 };
+      const pay = payMap[sid] || null;
+      const visa = visaMap[sid] || null;
+
+      const { docsPct, payPct, visaPct, visaSteps, visaCurrent } = computeAdminProgressMetrics(student, doc, pay, visa);
+
+      return {
+        _id: sid,
+        name: full.name || s.name,
+        email: full.email || '',
+        regNo: full.regNo || '',
+        batch: s.batch,
+        level: s.level,
+        service: full.servicesOpted || '',
+        teacher: full.assignedTeacher?.name || '',
+        status: full.studentStatus || '',
+        enrollmentDate: full.enrollmentDate,
+        overallPct: s.overallPct,
+        learningPct: s.learningPct,
+        classPct: s.classPct,
+        exercisePct: s.exercisePct,
+        dgPct: s.dgPct,
+        classProgressText: s.classProgressText,
+        exerciseTopScore: s.exercisePct,
+        exerciseProgressText: s.exerciseProgressText,
+        dgTopMinutes: s.dgTopMinutes,
+        currentLevel: s.currentLevel,
+        levelsCompleted: s.levelsCompleted,
+        totalLevels: s.totalLevels,
+        attendance: s.attendance,
         docs: { verified: doc.verified, total: doc.total, pct: docsPct },
         payment: pay ? { currency: pay.currency, total: pay.totalPackageAmount, paid: pay.totalPaid, pending: pay.pendingPayment, pct: payPct } : null,
         visa: visa ? { type: visa.visaType, current: visaCurrent, total: visaSteps, pct: visaPct } : null
       };
     });
 
-    res.json(result);
+    // ═════════════════════════════════════════════════════════════════════
+    // 12. Return
+    // ═════════════════════════════════════════════════════════════════════
+    res.json({ data, total, page, totalPages, limit, summary, availableBatches, availableLevels });
   } catch (error) {
     console.error('Error fetching admin progress overview:', error);
     res.status(500).json({ message: 'Error fetching progress overview' });

@@ -12,7 +12,11 @@ require("dotenv").config();
     .filter(Boolean);
   const servers = fromEnv.length ? fromEnv : process.platform === 'win32' ? ['1.1.1.1', '8.8.8.8'] : [];
   if (!servers.length) return;
-  require('dns').setServers(servers);
+  const dnsSync = require('dns');
+  dnsSync.setServers(servers);
+  if (typeof dnsSync.setDefaultResultOrder === 'function') {
+    dnsSync.setDefaultResultOrder('ipv4first');
+  }
   console.log(`[Mongo DNS] Using DNS resolvers: ${servers.join(', ')} (SRV lookup for Atlas)`);
 })();
 
@@ -26,6 +30,7 @@ if (missingS3Vars.length > 0) {
 }
 const express = require("express");
 const app = express();
+app.set('etag', false);
 const path = require('path');
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -45,13 +50,11 @@ const allowedOrigins = [
   'https://www.gluckstudentsportal.com'
 ]; // frontend origins
 
-const isProduction = process.env.NODE_ENV === 'production';
-
-/** In dev, allow any localhost / 127.0.0.1 port so ng serve --port works. */
+/** Allow any localhost / 127.0.0.1 port (ng serve, Karma :9876, etc.). Safe: browsers only send these origins from pages on the same machine. */
 function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
-  if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
     return true;
   }
   return false;
@@ -105,7 +108,9 @@ const goStudentsSinhalaRoutes = require('./routes/goStudentsSinhala');
 const invoiceManagementRoutes = require('./routes/invoiceManagement');
 const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
+const ollyRoutes = require('./routes/olly');
 const announcementRoutes = require('./routes/announcements');
+const jobOpeningsRoutes = require('./routes/jobOpenings');
 const reminderRoutes = require('./routes/reminders');
 const crmPortalRoutes = require('./routes/crmPortal');
 const testAccountRoutes = require('./routes/testAccounts');
@@ -244,13 +249,76 @@ async function warnIfSuspiciousMongoDns(uri) {
   }
 }
 
-/** Wait for MongoDB before accepting traffic / crons — avoids Mongoose “buffering timed out” spam when Atlas is unreachable. */
-async function connectMongoDb() {
-  await warnIfSuspiciousMongoDns(mongoUri).catch(() => {});
-  await mongoose.connect(mongoUri, {
+function isRetryableMongoConnectError(err) {
+  const msg = String(err?.message || err || '');
+  return /ENOTFOUND|ECONNREFUSED|querySrv|ETIMEDOUT|ETIMEOUT/i.test(msg);
+}
+
+/**
+ * Windows: dns.lookup (used by the MongoDB driver) ignores dns.setServers().
+ * dns.resolve4/resolve6 honor setServers — route Atlas host lookups through them.
+ */
+function createAtlasDnsLookup() {
+  const dnsMod = require('dns');
+  return (hostname, options, callback) => {
+    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
+      return dnsMod.lookup(hostname, options, callback);
+    }
+    const wantV6 = options?.family === 6;
+    const resolver = wantV6
+      ? dnsMod.promises.resolve6(hostname)
+      : dnsMod.promises.resolve4(hostname);
+    resolver
+      .then((addrs) => {
+        const addr = addrs?.[0];
+        if (!addr) {
+          callback(new Error(`getaddrinfo ENOTFOUND ${hostname}`));
+          return;
+        }
+        callback(null, addr, wantV6 ? 6 : 4);
+      })
+      .catch((err) => callback(err));
+  };
+}
+
+function mongoConnectOptions() {
+  const opts = {
     serverSelectionTimeoutMS: 45_000,
     socketTimeoutMS: 45_000,
-  });
+    family: 4,
+  };
+  if (mongoUri.startsWith('mongodb+srv://')) {
+    opts.lookup = createAtlasDnsLookup();
+  }
+  return opts;
+}
+
+/** Wait for MongoDB before accepting traffic / crons — avoids Mongoose “buffering timed out” spam when Atlas is unreachable. */
+async function connectMongoDb() {
+  const maxAttempts = 3;
+  let lastErr;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await warnIfSuspiciousMongoDns(mongoUri).catch(() => {});
+      await mongoose.connect(mongoUri, mongoConnectOptions());
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts && isRetryableMongoConnectError(err)) {
+        console.warn(
+          `[MongoDB] Connect attempt ${attempt}/${maxAttempts} failed (${err.message}). Retrying in 3s…`
+        );
+        await new Promise((r) => setTimeout(r, 3000));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (lastErr) throw lastErr;
+
   console.log(`✅ Connected to MongoDB (${process.env.NODE_ENV || 'development'})`);
   await ensureDefaultDgCharacter();
   await ensureInteractiveGamesSeeded();
@@ -309,7 +377,9 @@ app.use('/api/go-students-sinhala', goStudentsSinhalaRoutes);
 app.use('/api/invoices', invoiceManagementRoutes);
 app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 app.use('/api/support', supportTicketRoutes);
+app.use('/api/olly', ollyRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/job-openings', jobOpeningsRoutes);
 app.use('/api/reminders', reminderRoutes);
 const allRemindersRoutes = require('./routes/allReminders');
 app.use('/api/allreminders', allRemindersRoutes);
@@ -376,9 +446,16 @@ app.use('/api/class-submissions', classSubmissionRoutes);
 const teacherResourceRoutes = require('./routes/teacherResources');
 app.use('/api/teacher-resources', teacherResourceRoutes);
 
+const googleSheetSyncRoutes = require('./routes/googleSheetSync');
+app.use('/api/google-sheet', googleSheetSyncRoutes);
+
 // Payment Hub v2
 const registerPaymentModule = require('./modules/payments-v2/backend/register');
-registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: true });
+registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: false });
+
+// Enrollment Overview — isolated Sales student management (no Language Team writes)
+const registerKrishDashboard = require('./modules/krish-dashboard/backend/register');
+registerKrishDashboard(app, { authMiddleware: auth.verifyToken });
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
@@ -431,26 +508,84 @@ app.post('/api/grade-assignment', async (req, res) => {
 const PORT = process.env.PORT || 4000;
 
 let httpServer = null;
+let isShuttingDown = false;
+const SHUTDOWN_FORCE_MS = 3000;
 
-function gracefulShutdown(signal) {
-  console.log(`[shutdown] ${signal} received — closing GlückArena server`);
+function stopBackgroundWork() {
+  try {
+    const cron = require('node-cron');
+    const tasks = cron.getTasks?.();
+    if (tasks) {
+      for (const task of tasks.values()) {
+        task.stop();
+      }
+    }
+  } catch (err) {
+    console.warn('[shutdown] cron stop:', err.message);
+  }
+  try {
+    const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
+    const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
+    overdueCron.stop();
+    journeyDueCron.stop();
+  } catch { /* payment crons optional */ }
+}
+
+function closeArenaSockets() {
   try {
     const { getIo } = require('./sockets/glueckArenaMultiplayer');
     const io = getIo();
-    if (io) io.close();
+    if (!io) return;
+    if (typeof io.disconnectSockets === 'function') {
+      io.disconnectSockets(true);
+    }
+    io.close();
   } catch { /* sockets optional */ }
-  if (httpServer) {
-    httpServer.close(() => {
-      mongoose.connection.close(false).then(() => process.exit(0)).catch(() => process.exit(1));
-    });
-    setTimeout(() => process.exit(1), 10_000);
-  } else {
-    process.exit(0);
-  }
 }
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+  console.log(`[shutdown] ${signal} received — closing server`);
+
+  const forceExitTimer = setTimeout(() => {
+    console.warn(`[shutdown] forcing exit after ${SHUTDOWN_FORCE_MS}ms`);
+    process.exit(1);
+  }, SHUTDOWN_FORCE_MS);
+  if (typeof forceExitTimer.unref === 'function') {
+    forceExitTimer.unref();
+  }
+
+  stopBackgroundWork();
+  closeArenaSockets();
+
+  const finish = () => {
+    clearTimeout(forceExitTimer);
+    mongoose
+      .disconnect()
+      .then(() => process.exit(0))
+      .catch(() => process.exit(1));
+  };
+
+  if (!httpServer) {
+    finish();
+    return;
+  }
+
+  if (typeof httpServer.closeAllConnections === 'function') {
+    httpServer.closeAllConnections();
+  }
+
+  httpServer.close((err) => {
+    if (err) console.warn('[shutdown] http close:', err.message);
+    finish();
+  });
+}
+
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
 
 connectMongoDb()
   .then(() => {
@@ -479,13 +614,27 @@ connectMongoDb()
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
       scheduleGluckRoomAutoStart();
+
+      const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
+      const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
+      overdueCron.start();
+      journeyDueCron.start();
     });
   })
   .catch((err) => {
-    console.error('❌ MongoDB connection failed — server not started:', err.message || err);
-    console.error(
-      '   Fix: verify MONGO_URI, Atlas password, and Network Access (IP allowlist). ' +
-      'If you see querySrv ECONNREFUSED, set Windows DNS to 1.1.1.1/8.8.8.8, run ipconfig /flushdns, or set MONGO_DNS_SERVERS=1.1.1.1,8.8.8.8 in .env.'
-    );
+    const msg = String(err?.message || err || '');
+    console.error('❌ MongoDB connection failed — server not started:', msg);
+    if (/ENOTFOUND|querySrv/i.test(msg)) {
+      console.error(
+        '   DNS: set Windows DNS to 1.1.1.1 and 8.8.8.8, run "ipconfig /flushdns", restart terminal, then "node app.js".'
+      );
+      console.error('   Or add to .env: MONGO_DNS_SERVERS=1.1.1.1,8.8.8.8');
+    }
+    if (/whitelist|server selection timed out|Could not connect to any servers/i.test(msg)) {
+      console.error(
+        '   Atlas: add your current public IP in MongoDB Atlas → Network Access → IP Access List (or use 0.0.0.0/0 for dev only).'
+      );
+    }
+    console.error('   Also verify MONGO_URI and Atlas database user password in .env.');
     process.exit(1);
   });

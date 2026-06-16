@@ -1,6 +1,6 @@
 // PDF generation for agreement templates.
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
-const pdfParse = require('pdf-parse');
+const { parsePdfBuffer, isPdfParseAvailable } = require('./pdfParseCompat');
 const { sanitizeForWinAnsi } = require('./agreementPdfText');
 const {
   normalizeFieldValues,
@@ -17,24 +17,37 @@ async function getPdfPageCount(buffer) {
     return pdfDoc.getPageCount();
   } catch (_) {
     try {
-      const data = await pdfParse(buffer);
-      return data.numpages || 1;
+      if (isPdfParseAvailable()) {
+        const data = await parsePdfBuffer(buffer);
+        return data.numpages || 1;
+      }
     } catch (__) {
-      return 1;
+      /* fall through */
     }
+    return 1;
   }
 }
 
 async function extractPagesText(buffer) {
-  const data = await pdfParse(buffer);
-  const fullText = data.text || '';
-  const pageCount = data.numpages || 1;
-  const pageSections = fullText.split(/\f/);
-  const pages = [];
-  for (let i = 0; i < pageCount; i++) {
-    pages.push({ page: i + 1, text: (pageSections[i] || '').trim() });
+  try {
+    const data = await parsePdfBuffer(buffer);
+    const fullText = data.text || '';
+    const pageCount = data.numpages || 1;
+    const pageSections = fullText.split(/\f/);
+    const pages = [];
+    for (let i = 0; i < pageCount; i++) {
+      pages.push({ page: i + 1, text: (pageSections[i] || '').trim() });
+    }
+    return { pages, pageCount };
+  } catch (_) {
+    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    const pageCount = pdfDoc.getPageCount();
+    const pages = [];
+    for (let i = 0; i < pageCount; i++) {
+      pages.push({ page: i + 1, text: '' });
+    }
+    return { pages, pageCount };
   }
-  return { pages, pageCount };
 }
 
 /**

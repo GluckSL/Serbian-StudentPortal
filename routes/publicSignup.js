@@ -41,6 +41,16 @@ const {
 } = require('../utils/signupProofNotify');
 const { storeRecoverablePassword } = require('../utils/passwordRecoverable');
 const { activatePublicSignupStudent } = require('../utils/signupActivation');
+const {
+  isAllowedStudentPlan,
+  isServicePlan,
+  getServicePlanAmount,
+} = require('../utils/studentSubscriptionPlans');
+const {
+  paymentProofFileFilter,
+  PROOF_FILTER_ERROR,
+  PROOF_MAX_BYTES,
+} = require('../utils/paymentProofFileFilter');
 
 // Payment v2 services (require lazily to avoid circular init issues)
 const getPaymentService = () => require('../modules/payments-v2/backend/services/paymentService');
@@ -111,12 +121,19 @@ const proofStorage = proofR2.isPaymentR2Configured()
 
 const proofUpload = multer({
   storage: proofStorage,
-  limits: { fileSize: 15 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const ok = /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype) || file.mimetype === 'application/pdf';
-    cb(null, ok);
-  },
+  limits: { fileSize: PROOF_MAX_BYTES },
+  fileFilter: paymentProofFileFilter,
 }).single('screenshot');
+
+function handleProofUpload(req, res, next) {
+  proofUpload(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ msg: 'File is too large. Maximum size is 15 MB.' });
+    }
+    return res.status(400).json({ msg: err.message || PROOF_FILTER_ERROR });
+  });
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -186,21 +203,15 @@ async function getSystemAdminId() {
 async function getCatalogAmount(level, subscription, currency) {
   const catalog = await PaymentHubCatalog.getOrCreate();
   const curr = (currency || 'INR').toUpperCase();
+  const sub = String(subscription || '').trim().toUpperCase();
 
-  // Try CEFR table first
-  const cefrRow = catalog.cefrRows?.find(r => r.code === level);
+  if (isServicePlan(sub)) {
+    return getServicePlanAmount(sub, curr, catalog.referenceRows || []);
+  }
+
+  const cefrRow = catalog.cefrRows?.find((r) => r.code === level);
   if (cefrRow) {
     return curr === 'LKR' ? cefrRow.lkr : cefrRow.inr;
-  }
-
-  // Fallback to reference rows based on subscription
-  if (subscription === 'PLATINUM') {
-    const ref = catalog.referenceRows?.find(r => (r.label || '').toLowerCase().includes('doc'));
-    if (ref) return curr === 'LKR' ? ref.lkr : ref.inr;
-  }
-  if (subscription === 'VISA_DOC_ONLY') {
-    const ref = catalog.referenceRows?.find(r => (r.label || '').toLowerCase().includes('visa'));
-    if (ref) return curr === 'LKR' ? ref.lkr : ref.inr;
   }
   return 0;
 }
@@ -312,7 +323,7 @@ router.post('/start', startLimiter, async (req, res) => {
     app.leadSource = leadSource || app.leadSource || '';
     if (subscription) {
       const sub = String(subscription).trim().toUpperCase();
-      if (['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'].includes(sub)) {
+      if (isAllowedStudentPlan(sub)) {
         app.subscription = sub;
       }
     }
@@ -639,9 +650,9 @@ router.post('/razorpay/verify', rzpLimiter, async (req, res) => {
 
 // ─── POST /payment-proof — step 3: upload payment screenshot → Req Payment ───
 
-router.post('/payment-proof', (req, res, next) => proofUpload(req, res, next), async (req, res) => {
+router.post('/payment-proof', handleProofUpload, async (req, res) => {
   try {
-    const { applicationToken } = req.body;
+    const { applicationToken, paidAmount, paymentDateTime, accountHolderName } = req.body;
     if (!req.file) return res.status(400).json({ msg: 'Please upload a payment screenshot or PDF.' });
 
     const app = await SignupApplication.findOne({ applicationToken });
@@ -680,18 +691,27 @@ router.post('/payment-proof', (req, res, next) => proofUpload(req, res, next), a
       status: 'REQUESTED',
     });
 
+    const parsedPaid = parseFloat(paidAmount);
+    const paid =
+      Number.isFinite(parsedPaid) && parsedPaid > 0 ? parsedPaid : app.amount;
+    const payDt = paymentDateTime ? new Date(paymentDateTime) : new Date();
+    const payDtValid = !Number.isNaN(payDt.getTime()) ? payDt : new Date();
+    const holder = String(accountHolderName || '').trim();
+
     // Submit the proof
     const paymentSvc = getPaymentService();
     const submission = await paymentSvc.submitPayment({
       paymentRequestId: pr._id,
       studentId: app.userId,
-      paidAmount: app.amount,
+      paidAmount: paid,
       currency: app.currency || 'INR',
       screenshotKey,
       screenshotOriginalName: f.originalname,
       screenshotMimeType: f.mimetype,
       screenshotSize: f.size,
       paymentMethod: 'Bank Transfer',
+      paymentDateTime: payDtValid,
+      accountHolderName: holder || app.name,
     });
 
     app.paymentRequestId = pr._id;

@@ -38,13 +38,41 @@
 
   <ng-container *ngIf="step === 'list'">
 
-    <div *ngIf="loading" class="center-spinner"><mat-spinner diameter="40"></mat-spinner></div>
-
-
+  <!-- Skeleton: first load only -->
+  <div *ngIf="loading" class="at-skeleton" aria-busy="true" aria-label="Loading agreement templates">
+    <div class="at-skeleton__toolbar">
+      <div class="at-skeleton__pills">
+        <div class="at-sk at-sk--pill" *ngFor="let _ of skeletonCards"></div>
+      </div>
+      <div class="at-sk at-sk--search"></div>
+    </div>
+    <div class="template-grid">
+      <div class="at-skeleton__card" *ngFor="let _ of skeletonCards">
+        <div class="at-skeleton__card-head">
+          <div class="at-sk at-sk--icon"></div>
+          <div class="at-skeleton__card-head-text">
+            <div class="at-sk at-sk--title"></div>
+            <div class="at-sk at-sk--meta"></div>
+          </div>
+          <div class="at-sk at-sk--badge"></div>
+        </div>
+        <div class="at-skeleton__card-body">
+          <div class="at-sk at-sk--line"></div>
+          <div class="at-skeleton__chips">
+            <div class="at-sk at-sk--chip" *ngFor="let __ of skeletonCards"></div>
+          </div>
+        </div>
+        <div class="at-skeleton__card-foot">
+          <div class="at-sk at-sk--btn"></div>
+          <div class="at-sk at-sk--btn-icon"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
     <ng-container *ngIf="!loading">
 
-      <div class="list-toolbar" *ngIf="templates.length > 0">
+      <div class="list-toolbar" *ngIf="templates.length > 0 || refreshing">
 
         <div class="stats-row">
 
@@ -74,29 +102,27 @@
 
         </div>
 
-        <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
-
-          <mat-label>Search templates</mat-label>
-
-          <mat-icon matPrefix>search</mat-icon>
-
-          <input matInput [(ngModel)]="templateSearch" placeholder="Name or field…" />
-
-          <button mat-icon-button matSuffix *ngIf="templateSearch" (click)="templateSearch = ''" type="button">
-
-            <mat-icon>close</mat-icon>
-
+        <div class="toolbar-end">
+          <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+            <mat-label>Search templates</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input matInput [(ngModel)]="templateSearch" placeholder="Name or field…" />
+            <button mat-icon-button matSuffix *ngIf="templateSearch" (click)="templateSearch = ''" type="button">
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-form-field>
+          <button mat-icon-button type="button" class="refresh-btn" (click)="loadTemplates(true)" [disabled]="refreshing" matTooltip="Refresh list" aria-label="Refresh templates">
+            <mat-icon [class.spin-icon]="refreshing">refresh</mat-icon>
           </button>
-
-        </mat-form-field>
+        </div>
 
       </div>
 
 
 
-      <div class="template-grid" *ngIf="filteredTemplates.length > 0">
+      <div class="template-grid" *ngIf="filteredTemplates.length > 0" [class.template-grid--dim]="refreshing">
 
-        <mat-card *ngFor="let t of filteredTemplates" class="template-card">
+        <mat-card *ngFor="let t of filteredTemplates; trackBy: trackByTemplateId" class="template-card">
 
           <div class="card-top" [class.card-top--word]="isWordMode(t)">
 
@@ -126,7 +152,7 @@
 
           <mat-card-content class="card-body">
 
-            <p class="description">{{ t.description || 'No description' }}</p>
+            <p class="description" *ngIf="t.description">{{ t.description }}</p>
 
             <div class="field-chips" *ngIf="t.dynamicFields?.length">
 

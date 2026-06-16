@@ -115,6 +115,29 @@ function primaryGoBatchFromKeys(batchKeys) {
   return keys[0] || '';
 }
 
+/** True when User.batch is a GO roster slot (e.g. "10"), not a class/recording batch label. */
+function isGoRosterPoolBatch(batch) {
+  return /^\d+$/.test(String(batch || '').trim());
+}
+
+/**
+ * Batch keys for Silver GO recording completion — must match recordingAccessBatchKeys
+ * so journey-day gates use the same recordings the student sees in the portal.
+ * Numeric roster slots (e.g. "10") are ignored; GO-SILVER / GO-SINHALA + real class labels are used.
+ */
+function silverGoRecordingBatchKeys(student) {
+  const legacy = String(student?.batch || '').trim();
+  const goBatch = goBatchForStudent(student);
+  const out = [];
+  if (legacy && !isGoRosterPoolBatch(legacy)) out.push(legacy);
+  if (goBatch) out.push(goBatch);
+  return out;
+}
+
+/** Mongoose .select() fields required to resolve Tamil vs Sinhala GO batch keys. */
+const SILVER_GO_STUDENT_SELECT =
+  'role batch goStatus subscription level currentCourseDay goLanguage medium pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay';
+
 module.exports = {
   GO_BATCH_TAMIL,
   GO_BATCH_SINHALA,
@@ -126,5 +149,8 @@ module.exports = {
   isSilverGoStudent,
   goStudentQuery,
   silverPoolQuery,
-  primaryGoBatchFromKeys
+  primaryGoBatchFromKeys,
+  silverGoRecordingBatchKeys,
+  isGoRosterPoolBatch,
+  SILVER_GO_STUDENT_SELECT
 };

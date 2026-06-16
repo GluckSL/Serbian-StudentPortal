@@ -4,12 +4,19 @@ import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/co
 import { throwError } from 'rxjs';
 import { finalize, switchMap } from 'rxjs/operators';
 import { canonicalizeStoredMediaUrl, resolveMediaUrl } from '../../utils/media-url';
+import {
+  appendQuestionAttachment,
+  getQuestionAttachmentUrls,
+  removeQuestionAttachmentAt,
+  setQuestionAttachmentUrls
+} from '../../utils/question-attachments';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DigitalExerciseService, ExerciseQuestion } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { clampAdminCourseDayInput, isValidAdminCourseDay } from '../../utils/journey-day.util';
 import { MaterialModule } from '../../shared/material.module';
 import { RichTextInputComponent } from '../../shared/rich-text-input/rich-text-input.component';
 import { ExerciseStructurePreviewComponent, ExercisePreview } from './exercise-structure-preview.component';
@@ -93,6 +100,7 @@ interface ReviewQuestion {
   context?: string;
   /** Per-question file (image, audio, PDF, video) */
   attachmentUrl?: string;
+  attachmentUrls?: string[];
   attachmentUploading?: boolean;
   /** When attachment is audio: max play starts per student attempt (empty = unlimited). */
   attachmentAudioMaxPlaysPerAttempt?: number | null;
@@ -215,6 +223,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   visibleToStudents = false;
   saving = false;
 
+  // Duplicate detection
+  existingExerciseForDay: any = null;
+  duplicateCheckPending = false;
+
   // Inline editor state
   addingType = '';
 
@@ -223,9 +235,10 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   selectAllChecked = false;
 
   /** Which field is being bulk-edited. */
-  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | '' = '';
+  bulkEditField: 'context' | 'instruction' | 'example' | 'audio' | 'attachment' | 'attachment-upload' | '' = '';
   bulkEditValue = '';
   bulkAudioUploading = false;
+  bulkAttachmentUploading = false;
 
   /** Bulk type change panel */
   bulkTypeChangeOpen = false;
@@ -273,7 +286,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     const q = this.route.snapshot.queryParamMap.get('courseDay');
     if (q == null || q === '') return;
     const p = parseInt(String(q).trim(), 10);
-    if (Number.isFinite(p) && p >= 1 && p <= 200) {
+    if (Number.isFinite(p) && isValidAdminCourseDay(p)) {
       this.courseDayStr = String(p);
     }
   }
@@ -297,7 +310,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       this.courseDayStr = '';
       return;
     }
-    this.courseDayStr = String(Math.min(200, Math.max(1, Math.round(n))));
+    this.courseDayStr = String(clampAdminCourseDayInput(n));
   }
 
   ngOnDestroy(): void {
@@ -334,8 +347,8 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       this.showError('Only PDF files are accepted.');
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      this.showError('File is too large. Maximum size is 15 MB.');
+    if (file.size > 20 * 1024 * 1024) {
+      this.showError('File is too large. Maximum size is 20 MB.');
       return;
     }
     this.selectedFile = file;
@@ -403,6 +416,12 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.uploading = false;
+        if (err.status === 413) {
+          this.showError(
+            'The server rejected this file as too large (HTTP 413). PDFs up to 20 MB are supported — ask your admin to set nginx client_max_body_size to at least 50m and reload nginx.'
+          );
+          return;
+        }
         this.showError(err.error?.error || 'Upload failed. Please try again.');
       }
     });
@@ -448,7 +467,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         rawText: String(e.rawText ?? e.content ?? ''),
         questions: Array.isArray(e.questions) ? e.questions : [],
         pairs: Array.isArray(e.pairs) ? e.pairs : [],
-        extractedItems: [] as any[],
+        extractedItems: Array.isArray(e.extractedItems) ? e.extractedItems : [],
         enabled: true
       };
     });
@@ -1664,31 +1683,69 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
 
   onAttachmentFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!files.length) return;
+    if ((this as any)._bulkAttachmentMode) {
+      (this as any)._bulkAttachmentMode = false;
+      this.onBulkAttachmentFileSelected(files[0]);
+      return;
+    }
     const q = this.currentAttachmentQ;
     this.currentAttachmentQ = null;
-    input.value = '';
-    if (!file || !q) return;
+    if (!q) return;
+    this.uploadAttachmentFiles(q, files);
+  }
+
+  private uploadAttachmentFiles(q: ReviewQuestion, files: File[]): void {
+    if (!files.length) return;
     q.attachmentUploading = true;
-    this.exerciseService.uploadQuestionAttachment(file).subscribe({
-      next: (res) => {
-        q.attachmentUrl = canonicalizeStoredMediaUrl(res.canonicalUrl || res.url);
-        q.attachmentUploading = false;
-        if (this.getAttachmentType(q.attachmentUrl) !== 'audio') {
-          q.attachmentAudioMaxPlaysPerAttempt = undefined;
-        }
-        this.showSuccess('File uploaded');
-      },
-      error: (err: { error?: { error?: string } }) => {
-        q.attachmentUploading = false;
-        this.showError(err.error?.error || 'Upload failed');
+    let uploaded = 0;
+    const finish = () => {
+      q.attachmentUploading = false;
+      if (uploaded > 0) {
+        this.showSuccess(uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`);
       }
-    });
+    };
+    const uploadNext = (index: number) => {
+      if (index >= files.length) {
+        finish();
+        return;
+      }
+      this.exerciseService.uploadQuestionAttachment(files[index]).subscribe({
+        next: (res) => {
+          appendQuestionAttachment(q, canonicalizeStoredMediaUrl(res.canonicalUrl || res.url));
+          uploaded += 1;
+          uploadNext(index + 1);
+        },
+        error: (err: { error?: { error?: string } }) => {
+          this.showError(err.error?.error || 'Upload failed');
+          if (uploaded > 0) finish();
+          else q.attachmentUploading = false;
+        }
+      });
+    };
+    uploadNext(0);
+  }
+
+  getQuestionAttachments(q: ReviewQuestion): string[] {
+    return getQuestionAttachmentUrls(q);
+  }
+
+  hasQuestionAudioAttachment(q: ReviewQuestion): boolean {
+    return getQuestionAttachmentUrls(q).some((u) => this.getAttachmentType(u) === 'audio');
+  }
+
+  removeAttachmentAt(q: ReviewQuestion, index: number): void {
+    const removed = getQuestionAttachmentUrls(q)[index];
+    removeQuestionAttachmentAt(q, index);
+    if (removed && this.getAttachmentType(removed) === 'audio' && !this.hasQuestionAudioAttachment(q)) {
+      q.attachmentAudioMaxPlaysPerAttempt = undefined;
+    }
   }
 
   removeAttachment(q: ReviewQuestion): void {
-    q.attachmentUrl = '';
-    q.attachmentAudioMaxPlaysPerAttempt = undefined;
+    this.removeAttachmentAt(q, 0);
   }
 
   private stripHtmlPlain(s: string): string {
@@ -1802,7 +1859,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   private getExplanationAudioUrlForReview(q: ReviewQuestion): string | null {
     const media = String(q.mediaUrl || '').trim();
     if (media) return media;
-    const att = String((q as { attachmentUrl?: string }).attachmentUrl || '').trim();
+    const audioAtt = getQuestionAttachmentUrls(q).find((u) => this.getAttachmentType(u) === 'audio');
+    if (audioAtt) return audioAtt;
+    const att = getQuestionAttachmentUrls(q)[0];
     if (att) return att;
     return null;
   }
@@ -1987,7 +2046,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       if (this.bulkEditField === 'audio') {
         q.mediaUrl = this.bulkEditValue;
       } else if (this.bulkEditField === 'attachment') {
-        q.attachmentUrl = this.bulkEditValue;
+        setQuestionAttachmentUrls(q, this.bulkEditValue ? [this.bulkEditValue] : []);
       } else {
         q[this.bulkEditField] = this.bulkEditValue;
       }
@@ -2012,6 +2071,37 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.bulkAudioUploading = false;
         this.showError(err.error?.error || 'Audio upload failed');
+      }
+    });
+  }
+
+  triggerBulkAttachmentFile(): void {
+    if (this.selectedIndices.size === 0) return;
+    (this as any)._bulkAttachmentMode = true;
+    this.attachmentFileInput?.nativeElement?.click();
+  }
+
+  onBulkAttachmentFileSelected(file: File): void {
+    if (this.selectedIndices.size === 0) return;
+    this.bulkAttachmentUploading = true;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        this.bulkAttachmentUploading = false;
+        const canonicalUrl = canonicalizeStoredMediaUrl(res.canonicalUrl || res.url);
+        const attType = this.getAttachmentType(canonicalUrl);
+        for (const idx of this.selectedIndices) {
+          const q = this.reviewQuestions[idx];
+          if (!q) continue;
+          setQuestionAttachmentUrls(q, canonicalUrl ? [canonicalUrl] : []);
+          if (attType !== 'audio') {
+            q.attachmentAudioMaxPlaysPerAttempt = undefined;
+          }
+        }
+        this.showSuccess(`Attachment applied to ${this.selectedIndices.size} question(s).`);
+      },
+      error: (err: { error?: { error?: string } }) => {
+        this.bulkAttachmentUploading = false;
+        this.showError(err.error?.error || 'Upload failed');
       }
     });
   }
@@ -2085,20 +2175,19 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
     const dayTrim = this.courseDayStr.trim();
     if (dayTrim) {
       const p = parseInt(dayTrim, 10);
-      if (!Number.isFinite(p) || p < 1 || p > 200) {
-        this.saving = false;
-        this.showError('Course day must be empty or a number from 1 to 200');
+      if (!isValidAdminCourseDay(p)) {
+        this.showError('Course day must be empty or a number from 0 (Trial) to 200');
         return;
       }
       courseDay = p;
     }
 
-    this.saving = true;
     const extraTags = this.customTags
       .split(',')
       .map((t: string) => t.trim())
       .filter((t: string) => !!t);
-    const payload = {
+
+    const buildPayload = (vis: boolean) => ({
       title: this.exerciseTitle.trim(),
       description: this.exerciseDescription.trim(),
       targetLanguage: this.targetLanguage as 'German' | 'English',
@@ -2108,11 +2197,9 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       difficulty: this.difficulty,
       estimatedDuration: this.estimatedDuration,
       courseDay,
-      visibleToStudents: publish,
+      visibleToStudents: vis,
       questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
         const { expanded, aiGenerated, attachmentUploading, generatingExplanation, subQuestions, ...rest } = q;
-        
-        // Transform sub-questions if present
         let transformedSubQuestions: ExerciseQuestion[] | undefined;
         if (subQuestions && subQuestions.length > 0) {
           transformedSubQuestions = subQuestions.map((sq: any) => {
@@ -2123,28 +2210,147 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
             subRow.instruction = String(sq.instruction || '');
             subRow.example = String(sq.example || '');
             subRow.worksheetKind = sq.worksheetKind || null;
-            subRow.attachmentUrl = String(sq.attachmentUrl || '');
+            const subAttUrls = getQuestionAttachmentUrls(sq).map((u) => canonicalizeStoredMediaUrl(u));
+            setQuestionAttachmentUrls(subRow, subAttUrls);
             subRow.answerExplanation = String(sq.answerExplanation || '');
             subRow.similarityThreshold = sq.similarityThreshold ?? 70;
             subRow.scoringMode = sq.scoringMode || 'full';
             return subRow;
           });
         }
-        
+        const row: any = { ...rest };
+        const attUrls = getQuestionAttachmentUrls(q).map((u) => canonicalizeStoredMediaUrl(u));
+        setQuestionAttachmentUrls(row, attUrls);
         return {
-          ...rest,
-          ...(transformedSubQuestions && transformedSubQuestions.length > 0 
-            ? { subQuestions: transformedSubQuestions } 
+          ...row,
+          ...(transformedSubQuestions && transformedSubQuestions.length > 0
+            ? { subQuestions: transformedSubQuestions }
+            : {})
+        } as ExerciseQuestion;
+      }),
+      tags: ['ai-generated', 'pdf-import', ...extraTags]
+    });
+
+    // If a duplicate was already confirmed (user chose "Create New Anyway"), skip check.
+    if (this.duplicateCheckPending) {
+      this.duplicateCheckPending = false;
+      this._doCreate(buildPayload(publish), publish);
+      return;
+    }
+
+    // If courseDay is set, check for an existing exercise on that day with the same category.
+    if (courseDay !== null && !this.existingExerciseForDay) {
+      this.saving = true;
+      this.exerciseService.getExercisesForAdmin({ courseDay, category: this.category, limit: 1 } as any).subscribe({
+        next: (res: any) => {
+          const items: any[] = Array.isArray(res) ? res : (res?.exercises ?? res?.data ?? []);
+          const match = items.find((e: any) => e.courseDay === courseDay);
+          if (match) {
+            this.existingExerciseForDay = match;
+            this.saving = false;
+          } else {
+            this._doCreate(buildPayload(publish), publish);
+          }
+        },
+        error: () => {
+          this._doCreate(buildPayload(publish), publish);
+        }
+      });
+      return;
+    }
+
+    this._doCreate(buildPayload(publish), publish);
+  }
+
+  updateExistingExercise(publish: boolean): void {
+    if (!this.existingExerciseForDay) return;
+    let courseDay: number | null = null;
+    const dayTrim = this.courseDayStr.trim();
+    if (dayTrim) courseDay = parseInt(dayTrim, 10);
+
+    const extraTags = this.customTags
+      .split(',')
+      .map((t: string) => t.trim())
+      .filter((t: string) => !!t);
+
+    const payload: any = {
+      title: this.exerciseTitle.trim(),
+      description: this.exerciseDescription.trim(),
+      targetLanguage: this.targetLanguage as 'German' | 'English',
+      nativeLanguage: this.nativeLanguage as 'English' | 'Tamil' | 'Sinhala',
+      level: this.level as any,
+      category: this.category as any,
+      difficulty: this.difficulty,
+      estimatedDuration: this.estimatedDuration,
+      courseDay,
+      visibleToStudents: publish,
+      mediaClears: [],
+      questions: this.reviewQuestions.filter(q => this.isQuestionValid(q)).map(q => {
+        const { expanded, aiGenerated, attachmentUploading, generatingExplanation, subQuestions, ...rest } = q;
+        let transformedSubQuestions: ExerciseQuestion[] | undefined;
+        if (subQuestions && subQuestions.length > 0) {
+          transformedSubQuestions = subQuestions.map((sq: any) => {
+            const subRow: any = { ...sq };
+            subRow.type = sq.type;
+            subRow.points = sq.points || 1;
+            subRow.context = String(sq.context || '').trim();
+            subRow.instruction = String(sq.instruction || '');
+            subRow.example = String(sq.example || '');
+            subRow.worksheetKind = sq.worksheetKind || null;
+            const subAttUrls = getQuestionAttachmentUrls(sq).map((u) => canonicalizeStoredMediaUrl(u));
+            setQuestionAttachmentUrls(subRow, subAttUrls);
+            subRow.answerExplanation = String(sq.answerExplanation || '');
+            subRow.similarityThreshold = sq.similarityThreshold ?? 70;
+            subRow.scoringMode = sq.scoringMode || 'full';
+            return subRow;
+          });
+        }
+        const row: any = { ...rest };
+        const attUrls = getQuestionAttachmentUrls(q).map((u) => canonicalizeStoredMediaUrl(u));
+        setQuestionAttachmentUrls(row, attUrls);
+        return {
+          ...row,
+          ...(transformedSubQuestions && transformedSubQuestions.length > 0
+            ? { subQuestions: transformedSubQuestions }
             : {})
         } as ExerciseQuestion;
       }),
       tags: ['ai-generated', 'pdf-import', ...extraTags]
     };
 
+    this.saving = true;
+    this.exerciseService.updateExercise(this.existingExerciseForDay._id, payload).subscribe({
+      next: () => {
+        this.saving = false;
+        this.existingExerciseForDay = null;
+        if (this.uploadResult?.uploadId) {
+          this.exerciseService.cleanupPdf(this.uploadResult.uploadId).subscribe();
+        }
+        this.showSuccess(publish ? 'Exercise updated and published!' : 'Exercise updated as draft!');
+        setTimeout(() => this.router.navigate(['/admin/digital-exercises']), 1200);
+      },
+      error: (err) => {
+        this.saving = false;
+        this.showError(err.error?.error || 'Failed to update exercise.');
+      }
+    });
+  }
+
+  createNewAnyway(publish: boolean): void {
+    this.existingExerciseForDay = null;
+    this.duplicateCheckPending = true;
+    this.saveExercise(publish);
+  }
+
+  cancelDuplicateWarning(): void {
+    this.existingExerciseForDay = null;
+  }
+
+  private _doCreate(payload: any, publish: boolean): void {
+    this.saving = true;
     this.exerciseService.createExercise(payload).subscribe({
       next: () => {
         this.saving = false;
-        // Cleanup PDF
         if (this.uploadResult?.uploadId) {
           this.exerciseService.cleanupPdf(this.uploadResult.uploadId).subscribe();
         }
