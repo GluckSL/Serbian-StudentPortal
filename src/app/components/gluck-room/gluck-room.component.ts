@@ -117,6 +117,11 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     return this.mainParticipantName.split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase();
   }
 
+  get sidebarTitle(): string {
+    const titles = ['Camera Feeds', 'Participants', 'Breakout Rooms'];
+    return titles[this.sidebarTabIndex] || 'Camera Feeds';
+  }
+
   ngOnInit(): void {
     const user = this.auth.getSnapshotUser();
     this.userRole = user?.role || '';
@@ -1003,7 +1008,13 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     });
   }
 
-  onSidebarTabChange(index: number): void {
+  toggleSidebarView(index: number): void {
+    if (this.sidebarOpen && this.sidebarTabIndex === index) {
+      this.sidebarTabIndex = 0;
+      return;
+    }
+    this.sidebarOpen = true;
+    this.sidebarTabIndex = index;
     if (index === 2) {
       this.loadBreakouts();
     }

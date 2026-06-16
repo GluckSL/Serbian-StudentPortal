@@ -53,6 +53,12 @@
           <button mat-mini-fab *ngIf="!isStudent" [class.active]="isScreenSharing" (click)="toggleScreenShare()" class="ctrl-btn">
             <mat-icon>present_to_all</mat-icon>
           </button>
+          <button mat-mini-fab [class.active]="sidebarOpen && sidebarTabIndex === 1" (click)="toggleSidebarView(1)" class="ctrl-btn" matTooltip="Participants">
+            <mat-icon>people</mat-icon>
+          </button>
+          <button mat-mini-fab [class.active]="sidebarOpen && sidebarTabIndex === 2" (click)="toggleSidebarView(2)" class="ctrl-btn" matTooltip="Breakout Rooms">
+            <mat-icon>meeting_room</mat-icon>
+          </button>
           <button mat-mini-fab (click)="sidebarOpen = !sidebarOpen" class="ctrl-btn mobile-sidebar-toggle">
             <mat-icon>menu</mat-icon>
           </button>
@@ -73,8 +79,14 @@
       </div>
 
       <div class="sidebar" [class.open]="sidebarOpen">
-        <mat-tab-group [(selectedIndex)]="sidebarTabIndex" mat-stretch-tabs (selectedIndexChange)="onSidebarTabChange($event)">
-          <mat-tab label="Camera Feeds">
+        <div class="sidebar-header">
+          <span class="sidebar-title">{{ sidebarTitle }}</span>
+          <button mat-icon-button class="sidebar-close" (click)="sidebarOpen = false">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="sidebar-body" [ngSwitch]="sidebarTabIndex">
+          <ng-container *ngSwitchCase="0">
             <div class="camera-grid">
               <div class="tile" *ngFor="let p of topFiveParticipants">
                 <video #tileVideo autoplay playsinline muted class="tile-video" [class.hidden]="!p.hasVideo" [attr.data-participant]="p.identity"></video>
@@ -88,8 +100,8 @@
                 </div>
               </div>
             </div>
-          </mat-tab>
-          <mat-tab label="Participants">
+          </ng-container>
+          <ng-container *ngSwitchCase="1">
             <div class="list-header" *ngIf="canModerate">
               <div class="header-actions">
                 <button mat-stroked-button size="small" (click)="muteAll()">
@@ -123,10 +135,9 @@
                 </div>
               </div>
             </div>
-          </mat-tab>
-          <mat-tab label="Breakout Rooms">
+          </ng-container>
+          <ng-container *ngSwitchCase="2">
             <div class="breakout-content">
-              <!-- Create breakout form (host only, in main room) -->
               <div *ngIf="canModerate && !activeBreakoutId" class="breakout-create">
                 <button mat-stroked-button size="small" (click)="showCreateBreakoutForm = !showCreateBreakoutForm" class="breakout-create-btn">
                   <mat-icon [style.font-size.px]="16">meeting_room</mat-icon>
@@ -143,8 +154,6 @@
                   </button>
                 </div>
               </div>
-
-              <!-- In breakout state -->
               <div *ngIf="activeBreakoutId" class="breakout-active">
                 <div class="breakout-label">
                   <mat-icon [style.font-size.px]="16">group_work</mat-icon>
@@ -154,8 +163,6 @@
                   <mat-icon>meeting_room</mat-icon> Return to Main Room
                 </button>
               </div>
-
-              <!-- Breakout rooms list (host only) -->
               <div *ngIf="canModerate && !activeBreakoutId && breakouts.length > 0" class="breakout-list">
                 <div class="breakout-room" *ngFor="let b of breakouts">
                   <div class="breakout-room-header">
@@ -174,7 +181,6 @@
                       <mat-icon [style.font-size.px]="14">close</mat-icon> End
                     </button>
                   </div>
-                  <!-- Assign panel -->
                   <div *ngIf="showAssignPanel === b._id" class="assign-panel">
                     <div class="assign-list">
                       <div *ngFor="let p of allParticipants" class="assign-row" [class.selected]="isAssignChecked(p.identity)" (click)="toggleAssignParticipant(p.identity)">
@@ -190,15 +196,11 @@
                   </div>
                 </div>
               </div>
-
-              <!-- End All button (host) -->
               <div *ngIf="canModerate && breakouts.length > 1 && !activeBreakoutId" class="breakout-end-all">
                 <button mat-stroked-button color="warn" (click)="endAllBreakoutRooms()">
                   <mat-icon [style.font-size.px]="16">close_all</mat-icon> End All Breakouts
                 </button>
               </div>
-
-              <!-- Participant assigned view -->
               <div *ngIf="!canModerate && assignedBreakout && !activeBreakoutId" class="breakout-assigned">
                 <div class="breakout-label">
                   <mat-icon [style.font-size.px]="16">meeting_room</mat-icon>
@@ -209,15 +211,13 @@
                   {{ isConnectingBreakout ? 'Connecting...' : 'Join Breakout' }}
                 </button>
               </div>
-
-              <!-- No assignment (participant) -->
               <div *ngIf="!canModerate && !assignedBreakout && !activeBreakoutId" class="breakout-none">
                 <mat-icon [style.font-size.px]="24">meeting_room</mat-icon>
                 <p>No breakout assigned</p>
               </div>
             </div>
-          </mat-tab>
-        </mat-tab-group>
+          </ng-container>
+        </div>
       </div>
       <div class="sidebar-backdrop" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
 
