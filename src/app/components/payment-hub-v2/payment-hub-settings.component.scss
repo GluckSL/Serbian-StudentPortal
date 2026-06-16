@@ -262,3 +262,10 @@
 .ps-save-spinner {
   display: inline-flex;
 }
+
+@media (max-width: 600px) {
+  .ps-header { padding: 16px 14px 14px; }
+  .ps-title { font-size: 1.2rem; }
+  .ps-body { padding: 14px 8px 40px; }
+  .ps-card { padding: 14px 12px 16px; }
+}

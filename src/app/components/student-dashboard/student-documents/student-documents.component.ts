@@ -57,6 +57,8 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   loadingAgreements = false;
   uploadingAgreementId: string | null = null;
   @ViewChild('signedFileInput') signedFileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('reqFileInput') reqFileInput!: ElementRef<HTMLInputElement>;
+  private pendingRequirement: { req: DocumentRequirement; isReplace: boolean } | null = null;
   private readonly destroy$ = new Subject<void>();
   private readonly dashboardRefresh$ = new Subject<{ force?: boolean }>();
   private readonly agreementsRefresh$ = new Subject<{ force?: boolean }>();
@@ -461,43 +463,48 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   }
 
   uploadFromRequirementRow(requirement: DocumentRequirement, isReplace = false): void {
-    const picker = document.createElement('input');
-    picker.type = 'file';
-    picker.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
-    picker.onchange = async () => {
-      const file = picker.files && picker.files.length > 0 ? picker.files[0] : null;
-      if (!file) return;
+    this.pendingRequirement = { req: requirement, isReplace };
+    const input = this.reqFileInput.nativeElement;
+    input.value = '';
+    input.click();
+  }
 
-      const validationError = this.validateFile(file);
-      if (validationError) {
-        this.showError(validationError);
-        return;
+  async onReqFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    if (!file || !this.pendingRequirement) return;
+
+    const { req: requirement, isReplace } = this.pendingRequirement;
+    this.pendingRequirement = null;
+
+    const validationError = this.validateFile(file);
+    if (validationError) {
+      this.showError(validationError);
+      return;
+    }
+
+    this.uploadingRequirementType = requirement.type;
+    this.clearMessages();
+    try {
+      const latestDoc = this.getLatestDocumentForType(requirement.type);
+      const formData = new FormData();
+      formData.append('document', file);
+      formData.append('documentTypeId', requirement.id);
+      formData.append('documentType', requirement.type);
+      formData.append('documentName', latestDoc?.documentName || requirement.label);
+      formData.append('description', isReplace ? 'Re-uploaded by student as a replacement version' : '');
+
+      const response = await this.documentService.uploadDocument(formData).toPromise();
+      if (response?.success) {
+        this.showSuccess(isReplace ? 'Document replaced successfully' : 'Document uploaded successfully');
+        this.documentService.invalidateDashboardCache();
+        this.refreshDashboard(true);
       }
-
-      this.uploadingRequirementType = requirement.type;
-      this.clearMessages();
-      try {
-        const latestDoc = this.getLatestDocumentForType(requirement.type);
-        const formData = new FormData();
-        formData.append('document', file);
-        formData.append('documentTypeId', requirement.id);
-        formData.append('documentType', requirement.type);
-        formData.append('documentName', latestDoc?.documentName || requirement.label);
-        formData.append('description', isReplace ? 'Re-uploaded by student as a replacement version' : '');
-
-        const response = await this.documentService.uploadDocument(formData).toPromise();
-        if (response?.success) {
-          this.showSuccess(isReplace ? 'Document replaced successfully' : 'Document uploaded successfully');
-          this.documentService.invalidateDashboardCache();
-          this.refreshDashboard(true);
-        }
-      } catch (error: any) {
-        this.showError(error?.error?.message || 'Failed to upload document');
-      } finally {
-        this.uploadingRequirementType = null;
-      }
-    };
-    picker.click();
+    } catch (error: any) {
+      this.showError(error?.error?.message || 'Failed to upload document');
+    } finally {
+      this.uploadingRequirementType = null;
+    }
   }
 
   getRequirementStatusText(type: string): string {

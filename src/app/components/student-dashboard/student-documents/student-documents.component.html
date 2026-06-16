@@ -188,6 +188,8 @@
 
   <!-- Hidden file input for signed agreement uploads -->
   <input #signedFileInput type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" (change)="onSignedFileSelected($event)" />
+  <!-- Hidden file input for requirement row uploads -->
+  <input #reqFileInput type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="display:none" (change)="onReqFileSelected($event)" />
 
   <!-- Document Requirements Checklist -->
   <div class="requirements-section">

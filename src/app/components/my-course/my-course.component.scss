@@ -2483,8 +2483,8 @@
 
 .mc-journey-search:focus {
   outline: none;
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+  border-color: #03396c;
+  box-shadow: 0 0 0 2px rgba(3, 57, 108, 0.12);
 }
 
 .mc-journey-filter-wrap {
@@ -2516,8 +2516,8 @@
 
 .mc-journey-filter:focus-visible {
   outline: none;
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+  border-color: #03396c;
+  box-shadow: 0 0 0 2px rgba(3, 57, 108, 0.12);
 }
 
 .mc-journey-filter__arrow {
@@ -2803,14 +2803,14 @@
 /* Match Exercise Start button look */
 .mc-day-item__btn--start {
   padding: 8px 14px;
-  background: linear-gradient(135deg, #7c3aed 0%, #1565c0 100%);
+  background: linear-gradient(135deg, #011f4b 0%, #03396c 60%, #0a5298 100%);
   color: #fff;
   border: none;
-  box-shadow: 0 2px 10px rgba(21, 101, 192, 0.28);
+  box-shadow: 0 2px 10px rgba(1, 31, 75, 0.28);
 }
 
 .mc-day-item__btn--start:hover {
-  box-shadow: 0 4px 14px rgba(21, 101, 192, 0.38);
+  box-shadow: 0 4px 14px rgba(1, 31, 75, 0.4);
 }
 
 .mc-day-item__btn--retry,
@@ -3739,10 +3739,10 @@
   align-items: center;
   gap: 5px;
   padding: 5px 12px;
-  border: 1.5px solid #7c3aed;
+  border: 1.5px solid #03396c;
   border-radius: 999px;
   background: #fff;
-  color: #7c3aed;
+  color: #03396c;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -3755,7 +3755,7 @@
 
   &--active,
   &:hover {
-    background: #7c3aed;
+    background: #03396c;
     color: #fff;
   }
 }
@@ -3994,14 +3994,14 @@
   }
 
   &--btn {
-    background: #7c3aed;
+    background: #03396c;
     color: #fff;
     border: none;
     cursor: pointer;
     transition: background 0.15s;
 
     &:hover {
-      background: #6d28d9;
+      background: #011f4b;
     }
   }
 }
@@ -4092,7 +4092,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 10px;
-    background: #7c3aed;
+    background: #03396c;
     color: #fff;
     font-size: 22px;
     flex-shrink: 0;
@@ -4268,16 +4268,16 @@
     }
 
     &--confirm {
-      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+      background: linear-gradient(135deg, #03396c 0%, #011f4b 100%);
       color: #fff;
-      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+      box-shadow: 0 4px 14px rgba(3, 57, 108, 0.35);
 
       .material-icons {
         font-size: 18px;
       }
 
       &:hover:not(:disabled) {
-        background: linear-gradient(135deg, #6d28d9 0%, #5b21b6 100%);
+        background: linear-gradient(135deg, #011f4b 0%, #5b21b6 100%);
       }
 
       &:disabled {
@@ -4468,15 +4468,15 @@
   }
 
   &--request {
-    background: #7c3aed;
+    background: #03396c;
     color: #fff;
     border: none;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+    box-shadow: 0 2px 8px rgba(3, 57, 108, 0.3);
     transition: background 0.15s, transform 0.1s;
 
     &:hover {
-      background: #6d28d9;
+      background: #011f4b;
       transform: translateY(-1px);
     }
   }
