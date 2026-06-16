@@ -33,12 +33,6 @@ import {
 } from './payment-hub-batch-export.util';
 import { sumBatchPaymentRows } from './payment-hub-batch-totals.util';
 import {
-  deleteFinanceBatchPreset,
-  FinanceBatchPreset,
-  loadFinanceBatchPresets,
-  saveFinanceBatchPreset,
-} from './payment-hub-finance-batch-presets.util';
-import {
   FinanceCohort,
   financeCohortLabel,
   formatStudentStatusLabel,
@@ -94,7 +88,6 @@ function normBatchKey(name: string): string {
 export class PaymentHubFinanceDashboardComponent implements OnInit {
   loading = true;
   batchRows: BatchPaymentRow[] = [];
-  apiTotals: BatchPaymentSummaryTotals | null = null;
   filterLevel = '';
   tableSearch = '';
   batchInsight: BatchInsightFilter = '';
@@ -108,11 +101,11 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     { value: 'all_language', label: 'All language fees', group: 'summary' },
     { value: 'all_payment', label: 'All payment', group: 'summary' },
   ];
-  selectedBatches: string[] = [];
-  savedPresets: FinanceBatchPreset[] = [];
-  activePresetName = '';
-  presetNameInput = '';
-  showPresetSaveInput = false;
+  /** Shared across all admins — only these batches appear on the finance dashboard. */
+  visibleBatches: string[] = [];
+  batchesToAdd: string[] = [];
+  savingVisibleBatches = false;
+  triggeringReport: 'morning' | 'evening' | null = null;
   exporting = false;
   cohort: FinanceCohort = 'all';
   cohortStatus = '';
@@ -142,7 +135,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.savedPresets = loadFinanceBatchPresets();
+    this.loadVisibleBatches();
     this.route.queryParamMap.subscribe((params) => {
       const parsed = parseFinanceCohortQuery({
         cohort: params.get('cohort') ?? undefined,
@@ -151,6 +144,17 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       this.cohort = parsed.cohort;
       this.cohortStatus = parsed.status;
       this.load();
+    });
+  }
+
+  private loadVisibleBatches(): void {
+    this.api.getFinanceVisibleBatches().subscribe({
+      next: (res) => {
+        this.visibleBatches = [...(res.data?.visibleBatches || [])];
+      },
+      error: () => {
+        this.visibleBatches = [];
+      },
     });
   }
 
@@ -171,9 +175,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
 
   get pageSubtitle(): string {
     if (!this.hasCohortFilter) {
-      return 'Batch-wise payment overview — expected fees, received amounts, pending balances, and overdue totals.';
+      return 'Add batches to control what appears here for all admins and sub-admins. Payment totals and the table only include batches you add.';
     }
-    return `Payment breakdown for ${this.cardTotals.studentCount} student(s) across batches.`;
+    return `Payment breakdown for ${this.cardTotals.studentCount} student(s) across added batches.`;
   }
 
   get paymentSummaryTotals(): {
@@ -199,14 +203,12 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     this.api.getBatchPaymentSummary(params).subscribe({
       next: (summary) => {
         this.summaryRows = summary.data?.batches || [];
-        this.apiTotals = summary.data?.totals ?? null;
         this.applySummaryToView();
         this.loading = false;
         this.loadJourneyMeta();
       },
       error: () => {
         this.summaryRows = [];
-        this.apiTotals = null;
         this.batchRows = [];
         this.loading = false;
       },
@@ -319,7 +321,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     const rows = this.summaryRows.map((row) => this.rowFromSummary(row));
     rows.sort((a, b) => b.totalPaidLKR - a.totalPaidLKR || b.totalPaidINR - a.totalPaidINR);
     this.batchRows = rows;
-    this.pruneSelectedBatches();
+    this.pruneVisibleBatches();
   }
 
   private formatLevelSummary(counts: Map<string, number>): string {
@@ -345,18 +347,23 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     return this.batchRows.map((r) => r.batch).filter((b) => b && b !== '—');
   }
 
-  get hasBatchSelection(): boolean {
-    return this.selectedBatches.length > 0;
+  get hasVisibleBatches(): boolean {
+    return this.visibleBatches.length > 0;
   }
 
-  get filteredBatchRows(): BatchPaymentRow[] {
-    if (!this.selectedBatches.length) return this.batchRows;
-    const selected = new Set(this.selectedBatches);
-    return this.batchRows.filter((r) => selected.has(r.batch));
+  get availableBatchesToAdd(): string[] {
+    const visible = new Set(this.visibleBatches);
+    return this.batchOptions.filter((b) => !visible.has(b));
+  }
+
+  get rowsInDashboard(): BatchPaymentRow[] {
+    if (!this.visibleBatches.length) return [];
+    const visible = new Set(this.visibleBatches);
+    return this.batchRows.filter((r) => visible.has(r.batch));
   }
 
   get displayBatchRows(): BatchPaymentRow[] {
-    let rows = this.filteredBatchRows;
+    let rows = this.rowsInDashboard;
 
     if (this.batchInsight) {
       rows = rows.filter((r) => this.batchMatchesInsight(r, this.batchInsight));
@@ -389,11 +396,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     }
   }
 
-  /** Summary numbers for top cards — reflects level + batch selection, not insight/search. */
+  /** Summary numbers for top cards — only configured visible batches. */
   get cardTotals(): BatchPaymentSummaryTotals {
-    if (this.hasBatchSelection) return sumBatchPaymentRows(this.filteredBatchRows);
-    if (this.apiTotals) return this.apiTotals;
-    return sumBatchPaymentRows(this.batchRows);
+    return sumBatchPaymentRows(this.rowsInDashboard);
   }
 
   get totals(): BatchPaymentSummaryTotals {
@@ -444,7 +449,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   private rowsForCardTotals(): BatchPaymentRow[] {
-    return this.hasBatchSelection ? this.filteredBatchRows : this.batchRows;
+    return this.rowsInDashboard;
   }
 
   private scopedMoneyAggregate(): {
@@ -759,90 +764,40 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   applyLevelFilter(): void {
-    this.pruneSelectedBatches();
+    this.pruneVisibleBatches();
     this.load();
   }
 
-  onBatchSelectionChange(): void {
-    this.activePresetName = '';
-    this.pruneSelectedBatches();
+  addBatchesToDashboard(): void {
+    if (!this.batchesToAdd.length || this.savingVisibleBatches) return;
+    const next = [...new Set([...this.visibleBatches, ...this.batchesToAdd])];
+    this.persistVisibleBatches(next, `Added ${this.batchesToAdd.length} batch(es) to the dashboard.`);
+    this.batchesToAdd = [];
   }
 
-  clearBatchSelection(): void {
-    this.selectedBatches = [];
-    this.activePresetName = '';
-    this.presetNameInput = '';
-    this.showPresetSaveInput = false;
+  removeVisibleBatch(batch: string): void {
+    if (this.savingVisibleBatches) return;
+    const next = this.visibleBatches.filter((b) => b !== batch);
+    this.persistVisibleBatches(next, `Removed "${batch}" from the dashboard.`);
   }
 
-  openSavePreset(): void {
-    if (!this.selectedBatches.length) {
-      this.snack.open('Select at least one batch to save.', 'Dismiss', { duration: 3500 });
-      return;
-    }
-    this.showPresetSaveInput = true;
-    this.presetNameInput = this.activePresetName || '';
+  private persistVisibleBatches(batches: string[], successMessage: string): void {
+    this.savingVisibleBatches = true;
+    this.api.updateFinanceVisibleBatches(batches).subscribe({
+      next: (res) => {
+        this.savingVisibleBatches = false;
+        this.visibleBatches = [...(res.data?.visibleBatches || batches)];
+        this.snack.open(successMessage, 'OK', { duration: 3500 });
+      },
+      error: (err) => {
+        this.savingVisibleBatches = false;
+        this.snack.open(err?.error?.message || 'Could not update dashboard batches.', 'Dismiss', { duration: 4500 });
+      },
+    });
   }
 
-  cancelSavePreset(): void {
-    this.showPresetSaveInput = false;
-    this.presetNameInput = '';
-  }
-
-  confirmSavePreset(): void {
-    const name = this.presetNameInput.trim();
-    if (!name) {
-      this.snack.open('Enter a name for this batch view.', 'Dismiss', { duration: 3500 });
-      return;
-    }
-    if (!this.selectedBatches.length) {
-      this.snack.open('Select at least one batch to save.', 'Dismiss', { duration: 3500 });
-      return;
-    }
-    this.savedPresets = saveFinanceBatchPreset(name, this.selectedBatches);
-    this.activePresetName = name;
-    this.showPresetSaveInput = false;
-    this.snack.open(`Saved "${name}" (${this.selectedBatches.length} batches)`, 'OK', { duration: 4000 });
-  }
-
-  applySavedPreset(name: string): void {
-    if (!name) {
-      this.activePresetName = '';
-      return;
-    }
-    const preset = this.savedPresets.find((p) => p.name === name);
-    if (!preset) {
-      this.activePresetName = '';
-      return;
-    }
-    this.activePresetName = name;
-    this.selectedBatches = this.batchOptions.filter((b) => preset.batches.includes(b));
-    if (!this.selectedBatches.length) {
-      this.snack.open(`Preset "${name}" has no matching batches in the current data.`, 'Dismiss', {
-        duration: 4500,
-      });
-    }
-  }
-
-  deleteActivePreset(): void {
-    if (!this.activePresetName) return;
-    const name = this.activePresetName;
-    this.savedPresets = deleteFinanceBatchPreset(name);
-    this.activePresetName = '';
-    this.snack.open(`Deleted preset "${name}"`, 'OK', { duration: 3500 });
-  }
-
-  private pruneSelectedBatches(): void {
-    const available = new Set(this.batchOptions);
-    this.selectedBatches = this.selectedBatches.filter((b) => available.has(b));
-    if (this.activePresetName) {
-      const preset = this.savedPresets.find((p) => p.name === this.activePresetName);
-      if (!preset) {
-        this.activePresetName = '';
-        return;
-      }
-      this.selectedBatches = this.batchOptions.filter((b) => preset.batches.includes(b));
-    }
+  private pruneVisibleBatches(): void {
+    this.batchesToAdd = this.batchesToAdd.filter((b) => this.availableBatchesToAdd.includes(b));
   }
 
   private rowsForExport(rows: BatchPaymentRow[]): BatchPaymentRow[] {
@@ -866,23 +821,33 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     });
   }
 
-  exportBatches(format: 'xlsx' | 'csv', scope: 'all' | 'selected' | 'visible'): void {
+  triggerEmailReport(type: 'morning' | 'evening'): void {
+    if (this.triggeringReport) return;
+    this.triggeringReport = type;
+    this.api.triggerFinanceReport(type).subscribe({
+      next: () => {
+        this.triggeringReport = null;
+        const label = type === 'morning' ? '10 AM morning' : '6 PM evening';
+        this.snack.open(`✅ ${label} report sent to finance team!`, 'OK', { duration: 5000 });
+      },
+      error: (err) => {
+        this.triggeringReport = null;
+        const msg = err?.error?.message || err?.message || 'Failed to send report.';
+        this.snack.open(`Report failed: ${msg}`, 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  exportBatches(format: 'xlsx' | 'csv', scope: 'all' | 'visible'): void {
     if (this.exporting) return;
     let rows: BatchPaymentRow[];
-    if (scope === 'selected') {
-      if (!this.selectedBatches.length) {
-        this.snack.open('Select at least one batch to export.', 'Dismiss', { duration: 3500 });
-        return;
-      }
-      const selected = new Set(this.selectedBatches);
-      rows = this.batchRows.filter((r) => selected.has(r.batch));
-    } else if (scope === 'visible') {
+    if (scope === 'visible') {
       rows = this.displayBatchRows;
     } else {
-      rows = this.batchRows;
+      rows = this.rowsInDashboard;
     }
     if (!rows.length) {
-      this.snack.open('No batches to export.', 'Dismiss', { duration: 3500 });
+      this.snack.open('No batches to export. Add batches to the dashboard first.', 'Dismiss', { duration: 3500 });
       return;
     }
     rows = this.rowsForExport(rows);
@@ -891,7 +856,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       batchType: (t: 'new' | 'old') => this.batchTypeLabel(t),
     };
     const date = new Date().toISOString().slice(0, 10);
-    const slug = [this.filterLevel, this.activePresetName].filter(Boolean).join('-') || 'all';
+    const slug = [this.filterLevel, this.cohort, this.cohortStatus].filter(Boolean).join('-') || 'dashboard';
     const base = `finance-dashboard-${scope}-${slug}-${date}`;
     if (format === 'xlsx') {
       downloadBatchInsightsXlsx(base, rows, formatters);

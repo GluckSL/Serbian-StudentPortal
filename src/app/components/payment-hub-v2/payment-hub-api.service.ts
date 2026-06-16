@@ -580,6 +580,32 @@ export class PaymentHubApiService {
     );
   }
 
+  getFinanceVisibleBatches(): Observable<{
+    success: boolean;
+    data: { visibleBatches: string[]; updatedAt?: string | null };
+  }> {
+    return this.http.get<{ success: boolean; data: { visibleBatches: string[]; updatedAt?: string | null } }>(
+      `${this.base}/finance-dashboard/visible-batches`,
+    );
+  }
+
+  updateFinanceVisibleBatches(batches: string[]): Observable<{
+    success: boolean;
+    data: { visibleBatches: string[]; updatedAt?: string | null };
+  }> {
+    return this.http.put<{ success: boolean; data: { visibleBatches: string[]; updatedAt?: string | null } }>(
+      `${this.base}/finance-dashboard/visible-batches`,
+      { batches },
+    );
+  }
+
+  triggerFinanceReport(type: 'morning' | 'evening'): Observable<{ success: boolean; message: string }> {
+    return this.http.post<{ success: boolean; message: string }>(
+      `${this.base}/finance-dashboard/trigger-report/${type}`,
+      {},
+    );
+  }
+
   getBatchStudentsPaymentDetail(batch: string): Observable<{ success: boolean; data: BatchStudentsPaymentDetail }> {
     const encoded = encodeURIComponent(batch);
     return this.http.get<{ success: boolean; data: BatchStudentsPaymentDetail }>(

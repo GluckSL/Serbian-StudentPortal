@@ -6,6 +6,7 @@ const router = require('./routes/index');
 const overdueCron = require('./helpers/overdueCron');
 const journeyDueCron = require('./helpers/journeyDueCron');
 const errorHandler = require('./middlewares/errorHandler');
+const { scheduleFinanceDailyReports } = require('./services/financeReportEmailService');
 
 const registerPaymentModule = (app, { authMiddleware, prefix = '/api/new-payments', enableCron = false } = {}) => {
   if (authMiddleware) {
@@ -20,6 +21,9 @@ const registerPaymentModule = (app, { authMiddleware, prefix = '/api/new-payment
     overdueCron.start();
     journeyDueCron.start();
   }
+
+  // Finance daily email reports are always scheduled (independent of enableCron flag)
+  scheduleFinanceDailyReports();
 
   console.log(`[PaymentHub v2] Registered at ${prefix}`);
 };
