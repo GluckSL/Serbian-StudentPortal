@@ -365,7 +365,7 @@ export class ZoomService {
     }
     const request$ = this.http.get(url, { withCredentials: true }).pipe(
       tap({ error: () => this.studentMeetingsCache.delete(cacheKey) }),
-      shareReplay({ bufferSize: 1, refCount: false })
+      shareReplay({ bufferSize: 1, refCount: true })
     );
     this.studentMeetingsCache.set(cacheKey, { timestamp: now, request$ });
     return request$;

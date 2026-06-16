@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import type {
   SprechenExamModuleSummary,
@@ -17,18 +18,41 @@ import type {
 export class SprechenApiService {
   private readonly base = `${environment.apiUrl}/sprechen`;
   private readonly httpOpts = { withCredentials: true as const };
+  private readonly studentModulesCache = new Map<string, Observable<SprechenModuleListResponse>>();
 
   constructor(private http: HttpClient) {}
 
   // ── Module ─────────────────────────────────────────────────────────────────
 
+  invalidateStudentModulesCache(): void {
+    this.studentModulesCache.clear();
+  }
+
+  refreshStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<SprechenModuleListResponse> {
+    this.studentModulesCache.delete(this.studentModulesCacheKey(opts));
+    return this.listStudentModules(opts);
+  }
+
   listStudentModules(opts: { gluckExamOnly?: boolean } = {}): Observable<SprechenModuleListResponse> {
+    const cacheKey = this.studentModulesCacheKey(opts);
+    const cached = this.studentModulesCache.get(cacheKey);
+    if (cached) return cached;
+
     let params = new HttpParams();
     if (opts.gluckExamOnly) params = params.set('gluckExamOnly', 'true');
-    return this.http.get<SprechenModuleListResponse>(
+    const request$ = this.http.get<SprechenModuleListResponse>(
       `${this.base}/modules/student`,
       { ...this.httpOpts, params },
+    ).pipe(
+      tap({ error: () => this.studentModulesCache.delete(cacheKey) }),
+      shareReplay({ bufferSize: 1, refCount: true }),
     );
+    this.studentModulesCache.set(cacheKey, request$);
+    return request$;
+  }
+
+  private studentModulesCacheKey(opts: { gluckExamOnly?: boolean } = {}): string {
+    return opts.gluckExamOnly ? 'gluckExamOnly=true' : 'default';
   }
 
   listAdminModules(): Observable<{ modules: SprechenExamModuleSummary[] }> {
@@ -40,11 +64,15 @@ export class SprechenApiService {
   }
 
   createModule(payload: Partial<SprechenExamModuleSummary>): Observable<SprechenExamModuleSummary> {
-    return this.http.post<SprechenExamModuleSummary>(`${this.base}/modules`, payload, this.httpOpts);
+    return this.http.post<SprechenExamModuleSummary>(`${this.base}/modules`, payload, this.httpOpts).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
   }
 
   updateModule(id: string, payload: Partial<SprechenExamModuleSummary>): Observable<SprechenExamModuleSummary> {
-    return this.http.put<SprechenExamModuleSummary>(`${this.base}/modules/${id}`, payload, this.httpOpts);
+    return this.http.put<SprechenExamModuleSummary>(`${this.base}/modules/${id}`, payload, this.httpOpts).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
   }
 
   /** Updates basic fields only (no Teil 1–3) — use for journey day / description saves. */
@@ -56,6 +84,8 @@ export class SprechenApiService {
       `${this.base}/modules/${id}/metadata`,
       payload,
       this.httpOpts,
+    ).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
     );
   }
 
@@ -64,11 +94,15 @@ export class SprechenApiService {
       `${this.base}/modules/${id}/visibility`,
       { visibleToStudents: visible },
       this.httpOpts,
+    ).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
     );
   }
 
   deleteModule(id: string): Observable<{ ok: boolean }> {
-    return this.http.delete<{ ok: boolean }>(`${this.base}/modules/${id}`, this.httpOpts);
+    return this.http.delete<{ ok: boolean }>(`${this.base}/modules/${id}`, this.httpOpts).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
   }
 
   seedPlaceholder(): Observable<SprechenExamModuleSummary> {
@@ -76,6 +110,8 @@ export class SprechenApiService {
       `${this.base}/modules/seed-placeholder`,
       {},
       this.httpOpts,
+    ).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
     );
   }
 
@@ -84,6 +120,8 @@ export class SprechenApiService {
       `${this.base}/modules/seed-a2-model`,
       {},
       this.httpOpts,
+    ).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
     );
   }
 
@@ -137,6 +175,8 @@ export class SprechenApiService {
     return this.http.post<{ scores: SprechenScores; completed: boolean }>(
       `${this.base}/session/${sessionId}/complete`,
       {},
+    ).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
     );
   }
 
