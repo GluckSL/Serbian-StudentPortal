@@ -7,7 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
-import { GoRecordingResourceService } from '../../../services/go-recording-resource.service';
+import { GoRecordingResourceService, GoRecordingResourceType } from '../../../services/go-recording-resource.service';
 
 interface TimelineDay {
   day: number;
@@ -916,7 +916,12 @@ export class GoStudentsJourneyComponent implements OnInit {
   pickerModules: PickerItem[] = [];
 
   showResourceModal = false;
-  resourceRecording: { _id: string; title: string } | null = null;
+  resourceRecording: {
+    _id: string;
+    title: string;
+    resourceType: GoRecordingResourceType;
+    resourceId: string;
+  } | null = null;
   recordingResources: any[] = [];
   loadingResources = false;
   uploadingFiles = false;
@@ -1461,9 +1466,27 @@ export class GoStudentsJourneyComponent implements OnInit {
 
   openRecordingResources(rec: { _id: string; title: string }, event?: Event): void {
     event?.stopPropagation();
-    this.resourceRecording = rec;
+    this.resourceRecording = this.resolveRecordingResourceRef(rec);
     this.showResourceModal = true;
-    this.loadRecordingResources(rec._id);
+    this.loadRecordingResources();
+  }
+
+  private resolveRecordingResourceRef(rec: { _id: string; title: string }) {
+    const id = String(rec._id || '');
+    if (id.startsWith('zoom-')) {
+      return {
+        _id: id,
+        title: rec.title,
+        resourceType: 'zoom' as GoRecordingResourceType,
+        resourceId: id.slice(5)
+      };
+    }
+    return {
+      _id: id,
+      title: rec.title,
+      resourceType: 'manual' as GoRecordingResourceType,
+      resourceId: id
+    };
   }
 
   closeResourceModal(): void {
@@ -1472,16 +1495,19 @@ export class GoStudentsJourneyComponent implements OnInit {
     this.recordingResources = [];
   }
 
-  private loadRecordingResources(recordingId: string): void {
+  private loadRecordingResources(): void {
+    if (!this.resourceRecording) return;
+    const { resourceType, resourceId } = this.resourceRecording;
     this.loadingResources = true;
-    this.goResourceService.list('manual', recordingId).subscribe({
+    this.goResourceService.list(resourceType, resourceId).subscribe({
       next: (res) => {
         this.recordingResources = res.data || [];
         this.loadingResources = false;
       },
-      error: () => {
+      error: (err) => {
         this.recordingResources = [];
         this.loadingResources = false;
+        this.notify.error(err?.error?.message || 'Failed to load resources.');
       }
     });
   }
@@ -1491,12 +1517,13 @@ export class GoStudentsJourneyComponent implements OnInit {
     if (!input.files?.length || !this.resourceRecording) return;
     const files = Array.from(input.files);
     this.uploadingFiles = true;
-    this.goResourceService.upload('manual', this.resourceRecording._id, files).subscribe({
+    const { resourceType, resourceId } = this.resourceRecording;
+    this.goResourceService.upload(resourceType, resourceId, files).subscribe({
       next: (res) => {
         this.uploadingFiles = false;
         const n = Array.isArray(res?.data) ? res.data.length : files.length;
         this.notify.success(n === 1 ? 'File uploaded.' : `${n} files uploaded.`);
-        this.loadRecordingResources(this.resourceRecording!._id);
+        this.loadRecordingResources();
         input.value = '';
       },
       error: (err) => {
