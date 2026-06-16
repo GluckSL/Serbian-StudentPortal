@@ -4,7 +4,7 @@ import { RouterOutlet } from '@angular/router';
 import { HeaderComponent } from "./components/header/header.component";
 import { FooterComponent } from "./components/footer/footer.component";
 import { SidebarComponent } from "./shared/sidebar/sidebar.component";
-import { CommonModule } from '@angular/common'; 
+import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 import { AuthService } from './services/auth.service';
 import { SupportFabComponent } from './components/support-fab/support-fab.component';
@@ -13,7 +13,7 @@ import { PortalTrackingService } from './services/portal-tracking.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, HeaderComponent, FooterComponent, SidebarComponent, RouterModule, CommonModule, SupportFabComponent],
+  imports: [RouterOutlet, FooterComponent, SidebarComponent, RouterModule, CommonModule, SupportFabComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
@@ -27,6 +27,8 @@ export class AppComponent implements OnInit, OnDestroy {
   isLoginRoute = false;
   /** Marketing home includes its own footer — hide global app-footer */
   isHomeRoute = false;
+  /** Gluck Room full-screen: no sidebar, header, or footer */
+  isGluckRoom = false;
 
   constructor(
     private router: Router,

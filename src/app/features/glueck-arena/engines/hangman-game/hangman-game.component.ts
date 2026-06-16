@@ -222,7 +222,8 @@ export class HangmanGameComponent implements OnInit, OnDestroy {
   sessionElapsedSeconds = 0;
 
   guessedLetters = new Set<string>();
-  remainingLives = TOTAL_LIVES;private startTime = Date.now();
+  remainingLives = TOTAL_LIVES;
+  private startTime = Date.now();
   private correctWord = '';
   private sessionTimerHandle: ReturnType<typeof setInterval> | null = null;
   private feedbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -264,6 +265,9 @@ export class HangmanGameComponent implements OnInit, OnDestroy {
     const set = new Set<string>();
     for (const ch of this.correctWord) {
       if (this.guessedLetters.has(ch)) set.add(ch);
+    }
+    if (this.guessedLetters.has('ß') && this.correctWord.includes('SS')) {
+      set.add('ß');
     }
     return set;
   }
@@ -312,7 +316,7 @@ export class HangmanGameComponent implements OnInit, OnDestroy {
     this.clearFeedbackTimer();
     const q = this.currentQuestion;
     if (!q) return;
-    this.correctWord = (q.word || '').toUpperCase();
+    this.correctWord = (q.word || '').toUpperCase().replace(/\u1e9e/g, 'ß');
   }
 
   onPause() {}
@@ -322,7 +326,15 @@ export class HangmanGameComponent implements OnInit, OnDestroy {
     if (this.guessedLetters.has(letter) || this.wordComplete || this.gameOver) return;
     this.guessedLetters.add(letter);
 
-    if (this.correctWord.includes(letter)) {
+    let isCorrect = this.correctWord.includes(letter);
+    if (letter === 'ß' && !isCorrect) {
+      isCorrect = this.correctWord.includes('SS');
+    }
+    if (letter === 'ß' && this.correctWord.includes('SS')) {
+      this.guessedLetters.add('S');
+    }
+
+    if (isCorrect) {
       this.audio.playCorrect();
       if (this.wordComplete) {
         this.feedbackTimer = setTimeout(() => this.submitWord(), 500);

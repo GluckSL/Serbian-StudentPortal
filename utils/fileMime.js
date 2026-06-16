@@ -47,6 +47,9 @@ function resolveContentType(originalName, mimeType) {
 
   if (!stored) return fromExt || 'application/octet-stream';
 
+  // Prefer extension-based type when available — filename is the user's source of truth
+  if (fromExt) return fromExt;
+
   // Wrong types that cause browsers to render Office/ZIP internals as XML.
   if (
     stored === 'application/xml' ||
@@ -54,11 +57,11 @@ function resolveContentType(originalName, mimeType) {
     stored === 'application/x-zip-compressed' ||
     stored === 'application/x-zip'
   ) {
-    return fromExt || stored;
+    return stored;
   }
 
   if (stored === 'application/octet-stream' || stored === 'binary/octet-stream') {
-    return fromExt || stored;
+    return stored;
   }
 
   return stored;

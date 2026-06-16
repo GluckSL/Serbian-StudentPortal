@@ -3,11 +3,12 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3Client = require('../config/s3');
 const ClassResource = require('../models/ClassResource');
 const MeetingLink = require('../models/MeetingLink');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const { presignStoredS3Url, presignS3DownloadUrl, presignS3InlineUrl } = require('../config/presign');
 const { resolveContentType, isBrowserPreviewable } = require('../utils/fileMime');
 
@@ -85,7 +86,7 @@ router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_AD
 });
 
 // GET /download/:resourceId — presigned URL with Content-Disposition: attachment (real download, no CORS fetch)
-router.get('/download/:resourceId', verifyToken, async (req, res) => {
+router.get('/download/:resourceId', verifyMediaToken, async (req, res) => {
   try {
     const { resourceId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(resourceId)) {
@@ -94,16 +95,22 @@ router.get('/download/:resourceId', verifyToken, async (req, res) => {
     const resource = await ClassResource.findById(resourceId).lean();
     if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
 
-    const url = await presignS3DownloadUrl(
-      resource.fileName,
-      resource.fileUrl,
-      resource.originalName,
-      resource.mimeType
-    );
-    if (!url) {
+    const contentType = resolveContentType(resource.originalName, resource.mimeType);
+    const filename = String(resource.originalName || 'download').replace(/["\r\n]/g, '_');
+
+    const objectKey = String(resource.fileName).replace(/^\//, '').trim();
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: objectKey,
+      ResponseContentDisposition: `attachment; filename="${filename}"`,
+      ResponseContentType: contentType,
+    });
+
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 60 * 5 });
+    if (!signedUrl) {
       return res.status(500).json({ success: false, message: 'Could not build download URL' });
     }
-    res.json({ success: true, url });
+    res.redirect(signedUrl);
   } catch (err) {
     console.error('classResources GET /download/:resourceId', err);
     res.status(500).json({ success: false, message: 'Download link failed', error: err.message });

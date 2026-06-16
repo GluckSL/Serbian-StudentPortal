@@ -1434,6 +1434,10 @@ $hold-color: #d97706;
   flex-wrap: wrap;
 }
 
+.kd-export-btn {
+  white-space: nowrap;
+}
+
 .kd-tab-filters {
   grid-column: 1 / -1;
   background: $bg-card;

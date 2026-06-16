@@ -8,6 +8,7 @@ const BatchConfig = require('../models/BatchConfig');
 const DigitalExercise = require('../models/DigitalExercise');
 const MeetingLink = require('../models/MeetingLink');
 const ClassRecording = require('../models/ClassRecording');
+const ZoomRecording = require('../models/ZoomRecording');
 const TimeTable = require('../models/TimeTable');
 const Reminder = require('../models/Reminder');
 const Announcement = require('../models/Announcement');
@@ -628,7 +629,7 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     // IMPORTANT: classes must be filtered by the requested batch, otherwise teachers can see other batches.
     const batchRegex = new RegExp(`^${escapeRegExp(batchName)}$`, 'i');
     const dayStart = journeyDayRangeStart(!!cfg.trialDayEnabled);
-    const [exercises, classes, recordings] = await Promise.all([
+    const [exercises, classes, recordings, zoomRecordings] = await Promise.all([
       DigitalExercise.find({ isDeleted: { $ne: true }, courseDay: { $gte: dayStart, $lte: length } })
         .select('title category level courseDay').sort({ courseDay: 1 }).lean(),
       MeetingLink.find({ batch: batchRegex, courseDay: { $gte: dayStart, $lte: length }, status: { $ne: 'cancelled' } })
@@ -638,7 +639,17 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         courseDay: { $gte: dayStart, $lte: length },
         batches: batchRegex
       })
-        .select('title level plan courseDay batches isPublished').sort({ courseDay: 1 }).lean()
+        .select('title level plan courseDay batches isPublished').sort({ courseDay: 1 }).lean(),
+      ZoomRecording.find({
+        status: 'ready',
+        accessBatches: batchRegex,
+        $or: [
+          { r2Key: { $exists: true, $nin: [null, ''] } },
+          { hlsKey: { $exists: true, $nin: [null, ''] } }
+        ]
+      })
+        .select('meetingLinkId accessLevel accessPlan isPublished')
+        .lean()
     ]);
 
     const timeline = {};
@@ -663,6 +674,31 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         });
       }
     });
+
+    if (zoomRecordings.length) {
+      const zoomMeetingIds = zoomRecordings.map((z) => z.meetingLinkId).filter(Boolean);
+      const zoomMeetings = await MeetingLink.find({
+        _id: { $in: zoomMeetingIds },
+        courseDay: { $gte: dayStart, $lte: length }
+      })
+        .select('topic courseDay')
+        .lean();
+      const zoomByMeetingId = new Map(
+        zoomRecordings.map((z) => [String(z.meetingLinkId), z])
+      );
+      zoomMeetings.forEach((meeting) => {
+        const zoom = zoomByMeetingId.get(String(meeting._id));
+        if (!zoom || meeting.courseDay == null || !timeline[meeting.courseDay]) return;
+        timeline[meeting.courseDay].recordings.push({
+          _id: `zoom-${meeting._id}`,
+          title: meeting.topic || 'Zoom Class Recording',
+          level: zoom.accessLevel || '',
+          plan: zoom.accessPlan || 'ALL',
+          courseDay: meeting.courseDay,
+          isPublished: zoom.isPublished !== false
+        });
+      });
+    }
 
     const days = Object.values(timeline).filter(
       d => d.day <= length && (d.exercises.length || d.classes.length || d.recordings.length || d.day === activeBatchDay)

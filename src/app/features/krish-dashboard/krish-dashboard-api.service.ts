@@ -111,4 +111,13 @@ export class KrishDashboardApiService {
   getExportUrl(filters: Partial<KrishDashboardFilters>, format: 'csv' | 'xlsx'): string {
     return `${BASE}/export?${this.buildFilterParams(filters).set('format', format).toString()}`;
   }
+
+  exportStudents(filters: Partial<KrishDashboardFilters>, format: 'csv' | 'xlsx'): Observable<Blob> {
+    const params = this.buildFilterParams(filters).set('format', format);
+    return this.http.get(`${BASE}/export`, {
+      params,
+      withCredentials: true,
+      responseType: 'blob',
+    });
+  }
 }

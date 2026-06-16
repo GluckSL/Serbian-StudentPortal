@@ -3,14 +3,15 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3Client = require('../config/s3');
 const GoRecordingResource = require('../models/GoRecordingResource');
 const ClassRecording = require('../models/ClassRecording');
 const MeetingLink = require('../models/MeetingLink');
 const ZoomRecording = require('../models/ZoomRecording');
 const User = require('../models/User');
-const { verifyToken, checkRole } = require('../middleware/auth');
+const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
 const { presignStoredS3Url, presignS3DownloadUrl, presignS3InlineUrl } = require('../config/presign');
 const { resolveContentType, isBrowserPreviewable } = require('../utils/fileMime');
 const {
@@ -173,37 +174,8 @@ router.post(
   }
 );
 
-// GET /:recordingType/:recordingId
-router.get('/:recordingType/:recordingId', verifyToken, async (req, res) => {
-  try {
-    const recordingType = String(req.params.recordingType || '').toLowerCase();
-    const recordingId = req.params.recordingId;
-    if (!['manual', 'zoom'].includes(recordingType)) {
-      return res.status(400).json({ success: false, message: 'Invalid recording type' });
-    }
-
-    const student = await loadStudent(req);
-    const staff = isStaff(req.user?.role);
-    const access = await assertRecordingAccess(recordingType, recordingId, student, staff);
-    if (!access.ok) {
-      return res.status(access.status || 403).json({ success: false, message: access.message });
-    }
-
-    const resources = await GoRecordingResource.find(listFilter(recordingType, recordingId))
-      .populate('uploadedBy', 'name')
-      .sort({ uploadedAt: -1 })
-      .lean();
-
-    await presignResourceRows(resources);
-    res.json({ success: true, data: resources });
-  } catch (err) {
-    console.error('goRecordingResources list error:', err);
-    res.status(500).json({ success: false, message: 'Failed to fetch resources', error: err.message });
-  }
-});
-
 // GET /download/:resourceId
-router.get('/download/:resourceId', verifyToken, async (req, res) => {
+router.get('/download/:resourceId', verifyMediaToken, async (req, res) => {
   try {
     const { resourceId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(resourceId)) {
@@ -223,16 +195,22 @@ router.get('/download/:resourceId', verifyToken, async (req, res) => {
       return res.status(access.status || 403).json({ success: false, message: access.message });
     }
 
-    const url = await presignS3DownloadUrl(
-      resource.fileName,
-      resource.fileUrl,
-      resource.originalName,
-      resource.mimeType
-    );
-    if (!url) {
+    const contentType = resolveContentType(resource.originalName, resource.mimeType);
+    const filename = String(resource.originalName || 'download').replace(/["\r\n]/g, '_');
+
+    const objectKey = String(resource.fileName).replace(/^\//, '').trim();
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: objectKey,
+      ResponseContentDisposition: `attachment; filename="${filename}"`,
+      ResponseContentType: contentType,
+    });
+
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 60 * 5 });
+    if (!signedUrl) {
       return res.status(500).json({ success: false, message: 'Could not build download URL' });
     }
-    res.json({ success: true, url });
+    res.redirect(signedUrl);
   } catch (err) {
     console.error('goRecordingResources download error:', err);
     res.status(500).json({ success: false, message: 'Download link failed', error: err.message });
@@ -282,6 +260,35 @@ router.get('/view/:resourceId', verifyToken, async (req, res) => {
   } catch (err) {
     console.error('goRecordingResources view error:', err);
     res.status(500).json({ success: false, message: 'View link failed', error: err.message });
+  }
+});
+
+// GET /:recordingType/:recordingId
+router.get('/:recordingType/:recordingId', verifyToken, async (req, res) => {
+  try {
+    const recordingType = String(req.params.recordingType || '').toLowerCase();
+    const recordingId = req.params.recordingId;
+    if (!['manual', 'zoom'].includes(recordingType)) {
+      return res.status(400).json({ success: false, message: 'Invalid recording type' });
+    }
+
+    const student = await loadStudent(req);
+    const staff = isStaff(req.user?.role);
+    const access = await assertRecordingAccess(recordingType, recordingId, student, staff);
+    if (!access.ok) {
+      return res.status(access.status || 403).json({ success: false, message: access.message });
+    }
+
+    const resources = await GoRecordingResource.find(listFilter(recordingType, recordingId))
+      .populate('uploadedBy', 'name')
+      .sort({ uploadedAt: -1 })
+      .lean();
+
+    await presignResourceRows(resources);
+    res.json({ success: true, data: resources });
+  } catch (err) {
+    console.error('goRecordingResources list error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch resources', error: err.message });
   }
 });
 
