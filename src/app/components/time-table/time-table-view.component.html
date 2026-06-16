@@ -238,7 +238,8 @@
       <!-- ── Month View ── -->
       <ng-container *ngIf="viewMode === 'month'">
         <!-- Month grid (only when loaded and has data) -->
-        <div class="month-grid" *ngIf="isStudentJourneyView ? (journeyScheduleLoaded && journeyWeekRows.length) : (timeTablesLoaded && timeTables.length)">
+        <!-- BEFORE: the month calendar could compress below readable tap/text sizes on 412px screens. -->
+        <div class="month-grid" tabindex="0" aria-label="Monthly timetable calendar" *ngIf="isStudentJourneyView ? (journeyScheduleLoaded && journeyWeekRows.length) : (timeTablesLoaded && timeTables.length)">
           <div class="month-weekday-header">
             <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
           </div>

@@ -158,3 +158,13 @@
     border: 1px dashed #c5cae9;
   }
 }
+
+@media (max-width: 600px) {
+  .sp-hub {
+    padding: 16px 12px;
+  }
+
+  .sp-hub__title {
+    font-size: 20px;
+  }
+}

@@ -396,13 +396,82 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       return { level, status, startDate, completedDate };
     });
 
-    // Module progress per level
-    const moduleProgress = await StudentProgress.aggregate([
-      { $match: { studentId: new mongoose.Types.ObjectId(studentId) } },
-      { $lookup: { from: 'learningmodules', localField: 'moduleId', foreignField: '_id', as: 'module' } },
-      { $unwind: '$module' },
-      { $group: { _id: '$module.level', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }, totalTime: { $sum: '$timeSpent' } } }
+    // All remaining queries are independent — run them all in parallel
+    const now = new Date();
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0);
+    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+    const studentOid = new mongoose.Types.ObjectId(studentId);
+
+    const [
+      moduleProgress,
+      botSessions,
+      sessionRecordsRaw,
+      docResult,
+      allProg,
+      exThisWeek,
+      exToday,
+      exTotal,
+      paymentsResult,
+      visaRecord,
+    ] = await Promise.all([
+      // Module progress per level
+      StudentProgress.aggregate([
+        { $match: { studentId: studentOid } },
+        { $lookup: { from: 'learningmodules', localField: 'moduleId', foreignField: '_id', as: 'module' } },
+        { $unwind: '$module' },
+        { $group: { _id: '$module.level', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }, totalTime: { $sum: '$timeSpent' } } }
+      ]),
+      // AI Bot usage this week
+      AiTutorSession.find({ studentId: studentOid, startTime: { $gte: weekStart } }).select('totalDuration startTime').lean(),
+      // Session records (replace populate with $lookup)
+      SessionRecord.aggregate([
+        { $match: { studentId: studentOid } },
+        { $sort: { startTime: -1 } },
+        { $project: { sessionState: 1, startTime: 1, moduleLevel: 1, moduleId: 1 } },
+        {
+          $lookup: {
+            from: 'learningmodules',
+            localField: 'moduleId',
+            foreignField: '_id',
+            pipeline: [{ $project: { level: 1, courseDay: 1 } }],
+            as: 'moduleId',
+          },
+        },
+        { $unwind: { path: '$moduleId', preserveNullAndEmptyArrays: true } },
+      ]),
+      // Documents
+      buildDocumentsList(studentId, student.servicesOpted),
+      // Teacher feedback (replace populate with $lookup)
+      StudentProgress.aggregate([
+        { $match: { studentId: studentOid, 'teacherFeedback.0': { $exists: true } } },
+        {
+          $lookup: {
+            from: 'learningmodules',
+            localField: 'moduleId',
+            foreignField: '_id',
+            pipeline: [{ $project: { level: 1 } }],
+            as: 'moduleId',
+          },
+        },
+        { $unwind: { path: '$moduleId', preserveNullAndEmptyArrays: true } },
+        { $project: { teacherFeedback: 1, 'moduleId.level': 1 } },
+      ]),
+      // Exercise counts (3 parallel instead of 3 sequential)
+      countExerciseAttemptsForStudent(studentId, student, { status: 'completed', completedAt: { $gte: weekStart } }),
+      countExerciseAttemptsForStudent(studentId, student, { status: 'completed', completedAt: { $gte: todayStart } }),
+      countExerciseAttemptsForStudent(studentId, student, { status: 'completed' }),
+      // Payments
+      resolveJourneyPayments(
+        studentId,
+        student.email,
+        student.level,
+        (id, em) => buildLegacyJourneyPayments(id, em, { includeTotalInvoiced: true }),
+      ),
+      // Visa tracking
+      VisaTracking.findOne({ studentId }).populate('history.updatedBy', 'name').lean(),
     ]);
+
+    // Process module progress
     const lessonsByLevel = {};
     let totalStudyMinutes = 0;
     moduleProgress.forEach((mp) => {
@@ -411,37 +480,26 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       totalStudyMinutes += mp.totalTime || 0;
     });
 
-    // AI Bot usage this week
-    const now = new Date();
-    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0);
-    const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
-    const botSessions = await AiTutorSession.find({ studentId: new mongoose.Types.ObjectId(studentId), startTime: { $gte: weekStart } }).select('totalDuration startTime').lean();
+    // Process bot sessions
     let botWeekMinutes = 0, botTodayMinutes = 0;
     botSessions.forEach(s => { const dur = s.totalDuration || 0; botWeekMinutes += dur; if (s.startTime >= todayStart) botTodayMinutes += dur; });
 
-    // Attendance (exclude admin-blocked levels / journey days)
-    const sessionRecordsRaw = await SessionRecord.find({ studentId: new mongoose.Types.ObjectId(studentId) })
-      .select('sessionState startTime moduleLevel moduleId')
-      .populate('moduleId', 'level courseDay')
-      .sort({ startTime: -1 })
-      .lean();
+    // Process session records
     const sessionRecords = sessionRecordsRaw.filter(
-      (s) =>
-        !isContentBlockedForStudent(student, {
-          level: s.moduleLevel || s.moduleId?.level,
-          courseDay: s.moduleId?.courseDay
-        })
+      (s) => !isContentBlockedForStudent(student, {
+        level: s.moduleLevel || s.moduleId?.level,
+        courseDay: s.moduleId?.courseDay,
+      })
     );
     const totalSessionCount = sessionRecords.length;
     const completedSessions = sessionRecords.filter(s => s.sessionState === 'completed' || s.sessionState === 'manually_ended').length;
     const lastSession = sessionRecords[0];
 
-    // Documents
-    const { documents, docsSummary, uploadedDocs } = await buildDocumentsList(studentId, student.servicesOpted);
+    // Process documents
+    const { documents, docsSummary, uploadedDocs } = docResult;
 
-    // Teacher feedback latest per level
+    // Process teacher feedback
     const feedbackByLevel = {};
-    const allProg = await StudentProgress.find({ studentId: new mongoose.Types.ObjectId(studentId) }).populate('moduleId', 'level').lean();
     allProg.forEach((p) => {
       if (p.teacherFeedback?.length > 0 && p.moduleId?.level) {
         if (isLevelAdminBlocked(student.blockedJourneyLevels, p.moduleId.level)) return;
@@ -477,56 +535,41 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
         : Math.min(200, Math.max(trialDayEnabled ? 0 : 1, Math.floor(Number(rawCourseDay)))))
       : (trialDayEnabled ? 0 : 1);
 
-    let nextLockedDigitalExercise = null;
-    if (student.role === 'STUDENT' && journeyAccess.learningEnabled !== false) {
-      try {
-        const nextLockAnd = [
-          { isActive: true },
-          { isDeleted: { $ne: true } },
-          { visibleToStudents: true },
-          { level: { $in: accessibleLevelsForEx } },
-          { courseDay: { $gt: studentCourseDay, $lte: 200 } }
-        ];
-        appendNotBlockedToAndClauses(nextLockAnd, student.blockedJourneyLevels);
-        const nex = await DigitalExercise.findOne({ $and: nextLockAnd }).sort({ courseDay: 1 }).select('title courseDay').lean();
-        if (nex && nex.courseDay != null) {
-          nextLockedDigitalExercise = {
-            title: nex.title,
-            courseDay: nex.courseDay,
-            daysUntilUnlock: nex.courseDay - studentCourseDay
-          };
-        }
-      } catch (e) {
-        console.warn('nextLockedDigitalExercise:', e.message);
-      }
-    }
-
-    let currentDayCompletion = null;
-    if (student.role === 'STUDENT') {
-      try {
-        const { isSilverGoStudent } = require('../utils/goSilverTrack');
-        const { silverGoCompletionOptions } = require('../utils/silverGoSequentialUnlock');
-        const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
-        if (isSilverGoStudent(student)) {
-          const batchKeys = allStudentBatchStringsForContent(student);
-          const dc = await computeJourneyDayCompletion(
-            studentId,
-            batchKeys,
-            studentCourseDay,
-            silverGoCompletionOptions(student)
-          );
-          currentDayCompletion = {
-            complete: !!dc.complete,
-            completionPercent: dc.completionPercent,
-            doneTasks: dc.doneTasks,
-            totalTasks: dc.totalTasks,
-            incompleteTasks: dc.incompleteTasks || []
-          };
-        }
-      } catch (e) {
-        console.warn('currentDayCompletion:', e.message);
-      }
-    }
+    // nextLockedDigitalExercise and currentDayCompletion run in parallel
+    const [nextLockedDigitalExercise, currentDayCompletion] = await Promise.all([
+      (async () => {
+        if (student.role !== 'STUDENT' || journeyAccess.learningEnabled === false) return null;
+        try {
+          const nextLockAnd = [
+            { isActive: true },
+            { isDeleted: { $ne: true } },
+            { visibleToStudents: true },
+            { level: { $in: accessibleLevelsForEx } },
+            { courseDay: { $gt: studentCourseDay, $lte: 200 } }
+          ];
+          appendNotBlockedToAndClauses(nextLockAnd, student.blockedJourneyLevels);
+          const nex = await DigitalExercise.findOne({ $and: nextLockAnd }).sort({ courseDay: 1 }).select('title courseDay').lean();
+          if (nex && nex.courseDay != null) {
+            return { title: nex.title, courseDay: nex.courseDay, daysUntilUnlock: nex.courseDay - studentCourseDay };
+          }
+        } catch (e) { console.warn('nextLockedDigitalExercise:', e.message); }
+        return null;
+      })(),
+      (async () => {
+        if (student.role !== 'STUDENT') return null;
+        try {
+          const { isSilverGoStudent } = require('../utils/goSilverTrack');
+          const { silverGoCompletionOptions } = require('../utils/silverGoSequentialUnlock');
+          const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
+          if (isSilverGoStudent(student)) {
+            const batchKeys = allStudentBatchStringsForContent(student);
+            const dc = await computeJourneyDayCompletion(studentId, batchKeys, studentCourseDay, silverGoCompletionOptions(student));
+            return { complete: !!dc.complete, completionPercent: dc.completionPercent, doneTasks: dc.doneTasks, totalTasks: dc.totalTasks, incompleteTasks: dc.incompleteTasks || [] };
+          }
+        } catch (e) { console.warn('currentDayCompletion:', e.message); }
+        return null;
+      })(),
+    ]);
 
     res.json({
       profile: {
@@ -557,25 +600,14 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
       levelProgression, lessonsByLevel,
       totalStudyHours: Math.round(totalStudyMinutes / 60),
       botUsage: { todayMinutes: botTodayMinutes, weekMinutes: botWeekMinutes, targetMinutesPerWeek: 180 },
-      exercisesThisWeek: await countExerciseAttemptsForStudent(studentId, student, {
-        status: 'completed',
-        completedAt: { $gte: weekStart }
-      }),
-      exercisesToday: await countExerciseAttemptsForStudent(studentId, student, {
-        status: 'completed',
-        completedAt: { $gte: todayStart }
-      }),
-      exercisesTotal: await countExerciseAttemptsForStudent(studentId, student, { status: 'completed' }),
+      exercisesThisWeek: exThisWeek,
+      exercisesToday: exToday,
+      exercisesTotal: exTotal,
       attendance: { attended: completedSessions, total: totalSessionCount, lastSessionDate: lastSession?.startTime || null },
       documents, docsSummary,
       feedbackByLevel, history: history.slice(0, 20),
-      payments: await resolveJourneyPayments(
-        studentId,
-        student.email,
-        student.level,
-        (id, em) => buildLegacyJourneyPayments(id, em, { includeTotalInvoiced: true }),
-      ),
-      visa: await (async () => {
+      payments: paymentsResult,
+      visa: (() => {
         const PORTAL_STEP_NAMES = [
           'Application Filed', 'Preliminary Review', 'Embassy Review',
           'Embassy Feedback', 'Changes / Appointment', 'Final Submission & Decision'
@@ -584,12 +616,11 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
           'Appointment Booking', 'Document Preparation', 'Interview Preparation',
           'Embassy Visit', 'Result & Next Steps'
         ];
-        const vt = await VisaTracking.findOne({ studentId }).populate('history.updatedBy', 'name').lean();
+        const vt = visaRecord;
         if (!vt) {
           return { route: 'Not set', currentStep: 0, totalSteps: 0, steps: [], stages: [], finalOutcome: '', finalOutcomeNote: '', history: [], dates: {} };
         }
         const steps = vt.visaType === 'AU_PAIR' ? AU_PAIR_STEP_NAMES : PORTAL_STEP_NAMES;
-        // Compute current step from stages
         let currentStep = 0;
         if (vt.stages && vt.stages.length) {
           for (let i = 0; i < vt.stages.length; i++) {
@@ -597,7 +628,6 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
             if (i === vt.stages.length - 1) currentStep = i;
           }
         }
-        // Build dates from stage-level stageDate fields
         const dates = {};
         (vt.stages || []).forEach(s => {
           if (s.stageDate && s.stageDateLabel) {
@@ -646,17 +676,14 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
   try {
     const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const studentId = req.user.id;
+    const studentOid = new mongoose.Types.ObjectId(studentId);
 
+    // Step 1: Fetch student first (all other queries depend on student data)
     const student = await User.findById(studentId)
       .select('name email regNo level batch currentCourseDay')
       .lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
     const currentDay = student.currentCourseDay || 1;
-
-    const batchConfig = student.batch
-      ? await BatchConfig.findOne({ batchName: student.batch }).select('journeyLength').lean()
-      : null;
-    const journeyLength = batchConfig?.journeyLength || 200;
 
     const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
     const minDay = range === 'weekly' ? Math.max(1, currentDay - 6) : 1;
@@ -664,10 +691,73 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     weekAgo.setDate(weekAgo.getDate() - 6);
     weekAgo.setHours(0, 0, 0, 0);
 
-    const attempts = await ExerciseAttempt.find({ studentId, status: 'completed' })
-      .populate('exerciseId', 'title courseDay category level')
-      .sort({ completedAt: 1 })
-      .lean();
+    const journeyKeys = allStudentBatchStringsForContent(student);
+
+    // Step 2: Run all 7 remaining independent queries in parallel
+    const exerciseAttemptPipeline = [
+      { $match: { studentId: studentOid, status: 'completed' } },
+      { $sort: { completedAt: 1 } },
+      {
+        $lookup: {
+          from: 'digitalexercises',
+          localField: 'exerciseId',
+          foreignField: '_id',
+          pipeline: [{ $project: { title: 1, courseDay: 1, category: 1, level: 1 } }],
+          as: 'exerciseId',
+        },
+      },
+      { $unwind: { path: '$exerciseId', preserveNullAndEmptyArrays: false } },
+      ...(range === 'weekly'
+        ? [{ $match: { $or: [{ 'exerciseId.courseDay': { $exists: false } }, { 'exerciseId.courseDay': { $gte: minDay } }] } }]
+        : []),
+    ];
+
+    const sessionPipeline = [
+      { $match: { studentId: studentOid, ...(range === 'weekly' ? { createdAt: { $gte: weekAgo } } : {}) } },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: 'learningmodules',
+          localField: 'moduleId',
+          foreignField: '_id',
+          pipeline: [{ $project: { title: 1, level: 1, category: 1, courseDay: 1 } }],
+          as: 'moduleId',
+        },
+      },
+      { $unwind: { path: '$moduleId', preserveNullAndEmptyArrays: true } },
+    ];
+
+    const [
+      attempts,
+      meetings,
+      sessions,
+      completedDgModuleIds,
+      dgModulesList,
+      exerciseTotal,
+      batchConfig,
+    ] = await Promise.all([
+      ExerciseAttempt.aggregate(exerciseAttemptPipeline),
+      journeyKeys.length
+        ? MeetingLink.find({
+            $or: journeyKeys.map(k => ({ batch: new RegExp(`^${escapeRegExp(k)}$`, 'i') })),
+            status: { $ne: 'cancelled' },
+          }).select('topic startTime duration courseDay attendance status').lean()
+        : Promise.resolve([]),
+      SessionRecord.aggregate(sessionPipeline),
+      DGSession.distinct('moduleId', { studentId: studentOid, completed: true }),
+      DGModule.find({ isActive: true, visibleToStudents: true, courseDay: { $gte: 1 } })
+        .select('title level courseDay').lean(),
+      DigitalExercise.countDocuments({
+        level: student.level, isActive: true, visibleToStudents: true,
+        isDeleted: { $ne: true }, courseDay: { $gte: 1 },
+      }),
+      student.batch
+        ? BatchConfig.findOne({ batchName: student.batch }).select('journeyLength').lean()
+        : Promise.resolve(null),
+    ]);
+
+    const journeyLength = batchConfig?.journeyLength || 200;
+
     const exercisesWithData = attempts.filter(a => {
       if (!a.exerciseId) return false;
       if (!a.exerciseId?.courseDay) return range === 'overall';
@@ -675,38 +765,13 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     });
     const completedExerciseIds = new Set(exercisesWithData.map(a => String(a.exerciseId._id)));
 
-    const journeyKeys = allStudentBatchStringsForContent(student);
-    const meetings = journeyKeys.length
-      ? await MeetingLink.find({
-          $or: journeyKeys.map(k => ({ batch: new RegExp(`^${escapeRegExp(k)}$`, 'i') })),
-          status: { $ne: 'cancelled' }
-        }).select('topic startTime duration courseDay attendance status').lean()
-      : [];
     const filteredMeetings = meetings.filter(m => {
       if (!m.courseDay) return range === 'overall';
       return m.courseDay >= minDay;
     });
 
-    const sessions = await SessionRecord.find({ studentId })
-      .populate('moduleId', 'title level category courseDay')
-      .sort({ createdAt: -1 })
-      .lean();
-    const filteredSessions = range === 'overall'
-      ? sessions
-      : sessions.filter(s => new Date(s.createdAt).getTime() >= weekAgo.getTime());
+    const filteredSessions = sessions; // already filtered by date in aggregation pipeline
 
-    const studentOid = new mongoose.Types.ObjectId(studentId);
-    const completedDgModuleIds = await DGSession.distinct('moduleId', {
-      studentId: studentOid, completed: true
-    });
-    const dgBotTotal = await DGModule.countDocuments({
-      isActive: true, visibleToStudents: true,
-      courseDay: { $gte: 1 }
-    });
-    const dgModulesList = await DGModule.find({
-      isActive: true, visibleToStudents: true,
-      courseDay: { $gte: 1 }
-    }).select('title level courseDay').lean();
     const activeDgModuleIds = new Set(dgModulesList.map(m => String(m._id)));
     const dgBotCompleted = completedDgModuleIds.filter(id => activeDgModuleIds.has(String(id))).length;
     const completedSet = new Set(completedDgModuleIds.map(id => String(id)));
@@ -716,11 +781,7 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
       completed: completedSet.has(String(m._id))
     }));
 
-    const exerciseTotal = await DigitalExercise.countDocuments({
-      level: student.level, isActive: true, visibleToStudents: true,
-      isDeleted: { $ne: true },
-      courseDay: { $gte: 1 }
-    });
+    const dgBotTotal = dgModulesList.length;
 
     const exerciseCompleted = completedExerciseIds.size;
     const exercisePct = exerciseTotal

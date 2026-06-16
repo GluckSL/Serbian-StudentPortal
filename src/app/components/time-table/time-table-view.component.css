@@ -1,17 +1,55 @@
 /* Timetable View — aligned with student progress design */
 .timetable-container {
+  /* BEFORE: the student timetable used compact 9-13px labels and mobile calendar cells could compress without a clear scroll path. */
   min-height: calc(100vh - 80px);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #f8fafc;
 }
 
 /* ── Header ── */
 .timetable-header {
-  background: #fff;
-  color: #011f4b;
-  padding: 14px 18px;
+  background: linear-gradient(135deg, #0f2744 0%, #1e4d7a 40%, #2563eb 100%);
+  color: #fff;
+  padding: 28px 32px;
   margin: 14px;
-  border-radius: 14px;
-  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.timetable-header::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -20%;
+  width: 140%;
+  height: 200%;
+  background:
+    radial-gradient(ellipse at 30% 50%, rgba(59, 130, 246, 0.3) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 20%, rgba(99, 102, 241, 0.2) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.timetable-header::after {
+  content: '';
+  position: absolute;
+  top: -80px;
+  right: -60px;
+  width: 300px;
+  height: 300px;
+  background: #60a5fa;
+  border-radius: 50%;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+.timetable-header > * {
+  position: relative;
+  z-index: 1;
 }
 
 .page-title {
@@ -21,7 +59,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #011f4b;
+  color: #fff;
 }
 
 .page-title i { font-size: 14px; }
@@ -29,10 +67,12 @@
 .header-stats { display: flex; justify-content: flex-end; }
 
 .stat-card {
-  background: rgba(1,31,75,0.08);
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
   padding: 8px 14px;
   border-radius: 10px;
   text-align: center;
+  min-width: 112px;
 }
 
 .stat-value {
@@ -41,16 +81,16 @@
   font-weight: 700;
   line-height: 1;
   margin-bottom: 2px;
-  color: #011f4b;
+  color: #fbbf24;
 }
 
 .stat-label {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   opacity: 0.6;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #011f4b;
+  color: rgba(255,255,255,0.78);
 }
 
 /* ── Calendar Navigation ── */
@@ -76,48 +116,49 @@
 }
 
 .cal-nav-btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12);
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #475569;
-  font-size: 11px;
+  color: #fff;
+  font-size: 14px;
   transition: all 0.15s;
 }
 
-.cal-nav-btn:hover { background: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
+.cal-nav-btn:hover { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.45); color: #fff; transform: translateY(-1px); }
 
 .cal-period-label {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: #fff;
   white-space: nowrap;
 }
 
 .cal-today-btn {
-  border: 1px solid #005b96;
-  background: #fff;
-  color: #005b96;
-  padding: 4px 12px;
+  border: 1px solid rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  min-height: 44px;
+  padding: 10px 14px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   transition: all 0.15s;
 }
 
-.cal-today-btn:hover { background: #005b96; color: #fff; }
+.cal-today-btn:hover { background: rgba(255,255,255,0.22); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 .page-subtitle {
   margin-top: 8px;
   margin-bottom: 0;
-  font-size: 11px;
+  font-size: 14px;
   opacity: 0.7;
   font-weight: 500;
 }
@@ -126,6 +167,7 @@
 .timetable-content {
   padding: 0 14px 14px;
   margin: 0 auto;
+  max-width: 1200px;
 }
 
 .timetable-content .container-fluid {
@@ -153,7 +195,7 @@
 }
 
 .batch-filter-label {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: #334155;
   margin: 0;
@@ -162,11 +204,12 @@
 .batch-filter-select {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
   color: #0f172a;
   background: #fff;
-  padding: 4px 8px;
+  min-height: 44px;
+  padding: 10px 12px;
   min-width: 120px;
 }
 
@@ -177,46 +220,49 @@
 }
 
 .btn-add {
-  background: #005b96;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
   border: none;
-  padding: 5px 14px;
+  min-height: 44px;
+  padding: 10px 14px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
   font-family: inherit;
 }
 
-.btn-add:hover { background: #03396c; }
+.btn-add:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 .btn-prev-weeks {
-  background: #0f172a;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
   border: none;
-  padding: 5px 12px;
+  min-height: 44px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
 }
-.btn-prev-weeks:hover { background: #1e293b; }
+.btn-prev-weeks:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 .btn-clear-hidden {
   background: #fff;
   color: #334155;
   border: 1px solid #cbd5e1;
-  padding: 5px 12px;
+  min-height: 44px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -233,14 +279,15 @@
 
 .week-card {
   background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
-  border: 1px solid #e8ecf4;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.06);
+  border: 1px solid #e2e8f0;
   overflow: hidden;
-  transition: box-shadow 0.2s;
+  transition: all 0.2s ease;
+  animation: fadeInUp 0.4s ease-out both;
 }
 
-.week-card:hover { box-shadow: 0 4px 18px rgba(15,23,42,0.12); }
+.week-card:hover { box-shadow: 0 8px 24px rgba(15,23,42,0.12); transform: translateY(-2px); }
 .week-card--past { opacity: 0.95; }
 
 .week-section-title {
@@ -259,15 +306,15 @@
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 12px;
-  font-size: 12px;
+  font-size: 14px;
   color: #64748b;
 }
 
 /* ── Week Header ── */
 .week-header {
-  background: #f8fafc;
+  background: #1a237e;
   padding: 12px 16px;
-  border-bottom: 2px solid #b3cde0;
+  border-bottom: 2px solid #fbbf24;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -276,14 +323,14 @@
 .week-title {
   font-size: 13px;
   font-weight: 700;
-  color: #011f4b;
+  color: #fff;
   margin: 0 0 4px;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.week-title i { color: #005b96; font-size: 13px; }
+.week-title i { color: #fbbf24; font-size: 13px; }
 
 .week-meta {
   display: flex;
@@ -298,7 +345,7 @@
   padding: 3px 8px;
   background: #fff;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 500;
   color: #475569;
   border: 1px solid #e8ecf4;
@@ -307,22 +354,23 @@
 .meta-item i { color: #6497b1; font-size: 10px; }
 
 .btn-edit {
-  background: #005b96;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
   border: none;
-  padding: 4px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
   font-family: inherit;
 }
 
-.btn-edit:hover { background: #03396c; }
+.btn-edit:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 .week-actions {
   display: flex;
@@ -333,10 +381,11 @@
 .btn-hide,
 .btn-delete {
   border: none;
-  padding: 4px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -453,7 +502,7 @@
 .slot-details { flex: 1; }
 
 .slot-time {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
   margin-bottom: 2px;
@@ -465,13 +514,13 @@
 .slot-time i { color: #6497b1; font-size: 10px; }
 
 .meeting-topic {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 600;
   color: #475569;
 }
 
 .slot-status {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -486,7 +535,7 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -519,23 +568,24 @@
 /* ── Join Button ── */
 .btn-join-meeting {
   width: 100%;
-  background: #005b96;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
   border: none;
-  padding: 5px 8px;
+  min-height: 44px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 10px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
   font-family: inherit;
 }
 
-.btn-join-meeting:hover { background: #03396c; }
+.btn-join-meeting:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 .btn-join-meeting.live {
   background: #e11d48;
@@ -557,7 +607,7 @@
 }
 
 .meta-attendees, .meta-password {
-  font-size: 10px;
+  font-size: 14px;
   color: #64748b;
   display: flex;
   align-items: center;
@@ -580,7 +630,7 @@
   background: #fef3c7;
   border-left: 2px solid #f59e0b;
   border-radius: 4px;
-  font-size: 9px;
+  font-size: 14px;
   color: #92400e;
   display: flex;
   align-items: center;
@@ -603,17 +653,19 @@
 
 .no-class-message i { font-size: 18px; margin-bottom: 4px; opacity: 0.5; }
 .no-class-message span { font-size: 10px; font-style: italic; }
+.no-class-message span { font-size: 14px; }
 
 /* ── Empty State ── */
 .empty-state {
   background: #fff;
-  border-radius: 14px;
-  padding: 40px 14px;
+  border-radius: 16px;
+  padding: 40px 24px;
   text-align: center;
-  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
-  border: 1px solid #e8ecf4;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.06);
+  border: 1px solid #e2e8f0;
   max-width: 400px;
   margin: 20px auto;
+  animation: fadeInUp 0.4s ease-out both;
 }
 
 .empty-icon {
@@ -629,52 +681,60 @@
 .empty-icon i { font-size: 24px; color: #011f4b; }
 
 .empty-title {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
   color: #0f172a;
   margin-bottom: 4px;
 }
 
 .empty-text {
-  font-size: 12px;
+  font-size: 14px;
   color: #94a3b8;
   margin-bottom: 12px;
   line-height: 1.5;
 }
 
 .btn-primary-action {
-  background: #005b96;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
   border: none;
-  padding: 6px 14px;
+  min-height: 44px;
+  padding: 10px 14px;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
   font-family: inherit;
 }
 
-.btn-primary-action:hover { background: #03396c; }
+.btn-primary-action:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 /* ── Month Grid ── */
 .month-grid {
   background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
-  border: 1px solid #e8ecf4;
-  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.06);
+  border: 1px solid #e2e8f0;
+  overflow: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  animation: fadeInUp 0.4s ease-out both;
 }
+
+.month-grid::-webkit-scrollbar { height: 10px; width: 10px; }
+.month-grid::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+.month-grid::-webkit-scrollbar-track { background: #f1f5f9; }
 
 .month-weekday-header {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  background: #03396c;
+  background: #1a237e;
   color: #fff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -735,7 +795,7 @@
 .month-cell.has-content.today { background: #eff6ff; }
 
 .month-cell-daynum {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
   line-height: 1;
@@ -764,7 +824,7 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   border-radius: 4px;
   padding: 2px 6px;
@@ -796,13 +856,13 @@
 }
 
 .mc-live-time {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #0f172a;
 }
 
 .mc-live-topic {
-  font-size: 10px;
+  font-size: 12px;
   color: #475569;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -814,17 +874,18 @@
   align-self: flex-start;
   margin-top: 2px;
   border: none;
-  background: #005b96;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   border-radius: 4px;
-  padding: 2px 8px;
+  min-height: 32px;
+  padding: 6px 10px;
   cursor: pointer;
   font-family: inherit;
 }
 
-.mc-join-btn:hover { background: #03396c; }
+.mc-join-btn:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 .mc-slots {
   display: flex;
@@ -848,13 +909,13 @@
 }
 
 .mc-slot-time {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: #0f172a;
 }
 
 .mc-slot-status {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -895,15 +956,19 @@
   display: flex;
   gap: 0;
   background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e8ecf4;
-  box-shadow: 0 1px 6px rgba(15,23,42,0.05);
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.06);
   overflow: hidden;
+  transition: all 0.2s ease;
+  animation: fadeInUp 0.4s ease-out both;
 }
 
+.week-view-day:hover { box-shadow: 0 8px 24px rgba(15,23,42,0.12); transform: translateY(-2px); }
+
 .week-view-day.today {
-  border-color: #005b96;
-  box-shadow: 0 0 0 1.5px #005b96, 0 2px 8px rgba(0,91,150,0.1);
+  border-color: #1565c0;
+  box-shadow: 0 0 0 1.5px #1565c0, 0 2px 8px rgba(21,101,192,0.1);
 }
 
 .week-view-day.has-content { background: #fafbfd; }
@@ -926,17 +991,17 @@
 }
 
 .week-day-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
-.week-view-day.today .week-day-name { color: #005b96; }
+.week-view-day.today .week-day-name { color: #1565c0; }
 
 .week-day-date {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   color: #64748b;
 }
@@ -972,14 +1037,14 @@
 }
 
 .wdr-live-time {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
   white-space: nowrap;
 }
 
 .wdr-live-topic {
-  font-size: 11px;
+  font-size: 14px;
   color: #475569;
   flex: 1;
   min-width: 80px;
@@ -993,7 +1058,7 @@
 }
 
 .wdr-live-badge {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1014,24 +1079,23 @@
 
 .wdr-join-btn {
   border: none;
-  background: #005b96;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
   border-radius: 6px;
-  padding: 4px 12px;
-  min-height: unset;
-  height: auto;
+  padding: 10px 12px;
+  min-height: 44px;
   line-height: 1.3;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-family: inherit;
-  transition: background 0.15s;
+  transition: all 0.2s ease;
 }
 
-.wdr-join-btn:hover { background: #03396c; }
+.wdr-join-btn:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4); }
 
 .wdr-slots {
   display: flex;
@@ -1063,13 +1127,13 @@
 }
 
 .wdr-slot-time {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
 }
 
 .wdr-slot-status {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1086,7 +1150,7 @@
 }
 
 .wdr-slot-topic {
-  font-size: 11px;
+  font-size: 14px;
   color: #475569;
   font-weight: 500;
   flex: 1;
@@ -1094,7 +1158,7 @@
 }
 
 .wdr-status-badge {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1113,7 +1177,7 @@
 }
 
 .wdr-empty {
-  font-size: 11px;
+  font-size: 14px;
   color: #94a3b8;
   font-style: italic;
 }
@@ -1126,9 +1190,15 @@
   margin-bottom: 12px;
   padding: 8px 14px;
   background: #fff;
-  border-radius: 10px;
-  border: 1px solid #e8ecf4;
-  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.04);
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 
@@ -1145,7 +1215,7 @@
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 12px;
-  font-size: 12px;
+  font-size: 14px;
   color: #64748b;
   text-align: center;
 }
@@ -1194,10 +1264,10 @@
 @media (max-width: 900px) {
   .month-cell { padding: 6px; min-height: 70px; }
   .month-cell-body { gap: 6px; }
-  .mc-chip { font-size: 9px; padding: 1px 5px; }
-  .mc-live-time { font-size: 9px; }
-  .mc-live-topic { font-size: 9px; }
-  .mc-slot-time { font-size: 9px; }
+  .mc-chip { font-size: 12px; padding: 2px 6px; }
+  .mc-live-time { font-size: 12px; }
+  .mc-live-topic { font-size: 12px; }
+  .mc-slot-time { font-size: 12px; }
 }
 
 @media (max-width: 768px) {
@@ -1216,10 +1286,10 @@
   .cal-period-label { font-size: 12px; }
   .month-cell { min-height: 60px; padding: 4px 5px; }
   .month-cell-daynum { font-size: 10px; }
-  .month-weekday-header span { font-size: 9px; padding: 6px 4px; }
+  .month-weekday-header span { font-size: 12px; padding: 6px 4px; }
   .week-day-left { width: 110px; padding: 10px 12px; }
-  .week-day-name { font-size: 12px; }
-  .wdr-join-btn { min-height: unset; height: auto; }
+  .week-day-name { font-size: 14px; }
+  .wdr-join-btn { min-height: 44px; height: auto; }
 }
 
 @media (max-width: 576px) {
@@ -1230,16 +1300,24 @@
   .day-content { padding: 6px; }
   .class-slot { padding: 6px; }
   .action-bar { flex-wrap: wrap; }
-  .cal-nav-left-wrap { gap: 4px; width: 100%; justify-content: space-between; }
-  .cal-today-btn { padding: 3px 8px; font-size: 10px; }
+  .cal-nav-left-wrap { gap: 6px; width: 100%; justify-content: space-between; flex-wrap: wrap; }
+  .cal-period-label { order: -1; width: 100%; text-align: center; font-size: 14px; }
+  .cal-today-btn { padding: 10px 12px; font-size: 14px; }
   .month-cell { min-height: 50px; padding: 3px 4px; }
-  .month-weekday-header span { font-size: 8px; padding: 4px 2px; }
-  .week-day-left { width: 100px; padding: 10px 10px; }
-  .week-day-name { font-size: 11px; }
-  .week-day-date { font-size: 10px; }
+  .month-weekday-header,
+  .month-week {
+    min-width: 680px;
+  }
+  .month-weekday-header span { font-size: 12px; padding: 6px 4px; }
+  .week-view-day { flex-direction: column; }
+  .week-day-left { width: auto; align-items: flex-start; border-right: none; border-bottom: 1px solid #e8ecf4; padding: 10px 12px; }
+  .week-day-name { font-size: 14px; }
+  .week-day-date { font-size: 14px; }
   .week-day-right { padding: 8px 10px; }
-  .wdr-join-btn { font-size: 9px; padding: 3px 8px; }
-  .wdr-live-badge, .wdr-status-badge { font-size: 8px; padding: 1px 6px; }
+  .wdr-live-actions,
+  .wdr-join-btn { width: 100%; justify-content: center; }
+  .wdr-join-btn { font-size: 14px; padding: 10px 12px; }
+  .wdr-live-badge, .wdr-status-badge { font-size: 12px; padding: 3px 8px; }
 }
 
 /* ── Print ── */

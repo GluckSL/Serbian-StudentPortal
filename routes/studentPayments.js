@@ -27,20 +27,31 @@ router.post('/import', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async
       return res.status(400).json({ message: 'records array is required' });
     }
 
-    let created = 0, updated = 0, skipped = 0;
+    // Collect all valid emails upfront
+    const validRows = records.map(row => ({
+      ...row,
+      email: (row.email || '').trim().toLowerCase().replace(/\s+/g, '')
+    })).filter(row => row.email);
 
-    for (const row of records) {
-      const email = (row.email || '').trim().toLowerCase().replace(/\s+/g, '');
-      if (!email) { skipped++; continue; }
+    const skipped = records.length - validRows.length;
+    const allEmails = validRows.map(r => r.email);
 
+    // Batch fetch users and existing payments in 2 queries instead of 2 per row
+    const [existingUsers, existingPayments] = await Promise.all([
+      User.find({ email: { $in: allEmails } }).select('_id email').lean(),
+      StudentPayment.find({ email: { $in: allEmails } }),
+    ]);
+
+    const userMap = Object.fromEntries(existingUsers.map(u => [u.email.toLowerCase(), u._id]));
+    const paymentMap = Object.fromEntries(existingPayments.map(p => [p.email.toLowerCase(), p]));
+
+    let created = 0, updated = 0;
+
+    for (const row of validRows) {
+      const { email } = row;
       const totalInvoiced = parseCurrencyValue(row.totalInvoiced);
       const completePaid = parseCurrencyValue(row.completePaid);
       const pending = parseCurrencyValue(row.pendingPayment);
-
-      const escaped = escapeRegex(email);
-      const user = await User.findOne({
-        email: { $regex: new RegExp('^' + escaped + '$', 'i') }
-      }).select('_id').lean();
 
       const updateData = {
         studentName: (row.studentName || '').trim(),
@@ -55,9 +66,9 @@ router.post('/import', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async
         pendingPayment: pending.amount || 0,
         lastUpdatedBy: req.user.id
       };
-      if (user) updateData.studentId = user._id;
+      if (userMap[email]) updateData.studentId = userMap[email];
 
-      const existing = await StudentPayment.findOne({ email });
+      const existing = paymentMap[email];
       if (existing) {
         Object.assign(existing, updateData);
         await existing.save();

@@ -131,6 +131,58 @@
       </table>
     </div>
 
+    <!-- Mobile card view (hidden on desktop via CSS) -->
+    <div *ngIf="sessions.length > 0" class="mobile-cards">
+      <div *ngFor="let s of sessions" class="session-card"
+           [class.is-live]="s.status === 'active'"
+           [class.is-ended]="s.status === 'ended'"
+           (click)="viewSession(s._id)">
+        <div class="session-card__body">
+          <div class="session-card__top">
+            <span class="session-card__name">{{ s.sessionName }}</span>
+            <span class="status-chip"
+                  [class.live]="s.status === 'active'"
+                  [class.ended]="s.status === 'ended'"
+                  [class.cancelled]="s.status === 'cancelled'">
+              {{ s.status === 'active' ? 'Live' : s.status === 'ended' ? 'Ended' : s.status === 'cancelled' ? 'Cancelled' : 'Upcoming' }}
+            </span>
+          </div>
+          <div class="session-card__meta">
+            <span class="session-card__meta-item">
+              <mat-icon class="session-card__meta-icon">person</mat-icon>{{ s.hostId?.name || 'Unknown' }}
+            </span>
+            <span class="session-card__meta-item">
+              <mat-icon class="session-card__meta-icon">timer</mat-icon>{{ formatDuration(s.maxDurationMinutes) }}
+            </span>
+            <span class="session-card__meta-item" style="grid-column: span 2">
+              <mat-icon class="session-card__meta-icon">schedule</mat-icon>{{ formatDate(s.scheduledStartTime) }}
+            </span>
+          </div>
+          <div class="session-card__pills">
+            <span class="batch-pill">{{ s.batch }}</span>
+            <span *ngIf="s.plan" class="plan-pill">{{ s.plan }}</span>
+          </div>
+        </div>
+        <div class="session-card__actions" (click)="$event.stopPropagation()">
+          <span *ngIf="s.status === 'scheduled'" class="countdown-chip">{{ timeUntilStart(s.scheduledStartTime) }}</span>
+          <button *ngIf="s.status === 'active'" mat-flat-button class="join-btn" (click)="joinSession(s._id, $event)">Join</button>
+          <button *ngIf="s.status === 'active' && isHost(s) && actionLoadingId !== s._id" mat-flat-button color="warn" (click)="endSession(s._id, $event)">End</button>
+          <button *ngIf="s.status === 'active' && isHost(s) && actionLoadingId === s._id" mat-flat-button color="warn" disabled>
+            <mat-spinner diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner> Ending...
+          </button>
+          <button *ngIf="s.status === 'ended' && isHost(s)" mat-icon-button (click)="deleteEndedSession(s._id, $event)">
+            <mat-icon color="warn">delete</mat-icon>
+          </button>
+          <button *ngIf="s.status === 'scheduled' && isHost(s)" mat-icon-button (click)="editSession(s._id, $event)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button *ngIf="s.status === 'scheduled' && isHost(s)" mat-icon-button (click)="deleteSession(s._id, $event)">
+            <mat-icon color="warn">delete</mat-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <mat-paginator *ngIf="totalCount > 0"
       [length]="totalCount" [pageIndex]="pageIndex" [pageSize]="pageSize"
       [pageSizeOptions]="[10,15,25,50]" [showFirstLastButtons]="true"

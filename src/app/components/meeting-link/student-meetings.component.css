@@ -45,9 +45,9 @@
 }
 
 .tab-btn.active {
-  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 2px 10px rgba(21, 101, 192, 0.35);
 }
 
 /* Compact action buttons in table (replaces bulky mat-buttons) */
@@ -938,7 +938,7 @@ mat-card-actions button mat-icon {
     margin-bottom: 4px;
     font-size: 8px;
     letter-spacing: 0.05em;
-    color: #4f46e5;
+    color: #1565c0;
     font-weight: 800;
   }
 
@@ -1082,7 +1082,7 @@ mat-card-actions button mat-icon {
     margin-bottom: 4px;
     font-size: 8px;
     letter-spacing: 0.05em;
-    color: #4f46e5;
+    color: #1565c0;
     font-weight: 800;
   }
 
@@ -1370,7 +1370,7 @@ mat-card-actions button mat-icon {
     margin-bottom: 4px;
     font-size: 8px;
     letter-spacing: 0.05em;
-    color: #4f46e5;
+    color: #1565c0;
     font-weight: 800;
   }
 
@@ -1682,7 +1682,7 @@ mat-card-actions button mat-icon {
 }
 .ask-btn--toolbar {
   width: auto; padding: 9px 18px; font-size: 12px; border-radius: 10px;
-  border-style: solid; border-color: #818cf8; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  border-style: solid; border-color: #818cf8; box-shadow: 0 2px 8px rgba(21, 101, 192, 0.2);
 }
 
 .dbt-card {
@@ -1730,14 +1730,14 @@ mat-card-actions button mat-icon {
   border: 1px solid #cbd5e1; margin-bottom: 16px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.ask-input-title:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); outline: none; }
+.ask-input-title:focus { border-color: #1a237e; box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.15); outline: none; }
 .ask-input-explain {
   font-size: 13px; line-height: 1.5; padding: 12px 14px; border-radius: 10px;
   border: 1px solid #cbd5e1; margin-bottom: 18px; resize: vertical; min-height: 160px;
   flex: 1 1 auto; min-height: 180px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.ask-input-explain:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); outline: none; }
+.ask-input-explain:focus { border-color: #1a237e; box-shadow: 0 0 0 3px rgba(21, 101, 192, 0.12); outline: none; }
 
 .vis-toggle { display: flex; gap: 8px; }
 .vis-toggle--large { flex-direction: column; gap: 8px; margin-bottom: 20px; }
@@ -1752,8 +1752,8 @@ mat-card-actions button mat-icon {
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 .vis-opt i { font-size: 14px; color: #64748b; }
-.vis-opt--on { border-color: #6366f1; background: #eef2ff; color: #312e81; box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25); }
-.vis-opt--on i { color: #4f46e5; }
+.vis-opt--on { border-color: #1a237e; background: #dbeafe; color: #1a237e; box-shadow: 0 0 0 1px rgba(21, 101, 192, 0.25); }
+.vis-opt--on i { color: #1565c0; }
 .vis-hint { display: block; font-size: 11px; font-weight: 500; color: #64748b; text-transform: none; letter-spacing: 0; margin-top: 2px; }
 .vis-opt:hover:not(.vis-opt--on) { background: #f8fafc; border-color: #cbd5e1; }
 
@@ -1762,7 +1762,7 @@ mat-card-actions button mat-icon {
 }
 .ask-submit--wide {
   flex: 1 1 140px; min-height: 44px; font-size: 13px; font-weight: 700; padding: 10px 20px; border-radius: 10px;
-  appearance: none; border: none; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff;
+  appearance: none; border: none; background: linear-gradient(135deg, #1a237e, #1565c0); color: #fff;
   cursor: pointer; transition: filter 0.15s, opacity 0.15s;
   box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
 }
@@ -1897,7 +1897,7 @@ mat-card-actions button mat-icon {
 }
 .sub-card__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
 .sub-card__file { display: flex; align-items: flex-start; gap: 10px; }
-.sub-card__icon { font-size: 22px; color: #6366f1; margin-top: 2px; }
+.sub-card__icon { font-size: 22px; color: #1a237e; margin-top: 2px; }
 .sub-card__name { font-size: 13px; font-weight: 600; color: #0f172a; }
 .sub-card__meta { font-size: 10px; color: #94a3b8; margin-top: 1px; }
 .sub-card__actions { display: flex; align-items: center; gap: 6px; }
@@ -1957,8 +1957,8 @@ mat-card-actions button mat-icon {
 }
 
 .sm-pagination__btn:hover:not(:disabled) {
-  border-color: #6366f1;
-  color: #4f46e5;
+  border-color: #1a237e;
+  color: #1565c0;
   background: #eef2ff;
 }
 
@@ -1986,14 +1986,14 @@ mat-card-actions button mat-icon {
 
 .sm-pagination__num:hover {
   background: #eef2ff;
-  color: #4f46e5;
+  color: #1565c0;
 }
 
 .sm-pagination__num--active {
-  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  background: linear-gradient(135deg, #1565c0, #1a237e);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.3);
 }
 
 @media (max-width: 640px) {

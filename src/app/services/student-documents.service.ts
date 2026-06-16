@@ -2,8 +2,9 @@
 // Service for student document management
 
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { concat, forkJoin, Observable, of } from 'rxjs';
+import { finalize, map, shareReplay, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export interface DocumentRequirement {
@@ -55,11 +56,65 @@ export interface DocumentStats {
   completionPercentage: number;
 }
 
+export interface StudentDocumentInstance {
+  _id: string;
+  studentDocumentId?: string;
+  templateName: string;
+  displayName: string;
+  generatedFile?: { s3Key?: string; fileName?: string; fileSize?: number };
+  signedFile?: { s3Key?: string; fileName?: string; fileSize?: number };
+  status: 'SENT' | 'SIGNED_PENDING' | 'VERIFIED' | 'REJECTED';
+  verificationNotes?: string;
+  sentAt: string;
+  verifiedAt?: string;
+}
+
+export interface StudentDocumentsBundle {
+  requirements: DocumentRequirement[];
+  documents: StudentDocument[];
+  totalDocuments: number;
+  stats: DocumentStats;
+}
+
+interface CacheEntry<T> {
+  value?: T;
+  updatedAt: number;
+  inflight$?: Observable<T>;
+}
+
+interface CacheOptions {
+  force?: boolean;
+  staleMs?: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class StudentDocumentsService {
   private apiUrl = `${environment.apiUrl}/student-documents`;
+  private readonly myDocumentsCache = new Map<
+    string,
+    CacheEntry<{
+      success: boolean;
+      documents: StudentDocument[];
+      totalDocuments: number;
+    }>
+  >();
+  private readonly requirementsCache = new Map<
+    string,
+    CacheEntry<{
+      success: boolean;
+      requirements: DocumentRequirement[];
+    }>
+  >();
+  private readonly statsCache = new Map<
+    string,
+    CacheEntry<{
+      success: boolean;
+      stats: DocumentStats;
+    }>
+  >();
+  private readonly dashboardStaleMs = 60_000;
 
   constructor(private http: HttpClient) {}
 
@@ -81,12 +136,28 @@ export class StudentDocumentsService {
     success: boolean;
     documents: StudentDocument[];
     totalDocuments: number;
+  }>;
+  getMyDocuments(options?: CacheOptions): Observable<{
+    success: boolean;
+    documents: StudentDocument[];
+    totalDocuments: number;
+  }>;
+  getMyDocuments(options?: CacheOptions): Observable<{
+    success: boolean;
+    documents: StudentDocument[];
+    totalDocuments: number;
   }> {
-    return this.http.get<{
-      success: boolean;
-      documents: StudentDocument[];
-      totalDocuments: number;
-    }>(`${this.apiUrl}/my-documents`, { withCredentials: true });
+    return this.getCachedRequest(
+      this.myDocumentsCache,
+      'self',
+      () =>
+        this.http.get<{
+          success: boolean;
+          documents: StudentDocument[];
+          totalDocuments: number;
+        }>(`${this.apiUrl}/my-documents`, { withCredentials: true }),
+      options
+    );
   }
 
   // Upload a document
@@ -170,22 +241,71 @@ export class StudentDocumentsService {
   getStudentRequirements(): Observable<{
     success: boolean;
     requirements: DocumentRequirement[];
+  }>;
+  getStudentRequirements(options?: CacheOptions): Observable<{
+    success: boolean;
+    requirements: DocumentRequirement[];
+  }>;
+  getStudentRequirements(options?: CacheOptions): Observable<{
+    success: boolean;
+    requirements: DocumentRequirement[];
   }> {
-    return this.http.get<{
-      success: boolean;
-      requirements: DocumentRequirement[];
-    }>(`${this.apiUrl}/requirements`, { withCredentials: true });
+    return this.getCachedRequest(
+      this.requirementsCache,
+      'self',
+      () =>
+        this.http.get<{
+          success: boolean;
+          requirements: DocumentRequirement[];
+        }>(`${this.apiUrl}/requirements`, { withCredentials: true }),
+      options
+    );
   }
 
   // Get document statistics
   getDocumentStats(): Observable<{
     success: boolean;
     stats: DocumentStats;
+  }>;
+  getDocumentStats(options?: CacheOptions): Observable<{
+    success: boolean;
+    stats: DocumentStats;
+  }>;
+  getDocumentStats(options?: CacheOptions): Observable<{
+    success: boolean;
+    stats: DocumentStats;
   }> {
-    return this.http.get<{
-      success: boolean;
-      stats: DocumentStats;
-    }>(`${this.apiUrl}/stats`, { withCredentials: true });
+    return this.getCachedRequest(
+      this.statsCache,
+      'self',
+      () =>
+        this.http.get<{
+          success: boolean;
+          stats: DocumentStats;
+        }>(`${this.apiUrl}/stats`, { withCredentials: true }),
+      options
+    );
+  }
+
+  getDashboardBundle(options?: CacheOptions): Observable<StudentDocumentsBundle> {
+    return forkJoin({
+      requirementsResponse: this.getStudentRequirements(options),
+      documentsResponse: this.getMyDocuments(options),
+      statsResponse: this.getDocumentStats(options)
+    }).pipe(
+      map(({ requirementsResponse, documentsResponse, statsResponse }) => ({
+        requirements: requirementsResponse.requirements || [],
+        documents: documentsResponse.documents || [],
+        totalDocuments: documentsResponse.totalDocuments || 0,
+        stats: statsResponse.stats
+      }))
+    );
+  }
+
+  invalidateDashboardCache(): void {
+    this.myDocumentsCache.clear();
+    this.requirementsCache.clear();
+    this.statsCache.clear();
   }
 
   // Helper method to trigger file download
@@ -243,6 +363,69 @@ export class StudentDocumentsService {
     if (mimeType.includes('word') || mimeType.includes('document')) return 'fa-file-word text-primary';
     if (mimeType.includes('image')) return 'fa-file-image text-success';
     return 'fa-file text-secondary';
+  }
+
+  private getCachedRequest<T>(
+    cache: Map<string, CacheEntry<T>>,
+    cacheKey: string,
+    requestFactory: () => Observable<T>,
+    options?: CacheOptions
+  ): Observable<T> {
+    const staleMs = options?.staleMs ?? this.dashboardStaleMs;
+    const cached = cache.get(cacheKey);
+    const now = Date.now();
+
+    if (options?.force) {
+      return this.fetchCachedRequest(cache, cacheKey, requestFactory);
+    }
+
+    if (cached?.value && now - cached.updatedAt < staleMs) {
+      return of(cached.value);
+    }
+
+    if (cached?.value) {
+      return concat(of(cached.value), this.fetchCachedRequest(cache, cacheKey, requestFactory));
+    }
+
+    return this.fetchCachedRequest(cache, cacheKey, requestFactory);
+  }
+
+  private fetchCachedRequest<T>(
+    cache: Map<string, CacheEntry<T>>,
+    cacheKey: string,
+    requestFactory: () => Observable<T>
+  ): Observable<T> {
+    const cached = cache.get(cacheKey);
+    if (cached?.inflight$) {
+      return cached.inflight$;
+    }
+
+    const request$ = requestFactory().pipe(
+      tap((response) => {
+        cache.set(cacheKey, {
+          value: response,
+          updatedAt: Date.now()
+        });
+      }),
+      finalize(() => {
+        const latest = cache.get(cacheKey);
+        if (latest?.inflight$) {
+          cache.set(cacheKey, {
+            value: latest.value,
+            updatedAt: latest.updatedAt
+          });
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    cache.set(cacheKey, {
+      value: cached?.value,
+      updatedAt: cached?.updatedAt || 0,
+      inflight$: request$
+    });
+
+    return request$;
   }
 
   // ========== ADMIN METHODS ==========

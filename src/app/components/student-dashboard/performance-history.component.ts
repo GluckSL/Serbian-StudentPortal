@@ -50,7 +50,12 @@ export class PerformanceHistoryComponent implements OnInit {
   isLoading = true;
   data: SummaryResponse | null = null;
   rangeMode: 'overall' | 'weekly' = 'overall';
-  activeTable: 'classes' | 'exercises' | 'dg' | 'tests' = 'classes';
+  private _activeTable: 'classes' | 'exercises' | 'dg' | 'tests' = 'classes';
+  get activeTable() { return this._activeTable; }
+  set activeTable(v: 'classes' | 'exercises' | 'dg' | 'tests') { this._activeTable = v; this.detailPage = 0; }
+
+  detailPage = 0;
+  readonly detailPageSize = 10;
 
   lineChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
   lineChartOptions: ChartConfiguration['options'] = {
@@ -219,4 +224,20 @@ export class PerformanceHistoryComponent implements OnInit {
   get endedClasses(): any[] {
     return this.data?.liveClasses?.filter(c => c.hasEnded) || [];
   }
+
+  get detailTotal(): number {
+    if (this._activeTable === 'classes') return this.endedClasses.length;
+    if (this._activeTable === 'exercises') return this.data?.exercises.length ?? 0;
+    if (this._activeTable === 'dg') return this.data?.dgBotModules?.length ?? 0;
+    return this.data?.day6Tests.length ?? 0;
+  }
+  get detailTotalPages(): number { return Math.max(1, Math.ceil(this.detailTotal / this.detailPageSize)); }
+
+  get pagedClasses(): any[] { return this.endedClasses.slice(this.detailPage * this.detailPageSize, (this.detailPage + 1) * this.detailPageSize); }
+  get pagedExercises(): any[] { return (this.data?.exercises ?? []).slice(this.detailPage * this.detailPageSize, (this.detailPage + 1) * this.detailPageSize); }
+  get pagedDg(): any[] { return (this.data?.dgBotModules ?? []).slice(this.detailPage * this.detailPageSize, (this.detailPage + 1) * this.detailPageSize); }
+  get pagedTests(): any[] { return (this.data?.day6Tests ?? []).slice(this.detailPage * this.detailPageSize, (this.detailPage + 1) * this.detailPageSize); }
+
+  prevPage(): void { if (this.detailPage > 0) this.detailPage--; }
+  nextPage(): void { if (this.detailPage < this.detailTotalPages - 1) this.detailPage++; }
 }

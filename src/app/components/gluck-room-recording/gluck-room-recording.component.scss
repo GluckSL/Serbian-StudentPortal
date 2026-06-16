@@ -61,3 +61,18 @@
 }
 
 .manage-actions { padding: 8px 16px 16px; gap: 8px; }
+
+@media (max-width: 600px) {
+  .recording-container { padding: 8px; }
+
+  .video-container { min-height: 220px; }
+
+  .video-player { min-height: 220px; }
+
+  .video-placeholder { min-height: 220px;
+    mat-icon { font-size: 40px; width: 40px; height: 40px; }
+    h3 { font-size: 15px; }
+  }
+
+  .session-summary h2 { font-size: 15px; }
+}

@@ -1,16 +1,18 @@
 // src/app/components/student-dashboard/student-documents/student-documents.component.ts
 // Component for student document upload and management
 
-import { Component, OnInit, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { catchError, of, Subject, switchMap, takeUntil, timer } from 'rxjs';
 import { 
   StudentDocumentsService, 
   DocumentRequirement, 
   StudentDocument,
-  DocumentStats 
+  DocumentStats,
+  StudentDocumentInstance
 } from '../../../services/student-documents.service';
-import { AgreementService, StudentAgreement } from '../../../services/agreement.service';
+import { AgreementService } from '../../../services/agreement.service';
 import { NotificationService } from '../../../services/notification.service';
 
 @Component({
@@ -20,7 +22,7 @@ import { NotificationService } from '../../../services/notification.service';
   templateUrl: './student-documents.component.html',
   styleUrls: ['./student-documents.component.css']
 })
-export class StudentDocumentsComponent implements OnInit {
+export class StudentDocumentsComponent implements OnInit, OnDestroy {
   // Data
   requirements: DocumentRequirement[] = [];
   documents: StudentDocument[] = [];
@@ -51,10 +53,15 @@ export class StudentDocumentsComponent implements OnInit {
   errorMessage: string = '';
 
   // Agreements
-  agreements: StudentAgreement[] = [];
+  agreements: StudentDocumentInstance[] = [];
   loadingAgreements = false;
   uploadingAgreementId: string | null = null;
   @ViewChild('signedFileInput') signedFileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('reqFileInput') reqFileInput!: ElementRef<HTMLInputElement>;
+  private pendingRequirement: { req: DocumentRequirement; isReplace: boolean } | null = null;
+  private readonly destroy$ = new Subject<void>();
+  private readonly dashboardRefresh$ = new Subject<{ force?: boolean }>();
+  private readonly agreementsRefresh$ = new Subject<{ force?: boolean }>();
 
   constructor(
     private documentService: StudentDocumentsService,
@@ -63,65 +70,73 @@ export class StudentDocumentsComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadData();
-    this.loadAgreements();
+    this.bindDashboardRefresh();
+    this.bindAgreementsRefresh();
+    this.refreshDashboard();
   }
 
-  async loadData(): Promise<void> {
-    this.isLoading = true;
-    try {
-      await Promise.all([
-        this.loadRequirements(),
-        this.loadDocuments(),
-        this.loadStats()
-      ]);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      this.showError('Error loading data. Please refresh the page.');
-    } finally {
-      this.isLoading = false;
-    }
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
-  async loadRequirements(): Promise<void> {
-    try {
-      const response = await this.documentService.getStudentRequirements().toPromise();
-      if (response && response.success) {
-        this.requirements = response.requirements;
-      }
-    } catch (error) {
-      console.error('Error loading requirements:', error);
-    }
+  private bindDashboardRefresh(): void {
+    this.dashboardRefresh$
+      .pipe(
+        switchMap(({ force }) => {
+          this.isLoading = true;
+          return this.documentService.getDashboardBundle({ force }).pipe(
+            catchError((error) => {
+              console.error('Error loading student documents dashboard:', error);
+              this.showError('Error loading data. Please refresh the page.');
+              return of(null);
+            }),
+            switchMap((bundle) => of({ bundle, force }))
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(({ bundle, force }) => {
+        if (bundle) {
+          this.requirements = bundle.requirements || [];
+          this.documents = bundle.documents || [];
+          this.stats = bundle.stats || null;
+          this.refreshAgreements(force);
+        } else {
+          this.loadingAgreements = false;
+        }
+        this.isLoading = false;
+      });
   }
 
-  async loadDocuments(): Promise<void> {
-    try {
-      const response = await this.documentService.getMyDocuments().toPromise();
-      if (response && response.success) {
-        this.documents = response.documents;
-      }
-    } catch (error) {
-      console.error('Error loading documents:', error);
-    }
+  private bindAgreementsRefresh(): void {
+    this.agreementsRefresh$
+      .pipe(
+        switchMap(({ force }) => {
+          this.loadingAgreements = true;
+          return timer(250).pipe(
+            switchMap(() => this.agreementService.getInstances(undefined, { summary: true, force })),
+            catchError((error) => {
+              console.error('Error loading agreements:', error);
+              return of({ success: false, agreements: [] });
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((response) => {
+        this.agreements = response.agreements || [];
+        this.loadingAgreements = false;
+      });
   }
 
-  async loadStats(): Promise<void> {
-    try {
-      const response = await this.documentService.getDocumentStats().toPromise();
-      if (response && response.success) {
-        this.stats = response.stats;
-      }
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  }
-
-  loadAgreements(): void {
+  private refreshDashboard(force = false): void {
     this.loadingAgreements = true;
-    this.agreementService.getInstances().subscribe({
-      next: r => { this.agreements = r.agreements || []; this.loadingAgreements = false; },
-      error: () => { this.loadingAgreements = false; }
-    });
+    this.dashboardRefresh$.next({ force });
+  }
+
+  private refreshAgreements(force = false): void {
+    this.agreementsRefresh$.next({ force });
   }
 
   isAgreementRequirement(req: DocumentRequirement): boolean {
@@ -129,7 +144,7 @@ export class StudentDocumentsComponent implements OnInit {
   }
 
   /** Link checklist row to shared agreement instance. */
-  getAgreementForRequirement(req: DocumentRequirement): StudentAgreement | null {
+  getAgreementForRequirement(req: DocumentRequirement): StudentDocumentInstance | null {
     const latest = this.getLatestDocumentForType(req.type);
     if (latest) {
       const byDoc = this.agreements.find(
@@ -145,11 +160,11 @@ export class StudentDocumentsComponent implements OnInit {
     return null;
   }
 
-  canUploadSignedAgreement(a: StudentAgreement): boolean {
+  canUploadSignedAgreement(a: StudentDocumentInstance): boolean {
     return a.status === 'SENT' || a.status === 'REJECTED' || a.status === 'SIGNED_PENDING';
   }
 
-  downloadAgreement(a: StudentAgreement, type: 'generated' | 'signed' = 'generated'): void {
+  downloadAgreement(a: StudentDocumentInstance, type: 'generated' | 'signed' = 'generated'): void {
     const name =
       type === 'signed' && a.signedFile?.fileName
         ? a.signedFile.fileName
@@ -160,7 +175,7 @@ export class StudentDocumentsComponent implements OnInit {
     });
   }
 
-  viewAgreement(a: StudentAgreement): void {
+  viewAgreement(a: StudentDocumentInstance): void {
     const type = a.signedFile && a.status !== 'SENT' ? 'signed' : 'generated';
     this.agreementService.downloadInstance(a._id, type).subscribe({
       next: (blob) => {
@@ -201,9 +216,9 @@ export class StudentDocumentsComponent implements OnInit {
     this.agreementService.uploadSigned(id, file).subscribe({
       next: () => {
         this.showSuccess('Signed agreement uploaded! Admin will review it shortly.');
-        this.loadAgreements();
-        this.loadDocuments();
-        this.loadStats();
+        this.documentService.invalidateDashboardCache();
+        this.agreementService.invalidateInstancesCache();
+        this.refreshDashboard(true);
         this.uploadingAgreementId = null;
         input.value = '';
       },
@@ -320,8 +335,8 @@ export class StudentDocumentsComponent implements OnInit {
       if (response && response.success) {
         this.showSuccess('Document uploaded successfully!');
         this.resetUploadForm();
-        await this.loadDocuments();
-        await this.loadStats();
+        this.documentService.invalidateDashboardCache();
+        this.refreshDashboard(true);
       }
     } catch (error: any) {
       console.error('Error uploading document:', error);
@@ -339,8 +354,8 @@ export class StudentDocumentsComponent implements OnInit {
         const response = await this.documentService.deleteDocument(documentId).toPromise();
         if (response && response.success) {
           this.showSuccess('Document deleted successfully');
-          await this.loadDocuments();
-          await this.loadStats();
+          this.documentService.invalidateDashboardCache();
+          this.refreshDashboard(true);
         }
       } catch (error: any) {
         console.error('Error deleting document:', error);
@@ -448,43 +463,48 @@ export class StudentDocumentsComponent implements OnInit {
   }
 
   uploadFromRequirementRow(requirement: DocumentRequirement, isReplace = false): void {
-    const picker = document.createElement('input');
-    picker.type = 'file';
-    picker.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx';
-    picker.onchange = async () => {
-      const file = picker.files && picker.files.length > 0 ? picker.files[0] : null;
-      if (!file) return;
+    this.pendingRequirement = { req: requirement, isReplace };
+    const input = this.reqFileInput.nativeElement;
+    input.value = '';
+    input.click();
+  }
 
-      const validationError = this.validateFile(file);
-      if (validationError) {
-        this.showError(validationError);
-        return;
+  async onReqFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    if (!file || !this.pendingRequirement) return;
+
+    const { req: requirement, isReplace } = this.pendingRequirement;
+    this.pendingRequirement = null;
+
+    const validationError = this.validateFile(file);
+    if (validationError) {
+      this.showError(validationError);
+      return;
+    }
+
+    this.uploadingRequirementType = requirement.type;
+    this.clearMessages();
+    try {
+      const latestDoc = this.getLatestDocumentForType(requirement.type);
+      const formData = new FormData();
+      formData.append('document', file);
+      formData.append('documentTypeId', requirement.id);
+      formData.append('documentType', requirement.type);
+      formData.append('documentName', latestDoc?.documentName || requirement.label);
+      formData.append('description', isReplace ? 'Re-uploaded by student as a replacement version' : '');
+
+      const response = await this.documentService.uploadDocument(formData).toPromise();
+      if (response?.success) {
+        this.showSuccess(isReplace ? 'Document replaced successfully' : 'Document uploaded successfully');
+        this.documentService.invalidateDashboardCache();
+        this.refreshDashboard(true);
       }
-
-      this.uploadingRequirementType = requirement.type;
-      this.clearMessages();
-      try {
-        const latestDoc = this.getLatestDocumentForType(requirement.type);
-        const formData = new FormData();
-        formData.append('document', file);
-        formData.append('documentTypeId', requirement.id);
-        formData.append('documentType', requirement.type);
-        formData.append('documentName', latestDoc?.documentName || requirement.label);
-        formData.append('description', isReplace ? 'Re-uploaded by student as a replacement version' : '');
-
-        const response = await this.documentService.uploadDocument(formData).toPromise();
-        if (response?.success) {
-          this.showSuccess(isReplace ? 'Document replaced successfully' : 'Document uploaded successfully');
-          await this.loadDocuments();
-          await this.loadStats();
-        }
-      } catch (error: any) {
-        this.showError(error?.error?.message || 'Failed to upload document');
-      } finally {
-        this.uploadingRequirementType = null;
-      }
-    };
-    picker.click();
+    } catch (error: any) {
+      this.showError(error?.error?.message || 'Failed to upload document');
+    } finally {
+      this.uploadingRequirementType = null;
+    }
   }
 
   getRequirementStatusText(type: string): string {

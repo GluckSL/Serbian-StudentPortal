@@ -4,15 +4,21 @@
 
 .header {
   display: flex; justify-content: space-between; align-items: center;
-  background: #b3cde0; color: #011f4b;
+  background: linear-gradient(135deg, #011f4b 0%, #03396c 60%, #0a5298 100%);
+  color: #fff;
   padding: 14px 18px; border-radius: 14px; margin-bottom: 10px;
-  h1 { margin: 0; font-size: 15px; font-weight: 700; color: #011f4b; }
+  box-shadow: 0 4px 16px rgba(1, 31, 75, 0.25);
+  h1 { margin: 0; font-size: 15px; font-weight: 700; color: #fff; }
 }
 
 .header-actions { display: flex; gap: 8px; align-items: center; }
 .header button {
   font-size: 11px; font-weight: 600; font-family: inherit;
   padding: 5px 14px; border-radius: 8px; min-height: 30px; line-height: 1;
+  color: #fff !important;
+  border-color: rgba(255,255,255,0.5) !important;
+  background: rgba(255,255,255,0.12) !important;
+  &:hover { background: rgba(255,255,255,0.22) !important; }
   mat-icon { font-size: 14px; width: 14px; height: 14px; margin-right: 4px; }
 }
 
@@ -94,4 +100,120 @@
     align-items: center;
     margin-right: 0;
   }
+}
+
+// ── Mobile card view ──────────────────────────────────────────────────────
+.mobile-cards { display: none; }
+
+.session-card {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e4eaf4;
+  border-left: 4px solid #03396c;
+  padding: 0;
+  margin-bottom: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(1, 31, 75, 0.07);
+  transition: box-shadow 0.18s, transform 0.18s;
+  overflow: hidden;
+
+  &:active {
+    box-shadow: 0 4px 18px rgba(1, 31, 75, 0.15);
+    transform: scale(0.99);
+  }
+
+  &.is-live { border-left-color: #c62828; }
+  &.is-ended { border-left-color: #2e7d32; }
+}
+
+.session-card__body {
+  padding: 14px 14px 10px;
+}
+
+.session-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.session-card__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #011f4b;
+  line-height: 1.35;
+  flex: 1;
+}
+
+.session-card__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+
+.session-card__meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #4a5568;
+}
+
+.session-card__meta-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+  color: #03396c;
+  opacity: 0.75;
+}
+
+.session-card__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.session-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #f7f9fc;
+  border-top: 1px solid #e4eaf4;
+  padding: 8px 12px;
+}
+
+@media (max-width: 600px) {
+  .gluck-room-list { padding: 8px; }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .header button {
+    min-height: 44px;
+    flex: 1 1 auto;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .filters {
+    flex-direction: column;
+    gap: 8px;
+
+    mat-form-field { width: 100%; }
+  }
+
+  .table-wrap { display: none; }
+  .mobile-cards { display: block; margin-top: 10px; }
 }
