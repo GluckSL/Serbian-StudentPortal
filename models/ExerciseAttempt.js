@@ -97,6 +97,7 @@ const ExerciseAttemptSchema = new mongoose.Schema({
 
 // Index for fast queries by student, exercise, date
 ExerciseAttemptSchema.index({ studentId: 1, exerciseId: 1 });
+ExerciseAttemptSchema.index({ studentId: 1, startedAt: 1 });
 ExerciseAttemptSchema.index({ studentId: 1, status: 1 }); // batch progress overall aggregate
 ExerciseAttemptSchema.index({ studentId: 1, status: 1, exerciseId: 1, scorePercentage: -1, completedAt: -1, attemptNumber: -1 });
 ExerciseAttemptSchema.index({ exerciseId: 1, status: 1 });

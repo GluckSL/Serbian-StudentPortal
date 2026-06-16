@@ -25,6 +25,31 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ── Day completion cache (shared by all callers) ──────────────────────────────
+const dayCompletionCache = new Map();
+const CACHE_TTL_MS = 60_000;
+
+function dayCompletionCacheKey(studentId, day, batchNames, options) {
+  return `${String(studentId)}:${day}:${batchNames.join(',')}:${options.includeRecordings ? '1' : '0'}:${options.includeDg ? '1' : '0'}:${options.studentLevel || ''}:${options.studentPlan || ''}:${options.goStatus || ''}`;
+}
+
+function dayCompletionCacheGet(key) {
+  const entry = dayCompletionCache.get(key);
+  if (entry && Date.now() - entry.at < CACHE_TTL_MS) return entry.val;
+  dayCompletionCache.delete(key);
+  return undefined;
+}
+
+function dayCompletionCacheSet(key, val) {
+  dayCompletionCache.set(key, { at: Date.now(), val });
+  if (dayCompletionCache.size > 1000) {
+    const now = Date.now();
+    for (const [k, v] of dayCompletionCache) {
+      if (now - v.at > CACHE_TTL_MS) dayCompletionCache.delete(k);
+    }
+  }
+}
+
 /**
  * @param {string|import('mongoose').Types.ObjectId} studentId
  * @param {string|string[]} batchNameOrNames
@@ -33,6 +58,14 @@ function escapeRegExp(str) {
  *   creditMeetings — meeting IDs to treat as attended (e.g. recording watch gate just satisfied)
  */
 async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, options = {}) {
+  const batchNames = Array.isArray(batchNameOrNames)
+    ? batchNameOrNames.map((b) => String(b || '').trim()).filter(Boolean)
+    : batchNameOrNames
+      ? [String(batchNameOrNames).trim()]
+      : [];
+  const cacheKey = dayCompletionCacheKey(studentId, day, batchNames, options);
+  const cached = dayCompletionCacheGet(cacheKey);
+  if (cached !== undefined) return cached;
   const creditMeetingIds = new Set((options.creditMeetings || []).map((id) => String(id)));
   const includeRecordings = options.includeRecordings === true;
   const includeDg = options.includeDg === true;
@@ -43,11 +76,6 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       : 0.9;
   const studentLevel = String(options.studentLevel || '').toUpperCase().trim();
   const studentPlan = String(options.studentPlan || '').toUpperCase().trim();
-  const batchNames = Array.isArray(batchNameOrNames)
-    ? batchNameOrNames.map((b) => String(b || '').trim()).filter(Boolean)
-    : batchNameOrNames
-      ? [String(batchNameOrNames).trim()]
-      : [];
   const recordingBatchNames =
     Array.isArray(options.recordingBatchNames) && options.recordingBatchNames.length
       ? options.recordingBatchNames.map((b) => String(b || '').trim()).filter(Boolean)
@@ -75,12 +103,35 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     : [];
 
   const completedExerciseIdSet = new Set(completedAttempts.map((id) => String(id)));
-  for (const ex of exercises) {
-    if (completedExerciseIdSet.has(String(ex._id))) continue;
-    if (!ex.splitLineage?.sourceExerciseId) continue;
-    const inherited = await resolveInheritedAttempt(studentId, ex);
-    if (isInheritedPassing(inherited)) {
-      completedExerciseIdSet.add(String(ex._id));
+
+  // Batch-load source exercise attempts for split-lineage exercises (fixes N+1)
+  const splitExercises = exercises.filter(
+    (ex) => !completedExerciseIdSet.has(String(ex._id)) && ex.splitLineage?.sourceExerciseId,
+  );
+  if (splitExercises.length) {
+    const sourceIds = [...new Set(splitExercises.map((ex) => String(ex.splitLineage.sourceExerciseId)))];
+    const sourceAttempts = sourceIds.length
+      ? await ExerciseAttempt.find({
+          studentId,
+          exerciseId: { $in: sourceIds },
+          status: 'completed',
+        })
+          .sort({ scorePercentage: -1, completedAt: -1, attemptNumber: -1, _id: -1 })
+          .lean()
+      : [];
+    const bestBySource = new Map();
+    for (const att of sourceAttempts) {
+      const key = String(att.exerciseId);
+      if (!bestBySource.has(key)) bestBySource.set(key, att);
+    }
+    for (const ex of splitExercises) {
+      const srcKey = String(ex.splitLineage.sourceExerciseId);
+      const srcAttempt = bestBySource.get(srcKey);
+      if (!srcAttempt) continue;
+      const inherited = await resolveInheritedAttempt(studentId, ex, srcAttempt);
+      if (isInheritedPassing(inherited)) {
+        completedExerciseIdSet.add(String(ex._id));
+      }
     }
   }
   const exerciseDone = completedExerciseIdSet.size;
@@ -283,7 +334,7 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   const complete = finalTotalTasks === 0 || finalDoneTasks === finalTotalTasks;
   const incompleteTasks = [...incompleteExercises, ...incompleteClasses, ...incompleteRecordings, ...incompleteDg];
 
-  return {
+  const result = {
     complete,
     incompleteTasks,
     totalTasks: finalTotalTasks,
@@ -310,6 +361,8 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       }
     }
   };
+  dayCompletionCacheSet(cacheKey, result);
+  return result;
 }
 
 function meetsStrictThreshold(completion, cfg) {
