@@ -16,17 +16,16 @@ router.get('/dashboard', verifyToken, checkRole('STUDENT'), async (req, res) => 
   try {
     const studentId = req.user.id;
 
-    // 1. Get student profile
-    const student = await User.findById(studentId).select('-password').lean();
+    // Run all independent queries in parallel instead of sequentially
+    const [student, subscriptions, enrolledCourseIds] = await Promise.all([
+      User.findById(studentId).select('-password').lean(),
+      Subscription.find({ userId: studentId }).lean(),
+      CourseProgress.find({ studentId }).distinct('courseId'),
+    ]);
 
-    // 2. Get subscriptions
-    const subscriptions = await Subscription.find({ userId: studentId }).lean();
-
-    // 3. Get enrolled courses via CourseProgress
-    const enrolledCourseIds = await CourseProgress.find({ studentId }).distinct('courseId');
-    const enrolledCourses = enrolledCourseIds.length ? await Course.find({ _id: { $in: enrolledCourseIds } }).lean() : [];
-
-    // 4. VAPI access is part of student profile (in vapiAccess field)
+    const enrolledCourses = enrolledCourseIds.length
+      ? await Courses.find({ _id: { $in: enrolledCourseIds } }).lean()
+      : [];
 
     return res.status(200).json({
       success: true,
@@ -34,7 +33,7 @@ router.get('/dashboard', verifyToken, checkRole('STUDENT'), async (req, res) => 
         profile: student,
         subscriptions,
         enrolledCourses,
-        vapiAccess: student.vapiAccess || null,
+        vapiAccess: student?.vapiAccess || null,
       },
     });
   } catch (err) {

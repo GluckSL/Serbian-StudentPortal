@@ -39,13 +39,70 @@ router.get('/stages', verifyToken, (req, res) => {
 // GET /api/visa-tracking/all
 router.get('/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const records = await VisaTracking.find()
-      .populate('studentId', 'name email regNo batch level')
-      .populate('updatedBy', 'name')
-      .populate('history.updatedBy', 'name')
-      .sort({ updatedAt: -1 })
-      .lean();
-    // Attach computed currentStage
+    // Single aggregation pipeline replaces 3 separate .populate() calls
+    const records = await VisaTracking.aggregate([
+      { $sort: { updatedAt: -1 } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'studentId',
+          foreignField: '_id',
+          pipeline: [{ $project: { name: 1, email: 1, regNo: 1, batch: 1, level: 1 } }],
+          as: 'studentId',
+        },
+      },
+      { $unwind: { path: '$studentId', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'updatedBy',
+          foreignField: '_id',
+          pipeline: [{ $project: { name: 1 } }],
+          as: 'updatedBy',
+        },
+      },
+      { $unwind: { path: '$updatedBy', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'history.updatedBy',
+          foreignField: '_id',
+          pipeline: [{ $project: { name: 1 } }],
+          as: '_historyUsers',
+        },
+      },
+      {
+        $addFields: {
+          history: {
+            $map: {
+              input: '$history',
+              as: 'h',
+              in: {
+                $mergeObjects: [
+                  '$$h',
+                  {
+                    updatedBy: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: '$_historyUsers',
+                            as: 'u',
+                            cond: { $eq: ['$$u._id', '$$h.updatedBy'] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $project: { _historyUsers: 0 } },
+    ]);
+
     records.forEach(r => { r.currentStage = computeCurrentStage(r.stages); });
     res.json({ success: true, data: records });
   } catch (err) {

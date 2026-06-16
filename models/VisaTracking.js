@@ -41,5 +41,7 @@ const VisaTrackingSchema = new mongoose.Schema({
 
 VisaTrackingSchema.index({ studentId: 1 });
 VisaTrackingSchema.index({ updatedAt: -1 });
+// Compound index for the admin /all query which sorts by updatedAt and joins on studentId/updatedBy
+VisaTrackingSchema.index({ updatedAt: -1, studentId: 1 });
 
 module.exports = mongoose.model('VisaTracking', VisaTrackingSchema);
