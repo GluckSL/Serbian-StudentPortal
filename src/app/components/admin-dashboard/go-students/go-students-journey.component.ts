@@ -31,8 +31,9 @@ interface PickerItem {
   subtitle?: string;
   meta?: string;
   courseDay?: number | null;
-  /** MANUAL vs ZOOM from admin list — only MANUAL can be linked to journey day here */
   recordingType?: string;
+  meetingLinkId?: string;
+  batches?: string[];
 }
 
 @Component({
@@ -162,7 +163,7 @@ interface PickerItem {
     <div *ngIf="displayTimelineDays.length === 0" class="gs-empty">
       <i class="fas fa-calendar-plus fa-3x" style="color:#cbd5e1;margin-bottom:12px;"></i>
       <p>No content assigned to journey days yet.</p>
-      <p style="font-size:13px;color:#94a3b8;">Pick a day below, then use <strong>Add content</strong> to link modules, exercises, classes, or class recordings. Manual uploads can be linked; Zoom rows in the list are view-only.</p>
+      <p style="font-size:13px;color:#94a3b8;">Pick a day below, then use <strong>Add content</strong> to link modules, exercises, classes, or class recordings (manual and Zoom).</p>
       <div class="gs-empty-add">
         <label class="gs-label" for="gs-empty-day">Day (1–200)</label>
         <div class="gs-empty-add-row">
@@ -957,10 +958,21 @@ export class GoStudentsJourneyComponent implements OnInit {
   }
 
   canLinkRecording(item: PickerItem): boolean {
-    if (item.recordingType === 'ZOOM') return false;
+    if (this.isZoomPickerItem(item)) {
+      return Boolean(this.zoomMeetingLinkIdFromItem(item));
+    }
+    return /^[a-f0-9]{24}$/i.test(String(item._id || ''));
+  }
+
+  private isZoomPickerItem(item: PickerItem): boolean {
+    return item.recordingType === 'ZOOM' || String(item._id || '').startsWith('zoom-');
+  }
+
+  private zoomMeetingLinkIdFromItem(item: PickerItem): string | null {
+    if (item.meetingLinkId) return item.meetingLinkId;
     const id = String(item._id || '');
-    if (id.startsWith('zoom-')) return false;
-    return /^[a-f0-9]{24}$/i.test(id);
+    if (id.startsWith('zoom-')) return id.slice(5);
+    return null;
   }
 
   get filteredPickerItems(): PickerItem[] {
@@ -1243,28 +1255,58 @@ export class GoStudentsJourneyComponent implements OnInit {
     }
     if (this.addType === 'recordings') {
       if (!this.canLinkRecording(item)) {
-        this.notify.error('Only manual class recordings can be linked to a journey day. Use Manage Classes for Zoom meetings.');
+        this.notify.error('This recording cannot be linked to a journey day.');
         return;
       }
       this.savingItemAction = true;
+      const onLinked = () => {
+        this.savingItemAction = false;
+        this.notify.success('Recording linked to day ' + this.addTargetDay + '.');
+        this.pickerRecordings = [];
+        this.fetchTimeline();
+        this.closeAddModal();
+      };
+      const onLinkError = (e: { error?: { message?: string } }) => {
+        this.savingItemAction = false;
+        this.notify.error(e?.error?.message || 'Failed to link recording.');
+      };
+
+      if (this.isZoomPickerItem(item)) {
+        const meetingLinkId = this.zoomMeetingLinkIdFromItem(item);
+        if (!meetingLinkId) {
+          this.savingItemAction = false;
+          this.notify.error('Zoom recording is missing a meeting reference.');
+          return;
+        }
+        const batches = Array.from(new Set([...(item.batches || []), this.GO_BATCH]));
+        this.http
+          .put(
+            `${this.classRecordingsUrl}/zoom/${meetingLinkId}/meta`,
+            { courseDay: this.addTargetDay, batches },
+            { withCredentials: true }
+          )
+          .subscribe({
+            next: () => {
+              this.http
+                .post(
+                  `${this.classRecordingsUrl}/zoom/publish`,
+                  { meetingLinkIds: [meetingLinkId], isPublished: true },
+                  { withCredentials: true }
+                )
+                .subscribe({ next: onLinked, error: onLinkError });
+            },
+            error: onLinkError
+          });
+        return;
+      }
+
       this.http
         .put(
           `${this.classRecordingsUrl}/${item._id}`,
           { courseDay: this.addTargetDay, addBatch: this.GO_BATCH, isPublished: true },
           { withCredentials: true }
         )
-        .subscribe({
-          next: () => {
-            this.savingItemAction = false;
-            this.notify.success('Recording linked to day ' + this.addTargetDay + '.');
-            this.fetchTimeline();
-            this.closeAddModal();
-          },
-          error: (e) => {
-            this.savingItemAction = false;
-            this.notify.error(e?.error?.message || 'Failed to link recording.');
-          }
-        });
+        .subscribe({ next: onLinked, error: onLinkError });
       return;
     }
 
@@ -1334,6 +1376,14 @@ export class GoStudentsJourneyComponent implements OnInit {
       return this.http.put(`${this.digitalExercisesUrl}/${itemId}`, { courseDay: day }, { withCredentials: true });
     }
     if (type === 'recordings') {
+      if (String(itemId).startsWith('zoom-')) {
+        const meetingLinkId = itemId.slice(5);
+        return this.http.put(
+          `${this.classRecordingsUrl}/zoom/${meetingLinkId}/meta`,
+          { courseDay: day },
+          { withCredentials: true }
+        );
+      }
       return this.http.put(
         `${this.classRecordingsUrl}/${itemId}`,
         day == null ? { courseDay: null } : { courseDay: day, addBatch: this.GO_BATCH },
@@ -1396,7 +1446,9 @@ export class GoStudentsJourneyComponent implements OnInit {
           subtitle: x.recordingType === 'ZOOM' ? 'Zoom Recording' : 'Manual Recording',
           meta: x.plan ? `Plan: ${x.plan}` : '',
           courseDay: x.courseDay ?? null,
-          recordingType: x.recordingType === 'ZOOM' ? 'ZOOM' : 'MANUAL'
+          recordingType: x.recordingType === 'ZOOM' ? 'ZOOM' : 'MANUAL',
+          meetingLinkId: x.meetingLinkId ? String(x.meetingLinkId) : undefined,
+          batches: Array.isArray(x.batches) ? x.batches.map((b: unknown) => String(b)) : []
         }));
         this.addListLoading = false;
       },
