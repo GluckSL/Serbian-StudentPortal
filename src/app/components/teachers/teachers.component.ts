@@ -164,6 +164,13 @@ export class TeachersComponent implements OnInit {
     window.open(url, '_blank');
   }
 
+  openAnalyticsOverview(): void {
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/teachers/analytics-overview'])
+    );
+    window.open(url, '_blank');
+  }
+
   openPasswordModal(teacher: Teacher): void {
     this.pwModal = {
       open: true,

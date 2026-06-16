@@ -1,0 +1,280 @@
+<div class="tao-page">
+  <header class="tao-hero">
+    <div class="tao-hero__content">
+      <a class="tao-back" routerLink="/teachers">
+        <i class="fas fa-arrow-left"></i> Teachers
+      </a>
+      <h1>Teacher Analytics</h1>
+      <p class="tao-hero__sub" *ngIf="!loading && generatedAt">
+        {{ filteredTeachers.length }} teachers · total hours &amp; attendance overview
+      </p>
+      <p class="tao-hero__sub" *ngIf="loading">Loading analytics…</p>
+    </div>
+    <div class="tao-hero__actions">
+      <button class="tao-btn tao-btn--outline" (click)="exportCsv()" [disabled]="loading || !filteredTeachers.length">
+        <i class="fas fa-file-csv"></i> Export
+      </button>
+      <button class="tao-btn tao-btn--solid" (click)="printReport()" [disabled]="loading || !filteredTeachers.length">
+        <i class="fas fa-print"></i> Print
+      </button>
+    </div>
+  </header>
+
+  <!-- Skeleton loading -->
+  <ng-container *ngIf="loading">
+    <section class="tao-summary tao-summary--skeleton">
+      <div class="tao-kpi tao-skel" *ngFor="let _ of skeletonKpis">
+        <div class="tao-skel-line tao-skel-line--sm"></div>
+        <div class="tao-skel-line tao-skel-line--lg"></div>
+      </div>
+    </section>
+    <section class="tao-filters tao-filters--skeleton">
+      <div class="tao-skel tao-skel-field" *ngFor="let _ of skeletonKpis"></div>
+    </section>
+    <section class="tao-table-wrap">
+      <div class="tao-skel-table">
+        <div class="tao-skel-line tao-skel-line--header"></div>
+        <div class="tao-skel-row" *ngFor="let _ of skeletonRows">
+          <div class="tao-skel-line"></div>
+          <div class="tao-skel-line tao-skel-line--short"></div>
+          <div class="tao-skel-line tao-skel-line--xs"></div>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+  <div *ngIf="error && !loading" class="tao-alert tao-alert--error">
+    <i class="fas fa-exclamation-circle"></i> {{ error }}
+  </div>
+
+  <ng-container *ngIf="!loading && !error">
+    <section class="tao-summary" *ngIf="totals">
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--violet"><i class="fas fa-chalkboard-teacher"></i></span>
+        <div>
+          <span class="tao-kpi__label">Teachers</span>
+          <strong class="tao-kpi__value">{{ filteredTeachers.length }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--sky"><i class="fas fa-clock"></i></span>
+        <div>
+          <span class="tao-kpi__label">Total hours</span>
+          <strong class="tao-kpi__value">{{ formatHours(totals.totalTutorHours) }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--emerald"><i class="fas fa-users"></i></span>
+        <div>
+          <span class="tao-kpi__label">Students</span>
+          <strong class="tao-kpi__value">{{ totals.totalStudents }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi" *ngIf="totals.avgAttendance != null">
+        <span class="tao-kpi__icon tao-kpi__icon--amber"><i class="fas fa-chart-line"></i></span>
+        <div>
+          <span class="tao-kpi__label">Avg attendance</span>
+          <strong class="tao-kpi__value" [ngClass]="attendanceClass(totals.avgAttendance)">
+            {{ formatAttendance(totals.avgAttendance) }}
+          </strong>
+        </div>
+      </article>
+    </section>
+
+    <section class="tao-filters">
+      <div class="tao-filter">
+        <label>Tutor</label>
+        <input type="text" [(ngModel)]="filterTutor" (ngModelChange)="applyFilters()" placeholder="Search name…" />
+      </div>
+      <div class="tao-filter">
+        <label>Batch</label>
+        <input type="text" [(ngModel)]="filterBatch" (ngModelChange)="applyFilters()" placeholder="e.g. 26" />
+      </div>
+      <div class="tao-filter">
+        <label>Level</label>
+        <select [(ngModel)]="filterLevel" (ngModelChange)="applyFilters()">
+          <option value="">All</option>
+          <option value="A1">A1</option>
+          <option value="A2">A2</option>
+          <option value="B1">B1</option>
+          <option value="B2">B2</option>
+        </select>
+      </div>
+      <div class="tao-filter">
+        <label>Medium</label>
+        <select [(ngModel)]="filterMedium" (ngModelChange)="applyFilters()">
+          <option value="">All</option>
+          <option value="sinhala">Sinhala</option>
+          <option value="tamil">Tamil</option>
+          <option value="english">English</option>
+        </select>
+      </div>
+      <div class="tao-filter">
+        <label>From</label>
+        <input type="date" [(ngModel)]="dateFrom" />
+      </div>
+      <div class="tao-filter">
+        <label>To</label>
+        <input type="date" [(ngModel)]="dateTo" />
+      </div>
+      <div class="tao-filter tao-filter--actions">
+        <button class="tao-btn tao-btn--solid tao-btn--sm" (click)="applyDateFilter()">Apply</button>
+        <button class="tao-btn tao-btn--outline tao-btn--sm" (click)="clearFilters()">Clear</button>
+      </div>
+    </section>
+
+    <section class="tao-table-wrap">
+      <div class="tao-table-scroll">
+        <table class="tao-table">
+          <thead>
+            <tr>
+              <th>Tutor</th>
+              <th>Batches</th>
+              <th>Levels</th>
+              <th>Medium</th>
+              <th class="tao-num">Students</th>
+              <th class="tao-num">Classes</th>
+              <th class="tao-num">Total Hours</th>
+              <th class="tao-num">Attendance</th>
+              <th class="tao-actions-col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let teacher of filteredTeachers" class="tao-row">
+              <td class="tao-tutor">
+                <div class="tao-avatar">{{ teacher.tutor.charAt(0) }}</div>
+                <div>
+                  <strong>{{ teacher.tutor }}</strong>
+                  <small *ngIf="teacher.regNo">{{ teacher.regNo }}</small>
+                </div>
+              </td>
+              <td>
+                <div class="tao-batch-list" [class.tao-batch-list--expanded]="isBatchesExpanded(teacher)">
+                  <span class="tao-batch-pill" *ngFor="let b of displayedBatches(teacher)">{{ b }}</span>
+                  <button
+                    type="button"
+                    class="tao-batch-more"
+                    *ngIf="hasMoreBatches(teacher)"
+                    (click)="toggleBatches(teacher, $event)"
+                    [attr.aria-expanded]="isBatchesExpanded(teacher)"
+                    [title]="isBatchesExpanded(teacher) ? 'Show fewer batches' : 'Show all batches'"
+                  >
+                    <ng-container *ngIf="isBatchesExpanded(teacher); else showMore">
+                      <i class="fas fa-chevron-up"></i> Less
+                    </ng-container>
+                    <ng-template #showMore>+{{ hiddenBatchCount(teacher) }}</ng-template>
+                  </button>
+                  <span *ngIf="!teacher.batches?.length" class="tao-muted">—</span>
+                </div>
+              </td>
+              <td><span class="tao-level-pill">{{ teacher.levels }}</span></td>
+              <td><span class="tao-medium">{{ teacher.medium || '—' }}</span></td>
+              <td class="tao-num">{{ teacher.studentCount }}</td>
+              <td class="tao-num">{{ teacher.meetingCount }}</td>
+              <td class="tao-num tao-hours">{{ formatHours(teacher.tutorHours) }}</td>
+              <td class="tao-num" [ngClass]="attendanceClass(teacher.attendance)">
+                {{ formatAttendance(teacher.attendance) }}
+              </td>
+              <td class="tao-actions-col">
+                <button type="button" class="tao-action-btn tao-action-btn--view" (click)="openDetail(teacher)">
+                  <i class="fas fa-eye"></i> View
+                </button>
+                <button type="button" class="tao-action-btn tao-action-btn--report" (click)="openTeacherReport(teacher)">
+                  <i class="fas fa-chart-line"></i> Report
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="!filteredTeachers.length">
+              <td colspan="9" class="tao-empty">No teachers match your filters.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+
+  <!-- Detail modal -->
+  <div class="tao-modal-backdrop" *ngIf="detailTeacher" (click)="closeDetail()"></div>
+  <aside class="tao-drawer" *ngIf="detailTeacher" role="dialog" aria-modal="true">
+    <header class="tao-drawer__head">
+      <div>
+        <p class="tao-drawer__eyebrow">Teacher details</p>
+        <h2>{{ detailTeacher.tutor }}</h2>
+        <p class="tao-drawer__meta">
+          <span *ngIf="detailTeacher.regNo">{{ detailTeacher.regNo }}</span>
+          <span *ngIf="detailTeacher.email"> · {{ detailTeacher.email }}</span>
+        </p>
+      </div>
+      <button type="button" class="tao-drawer__close" (click)="closeDetail()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </header>
+
+    <div class="tao-drawer__summary">
+      <div class="tao-drawer-stat">
+        <span>Total hours</span>
+        <strong>{{ formatHours(detailTeacher.tutorHours) }}</strong>
+      </div>
+      <div class="tao-drawer-stat">
+        <span>Attendance</span>
+        <strong [ngClass]="attendanceClass(detailTeacher.attendance)">
+          {{ formatAttendance(detailTeacher.attendance) }}
+        </strong>
+      </div>
+      <div class="tao-drawer-stat">
+        <span>Students</span>
+        <strong>{{ detailTeacher.studentCount }}</strong>
+      </div>
+      <div class="tao-drawer-stat">
+        <span>Classes</span>
+        <strong>{{ detailTeacher.meetingCount }}</strong>
+      </div>
+      <div class="tao-drawer-stat">
+        <span>Medium</span>
+        <strong>{{ detailTeacher.medium || '—' }}</strong>
+      </div>
+      <div class="tao-drawer-stat">
+        <span>Levels</span>
+        <strong>{{ detailTeacher.levels }}</strong>
+      </div>
+    </div>
+
+    <div class="tao-drawer__body">
+      <h3>Batch breakdown</h3>
+      <table class="tao-subtable" *ngIf="detailTeacher.batchBreakdown?.length; else noBatches">
+        <thead>
+          <tr>
+            <th>Batch</th>
+            <th>Level</th>
+            <th class="tao-num">Students</th>
+            <th class="tao-num">Classes</th>
+            <th class="tao-num">Hours</th>
+            <th class="tao-num">Attendance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let b of detailTeacher.batchBreakdown">
+            <td><span class="tao-batch-pill">{{ b.batch }}</span></td>
+            <td><span class="tao-level-pill">{{ b.level }}</span></td>
+            <td class="tao-num">{{ b.studentCount }}</td>
+            <td class="tao-num">{{ b.meetingCount }}</td>
+            <td class="tao-num tao-hours">{{ formatHours(b.tutorHours) }}</td>
+            <td class="tao-num" [ngClass]="attendanceClass(b.attendance)">
+              {{ formatAttendance(b.attendance) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #noBatches>
+        <p class="tao-muted">No batch data for this teacher.</p>
+      </ng-template>
+    </div>
+
+    <footer class="tao-drawer__foot">
+      <button type="button" class="tao-btn tao-btn--outline" (click)="closeDetail()">Close</button>
+      <button type="button" class="tao-btn tao-btn--solid" (click)="openTeacherReport(detailTeacher!)">
+        <i class="fas fa-external-link-alt"></i> Full report
+      </button>
+    </footer>
+  </aside>
+</div>

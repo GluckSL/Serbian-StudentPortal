@@ -37,6 +37,14 @@
             </button>
           </div>
           <div class="col-md-6 text-end">
+            <button
+              class="btn btn-analytics me-2"
+              (click)="openAnalyticsOverview()"
+              title="Open teacher analytics overview in new tab"
+            >
+              <i class="fas fa-chart-bar"></i>
+              Analytics
+            </button>
             <button class="btn btn-outline-secondary" (click)="clearFilters()">
               <i class="fas fa-times"></i>
               Clear Filters
