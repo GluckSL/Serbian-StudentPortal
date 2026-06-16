@@ -58,3 +58,176 @@
   outline: 2px solid var(--ga-primary);
   outline-offset: 2px;
 }
+
+/* Student responsive pass
+   BEFORE: the catalog shell and filters used compact controls on 412px screens, and some
+   cards/buttons could fall below the 44px tap target. These overrides stay in SCSS because
+   the student catalog/layout components keep their templates/styles inline in TypeScript. */
+.arena-layout-wrap {
+  max-width: 1200px !important;
+  box-sizing: border-box;
+}
+
+.arena-tabs {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.arena-tabs a[mat-tab-link] {
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
+.arena {
+  max-width: 1200px !important;
+  box-sizing: border-box;
+}
+
+.arena__locked h2,
+.arena-empty h3,
+.podium-heading,
+.arena-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.arena__locked p,
+.arena-empty p,
+.arena-card p,
+.arena-card__record,
+.podium__my-rank {
+  font-size: 14px !important;
+  overflow-wrap: anywhere;
+}
+
+.arena-hero__nav-link,
+.arena-filters__search,
+.arena-filters__dropdown,
+.arena-card__play,
+.arena-empty button,
+.arena-paginator button {
+  min-height: 44px !important;
+}
+
+.arena-filters__search input,
+.arena-filters__dropdown,
+.arena-filters__dropdown-item,
+.tag,
+.arena-card__meta,
+.arena-card__xp,
+.arena-card__new,
+.arena-hero__events-item {
+  font-size: 14px !important;
+}
+
+.arena-filters__search,
+.arena-filters__dropdown {
+  height: auto !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+.arena-filters__dropdown-menu {
+  max-height: min(360px, 70vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.arena-grid {
+  align-items: stretch;
+}
+
+.arena-card {
+  min-width: 0;
+}
+
+.arena-card__content {
+  min-width: 0;
+}
+
+.arena-card__meta {
+  flex-wrap: wrap;
+}
+
+.arena-card__play {
+  width: calc(100% - 28px);
+}
+
+.podium__name {
+  max-width: 100px !important;
+}
+
+@media (max-width: 768px) {
+  .arena-layout-wrap {
+    padding: 12px 12px 32px !important;
+  }
+
+  .arena-tabs {
+    border-radius: 12px 12px 0 0 !important;
+  }
+
+  .arena-hero__right {
+    width: 100%;
+  }
+
+  .arena-hero__level,
+  .arena-hero__nav-link {
+    flex: 1 1 auto;
+  }
+
+  .arena-filters {
+    align-items: stretch !important;
+  }
+
+  .arena-filters__search,
+  .arena-filters__dropdown-wrap,
+  .arena-filters__dropdown {
+    width: 100%;
+  }
+
+  .arena-filters__dropdown-menu {
+    left: 0;
+    right: 0;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .arena-layout-wrap {
+    padding: 8px 8px 24px !important;
+  }
+
+  .arena {
+    padding: 10px 10px 24px !important;
+  }
+
+  .arena-hero p {
+    display: block !important;
+    font-size: 14px !important;
+  }
+
+  .arena-hero__right {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .arena-hero__nav-link span {
+    display: inline !important;
+  }
+
+  .arena-card__visual {
+    height: 132px !important;
+  }
+
+  .arena-card h3 {
+    font-size: 18px !important;
+  }
+
+  .arena-card__play {
+    font-size: 14px !important;
+  }
+
+  .podium {
+    gap: 6px !important;
+  }
+}

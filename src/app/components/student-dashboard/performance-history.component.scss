@@ -1,4 +1,5 @@
 .perf-container {
+  /* BEFORE: several controls and table areas were too tight for 412px mobile screens. */
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
@@ -31,9 +32,10 @@
       border: none;
       background: transparent;
       color: #64748b;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
-      padding: 6px 16px;
+      min-height: 44px;
+      padding: 10px 16px;
       border-radius: 6px;
       cursor: pointer;
       transition: all 0.15s;
@@ -117,7 +119,7 @@
   }
 
   .progress-label {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -146,7 +148,7 @@
   }
 
   .progress-sub {
-    font-size: 12px;
+    font-size: 14px;
     color: rgba(255,255,255,0.65);
   }
 }
@@ -154,7 +156,7 @@
 /* ── Summary Cards ── */
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
   margin-bottom: 24px;
 }
@@ -175,7 +177,7 @@
   }
 
   .card-label {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -190,7 +192,7 @@
   }
 
   .card-sub {
-    font-size: 12px;
+    font-size: 14px;
     color: rgba(255,255,255,0.65);
   }
 }
@@ -237,7 +239,7 @@
 
   h3 {
     margin: 0 0 12px;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
   }
 
@@ -266,7 +268,8 @@
   border-radius: 12px;
   padding: 18px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-  height: 700px;
+  min-height: 520px;
+  max-height: 700px;
   display: flex;
   flex-direction: column;
 
@@ -280,7 +283,7 @@
 
     h3 {
       margin: 0;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 600;
     }
 
@@ -295,9 +298,10 @@
         border: none;
         background: transparent;
         color: #64748b;
-        font-size: 12px;
+        font-size: 14px;
         font-weight: 600;
-        padding: 5px 12px;
+        min-height: 44px;
+        padding: 10px 12px;
         border-radius: 6px;
         cursor: pointer;
         transition: all 0.15s;
@@ -316,14 +320,31 @@
   }
 
   .table-scroll {
-    overflow-y: auto;
+    overflow: auto;
     flex: 1;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      height: 10px;
+      width: 10px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 999px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
   }
 
   table {
     width: 100%;
+    min-width: 680px;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: 14px;
 
     th {
       text-align: left;
@@ -338,6 +359,24 @@
       padding: 8px 10px;
       border-bottom: 1px solid #f1f5f9;
       white-space: nowrap;
+    }
+
+    th:first-child,
+    td:first-child,
+    th:nth-child(4),
+    td:nth-child(4),
+    th:nth-child(5),
+    td:nth-child(5),
+    th:nth-child(6),
+    td:nth-child(6) {
+      text-align: right;
+    }
+
+    th:nth-child(2),
+    td:nth-child(2),
+    th:nth-child(3),
+    td:nth-child(3) {
+      text-align: left;
     }
 
     tr:hover td {
@@ -356,7 +395,7 @@
 
 .badge {
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 10px;
@@ -392,8 +431,24 @@
     padding: 14px;
   }
 
+  .perf-header {
+    align-items: stretch;
+
+    h1 {
+      font-size: 22px;
+    }
+
+    .range-toggles {
+      width: 100%;
+
+      button {
+        flex: 1;
+      }
+    }
+  }
+
   .cards-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .charts-row {
@@ -407,6 +462,52 @@
   }
 
   .table-card {
-    height: 600px;
+    min-height: 520px;
+    max-height: none;
+
+    .table-header {
+      align-items: stretch;
+
+      .table-toggles {
+        overflow-x: auto;
+        scrollbar-width: thin;
+
+        button {
+          flex: 0 0 auto;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .perf-container {
+    padding: 12px;
+  }
+
+  .overall-progress,
+  .summary-card,
+  .chart-card,
+  .table-card,
+  .skeleton-card,
+  .skeleton-chart,
+  .skeleton-table {
+    border-radius: 10px;
+  }
+
+  .summary-card {
+    min-height: 132px;
+  }
+
+  .chart-card {
+    padding: 14px;
+
+    .chart-wrapper {
+      height: 240px;
+    }
+  }
+
+  .table-card {
+    padding: 14px;
   }
 }

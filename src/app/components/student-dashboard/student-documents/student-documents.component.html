@@ -192,10 +192,12 @@
   <!-- Document Requirements Checklist -->
   <div class="requirements-section">
     <h3><i class="fas fa-clipboard-list"></i> Document Requirements</h3>
-    <div *ngIf="requirements.length === 0 && !isLoading" class="no-requirements-message" style="text-align: center; padding: 30px; color: #666;">
-      <i class="fas fa-check-circle" style="font-size: 48px; color: #4caf50; margin-bottom: 12px; display: block;"></i>
-      <p style="font-size: 16px; margin: 0;">No document requirements for your program.</p>
+    <!-- BEFORE: inline styles made this empty state inconsistent with the rest of the page and harder to tune for mobile. -->
+    <div *ngIf="requirements.length === 0 && !isLoading" class="no-requirements-message">
+      <i class="fas fa-check-circle"></i>
+      <p>No document requirements for your program.</p>
     </div>
+    <!-- BEFORE: this section used req-view--mobile only, which hid the requirements checklist on desktop. -->
     <div class="requirements-cards req-view--mobile" *ngIf="requirements.length > 0">
       <div class="req-card" *ngFor="let req of requirements" [class.req-card--required]="req.required">
         <div class="req-card-header">

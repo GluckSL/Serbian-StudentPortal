@@ -15,14 +15,17 @@
 }
 
 .jo-page {
+  /* BEFORE: the job listing stretched edge-to-edge and several controls were below the 44px mobile tap target. */
   width: 100%;
-  max-width: 100%;
+  max-width: 1200px;
   margin: 0;
   padding: var(--jp-page-gutter) var(--jp-page-gutter) 32px;
   min-height: 100%;
   color: var(--jo-text);
   box-sizing: border-box;
   background: var(--jo-bg);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .jo-hero {
@@ -101,7 +104,7 @@
 }
 
 .jo-hero__stat-label {
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.75);
   margin-top: 4px;
   text-transform: uppercase;
@@ -173,7 +176,8 @@
   border: 1px solid rgba(255, 255, 255, 0.28);
   color: rgba(255, 255, 255, 0.92);
   cursor: pointer;
-  font-size: 0.78rem;
+  min-height: 44px;
+  font-size: 0.875rem;
   font-weight: 600;
   padding: 5px 10px;
   border-radius: 8px;
@@ -197,7 +201,7 @@
 
 .jo-field__label {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--jp-accent-dark);
   margin-bottom: 6px;
@@ -212,8 +216,9 @@
   border: 1px solid rgba(87, 89, 199, 0.28);
   border-radius: 10px;
   color: var(--jo-text);
-  padding: 9px 12px;
-  font-size: 0.85rem;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 0.875rem;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
@@ -242,7 +247,8 @@
   background: rgba(255, 255, 255, 0.65);
   border: 1px solid rgba(87, 89, 199, 0.18);
   cursor: pointer;
-  font-size: 0.85rem;
+  min-height: 44px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--jp-accent-dark);
 }
@@ -305,6 +311,7 @@
   color: #111;
   transition: box-shadow 0.15s, transform 0.12s, filter 0.15s;
   box-shadow: 0 4px 18px rgba(66, 128, 130, 0.28);
+  min-width: 0;
 }
 
 .jo-card::before {
@@ -390,7 +397,7 @@
 .jo-card__deadline-text {
   display: inline-block;
   white-space: nowrap;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   line-height: 1.2;
   color: #111;
   font-weight: 600;
@@ -434,6 +441,7 @@
   text-shadow:
     0 1px 0 rgba(255, 255, 255, 0.55),
     0 2px 10px rgba(255, 255, 255, 0.35);
+  overflow-wrap: anywhere;
 }
 
 .jo-card__meta {
@@ -446,13 +454,13 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 0.72rem;
+  font-size: 0.875rem;
   color: #111;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(0, 0, 0, 0.32);
   padding: 3px 8px;
   border-radius: 6px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .jo-meta .material-icons {
@@ -473,7 +481,7 @@
   border: 1px solid rgba(0, 0, 0, 0.32);
   border-radius: 999px;
   padding: 2px 7px;
-  font-size: 0.65rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: #111;
 }
@@ -494,7 +502,8 @@
   align-items: center;
   gap: 6px;
   border-radius: 10px !important;
-  padding: 9px 20px;
+  min-height: 44px;
+  padding: 10px 20px;
   font-weight: 700;
   font-size: 0.88rem;
   cursor: pointer;
@@ -561,6 +570,8 @@
   cursor: pointer;
   font-weight: 600;
   margin-top: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
 }
 
 .jo-tabs {
@@ -577,6 +588,7 @@
 .jo-tabs__btn {
   flex: 1;
   min-width: 120px;
+  min-height: 44px;
   padding: 10px 16px !important;
   border: none !important;
   border-radius: 10px !important;
@@ -609,7 +621,7 @@
 }
 
 .jo-badge-closed {
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -623,7 +635,7 @@
 
 .jo-closed-note {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: #0f172a;
   font-style: italic;
 }
@@ -683,7 +695,7 @@
 
 .jo-placement__meta {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--jo-muted);
 }
 
@@ -696,14 +708,14 @@
 
 .jo-placement__story {
   margin: 10px 0 0;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   line-height: 1.5;
   color: #475569;
 }
 
 .jo-placement__date {
   margin: 12px 0 0;
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   color: var(--jo-muted);
   font-weight: 500;
 }
@@ -714,4 +726,109 @@
   background-size: 200% 100%;
   animation: jo-pulse 1.2s ease-in-out infinite;
   border: none;
+}
+
+@media (max-width: 768px) {
+  .jo-page {
+    padding: 12px 12px 28px;
+  }
+
+  .jo-hero {
+    padding: 22px 18px;
+    border-radius: var(--jp-radius-lg);
+  }
+
+  .jo-hero__title {
+    font-size: 1.5rem;
+    letter-spacing: 0;
+  }
+
+  .jo-hero__sub {
+    font-size: 0.875rem;
+  }
+
+  .jo-hero__stats {
+    width: 100%;
+    gap: 12px;
+  }
+
+  .jo-hero__stat {
+    flex: 1 1 120px;
+  }
+
+  .jo-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: thin;
+  }
+
+  .jo-tabs__btn {
+    flex: 0 0 auto;
+  }
+
+  .jo-filters {
+    position: static;
+    padding: 16px;
+  }
+
+  .jo-card {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .jo-card__aside {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    margin-top: 0;
+  }
+
+  .jo-card__deadline {
+    width: auto;
+    min-width: 0;
+  }
+
+  .jo-card__deadline-text {
+    white-space: normal;
+  }
+
+  .jo-card__title {
+    font-size: 1.15rem;
+  }
+
+  .jo-card__footer {
+    justify-content: stretch;
+  }
+
+  .jo-apply-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .jo-placements-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .jo-hero__stats {
+    flex-direction: column;
+  }
+
+  .jo-card__meta,
+  .jo-card__skills {
+    gap: 6px;
+  }
+
+  .jo-meta {
+    white-space: normal;
+  }
+
+  .jo-placement__head {
+    flex-direction: column;
+  }
 }

@@ -1,5 +1,6 @@
 /* help.component.css */
 .help-page {
+  /* BEFORE: support content stretched edge-to-edge on desktop, and some mobile controls/cards were below the 44px tap target or 14px text floor. */
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   width: 100%;
   min-height: 100vh;
@@ -64,6 +65,8 @@
   font-size: 14px;
   text-decoration: none;
   transition: color 0.2s;
+  min-height: 44px;
+  overflow-wrap: anywhere;
 }
 
 .hero-contact a:hover {
@@ -81,6 +84,8 @@
   top: 0;
   z-index: 10;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .help-tab {
@@ -88,6 +93,7 @@
   align-items: center;
   gap: 7px;
   padding: 14px 20px;
+  min-height: 44px;
   border: none;
   background: none;
   font-size: 14px;
@@ -113,7 +119,7 @@
 .tab-badge {
   background: #ef4444;
   color: #fff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 999px;
@@ -123,8 +129,8 @@
 /* ── Content area ── */
 .help-content {
   width: 100%;
-  max-width: none;
-  margin: 0;
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 24px 32px 88px;
   box-sizing: border-box;
 }
@@ -142,7 +148,7 @@
 /* ── Form card ── */
 .form-card {
   background: #fff;
-  border-radius: 20px;
+  border-radius: 14px;
   border: 1px solid rgba(1, 31, 75, 0.08);
   overflow: hidden;
   box-shadow:
@@ -218,7 +224,7 @@
   align-items: center;
   gap: 10px;
   margin: 0 0 16px;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -239,7 +245,7 @@
 
 .form-section-hint {
   margin: -8px 0 14px;
-  font-size: 13px;
+  font-size: 14px;
   color: #64748b;
   line-height: 1.5;
 }
@@ -272,7 +278,7 @@ form.ticket-form {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #334155;
   margin-bottom: 8px;
@@ -283,7 +289,7 @@ form.ticket-form {
 }
 
 .char-count {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: #94a3b8;
 }
@@ -328,6 +334,7 @@ form.ticket-form {
   flex: 1;
   min-width: 0;
   border: none;
+  min-height: 44px;
   padding: 12px 14px;
   font-size: 14px;
   color: #0f172a;
@@ -409,6 +416,7 @@ form.ticket-form {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  min-height: 120px;
   padding: 28px 20px;
   text-align: center;
   pointer-events: none;
@@ -427,7 +435,7 @@ form.ticket-form {
 }
 
 .file-drop-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #15803d;
   display: inline-flex;
@@ -438,13 +446,13 @@ form.ticket-form {
 }
 
 .file-drop-sub {
-  font-size: 12px;
+  font-size: 14px;
   color: #64748b;
 }
 
 .field-error {
   display: block;
-  font-size: 11px;
+  font-size: 14px;
   color: #dc2626;
   margin-top: 4px;
 }
@@ -462,7 +470,7 @@ form.ticket-form {
 }
 
 .privacy-note {
-  font-size: 12px;
+  font-size: 14px;
   color: #64748b;
   display: flex;
   align-items: flex-start;
@@ -482,6 +490,7 @@ form.ticket-form {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-height: 44px;
   padding: 10px 22px;
   background: #011f4b;
   color: #fff;
@@ -520,6 +529,7 @@ form.ticket-form {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-height: 44px;
   padding: 10px 20px;
   background: transparent;
   color: #011f4b;
@@ -536,8 +546,8 @@ form.ticket-form {
 }
 
 .btn-outline.btn-sm {
-  padding: 7px 14px;
-  font-size: 13px;
+  padding: 10px 14px;
+  font-size: 14px;
 }
 
 /* ── Alert error ── */
@@ -549,7 +559,7 @@ form.ticket-form {
   border: 1px solid #fecaca;
   border-radius: 12px;
   color: #b91c1c;
-  font-size: 13px;
+  font-size: 14px;
   padding: 14px 18px;
   margin: 0 28px 18px;
   line-height: 1.45;
@@ -588,7 +598,7 @@ form.ticket-form {
   border: 1px solid #86efac;
   border-radius: 8px;
   padding: 6px 18px;
-  font-size: 13px;
+  font-size: 14px;
   color: #166534;
   margin-bottom: 20px;
 }
@@ -641,7 +651,7 @@ form.ticket-form {
 /* ── Tickets list ── */
 .tickets-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
   width: 100%;
 }
@@ -655,6 +665,7 @@ form.ticket-form {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
 }
 
 .ticket-card:hover {
@@ -674,10 +685,11 @@ form.ticket-form {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .ticket-number {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: #64748b;
   background: #f1f5f9;
@@ -686,7 +698,7 @@ form.ticket-form {
 }
 
 .ticket-category {
-  font-size: 11px;
+  font-size: 12px;
   color: #64748b;
   background: #f0f7ff;
   border: 1px solid #bfdbfe;
@@ -698,11 +710,12 @@ form.ticket-form {
 .ticket-badges {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .status-badge,
 .priority-badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 999px;
@@ -724,11 +737,12 @@ form.ticket-form {
   font-size: 15px;
   color: #0f172a;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .ticket-desc {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: 14px;
   color: #64748b;
   line-height: 1.5;
   display: -webkit-box;
@@ -748,7 +762,7 @@ form.ticket-form {
 }
 
 .ticket-date {
-  font-size: 11px;
+  font-size: 14px;
   color: #94a3b8;
   display: flex;
   align-items: center;
@@ -787,7 +801,7 @@ form.ticket-form {
 }
 
 .reply-role {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.2px;
   color: #0f172a;
@@ -799,12 +813,12 @@ form.ticket-form {
 }
 
 .reply-date {
-  font-size: 11px;
+  font-size: 14px;
   color: #94a3b8;
 }
 
 .reply-body {
-  font-size: 13px;
+  font-size: 14px;
   color: #334155;
   line-height: 1.55;
   white-space: pre-wrap;
@@ -881,7 +895,7 @@ form.ticket-form {
   right: 0;
   background: #011f4b;
   color: rgba(255,255,255,0.75);
-  font-size: 12px;
+  font-size: 14px;
   padding: 10px 24px;
   display: flex;
   align-items: center;
@@ -910,7 +924,7 @@ form.ticket-form {
   }
 
   .help-content {
-    padding: 16px 16px 88px;
+    padding: 16px 12px 104px;
   }
 
   .tickets-list {
@@ -924,7 +938,8 @@ form.ticket-form {
   .tickets-panel .section-header .btn-outline {
     grid-column: 1;
     grid-row: auto;
-    justify-self: start;
+    justify-self: stretch;
+    justify-content: center;
   }
 
   .form-header {
@@ -949,5 +964,47 @@ form.ticket-form {
   .btn-primary.btn-submit {
     width: 100%;
     min-width: unset;
+  }
+
+  .help-tabs {
+    padding: 0 12px;
+  }
+
+  .help-tab {
+    flex: 0 0 auto;
+  }
+
+  .success-actions,
+  .ticket-replies-toggle,
+  .ticket-replies-toggle .btn-outline,
+  .empty-state .btn-primary {
+    width: 100%;
+  }
+
+  .success-actions .btn-primary,
+  .success-actions .btn-outline,
+  .ticket-replies-toggle .btn-outline,
+  .empty-state .btn-primary {
+    justify-content: center;
+  }
+
+  .ticket-card {
+    padding: 18px 16px;
+  }
+
+  .reply-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .help-footer-strip {
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 16px;
+    text-align: center;
+  }
+
+  .strip-sep {
+    display: none;
   }
 }

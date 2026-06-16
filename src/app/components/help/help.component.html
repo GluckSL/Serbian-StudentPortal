@@ -60,6 +60,7 @@
           <i class="fas fa-exclamation-circle"></i> {{ submitError }}
         </div>
 
+        <!-- BEFORE: form sections stretched full width on desktop and mobile controls needed stronger full-width/tap-target rules. -->
         <form [formGroup]="ticketForm" (ngSubmit)="onSubmit()" novalidate class="ticket-form">
 
           <section class="form-section" aria-labelledby="sec-contact">

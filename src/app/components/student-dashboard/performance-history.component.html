@@ -108,7 +108,8 @@
           </div>
         </div>
 
-        <div class="table-scroll">
+        <!-- BEFORE: tables could exceed 412px width, but the wrapper only scrolled vertically, causing clipped columns on mobile. -->
+        <div class="table-scroll" tabindex="0" aria-label="Performance details table">
           <!-- Classes -->
           <table *ngIf="activeTable==='classes' && endedClasses.length">
             <thead>
