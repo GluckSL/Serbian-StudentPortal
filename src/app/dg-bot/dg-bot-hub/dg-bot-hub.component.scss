@@ -26,44 +26,52 @@
 .dg-hub__status-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
 .dg-hub__status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 36px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
   padding: 0 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: #f8fafc;
-  color: #475569;
+  background: transparent;
+  color: #64748b;
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
+  line-height: 1.15;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 
   &:hover:not(.dg-hub__status-pill--on) {
-    background: #f1f5f9;
-    color: #334155;
+    background: #f8fafc;
+    color: #0f172a;
+    border-color: #e2e8f0;
   }
 }
 
 .dg-hub__status-pill--on {
-  background: linear-gradient(135deg, #4f46e5, #6366f1);
-  border-color: transparent;
+  background: linear-gradient(135deg, #1565c0, #1a237e);
+  border-color: #1565c0;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 14px rgba(21, 101, 192, 0.4);
 }
 
 .dg-hub__status-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 22px;
+  min-width: 20px;
+  height: 20px;
   padding: 0 6px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
@@ -73,7 +81,7 @@
 
 .dg-hub__status-pill:not(.dg-hub__status-pill--on) .dg-hub__status-count {
   background: #e2e8f0;
-  color: #475569;
+  color: #64748b;
 }
 
 .dg-hub__day-hint {

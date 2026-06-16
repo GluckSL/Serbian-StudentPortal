@@ -8,7 +8,7 @@ import { AuthService } from './auth.service';
 
 const SESSION_STORAGE_KEY = 'portalAnalyticsSessionId';
 const ACTIVE_TAB_STORAGE_KEY = 'portalAnalyticsActiveTabId';
-const HEARTBEAT_INTERVAL_MS = 10_000;
+const HEARTBEAT_INTERVAL_MS = 30_000;
 // Keep counting study/watch time even with low interaction (reading/video playback).
 const IDLE_MAX_MS = 5 * 60_000;
 const MOUSE_MOVE_THROTTLE_MS = 1000;
@@ -23,6 +23,8 @@ export class PortalTrackingService implements OnDestroy {
   private readonly tabId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `tab-${Date.now()}`;
   private lastInteractionAt = Date.now();
   private lastMouseThrottle = 0;
+  private lastHeartbeatSentAt = 0;
+  private heartbeatRequestSub: Subscription | null = null;
   private readonly boundActivity = this.onUserActivity.bind(this);
   private readonly boundMouse = this.onMouseMoveThrottled.bind(this);
 
@@ -123,7 +125,12 @@ export class PortalTrackingService implements OnDestroy {
   }
 
   private canSendHeartbeat(): boolean {
-    return this.isLeaderTab() && this.isRecentlyInteractive();
+    return (
+      this.isLeaderTab() &&
+      this.isRecentlyInteractive() &&
+      !this.heartbeatRequestSub &&
+      Date.now() - this.lastHeartbeatSentAt >= HEARTBEAT_INTERVAL_MS
+    );
   }
 
   private onVis = (): void => {
@@ -226,6 +233,8 @@ export class PortalTrackingService implements OnDestroy {
   private stopHeartbeatLoop(): void {
     this.heartbeatSub?.unsubscribe();
     this.heartbeatSub = null;
+    this.heartbeatRequestSub?.unsubscribe();
+    this.heartbeatRequestSub = null;
   }
 
   private clearStoredSessionId(): void {
@@ -290,6 +299,7 @@ export class PortalTrackingService implements OnDestroy {
           { withCredentials: true }
         )
       );
+      this.lastHeartbeatSentAt = Date.now();
       return true;
     } catch (err: unknown) {
       const status = (err as { status?: number })?.status;
@@ -301,15 +311,22 @@ export class PortalTrackingService implements OnDestroy {
   private sendHeartbeat(): void {
     if (!this.sessionId) return;
     if (!this.canSendHeartbeat()) return;
-    this.http
+    this.heartbeatRequestSub?.unsubscribe();
+    this.heartbeatRequestSub = this.http
       .post(
         `${environment.apiUrl}/portal/heartbeat`,
         { sessionId: this.sessionId, page: this.currentPageLabel() },
         { withCredentials: true }
       )
       .subscribe({
-        next: () => {},
+        next: () => {
+          this.lastHeartbeatSentAt = Date.now();
+          this.heartbeatRequestSub?.unsubscribe();
+          this.heartbeatRequestSub = null;
+        },
         error: (err) => {
+          this.heartbeatRequestSub?.unsubscribe();
+          this.heartbeatRequestSub = null;
           if (err?.status === 410 || err?.status === 404) {
             void this.ensureSession();
           }

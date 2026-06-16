@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpEvent, HttpEventType, HttpParams } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { filter, map, tap } from 'rxjs/operators';
+import { concat, Observable, of } from 'rxjs';
+import { filter, finalize, map, shareReplay, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 
 export type TemplateUploadProgressEvent =
@@ -84,6 +84,12 @@ export class AgreementService {
   private templatesListCache: AgreementTemplate[] | null = null;
   private templatesListCachedAt = 0;
   private readonly templatesListCacheMs = 45_000;
+  private readonly instancesCache = new Map<string, {
+    value?: { success: boolean; agreements: StudentAgreement[] };
+    updatedAt: number;
+    inflight$?: Observable<{ success: boolean; agreements: StudentAgreement[] }>;
+  }>();
+  private readonly instancesCacheMs = 45_000;
 
   constructor(private http: HttpClient) {}
 
@@ -282,12 +288,48 @@ export class AgreementService {
     displayName: string;
     sendEmail?: boolean;
   }): Observable<{ success: boolean; agreement: StudentAgreement; downloadUrl: string; message?: string }> {
-    return this.http.post<any>(`${this.base}/instances/share`, payload);
+    return this.http.post<any>(`${this.base}/instances/share`, payload).pipe(
+      tap(() => this.invalidateInstancesCache())
+    );
   }
 
-  getInstances(studentId?: string): Observable<{ success: boolean; agreements: StudentAgreement[] }> {
-    const params = studentId ? `?studentId=${studentId}` : '';
-    return this.http.get<any>(`${this.base}/instances${params}`);
+  getInstances(
+    studentId?: string,
+    options?: { summary?: boolean; force?: boolean; staleMs?: number }
+  ): Observable<{ success: boolean; agreements: StudentAgreement[] }> {
+    let params = new HttpParams();
+    if (studentId) params = params.set('studentId', studentId);
+    if (options?.summary) params = params.set('summary', '1');
+
+    const cacheKey = JSON.stringify({
+      studentId: studentId || 'self',
+      summary: !!options?.summary
+    });
+    const staleMs = options?.staleMs ?? this.instancesCacheMs;
+    const cached = this.instancesCache.get(cacheKey);
+    const now = Date.now();
+
+    if (!options?.force && cached?.value && now - cached.updatedAt < staleMs) {
+      return of(cached.value);
+    }
+
+    if (!options?.force && cached?.value) {
+      return concat(of(cached.value), this.fetchInstances(cacheKey, params));
+    }
+
+    return this.fetchInstances(cacheKey, params);
+  }
+
+  invalidateInstancesCache(studentId?: string): void {
+    if (!studentId) {
+      this.instancesCache.clear();
+      return;
+    }
+    for (const key of this.instancesCache.keys()) {
+      if (key.includes(`"studentId":"${studentId}"`)) {
+        this.instancesCache.delete(key);
+      }
+    }
   }
 
   getDownloadUrl(id: string, type: 'generated' | 'signed' = 'generated'): string {
@@ -305,7 +347,9 @@ export class AgreementService {
   uploadSigned(id: string, file: File): Observable<{ success: boolean; message?: string }> {
     const fd = new FormData();
     fd.append('file', file);
-    return this.http.post<any>(`${this.base}/instances/${id}/upload-signed`, fd);
+    return this.http.post<any>(`${this.base}/instances/${id}/upload-signed`, fd).pipe(
+      tap(() => this.invalidateInstancesCache())
+    );
   }
 
   verifyInstance(
@@ -313,6 +357,47 @@ export class AgreementService {
     status: 'VERIFIED' | 'REJECTED',
     notes?: string
   ): Observable<{ success: boolean; message?: string; emailSent?: boolean }> {
-    return this.http.put<any>(`${this.base}/instances/${id}/verify`, { status, notes: notes || '' });
+    return this.http.put<any>(`${this.base}/instances/${id}/verify`, { status, notes: notes || '' }).pipe(
+      tap(() => this.invalidateInstancesCache())
+    );
+  }
+
+  private fetchInstances(
+    cacheKey: string,
+    params: HttpParams
+  ): Observable<{ success: boolean; agreements: StudentAgreement[] }> {
+    const cached = this.instancesCache.get(cacheKey);
+    if (cached?.inflight$) {
+      return cached.inflight$;
+    }
+
+    const request$ = this.http
+      .get<{ success: boolean; agreements: StudentAgreement[] }>(`${this.base}/instances`, { params })
+      .pipe(
+        tap((response) => {
+          this.instancesCache.set(cacheKey, {
+            value: response,
+            updatedAt: Date.now()
+          });
+        }),
+        finalize(() => {
+          const latest = this.instancesCache.get(cacheKey);
+          if (latest?.inflight$) {
+            this.instancesCache.set(cacheKey, {
+              value: latest.value,
+              updatedAt: latest.updatedAt
+            });
+          }
+        }),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+
+    this.instancesCache.set(cacheKey, {
+      value: cached?.value,
+      updatedAt: cached?.updatedAt || 0,
+      inflight$: request$
+    });
+
+    return request$;
   }
 }

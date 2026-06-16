@@ -2,6 +2,7 @@
 
 <div class="student-dashboard-container">
   <!-- Header -->
+  <!-- BEFORE: the dashboard header used plain gray page chrome instead of the unified Arena gradient hero. -->
   <div class="dashboard-header">
     <h1>Welcome, {{ basicUser?.name || 'Student' }}!</h1>
     <p class="subtitle" *ngIf="basicUser?.level">Level: {{ basicUser.level }}</p>

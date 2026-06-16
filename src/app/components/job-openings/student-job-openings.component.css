@@ -600,7 +600,8 @@
 }
 
 .jo-tabs__btn--active {
-  background: var(--jp-gradient-hero) !important;
+  background: linear-gradient(135deg, #1565c0, #1a237e) !important;
+  border-color: #1565c0;
   color: #fff !important;
   box-shadow: 0 2px 8px var(--jp-shadow-sm);
 }
@@ -830,5 +831,113 @@
 
   .jo-placement__head {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 900px) {
+  aside.jo-filters,
+  [class*="jo-filters"] {
+    width: 100%;
+    position: static;
+  }
+
+  .jo-filters__fields,
+  [class*="jo-filters__fields"],
+  [class*="filter-fields"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .jo-filters__fields::-webkit-scrollbar { display: none; }
+
+  .jo-field,
+  [class*="jo-field"] {
+    flex: 0 0 auto;
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .jo-hero {
+    padding: 20px 16px 24px;
+  }
+
+  .jo-hero h1,
+  .jo-hero__title {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+
+  .jo-hero p,
+  .jo-hero__sub {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .jo-hero__stats {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 24px;
+    margin-top: 10px;
+  }
+
+  .jo-hero__stat {
+    flex: 0 0 auto;
+  }
+
+  .jo-hero__stat-num {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fbbf24;
+    display: block;
+  }
+
+  .jo-hero__stat-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.75);
+    text-transform: uppercase;
+    display: block;
+  }
+
+  .jo-tabs {
+    display: flex;
+    flex-direction: row;
+    background: #f1f5f9;
+    border-radius: 999px;
+    padding: 4px;
+    gap: 0;
+    width: fit-content;
+    margin: 12px auto;
+  }
+
+  .jo-tabs button,
+  .jo-tabs [class*="tab"] {
+    flex: 0 0 auto;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    min-height: 36px;
+  }
+
+  .jo-tabs button.active,
+  .jo-tabs [class*="tab"].active,
+  .jo-tabs [class*="--active"] {
+    background: linear-gradient(135deg, #1565c0, #1a237e);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
   }
 }

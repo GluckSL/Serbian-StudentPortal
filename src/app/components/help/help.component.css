@@ -10,6 +10,11 @@
   color: #0f172a;
 }
 
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Hero ── */
 .help-hero {
   background: linear-gradient(135deg, #011f4b 0%, #03396c 60%, #005b96 100%);
@@ -154,6 +159,7 @@
   box-shadow:
     0 1px 2px rgba(15, 23, 42, 0.04),
     0 24px 48px -12px rgba(1, 31, 75, 0.12);
+  animation: fadeInUp 0.4s ease-out both;
 }
 
 .form-card::before {
