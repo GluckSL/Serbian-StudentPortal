@@ -83,17 +83,18 @@ import { MaterialModule } from '../../../shared/material.module';
     </select>
     <select [(ngModel)]="filters.scheduleFilter" (change)="onScheduleFilterChange()" class="filter-select">
       <option value="all">All schedule days</option>
+      <option value="trial">Trial day (0)</option>
       <option value="unassigned">General (no day)</option>
       <option value="by_day">Specific day…</option>
     </select>
     <input
       *ngIf="filters.scheduleFilter === 'by_day'"
       type="number"
-      min="1"
+      min="0"
       max="200"
       [(ngModel)]="filters.scheduleDay"
       class="filter-input day-filter-input"
-      placeholder="Day 1–200"
+      placeholder="Day 0–200"
     />
     <button
       *ngIf="filters.scheduleFilter === 'by_day'"
@@ -151,11 +152,11 @@ import { MaterialModule } from '../../../shared/material.module';
       <input
         *ngIf="bulkDayMode === 'set'"
         type="number"
-        min="1"
+        min="0"
         max="200"
         [(ngModel)]="bulkDayNumber"
         class="filter-input day-filter-input"
-        placeholder="Day 1–200"
+        placeholder="Day 0–200"
       />
       <select [(ngModel)]="bulkVisibility" class="filter-select">
         <option value="unchanged">Student visibility — no change</option>
@@ -1002,11 +1003,13 @@ export class DigitalExerciseManagementComponent implements OnInit {
       page: this.currentPage,
       limit: 20
     };
-    if (this.filters.scheduleFilter === 'unassigned') {
+    if (this.filters.scheduleFilter === 'trial') {
+      params.courseDay = 0;
+    } else if (this.filters.scheduleFilter === 'unassigned') {
       params.courseDay = 'unassigned';
     } else if (this.filters.scheduleFilter === 'by_day') {
       const d = parseInt(String(this.filters.scheduleDay), 10);
-      if (Number.isFinite(d) && d >= 1 && d <= 200) {
+      if (Number.isFinite(d) && d >= 0 && d <= 200) {
         params.courseDay = d;
       }
     }
@@ -1047,8 +1050,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
       return;
     }
     const d = parseInt(String(this.filters.scheduleDay), 10);
-    if (!Number.isFinite(d) || d < 1 || d > 200) {
-      this.showError('Enter a valid schedule day between 1 and 200');
+    if (!Number.isFinite(d) || d < 0 || d > 200) {
+      this.showError('Enter a valid schedule day between 0 and 200');
       return;
     }
     this.loadExercises();
@@ -1156,8 +1159,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
     if (this.bulkDayMode === 'clear') updates.courseDay = null;
     if (this.bulkDayMode === 'set') {
       const d = parseInt(String(this.bulkDayNumber), 10);
-      if (!Number.isFinite(d) || d < 1 || d > 200) {
-        this.showError('Enter a valid schedule day between 1 and 200');
+      if (!Number.isFinite(d) || d < 0 || d > 200) {
+        this.showError('Enter a valid schedule day between 0 and 200');
         return;
       }
       updates.courseDay = d;
