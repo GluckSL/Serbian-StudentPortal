@@ -31,9 +31,11 @@ import { Subscription } from 'rxjs';
         </a>
       </nav>
 
-      <mat-tab-nav-panel #tabPanel>
+      <mat-tab-nav-panel #tabPanel style="display:none"></mat-tab-nav-panel>
+
+      <div class="arena-outlet">
         <router-outlet></router-outlet>
-      </mat-tab-nav-panel>
+      </div>
     </div>
   `,
   styles: [`
@@ -50,6 +52,12 @@ import { Subscription } from 'rxjs';
       border: 1px solid #e2e8f0;
       border-bottom: none;
       padding: 0 8px;
+    }
+    .arena-outlet {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
     }
     .arena-tabs.mat-tab-link {
       margin-right: 8px;
