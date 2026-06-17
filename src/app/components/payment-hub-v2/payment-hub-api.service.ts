@@ -411,6 +411,23 @@ export interface CohortStudentsPaymentDetail {
   cohort: string;
   status: string;
   totalStudents: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+  levelOptions?: Array<{ value: string; label: string; total: number }>;
+  insightCounts?: { all: number; paid_full: number; have_balance: number; overdue: number };
+  levelSummaries?: Array<{
+    level: string;
+    label: string;
+    totalStudents: number;
+    receivedLKR: number;
+    receivedINR: number;
+    receivedUSD: number;
+    remainingLKR: number;
+    remainingINR: number;
+    remainingUSD: number;
+    remainingStudents: number;
+  }>;
   totalPaidLKR: number;
   totalPaidINR: number;
   totalPaidUSD: number;
@@ -604,20 +621,20 @@ export class PaymentHubApiService {
 
   getFinanceVisibleBatches(): Observable<{
     success: boolean;
-    data: { visibleBatches: string[]; updatedAt?: string | null };
+    data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null };
   }> {
-    return this.http.get<{ success: boolean; data: { visibleBatches: string[]; updatedAt?: string | null } }>(
+    return this.http.get<{ success: boolean; data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null } }>(
       `${this.base}/finance-dashboard/visible-batches`,
     );
   }
 
-  updateFinanceVisibleBatches(batches: string[]): Observable<{
+  updateFinanceVisibleBatches(batches: string[], batchLevelStatuses?: Record<string, string>): Observable<{
     success: boolean;
-    data: { visibleBatches: string[]; updatedAt?: string | null };
+    data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null };
   }> {
-    return this.http.put<{ success: boolean; data: { visibleBatches: string[]; updatedAt?: string | null } }>(
+    return this.http.put<{ success: boolean; data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null } }>(
       `${this.base}/finance-dashboard/visible-batches`,
-      { batches },
+      { batches, batchLevelStatuses },
     );
   }
 
@@ -638,12 +655,13 @@ export class PaymentHubApiService {
   getCohortStudentsPaymentDetail(
     cohort: string,
     status?: string,
+    params?: Record<string, string | number | boolean | undefined | null>,
   ): Observable<{ success: boolean; data: CohortStudentsPaymentDetail }> {
-    const params: Record<string, string> = { cohort };
-    if (status) params['status'] = status;
+    const q: Record<string, string | number | boolean | undefined | null> = { ...(params || {}), cohort };
+    if (status) q['status'] = status;
     return this.http.get<{ success: boolean; data: CohortStudentsPaymentDetail }>(
       `${this.base}/finance-dashboard/students`,
-      { params: this.toParams(params) },
+      { params: this.toParams(q) },
     );
   }
 

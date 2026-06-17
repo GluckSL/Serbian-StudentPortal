@@ -103,6 +103,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   ];
   /** Shared across all admins — only these batches appear on the finance dashboard. */
   visibleBatches: string[] = [];
+  visibleBatchLevelStatuses: Record<string, string> = {};
   batchesToAdd: string[] = [];
   savingVisibleBatches = false;
   triggeringReport: 'morning' | 'evening' | null = null;
@@ -125,8 +126,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
 
   readonly studentInsightOptions = [
     { value: '' as BatchInsightFilter, key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all batches', color: 'slate', amountKind: 'expected' as const },
-    { value: 'paid_full' as BatchInsightFilter, key: 'paid_full', label: 'Paid full', icon: 'check_circle', hint: 'Batches with fully paid students', color: 'green', amountKind: 'received' as const },
-    { value: 'have_balance' as BatchInsightFilter, key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', hint: 'Batches with balance students', color: 'amber', amountKind: 'pending' as const },
+    { value: 'paid_full' as BatchInsightFilter, key: 'paid_full', label: 'Payment clear', icon: 'check_circle', hint: 'Batches with fully paid students', color: 'green', amountKind: 'received' as const },
+    { value: 'have_balance' as BatchInsightFilter, key: 'have_balance', label: 'Remaining', icon: 'account_balance_wallet', hint: 'Batches with balance students', color: 'amber', amountKind: 'pending' as const },
     { value: 'overdue' as BatchInsightFilter, key: 'overdue', label: 'Overdue', icon: 'warning_amber', hint: 'Batches with overdue students', color: 'red', amountKind: 'overdue' as const },
     { value: 'paid_docs' as BatchInsightFilter, key: 'paid_docs', label: 'Paid docs', icon: 'description', hint: 'Batches with docs payment', color: 'teal', amountKind: 'docs' as const },
     { value: 'paid_visa' as BatchInsightFilter, key: 'paid_visa', label: 'Paid visa', icon: 'flight', hint: 'Batches with visa payment', color: 'indigo', amountKind: 'visa' as const },
@@ -165,9 +166,11 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     this.api.getFinanceVisibleBatches().subscribe({
       next: (res) => {
         this.visibleBatches = [...(res.data?.visibleBatches || [])];
+        this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || {}) };
       },
       error: () => {
         this.visibleBatches = [];
+        this.visibleBatchLevelStatuses = {};
       },
     });
   }
@@ -346,6 +349,16 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       .sort((a, b) => b[1] - a[1])
       .map(([lv, n]) => `${lv}: ${n}`);
     return parts.length ? parts.join(', ') : '—';
+  }
+
+  selectedLevelForBatch(batch: string): string {
+    const [level] = String(this.visibleBatchLevelStatuses[batch] || '').split(':');
+    return level || '';
+  }
+
+  selectedStatusForBatch(batch: string): string {
+    const [, status] = String(this.visibleBatchLevelStatuses[batch] || '').split(':');
+    return status ? formatStudentStatusLabel(status) : '';
   }
 
   private dominantLevel(counts: Map<string, number>): string | null {
@@ -828,6 +841,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       next: (res) => {
         this.savingVisibleBatches = false;
         this.visibleBatches = [...(res.data?.visibleBatches || batches)];
+        this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || this.visibleBatchLevelStatuses) };
         this.snack.open(successMessage, 'OK', { duration: 3500 });
       },
       error: (err) => {

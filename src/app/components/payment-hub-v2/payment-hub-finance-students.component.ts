@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -41,6 +41,12 @@ interface StudentCurrencyTotals {
   usd: number;
 }
 
+interface LevelFilterOption {
+  value: string;
+  label: string;
+  total: number;
+}
+
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue';
 
 @Component({
@@ -66,7 +72,7 @@ type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue';
     './payment-hub-finance-students.component.scss',
   ],
 })
-export class PaymentHubFinanceStudentsComponent implements OnInit {
+export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
   loading = true;
   cohort: FinanceCohort = 'all';
   cohortStatus = '';
@@ -74,8 +80,17 @@ export class PaymentHubFinanceStudentsComponent implements OnInit {
   summary: Omit<CohortStudentsPaymentDetail, 'students'> | null = null;
 
   searchQuery = '';
+  page = 1;
+  pageSize = 50;
+  readonly pageSizeOptions = [10, 50, 100, 150, 200, 300];
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
   studentInsight: StudentInsightFilter = '';
   paymentFilter: BatchStudentPaymentFilter = 'all_language';
+  levelFilterOpen = false;
+  selectedLevels: string[] = [];
+  draftSelectedLevels: string[] = [];
+  levelFilterSearch = '';
+  levelOptions: LevelFilterOption[] = [];
 
   readonly paymentFilterOptions: ReadonlyArray<{ value: BatchStudentPaymentFilter; label: string }> = [
     { value: 'A1', label: 'A1' },
@@ -110,8 +125,16 @@ export class PaymentHubFinanceStudentsComponent implements OnInit {
       });
       this.cohort = parsed.cohort;
       this.cohortStatus = parsed.status;
+      this.page = 1;
+      this.studentInsight = '';
+      this.selectedLevels = [];
+      this.draftSelectedLevels = [];
       this.load();
     });
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
   }
 
   get cohortLabel(): string {
@@ -125,19 +148,76 @@ export class PaymentHubFinanceStudentsComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.api.getCohortStudentsPaymentDetail(this.cohort, this.cohortStatus || undefined).subscribe({
+    this.api.getCohortStudentsPaymentDetail(this.cohort, this.cohortStatus || undefined, {
+      page: this.page,
+      limit: this.pageSize,
+      search: this.searchQuery.trim(),
+      levels: this.selectedLevels.join(','),
+      insight: this.studentInsight,
+    }).subscribe({
       next: (res) => {
         const data = res.data;
         this.rows = data?.students || [];
-        const { students: _s, ...rest } = data || { students: [], cohort: this.cohort, status: this.cohortStatus, totalStudents: 0, totalPaidLKR: 0, totalPaidINR: 0, totalPaidUSD: 0, totalPendingLKR: 0, totalPendingINR: 0, totalPendingUSD: 0 };
+        this.levelOptions = data?.levelOptions || [];
+        const { students: _s, ...rest } = data || { students: [], cohort: this.cohort, status: this.cohortStatus, totalStudents: 0, page: 1, limit: this.pageSize, totalPages: 1, levelOptions: [], insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 }, levelSummaries: [], totalPaidLKR: 0, totalPaidINR: 0, totalPaidUSD: 0, totalPendingLKR: 0, totalPendingINR: 0, totalPendingUSD: 0 };
         this.summary = rest;
+        this.page = rest.page || this.page;
         this.loading = false;
       },
       error: () => {
         this.rows = [];
+        this.levelOptions = [];
+        this.summary = { cohort: this.cohort, status: this.cohortStatus, totalStudents: 0, page: 1, limit: this.pageSize, totalPages: 1, levelOptions: [], insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 }, levelSummaries: [], totalPaidLKR: 0, totalPaidINR: 0, totalPaidUSD: 0, totalPendingLKR: 0, totalPendingINR: 0, totalPendingUSD: 0 };
         this.loading = false;
       },
     });
+  }
+
+  get totalPages(): number {
+    return Math.max(1, this.summary?.totalPages || 1);
+  }
+
+  get totalStudents(): number {
+    return this.summary?.totalStudents || 0;
+  }
+
+  get pageStart(): number {
+    if (!this.totalStudents) return 0;
+    return (this.page - 1) * this.pageSize + 1;
+  }
+
+  get pageEnd(): number {
+    return Math.min(this.page * this.pageSize, this.totalStudents);
+  }
+
+  rowNumber(index: number): number {
+    return (this.page - 1) * this.pageSize + index + 1;
+  }
+
+  onSearchChange(): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => {
+      this.page = 1;
+      this.studentInsight = '';
+      this.load();
+    }, 300);
+  }
+
+  goToPage(nextPage: number): void {
+    const clamped = Math.min(this.totalPages, Math.max(1, nextPage));
+    if (clamped === this.page) return;
+    this.page = clamped;
+    this.studentInsight = '';
+    this.load();
+  }
+
+  onPageSizeChange(size: number | string): void {
+    const nextSize = Number(size) || this.pageSize;
+    if (nextSize === this.pageSize) return;
+    this.pageSize = nextSize;
+    this.page = 1;
+    this.studentInsight = '';
+    this.load();
   }
 
   get displayRows(): BatchStudentPaymentRow[] {
@@ -156,12 +236,15 @@ export class PaymentHubFinanceStudentsComponent implements OnInit {
   }
 
   insightCount(key: string): number {
-    if (key === 'all') return this.rows.length;
-    return this.rows.filter((r) => this.rowMatchesInsight(r, key as StudentInsightFilter)).length;
+    const counts = this.summary?.insightCounts;
+    if (key === 'all') return counts?.all ?? this.totalStudents;
+    return counts?.[key as keyof NonNullable<CohortStudentsPaymentDetail['insightCounts']>] ?? 0;
   }
 
   applyInsightFilter(insight: StudentInsightFilter): void {
     this.studentInsight = this.studentInsight === insight ? '' : insight;
+    this.page = 1;
+    this.load();
   }
 
   isInsightActive(value: StudentInsightFilter): boolean {
@@ -190,6 +273,95 @@ export class PaymentHubFinanceStudentsComponent implements OnInit {
 
   isPaymentFilterActive(value: BatchStudentPaymentFilter): boolean {
     return this.paymentFilter === value;
+  }
+
+  openLevelFilter(): void {
+    this.draftSelectedLevels = [...this.selectedLevels];
+    this.levelFilterSearch = '';
+    this.levelFilterOpen = true;
+  }
+
+  closeLevelFilter(): void {
+    this.levelFilterOpen = false;
+  }
+
+  filteredLevelOptions(): LevelFilterOption[] {
+    const q = this.levelFilterSearch.trim().toLowerCase();
+    if (!q) return this.levelOptions;
+    return this.levelOptions.filter((opt) => opt.label.toLowerCase().includes(q));
+  }
+
+  isDraftLevelSelected(value: string): boolean {
+    return this.draftSelectedLevels.includes(value);
+  }
+
+  toggleDraftLevel(value: string): void {
+    this.draftSelectedLevels = this.isDraftLevelSelected(value)
+      ? this.draftSelectedLevels.filter((v) => v !== value)
+      : [...this.draftSelectedLevels, value];
+  }
+
+  selectAllLevelFilter(): void {
+    this.draftSelectedLevels = this.levelOptions.map((opt) => opt.value);
+  }
+
+  clearLevelFilterDraft(): void {
+    this.draftSelectedLevels = [];
+  }
+
+  applyLevelFilter(): void {
+    this.selectedLevels = [...this.draftSelectedLevels];
+    this.page = 1;
+    this.studentInsight = '';
+    this.levelFilterOpen = false;
+    this.load();
+  }
+
+  clearAppliedLevelFilter(): void {
+    this.selectedLevels = [];
+    this.draftSelectedLevels = [];
+    this.page = 1;
+    this.studentInsight = '';
+    this.load();
+  }
+
+  levelFilterLabel(): string {
+    if (!this.selectedLevels.length) return '';
+    const byValue = new Map(this.levelOptions.map((opt) => [opt.value, opt.label]));
+    if (this.selectedLevels.length === 1) return byValue.get(this.selectedLevels[0]) || this.selectedLevels[0];
+    return `${this.selectedLevels.length} levels`;
+  }
+
+  trackLevelOption(_index: number, opt: LevelFilterOption): string {
+    return opt.value;
+  }
+
+  levelSummaryRows(): NonNullable<CohortStudentsPaymentDetail['levelSummaries']> {
+    return this.summary?.levelSummaries || [];
+  }
+
+  applyLevelReceivedFilter(level: string): void {
+    this.selectedLevels = [level];
+    this.draftSelectedLevels = [level];
+    this.studentInsight = '';
+    this.page = 1;
+    this.load();
+  }
+
+  applyLevelRemainingFilter(level: string): void {
+    this.selectedLevels = [level];
+    this.draftSelectedLevels = [level];
+    this.studentInsight = 'have_balance';
+    this.page = 1;
+    this.load();
+  }
+
+  hasLevelReceived(row: NonNullable<CohortStudentsPaymentDetail['levelSummaries']>[number]): boolean {
+    return row.receivedLKR > 0 || row.receivedINR > 0 || row.receivedUSD > 0;
+  }
+
+  hasLevelRemaining(row: NonNullable<CohortStudentsPaymentDetail['levelSummaries']>[number]): boolean {
+    return row.remainingLKR > 0 || row.remainingINR > 0 || row.remainingUSD > 0;
   }
 
   private emptyCurrencyTotals(): StudentCurrencyTotals {

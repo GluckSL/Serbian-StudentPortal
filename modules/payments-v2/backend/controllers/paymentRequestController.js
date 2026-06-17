@@ -1409,6 +1409,14 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
   try {
     const cohort = String(req.query.cohort || 'all').trim().toLowerCase();
     const status = String(req.query.status || '').trim().toUpperCase();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(300, Math.max(10, parseInt(req.query.limit, 10) || 50));
+    const search = String(req.query.search || '').trim();
+    const insight = String(req.query.insight || '').trim().toLowerCase();
+    const selectedLevels = String(req.query.levels || '')
+      .split(',')
+      .map((level) => level.trim())
+      .filter(Boolean);
 
     const User = mongoose.model('User');
     const PaymentFlowSubmission = require('../models/PaymentSubmission');
@@ -1427,12 +1435,83 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       userQuery.studentStatus = status;
     }
 
-    const students = await User.find(userQuery)
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(escaped, 'i');
+      userQuery.$or = [{ name: rx }, { email: rx }, { batch: rx }];
+    }
+
+    const levelOptionsQuery = { ...userQuery };
+    const levelOptionsRaw = await User.aggregate([
+      { $match: levelOptionsQuery },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$level', ''] } } } }, 0] },
+              { $trim: { input: '$level' } },
+              'Unspecified',
+            ],
+          },
+          total: { $sum: 1 },
+        },
+      },
+      { $sort: { total: -1, _id: 1 } },
+    ]);
+    const levelOptions = levelOptionsRaw.map((row) => ({
+      value: row._id === 'Unspecified' ? '__EMPTY__' : row._id,
+      label: row._id,
+      total: row.total,
+    }));
+
+    if (selectedLevels.length) {
+      const exactLevels = selectedLevels.filter((level) => level !== '__EMPTY__');
+      const includeEmpty = selectedLevels.includes('__EMPTY__');
+      if (includeEmpty && exactLevels.length) {
+        userQuery.$and = [
+          ...(userQuery.$and || []),
+          {
+            $or: [
+              { level: { $in: exactLevels } },
+              { level: { $exists: false } },
+              { level: null },
+              { level: '' },
+            ],
+          },
+        ];
+      } else if (includeEmpty) {
+        userQuery.$and = [
+          ...(userQuery.$and || []),
+          { $or: [{ level: { $exists: false } }, { level: null }, { level: '' }] },
+        ];
+      } else {
+        userQuery.level = { $in: exactLevels };
+      }
+    }
+
+    const students = await User.find(levelOptionsQuery)
       .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates studentStatus subscription')
       .sort({ name: 1 })
       .lean();
 
-    const emptyTotals = { students: [], cohort, status, totalStudents: 0, totalPaidLKR: 0, totalPaidINR: 0, totalPaidUSD: 0, totalPendingLKR: 0, totalPendingINR: 0, totalPendingUSD: 0 };
+    const emptyTotals = {
+      students: [],
+      cohort,
+      status,
+      totalStudents: 0,
+      page: 1,
+      limit,
+      totalPages: 1,
+      totalPaidLKR: 0,
+      totalPaidINR: 0,
+      totalPaidUSD: 0,
+      totalPendingLKR: 0,
+      totalPendingINR: 0,
+      totalPendingUSD: 0,
+      levelOptions,
+      insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 },
+      levelSummaries: [],
+    };
     if (!students.length) {
       return res.json({ success: true, data: emptyTotals });
     }
@@ -1567,30 +1646,129 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       };
     });
 
+    const pendingTotalForRow = (r) => (r.langPendingLKR || 0) + (r.langPendingINR || 0) + (r.langPendingUSD || 0);
+    const overdueTotalForRow = (r) => (r.langOverdueLKR || 0) + (r.langOverdueINR || 0) + (r.langOverdueUSD || 0);
+    const remainingTotalForRow = (r) => pendingTotalForRow(r) + overdueTotalForRow(r);
+    const rowCurrentLevelSlot = (r) => r.levelSlots?.[String(r.level || '').toUpperCase().trim()] || null;
+    const rowCurrentLevelIsPaidFull = (r) => {
+      const slot = rowCurrentLevelSlot(r);
+      const remaining = remainingTotalForRow(r);
+      if (!slot) {
+        return remaining <= 0 && ((r.langPaidLKR || 0) + (r.langPaidINR || 0) + (r.langPaidUSD || 0)) > 0;
+      }
+      const expectedLKR = slot.expectedLKR || 0;
+      const expectedINR = slot.expectedINR || 0;
+      const expectedUSD = slot.expectedUSD || 0;
+      const hasExpected = expectedLKR > 0 || expectedINR > 0 || expectedUSD > 0;
+      if (!hasExpected) {
+        return remaining <= 0 && ((slot.receivedLKR || 0) + (slot.receivedINR || 0) + (slot.receivedUSD || 0)) > 0;
+      }
+      return (
+        remaining <= 0 &&
+        (expectedLKR <= 0 || (slot.receivedLKR || 0) >= expectedLKR) &&
+        (expectedINR <= 0 || (slot.receivedINR || 0) >= expectedINR) &&
+        (expectedUSD <= 0 || (slot.receivedUSD || 0) >= expectedUSD)
+      );
+    };
+    const rowMatchesInsight = (r, key) => {
+      if (!key) return true;
+      const pending = pendingTotalForRow(r);
+      const overdue = overdueTotalForRow(r);
+      const remaining = pending + overdue;
+      const status = String(r.overallStatus || '').toUpperCase();
+      switch (key) {
+        case 'paid_full':
+          return rowCurrentLevelIsPaidFull(r);
+        case 'have_balance':
+          return remaining > 0 || ['BALANCE', 'DUE', 'OVERDUE'].includes(status);
+        case 'overdue':
+          return overdue > 0 || status === 'OVERDUE';
+        default:
+          return true;
+      }
+    };
+    const rowMatchesSelectedLevel = (r) => {
+      if (!selectedLevels.length) return true;
+      const exactLevels = selectedLevels.filter((level) => level !== '__EMPTY__');
+      const includeEmpty = selectedLevels.includes('__EMPTY__');
+      const rowLevel = String(r.level || '').trim();
+      return exactLevels.includes(rowLevel) || (includeEmpty && (!rowLevel || rowLevel === '—'));
+    };
+    const levelSummaries = levelOptions.map((opt) => {
+      const levelRows = rows.filter((r) => {
+        const rowLevel = String(r.level || '').trim();
+        return opt.value === '__EMPTY__' ? (!rowLevel || rowLevel === '—') : rowLevel === opt.value;
+      });
+      return levelRows.reduce((acc, r) => {
+        const remainingLKR = (r.langPendingLKR || 0) + (r.langOverdueLKR || 0);
+        const remainingINR = (r.langPendingINR || 0) + (r.langOverdueINR || 0);
+        const remainingUSD = (r.langPendingUSD || 0) + (r.langOverdueUSD || 0);
+        acc.totalStudents += 1;
+        acc.receivedLKR += r.langPaidLKR || 0;
+        acc.receivedINR += r.langPaidINR || 0;
+        acc.receivedUSD += r.langPaidUSD || 0;
+        acc.remainingLKR += remainingLKR;
+        acc.remainingINR += remainingINR;
+        acc.remainingUSD += remainingUSD;
+        if (remainingLKR + remainingINR + remainingUSD > 0) acc.remainingStudents += 1;
+        return acc;
+      }, {
+        level: opt.value,
+        label: opt.label,
+        totalStudents: 0,
+        receivedLKR: 0,
+        receivedINR: 0,
+        receivedUSD: 0,
+        remainingLKR: 0,
+        remainingINR: 0,
+        remainingUSD: 0,
+        remainingStudents: 0,
+      });
+    }).filter((row) => row.totalStudents > 0);
+
+    const levelFilteredRows = rows.filter(rowMatchesSelectedLevel);
+    const insightCounts = {
+      all: levelFilteredRows.length,
+      paid_full: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'paid_full')).length,
+      have_balance: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'have_balance')).length,
+      overdue: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'overdue')).length,
+    };
+    const filteredRows = levelFilteredRows.filter((r) => rowMatchesInsight(r, insight));
+    const totalStudents = filteredRows.length;
+    const totalPages = Math.max(1, Math.ceil(totalStudents / limit));
+    const safePage = Math.min(page, totalPages);
+    const pageRows = filteredRows.slice((safePage - 1) * limit, safePage * limit);
+
     let totalPaidLKR = 0, totalPaidINR = 0, totalPaidUSD = 0;
     let totalPendingLKR = 0, totalPendingINR = 0, totalPendingUSD = 0;
-    for (const r of rows) {
+    for (const r of filteredRows) {
       totalPaidLKR += r.totalPaidLKR || 0;
       totalPaidINR += r.totalPaidINR || 0;
       totalPaidUSD += r.totalPaidUSD || 0;
-      totalPendingLKR += r.langPendingLKR || 0;
-      totalPendingINR += r.langPendingINR || 0;
-      totalPendingUSD += r.langPendingUSD || 0;
+      totalPendingLKR += (r.langPendingLKR || 0) + (r.langOverdueLKR || 0);
+      totalPendingINR += (r.langPendingINR || 0) + (r.langOverdueINR || 0);
+      totalPendingUSD += (r.langPendingUSD || 0) + (r.langOverdueUSD || 0);
     }
 
     res.json({
       success: true,
       data: {
-        students: rows,
+        students: pageRows,
         cohort,
         status,
-        totalStudents: rows.length,
+        totalStudents,
+        page: safePage,
+        limit,
+        totalPages,
         totalPaidLKR,
         totalPaidINR,
         totalPaidUSD,
         totalPendingLKR,
         totalPendingINR,
         totalPendingUSD,
+        levelOptions,
+        insightCounts,
+        levelSummaries,
       },
     });
   } catch (e) {

@@ -57,7 +57,7 @@
         <div class="ph-finance-students-kpi ph-finance-students-kpi--pending">
           <mat-icon>pending_actions</mat-icon>
           <div class="ph-finance-students-kpi__body">
-            <span class="ph-finance-students-kpi__label">Total pending (language)</span>
+            <span class="ph-finance-students-kpi__label">Total remaining (language)</span>
             <div class="ph-finance-students-kpi__amounts">
               <span *ngIf="summary.totalPendingLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
                 LKR {{ summary.totalPendingLKR | number:'1.0-0' }}
@@ -69,6 +69,55 @@
                 ${{ summary.totalPendingUSD | number:'1.0-2' }}
               </span>
               <span *ngIf="summary.totalPendingLKR === 0 && summary.totalPendingINR === 0 && summary.totalPendingUSD === 0" class="ph-finance-students-kpi__nil">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--level ph-finance-students-kpi--level-received" *ngIf="levelSummaryRows().length">
+          <mat-icon>stacked_bar_chart</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__label">Level wise received</span>
+            <div class="ph-finance-level-summary-list">
+              <button
+                type="button"
+                class="ph-finance-level-summary-row"
+                *ngFor="let row of levelSummaryRows()"
+                (click)="applyLevelReceivedFilter(row.level)"
+                [disabled]="row.totalStudents === 0"
+              >
+                <span class="ph-finance-level-summary-row__level">{{ row.label }}</span>
+                <span class="ph-finance-level-summary-row__amounts">
+                  <span *ngIf="row.receivedLKR > 0">LKR {{ row.receivedLKR | number:'1.0-0' }}</span>
+                  <span *ngIf="row.receivedINR > 0">₹{{ row.receivedINR | number:'1.0-0' }}</span>
+                  <span *ngIf="row.receivedUSD > 0">${{ row.receivedUSD | number:'1.0-2' }}</span>
+                  <span *ngIf="!hasLevelReceived(row)" class="ph-finance-level-summary-row__nil">—</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--level ph-finance-students-kpi--level-remaining" *ngIf="levelSummaryRows().length">
+          <mat-icon>account_balance_wallet</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__label">Level wise remaining</span>
+            <div class="ph-finance-level-summary-list">
+              <button
+                type="button"
+                class="ph-finance-level-summary-row"
+                *ngFor="let row of levelSummaryRows()"
+                (click)="applyLevelRemainingFilter(row.level)"
+                [disabled]="row.remainingStudents === 0"
+                [matTooltip]="row.remainingStudents + ' student(s) with remaining balance'"
+              >
+                <span class="ph-finance-level-summary-row__level">{{ row.label }}</span>
+                <span class="ph-finance-level-summary-row__amounts">
+                  <span *ngIf="row.remainingLKR > 0">LKR {{ row.remainingLKR | number:'1.0-0' }}</span>
+                  <span *ngIf="row.remainingINR > 0">₹{{ row.remainingINR | number:'1.0-0' }}</span>
+                  <span *ngIf="row.remainingUSD > 0">${{ row.remainingUSD | number:'1.0-2' }}</span>
+                  <span *ngIf="!hasLevelRemaining(row)" class="ph-finance-level-summary-row__nil">—</span>
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -109,9 +158,30 @@
                 <mat-icon>close</mat-icon>
               </button>
             </span>
-            <span class="ph-select-meta">{{ displayRows.length }} shown</span>
+            <span class="ph-select-meta">
+              {{ pageStart }}-{{ pageEnd }} of {{ totalStudents }} shown
+            </span>
+            <label class="ph-finance-students-page-size">
+              <span>Rows</span>
+              <select
+                [ngModel]="pageSize"
+                (ngModelChange)="onPageSizeChange($event)"
+                [disabled]="loading"
+                aria-label="Rows per page"
+              >
+                <option *ngFor="let size of pageSizeOptions" [ngValue]="size">
+                  {{ size }}
+                </option>
+              </select>
+            </label>
             <span class="ph-select-meta ph-select-meta--filter" *ngIf="paymentFilter !== 'all_language'">
               {{ paymentFilterLabel() }}
+            </span>
+            <span class="ph-select-meta ph-select-meta--filter" *ngIf="selectedLevels.length">
+              Level: {{ levelFilterLabel() }}
+              <button type="button" class="ph-finance-level-filter-chip-clear" (click)="clearAppliedLevelFilter()" matTooltip="Clear level filter">
+                <mat-icon>close</mat-icon>
+              </button>
             </span>
             <button
               mat-icon-button
@@ -137,6 +207,7 @@
               class="ph-batch-stu-search-input"
               type="search"
               [(ngModel)]="searchQuery"
+              (ngModelChange)="onSearchChange()"
               placeholder="Search by name, email, or batch…"
               aria-label="Search students"
             />
@@ -150,7 +221,17 @@
                 <th>#</th>
                 <th>Student</th>
                 <th>Batch</th>
-                <th>Level</th>
+                <th>
+                  <button
+                    type="button"
+                    class="ph-finance-students-th-filter"
+                    [class.ph-finance-students-th-filter--active]="selectedLevels.length"
+                    (click)="openLevelFilter()"
+                  >
+                    <span>Level</span>
+                    <mat-icon>filter_list</mat-icon>
+                  </button>
+                </th>
                 <th class="ph-num ph-col-compact">Journey day</th>
                 <th class="ph-num">Total received</th>
                 <th class="ph-num" [matTooltip]="paymentFilterHint()">Pending</th>
@@ -162,7 +243,7 @@
             </thead>
             <tbody>
               <tr *ngFor="let r of displayRows; let i = index">
-                <td class="ph-num ph-row-num">{{ i + 1 }}</td>
+                <td class="ph-num ph-row-num">{{ rowNumber(i) }}</td>
                 <td class="ph-name-cell">
                   <span class="ph-name-main">{{ r.name }}</span>
                   <span class="ph-name-email">{{ r.email }}</span>
@@ -222,9 +303,23 @@
 
         <ng-template #empty>
           <p class="ph-empty-note">
-            {{ searchQuery || studentInsight ? 'No students match your filter.' : 'No students found for this plan.' }}
+            {{ searchQuery || studentInsight || selectedLevels.length ? 'No students match your filter.' : 'No students found for this plan/status.' }}
           </p>
         </ng-template>
+
+        <div class="ph-finance-students-pagination" *ngIf="totalStudents > pageSize">
+          <button type="button" class="ph-finance-students-page-btn" (click)="goToPage(page - 1)" [disabled]="page <= 1 || loading">
+            <mat-icon>chevron_left</mat-icon>
+            Previous
+          </button>
+          <span class="ph-finance-students-page-meta">
+            Page {{ page }} of {{ totalPages }}
+          </span>
+          <button type="button" class="ph-finance-students-page-btn" (click)="goToPage(page + 1)" [disabled]="page >= totalPages || loading">
+            Next
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
       </section>
 
     </ng-container>
@@ -241,4 +336,52 @@
       </div>
     </ng-template>
   </div>
+
+  <div class="ph-finance-level-filter-backdrop" *ngIf="levelFilterOpen" (click)="closeLevelFilter()"></div>
+  <section class="ph-finance-level-filter-modal" *ngIf="levelFilterOpen" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <div class="ph-finance-level-filter-modal__head">
+      <div>
+        <h3>Filter by Language Level</h3>
+        <p>Select one or more values, then click Apply</p>
+      </div>
+      <button type="button" class="ph-finance-level-filter-modal__close" (click)="closeLevelFilter()" aria-label="Close level filter">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="ph-finance-level-filter-modal__search">
+      <mat-icon>search</mat-icon>
+      <input
+        type="text"
+        [(ngModel)]="levelFilterSearch"
+        placeholder="Search options..."
+        aria-label="Search level options"
+      />
+    </div>
+
+    <div class="ph-finance-level-filter-modal__body">
+      <label
+        class="ph-finance-level-filter-option"
+        *ngFor="let opt of filteredLevelOptions(); trackBy: trackLevelOption"
+        [class.ph-finance-level-filter-option--selected]="isDraftLevelSelected(opt.value)"
+      >
+        <input
+          type="checkbox"
+          [checked]="isDraftLevelSelected(opt.value)"
+          (change)="toggleDraftLevel(opt.value)"
+        />
+        <span class="ph-finance-level-filter-option__label">{{ opt.label }}</span>
+        <span class="ph-finance-level-filter-option__count">{{ opt.total }}</span>
+      </label>
+      <p class="ph-finance-level-filter-empty" *ngIf="!filteredLevelOptions().length">No levels found</p>
+    </div>
+
+    <div class="ph-finance-level-filter-modal__foot">
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="selectAllLevelFilter()">Select all</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="clearLevelFilterDraft()">Clear</button>
+      <span class="ph-finance-level-filter-modal__spacer"></span>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="closeLevelFilter()">Cancel</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--primary" (click)="applyLevelFilter()">Apply filter</button>
+    </div>
+  </section>
 </div>

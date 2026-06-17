@@ -1,10 +1,22 @@
 <div class="ph-insights-page ph-finance-overview-page">
   <div class="ph-insights-header">
     <div class="ph-insights-header-inner">
-      <h1 class="ph-insights-title">Finance Dashboard</h1>
-      <p class="ph-insights-sub">
-        Student overview by plan — open batch payment breakdown for ongoing learners.
-      </p>
+      <div class="ph-finance-overview-header-row">
+        <div>
+          <h1 class="ph-insights-title">Finance Dashboard</h1>
+          <p class="ph-insights-sub">
+            Student overview by plan — open batch payment breakdown for ongoing learners.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="ph-finance-overview-add-batch"
+          (click)="openAddBatchModal()"
+        >
+          <mat-icon>add</mat-icon>
+          <span>Add Batch</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -16,121 +28,149 @@
             <mat-icon>groups</mat-icon>
           </div>
           <div class="ph-finance-overview-card__main">
-            <span class="ph-finance-overview-card__value">{{ counts.portalNonTest }}</span>
+            <a
+              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              [routerLink]="studentsRoute('all')"
+              [queryParams]="studentsQuery('all')"
+            >
+              {{ counts.portalNonTest }}
+            </a>
             <span class="ph-finance-overview-card__label">Total students</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link"
+            [routerLink]="studentsRoute('all')"
+            [queryParams]="studentsQuery('all', 'ONGOING')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.ongoingNonTest }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing students</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <p class="ph-finance-overview-card__hint">Click a value to open student payment details.</p>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--platinum">
+          <div class="ph-finance-overview-card__top">
+            <a
+              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              [routerLink]="studentsRoute('platinum')"
+              [queryParams]="studentsQuery('platinum')"
+            >
+              {{ counts.platinumTotal }}
+            </a>
+            <span class="ph-finance-overview-card__label">Platinum</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
+            [routerLink]="studentsRoute('platinum')"
+            [queryParams]="studentsQuery('platinum', 'ONGOING')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.platinumOngoing }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <div class="ph-finance-overview-breakdown" *ngIf="counts.platinumStatusBreakdown?.length">
+            <a
+              class="ph-finance-overview-breakdown__row"
+              *ngFor="let row of counts.platinumStatusBreakdown"
+              [routerLink]="studentsRoute('platinum')"
+              [queryParams]="studentsQuery('platinum', row.status)"
+            >
+              <span>{{ formatStudentStatus(row.status) }}</span>
+              <strong>{{ row.count }}</strong>
+            </a>
+          </div>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--silver">
+          <div class="ph-finance-overview-card__top">
+            <a
+              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              [routerLink]="studentsRoute('silver')"
+              [queryParams]="studentsQuery('silver')"
+            >
+              {{ counts.silverTotal }}
+            </a>
+            <span class="ph-finance-overview-card__label">Silver</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
+            [routerLink]="studentsRoute('silver')"
+            [queryParams]="studentsQuery('silver', 'ONGOING')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.silverOngoing }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <div class="ph-finance-overview-breakdown" *ngIf="counts.silverStatusBreakdown?.length">
+            <a
+              class="ph-finance-overview-breakdown__row"
+              *ngFor="let row of counts.silverStatusBreakdown"
+              [routerLink]="studentsRoute('silver')"
+              [queryParams]="studentsQuery('silver', row.status)"
+            >
+              <span>{{ formatStudentStatus(row.status) }}</span>
+              <strong>{{ row.count }}</strong>
+            </a>
+          </div>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--visa">
+          <div class="ph-finance-overview-card__top">
+            <a
+              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              [routerLink]="studentsRoute('visa_docs')"
+              [queryParams]="studentsQuery('visa_docs')"
+            >
+              {{ counts.visaDocsTotal }}
+            </a>
+            <span class="ph-finance-overview-card__label">Visa &amp; docs</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
+            [routerLink]="studentsRoute('visa_docs')"
+            [queryParams]="studentsQuery('visa_docs', 'ONGOING')"
+          >
+            <span class="ph-finance-overview-ongoing-link__count">{{ counts.visaDocsOngoing }}</span>
+            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <div class="ph-finance-overview-breakdown" *ngIf="counts.visaDocsStatusBreakdown?.length">
+            <a
+              class="ph-finance-overview-breakdown__row"
+              *ngFor="let row of counts.visaDocsStatusBreakdown"
+              [routerLink]="studentsRoute('visa_docs')"
+              [queryParams]="studentsQuery('visa_docs', row.status)"
+            >
+              <span>{{ formatStudentStatus(row.status) }}</span>
+              <strong>{{ row.count }}</strong>
+            </a>
+          </div>
+        </article>
+      </div>
+
+      <div class="ph-finance-overview-secondary-row">
+        <article class="ph-finance-overview-card ph-finance-overview-card--ongoing-batches">
+          <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--batches" aria-hidden="true">
+            <mat-icon>view_module</mat-icon>
+          </div>
+          <div class="ph-finance-overview-card__main">
+            <span class="ph-finance-overview-card__value">
+              {{ loadingVisibleBatches ? '...' : visibleBatches.length }}
+            </span>
+            <span class="ph-finance-overview-card__label">Ongoing batches</span>
           </div>
           <a
             class="ph-finance-overview-ongoing-link"
             [routerLink]="batchesRoute('all')"
             [queryParams]="batchesQuery('all')"
           >
-            <span class="ph-finance-overview-ongoing-link__count">{{ counts.ongoingNonTest }}</span>
-            <span class="ph-finance-overview-ongoing-link__text">ongoing students</span>
+            <span>Show details</span>
             <mat-icon>arrow_forward</mat-icon>
           </a>
-          <a
-            class="ph-finance-overview-students-link"
-            [routerLink]="studentsRoute('all')"
-            [queryParams]="studentsQuery('all')"
-          >
-            <mat-icon>person_search</mat-icon>
-            <span>View all student payments</span>
-            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
-          </a>
-          <p class="ph-finance-overview-card__hint">Click ongoing to view batch-wise payments for active learners.</p>
-        </article>
-
-        <article class="ph-finance-overview-card ph-finance-overview-card--platinum">
-          <div class="ph-finance-overview-card__top">
-            <span class="ph-finance-overview-card__value">{{ counts.platinumTotal }}</span>
-            <span class="ph-finance-overview-card__label">Platinum</span>
-          </div>
-          <a
-            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
-            [routerLink]="batchesRoute('platinum')"
-            [queryParams]="batchesQuery('platinum')"
-          >
-            <span class="ph-finance-overview-ongoing-link__count">{{ counts.platinumOngoing }}</span>
-            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
-            <mat-icon>arrow_forward</mat-icon>
-          </a>
-          <a
-            class="ph-finance-overview-students-link ph-finance-overview-students-link--compact"
-            [routerLink]="studentsRoute('platinum')"
-            [queryParams]="studentsQuery('platinum')"
-          >
-            <mat-icon>table_rows</mat-icon>
-            <span>View student payments</span>
-            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
-          </a>
-          <div class="ph-finance-overview-breakdown" *ngIf="counts.platinumStatusBreakdown?.length">
-            <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.platinumStatusBreakdown">
-              <span>{{ formatStudentStatus(row.status) }}</span>
-              <strong>{{ row.count }}</strong>
-            </div>
-          </div>
-        </article>
-
-        <article class="ph-finance-overview-card ph-finance-overview-card--silver">
-          <div class="ph-finance-overview-card__top">
-            <span class="ph-finance-overview-card__value">{{ counts.silverTotal }}</span>
-            <span class="ph-finance-overview-card__label">Silver</span>
-          </div>
-          <a
-            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
-            [routerLink]="batchesRoute('silver')"
-            [queryParams]="batchesQuery('silver')"
-          >
-            <span class="ph-finance-overview-ongoing-link__count">{{ counts.silverOngoing }}</span>
-            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
-            <mat-icon>arrow_forward</mat-icon>
-          </a>
-          <a
-            class="ph-finance-overview-students-link ph-finance-overview-students-link--compact"
-            [routerLink]="studentsRoute('silver')"
-            [queryParams]="studentsQuery('silver')"
-          >
-            <mat-icon>table_rows</mat-icon>
-            <span>View student payments</span>
-            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
-          </a>
-          <div class="ph-finance-overview-breakdown" *ngIf="counts.silverStatusBreakdown?.length">
-            <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.silverStatusBreakdown">
-              <span>{{ formatStudentStatus(row.status) }}</span>
-              <strong>{{ row.count }}</strong>
-            </div>
-          </div>
-        </article>
-
-        <article class="ph-finance-overview-card ph-finance-overview-card--visa">
-          <div class="ph-finance-overview-card__top">
-            <span class="ph-finance-overview-card__value">{{ counts.visaDocsTotal }}</span>
-            <span class="ph-finance-overview-card__label">Visa &amp; docs</span>
-          </div>
-          <a
-            class="ph-finance-overview-ongoing-link ph-finance-overview-ongoing-link--compact"
-            [routerLink]="batchesRoute('visa_docs')"
-            [queryParams]="batchesQuery('visa_docs')"
-          >
-            <span class="ph-finance-overview-ongoing-link__count">{{ counts.visaDocsOngoing }}</span>
-            <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
-            <mat-icon>arrow_forward</mat-icon>
-          </a>
-          <a
-            class="ph-finance-overview-students-link ph-finance-overview-students-link--compact"
-            [routerLink]="studentsRoute('visa_docs')"
-            [queryParams]="studentsQuery('visa_docs')"
-          >
-            <mat-icon>table_rows</mat-icon>
-            <span>View student payments</span>
-            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
-          </a>
-          <div class="ph-finance-overview-breakdown" *ngIf="counts.visaDocsStatusBreakdown?.length">
-            <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.visaDocsStatusBreakdown">
-              <span>{{ formatStudentStatus(row.status) }}</span>
-              <strong>{{ row.count }}</strong>
-            </div>
-          </div>
+          <p class="ph-finance-overview-card__hint">
+            Add batches from the button above. This card shows how many batches are currently on this dashboard.
+          </p>
         </article>
       </div>
     </ng-container>
@@ -140,5 +180,89 @@
         <mat-spinner diameter="40"></mat-spinner>
       </div>
     </ng-template>
+  </div>
+
+  <div
+    class="ph-finance-add-batch-modal-backdrop"
+    *ngIf="showAddBatchModal"
+    role="presentation"
+    (click)="closeAddBatchModal()"
+  >
+    <section
+      class="ph-finance-add-batch-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ph-add-batch-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="ph-finance-add-batch-modal__head">
+        <div>
+          <h2 id="ph-add-batch-title">Add Batch</h2>
+          <p>Select the level/status for each batch you want to show on the finance dashboard.</p>
+        </div>
+        <button
+          type="button"
+          class="ph-finance-add-batch-modal__close"
+          (click)="closeAddBatchModal()"
+          [disabled]="savingVisibleBatches"
+          aria-label="Close add batch modal"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <div class="ph-finance-add-batch-modal__columns">
+        <span>Batch number</span>
+        <span>Level</span>
+      </div>
+
+      <div class="ph-finance-add-batch-modal__body">
+        <div class="ph-finance-add-batch-modal__state" *ngIf="loadingBatchOptions">
+          Loading batches...
+        </div>
+
+        <div class="ph-finance-add-batch-modal__state" *ngIf="!loadingBatchOptions && !availableBatchesToAdd.length">
+          All batches are already added to this dashboard.
+        </div>
+
+        <div class="ph-finance-add-batch-row" *ngFor="let batch of availableBatchesToAdd">
+          <div class="ph-finance-add-batch-row__batch">
+            <mat-icon>label</mat-icon>
+            <span>{{ batch }}</span>
+          </div>
+          <select
+            class="ph-finance-add-batch-row__select"
+            [ngModel]="selectedBatchLevelByName[batch] || ''"
+            (ngModelChange)="selectedBatchLevelByName[batch] = $event"
+            [disabled]="savingVisibleBatches"
+            [attr.aria-label]="'Select level for ' + batch"
+          >
+            <option *ngFor="let opt of batchLevelStatusOptions" [ngValue]="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+      </div>
+
+      <div class="ph-finance-add-batch-modal__footer">
+        <button
+          type="button"
+          class="ph-finance-add-batch-modal__cancel"
+          (click)="closeAddBatchModal()"
+          [disabled]="savingVisibleBatches"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="ph-finance-add-batch-modal__save"
+          (click)="addSelectedBatches()"
+          [disabled]="savingVisibleBatches || !selectedModalBatchCount"
+        >
+          <mat-icon>add</mat-icon>
+          {{ savingVisibleBatches ? 'Adding...' : 'Add selected batches' }}
+        </button>
+      </div>
+    </section>
   </div>
 </div>
