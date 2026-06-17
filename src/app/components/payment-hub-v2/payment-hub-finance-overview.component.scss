@@ -161,6 +161,47 @@
   }
 }
 
+.ph-finance-overview-students-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #f8faff;
+  border: 1px solid #c7d2fe;
+  color: #4338ca;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background: #eef2ff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  }
+
+  &--compact {
+    align-self: center;
+    width: fit-content;
+    font-size: 0.75rem;
+    padding: 6px 10px;
+  }
+}
+
+.ph-finance-overview-students-link__arrow {
+  margin-left: auto;
+  font-size: 14px !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
 .ph-finance-overview-loading {
   display: flex;
   align-items: center;

@@ -2392,14 +2392,34 @@ router.put("/:id", async (req, res) => {
       updateData.teacherTabAccessLevels = {};
     }
 
-    // âœ… Auto-set start date for new level if level changed and start date not set
-    if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {
-      if (!updateData.courseStartDates) {
-        updateData.courseStartDates = existingUser.courseStartDates || {};
+    // âœ… Align journey day + blocks whenever admin sets a level that doesn't match current day
+    if (existingUser.role === "STUDENT" && level) {
+      const {
+        buildAdminLevelJumpUpdate,
+        firstJourneyDayForLevel,
+        levelForJourneyDay,
+        normalizeJourneyDay
+      } = require('../services/journeyLevelSync.service');
+      const normalizedLevel = String(level).toUpperCase();
+      const currentDay = normalizeJourneyDay(existingUser.currentCourseDay);
+      const minDayForLevel = firstJourneyDayForLevel(normalizedLevel);
+      const needsDayAlign =
+        currentDay < minDayForLevel ||
+        levelForJourneyDay(currentDay) !== normalizedLevel;
+
+      if (level !== existingUser.level) {
+        if (!updateData.courseStartDates) {
+          updateData.courseStartDates = existingUser.courseStartDates || {};
+        }
+        const levelStartField = `${level}StartDate`;
+        if (!updateData.courseStartDates[levelStartField]) {
+          updateData.courseStartDates[levelStartField] = new Date();
+        }
       }
-      const levelStartField = `${level}StartDate`;
-      if (!updateData.courseStartDates[levelStartField]) {
-        updateData.courseStartDates[levelStartField] = new Date();
+
+      if (needsDayAlign) {
+        const jumpFields = buildAdminLevelJumpUpdate(normalizedLevel, existingUser, updateData);
+        Object.assign(updateData, jumpFields);
       }
     }
 
@@ -2425,6 +2445,13 @@ router.put("/:id", async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     );
+
+    if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {
+      try {
+        const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
+        await SilverGoUnlockCache.deleteOne({ studentId: req.params.id });
+      } catch (_) { /* optional */ }
+    }
 
     const updatedEvent = userEventForRole(updatedUser.role, "UPDATED");
     if (updatedEvent) {

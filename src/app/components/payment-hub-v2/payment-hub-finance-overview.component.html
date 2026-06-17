@@ -28,6 +28,15 @@
             <span class="ph-finance-overview-ongoing-link__text">ongoing students</span>
             <mat-icon>arrow_forward</mat-icon>
           </a>
+          <a
+            class="ph-finance-overview-students-link"
+            [routerLink]="studentsRoute('all')"
+            [queryParams]="studentsQuery('all')"
+          >
+            <mat-icon>person_search</mat-icon>
+            <span>View all student payments</span>
+            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
+          </a>
           <p class="ph-finance-overview-card__hint">Click ongoing to view batch-wise payments for active learners.</p>
         </article>
 
@@ -44,6 +53,15 @@
             <span class="ph-finance-overview-ongoing-link__count">{{ counts.platinumOngoing }}</span>
             <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
             <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <a
+            class="ph-finance-overview-students-link ph-finance-overview-students-link--compact"
+            [routerLink]="studentsRoute('platinum')"
+            [queryParams]="studentsQuery('platinum')"
+          >
+            <mat-icon>table_rows</mat-icon>
+            <span>View student payments</span>
+            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
           </a>
           <div class="ph-finance-overview-breakdown" *ngIf="counts.platinumStatusBreakdown?.length">
             <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.platinumStatusBreakdown">
@@ -67,6 +85,15 @@
             <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
             <mat-icon>arrow_forward</mat-icon>
           </a>
+          <a
+            class="ph-finance-overview-students-link ph-finance-overview-students-link--compact"
+            [routerLink]="studentsRoute('silver')"
+            [queryParams]="studentsQuery('silver')"
+          >
+            <mat-icon>table_rows</mat-icon>
+            <span>View student payments</span>
+            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
+          </a>
           <div class="ph-finance-overview-breakdown" *ngIf="counts.silverStatusBreakdown?.length">
             <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.silverStatusBreakdown">
               <span>{{ formatStudentStatus(row.status) }}</span>
@@ -88,6 +115,15 @@
             <span class="ph-finance-overview-ongoing-link__count">{{ counts.visaDocsOngoing }}</span>
             <span class="ph-finance-overview-ongoing-link__text">ongoing</span>
             <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <a
+            class="ph-finance-overview-students-link ph-finance-overview-students-link--compact"
+            [routerLink]="studentsRoute('visa_docs')"
+            [queryParams]="studentsQuery('visa_docs')"
+          >
+            <mat-icon>table_rows</mat-icon>
+            <span>View student payments</span>
+            <mat-icon class="ph-finance-overview-students-link__arrow">arrow_forward</mat-icon>
           </a>
           <div class="ph-finance-overview-breakdown" *ngIf="counts.visaDocsStatusBreakdown?.length">
             <div class="ph-finance-overview-breakdown__row" *ngFor="let row of counts.visaDocsStatusBreakdown">

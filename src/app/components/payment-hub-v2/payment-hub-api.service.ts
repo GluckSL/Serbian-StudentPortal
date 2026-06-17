@@ -29,10 +29,17 @@ export interface InstallmentSchedule {
   steps?: ScheduleStep[];
 }
 
+export interface SubscriptionRate {
+  subscription: string;
+  lkr: number;
+  inr: number;
+}
+
 export interface PricingCatalog {
   _id?: string;
   cefrRows: CefrRow[];
   referenceRows: ReferenceRow[];
+  subscriptionRates?: SubscriptionRate[];
   defaultInstallmentSchedule?: InstallmentSchedule;
   updatedAt?: string;
 }
@@ -360,6 +367,8 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   email: string;
   batch?: string;
   level: string;
+  studentStatus?: string;
+  subscription?: string;
   currentJourneyDay: number | null;
   totalPaid: number;
   pendingApprovalAmount: number;
@@ -395,6 +404,19 @@ export type BatchStudentPaymentFilter = LanguageLevelSlot | 'all_language' | 'al
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];
+}
+
+export interface CohortStudentsPaymentDetail {
+  students: BatchStudentPaymentRow[];
+  cohort: string;
+  status: string;
+  totalStudents: number;
+  totalPaidLKR: number;
+  totalPaidINR: number;
+  totalPaidUSD: number;
+  totalPendingLKR: number;
+  totalPendingINR: number;
+  totalPendingUSD: number;
 }
 
 export type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
@@ -610,6 +632,18 @@ export class PaymentHubApiService {
     const encoded = encodeURIComponent(batch);
     return this.http.get<{ success: boolean; data: BatchStudentsPaymentDetail }>(
       `${this.base}/batches/${encoded}/students`,
+    );
+  }
+
+  getCohortStudentsPaymentDetail(
+    cohort: string,
+    status?: string,
+  ): Observable<{ success: boolean; data: CohortStudentsPaymentDetail }> {
+    const params: Record<string, string> = { cohort };
+    if (status) params['status'] = status;
+    return this.http.get<{ success: boolean; data: CohortStudentsPaymentDetail }>(
+      `${this.base}/finance-dashboard/students`,
+      { params: this.toParams(params) },
     );
   }
 

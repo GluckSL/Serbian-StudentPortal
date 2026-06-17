@@ -136,7 +136,7 @@ function silverGoRecordingBatchKeys(student) {
 
 /** Mongoose .select() fields required to resolve Tamil vs Sinhala GO batch keys. */
 const SILVER_GO_STUDENT_SELECT =
-  'role batch goStatus subscription level currentCourseDay goLanguage medium pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay';
+  'role batch goStatus subscription level currentCourseDay goLanguage medium pendingJourneyDayAdvance pendingJourneyDayAdvanceForDay blockedJourneyLevels';
 
 module.exports = {
   GO_BATCH_TAMIL,

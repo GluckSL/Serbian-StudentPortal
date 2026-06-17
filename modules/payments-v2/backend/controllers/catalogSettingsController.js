@@ -20,10 +20,12 @@ const getCatalogSettings = async (req, res) => {
   }
 };
 
+const ALLOWED_SUBSCRIPTIONS = ['PLATINUM', 'SILVER', 'VISA_DOC', 'VISA_DOC_ONLY', 'DOCS_RECOGNITION'];
+
 // ─── Admin: update catalog ─────────────────────────────────────────────────
 const updateCatalogSettings = async (req, res) => {
   try {
-    const { cefrRows, referenceRows, defaultInstallmentSchedule } = req.body;
+    const { cefrRows, referenceRows, defaultInstallmentSchedule, subscriptionRates } = req.body;
 
     const adminId = getAuthUserId(req);
 
@@ -48,6 +50,14 @@ const updateCatalogSettings = async (req, res) => {
         lkr: Number(r.lkr) || 0,
         inr: Number(r.inr) || 0,
       })).filter(r => r.label);
+    }
+
+    if (Array.isArray(subscriptionRates)) {
+      update.subscriptionRates = subscriptionRates.map(r => ({
+        subscription: String(r.subscription || '').trim().toUpperCase(),
+        lkr: Number(r.lkr) || 0,
+        inr: Number(r.inr) || 0,
+      })).filter(r => r.subscription);
     }
 
     if (defaultInstallmentSchedule !== undefined) {

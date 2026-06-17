@@ -9,6 +9,7 @@ const { allStudentBatchStringsForContent } = require('./effectiveStudentBatch');
 const { isSilverGoStudent, silverGoRecordingBatchKeys, SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
 const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
+const { isCourseDayAdminBlocked } = require('./journeyContentBlock');
 const { SILVER_GO_RECORDING_WATCH_RATIO, recordingWatchCountsAsComplete } = require('./recordingWatchCompletion');
 
 const { clampStandardJourneyDay } = require('./journeyDay');
@@ -81,6 +82,9 @@ async function resolveSilverGoContentUnlock(student) {
   const opts = silverGoCompletionOptions(student);
 
   for (let d = maxUnlockedContentDay - 1; d >= 1; d--) {
+    if (isCourseDayAdminBlocked(student?.blockedJourneyLevels, d)) {
+      continue;
+    }
     const completion = await computeJourneyDayCompletion(studentId, batchKeys, d, opts);
     if (!completion.complete) {
       maxUnlockedContentDay = d;

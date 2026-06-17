@@ -60,6 +60,54 @@
       </div>
     </section>
 
+    <!-- ── Plan-specific pricing overrides ───────────────────────────────── -->
+    <section class="ps-card">
+      <div class="ps-section-head">
+        <mat-icon class="ps-section-icon">workspace_premium</mat-icon>
+        <div>
+          <h2 class="ps-section-title">Plan-specific pricing</h2>
+          <p class="ps-section-sub">
+            Flat per-level fee for each plan. Overrides CEFR rows above for matching students.
+            Leave <strong>0</strong> to use the default CEFR pricing above.
+          </p>
+        </div>
+      </div>
+
+      <div class="ps-cefr-table-wrap">
+        <table class="ps-table">
+          <thead>
+            <tr>
+              <th class="ps-col-level">Plan</th>
+              <th class="ps-col-currency">LKR / level</th>
+              <th class="ps-col-currency">INR / level</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of subscriptionRates">
+              <td class="ps-level-badge-cell">
+                <span class="ps-plan-badge ps-plan-badge--{{ row.subscription | lowercase }}">{{ planLabel(row.subscription) }}</span>
+              </td>
+              <td>
+                <mat-form-field appearance="outline" class="ps-num-field">
+                  <input matInput type="number" min="0" [(ngModel)]="row.lkr" [placeholder]="'0 = use CEFR default'" />
+                </mat-form-field>
+              </td>
+              <td>
+                <mat-form-field appearance="outline" class="ps-num-field">
+                  <input matInput type="number" min="0" [(ngModel)]="row.inr" [placeholder]="'0 = use CEFR default'" />
+                </mat-form-field>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="ps-plan-hint">
+        <mat-icon>info_outline</mat-icon>
+        Example: set Silver to LKR 30,000 / INR 1,180 to use plan-specific fees for Silver students.
+        Platinum uses the CEFR level rows above by default (set to 0 to inherit).
+      </p>
+    </section>
+
     <!-- ── Reference / package rows ──────────────────────────────────────── -->
     <section class="ps-card">
       <div class="ps-section-head">

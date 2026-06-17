@@ -109,9 +109,19 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   exporting = false;
   cohort: FinanceCohort = 'all';
   cohortStatus = '';
+  /** Combined level + student status (e.g. `A1:ONGOING`). Empty = all levels. */
+  levelStatusFilter = '';
+  private urlCohortStatus = '';
 
-  readonly levels = ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-  readonly levelLabels = ['All levels', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  readonly levelStatusFilterOptions: ReadonlyArray<{ value: string; label: string }> = [
+    { value: '', label: 'All levels' },
+    ...(['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const).flatMap((level) =>
+      (['ONGOING', 'COMPLETED'] as const).map((status) => ({
+        value: `${level}:${status}`,
+        label: `${level} ${formatStudentStatusLabel(status).toLowerCase()}`,
+      })),
+    ),
+  ];
 
   readonly studentInsightOptions = [
     { value: '' as BatchInsightFilter, key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all batches', color: 'slate', amountKind: 'expected' as const },
@@ -142,7 +152,11 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
         status: params.get('status') ?? undefined,
       });
       this.cohort = parsed.cohort;
-      this.cohortStatus = parsed.status;
+      this.urlCohortStatus = parsed.status;
+      if (!this.levelStatusFilter) {
+        this.cohortStatus = parsed.status;
+      }
+      this.syncLevelStatusFilterFromState();
       this.load();
     });
   }
@@ -167,7 +181,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   get pageTitle(): string {
-    if (!this.hasCohortFilter) return 'Finance Dashboard';
+    if (!this.hasCohortFilter && !this.filterLevel) return 'Finance Dashboard';
+    if (this.filterLevel && this.cohortStatus) {
+      return `${this.filterLevel} · ${formatStudentStatusLabel(this.cohortStatus)}`;
+    }
     const parts = [financeCohortLabel(this.cohort)];
     if (this.cohortStatus) parts.push(formatStudentStatusLabel(this.cohortStatus));
     return parts.join(' · ');
@@ -763,7 +780,31 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  applyLevelFilter(): void {
+  private syncLevelStatusFilterFromState(): void {
+    if (!this.filterLevel) {
+      this.levelStatusFilter = '';
+      return;
+    }
+    const status = this.cohortStatus || this.urlCohortStatus || 'ONGOING';
+    const candidate = `${this.filterLevel}:${status}`;
+    this.levelStatusFilter = this.levelStatusFilterOptions.some((o) => o.value === candidate)
+      ? candidate
+      : '';
+  }
+
+  activeLevelStatusLabel(): string {
+    return this.levelStatusFilterOptions.find((o) => o.value === this.levelStatusFilter)?.label || '';
+  }
+
+  applyLevelStatusFilter(): void {
+    if (!this.levelStatusFilter) {
+      this.filterLevel = '';
+      this.cohortStatus = this.urlCohortStatus;
+    } else {
+      const [level, status] = this.levelStatusFilter.split(':');
+      this.filterLevel = level;
+      this.cohortStatus = status;
+    }
     this.pruneVisibleBatches();
     this.load();
   }

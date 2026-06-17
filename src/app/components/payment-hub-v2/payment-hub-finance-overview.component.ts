@@ -50,6 +50,16 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     return { cohort, status: 'ONGOING' };
   }
 
+  studentsRoute(_cohort: FinanceCohort): string {
+    return '/admin/finance-dashboard/students';
+  }
+
+  studentsQuery(cohort: FinanceCohort, status?: string): Record<string, string> {
+    const q: Record<string, string> = { cohort };
+    if (status) q['status'] = status;
+    return q;
+  }
+
   private loadCounts(): void {
     this.loading = true;
     this.http

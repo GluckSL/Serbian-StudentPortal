@@ -15,9 +15,9 @@
       <div class="ph-finance-filters-row">
         <div class="ph-finance-filters-fields">
           <mat-form-field appearance="outline" class="ph-filter" subscriptSizing="dynamic">
-            <mat-label>Level</mat-label>
-            <mat-select [(ngModel)]="filterLevel" (selectionChange)="applyLevelFilter()" [disabled]="loading">
-              <mat-option *ngFor="let lv of levels; let i = index" [value]="lv">{{ levelLabels[i] }}</mat-option>
+            <mat-label>Level &amp; status</mat-label>
+            <mat-select [(ngModel)]="levelStatusFilter" (selectionChange)="applyLevelStatusFilter()" [disabled]="loading">
+              <mat-option *ngFor="let opt of levelStatusFilterOptions" [value]="opt.value">{{ opt.label }}</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -207,6 +207,7 @@
             <p class="ph-panel-caption">
               {{ displayBatchRows.length }} batches
               <span *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} on dashboard</span>
+              <span *ngIf="levelStatusFilter"> · {{ activeLevelStatusLabel() }}</span>
               <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
               <span *ngIf="paymentFilter !== 'all_language'"> · {{ paymentFilterLabel() }}</span>
             </p>

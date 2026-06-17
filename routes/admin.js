@@ -1084,6 +1084,16 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       updateData.level = updates.level;
     }
 
+    if (updates.level && studentIds.length === 1) {
+      const existingStudent = await User.findById(studentIds[0])
+        .select('role currentCourseDay blockedJourneyLevels level')
+        .lean();
+      if (existingStudent?.role === 'STUDENT' && updates.level !== existingStudent.level) {
+        const { buildAdminLevelJumpUpdate } = require('../services/journeyLevelSync.service');
+        Object.assign(updateData, buildAdminLevelJumpUpdate(updates.level, existingStudent, updateData));
+      }
+    }
+
     if (updates.studentStatus) {
       updateData.studentStatus = updates.studentStatus;
     }

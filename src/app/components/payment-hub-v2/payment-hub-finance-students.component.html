@@ -1,0 +1,244 @@
+<div class="ph-insights-page ph-finance-students-page">
+  <div class="ph-insights-header">
+    <div class="ph-insights-header-inner">
+      <a routerLink="/admin/finance-dashboard" class="ph-insights-back">
+        <mat-icon>arrow_back</mat-icon>
+        Back to Finance Dashboard
+      </a>
+      <h1 class="ph-insights-title">
+        {{ cohortLabel }}
+        <span class="ph-finance-students-status-chip" *ngIf="statusLabel">{{ statusLabel }}</span>
+        — Student Payments
+      </h1>
+      <p class="ph-insights-sub">Student-level payment breakdown. Click a row to open the student's full payment history.</p>
+    </div>
+  </div>
+
+  <div class="ph-insights-body">
+    <ng-container *ngIf="!loading; else skeleton">
+
+      <!-- ── Summary KPI cards ── -->
+      <div class="ph-finance-students-kpi-grid" *ngIf="summary">
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--total">
+          <mat-icon>groups</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__value">{{ summary.totalStudents }}</span>
+            <span class="ph-finance-students-kpi__label">Total students</span>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--ongoing" *ngIf="!cohortStatus">
+          <mat-icon>trending_up</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__value">{{ insightCount('all') }}</span>
+            <span class="ph-finance-students-kpi__label">Loaded</span>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--paid">
+          <mat-icon>payments</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__label">Total received</span>
+            <div class="ph-finance-students-kpi__amounts">
+              <span *ngIf="summary.totalPaidLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--lkr">
+                LKR {{ summary.totalPaidLKR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="summary.totalPaidINR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--inr">
+                ₹{{ summary.totalPaidINR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="summary.totalPaidUSD > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--usd">
+                ${{ summary.totalPaidUSD | number:'1.0-2' }}
+              </span>
+              <span *ngIf="summary.totalPaidLKR === 0 && summary.totalPaidINR === 0 && summary.totalPaidUSD === 0" class="ph-finance-students-kpi__nil">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--pending">
+          <mat-icon>pending_actions</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__label">Total pending (language)</span>
+            <div class="ph-finance-students-kpi__amounts">
+              <span *ngIf="summary.totalPendingLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
+                LKR {{ summary.totalPendingLKR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="summary.totalPendingINR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
+                ₹{{ summary.totalPendingINR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="summary.totalPendingUSD > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
+                ${{ summary.totalPendingUSD | number:'1.0-2' }}
+              </span>
+              <span *ngIf="summary.totalPendingLKR === 0 && summary.totalPendingINR === 0 && summary.totalPendingUSD === 0" class="ph-finance-students-kpi__nil">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Insight filter cards ── -->
+      <div class="ph-health-grid" *ngIf="rows.length">
+        <p class="ph-health-grid-heading">Payment breakdown · click to filter table</p>
+        <div class="ph-health-cards">
+          <button
+            type="button"
+            class="ph-health-card ph-health-card--{{ opt.color }}"
+            *ngFor="let opt of studentInsightOptions"
+            [class.ph-health-card--active]="isInsightActive(opt.value)"
+            [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
+            (click)="applyInsightFilter(opt.value)"
+            [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+          >
+            <div class="ph-health-card-icon"><mat-icon>{{ opt.icon }}</mat-icon></div>
+            <div class="ph-health-card-body">
+              <span class="ph-health-card-label">{{ opt.label }}</span>
+              <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
+            </div>
+            <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Students table ── -->
+      <section class="ph-table-section ph-surface" id="ph-finance-stu-table">
+        <div class="ph-table-toolbar">
+          <div class="ph-table-toolbar-left">
+            <h2 class="ph-section-title">Students</h2>
+            <span class="ph-insight-filter-chip" *ngIf="studentInsight">
+              <mat-icon>filter_alt</mat-icon>
+              {{ activeInsightLabel() }}
+              <button type="button" class="ph-insight-filter-clear" (click)="applyInsightFilter(studentInsight)" matTooltip="Clear filter">
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
+            <span class="ph-select-meta">{{ displayRows.length }} shown</span>
+            <span class="ph-select-meta ph-select-meta--filter" *ngIf="paymentFilter !== 'all_language'">
+              {{ paymentFilterLabel() }}
+            </span>
+            <button
+              mat-icon-button
+              type="button"
+              class="ph-btn-payment-filter"
+              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
+              [matMenuTriggerFor]="paymentFilterMenu"
+              [matTooltip]="paymentFilterHint()"
+              aria-label="Payment amount filter"
+            >
+              <mat-icon>filter_list</mat-icon>
+            </button>
+            <mat-menu #paymentFilterMenu="matMenu">
+              <button mat-menu-item type="button" *ngFor="let opt of paymentFilterOptions" (click)="setPaymentFilter(opt.value)">
+                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
+              </button>
+            </mat-menu>
+          </div>
+          <div class="ph-batch-stu-search-wrap">
+            <mat-icon class="ph-batch-stu-search-icon" aria-hidden="true">search</mat-icon>
+            <input
+              class="ph-batch-stu-search-input"
+              type="search"
+              [(ngModel)]="searchQuery"
+              placeholder="Search by name, email, or batch…"
+              aria-label="Search students"
+            />
+          </div>
+        </div>
+
+        <div class="ph-table-responsive" *ngIf="displayRows.length; else empty">
+          <table class="ph-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Student</th>
+                <th>Batch</th>
+                <th>Level</th>
+                <th class="ph-num ph-col-compact">Journey day</th>
+                <th class="ph-num">Total received</th>
+                <th class="ph-num" [matTooltip]="paymentFilterHint()">Pending</th>
+                <th class="ph-num" [matTooltip]="paymentFilterHint()">Overdue</th>
+                <th>Language fee</th>
+                <th>Status</th>
+                <th class="ph-col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of displayRows; let i = index">
+                <td class="ph-num ph-row-num">{{ i + 1 }}</td>
+                <td class="ph-name-cell">
+                  <span class="ph-name-main">{{ r.name }}</span>
+                  <span class="ph-name-email">{{ r.email }}</span>
+                </td>
+                <td>
+                  <span class="ph-batch-tag" *ngIf="r.batch; else noBatch">{{ r.batch }}</span>
+                  <ng-template #noBatch><span class="ph-nil">—</span></ng-template>
+                </td>
+                <td><span class="ph-level-pill">{{ r.level }}</span></td>
+                <td class="ph-num ph-col-compact">
+                  <span class="ph-day-badge ph-day-badge--ratio">{{ journeyDayDisplay(r) }}</span>
+                </td>
+                <td class="ph-num ph-val-green ph-paid-cell">
+                  <app-payment-currency-totals
+                    [lkr]="rowReceived(r).lkr"
+                    [inr]="rowReceived(r).inr"
+                    [usd]="rowReceived(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
+                <td class="ph-num ph-val-amber ph-paid-cell">
+                  <app-payment-currency-pending-totals
+                    [lkr]="rowPending(r).lkr"
+                    [inr]="rowPending(r).inr"
+                    [usd]="rowPending(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-pending-totals>
+                </td>
+                <td class="ph-num ph-val-red ph-paid-cell">
+                  <app-payment-currency-overdue-totals
+                    [lkr]="rowOverdue(r).lkr"
+                    [inr]="rowOverdue(r).inr"
+                    [usd]="rowOverdue(r).usd"
+                    [sinceDate]="r.overdueSince"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-overdue-totals>
+                </td>
+                <td>
+                  <span class="ph-pill" [ngClass]="languageFeePillClass(r)">{{ languageFeeStatusLabel(r) }}</span>
+                </td>
+                <td>
+                  <span class="ph-status-chip" *ngIf="r.studentStatus">{{ formatStudentStatus(r.studentStatus) }}</span>
+                </td>
+                <td class="ph-col-actions">
+                  <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(r)" matTooltip="Open full payment history">
+                    <mat-icon>open_in_new</mat-icon>
+                    Payments
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ng-template #empty>
+          <p class="ph-empty-note">
+            {{ searchQuery || studentInsight ? 'No students match your filter.' : 'No students found for this plan.' }}
+          </p>
+        </ng-template>
+      </section>
+
+    </ng-container>
+
+    <ng-template #skeleton>
+      <div class="ph-skeleton-layout" aria-busy="true" aria-label="Loading students">
+        <div class="ph-finance-students-kpi-grid ph-finance-students-kpi-grid--skeleton">
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3,4]"></div>
+        </div>
+        <div class="ph-health-cards ph-batch-stu-skeleton-cards">
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3,4]"></div>
+        </div>
+        <div class="ph-skeleton-table"></div>
+      </div>
+    </ng-template>
+  </div>
+</div>

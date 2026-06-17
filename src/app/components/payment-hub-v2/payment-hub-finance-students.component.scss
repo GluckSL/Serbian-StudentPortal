@@ -1,0 +1,193 @@
+.ph-finance-students-page {
+  .ph-insights-header {
+    border-radius: 0 0 28px 28px;
+  }
+}
+
+// ── Status chip in header title ───────────────────────────────────────────────
+.ph-finance-students-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  margin: 0 4px;
+}
+
+// ── KPI summary cards ─────────────────────────────────────────────────────────
+.ph-finance-students-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+
+  &--skeleton {
+    .ph-skeleton-card {
+      height: 90px;
+    }
+  }
+}
+
+.ph-finance-students-kpi {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  padding: 16px 18px;
+  border-top: 3px solid #cbd5e1;
+
+  mat-icon {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  &--total {
+    border-top-color: #6366f1;
+    mat-icon { color: #6366f1; }
+  }
+
+  &--ongoing {
+    border-top-color: #22c55e;
+    mat-icon { color: #22c55e; }
+  }
+
+  &--paid {
+    border-top-color: #10b981;
+    mat-icon { color: #10b981; }
+  }
+
+  &--pending {
+    border-top-color: #f59e0b;
+    mat-icon { color: #f59e0b; }
+  }
+}
+
+.ph-finance-students-kpi__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ph-finance-students-kpi__value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.ph-finance-students-kpi__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.ph-finance-students-kpi__amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 4px;
+}
+
+.ph-finance-students-kpi__amount {
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 1px 6px;
+
+  &--lkr, &--inr, &--usd {
+    background: #f0fdf4;
+    color: #15803d;
+  }
+
+  &--pending {
+    background: #fffbeb;
+    color: #b45309;
+  }
+}
+
+.ph-finance-students-kpi__nil {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+// ── Table extras ──────────────────────────────────────────────────────────────
+.ph-row-num {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  width: 36px;
+  font-weight: 500;
+}
+
+.ph-name-main {
+  display: block;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ph-name-email {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.ph-batch-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ph-nil {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.ph-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .ph-finance-students-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .ph-finance-students-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}

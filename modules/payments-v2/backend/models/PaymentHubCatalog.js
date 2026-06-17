@@ -13,6 +13,13 @@ const referenceRowSchema = new mongoose.Schema({
   inr: { type: Number, default: 0 },
 }, { _id: false });
 
+/** Flat per-level fee override for a specific subscription plan (e.g. SILVER). */
+const subscriptionRateSchema = new mongoose.Schema({
+  subscription: { type: String, required: true },
+  lkr: { type: Number, default: 0 },
+  inr: { type: Number, default: 0 },
+}, { _id: false });
+
 const scheduleStepSchema = new mongoose.Schema({
   label: { type: String },
   daysFromEnrollment: { type: Number },
@@ -24,6 +31,9 @@ const schema = new mongoose.Schema({
   _id: { type: String, default: 'global' },
   cefrRows: [cefrRowSchema],
   referenceRows: [referenceRowSchema],
+  /** Per-plan flat fee overrides. If a student's subscription matches an entry here,
+   *  this flat rate (per level) is used instead of cefrRows. */
+  subscriptionRates: { type: [subscriptionRateSchema], default: [] },
   defaultInstallmentSchedule: {
     title: { type: String },
     notes: { type: String },
@@ -32,6 +42,10 @@ const schema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 });
+
+const DEFAULT_SUBSCRIPTION_RATES = [
+  { subscription: 'SILVER', lkr: 30000, inr: 1180 },
+];
 
 /** Default seed matching the admin spreadsheet */
 const DEFAULT_CEFR = [
@@ -58,12 +72,18 @@ schema.statics.getOrCreate = async function () {
       _id: 'global',
       cefrRows: DEFAULT_CEFR,
       referenceRows: DEFAULT_REFERENCE,
+      subscriptionRates: DEFAULT_SUBSCRIPTION_RATES,
       defaultInstallmentSchedule: {
         title: '',
         notes: '',
         steps: [],
       },
     });
+  }
+  // Migrate existing docs: seed subscriptionRates if missing
+  if (!doc.subscriptionRates || doc.subscriptionRates.length === 0) {
+    doc.subscriptionRates = DEFAULT_SUBSCRIPTION_RATES;
+    await doc.save();
   }
   return doc;
 };
