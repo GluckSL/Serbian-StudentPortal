@@ -60,7 +60,7 @@ app-footer {
 /* Sidebar shell layout */
 .app-shell {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1;
   min-height: 0;
   min-width: 0;
   overflow-x: hidden;
