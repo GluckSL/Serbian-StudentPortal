@@ -444,6 +444,215 @@ router.get('/teachers', verifyToken, isAdmin, async (req, res) => {
   }
 });
 
+// Bulk teacher analytics overview (spreadsheet-style, no payment/rate fields)
+router.get('/teachers/analytics-overview', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const from = req.query.from ? new Date(req.query.from) : null;
+    const to = req.query.to ? new Date(req.query.to) : null;
+    const now = new Date();
+
+    const [teachers, allStudents, allMeetings] = await Promise.all([
+      User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
+        .populate('assignedCourses', 'title')
+        .select('name regNo email medium assignedBatches assignedCourses')
+        .lean(),
+      User.find({ role: 'STUDENT', assignedTeacher: { $exists: true, $ne: null } })
+        .select('assignedTeacher batch level')
+        .lean(),
+      MeetingLink.find({ assignedTeacher: { $exists: true, $ne: null } })
+        .select('assignedTeacher batch startTime duration attendance attendanceRecorded status')
+        .lean(),
+    ]);
+
+    const studentsByTeacher = new Map();
+    for (const s of allStudents) {
+      const tid = String(s.assignedTeacher);
+      if (!studentsByTeacher.has(tid)) studentsByTeacher.set(tid, []);
+      studentsByTeacher.get(tid).push(s);
+    }
+
+    const meetingsByTeacher = new Map();
+    for (const m of allMeetings) {
+      const tid = String(m.assignedTeacher);
+      if (!meetingsByTeacher.has(tid)) meetingsByTeacher.set(tid, []);
+      meetingsByTeacher.get(tid).push(m);
+    }
+
+    const normBatch = (b) => String(b || '').trim().toLowerCase();
+
+    const batchRows = [];
+    const teacherRows = [];
+
+    for (const teacher of teachers) {
+      const tid = String(teacher._id);
+      const students = studentsByTeacher.get(tid) || [];
+      const meetings = meetingsByTeacher.get(tid) || [];
+
+      const batchSet = new Set();
+      (teacher.assignedBatches || []).forEach((b) => { if (b) batchSet.add(String(b).trim()); });
+      students.forEach((s) => { if (s.batch) batchSet.add(String(s.batch).trim()); });
+      meetings.forEach((m) => { if (m.batch) batchSet.add(String(m.batch).trim()); });
+
+      const batchBreakdown = [];
+      let teacherMinutes = 0;
+      let teacherPresent = 0;
+      let teacherLate = 0;
+      let teacherRecords = 0;
+      let teacherMeetingCount = 0;
+      const levelSet = new Set();
+      const batchLabels = [];
+
+      for (const batch of batchSet) {
+        if (!batch) continue;
+
+        const batchKey = normBatch(batch);
+        const batchStudents = students.filter((s) => normBatch(s.batch) === batchKey);
+
+        const levelCounts = {};
+        batchStudents.forEach((s) => {
+          const lv = String(s.level || '').toUpperCase();
+          if (lv) {
+            levelCounts[lv] = (levelCounts[lv] || 0) + 1;
+            levelSet.add(lv);
+          }
+        });
+        let level = Object.entries(levelCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+        if (!level && teacher.assignedCourses?.length) {
+          level = teacher.assignedCourses.map((c) => c.title).filter(Boolean).join(', ');
+          level.split(',').map((l) => l.trim()).filter(Boolean).forEach((l) => levelSet.add(l));
+        }
+
+        let tutorMinutes = 0;
+        let totalPresent = 0;
+        let totalLate = 0;
+        let totalRecords = 0;
+        let pastMeetingCount = 0;
+
+        const batchMeetings = meetings.filter((m) => normBatch(m.batch) === batchKey);
+
+        for (const meeting of batchMeetings) {
+          if (!meeting.startTime) continue;
+          const start = new Date(meeting.startTime);
+          if (start >= now) continue;
+          if (from && start < from) continue;
+          if (to && start > to) continue;
+
+          pastMeetingCount += 1;
+          const hasRecordedDuration = Number(meeting.duration || 0) > 0;
+          const scheduledMinutes = hasRecordedDuration
+            ? Number(meeting.duration)
+            : (meeting.attendanceRecorded ? 60 : 0);
+          tutorMinutes += scheduledMinutes;
+
+          const attendance = Array.isArray(meeting.attendance) ? meeting.attendance : [];
+          const present = attendance.filter((e) => e?.attended === true || e?.status === 'attended').length;
+          const late = attendance.filter((e) => e?.status === 'late').length;
+          const total = attendance.length;
+          if (total > 0) {
+            totalPresent += present;
+            totalLate += late;
+            totalRecords += total;
+          }
+        }
+
+        const tutorHours = Math.round((tutorMinutes / 60) * 100) / 100;
+        const attendancePct = totalRecords
+          ? Math.round(((totalPresent + totalLate) / totalRecords) * 10000) / 100
+          : null;
+
+        teacherMinutes += tutorMinutes;
+        teacherPresent += totalPresent;
+        teacherLate += totalLate;
+        teacherRecords += totalRecords;
+        teacherMeetingCount += pastMeetingCount;
+        batchLabels.push(batch);
+
+        const batchRow = {
+          teacherId: teacher._id,
+          tutor: teacher.name,
+          regNo: teacher.regNo || '',
+          email: teacher.email || '',
+          medium: teacher.medium || '',
+          batch,
+          level: level || '—',
+          studentCount: batchStudents.length,
+          meetingCount: pastMeetingCount,
+          tutorHours,
+          tutorMinutes,
+          attendance: attendancePct,
+        };
+        batchBreakdown.push(batchRow);
+        batchRows.push(batchRow);
+      }
+
+      const tutorHours = Math.round((teacherMinutes / 60) * 100) / 100;
+      const attendancePct = teacherRecords
+        ? Math.round(((teacherPresent + teacherLate) / teacherRecords) * 10000) / 100
+        : null;
+
+      teacherRows.push({
+        teacherId: teacher._id,
+        tutor: teacher.name,
+        regNo: teacher.regNo || '',
+        email: teacher.email || '',
+        medium: teacher.medium || '',
+        batches: batchLabels.sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })),
+        levels: [...levelSet].sort().join(', ') || '—',
+        batchCount: batchBreakdown.length,
+        studentCount: students.length,
+        meetingCount: teacherMeetingCount,
+        tutorHours,
+        tutorMinutes: teacherMinutes,
+        attendance: attendancePct,
+        batchBreakdown,
+      });
+    }
+
+    batchRows.sort((a, b) => {
+      const nameCmp = String(a.tutor).localeCompare(String(b.tutor));
+      if (nameCmp !== 0) return nameCmp;
+      return String(a.batch).localeCompare(String(b.batch), undefined, { numeric: true });
+    });
+
+    teacherRows.sort((a, b) => String(a.tutor).localeCompare(String(b.tutor)));
+
+    const totals = {
+      teachers: teacherRows.length,
+      rows: teacherRows.length,
+      totalTutorHours: Math.round(teacherRows.reduce((s, r) => s + (r.tutorHours || 0), 0) * 100) / 100,
+      totalStudents: teacherRows.reduce((s, r) => s + (r.studentCount || 0), 0),
+      avgAttendance: (() => {
+        const withAtt = teacherRows.filter((r) => r.attendance != null);
+        if (!withAtt.length) return null;
+        const sum = withAtt.reduce((s, r) => s + r.attendance, 0);
+        return Math.round((sum / withAtt.length) * 100) / 100;
+      })(),
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        teachers: teacherRows,
+        rows: teacherRows,
+        batchRows,
+        totals,
+        generatedAt: new Date().toISOString(),
+        filters: {
+          from: from ? from.toISOString() : null,
+          to: to ? to.toISOString() : null,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('Error fetching teacher analytics overview:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch teacher analytics overview',
+      error: err.message,
+    });
+  }
+});
+
 // Get detailed report for a single teacher
 router.get('/teachers/:teacherId/report', verifyToken, isAdmin, async (req, res) => {
   try {

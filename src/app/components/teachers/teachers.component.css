@@ -220,6 +220,27 @@
 .courses-list .badge,
 .batches-list .badge { display: inline-block; margin-right: 3px; }
 
+.action-bar .btn {
+  font-weight: 600;
+}
+
+.btn-analytics {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  border: none;
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(249, 115, 22, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-analytics:hover {
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(249, 115, 22, 0.35);
+}
+
 /* ── Action Buttons ── */
 .action-buttons { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
 .action-buttons .btn { border-radius: 6px; padding: 3px 8px; font-size: 11px; }

@@ -6,7 +6,7 @@
   </div>
 
   <!-- Payment Summary Card -->
-  <div class="sp-card" *ngIf="ledger">
+  <div class="sp-card sp-hero" *ngIf="ledger">
     <div class="sp-card__head">
       <span class="sp-card__title">
         <span class="material-icons sp-card__icon">payments</span>
@@ -154,6 +154,8 @@
       </span>
       <span class="sp-card__meta">{{ submissions.length }} submission(s)</span>
     </div>
+    <!-- BEFORE: this table could overflow on 412px screens without a visible horizontal scroll area. -->
+    <div class="sp-table-scroll" tabindex="0" aria-label="Payment submissions table">
     <table class="sp-table-full">
       <thead>
         <tr>
@@ -184,6 +186,7 @@
         </tr>
       </tbody>
     </table>
+    </div>
   </div>
 
   <!-- Payment History (from ledger) -->
@@ -195,6 +198,8 @@
       </span>
       <span class="sp-card__meta">{{ paymentHistory.length }} payment(s)</span>
     </div>
+    <!-- BEFORE: this table could clip payment history columns on mobile. -->
+    <div class="sp-table-scroll" tabindex="0" aria-label="Payment history table">
     <table class="sp-table-full">
       <thead>
         <tr>
@@ -215,6 +220,7 @@
         </tr>
       </tbody>
     </table>
+    </div>
   </div>
 
 </div>
@@ -288,6 +294,8 @@
         <div class="sp-skeleton-block" style="height:14px;width:160px;background:#e2e8f0;border-radius:4px;"></div>
         <div class="sp-skeleton-block" style="height:11px;width:60px;background:#e2e8f0;border-radius:4px;"></div>
       </div>
+      <!-- BEFORE: loading table skeletons used the same non-scrollable table layout as the real tables. -->
+      <div class="sp-table-scroll" tabindex="0" aria-label="Loading payment submissions table">
       <table class="sp-table-full">
         <thead>
           <tr>
@@ -308,6 +316,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Payment History Card -->
@@ -316,6 +325,7 @@
         <div class="sp-skeleton-block" style="height:14px;width:120px;background:#e2e8f0;border-radius:4px;"></div>
         <div class="sp-skeleton-block" style="height:11px;width:50px;background:#e2e8f0;border-radius:4px;"></div>
       </div>
+      <div class="sp-table-scroll" tabindex="0" aria-label="Loading payment history table">
       <table class="sp-table-full">
         <thead>
           <tr>
@@ -336,6 +346,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 </ng-template>

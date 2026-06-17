@@ -1,6 +1,7 @@
 <div class="jo-detail-page">
   <div *ngIf="loading" class="jo-detail-loading">Loading...</div>
 
+  <!-- BEFORE: the detail hero action area could crowd long job titles and deadlines on narrow mobile screens. -->
   <article class="jo-detail-card" *ngIf="!loading && job">
     <header class="jo-detail-hero">
       <div class="jo-detail-hero__row">

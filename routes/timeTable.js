@@ -83,13 +83,18 @@ router.get("/forStudent", async (req, res) => {
     if (plan) {
       query.plan = new RegExp(`^${String(plan).trim()}$`, 'i');
     }
-
-    let timeTables = await TimeTable.find(query);
+    // Pre-filter by batch in MongoDB to avoid loading the full collection into JS
     if (batch) {
-      timeTables = timeTables.filter((tt) => batchesAlign(batch, tt.batch));
+      const normalized = String(batch).trim().toLowerCase().replace(/^batch\s+/, '').replace(/\s+/g, ' ');
+      query.batch = new RegExp(normalized, 'i');
     }
 
-    res.status(200).json(timeTables);
+    const timeTables = await TimeTable.find(query).lean();
+
+    // Secondary JS filter handles subtle batch alignment edge cases (prefix matching)
+    const filtered = batch ? timeTables.filter((tt) => batchesAlign(batch, tt.batch)) : timeTables;
+
+    res.status(200).json(filtered);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

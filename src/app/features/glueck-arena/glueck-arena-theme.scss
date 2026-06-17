@@ -1,13 +1,18 @@
 /* GlückArena theme tokens — light default; dark via [data-ga-theme="dark"] on parent */
 
 [data-ga-theme] {
-  --ga-primary: #405980;
-  --ga-accent: #ff8f00;
+  --ga-primary: #1a237e;
+  --ga-primary-mid: #1565c0;
+  --ga-accent: #f59e0b;
+  --ga-success: #16a34a;
+  --ga-warning: #f97316;
+  --ga-error: #dc2626;
   --ga-card-bg: #ffffff;
-  --ga-page-bg: transparent;
-  --ga-text: #2c3e50;
-  --ga-muted: #888888;
-  --ga-border: #e8ecf0;
+  --ga-page-bg: #f8fafc;
+  --ga-text: #0f172a;
+  --ga-muted: #64748b;
+  --ga-border: #e2e8f0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 [data-ga-theme='dark'] {
@@ -29,8 +34,25 @@
 
 /* Production UX polish — motion-safe, reduced-motion aware */
 @media (prefers-reduced-motion: no-preference) {
-  .gc__card, .tl__card, .mpb__podium-place {
+  .gc__card, .tl__card, .mpb__podium-place,
+  .arena-card, .arena-empty, .arena__locked, .podium {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .arena-card:hover,
+  .arena-empty:hover,
+  .arena__locked:hover,
+  .podium:hover {
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+    transform: translateY(-2px);
+  }
+
+  .arena-hero,
+  .arena-grid,
+  .arena-empty,
+  .arena__locked,
+  .podium {
+    animation: fadeInUp 0.4s ease-out;
   }
 }
 
@@ -57,4 +79,206 @@
 :focus-visible {
   outline: 2px solid var(--ga-primary);
   outline-offset: 2px;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Student responsive pass
+   BEFORE: the catalog shell and filters used compact controls on 412px screens, and some
+   cards/buttons could fall below the 44px tap target. These overrides stay in SCSS because
+   the student catalog/layout components keep their templates/styles inline in TypeScript. */
+.arena-layout-wrap {
+  max-width: 1200px !important;
+  box-sizing: border-box;
+}
+
+.arena-tabs {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.arena-tabs a[mat-tab-link] {
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
+.arena {
+  max-width: 1200px !important;
+  box-sizing: border-box;
+}
+
+.arena__locked h2,
+.arena-empty h3,
+.podium-heading,
+.arena-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.arena__locked p,
+.arena-empty p,
+.arena-card p,
+.arena-card__record,
+.podium__my-rank {
+  font-size: 14px !important;
+  overflow-wrap: anywhere;
+}
+
+.arena-hero__nav-link,
+.arena-filters__search,
+.arena-filters__dropdown,
+.arena-card__play,
+.arena-empty button,
+.arena-paginator button {
+  min-height: 44px !important;
+}
+
+.arena-filters__search input,
+.arena-filters__dropdown,
+.arena-filters__dropdown-item,
+.tag,
+.arena-card__meta,
+.arena-card__xp,
+.arena-card__new,
+.arena-hero__events-item {
+  font-size: 14px !important;
+}
+
+.arena-filters__search,
+.arena-filters__dropdown {
+  height: auto !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+.arena-filters__dropdown-menu {
+  max-height: min(360px, 70vh);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.arena-grid {
+  align-items: stretch;
+}
+
+.arena-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06) !important;
+  min-width: 0;
+}
+
+.arena-card__content {
+  min-width: 0;
+}
+
+.arena-card__meta {
+  flex-wrap: wrap;
+}
+
+.arena-card__play {
+  background: linear-gradient(135deg, #1565c0, #1a237e) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.22);
+  color: #ffffff !important;
+  width: calc(100% - 28px);
+  transition: all 0.2s ease;
+}
+
+.arena-card__play:hover,
+.arena-empty button:hover,
+.arena-paginator button:hover {
+  box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4);
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.podium__name {
+  max-width: 100px !important;
+}
+
+@media (max-width: 768px) {
+  .arena-layout-wrap {
+    padding: 12px 12px 32px !important;
+  }
+
+  .arena-tabs {
+    border-radius: 12px 12px 0 0 !important;
+  }
+
+  .arena-hero__right {
+    width: 100%;
+  }
+
+  .arena-hero__level,
+  .arena-hero__nav-link {
+    flex: 1 1 auto;
+  }
+
+  .arena-filters {
+    align-items: stretch !important;
+  }
+
+  .arena-filters__search,
+  .arena-filters__dropdown-wrap,
+  .arena-filters__dropdown {
+    width: 100%;
+  }
+
+  .arena-filters__dropdown-menu {
+    left: 0;
+    right: 0;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .arena-layout-wrap {
+    padding: 8px 8px 24px !important;
+  }
+
+  .arena {
+    padding: 10px 10px 24px !important;
+  }
+
+  .arena-hero p {
+    display: block !important;
+    font-size: 14px !important;
+  }
+
+  .arena-hero__right {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .arena-hero__nav-link span {
+    display: inline !important;
+  }
+
+  .arena-card__visual {
+    height: 132px !important;
+  }
+
+  .arena-card h3 {
+    font-size: 18px !important;
+  }
+
+  .arena-card__play {
+    font-size: 14px !important;
+  }
+
+  .podium {
+    gap: 6px !important;
+  }
 }

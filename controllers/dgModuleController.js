@@ -265,9 +265,11 @@ exports.listStudent = async (req, res) => {
         'title description level language visibleToStudents weeklyTestEnabled examEnabled scenes courseDay'
       );
     }
-    const modules = await moduleQuery.sort({ title: 1 }).lean();
-
-    const studentDoc = await User.findById(req.user.id).select('blockedJourneyLevels').lean();
+    // Fetch modules and student doc in parallel — they are independent queries
+    const [modules, studentDoc] = await Promise.all([
+      moduleQuery.sort({ title: 1 }).lean(),
+      User.findById(req.user.id).select('blockedJourneyLevels').lean(),
+    ]);
     const unlockedForDay = (modules || []).filter((m) => {
       if (!dgModuleUnlockedForAccess(access, m?.courseDay)) return false;
       if (isContentBlockedForStudent(studentDoc, { courseDay: m?.courseDay, level: m?.level })) return false;

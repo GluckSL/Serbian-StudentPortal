@@ -1,0 +1,125 @@
+:host { display: block; font-family: 'Inter', system-ui, sans-serif; }
+
+.create-container { padding: 14px; max-width: 840px; margin: 0 auto; }
+
+.header {
+  display: flex; align-items: center; gap: 8px;
+  background: #b3cde0; color: #011f4b;
+  padding: 10px 18px; border-radius: 14px; margin-bottom: 10px;
+  h1 { margin: 0; font-size: 15px; font-weight: 700; }
+  button { color: #011f4b; }
+}
+
+.mode-toggle {
+  display: flex; justify-content: center; margin-bottom: 16px;
+}
+
+.form-card { padding: 16px; border-radius: 12px; }
+.form-row { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; }
+.full-width { width: 100%; }
+.half-width { flex: 1; min-width: 200px; }
+
+
+
+.error-msg {
+  padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+  background: #fff5f5; color: #c62828; font-size: 13px; margin-top: 8px;
+}
+
+.btn-spinner { display: inline-block; margin-right: 6px; }
+
+/* Journey / Bulk mode */
+
+.step-card {
+  padding: 16px; border-radius: 12px;
+  mat-card-title { font-size: 15px; font-weight: 600; }
+}
+
+.two-cols {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  @media (max-width: 700px) { grid-template-columns: 1fr; }
+}
+
+.info-text {
+  color: #666; font-size: 13px; margin: -8px 0 12px;
+}
+
+.info-banner {
+  background: #eef6ff; border: 1px solid #d0e3f7; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #1a4c7a;
+}
+
+.weekday-grid {
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+
+.step-actions {
+  display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;
+}
+
+.error-bar {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff5f5; color: #c62828; padding: 10px 14px;
+  border-radius: 8px; margin-bottom: 12px; font-size: 13px;
+  .alert-close { margin-left: auto; }
+}
+
+.selected-count {
+  font-size: 13px; color: #666; background: #f0f0f0;
+  padding: 2px 10px; border-radius: 12px; margin-left: auto;
+}
+
+.student-toolbar {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  mat-form-field { flex: 1; min-width: 200px; }
+}
+
+.student-actions { display: flex; gap: 8px; }
+
+.student-chips {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+}
+
+.student-chip {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px 12px; border-radius: 12px; cursor: pointer;
+  background: #f5f5f5; border: 1px solid #e0e0e0;
+  font-size: 13px; transition: all 0.15s;
+  &:hover { background: #e3f2fd; border-color: #90caf9; }
+  &.selected { background: #e3f2fd; border-color: #1976d2; color: #1565c0; }
+  small { font-size: 11px; opacity: 0.7; }
+}
+
+.empty-students {
+  text-align: center; padding: 24px; color: #999;
+}
+
+.loading-center {
+  text-align: center; padding: 40px;
+  p { margin-top: 12px; color: #666; }
+}
+
+.summary-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  font-size: 13px;
+}
+
+.warning-card {
+  margin-top: 12px; padding: 8px 14px;
+  background: #fff8e1; color: #795548;
+  ul { margin: 8px 0 0; padding-left: 20px; }
+}
+
+.table-wrap { overflow-x: auto; }
+
+.preview-table {
+  width: 100%;
+  th { background: #f5f5f5; font-size: 12px; font-weight: 600; }
+  td { font-size: 13px; }
+  th, td { padding: 6px 12px; white-space: nowrap; }
+}
+
+.bulk-progress {
+  margin-top: 16px;
+  p { text-align: center; font-size: 13px; color: #666; margin-top: 6px; }
+}

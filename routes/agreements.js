@@ -825,12 +825,18 @@ router.get('/instances', verifyToken, async (req, res) => {
     const isAdmin = req.user.role === 'ADMIN';
     const rawStudentId = isAdmin ? req.query.studentId : req.user.id;
     const studentOid = parseStudentObjectId(rawStudentId);
+    const summary = ['1', 'true', 'yes'].includes(String(req.query.summary || '').toLowerCase());
     if (!studentOid) {
       return res.status(400).json({ success: false, message: 'Valid studentId required' });
     }
 
     const agreements = await StudentAgreement.find({ studentId: studentOid })
-      .populate('templateId', 'name slug dynamicFields')
+      .select(
+        summary
+          ? 'studentDocumentId templateName displayName generatedFile signedFile status verificationNotes sentAt verifiedAt'
+          : ''
+      )
+      .populate('templateId', summary ? 'name slug' : 'name slug dynamicFields')
       .sort({ sentAt: -1 })
       .lean();
 

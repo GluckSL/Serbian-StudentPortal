@@ -3088,10 +3088,16 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
       { status: 'abandoned' }
     );
 
-    // Update exercise attempt count
-    await DigitalExercise.findByIdAndUpdate(req.params.id, { $inc: { totalAttempts: 1 } });
-
     res.status(201).json({ attemptId: attempt._id, attemptNumber: attempt.attemptNumber });
+
+    // Non-critical analytics counter: the client does not read totalAttempts from this response.
+    setImmediate(async () => {
+      try {
+        await DigitalExercise.findByIdAndUpdate(req.params.id, { $inc: { totalAttempts: 1 } });
+      } catch (counterErr) {
+        console.error('POST /digital-exercises/:id/start totalAttempts update error:', counterErr);
+      }
+    });
   } catch (err) {
     console.error('POST /digital-exercises/:id/start error:', err);
     res.status(500).json({ error: err.message });

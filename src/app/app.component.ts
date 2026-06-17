@@ -1,10 +1,9 @@
 import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { RouterOutlet } from '@angular/router';
-import { HeaderComponent } from "./components/header/header.component";
 import { FooterComponent } from "./components/footer/footer.component";
 import { SidebarComponent } from "./shared/sidebar/sidebar.component";
-import { CommonModule } from '@angular/common'; 
+import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 import { AuthService } from './services/auth.service';
 import { SupportFabComponent } from './components/support-fab/support-fab.component';
@@ -13,7 +12,7 @@ import { PortalTrackingService } from './services/portal-tracking.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, HeaderComponent, FooterComponent, SidebarComponent, RouterModule, CommonModule, SupportFabComponent],
+  imports: [RouterOutlet, FooterComponent, SidebarComponent, RouterModule, CommonModule, SupportFabComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
@@ -27,6 +26,8 @@ export class AppComponent implements OnInit, OnDestroy {
   isLoginRoute = false;
   /** Marketing home includes its own footer — hide global app-footer */
   isHomeRoute = false;
+  /** Gluck Room full-screen: no sidebar, header, or footer */
+  isGluckRoom = false;
 
   constructor(
     private router: Router,
@@ -37,19 +38,23 @@ export class AppComponent implements OnInit, OnDestroy {
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: NavigationEnd) => {
       const path = event.urlAfterRedirects.split('?')[0];
-      const isBareRoute = path === '/home' || path === '/login' || path === '/register' || path === '/' || path === '';
-      this.showHeader = !isBareRoute;
-      this.isLoginRoute = path === '/login' || path === '/register';
-      this.isHomeRoute = path === '/home' || path === '/' || path === '';
+      this.applyRouteLayout(path);
       this.closeSidebar();
     });
+  }
+
+  private applyRouteLayout(path: string): void {
+    const isBareRoute = path === '/home' || path === '/login' || path === '/register' || path === '/' || path === '';
+    this.showHeader = !isBareRoute;
+    this.isLoginRoute = path === '/login' || path === '/register';
+    this.isHomeRoute = path === '/home' || path === '/' || path === '';
+    this.isGluckRoom = path.startsWith('/gluck-room') || path.startsWith('/student/gluck-room');
   }
 
   ngOnInit() {
     this.portalTracking.start();
     const initialPath = this.router.url.split('?')[0];
-    this.isLoginRoute = initialPath === '/login' || initialPath === '/register';
-    this.isHomeRoute = initialPath === '/home' || initialPath === '/' || initialPath === '';
+    this.applyRouteLayout(initialPath);
     if (initialPath === '/home' || initialPath === '/login' || initialPath === '/register' || initialPath === '/' || initialPath === '') {
       this.showHeader = false;
     }
@@ -94,7 +99,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   get showSidebar(): boolean {
-    return this.isLoggedIn && this.showHeader;
+    return this.isLoggedIn && this.showHeader && !this.isGluckRoom;
   }
 
   toggleSidebar(): void {

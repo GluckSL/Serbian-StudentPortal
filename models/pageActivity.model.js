@@ -13,6 +13,7 @@ const pageActivitySchema = new mongoose.Schema(
 );
 
 pageActivitySchema.index({ sessionId: 1, endTime: 1 });
+pageActivitySchema.index({ sessionId: 1, page: 1, endTime: 1, startTime: -1 });
 pageActivitySchema.index({ studentId: 1, sessionId: 1 });
 pageActivitySchema.index({ page: 1 });
 pageActivitySchema.index({ startTime: -1 });

@@ -123,6 +123,12 @@ export const routes: Routes = [
 
   { path: 'teachers', loadComponent: () => import('./components/teachers/teachers.component').then(m => m.TeachersComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   {
+    path: 'teachers/analytics-overview',
+    loadComponent: () => import('./components/teachers/teacher-analytics-overview.component').then(m => m.TeacherAnalyticsOverviewComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+  {
     path: 'teachers/:id/analytics',
     loadComponent: () => import('./components/teachers/teacher-analytics.component').then(m => m.TeacherAnalyticsComponent),
     canActivate: [AuthGuard, RoleGuard],
@@ -175,6 +181,14 @@ export const routes: Routes = [
   { path: 'teacher/assignments', loadComponent: () => import('./components/teacher-assignments/teacher-assignments-page.component').then(m => m.TeacherAssignmentsPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'TEACHER_ADMIN'] } },
 
   { path: 'teacher/my-classes', redirectTo: '/teacher-dashboard/my-classes', pathMatch: 'full' },
+
+  // Gluck Room Routes
+  { path: 'gluck-room', loadComponent: () => import('./components/gluck-room-list/gluck-room-list.component').then(m => m.GluckRoomListComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'gluck-room/create', loadComponent: () => import('./components/gluck-room-create/gluck-room-create.component').then(m => m.GluckRoomCreateComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'gluck-room/:id/edit', loadComponent: () => import('./components/gluck-room-create/gluck-room-create.component').then(m => m.GluckRoomCreateComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'SUB_ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'gluck-room/:id', loadComponent: () => import('./components/gluck-room/gluck-room.component').then(m => m.GluckRoomRoomComponent), canActivate: [AuthGuard] },
+  { path: 'gluck-room/recording/:recordingId', loadComponent: () => import('./components/gluck-room-recording/gluck-room-recording.component').then(m => m.GluckRoomRecordingComponent), canActivate: [AuthGuard] },
+  { path: 'student/gluck-room', loadComponent: () => import('./components/gluck-room-list/gluck-room-list.component').then(m => m.GluckRoomListComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT'] } },
 
   // Zoom Meetings Routes (New System)
   { path: 'teacher/meetings', loadComponent: () => import('./components/meeting-link/meetings-list.component').then(m => m.MeetingsListComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
@@ -277,8 +291,8 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] },
   },
   // its red line
-  { path: 'admin/finance-dashboard', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-overview.component').then(m => m.PaymentHubFinanceOverviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/finance-dashboard/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/finance-dashboard', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-overview.component').then(m => m.PaymentHubFinanceOverviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
+  { path: 'admin/finance-dashboard/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-insights.component').then(m => m.PaymentHubBatchInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches/:batch/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-students.component').then(m => m.PaymentHubBatchStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/revenue', loadComponent: () => import('./components/payment-hub-v2/payment-hub-revenue-insights.component').then(m => m.PaymentHubRevenueInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },

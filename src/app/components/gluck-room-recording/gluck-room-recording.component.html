@@ -1,0 +1,69 @@
+<div class="recording-container">
+  <div class="header">
+    <button mat-icon-button (click)="goBack()"><mat-icon>arrow_back</mat-icon></button>
+    <h1>Recording</h1>
+  </div>
+
+  <div *ngIf="loading" class="loading-shade"><mat-spinner diameter="40"></mat-spinner></div>
+
+  <mat-card *ngIf="error && !loading" class="error-card">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="goBack()">Go Back</button>
+  </mat-card>
+
+  <ng-container *ngIf="!loading && !error">
+    <mat-card class="session-summary" *ngIf="session">
+      <mat-card-content>
+        <h2>{{ session.sessionName }}</h2>
+        <div class="meta">
+          <span><strong>Host:</strong> {{ session.hostId?.name || 'Unknown' }}</span>
+          <span><strong>Batch:</strong> {{ session.batch }}</span>
+          <span *ngIf="session.plan"><strong>Plan:</strong> {{ session.plan }}</span>
+          <span *ngIf="session.level"><strong>Level:</strong> {{ session.level }}</span>
+          <span><strong>Date:</strong> {{ formatDate(session.actualStartTime || session.scheduledStartTime) }}</span>
+          <span *ngIf="session.maxDurationMinutes"><strong>Duration:</strong> {{ session.maxDurationMinutes }} min</span>
+          <span *ngIf="session.agenda"><strong>Agenda:</strong> {{ session.agenda }}</span>
+          <span *ngIf="session.participantCount != null"><strong>Participants:</strong> {{ session.participantCount }}</span>
+          <span *ngIf="session.courseDay"><strong>Course Day:</strong> {{ session.courseDay }}</span>
+          <span *ngIf="session.targetJourneyDay"><strong>Target Day:</strong> {{ session.targetJourneyDay }}</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <div class="video-container" *ngIf="playbackUrl || hlsMode || (!hlsMode && !playbackUrl && !loading)">
+      <video #videoEl controls class="video-player" [class.hidden]="!hlsMode && !playbackUrl" *ngIf="hlsMode; else mp4Player">
+        Your browser does not support the video tag.
+      </video>
+      <ng-template #mp4Player>
+        <video controls class="video-player" [class.hidden]="!playbackUrl" [src]="playbackUrl" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </ng-template>
+      <div class="video-placeholder" *ngIf="!hlsMode && !playbackUrl && !loading">
+        <mat-icon>videocam_off</mat-icon>
+        <h3>No recording available</h3>
+        <p>This session either has no recording or it is still being processed.</p>
+      </div>
+    </div>
+
+    <mat-card class="recording-info" *ngIf="recording">
+      <mat-card-content>
+        <div class="info-row">
+          <span><strong>Status:</strong> {{ recording.status }}</span>
+          <span *ngIf="recording.duration"><strong>Duration:</strong> {{ recording.duration }}s</span>
+          <span><strong>Published:</strong> {{ recording.isPublished ? 'Yes' : 'No' }}</span>
+        </div>
+      </mat-card-content>
+      <mat-card-actions *ngIf="canManage()" class="manage-actions">
+        <button mat-stroked-button (click)="togglePublish()" [disabled]="togglingPublish">
+          <mat-icon>{{ recording.isPublished ? 'visibility_off' : 'visibility' }}</mat-icon>
+          {{ recording.isPublished ? 'Unpublish' : 'Publish' }}
+        </button>
+        <button mat-stroked-button color="warn" (click)="deleteRecording()">
+          <mat-icon>delete</mat-icon> Delete
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </ng-container>
+</div>

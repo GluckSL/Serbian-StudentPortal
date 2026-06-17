@@ -302,3 +302,18 @@
   margin-top: 6px;
   font-size: 12px;
 }
+
+@media (max-width: 600px) {
+  .sr-review {
+    padding: 16px 10px;
+  }
+
+  .sr-review__title {
+    font-size: 18px;
+  }
+
+  .sr-review__turn {
+    &--bot { max-width: 92%; }
+    &--student { max-width: 100%; }
+  }
+}

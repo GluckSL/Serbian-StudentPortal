@@ -108,104 +108,122 @@
           </div>
         </div>
 
-        <div class="table-scroll">
-          <!-- Classes -->
+        <!-- Desktop table -->
+        <div class="table-scroll desktop-table" tabindex="0" aria-label="Performance details table">
           <table *ngIf="activeTable==='classes' && endedClasses.length">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Topic</th>
-                <th>Date</th>
-                <th>Duration</th>
-                <th>Attended</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Day</th><th>Topic</th><th>Date</th><th>Duration</th><th>Attended</th></tr></thead>
             <tbody>
               <tr *ngFor="let c of endedClasses">
                 <td>{{ c.courseDay || '—' }}</td>
                 <td>{{ c.topic }}</td>
                 <td>{{ c.startTime | date:'shortDate' }}</td>
                 <td>{{ c.duration || '—' }}m</td>
-                <td>
-                  <span class="status-dot" [class.green]="c.attended" [class.red]="!c.attended && c.hasEnded" [class.gray]="!c.hasEnded"></span>
-                  {{ c.attended ? 'Yes' : c.hasEnded ? 'No' : 'Upcoming' }}
-                </td>
+                <td><span class="status-dot" [class.green]="c.attended" [class.red]="!c.attended && c.hasEnded" [class.gray]="!c.hasEnded"></span>{{ c.attended ? 'Yes' : c.hasEnded ? 'No' : 'Upcoming' }}</td>
               </tr>
             </tbody>
           </table>
-
-          <!-- Exercises -->
           <table *ngIf="activeTable==='exercises' && data.exercises.length">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Score</th>
-                <th>Time</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Day</th><th>Title</th><th>Category</th><th>Score</th><th>Time</th></tr></thead>
             <tbody>
               <tr *ngFor="let e of data.exercises">
-                <td>{{ e.courseDay || '—' }}</td>
-                <td>{{ e.title }}</td>
-                <td>{{ e.category || '—' }}</td>
-                <td>{{ e.scorePercent }}%</td>
-                <td>{{ formatMinutes(e.timeSpentSeconds / 60) }}</td>
+                <td>{{ e.courseDay || '—' }}</td><td>{{ e.title }}</td><td>{{ e.category || '—' }}</td><td>{{ e.scorePercent }}%</td><td>{{ formatMinutes(e.timeSpentSeconds / 60) }}</td>
               </tr>
             </tbody>
           </table>
-
-          <!-- DG Modules -->
           <table *ngIf="activeTable==='dg' && data.dgBotModules?.length">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Title</th>
-                <th>Level</th>
-                <th>Completed</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Day</th><th>Title</th><th>Level</th><th>Completed</th></tr></thead>
             <tbody>
               <tr *ngFor="let m of data.dgBotModules">
-                <td>{{ m.courseDay || '—' }}</td>
-                <td>{{ m.title }}</td>
-                <td>{{ m.level || '—' }}</td>
-                <td>
-                  <span class="status-dot" [class.green]="m.completed" [class.gray]="!m.completed"></span>
-                  {{ m.completed ? 'Yes' : 'No' }}
-                </td>
+                <td>{{ m.courseDay || '—' }}</td><td>{{ m.title }}</td><td>{{ m.level || '—' }}</td>
+                <td><span class="status-dot" [class.green]="m.completed" [class.gray]="!m.completed"></span>{{ m.completed ? 'Yes' : 'No' }}</td>
               </tr>
             </tbody>
           </table>
-
-          <!-- Tests (Day 6) -->
           <table *ngIf="activeTable==='tests' && data.day6Tests.length">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Type</th>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Score</th>
-                <th>Time</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Day</th><th>Type</th><th>Title</th><th>Category</th><th>Score</th><th>Time</th><th>Status</th></tr></thead>
             <tbody>
               <tr *ngFor="let t of data.day6Tests">
                 <td>{{ t.day }}</td>
                 <td><span class="badge" [class.badge-exercise]="t.type==='exercise'" [class.badge-session]="t.type==='session'">{{ t.type }}</span></td>
-                <td>{{ t.title }}</td>
-                <td>{{ t.category || '—' }}</td>
-                <td>{{ t.score }}%</td>
-                <td>{{ t.timeSpentMinutes }}m</td>
-                <td>{{ t.status }}</td>
+                <td>{{ t.title }}</td><td>{{ t.category || '—' }}</td><td>{{ t.score }}%</td><td>{{ t.timeSpentMinutes }}m</td><td>{{ t.status }}</td>
               </tr>
             </tbody>
           </table>
-
           <p *ngIf="currentTableEmpty" class="empty">No data available for this section.</p>
+        </div>
+
+        <!-- Mobile card list -->
+        <div class="mobile-list">
+          <!-- Classes -->
+          <ng-container *ngIf="activeTable==='classes'">
+            <div *ngFor="let c of pagedClasses" class="detail-card">
+              <div class="detail-card__row">
+                <span class="detail-card__title">{{ c.topic }}</span>
+                <span class="status-dot" [class.green]="c.attended" [class.red]="!c.attended && c.hasEnded" [class.gray]="!c.hasEnded"></span>
+                <span class="detail-card__status">{{ c.attended ? 'Attended' : c.hasEnded ? 'Missed' : 'Upcoming' }}</span>
+              </div>
+              <div class="detail-card__meta">
+                <span><strong>Day</strong> {{ c.courseDay || '—' }}</span>
+                <span><strong>Date</strong> {{ c.startTime | date:'mediumDate' }}</span>
+                <span><strong>Duration</strong> {{ c.duration || '—' }}m</span>
+              </div>
+            </div>
+            <p *ngIf="!endedClasses.length" class="empty">No data available.</p>
+          </ng-container>
+          <!-- Exercises -->
+          <ng-container *ngIf="activeTable==='exercises'">
+            <div *ngFor="let e of pagedExercises" class="detail-card">
+              <div class="detail-card__row">
+                <span class="detail-card__title">{{ e.title }}</span>
+                <span class="detail-card__score">{{ e.scorePercent }}%</span>
+              </div>
+              <div class="detail-card__meta">
+                <span><strong>Day</strong> {{ e.courseDay || '—' }}</span>
+                <span><strong>Category</strong> {{ e.category || '—' }}</span>
+                <span><strong>Time</strong> {{ formatMinutes(e.timeSpentSeconds / 60) }}</span>
+              </div>
+            </div>
+            <p *ngIf="!data.exercises.length" class="empty">No data available.</p>
+          </ng-container>
+          <!-- DG Modules -->
+          <ng-container *ngIf="activeTable==='dg'">
+            <div *ngFor="let m of pagedDg" class="detail-card">
+              <div class="detail-card__row">
+                <span class="detail-card__title">{{ m.title }}</span>
+                <span class="status-dot" [class.green]="m.completed" [class.gray]="!m.completed"></span>
+                <span class="detail-card__status">{{ m.completed ? 'Done' : 'Pending' }}</span>
+              </div>
+              <div class="detail-card__meta">
+                <span><strong>Day</strong> {{ m.courseDay || '—' }}</span>
+                <span><strong>Level</strong> {{ m.level || '—' }}</span>
+              </div>
+            </div>
+            <p *ngIf="!data.dgBotModules?.length" class="empty">No data available.</p>
+          </ng-container>
+          <!-- Tests -->
+          <ng-container *ngIf="activeTable==='tests'">
+            <div *ngFor="let t of pagedTests" class="detail-card">
+              <div class="detail-card__row">
+                <span class="detail-card__title">{{ t.title }}</span>
+                <span class="detail-card__score">{{ t.score }}%</span>
+              </div>
+              <div class="detail-card__meta">
+                <span><strong>Day</strong> {{ t.day }}</span>
+                <span><span class="badge" [class.badge-exercise]="t.type==='exercise'" [class.badge-session]="t.type==='session'">{{ t.type }}</span></span>
+                <span><strong>Cat.</strong> {{ t.category || '—' }}</span>
+                <span><strong>Time</strong> {{ t.timeSpentMinutes }}m</span>
+                <span><strong>Status</strong> {{ t.status }}</span>
+              </div>
+            </div>
+            <p *ngIf="!data.day6Tests.length" class="empty">No data available.</p>
+          </ng-container>
+
+          <!-- Pagination -->
+          <div class="detail-pagination" *ngIf="detailTotalPages > 1">
+            <button class="page-btn" (click)="prevPage()" [disabled]="detailPage === 0">&#8249;</button>
+            <span class="page-info">{{ detailPage + 1 }} / {{ detailTotalPages }}</span>
+            <button class="page-btn" (click)="nextPage()" [disabled]="detailPage === detailTotalPages - 1">&#8250;</button>
+          </div>
         </div>
       </div>
     </section>

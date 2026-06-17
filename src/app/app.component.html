@@ -1,13 +1,9 @@
 <!-- Wait for auth check on page refresh -->
 <ng-container *ngIf="authChecked; else appLoading">
 
-  <!-- Public pages (home/login): no sidebar, show header -->
-  <ng-container *ngIf="!showSidebar">
-    <app-header *ngIf="showHeader"></app-header>
-    <main class="main-content" [class.login-route]="isLoginRoute" [class.home-route]="isHomeRoute">
-      <router-outlet></router-outlet>
-    </main>
-    <app-footer *ngIf="!isLoginRoute && !isHomeRoute"></app-footer>
+  <!-- Gluck Room: full-screen, no sidebar/header/footer -->
+  <ng-container *ngIf="isGluckRoom">
+    <router-outlet></router-outlet>
   </ng-container>
 
   <!-- Logged-in pages: sidebar + content -->
@@ -48,6 +44,9 @@
       </div>
     </div>
   </ng-container>
+
+  <!-- Public / bare pages: no sidebar, no gluck‑room layout -->
+  <router-outlet *ngIf="authChecked && !isGluckRoom && !showSidebar"></router-outlet>
 
   <!-- Floating Help button (all pages) -->
   <app-support-fab></app-support-fab>

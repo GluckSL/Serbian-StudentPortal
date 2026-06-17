@@ -13,6 +13,13 @@
     "ws": true,
     "changeOrigin": true
   },
+  "/ws/gluckroom": {
+    "target": "http://localhost:4000",
+    "secure": false,
+    "ws": true,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  },
   "/uploads": {
     "target": "http://localhost:4000",
     "secure": false,

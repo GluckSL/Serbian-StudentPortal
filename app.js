@@ -114,6 +114,7 @@ const jobOpeningsRoutes = require('./routes/jobOpenings');
 const reminderRoutes = require('./routes/reminders');
 const crmPortalRoutes = require('./routes/crmPortal');
 const testAccountRoutes = require('./routes/testAccounts');
+const gluckRoomRoutes = require('./routes/gluckRoom');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -135,6 +136,7 @@ const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiv
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
 const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
+const { scheduleGluckRoomAutoStart } = require('./jobs/gluckRoomAutoStart');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
@@ -184,6 +186,7 @@ const { ensureDefaultAchievements } = require('./services/interactiveGames/achie
 const { ensureDefaultQuests } = require('./services/interactiveGames/quests');
 const { scheduleGlueckArenaJobs } = require('./jobs/glueckArenaDailyReset');
 const { initGlueckArenaSockets } = require('./sockets/glueckArenaMultiplayer');
+const { initGluckRoomControls } = require('./sockets/gluckRoomControls');
 const http = require('http');
 const { ensurePortalBatches } = require('./services/ensurePortalBatches');
 
@@ -382,6 +385,7 @@ const allRemindersRoutes = require('./routes/allReminders');
 app.use('/api/allreminders', allRemindersRoutes);
 app.use('/api/crm', crmPortalRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
+app.use('/api/gluckroom', gluckRoomRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
@@ -468,12 +472,14 @@ const frontendPath = path.join(__dirname, "dist", "angular-germanbuddy", "browse
 app.use(express.static(frontendPath));
 
 
-app.get("*", (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  } else {
-    res.status(404).json({ error: 'API route not found' });
-  }
+// SPA catch-all — exclude /api and /ws (socket.io) paths
+app.get(/^\/(?!api|ws).*/, (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+// API 404 for unmatched API routes
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ error: 'API route not found' });
 });
 
 
@@ -589,6 +595,7 @@ connectMongoDb()
 
     httpServer = http.createServer(app);
     initGlueckArenaSockets(httpServer);
+    initGluckRoomControls(httpServer, app);
     httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
 
@@ -606,6 +613,7 @@ connectMongoDb()
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
+      scheduleGluckRoomAutoStart();
 
       const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
       const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');

@@ -14,7 +14,8 @@
 
     <!-- Stepper + Progress (full width) -->
     <div class="vs-card">
-      <div class="vs-stepper">
+      <!-- BEFORE: the stepper could overflow or compress on 412px screens without a visible horizontal scroll area. -->
+      <div class="vs-stepper" tabindex="0" aria-label="Visa application stages">
         <ng-container *ngFor="let step of visa.steps; let i = index; let last = last">
           <div class="vs-step"
                [class.vs-step--active]="i === visa.currentStep"
@@ -128,7 +129,8 @@
             </div>
           </div>
           <ng-template #noHistory>
-            <p style="color:#94a3b8;font-size:12px;">No updates yet.</p>
+            <!-- BEFORE: empty history text used inline styles and mobile font size below 14px. -->
+            <p class="vs-empty-text">No updates yet.</p>
           </ng-template>
         </div>
       </div>
@@ -137,8 +139,9 @@
   </div>
 
   <ng-template #noVisa>
-    <div class="vs-card" style="text-align:center;padding:40px;">
-      <p style="color:#94a3b8;font-size:14px;">No visa tracking record yet. Contact the team for updates.</p>
+    <!-- BEFORE: empty visa state used inline spacing instead of responsive component styles. -->
+    <div class="vs-card vs-empty-card">
+      <p>No visa tracking record yet. Contact the team for updates.</p>
     </div>
   </ng-template>
 </div>

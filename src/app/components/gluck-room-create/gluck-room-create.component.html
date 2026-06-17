@@ -1,0 +1,337 @@
+<div class="create-container">
+  <div class="header">
+    <button mat-icon-button (click)="cancel()"><mat-icon>arrow_back</mat-icon></button>
+    <h1>{{ isEditMode ? 'Edit Session' : scheduleType === 'journey' ? 'Bulk Journey Sessions' : 'Create Session' }}</h1>
+  </div>
+
+  <ng-container *ngIf="scheduleType === 'single' || isEditMode">
+    <!-- ── Single mode ── -->
+    <mat-card class="form-card">
+      <mat-card-content>
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Session Name</mat-label>
+            <input matInput [(ngModel)]="sessionName" placeholder="e.g. B1 Grammar Class" required>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Batch</mat-label>
+            <mat-select [(ngModel)]="batch" (selectionChange)="onBatchChange()" required>
+              <mat-option *ngFor="let b of allBatches" [value]="b">{{ b }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Max Duration</mat-label>
+            <mat-select [(ngModel)]="maxDurationMinutes">
+              <mat-option *ngFor="let d of durationOptions" [value]="d">{{ d }} min</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Scheduled Date</mat-label>
+            <input matInput [matDatepicker]="picker" [(ngModel)]="scheduleDate" required>
+            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+            <mat-datepicker #picker></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Time (IST)</mat-label>
+            <input matInput type="text" [(ngModel)]="scheduleTime" required
+                   [matAutocomplete]="timeAuto" placeholder="e.g. 7:00 PM">
+            <mat-autocomplete #timeAuto="matAutocomplete">
+              <mat-option *ngFor="let t of commonTimes" [value]="t">{{ t }}</mat-option>
+            </mat-autocomplete>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Course Day</mat-label>
+            <input matInput type="number" [(ngModel)]="courseDay" min="1" max="200" placeholder="1-200" required>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Target Journey Day</mat-label>
+            <input matInput type="number" [(ngModel)]="targetJourneyDay" min="1" max="200" placeholder="1-200" required>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Level (optional)</mat-label>
+            <mat-select [(ngModel)]="level">
+              <mat-option [value]="null">None</mat-option>
+              <mat-option *ngFor="let l of levelOptions" [value]="l">{{ l }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Plan *</mat-label>
+            <mat-select [(ngModel)]="plan" required>
+              <mat-option *ngFor="let p of planOptions" [value]="p">{{ p }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Agenda (optional)</mat-label>
+            <input matInput [(ngModel)]="agenda" placeholder="e.g. German B1 - Unit 3">
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Access Type</mat-label>
+            <mat-select [(ngModel)]="accessType">
+              <mat-option value="batch">Batch Access</mat-option>
+              <mat-option value="manual">Manual Selection</mat-option>
+              <mat-option value="open">Open Access</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row" *ngIf="accessType === 'batch'">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Allowed Batches</mat-label>
+            <mat-select [(ngModel)]="allowedBatches" multiple>
+              <mat-option *ngFor="let b of allBatches" [value]="b">{{ b }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row" *ngIf="accessType === 'manual'">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Allowed Students (IDs)</mat-label>
+            <input matInput [(ngModel)]="allowedStudents" placeholder="Comma-separated student IDs">
+          </mat-form-field>
+        </div>
+
+        <mat-card *ngIf="error" class="error-msg">
+          <mat-icon color="warn">error</mat-icon> {{ error }}
+        </mat-card>
+      </mat-card-content>
+
+      <mat-card-actions align="end" style="gap:16px;padding:16px">
+        <button mat-stroked-button (click)="cancel()">Cancel</button>
+        <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="submitting">
+          <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner"></mat-spinner>
+          <span *ngIf="!submitting">{{ isEditMode ? 'Update Session' : 'Create Session' }}</span>
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </ng-container>
+
+  <ng-container *ngIf="scheduleType === 'journey' && !isEditMode">
+    <!-- ── Journey / Bulk mode ── -->
+    <div *ngIf="error" class="alert error-bar">
+      <mat-icon color="warn">error</mat-icon> {{ error }}
+      <button mat-icon-button class="alert-close" (click)="error = ''"><mat-icon>close</mat-icon></button>
+    </div>
+
+    <mat-vertical-stepper [linear]="false" (selectionChange)="stepperSelectionChanged($event)" class="bulk-stepper">
+      <!-- Step 1: Basic details -->
+      <mat-step label="Basic details" [completed]="basicForm.valid">
+        <form [formGroup]="basicForm" class="mt-2">
+          <mat-card class="step-card">
+            <mat-card-header><mat-card-title>Meeting details</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div class="form-row">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Topic *</mat-label>
+                  <input matInput formControlName="topic" placeholder="e.g. German A2 — Live class">
+                </mat-form-field>
+              </div>
+              <div class="form-row">
+                <mat-form-field appearance="outline" class="half-width">
+                  <mat-label>Batch *</mat-label>
+                    <mat-select formControlName="batch" (selectionChange)="onJourneyBatchChange()">
+                    <mat-option value="">Select batch</mat-option>
+                    <mat-option *ngFor="let b of allBatches" [value]="b">{{ b }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Plan</mat-label>
+                  <mat-select formControlName="plan" (selectionChange)="onPlanChange()">
+                    <mat-option value="">Select plan</mat-option>
+                    <mat-option *ngFor="let p of planOptions" [value]="p">{{ p }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </div>
+              <p *ngIf="batchCurrentDayDisplay != null" class="info-text">
+                Current journey day (batch): <strong>{{ batchCurrentDayDisplay }}</strong>
+              </p>
+              <div class="form-row">
+                <mat-form-field appearance="outline" class="half-width">
+                  <mat-label>Duration (minutes) *</mat-label>
+                  <input type="number" matInput formControlName="duration">
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="half-width">
+                  <mat-label>Start time (IST)</mat-label>
+                  <input type="time" matInput formControlName="startClock">
+                </mat-form-field>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </form>
+        <div class="step-actions">
+          <button mat-raised-button color="primary" matStepperNext [disabled]="basicForm.invalid">Next</button>
+        </div>
+      </mat-step>
+
+      <!-- Step 2: Journey schedule -->
+      <mat-step label="Journey schedule" [completed]="selectedWeekdaysSun0.length > 0">
+        <div class="mt-2">
+          <div class="info-banner">
+            <p><strong>Classes run on selected weekdays.</strong> Each journey day grows by IST calendar days since the previous class (Mon→Wed +2, Fri→Mon +3).</p>
+          </div>
+          <div class="form-row two-cols">
+            <mat-card class="step-card">
+              <mat-card-header><mat-card-title>Weekdays (IST)</mat-card-title></mat-card-header>
+              <mat-card-content [formGroup]="weekForm">
+                <div class="weekday-grid">
+                  <mat-checkbox *ngFor="let d of weekdayOptions" [formControlName]="d.key">
+                    {{ d.label }}
+                  </mat-checkbox>
+                </div>
+              </mat-card-content>
+            </mat-card>
+            <mat-card class="step-card" [formGroup]="basicForm">
+              <mat-card-header><mat-card-title>Journey range</mat-card-title></mat-card-header>
+              <mat-card-content>
+                <div class="form-row">
+                  <mat-form-field appearance="outline" class="half-width">
+                    <mat-label>Starting journey day *</mat-label>
+                    <input type="number" matInput formControlName="startingJourneyDay" min="1" max="200">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="half-width">
+                    <mat-label>Target journey day *</mat-label>
+                    <input type="number" matInput formControlName="targetJourneyDay" min="1" max="200">
+                  </mat-form-field>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button mat-button matStepperPrevious>Back</button>
+          <button mat-raised-button color="primary" matStepperNext [disabled]="!selectedWeekdaysSun0.length">Next</button>
+        </div>
+      </mat-step>
+
+      <!-- Step 3: Students -->
+      <mat-step label="Students" [completed]="selectedStudents.length > 0">
+        <mat-card class="step-card mt-2">
+          <mat-card-header>
+            <mat-card-title>Students (ongoing, filtered by batch &amp; plan)</mat-card-title>
+            <span class="selected-count">Selected: {{ selectedStudents.length }}</span>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="student-toolbar">
+              <mat-form-field appearance="outline">
+                <input matInput placeholder="Search name or email" (input)="onSearchInput($event)">
+              </mat-form-field>
+              <div class="student-actions">
+                <button mat-stroked-button size="small" (click)="selectAllFiltered()">Select all</button>
+                <button mat-stroked-button size="small" (click)="deselectAll()">Clear</button>
+              </div>
+            </div>
+            <div *ngIf="filteredStudents.length === 0" class="empty-students">
+              <p>No students match the batch and plan filters. Students must have <strong>ONGOING</strong> status.</p>
+            </div>
+            <div class="student-chips" *ngIf="filteredStudents.length > 0">
+              <div *ngFor="let s of filteredStudents" class="student-chip" [class.selected]="isStudentSelected(s)" (click)="toggleStudent(s)">
+                <span>{{ s.name }}</span>
+                <small>{{ s.email }}</small>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+        <div class="step-actions">
+          <button mat-button matStepperPrevious>Back</button>
+          <button mat-raised-button color="primary" matStepperNext [disabled]="!selectedStudents.length">Next</button>
+        </div>
+      </mat-step>
+
+      <!-- Step 4: Preview & confirm -->
+      <mat-step label="Preview &amp; confirm">
+        <div *ngIf="isPreviewing" class="loading-center">
+          <mat-spinner diameter="36"></mat-spinner>
+          <p class="small">Building preview...</p>
+        </div>
+
+        <ng-container *ngIf="!isPreviewing">
+          <mat-card class="step-card" *ngIf="schedules.length">
+            <mat-card-header><mat-card-title>Run summary</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <div class="summary-grid">
+                <div><strong>Journey day range:</strong> {{ basicForm.getRawValue().startingJourneyDay }} → {{ basicForm.getRawValue().targetJourneyDay }}</div>
+                <div><strong>Total meetings:</strong> {{ schedules.length }}</div>
+                <div><strong>Teaching hours:</strong> {{ totalTeachingHours }}</div>
+                <div><strong>Students invited:</strong> {{ selectedStudents.length }}</div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card *ngIf="previewWarnings.length" class="warning-card">
+            <mat-card-content>
+              <strong>Warnings</strong>
+              <ul><li *ngFor="let w of previewWarnings">{{ w }}</li></ul>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="step-card mt-2" *ngIf="schedules.length">
+            <mat-card-header><mat-card-title>Schedule preview</mat-card-title></mat-card-header>
+            <div class="table-wrap">
+              <table mat-table [dataSource]="schedules" class="preview-table">
+                <ng-container matColumnDef="index">
+                  <th mat-header-cell *matHeaderCellDef>#</th>
+                  <td mat-cell *matCellDef="let row; let idx = index">{{ idx + 1 }}</td>
+                </ng-container>
+                <ng-container matColumnDef="day">
+                  <th mat-header-cell *matHeaderCellDef>Day</th>
+                  <td mat-cell *matCellDef="let row">{{ rowWeekday(row) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="date">
+                  <th mat-header-cell *matHeaderCellDef>Date</th>
+                  <td mat-cell *matCellDef="let row">{{ rowDate(row) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="start">
+                  <th mat-header-cell *matHeaderCellDef>Start (IST)</th>
+                  <td mat-cell *matCellDef="let row">{{ rowStartTime(row) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="end">
+                  <th mat-header-cell *matHeaderCellDef>End (IST)</th>
+                  <td mat-cell *matCellDef="let row">{{ rowEndTime(row) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="journeyDay">
+                  <th mat-header-cell *matHeaderCellDef>Journey day</th>
+                  <td mat-cell *matCellDef="let row">{{ row.journeyDay }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="['index','day','date','start','end','journeyDay']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['index','day','date','start','end','journeyDay']"></tr>
+              </table>
+            </div>
+          </mat-card>
+        </ng-container>
+
+        <div *ngIf="isBulkCreating" class="bulk-progress">
+          <mat-progress-bar mode="determinate" [value]="bulkProgressTotal ? (100 * bulkProgressDone / bulkProgressTotal) : 0"></mat-progress-bar>
+          <p>Creating {{ bulkProgressDone }} / {{ bulkProgressTotal }} sessions...</p>
+        </div>
+
+        <div class="step-actions">
+          <button mat-button matStepperPrevious [disabled]="isBulkCreating">Back</button>
+          <button mat-raised-button color="primary" (click)="submitBulkCreate()" [disabled]="isBulkCreating || isPreviewing || !schedules.length">
+            <mat-spinner diameter="18" *ngIf="isBulkCreating" style="display:inline-block;margin-right:4px"></mat-spinner>
+            <span *ngIf="!isBulkCreating">Confirm bulk create</span>
+            <span *ngIf="isBulkCreating">Creating...</span>
+          </button>
+        </div>
+      </mat-step>
+    </mat-vertical-stepper>
+  </ng-container>
+</div>
