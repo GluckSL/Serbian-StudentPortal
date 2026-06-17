@@ -33,6 +33,7 @@ export class NavService {
     exercises: [
       '/admin/digital-exercises',
       '/admin/digital-exercises/create',
+      '/admin/digital-exercises/create-freemode',
       '/admin/digital-exercises/create-video',
       // '/admin/digital-exercises/generate-ai', // DISABLED: PDF worksheet extractor route
       '/admin/digital-exercises/generate-listening-manual'
