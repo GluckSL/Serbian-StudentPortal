@@ -899,6 +899,9 @@
 .ph-batch-table-scroll:has(.ph-finance-table) {
   border-radius: 16px;
   border: 1px solid #e2e8f0;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .ph-day-badge--ratio {

@@ -16,7 +16,17 @@ export interface CatalogReferenceRow {
 }
 
 export function normalizeSubscription(raw: string | null | undefined): string {
-  return String(raw || '').trim().toUpperCase();
+  const normalized = String(raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (!normalized) return '';
+  if (normalized.includes('PLATINUM') || normalized === 'PLAT') return 'PLATINUM';
+  if (normalized.includes('SILVER') || normalized === 'SIL') return 'SILVER';
+  if (normalized === 'VISA_DOCS') return 'VISA_DOC';
+  return normalized;
 }
 
 export function isCoursePlan(subscription: string | null | undefined): boolean {

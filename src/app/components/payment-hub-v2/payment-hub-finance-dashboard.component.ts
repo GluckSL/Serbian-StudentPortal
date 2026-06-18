@@ -58,6 +58,26 @@ function normBatchKey(name: string): string {
   return String(name || '').trim().toLowerCase();
 }
 
+function batchSortValue(batch: string): { numeric: number | null; label: string } {
+  const label = String(batch || '').trim();
+  const match = label.match(/\d+/);
+  return {
+    numeric: match ? Number(match[0]) : null,
+    label: label.toLowerCase(),
+  };
+}
+
+function compareBatchAscending(a: BatchPaymentRow, b: BatchPaymentRow): number {
+  const left = batchSortValue(a.batch);
+  const right = batchSortValue(b.batch);
+  if (left.numeric != null && right.numeric != null && left.numeric !== right.numeric) {
+    return left.numeric - right.numeric;
+  }
+  if (left.numeric != null && right.numeric == null) return -1;
+  if (left.numeric == null && right.numeric != null) return 1;
+  return left.label.localeCompare(right.label);
+}
+
 @Component({
   selector: 'app-payment-hub-finance-dashboard',
   standalone: true,
@@ -339,7 +359,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
 
   private applySummaryToView(): void {
     const rows = this.summaryRows.map((row) => this.rowFromSummary(row));
-    rows.sort((a, b) => b.totalPaidLKR - a.totalPaidLKR || b.totalPaidINR - a.totalPaidINR);
+    rows.sort(compareBatchAscending);
     this.batchRows = rows;
     this.pruneVisibleBatches();
   }

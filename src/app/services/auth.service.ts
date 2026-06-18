@@ -6,6 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, tap, finalize } from 'rxjs';
 import { jwtDecode } from 'jwt-decode';
 import { environment } from '../../environments/environment';
+import { isCoursePlan } from '../utils/student-subscription-plans.util';
 
 /** JWT key in localStorage (Bearer sent by authTokenInterceptor). */
 export const AUTH_STORAGE_KEY = 'authToken';
@@ -345,9 +346,7 @@ export class AuthService {
       return '/teacher-dashboard';
     }
     if (role === 'STUDENT') {
-      const sub = (user?.subscription || '').toUpperCase().trim();
-      const isCourse = sub === 'SILVER' || sub === 'PLATINUM';
-      return isCourse ? '/student/my-course' : '/student-documents';
+      return isCoursePlan(user?.subscription) ? '/student/my-course' : '/student-documents';
     }
     return null;
   }

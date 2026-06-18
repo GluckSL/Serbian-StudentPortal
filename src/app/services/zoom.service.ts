@@ -4,6 +4,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, shareReplay, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
 
 export interface Student {
   _id: string;
@@ -90,7 +91,10 @@ export class ZoomService {
   private readonly studentMeetingsCacheTtlMs = 45_000;
   private readonly studentMeetingsCache = new Map<string, { timestamp: number; request$: Observable<any> }>();
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private authService: AuthService
+  ) {}
 
   /**
    * Create a Zoom meeting with selected students
@@ -357,7 +361,9 @@ export class ZoomService {
     if (filters?.includeTabCounts) params.append('includeTabCounts', 'true');
     const qs = params.toString();
     const url = qs ? `${this.apiUrl}/student-meetings?${qs}` : `${this.apiUrl}/student-meetings`;
-    const cacheKey = qs || '__all__';
+    const user = this.authService.getSnapshotUser();
+    const userCacheKey = String(user?._id || user?.id || user?.email || 'anonymous');
+    const cacheKey = `${userCacheKey}|${qs || '__all__'}`;
     const now = Date.now();
     const cached = this.studentMeetingsCache.get(cacheKey);
     if (cached && now - cached.timestamp < this.studentMeetingsCacheTtlMs) {
