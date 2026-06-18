@@ -18,9 +18,8 @@ const DGSession = require('../models/DGSession');
 const GameAttempt = require('../models/GameAttempt');
 const { EXCLUDE_TEST, batchMatchFilters } = require('../utils/analyticsFilters');
 const { totalSessionMinutes } = require('../utils/dgSessionMetrics');
-const { effectiveTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
+const { effectiveTimeSpentSeconds, MAX_ATTEMPT_SECONDS } = require('../utils/exerciseAttemptMetrics');
 const {
-  resolveAnalyticsStudentIds,
   getAnalyticsFilterOptions,
   parseDateRange,
 } = require('./portalAnalytics.service');
@@ -39,50 +38,52 @@ function parseLtDateRange(query) {
   return result;
 }
 
-// ── Cohort / filter resolution ────────────────────────────────────────────────
-
-/**
- * Resolves the set of student ObjectIds that match the given filters.
- * Extends portal-analytics cohort rules to also exclude test accounts.
- */
-async function resolveStudentIds({ cohort, batch, level, includeTestAccounts } = {}) {
-  return resolveAnalyticsStudentIds({ cohort, batch, level, includeTestAccounts });
-}
-
 // ── Core aggregations ────────────────────────────────────────────────────────
 
-/** Sum effective exercise time grouped by studentId within [from, to]. */
+const TZ = 'Asia/Kolkata';
+
+/** Sum effective exercise time grouped by studentId within [from, to].
+ *  Returns { byStudent, byDay } from a single aggregation pipeline. */
 async function aggregateExerciseSeconds(from, to, studentIds) {
   const match = {
     startedAt: { $gte: from, $lte: to },
-    ...EXCLUDE_TEST_LOOKUP_SKIP,
   };
   if (studentIds) match.studentId = { $in: studentIds };
 
-  const attempts = await ExerciseAttempt.find(match)
-    .select('studentId timeSpentSeconds status startedAt completedAt')
-    .lean();
+  const results = await ExerciseAttempt.aggregate([
+    { $match: match },
+    {
+      $facet: {
+        byStudent: [
+          { $match: { status: 'completed', timeSpentSeconds: { $gt: 0 } } },
+          {
+            $group: {
+              _id: '$studentId',
+              seconds: { $sum: { $min: ['$timeSpentSeconds', MAX_ATTEMPT_SECONDS] } },
+              attempts: { $sum: 1 },
+              lastAt: { $max: '$startedAt' },
+            },
+          },
+        ],
+        byDay: [
+          { $match: { status: 'completed', timeSpentSeconds: { $gt: 0 } } },
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt', timezone: TZ } },
+              seconds: { $sum: { $min: ['$timeSpentSeconds', MAX_ATTEMPT_SECONDS] } },
+            },
+          },
+        ],
+      },
+    },
+  ]);
 
-  const byStudent = {};
-  for (const a of attempts) {
-    const sid = String(a.studentId);
-    const secs = effectiveTimeSpentSeconds(a);
-    if (!byStudent[sid]) byStudent[sid] = { seconds: 0, attempts: 0, lastAt: null };
-    byStudent[sid].seconds += secs;
-    if (secs > 0) byStudent[sid].attempts += 1;
-    const at = a.startedAt ? new Date(a.startedAt) : null;
-    if (at && (!byStudent[sid].lastAt || at > byStudent[sid].lastAt)) byStudent[sid].lastAt = at;
-  }
-
-  return Object.entries(byStudent).map(([id, v]) => ({
-    _id: new mongoose.Types.ObjectId(id),
-    seconds: Math.round(v.seconds),
-    attempts: v.attempts,
-    lastAt: v.lastAt,
-  }));
+  const { byStudent = [], byDay = [] } = results[0] || {};
+  return { byStudent, byDay };
 }
 
-/** Sum DGSession time in seconds grouped by studentId within [from, to]. */
+/** Sum DGSession time in seconds grouped by studentId within [from, to].
+ *  Returns { byStudent, byDay } from a single pass (computation requires JS). */
 async function aggregateDGSeconds(from, to, studentIds) {
   const match = {
     createdAt: { $gte: from, $lte: to },
@@ -94,113 +95,90 @@ async function aggregateDGSeconds(from, to, studentIds) {
     .lean();
 
   const byStudent = {};
+  const byDay = {};
+
   for (const s of sessions) {
     const sid = String(s.studentId);
     const secs = totalSessionMinutes(s) * 60;
+    if (secs <= 0) continue;
+
     if (!byStudent[sid]) byStudent[sid] = { seconds: 0, sessions: 0, lastAt: null };
     byStudent[sid].seconds += secs;
     byStudent[sid].sessions += 1;
     const at = s.createdAt ? new Date(s.createdAt) : null;
     if (at && (!byStudent[sid].lastAt || at > byStudent[sid].lastAt)) byStudent[sid].lastAt = at;
+
+    const key = new Date(s.createdAt).toLocaleDateString('en-CA', { timeZone: TZ });
+    byDay[key] = (byDay[key] || 0) + secs;
   }
 
-  return Object.entries(byStudent).map(([id, v]) => ({
-    _id: new mongoose.Types.ObjectId(id),
-    seconds: Math.round(v.seconds),
-    attempts: v.sessions,
-    lastAt: v.lastAt,
-  }));
+  return {
+    byStudent: Object.entries(byStudent).map(([id, v]) => ({
+      _id: new mongoose.Types.ObjectId(id),
+      seconds: Math.round(v.seconds),
+      attempts: v.sessions,
+      lastAt: v.lastAt,
+    })),
+    byDay: Object.entries(byDay).map(([key, seconds]) => ({ _id: key, seconds: Math.round(seconds) })),
+  };
 }
 
-/** Sum GameAttempt.timeSpentSeconds grouped by studentId within [from, to]. */
+/** Sum GameAttempt.timeSpentSeconds grouped by studentId within [from, to].
+ *  Returns { byStudent, byDay } from a single aggregation pipeline. */
 async function aggregateArenaSeconds(from, to, studentIds) {
   const match = {
     startedAt: { $gte: from, $lte: to },
   };
   if (studentIds) match.studentId = { $in: studentIds };
 
-  return GameAttempt.aggregate([
+  const results = await GameAttempt.aggregate([
     { $match: match },
     {
-      $group: {
-        _id: '$studentId',
-        seconds: { $sum: '$timeSpentSeconds' },
-        attempts: { $sum: 1 },
-        lastAt: { $max: '$startedAt' },
+      $facet: {
+        byStudent: [
+          {
+            $group: {
+              _id: '$studentId',
+              seconds: { $sum: '$timeSpentSeconds' },
+              attempts: { $sum: 1 },
+              lastAt: { $max: '$startedAt' },
+            },
+          },
+        ],
+        byDay: [
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt', timezone: TZ } },
+              seconds: { $sum: '$timeSpentSeconds' },
+            },
+          },
+        ],
       },
     },
   ]);
+
+  const { byStudent = [], byDay = [] } = results[0] || {};
+  return { byStudent, byDay };
 }
 
-// Not a real exclusion since we exclude at the student-resolution level;
-// but kept as sentinel for clarity.
-const EXCLUDE_TEST_LOOKUP_SKIP = {};
-
-// ── Daily trend (line chart data) ────────────────────────────────────────────
+// ── Daily trend builder ──────────────────────────────────────────────────────
 
 /**
- * Returns an array of daily totals { date: 'YYYY-MM-DD', exercises, digibot, arena, total }
- * within [from, to] for the resolved student set.
+ * Merges per-source day arrays into a unified sorted trend.
+ * Each source should be an array of { _id: 'YYYY-MM-DD', seconds }.
  */
-async function getDailyTrend(from, to, studentIds) {
-  function bucketPipeline(Model, dateField) {
-    const match = { [dateField]: { $gte: from, $lte: to } };
-    if (studentIds) match.studentId = { $in: studentIds };
-    return Model.aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: `$${dateField}`, timezone: 'Asia/Kolkata' },
-          },
-          seconds: { $sum: '$timeSpentSeconds' },
-        },
-      },
-    ]);
-  }
-
-  const [exerciseDays, arenaDays, dgSessions] = await Promise.all([
-    (async () => {
-      const exMatch = { startedAt: { $gte: from, $lte: to } };
-      if (studentIds) exMatch.studentId = { $in: studentIds };
-      const attempts = await ExerciseAttempt.find(exMatch)
-        .select('timeSpentSeconds status startedAt completedAt')
-        .lean();
-      const byDay = {};
-      for (const a of attempts) {
-        const secs = effectiveTimeSpentSeconds(a);
-        const key = new Date(a.startedAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-        byDay[key] = (byDay[key] || 0) + secs;
-      }
-      return Object.entries(byDay).map(([_id, seconds]) => ({ _id, seconds: Math.round(seconds) }));
-    })(),
-    bucketPipeline(GameAttempt, 'startedAt'),
-    (async () => {
-      const dgMatch = { createdAt: { $gte: from, $lte: to } };
-      if (studentIds) dgMatch.studentId = { $in: studentIds };
-      const sessions = await DGSession.find(dgMatch)
-        .select('timePerSceneMs logs createdAt updatedAt')
-        .lean();
-      const byDay = {};
-      for (const s of sessions) {
-        const secs = totalSessionMinutes(s) * 60;
-        const key = new Date(s.createdAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-        byDay[key] = (byDay[key] || 0) + secs;
-      }
-      return Object.entries(byDay).map(([_id, seconds]) => ({ _id, seconds: Math.round(seconds) }));
-    })(),
-  ]);
-
-  // Collect all dates
+function buildTrendFromDayData(exerciseDays, dgDays, arenaDays) {
   const dateSet = new Set([
     ...exerciseDays.map((d) => d._id),
+    ...dgDays.map((d) => d._id),
     ...arenaDays.map((d) => d._id),
-    ...dgSessions.map((d) => d._id),
   ]);
 
+  if (!dateSet.size) return [];
+
   const exMap = Object.fromEntries(exerciseDays.map((d) => [d._id, d.seconds]));
+  const dgMap = Object.fromEntries(dgDays.map((d) => [d._id, d.seconds]));
   const arMap = Object.fromEntries(arenaDays.map((d) => [d._id, d.seconds]));
-  const dgMap = Object.fromEntries(dgSessions.map((d) => [d._id, d.seconds]));
 
   return [...dateSet].sort().map((date) => ({
     date,
@@ -209,6 +187,19 @@ async function getDailyTrend(from, to, studentIds) {
     arena: arMap[date] || 0,
     total: (exMap[date] || 0) + (dgMap[date] || 0) + (arMap[date] || 0),
   }));
+}
+
+/**
+ * Backward-compatible wrapper: queries all three sources and builds the trend.
+ * Used by external callers that still pass (from, to, studentIds).
+ */
+async function getDailyTrend(from, to, studentIds) {
+  const [exData, dgData, arData] = await Promise.all([
+    aggregateExerciseSeconds(from, to, studentIds),
+    aggregateDGSeconds(from, to, studentIds),
+    aggregateArenaSeconds(from, to, studentIds),
+  ]);
+  return buildTrendFromDayData(exData.byDay, dgData.byDay, arData.byDay);
 }
 
 // ── Student search ───────────────────────────────────────────────────────────
@@ -263,36 +254,40 @@ async function getOverview(opts = {}) {
   const page = Math.max(1, parseInt(opts.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(opts.limit, 10) || 25));
   const sortField = opts.sort || 'totalSeconds';
-
-  // 1. Resolve cohort student IDs
   const includeTest = opts.includeTestAccounts === true || opts.includeTestAccounts === 'true';
 
-  const cohortIds = await resolveStudentIds({
-    cohort: cohort === 'overall' ? undefined : cohort,
-    batch: opts.batch,
-    level: opts.level,
-    includeTestAccounts: includeTest,
-  });
-
-  // 2. Pull base student list (test accounts excluded unless includeTest is checked)
+  // 1. Build the student filter once — merges cohort/batch/level/search into a single query
   const studentFilter = {
     role: 'STUDENT',
     ...(includeTest ? {} : EXCLUDE_TEST),
   };
-  if (cohortIds !== null) studentFilter._id = { $in: cohortIds };
+
+  if (cohort === 'platinum') {
+    studentFilter.subscription = 'PLATINUM';
+    studentFilter.goStatus = { $ne: 'GO' };
+  } else if (cohort === 'go') {
+    studentFilter.goStatus = 'GO';
+  }
 
   const batchFilter = batchMatchFilters(opts.batch);
   if (batchFilter) studentFilter.batch = batchFilter;
 
+  if (opts.level) {
+    const levelVal = String(opts.level || '').trim().toUpperCase();
+    if (['A1','A2','B1','B2','C1','C2'].includes(levelVal)) {
+      studentFilter.level = levelVal;
+    }
+  }
+
   const searchFilter = buildStudentSearchFilter(opts.search);
   if (searchFilter) Object.assign(studentFilter, searchFilter);
 
+  // 2. Single User query — no more separate resolveStudentIds call
   const students = await User.find(studentFilter)
     .select('_id name email regNo batch level subscription goStatus currentCourseDay isTestAccount')
     .lean();
 
   const studentIds = students.map((s) => s._id);
-  const studentMap = Object.fromEntries(students.map((s) => [String(s._id), s]));
 
   if (!studentIds.length) {
     return {
@@ -305,40 +300,42 @@ async function getOverview(opts = {}) {
     };
   }
 
-  // 3. Parallel aggregations
-  const [exerciseRows, dgRows, arenaRows, trend] = await Promise.all([
+  // 3. Parallel aggregations — each returns { byStudent, byDay }
+  const [exData, dgData, arData] = await Promise.all([
     aggregateExerciseSeconds(from, to, studentIds),
     aggregateDGSeconds(from, to, studentIds),
     aggregateArenaSeconds(from, to, studentIds),
-    getDailyTrend(from, to, studentIds),
   ]);
 
-  // 4. Merge into per-student map
+  // 4. Build trend from day data (no separate queries)
+  const trend = buildTrendFromDayData(exData.byDay, dgData.byDay, arData.byDay);
+
+  // 5. Merge per-student data
   const merged = {};
   const init = (sid) => {
     if (!merged[sid]) merged[sid] = { exercisesSeconds: 0, digibotSeconds: 0, arenaSeconds: 0, lastLearningAt: null };
   };
 
-  for (const r of exerciseRows) {
+  for (const r of exData.byStudent) {
     const sid = String(r._id);
     init(sid);
     merged[sid].exercisesSeconds = r.seconds || 0;
     if (r.lastAt && (!merged[sid].lastLearningAt || r.lastAt > merged[sid].lastLearningAt)) merged[sid].lastLearningAt = r.lastAt;
   }
-  for (const r of dgRows) {
+  for (const r of dgData.byStudent) {
     const sid = String(r._id);
     init(sid);
     merged[sid].digibotSeconds = r.seconds || 0;
     if (r.lastAt && (!merged[sid].lastLearningAt || r.lastAt > merged[sid].lastLearningAt)) merged[sid].lastLearningAt = r.lastAt;
   }
-  for (const r of arenaRows) {
+  for (const r of arData.byStudent) {
     const sid = String(r._id);
     init(sid);
     merged[sid].arenaSeconds = r.seconds || 0;
     if (r.lastAt && (!merged[sid].lastLearningAt || r.lastAt > merged[sid].lastLearningAt)) merged[sid].lastLearningAt = r.lastAt;
   }
 
-  // 5. Build flat rows for all students (include those with zero time)
+  // 6. Build flat rows for all students (include those with zero time)
   let rows = students.map((s) => {
     const sid = String(s._id);
     const m = merged[sid] || { exercisesSeconds: 0, digibotSeconds: 0, arenaSeconds: 0, lastLearningAt: null };
@@ -362,7 +359,7 @@ async function getOverview(opts = {}) {
     };
   });
 
-  // 6. Sort
+  // 7. Sort
   const SORT_DIRS = { totalSeconds: -1, currentCourseDay: -1, name: 1, completionPercent: -1 };
   const dir = SORT_DIRS[sortField] ?? -1;
   rows.sort((a, b) => {
@@ -378,7 +375,7 @@ async function getOverview(opts = {}) {
     .sort((a, b) => b.totalSeconds - a.totalSeconds)
     .slice(0, 10);
 
-  // 7. KPIs
+  // 8. KPIs
   const totalSecs = rows.reduce((s, r) => s + r.totalSeconds, 0);
   const activeCount = rows.filter((r) => r.totalSeconds > 0).length;
   const avgMins = activeCount > 0 ? Math.round((totalSecs / activeCount) / 60) : 0;
@@ -459,23 +456,25 @@ async function getStudentDetail(studentId, opts = {}) {
 
   // Journey day completion for currentCourseDay
   let dayCompletion = null;
-  try {
-    // Lazy require avoids circular dependency issues at module load time
-    // eslint-disable-next-line global-require
-    const { computeJourneyDayCompletion } = require('./journeyDayCompletion.service');
-    const batchForCompletion = student.batch || (student.goStatus === 'GO' && student.subscription === 'SILVER'
-      ? goBatchForStudent(student)
-      : '');
-    const day = student.currentCourseDay || 1;
-    dayCompletion = await computeJourneyDayCompletion(sid, batchForCompletion, day, {
-      includeRecordings: false,
-      includeDg: true,
-      studentLevel: student.level || '',
-      studentPlan: student.subscription || '',
-      goStatus: student.goStatus || '',
-    });
-  } catch (_) {
-    // Non-fatal: some students may not be in an active journey batch
+  const batchForCompletion = student.batch || (student.goStatus === 'GO' && student.subscription === 'SILVER'
+    ? goBatchForStudent(student)
+    : '');
+  if (batchForCompletion) {
+    try {
+      const day = student.currentCourseDay || 1;
+      // Lazy require avoids circular dependency issues at module load time
+      // eslint-disable-next-line global-require
+      const { computeJourneyDayCompletion } = require('./journeyDayCompletion.service');
+      dayCompletion = await computeJourneyDayCompletion(sid, batchForCompletion, day, {
+        includeRecordings: false,
+        includeDg: true,
+        studentLevel: student.level || '',
+        studentPlan: student.subscription || '',
+        goStatus: student.goStatus || '',
+      });
+    } catch (err) {
+      console.warn('[language-tracking] dayCompletion failed', String(sid), err.message);
+    }
   }
 
   return {
@@ -599,45 +598,29 @@ async function getStudentWeekSummary(studentId, weekNum) {
   const week = Math.max(1, Math.min(Math.floor(Number(weekNum) || 1), currentWeek));
   const { start, end } = weekDayRange(week);
 
-  const days = [];
+  const futureDays = [];
+  const activeDays = [];
   for (let day = start; day <= end; day += 1) {
-    const isFuture = day > currentCourseDay;
-    if (isFuture) {
-      days.push({
-        day,
-        isFuture: true,
-        complete: false,
-        completionPercent: 0,
-        doneTasks: 0,
-        totalTasks: 0,
-        incompleteCount: 0,
-      });
-      continue;
-    }
-    try {
-      const payload = await computeDayCompletionForStudent(student, day);
-      days.push({
-        day,
-        isFuture: false,
-        complete: payload.complete,
-        completionPercent: payload.completionPercent,
-        doneTasks: payload.doneTasks,
-        totalTasks: payload.totalTasks,
-        incompleteCount: payload.incompleteTasks.length,
-      });
-    } catch (_) {
-      days.push({
-        day,
-        isFuture: false,
-        complete: false,
-        completionPercent: 0,
-        doneTasks: 0,
-        totalTasks: 0,
-        incompleteCount: 0,
-        error: true,
-      });
+    if (day > currentCourseDay) {
+      futureDays.push({ day, isFuture: true, complete: false, completionPercent: 0, doneTasks: 0, totalTasks: 0, incompleteCount: 0 });
+    } else {
+      activeDays.push(day);
     }
   }
+
+  const dayResults = await Promise.all(
+    activeDays.map(async (day) => {
+      try {
+        const payload = await computeDayCompletionForStudent(student, day);
+        return { day, isFuture: false, complete: payload.complete, completionPercent: payload.completionPercent, doneTasks: payload.doneTasks, totalTasks: payload.totalTasks, incompleteCount: payload.incompleteTasks.length };
+      } catch (err) {
+        console.warn('[language-tracking] week day completion failed', String(student._id), day, err.message);
+        return { day, isFuture: false, complete: false, completionPercent: 0, doneTasks: 0, totalTasks: 0, incompleteCount: 0, error: true };
+      }
+    }),
+  );
+
+  const days = [...dayResults, ...futureDays].sort((a, b) => a.day - b.day);
 
   return {
     student: {

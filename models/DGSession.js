@@ -67,5 +67,6 @@ const DGSessionSchema = new mongoose.Schema(
 );
 
 DGSessionSchema.index({ studentId: 1, moduleId: 1, completed: 1, createdAt: -1 });
+DGSessionSchema.index({ studentId: 1, createdAt: 1 });
 
 module.exports = mongoose.model('DGSession', DGSessionSchema);

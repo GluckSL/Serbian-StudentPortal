@@ -266,6 +266,14 @@ export interface DigitalExercise {
    * video clip and tap "Next". Controlled by admin only (default: false).
    */
   watchOnlyMode?: boolean;
+  /** Content blocks that trail after the last question (free mode builder). */
+  trailingContentBlocks?: Array<{
+    sectionTitle?: string;
+    context?: string;
+    instruction?: string;
+    example?: string;
+    attachmentUrls?: string[];
+  }>;
   /** Present when created via Free Mode builder. */
   isFreeMode?: boolean;
   /** Present when created by splitting questions from another exercise. */

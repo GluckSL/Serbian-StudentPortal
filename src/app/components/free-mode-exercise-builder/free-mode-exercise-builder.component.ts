@@ -92,6 +92,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   loadingExercise = false;
   attachmentUploading = false;
   currentAttachmentItem: FreeModeItem | null = null;
+  contentBlockFieldVisibility: Map<number, Set<string>> = new Map();
 
   @ViewChild('attachmentFileInput') attachmentFileInput!: ElementRef<HTMLInputElement>;
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -150,6 +151,21 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
         this.courseDay = ex.courseDay ?? null;
         this.tags = Array.isArray(ex.tags) ? ex.tags.join(', ') : '';
         this.items = this.questionsToItems(ex.questions || []);
+        if (ex.trailingContentBlocks?.length) {
+          for (const block of ex.trailingContentBlocks) {
+            const item: FreeModeItem = {
+              uid: nextUid++,
+              kind: 'content',
+              sectionTitle: block.sectionTitle || '',
+              context: block.context || '',
+              instruction: block.instruction || '',
+              example: block.example || '',
+              attachmentUrls: block.attachmentUrls || [],
+            };
+            this.items.push(item);
+            this.initContentBlockFields(item);
+          }
+        }
         this.loadingExercise = false;
       },
       error: (err) => {
@@ -176,7 +192,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       const attChanged = JSON.stringify(q.attachmentUrls || []) !== JSON.stringify(lastAttachmentUrls);
 
       if (ctxChanged || instChanged || titleChanged || exChanged || attChanged) {
-        items.push({
+        const contentItem: FreeModeItem = {
           uid: nextUid++,
           kind: 'content',
           sectionTitle: q.sectionTitle || '',
@@ -184,7 +200,9 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
           instruction: q.instruction || '',
           example: q.example || '',
           attachmentUrls: q.attachmentUrls || [],
-        });
+        };
+        items.push(contentItem);
+        this.initContentBlockFields(contentItem);
         lastContext = q.context || '';
         lastInstruction = q.instruction || '';
         lastSectionTitle = q.sectionTitle || '';
@@ -247,8 +265,43 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
     return index;
   }
 
+  private initContentBlockFields(item: FreeModeItem): void {
+    const flags = new Set<string>();
+    if (item.sectionTitle) flags.add('title');
+    if (item.context) flags.add('context');
+    if (item.instruction) flags.add('instruction');
+    if (item.attachmentUrls?.length) flags.add('attachments');
+    this.contentBlockFieldVisibility.set(item.uid, flags);
+  }
+
+  isContentFieldVisible(item: FreeModeItem, field: string): boolean {
+    const flags = this.contentBlockFieldVisibility.get(item.uid);
+    if (flags?.has(field)) return true;
+    switch (field) {
+      case 'title': return !!item.sectionTitle;
+      case 'context': return !!item.context;
+      case 'instruction': return !!item.instruction;
+      case 'attachments': return !!(item.attachmentUrls?.length);
+    }
+    return false;
+  }
+
+  toggleContentField(item: FreeModeItem, field: string): void {
+    const flags = this.contentBlockFieldVisibility.get(item.uid);
+    if (!flags) return;
+    if (flags.has(field)) {
+      flags.delete(field);
+      if (field === 'title') item.sectionTitle = '';
+      else if (field === 'context') item.context = '';
+      else if (field === 'instruction') item.instruction = '';
+      else if (field === 'attachments') item.attachmentUrls = [];
+    } else {
+      flags.add(field);
+    }
+  }
+
   addContentBlock(): void {
-    this.items.push({
+    const item: FreeModeItem = {
       uid: nextUid++,
       kind: 'content',
       sectionTitle: '',
@@ -256,7 +309,9 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       instruction: '',
       example: '',
       attachmentUrls: [],
-    });
+    };
+    this.items.push(item);
+    this.initContentBlockFields(item);
   }
 
   addQuestion(type: string): void {
@@ -330,6 +385,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
 
   deleteItem(uid: number): void {
     this.items = this.items.filter(i => i.uid !== uid);
+    this.contentBlockFieldVisibility.delete(uid);
   }
 
   moveItem(uid: number, direction: -1 | 1): void {
@@ -373,6 +429,13 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   removeOption(item: FreeModeItem, idx: number): void {
     item.options = item.options || [];
     item.options.splice(idx, 1);
+    if (item.correctAnswerIndex !== undefined) {
+      if (item.correctAnswerIndex === idx) {
+        item.correctAnswerIndex = undefined;
+      } else if (idx < item.correctAnswerIndex) {
+        item.correctAnswerIndex -= 1;
+      }
+    }
   }
 
   addWordBankItem(item: FreeModeItem): void {

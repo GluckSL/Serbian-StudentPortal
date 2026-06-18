@@ -976,6 +976,7 @@ export class FreeModeExerciseRendererComponent implements OnInit {
     let lastSectionTitle: string | undefined;
     let lastContext: string | undefined;
     let lastInstruction: string | undefined;
+    let lastAttachmentUrlsKey: string | undefined;
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
@@ -984,13 +985,15 @@ export class FreeModeExerciseRendererComponent implements OnInit {
       const instruction = q.instruction || undefined;
       const example = q.example || undefined;
       const attachmentUrls = q.attachmentUrls?.length ? q.attachmentUrls : undefined;
+      const attachmentUrlsKey = attachmentUrls?.join(',') || '';
 
       const sectionChanged = sectionTitle !== lastSectionTitle;
       const contextChanged = context !== lastContext;
       const instructionChanged = instruction !== lastInstruction;
+      const attachmentsChanged = sectionChanged || contextChanged || instructionChanged || attachmentUrlsKey !== lastAttachmentUrlsKey;
 
-      if (sectionChanged || contextChanged || instructionChanged) {
-        if (sectionTitle || context || instruction) {
+      if (attachmentsChanged) {
+        if (sectionTitle || context || instruction || (attachmentUrls?.length ?? 0) > 0) {
           list.push({
             kind: 'content-block',
             sectionTitle: sectionChanged ? sectionTitle : undefined,
@@ -1011,6 +1014,21 @@ export class FreeModeExerciseRendererComponent implements OnInit {
       lastSectionTitle = sectionTitle;
       lastContext = context;
       lastInstruction = instruction;
+      lastAttachmentUrlsKey = attachmentUrlsKey;
+    }
+
+    // Append trailing content blocks (content blocks after the last question)
+    if (ex.trailingContentBlocks?.length) {
+      for (const block of ex.trailingContentBlocks) {
+        list.push({
+          kind: 'content-block',
+          sectionTitle: block.sectionTitle || undefined,
+          context: block.context || undefined,
+          instruction: block.instruction || undefined,
+          example: block.example || undefined,
+          attachmentUrls: block.attachmentUrls?.length ? block.attachmentUrls : undefined,
+        });
+      }
     }
 
     this.renderList = list;

@@ -355,6 +355,15 @@ const DigitalExerciseSchema = new mongoose.Schema({
   // Free mode flag (created via free mode builder)
   isFreeMode: { type: Boolean, default: false },
 
+  // Content blocks that trail after the last question (free mode builder)
+  trailingContentBlocks: [{
+    sectionTitle: { type: String, default: '' },
+    context: { type: String, default: '' },
+    instruction: { type: String, default: '' },
+    example: { type: String, default: '' },
+    attachmentUrls: [{ type: String }],
+  }],
+
   // Soft delete
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

@@ -2699,6 +2699,25 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       return res.status(400).json({ error: 'At least one question is required' });
     }
 
+    // Collect trailing content blocks (content items after the last question)
+    const trailingContentBlocks = [];
+    let foundQuestion = false;
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].kind === 'question') {
+        foundQuestion = true;
+        break;
+      }
+      if (items[i].kind === 'content' && !foundQuestion) {
+        trailingContentBlocks.unshift({
+          sectionTitle: items[i].sectionTitle || '',
+          context: items[i].context || '',
+          instruction: items[i].instruction || '',
+          example: items[i].example || '',
+          attachmentUrls: items[i].attachmentUrls || [],
+        });
+      }
+    }
+
     const normalizedBody = {
       title,
       description,
@@ -2711,6 +2730,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       courseDay: courseDay != null ? courseDay : null,
       tags: tags || [],
       questions,
+      trailingContentBlocks,
       isFreeMode: true,
       createdBy: req.user.id,
       lastUpdatedBy: req.user.id
@@ -2822,6 +2842,25 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
       return res.status(400).json({ error: 'At least one question is required' });
     }
 
+    // Collect trailing content blocks (content items after the last question)
+    const trailingContentBlocks = [];
+    let foundQuestion = false;
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].kind === 'question') {
+        foundQuestion = true;
+        break;
+      }
+      if (items[i].kind === 'content' && !foundQuestion) {
+        trailingContentBlocks.unshift({
+          sectionTitle: items[i].sectionTitle || '',
+          context: items[i].context || '',
+          instruction: items[i].instruction || '',
+          example: items[i].example || '',
+          attachmentUrls: items[i].attachmentUrls || [],
+        });
+      }
+    }
+
     exercise.title = title || exercise.title;
     exercise.description = description || exercise.description;
     exercise.level = level || exercise.level;
@@ -2833,6 +2872,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     exercise.courseDay = courseDay != null ? courseDay : exercise.courseDay;
     exercise.tags = tags || exercise.tags;
     exercise.questions = normalizeQuestionContexts(questions);
+    exercise.trailingContentBlocks = trailingContentBlocks;
     exercise.isFreeMode = true;
     exercise.lastUpdatedBy = req.user.id;
     exercise.updatedAt = new Date();

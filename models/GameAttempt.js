@@ -51,6 +51,7 @@ GameAttemptSchema.index({ gameSetId: 1, status: 1, score: -1 });
 GameAttemptSchema.index({ studentId: 1, gameSetId: 1, createdAt: -1 });
 GameAttemptSchema.index({ studentId: 1, status: 1, completedAt: -1 });
 GameAttemptSchema.index({ studentId: 1, completedAt: -1 });
+GameAttemptSchema.index({ studentId: 1, startedAt: 1 });
 // Leaderboard queries by completion window
 GameAttemptSchema.index({ status: 1, completedAt: -1, xpEarned: -1 });
 
