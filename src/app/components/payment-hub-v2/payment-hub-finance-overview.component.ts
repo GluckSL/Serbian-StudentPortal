@@ -1,25 +1,38 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { environment } from '../../../environments/environment';
+import { BatchPaymentSummaryRow, PaymentHubApiService } from './payment-hub-api.service';
 import {
   FinanceCohort,
   formatStudentStatusLabel,
   PortalStudentCounts,
 } from './payment-hub-finance-cohort.util';
 
+type BatchLevelStatus = '' | 'A1:ONGOING' | 'A1:COMPLETED' | 'A2:ONGOING' | 'A2:COMPLETED' | 'B1:ONGOING' | 'B1:COMPLETED' | 'B2:ONGOING' | 'B2:COMPLETED';
+
 @Component({
   selector: 'app-payment-hub-finance-overview',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule, MatProgressSpinnerModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule],
   templateUrl: './payment-hub-finance-overview.component.html',
   styleUrls: ['./payment-hub-finance-overview.component.scss', './payment-hub-insights-page.scss'],
 })
 export class PaymentHubFinanceOverviewComponent implements OnInit {
   loading = true;
+  loadingVisibleBatches = true;
+  loadingBatchOptions = true;
+  savingVisibleBatches = false;
+  showAddBatchModal = false;
+  visibleBatches: string[] = [];
+  visibleBatchLevelStatuses: Record<string, string> = {};
+  batchRows: BatchPaymentSummaryRow[] = [];
+  selectedBatchLevelByName: Record<string, BatchLevelStatus> = {};
   counts: PortalStudentCounts = {
     portalNonTest: 0,
     ongoingNonTest: 0,
@@ -34,13 +47,44 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     visaDocsStatusBreakdown: [],
   };
 
-  constructor(private readonly http: HttpClient) {}
+  constructor(
+    private readonly http: HttpClient,
+    private readonly api: PaymentHubApiService,
+    private readonly snack: MatSnackBar,
+  ) {}
 
   ngOnInit(): void {
     this.loadCounts();
+    this.loadVisibleBatches();
+    this.loadBatchOptions();
   }
 
   formatStudentStatus = formatStudentStatusLabel;
+
+  readonly batchLevelStatusOptions: ReadonlyArray<{ value: BatchLevelStatus; label: string }> = [
+    { value: '', label: 'Select level' },
+    { value: 'A1:ONGOING', label: 'A1 ongoing' },
+    { value: 'A1:COMPLETED', label: 'A1 completed' },
+    { value: 'A2:ONGOING', label: 'A2 ongoing' },
+    { value: 'A2:COMPLETED', label: 'A2 completed' },
+    { value: 'B1:ONGOING', label: 'B1 ongoing' },
+    { value: 'B1:COMPLETED', label: 'B1 completed' },
+    { value: 'B2:ONGOING', label: 'B2 ongoing' },
+    { value: 'B2:COMPLETED', label: 'B2 completed' },
+  ];
+
+  get batchOptions(): string[] {
+    return this.batchRows.map((r) => r.batch).filter((b) => b && b !== '—');
+  }
+
+  get availableBatchesToAdd(): string[] {
+    const visible = new Set(this.visibleBatches);
+    return this.batchOptions.filter((b) => !visible.has(b));
+  }
+
+  get selectedModalBatchCount(): number {
+    return this.availableBatchesToAdd.filter((b) => !!this.selectedBatchLevelByName[b]).length;
+  }
 
   batchesRoute(_cohort: FinanceCohort): string {
     return '/admin/finance-dashboard/batches';
@@ -48,6 +92,51 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
 
   batchesQuery(cohort: FinanceCohort): { cohort: string; status: string } {
     return { cohort, status: 'ONGOING' };
+  }
+
+  studentsRoute(_cohort: FinanceCohort): string {
+    return '/admin/finance-dashboard/students';
+  }
+
+  studentsQuery(cohort: FinanceCohort, status?: string): Record<string, string> {
+    const q: Record<string, string> = { cohort };
+    if (status) q['status'] = status;
+    return q;
+  }
+
+  openAddBatchModal(): void {
+    this.pruneSelectedBatchLevels();
+    this.showAddBatchModal = true;
+  }
+
+  closeAddBatchModal(): void {
+    if (this.savingVisibleBatches) return;
+    this.showAddBatchModal = false;
+  }
+
+  addSelectedBatches(): void {
+    if (!this.selectedModalBatchCount || this.savingVisibleBatches) return;
+    const selected = this.availableBatchesToAdd.filter((b) => !!this.selectedBatchLevelByName[b]);
+    const next = [...new Set([...this.visibleBatches, ...selected])];
+    const nextLevelStatuses: Record<string, string> = { ...this.visibleBatchLevelStatuses };
+    selected.forEach((batch) => {
+      nextLevelStatuses[batch] = this.selectedBatchLevelByName[batch];
+    });
+    this.savingVisibleBatches = true;
+    this.api.updateFinanceVisibleBatches(next, nextLevelStatuses).subscribe({
+      next: (res) => {
+        this.visibleBatches = [...(res.data?.visibleBatches || next)];
+        this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || nextLevelStatuses) };
+        this.savingVisibleBatches = false;
+        this.showAddBatchModal = false;
+        this.selectedBatchLevelByName = {};
+        this.snack.open(`Added ${selected.length} batch(es) to the dashboard.`, 'OK', { duration: 3000 });
+      },
+      error: (err) => {
+        this.savingVisibleBatches = false;
+        this.snack.open(err?.error?.message || 'Could not add selected batches.', 'Dismiss', { duration: 4500 });
+      },
+    });
   }
 
   private loadCounts(): void {
@@ -74,5 +163,43 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
           this.loading = false;
         },
       });
+  }
+
+  private loadVisibleBatches(): void {
+    this.loadingVisibleBatches = true;
+    this.api.getFinanceVisibleBatches().subscribe({
+      next: (res) => {
+        this.visibleBatches = [...(res.data?.visibleBatches || [])];
+        this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || {}) };
+        this.loadingVisibleBatches = false;
+      },
+      error: () => {
+        this.visibleBatches = [];
+        this.visibleBatchLevelStatuses = {};
+        this.loadingVisibleBatches = false;
+      },
+    });
+  }
+
+  private loadBatchOptions(): void {
+    this.loadingBatchOptions = true;
+    this.api.getBatchPaymentSummary().subscribe({
+      next: (summary) => {
+        this.batchRows = summary.data?.batches || [];
+        this.loadingBatchOptions = false;
+        this.pruneSelectedBatchLevels();
+      },
+      error: () => {
+        this.batchRows = [];
+        this.loadingBatchOptions = false;
+      },
+    });
+  }
+
+  private pruneSelectedBatchLevels(): void {
+    const available = new Set(this.availableBatchesToAdd);
+    this.selectedBatchLevelByName = Object.fromEntries(
+      Object.entries(this.selectedBatchLevelByName).filter(([batch, value]) => available.has(batch) && !!value),
+    ) as Record<string, BatchLevelStatus>;
   }
 }

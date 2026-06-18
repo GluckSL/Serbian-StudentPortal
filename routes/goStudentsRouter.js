@@ -544,17 +544,39 @@ function createGoStudentsRouter(trackKey) {
   
       const student = await User.findOne({ _id: studentId, ...goStudentQuery(track) });
       if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
-  
-      student.currentCourseDay = day;
-      student.level = levelForJourneyDay(day);
-      student.pendingJourneyDayAdvance = false;
-      student.pendingJourneyDayAdvanceForDay = null;
-      await student.save();
-  
+
+      const previousDay = student.currentCourseDay || 1;
+      const newLevel = levelForJourneyDay(day);
+      const { levelsBelowJourneyLevel, firstJourneyDayForLevel } = require('../services/journeyLevelSync.service');
+      const { normalizeBlockedJourneyLevels } = require('../utils/journeyContentBlock');
+      const levelStart = firstJourneyDayForLevel(newLevel);
+
+      const setFields = withJourneyLevelInSet(
+        day,
+        {
+          currentCourseDay: day,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        },
+        { student, force: true }
+      );
+
+      if (day >= levelStart && previousDay < levelStart - 1) {
+        const below = levelsBelowJourneyLevel(newLevel);
+        if (below.length) {
+          const existing = normalizeBlockedJourneyLevels(student.blockedJourneyLevels);
+          setFields.blockedJourneyLevels = [...new Set([...existing, ...below])];
+        }
+      }
+
+      await User.updateOne({ _id: studentId }, { $set: setFields });
+      await SilverGoUnlockCache.deleteOne({ studentId });
+
       res.json({
         message: 'Journey day updated.',
         currentCourseDay: day,
-        level: student.level
+        level: setFields.level || newLevel,
+        blockedJourneyLevels: setFields.blockedJourneyLevels || student.blockedJourneyLevels || []
       });
     } catch (err) {
       console.error('go-students PATCH /:id/journey-day', err);
@@ -748,7 +770,7 @@ function createGoStudentsRouter(trackKey) {
       const { studentId } = req.params;
   
       const student = await User.findOne({ _id: studentId, ...goStudentQuery(track) })
-        .select('name regNo email level batch subscription goStatus goLanguage goJoiningDate currentCourseDay medium')
+        .select('name regNo email level batch subscription goStatus goLanguage goJoiningDate currentCourseDay medium blockedJourneyLevels')
         .lean();
       if (!student) return res.status(404).json({ message: `GO ${GO_LANGUAGE} student not found.` });
 

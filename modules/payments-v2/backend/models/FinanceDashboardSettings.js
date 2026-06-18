@@ -6,6 +6,11 @@ const schema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  visibleBatchLevelStatuses: {
+    type: Map,
+    of: String,
+    default: {},
+  },
   updatedAt: { type: Date, default: Date.now },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 });
@@ -34,13 +39,31 @@ function normalizeBatchList(batches) {
   return out;
 }
 
-schema.statics.setVisibleBatches = async function setVisibleBatches(batches, updatedBy) {
+function normalizeBatchLevelStatuses(raw, visibleBatches, existing = {}) {
+  const allowed = new Set(['A1:ONGOING', 'A1:COMPLETED', 'A2:ONGOING', 'A2:COMPLETED', 'B1:ONGOING', 'B1:COMPLETED', 'B2:ONGOING', 'B2:COMPLETED']);
+  const source = raw && typeof raw === 'object' ? raw : existing;
+  const out = {};
+  for (const batch of visibleBatches) {
+    const value = String(source[batch] || '').trim().toUpperCase();
+    if (allowed.has(value)) out[batch] = value;
+  }
+  return out;
+}
+
+schema.statics.setVisibleBatches = async function setVisibleBatches(batches, updatedBy, batchLevelStatuses) {
   const visibleBatches = normalizeBatchList(batches);
+  const existing = await this.findById('global').lean();
+  const existingStatuses =
+    existing?.visibleBatchLevelStatuses instanceof Map
+      ? Object.fromEntries(existing.visibleBatchLevelStatuses)
+      : existing?.visibleBatchLevelStatuses || {};
+  const visibleBatchLevelStatuses = normalizeBatchLevelStatuses(batchLevelStatuses, visibleBatches, existingStatuses);
   return this.findByIdAndUpdate(
     'global',
     {
       $set: {
         visibleBatches,
+        visibleBatchLevelStatuses,
         updatedAt: new Date(),
         updatedBy: updatedBy || undefined,
       },

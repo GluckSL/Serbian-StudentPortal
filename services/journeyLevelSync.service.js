@@ -30,6 +30,57 @@ function levelForJourneyDay(day) {
   return 'B2';
 }
 
+const JOURNEY_LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+function firstJourneyDayForLevel(level) {
+  const key = String(level || 'A1').toUpperCase();
+  const range = JOURNEY_LEVEL_RANGES.find((r) => r.level === key);
+  return range ? range.min : 1;
+}
+
+/** CEFR levels below the given level on the journey track (e.g. A2 → ['A1']). */
+function levelsBelowJourneyLevel(level) {
+  const key = String(level || 'A1').toUpperCase();
+  const idx = JOURNEY_LEVEL_ORDER.indexOf(key);
+  return idx > 0 ? JOURNEY_LEVEL_ORDER.slice(0, idx) : [];
+}
+
+/**
+ * When an admin raises a student's CEFR level ahead of their journey day,
+ * align currentCourseDay and block skipped lower levels (e.g. A2 starter at day 43 blocks A1).
+ */
+function buildAdminLevelJumpUpdate(newLevel, existingUser, setFields = {}) {
+  const normalized = String(newLevel || 'A1').toUpperCase();
+  const targetDay = firstJourneyDayForLevel(normalized);
+  const currentDay = normalizeJourneyDay(existingUser?.currentCourseDay);
+  const out = { ...setFields };
+
+  if (currentDay < targetDay) {
+    Object.assign(
+      out,
+      withJourneyLevelInSet(
+        targetDay,
+        {
+          currentCourseDay: targetDay,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        },
+        { force: true }
+      )
+    );
+    const below = levelsBelowJourneyLevel(normalized);
+    if (below.length && currentDay < targetDay - 1) {
+      const { normalizeBlockedJourneyLevels } = require('../utils/journeyContentBlock');
+      const existing = normalizeBlockedJourneyLevels(existingUser?.blockedJourneyLevels);
+      out.blockedJourneyLevels = [...new Set([...existing, ...below])];
+    }
+  } else {
+    out.level = normalized;
+  }
+
+  return out;
+}
+
 /** All portal students follow journey-day → level mapping when their day changes. */
 function usesJourneyDayLevelSync(student) {
   if (!student) return false;
@@ -57,7 +108,7 @@ function withJourneyLevelInSet(journeyDay, setFields = {}, opts = {}) {
  */
 async function ensureStudentLevelMatchesJourneyDay(studentId) {
   const student = await User.findById(studentId)
-    .select('role goStatus batch subscription level currentCourseDay')
+    .select('role goStatus batch subscription level currentCourseDay blockedJourneyLevels')
     .lean();
   if (!student || student.role !== 'STUDENT') return { synced: false };
   if (!usesJourneyDayLevelSync(student)) return { synced: false };
@@ -66,6 +117,13 @@ async function ensureStudentLevelMatchesJourneyDay(studentId) {
   const expected = levelForJourneyDay(day);
   const current = String(student.level || 'A1').toUpperCase();
   if (current === expected) return { synced: false, level: expected };
+
+  const { normalizeBlockedJourneyLevels, isLevelAdminBlocked, isCourseDayAdminBlocked } =
+    require('../utils/journeyContentBlock');
+  const blocked = normalizeBlockedJourneyLevels(student.blockedJourneyLevels);
+  if (isCourseDayAdminBlocked(blocked, day) || isLevelAdminBlocked(blocked, expected)) {
+    return { synced: false, level: current };
+  }
 
   await User.updateOne({ _id: studentId }, { $set: { level: expected } });
   console.log(
@@ -100,8 +158,12 @@ async function syncJourneyLevelsForBatch(batchRegex) {
 
 module.exports = {
   JOURNEY_LEVEL_RANGES,
+  JOURNEY_LEVEL_ORDER,
   normalizeJourneyDay,
   levelForJourneyDay,
+  firstJourneyDayForLevel,
+  levelsBelowJourneyLevel,
+  buildAdminLevelJumpUpdate,
   usesJourneyDayLevelSync,
   withJourneyLevelInSet,
   ensureStudentLevelMatchesJourneyDay,

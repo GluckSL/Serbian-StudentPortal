@@ -23,8 +23,25 @@ const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-function buildLevelPriceMap(catalog) {
+function buildLevelPriceMap(catalog, subscription) {
   const levelPriceMap = new Map();
+
+  // Check for a plan-specific flat rate override
+  if (subscription) {
+    const key = String(subscription).trim().toUpperCase();
+    const planRate = (catalog?.subscriptionRates || []).find(
+      (r) => String(r?.subscription || '').trim().toUpperCase() === key,
+    );
+    if (planRate) {
+      const lkr = Number(planRate.lkr) || 0;
+      const inr = Number(planRate.inr) || 0;
+      for (const code of CEFR_ORDER) {
+        levelPriceMap.set(code, { LKR: lkr, INR: inr, USD: 0 });
+      }
+      return levelPriceMap;
+    }
+  }
+
   for (const r of catalog?.cefrRows || []) {
     const code = String(r?.code || '').trim().toUpperCase();
     if (!CEFR_ORDER.includes(code)) continue;
@@ -35,6 +52,33 @@ function buildLevelPriceMap(catalog) {
     });
   }
   return levelPriceMap;
+}
+
+/**
+ * Build a lookup function that returns the correct levelPriceMap for a student
+ * based on their subscription, falling back to the default catalog pricing.
+ */
+function buildSubscriptionPriceMapLookup(catalog) {
+  const defaultMap = buildLevelPriceMap(catalog);
+  const cache = new Map();
+  return function getLevelPriceMapForStudent(subscription) {
+    if (!subscription) return defaultMap;
+    const key = String(subscription).trim().toUpperCase();
+    if (cache.has(key)) return cache.get(key);
+    const planRate = (catalog?.subscriptionRates || []).find(
+      (r) => String(r?.subscription || '').trim().toUpperCase() === key,
+    );
+    if (planRate) {
+      const lkr = Number(planRate.lkr) || 0;
+      const inr = Number(planRate.inr) || 0;
+      const m = new Map();
+      for (const code of CEFR_ORDER) m.set(code, { LKR: lkr, INR: inr, USD: 0 });
+      cache.set(key, m);
+      return m;
+    }
+    cache.set(key, defaultMap);
+    return defaultMap;
+  };
 }
 
 function studentInferredCurrency(student) {
@@ -1316,6 +1360,7 @@ module.exports = {
   aggregateHubDashboardStats,
   aggregateBatchPaymentInsights,
   buildLevelPriceMap,
+  buildSubscriptionPriceMapLookup,
   buildStudentLevelSlotTotals,
   pendingTotalsForStudent,
   applyJourneyOverdueAmounts,

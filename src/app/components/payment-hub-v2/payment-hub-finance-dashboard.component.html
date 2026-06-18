@@ -12,64 +12,6 @@
 
   <div class="ph-insights-body">
     <div class="ph-insights-filters ph-finance-filters">
-      <div class="ph-finance-filters-row">
-        <div class="ph-finance-filters-fields">
-          <mat-form-field appearance="outline" class="ph-filter" subscriptSizing="dynamic">
-            <mat-label>Level</mat-label>
-            <mat-select [(ngModel)]="filterLevel" (selectionChange)="applyLevelFilter()" [disabled]="loading">
-              <mat-option *ngFor="let lv of levels; let i = index" [value]="lv">{{ levelLabels[i] }}</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="ph-filter ph-filter--batches" subscriptSizing="dynamic">
-            <mat-label>Add batches to dashboard</mat-label>
-            <mat-select
-              [(ngModel)]="batchesToAdd"
-              multiple
-              [disabled]="loading || savingVisibleBatches || !availableBatchesToAdd.length"
-              placeholder="Choose batches…"
-            >
-              <mat-option *ngFor="let b of availableBatchesToAdd" [value]="b">{{ b }}</mat-option>
-            </mat-select>
-          </mat-form-field>
-        </div>
-
-        <div class="ph-finance-filters-actions">
-          <button
-            type="button"
-            class="ph-filter-pill ph-filter-pill--primary"
-            (click)="addBatchesToDashboard()"
-            [disabled]="loading || savingVisibleBatches || !batchesToAdd.length"
-            matTooltip="Add selected batches for all admins and sub-admins"
-          >
-            <mat-icon>add</mat-icon>
-            Add batches
-          </button>
-        </div>
-      </div>
-
-      <div class="ph-finance-visible-batches" *ngIf="hasVisibleBatches">
-        <span class="ph-finance-visible-batches__label">Visible batches ({{ visibleBatches.length }})</span>
-        <div class="ph-finance-visible-batches__chips">
-          <span class="ph-finance-visible-chip" *ngFor="let b of visibleBatches">
-            {{ b }}
-            <button
-              type="button"
-              class="ph-finance-visible-chip__remove"
-              (click)="removeVisibleBatch(b)"
-              [disabled]="savingVisibleBatches"
-              [attr.aria-label]="'Remove ' + b"
-            >
-              <mat-icon>close</mat-icon>
-            </button>
-          </span>
-        </div>
-      </div>
-
-      <p class="ph-finance-visible-hint" *ngIf="!hasVisibleBatches && !loading">
-        No batches on this dashboard yet. Use <strong>Add batches</strong> above — only added batches are shown for every admin and sub-admin.
-      </p>
-
       <div class="ph-finance-email-triggers">
         <span class="ph-finance-email-triggers__label">
           <mat-icon class="ph-finance-email-triggers__icon">mail</mat-icon>
@@ -207,6 +149,7 @@
             <p class="ph-panel-caption">
               {{ displayBatchRows.length }} batches
               <span *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} on dashboard</span>
+              <span *ngIf="levelStatusFilter"> · {{ activeLevelStatusLabel() }}</span>
               <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
               <span *ngIf="paymentFilter !== 'all_language'"> · {{ paymentFilterLabel() }}</span>
             </p>
@@ -314,10 +257,18 @@
                   </div>
                 </td>
                 <td class="ph-col-level ph-levels-cell">
-                  <span class="ph-level-pill" *ngIf="r.level">{{ r.level }}</span>
-                  <span class="ph-level-breakdown" *ngIf="r.levelSummary !== '—'" [matTooltip]="r.levelSummary">
-                    {{ r.levelSummary }}
-                  </span>
+                  <ng-container *ngIf="selectedLevelForBatch(r.batch) as selectedLevel; else inferredLevel">
+                    <span class="ph-level-pill">{{ selectedLevel }}</span>
+                    <span class="ph-level-breakdown" *ngIf="selectedStatusForBatch(r.batch)">
+                      {{ selectedStatusForBatch(r.batch) }}
+                    </span>
+                  </ng-container>
+                  <ng-template #inferredLevel>
+                    <span class="ph-level-pill" *ngIf="r.level">{{ r.level }}</span>
+                    <span class="ph-level-breakdown" *ngIf="r.levelSummary !== '—'" [matTooltip]="r.levelSummary">
+                      {{ r.levelSummary }}
+                    </span>
+                  </ng-template>
                 </td>
                 <td class="ph-col-students ph-students-cell">
                   <span class="ph-students-count">{{ r.studentCount }}</span>

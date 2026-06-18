@@ -26,6 +26,7 @@ router.get('/students/table', ctrl.getStudentTable);
 
 // ─── Admin: Batch payment aggregates (Payment Hub batch overview) ─────────────
 router.get('/batches/summary', ctrl.getBatchPaymentSummary);
+router.get('/finance-dashboard/students', ctrl.getCohortStudentsPaymentDetail);
 router.get('/finance-dashboard/visible-batches', financeDashboardSettingsCtrl.getVisibleBatches);
 router.put('/finance-dashboard/visible-batches', requireFinanceAdmin, financeDashboardSettingsCtrl.updateVisibleBatches);
 router.post('/finance-dashboard/trigger-report/:type', requireFinanceAdmin, financeDashboardSettingsCtrl.triggerReport);

@@ -2,6 +2,12 @@ const FinanceDashboardSettings = require('../models/FinanceDashboardSettings');
 const { getAuthUserId } = require('../helpers/authUserId');
 const { sendMorningReport, sendEveningReport } = require('../services/financeReportEmailService');
 
+function toPlainObject(value) {
+  if (!value) return {};
+  if (value instanceof Map) return Object.fromEntries(value);
+  return value;
+}
+
 const getVisibleBatches = async (req, res) => {
   try {
     const settings = await FinanceDashboardSettings.getOrCreate();
@@ -9,6 +15,7 @@ const getVisibleBatches = async (req, res) => {
       success: true,
       data: {
         visibleBatches: settings.visibleBatches || [],
+        visibleBatchLevelStatuses: toPlainObject(settings.visibleBatchLevelStatuses),
         updatedAt: settings.updatedAt || null,
       },
     });
@@ -19,16 +26,17 @@ const getVisibleBatches = async (req, res) => {
 
 const updateVisibleBatches = async (req, res) => {
   try {
-    const { batches } = req.body || {};
+    const { batches, batchLevelStatuses } = req.body || {};
     if (!Array.isArray(batches)) {
       return res.status(400).json({ success: false, message: 'batches must be an array.' });
     }
     const adminId = getAuthUserId(req);
-    const settings = await FinanceDashboardSettings.setVisibleBatches(batches, adminId);
+    const settings = await FinanceDashboardSettings.setVisibleBatches(batches, adminId, batchLevelStatuses);
     res.json({
       success: true,
       data: {
         visibleBatches: settings.visibleBatches || [],
+        visibleBatchLevelStatuses: toPlainObject(settings.visibleBatchLevelStatuses),
         updatedAt: settings.updatedAt || null,
       },
     });

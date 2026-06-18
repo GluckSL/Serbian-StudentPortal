@@ -13,6 +13,7 @@ import {
   PaymentHubApiService,
   CefrRow,
   ReferenceRow,
+  SubscriptionRate,
 } from './payment-hub-api.service';
 
 @Component({
@@ -39,6 +40,13 @@ export class PaymentHubSettingsComponent implements OnInit {
 
   cefrRows: CefrRow[] = [];
   referenceRows: ReferenceRow[] = [];
+  subscriptionRates: SubscriptionRate[] = [];
+
+  readonly knownPlans: ReadonlyArray<{ subscription: string; label: string }> = [
+    { subscription: 'PLATINUM', label: 'Platinum' },
+    { subscription: 'SILVER', label: 'Silver' },
+    { subscription: 'VISA_DOC', label: 'Visa & Docs' },
+  ];
 
   lastUpdated: string | null = null;
 
@@ -53,6 +61,12 @@ export class PaymentHubSettingsComponent implements OnInit {
         const d = res.data;
         this.cefrRows = (d.cefrRows || []).map(r => ({ ...r })).sort((a, b) => a.order - b.order);
         this.referenceRows = (d.referenceRows || []).map(r => ({ ...r }));
+        // Merge known plans with any saved subscription rates
+        const saved = d.subscriptionRates || [];
+        this.subscriptionRates = this.knownPlans.map(plan => {
+          const existing = saved.find(r => r.subscription === plan.subscription);
+          return existing ? { ...existing } : { subscription: plan.subscription, lkr: 0, inr: 0 };
+        });
         this.lastUpdated = d.updatedAt ?? null;
         this.loading = false;
       },
@@ -71,11 +85,16 @@ export class PaymentHubSettingsComponent implements OnInit {
     this.referenceRows.splice(i, 1);
   }
 
+  planLabel(subscription: string): string {
+    return this.knownPlans.find(p => p.subscription === subscription)?.label ?? subscription;
+  }
+
   save(): void {
     this.saving = true;
     this.api.updateCatalogSettings({
       cefrRows: this.cefrRows,
       referenceRows: this.referenceRows.filter(r => r.label.trim()),
+      subscriptionRates: this.subscriptionRates.filter(r => r.lkr > 0 || r.inr > 0),
       defaultInstallmentSchedule: { title: '', notes: '', steps: [] },
     }).subscribe({
       next: (res) => {

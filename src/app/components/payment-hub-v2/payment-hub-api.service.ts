@@ -29,10 +29,17 @@ export interface InstallmentSchedule {
   steps?: ScheduleStep[];
 }
 
+export interface SubscriptionRate {
+  subscription: string;
+  lkr: number;
+  inr: number;
+}
+
 export interface PricingCatalog {
   _id?: string;
   cefrRows: CefrRow[];
   referenceRows: ReferenceRow[];
+  subscriptionRates?: SubscriptionRate[];
   defaultInstallmentSchedule?: InstallmentSchedule;
   updatedAt?: string;
 }
@@ -360,6 +367,8 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   email: string;
   batch?: string;
   level: string;
+  studentStatus?: string;
+  subscription?: string;
   currentJourneyDay: number | null;
   totalPaid: number;
   pendingApprovalAmount: number;
@@ -395,6 +404,36 @@ export type BatchStudentPaymentFilter = LanguageLevelSlot | 'all_language' | 'al
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];
+}
+
+export interface CohortStudentsPaymentDetail {
+  students: BatchStudentPaymentRow[];
+  cohort: string;
+  status: string;
+  totalStudents: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+  levelOptions?: Array<{ value: string; label: string; total: number }>;
+  insightCounts?: { all: number; paid_full: number; have_balance: number; overdue: number };
+  levelSummaries?: Array<{
+    level: string;
+    label: string;
+    totalStudents: number;
+    receivedLKR: number;
+    receivedINR: number;
+    receivedUSD: number;
+    remainingLKR: number;
+    remainingINR: number;
+    remainingUSD: number;
+    remainingStudents: number;
+  }>;
+  totalPaidLKR: number;
+  totalPaidINR: number;
+  totalPaidUSD: number;
+  totalPendingLKR: number;
+  totalPendingINR: number;
+  totalPendingUSD: number;
 }
 
 export type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
@@ -582,20 +621,20 @@ export class PaymentHubApiService {
 
   getFinanceVisibleBatches(): Observable<{
     success: boolean;
-    data: { visibleBatches: string[]; updatedAt?: string | null };
+    data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null };
   }> {
-    return this.http.get<{ success: boolean; data: { visibleBatches: string[]; updatedAt?: string | null } }>(
+    return this.http.get<{ success: boolean; data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null } }>(
       `${this.base}/finance-dashboard/visible-batches`,
     );
   }
 
-  updateFinanceVisibleBatches(batches: string[]): Observable<{
+  updateFinanceVisibleBatches(batches: string[], batchLevelStatuses?: Record<string, string>): Observable<{
     success: boolean;
-    data: { visibleBatches: string[]; updatedAt?: string | null };
+    data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null };
   }> {
-    return this.http.put<{ success: boolean; data: { visibleBatches: string[]; updatedAt?: string | null } }>(
+    return this.http.put<{ success: boolean; data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null } }>(
       `${this.base}/finance-dashboard/visible-batches`,
-      { batches },
+      { batches, batchLevelStatuses },
     );
   }
 
@@ -610,6 +649,19 @@ export class PaymentHubApiService {
     const encoded = encodeURIComponent(batch);
     return this.http.get<{ success: boolean; data: BatchStudentsPaymentDetail }>(
       `${this.base}/batches/${encoded}/students`,
+    );
+  }
+
+  getCohortStudentsPaymentDetail(
+    cohort: string,
+    status?: string,
+    params?: Record<string, string | number | boolean | undefined | null>,
+  ): Observable<{ success: boolean; data: CohortStudentsPaymentDetail }> {
+    const q: Record<string, string | number | boolean | undefined | null> = { ...(params || {}), cohort };
+    if (status) q['status'] = status;
+    return this.http.get<{ success: boolean; data: CohortStudentsPaymentDetail }>(
+      `${this.base}/finance-dashboard/students`,
+      { params: this.toParams(q) },
     );
   }
 

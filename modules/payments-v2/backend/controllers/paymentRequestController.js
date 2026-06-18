@@ -45,6 +45,7 @@ const {
   aggregateHubDashboardStats,
   aggregateBatchPaymentInsights,
   buildLevelPriceMap,
+  buildSubscriptionPriceMapLookup,
   buildStudentLevelSlotTotals,
   pendingTotalsForStudent,
   applyJourneyOverdueAmounts,
@@ -1133,7 +1134,7 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
       role: 'STUDENT',
       batch: batchRegex,
     })
-      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates')
+      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates subscription')
       .sort({ name: 1 })
       .lean();
 
@@ -1161,7 +1162,8 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         .select('studentId paymentRequestId paidAmount currency status submittedAt approvedAt paymentDate')
         .lean(),
     ]);
-    const levelPriceMap = buildLevelPriceMap(catalog);
+    // Per-student price map respects plan-specific rates (e.g. Silver = 30k LKR)
+    const getPriceMapBatch = buildSubscriptionPriceMapLookup(catalog);
 
     const profileByStudent = {};
     for (const p of profiles) {
@@ -1196,6 +1198,7 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
 
     const rows = students.map((student) => {
       const sid = String(student._id);
+      const levelPriceMap = getPriceMapBatch(student.subscription);
       const profile = profileByStudent[sid] || null;
       const studentRequests = requestsByStudent[sid] || [];
       const studentSubs = subsByStudent[sid] || [];
@@ -1399,6 +1402,380 @@ const bulkResetStudentPayments = async (req, res) => {
   }
 };
 
+// ─── Finance dashboard: cohort-level student payment detail ──────────────────
+const VISA_DOC_SUBSCRIPTIONS_FD = ['VISA_DOC', 'VISA_DOC_ONLY', 'DOCS_RECOGNITION'];
+
+const getCohortStudentsPaymentDetail = async (req, res) => {
+  try {
+    const cohort = String(req.query.cohort || 'all').trim().toLowerCase();
+    const status = String(req.query.status || '').trim().toUpperCase();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(300, Math.max(10, parseInt(req.query.limit, 10) || 50));
+    const search = String(req.query.search || '').trim();
+    const insight = String(req.query.insight || '').trim().toLowerCase();
+    const selectedLevels = String(req.query.levels || '')
+      .split(',')
+      .map((level) => level.trim())
+      .filter(Boolean);
+
+    const User = mongoose.model('User');
+    const PaymentFlowSubmission = require('../models/PaymentSubmission');
+
+    const userQuery = { role: 'STUDENT', isTestAccount: { $ne: true } };
+
+    if (cohort === 'platinum') {
+      userQuery.subscription = 'PLATINUM';
+    } else if (cohort === 'silver') {
+      userQuery.subscription = 'SILVER';
+    } else if (cohort === 'visa_docs' || cohort === 'visa-docs') {
+      userQuery.subscription = { $in: VISA_DOC_SUBSCRIPTIONS_FD };
+    }
+
+    if (status) {
+      userQuery.studentStatus = status;
+    }
+
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(escaped, 'i');
+      userQuery.$or = [{ name: rx }, { email: rx }, { batch: rx }];
+    }
+
+    const levelOptionsQuery = { ...userQuery };
+    const levelOptionsRaw = await User.aggregate([
+      { $match: levelOptionsQuery },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$level', ''] } } } }, 0] },
+              { $trim: { input: '$level' } },
+              'Unspecified',
+            ],
+          },
+          total: { $sum: 1 },
+        },
+      },
+      { $sort: { total: -1, _id: 1 } },
+    ]);
+    const levelOptions = levelOptionsRaw.map((row) => ({
+      value: row._id === 'Unspecified' ? '__EMPTY__' : row._id,
+      label: row._id,
+      total: row.total,
+    }));
+
+    if (selectedLevels.length) {
+      const exactLevels = selectedLevels.filter((level) => level !== '__EMPTY__');
+      const includeEmpty = selectedLevels.includes('__EMPTY__');
+      if (includeEmpty && exactLevels.length) {
+        userQuery.$and = [
+          ...(userQuery.$and || []),
+          {
+            $or: [
+              { level: { $in: exactLevels } },
+              { level: { $exists: false } },
+              { level: null },
+              { level: '' },
+            ],
+          },
+        ];
+      } else if (includeEmpty) {
+        userQuery.$and = [
+          ...(userQuery.$and || []),
+          { $or: [{ level: { $exists: false } }, { level: null }, { level: '' }] },
+        ];
+      } else {
+        userQuery.level = { $in: exactLevels };
+      }
+    }
+
+    const students = await User.find(levelOptionsQuery)
+      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates studentStatus subscription')
+      .sort({ name: 1 })
+      .lean();
+
+    const emptyTotals = {
+      students: [],
+      cohort,
+      status,
+      totalStudents: 0,
+      page: 1,
+      limit,
+      totalPages: 1,
+      totalPaidLKR: 0,
+      totalPaidINR: 0,
+      totalPaidUSD: 0,
+      totalPendingLKR: 0,
+      totalPendingINR: 0,
+      totalPendingUSD: 0,
+      levelOptions,
+      insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 },
+      levelSummaries: [],
+    };
+    if (!students.length) {
+      return res.json({ success: true, data: emptyTotals });
+    }
+
+    const studentIds = students.map((s) => s._id);
+    const [catalog, profiles, requests, submissions, pendingSubmissions] = await Promise.all([
+      PaymentHubCatalog.getOrCreate(),
+      StudentPaymentProfile.find({ studentId: { $in: studentIds } }).lean(),
+      PaymentRequest.find({ studentId: { $in: studentIds }, isArchived: false }).lean(),
+      PaymentFlowSubmission.find({ studentId: { $in: studentIds }, status: 'APPROVED', isArchived: false })
+        .select('studentId paymentRequestId paidAmount currency status submittedAt approvedAt paymentDate')
+        .lean(),
+      PaymentFlowSubmission.find({ studentId: { $in: studentIds }, status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] }, isArchived: false })
+        .select('studentId paymentRequestId paidAmount currency status submittedAt approvedAt paymentDate')
+        .lean(),
+    ]);
+    // Build a per-subscription price map lookup so Silver students use 30k LKR / 1180 INR
+    const getPriceMap = buildSubscriptionPriceMapLookup(catalog);
+
+    const profileByStudent = {};
+    for (const p of profiles) profileByStudent[String(p.studentId)] = p;
+
+    const requestsByStudent = {};
+    const requestById = {};
+    for (const r of requests) {
+      const sid = String(r.studentId);
+      if (!requestsByStudent[sid]) requestsByStudent[sid] = [];
+      requestsByStudent[sid].push(r);
+      requestById[String(r._id)] = r;
+    }
+
+    const subsByStudent = {};
+    for (const sub of submissions) {
+      const sid = String(sub.studentId);
+      if (!subsByStudent[sid]) subsByStudent[sid] = [];
+      subsByStudent[sid].push(sub);
+    }
+
+    const pendingByStudent = {};
+    for (const sub of pendingSubmissions) {
+      const sid = String(sub.studentId);
+      if (!pendingByStudent[sid]) pendingByStudent[sid] = [];
+      pendingByStudent[sid].push(sub);
+    }
+
+    const rows = students.map((student) => {
+      const sid = String(student._id);
+      const levelPriceMap = getPriceMap(student.subscription);
+      const profile = profileByStudent[sid] || null;
+      const studentRequests = requestsByStudent[sid] || [];
+      const studentSubs = subsByStudent[sid] || [];
+      const levelPaid = Object.fromEntries(CEFR_LEVELS.map((l) => [l, emptyCurrencyBucket()]));
+      const docsPaidByCurrency = emptyCurrencyBucket();
+      const visaPaidByCurrency = emptyCurrencyBucket();
+      const otherPaidByCurrency = emptyCurrencyBucket();
+      let lastPaymentDate = profile?.lastPaymentDate || null;
+      let lastPaymentAmount = profile?.lastPaymentAmount || 0;
+      let lastPaymentCurrency = profile?.lastPaymentCurrency || '';
+
+      for (const sub of studentSubs) {
+        const paid = Number(sub.paidAmount) || 0;
+        if (paid <= 0) continue;
+        const req = requestById[String(sub.paymentRequestId)];
+        const payDate = sub.approvedAt || sub.paymentDate || sub.submittedAt;
+        if (payDate && (!lastPaymentDate || new Date(payDate) > new Date(lastPaymentDate))) {
+          lastPaymentDate = payDate;
+          lastPaymentAmount = paid;
+          lastPaymentCurrency = sub.currency || lastPaymentCurrency;
+        }
+        const ccy = sub.currency || req?.currency || 'LKR';
+        if (!req) { addToCurrencyBucket(otherPaidByCurrency, ccy, paid); continue; }
+        const pt = String(req.paymentType || '').toUpperCase();
+        if (pt === 'DOCS_PAYMENT') { addToCurrencyBucket(docsPaidByCurrency, ccy, paid); continue; }
+        if (pt === 'VISA_PAYMENT') { addToCurrencyBucket(visaPaidByCurrency, ccy, paid); continue; }
+        const lv = detectLevelFromPaymentRequest(req) || (pt === 'LANGUAGE_FEE' ? String(student.level || '').toUpperCase().trim() : null);
+        if (lv && levelPaid[lv] != null) {
+          addToCurrencyBucket(levelPaid[lv], ccy, paid);
+        } else {
+          addToCurrencyBucket(otherPaidByCurrency, ccy, paid);
+        }
+      }
+
+      const currentDay = student.currentCourseDay != null ? Math.min(200, Math.max(1, Math.floor(Number(student.currentCourseDay)))) : null;
+      const studentPendingSubs = pendingByStudent[sid] || [];
+      const overdueSince = overdueSinceForStudent(student, studentRequests, studentSubs, studentPendingSubs, levelPriceMap);
+      const { live: langLive } = computeTotalsForStudentLevel(studentRequests, studentSubs, studentPendingSubs, student.level);
+      const langPendingStudent = pendingTotalsForStudent(studentRequests, studentSubs, studentPendingSubs, student, levelPriceMap);
+      const langOverdueStudent = applyJourneyOverdueAmounts(student, langPendingStudent, {
+        LKR: langLive.overdueAmountLKR || 0,
+        INR: langLive.overdueAmountINR || 0,
+        USD: langLive.overdueAmountUSD || 0,
+      });
+      const { levelSlots, allLanguageFees } = buildStudentLevelSlotTotals(student, studentRequests, studentSubs, studentPendingSubs, levelPriceMap);
+
+      return {
+        studentId: sid,
+        name: student.name,
+        email: student.email,
+        batch: student.batch,
+        level: student.level || '—',
+        studentStatus: student.studentStatus,
+        subscription: student.subscription,
+        currentJourneyDay: currentDay,
+        totalPaid: profile?.totalPaid ?? 0,
+        ...paidTotalsFromBreakdown(profile?.currencyBreakdown),
+        ...pendingTotalsFromBreakdown(profile?.currencyBreakdown),
+        ...overdueTotalsFromBreakdown(profile?.currencyBreakdown),
+        langPaidLKR: langLive.totalPaidLKR || 0,
+        langPaidINR: langLive.totalPaidINR || 0,
+        langPaidUSD: langLive.totalPaidUSD || 0,
+        langPendingLKR: langPendingStudent.LKR || 0,
+        langPendingINR: langPendingStudent.INR || 0,
+        langPendingUSD: langPendingStudent.USD || 0,
+        langOverdueLKR: langOverdueStudent.LKR || 0,
+        langOverdueINR: langOverdueStudent.INR || 0,
+        langOverdueUSD: langOverdueStudent.USD || 0,
+        pendingApprovalAmount: profile?.pendingApprovalAmount ?? 0,
+        overdueAmount: profile?.overdueAmount ?? 0,
+        overdueSince,
+        overallStatus: profile?.overallStatus || 'NO_REQUESTS',
+        levelPaid,
+        levelSlots,
+        allLanguageFees,
+        docsPaidByCurrency,
+        visaPaidByCurrency,
+        otherPaidByCurrency,
+        lastPaymentDate,
+        lastPaymentAmount,
+        lastPaymentCurrency,
+        inferredCurrency: inferCurrencyFromPhone(student.phoneNumber),
+        openRequestCount: studentRequests.filter((r) => !['PAID', 'CANCELLED'].includes(String(r.status))).length,
+      };
+    });
+
+    const pendingTotalForRow = (r) => (r.langPendingLKR || 0) + (r.langPendingINR || 0) + (r.langPendingUSD || 0);
+    const overdueTotalForRow = (r) => (r.langOverdueLKR || 0) + (r.langOverdueINR || 0) + (r.langOverdueUSD || 0);
+    const remainingTotalForRow = (r) => pendingTotalForRow(r) + overdueTotalForRow(r);
+    const rowCurrentLevelSlot = (r) => r.levelSlots?.[String(r.level || '').toUpperCase().trim()] || null;
+    const rowCurrentLevelIsPaidFull = (r) => {
+      const slot = rowCurrentLevelSlot(r);
+      const remaining = remainingTotalForRow(r);
+      if (!slot) {
+        return remaining <= 0 && ((r.langPaidLKR || 0) + (r.langPaidINR || 0) + (r.langPaidUSD || 0)) > 0;
+      }
+      const expectedLKR = slot.expectedLKR || 0;
+      const expectedINR = slot.expectedINR || 0;
+      const expectedUSD = slot.expectedUSD || 0;
+      const hasExpected = expectedLKR > 0 || expectedINR > 0 || expectedUSD > 0;
+      if (!hasExpected) {
+        return remaining <= 0 && ((slot.receivedLKR || 0) + (slot.receivedINR || 0) + (slot.receivedUSD || 0)) > 0;
+      }
+      return (
+        remaining <= 0 &&
+        (expectedLKR <= 0 || (slot.receivedLKR || 0) >= expectedLKR) &&
+        (expectedINR <= 0 || (slot.receivedINR || 0) >= expectedINR) &&
+        (expectedUSD <= 0 || (slot.receivedUSD || 0) >= expectedUSD)
+      );
+    };
+    const rowMatchesInsight = (r, key) => {
+      if (!key) return true;
+      const pending = pendingTotalForRow(r);
+      const overdue = overdueTotalForRow(r);
+      const remaining = pending + overdue;
+      const status = String(r.overallStatus || '').toUpperCase();
+      switch (key) {
+        case 'paid_full':
+          return rowCurrentLevelIsPaidFull(r);
+        case 'have_balance':
+          return remaining > 0 || ['BALANCE', 'DUE', 'OVERDUE'].includes(status);
+        case 'overdue':
+          return overdue > 0 || status === 'OVERDUE';
+        default:
+          return true;
+      }
+    };
+    const rowMatchesSelectedLevel = (r) => {
+      if (!selectedLevels.length) return true;
+      const exactLevels = selectedLevels.filter((level) => level !== '__EMPTY__');
+      const includeEmpty = selectedLevels.includes('__EMPTY__');
+      const rowLevel = String(r.level || '').trim();
+      return exactLevels.includes(rowLevel) || (includeEmpty && (!rowLevel || rowLevel === '—'));
+    };
+    const levelSummaries = levelOptions.map((opt) => {
+      const levelRows = rows.filter((r) => {
+        const rowLevel = String(r.level || '').trim();
+        return opt.value === '__EMPTY__' ? (!rowLevel || rowLevel === '—') : rowLevel === opt.value;
+      });
+      return levelRows.reduce((acc, r) => {
+        const remainingLKR = (r.langPendingLKR || 0) + (r.langOverdueLKR || 0);
+        const remainingINR = (r.langPendingINR || 0) + (r.langOverdueINR || 0);
+        const remainingUSD = (r.langPendingUSD || 0) + (r.langOverdueUSD || 0);
+        acc.totalStudents += 1;
+        acc.receivedLKR += r.langPaidLKR || 0;
+        acc.receivedINR += r.langPaidINR || 0;
+        acc.receivedUSD += r.langPaidUSD || 0;
+        acc.remainingLKR += remainingLKR;
+        acc.remainingINR += remainingINR;
+        acc.remainingUSD += remainingUSD;
+        if (remainingLKR + remainingINR + remainingUSD > 0) acc.remainingStudents += 1;
+        return acc;
+      }, {
+        level: opt.value,
+        label: opt.label,
+        totalStudents: 0,
+        receivedLKR: 0,
+        receivedINR: 0,
+        receivedUSD: 0,
+        remainingLKR: 0,
+        remainingINR: 0,
+        remainingUSD: 0,
+        remainingStudents: 0,
+      });
+    }).filter((row) => row.totalStudents > 0);
+
+    const levelFilteredRows = rows.filter(rowMatchesSelectedLevel);
+    const insightCounts = {
+      all: levelFilteredRows.length,
+      paid_full: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'paid_full')).length,
+      have_balance: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'have_balance')).length,
+      overdue: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'overdue')).length,
+    };
+    const filteredRows = levelFilteredRows.filter((r) => rowMatchesInsight(r, insight));
+    const totalStudents = filteredRows.length;
+    const totalPages = Math.max(1, Math.ceil(totalStudents / limit));
+    const safePage = Math.min(page, totalPages);
+    const pageRows = filteredRows.slice((safePage - 1) * limit, safePage * limit);
+
+    let totalPaidLKR = 0, totalPaidINR = 0, totalPaidUSD = 0;
+    let totalPendingLKR = 0, totalPendingINR = 0, totalPendingUSD = 0;
+    for (const r of filteredRows) {
+      totalPaidLKR += r.totalPaidLKR || 0;
+      totalPaidINR += r.totalPaidINR || 0;
+      totalPaidUSD += r.totalPaidUSD || 0;
+      totalPendingLKR += (r.langPendingLKR || 0) + (r.langOverdueLKR || 0);
+      totalPendingINR += (r.langPendingINR || 0) + (r.langOverdueINR || 0);
+      totalPendingUSD += (r.langPendingUSD || 0) + (r.langOverdueUSD || 0);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        students: pageRows,
+        cohort,
+        status,
+        totalStudents,
+        page: safePage,
+        limit,
+        totalPages,
+        totalPaidLKR,
+        totalPaidINR,
+        totalPaidUSD,
+        totalPendingLKR,
+        totalPendingINR,
+        totalPendingUSD,
+        levelOptions,
+        insightCounts,
+        levelSummaries,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 module.exports = {
   createRequests,
   getAllRequests,
@@ -1407,6 +1784,7 @@ module.exports = {
   browseStudents,
   getBatchPaymentSummary,
   getBatchStudentsPaymentDetail,
+  getCohortStudentsPaymentDetail,
   getStudentPaymentHistory,
   getRequestTimeline,
   addInternalNote,

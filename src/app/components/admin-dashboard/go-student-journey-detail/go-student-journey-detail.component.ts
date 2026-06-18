@@ -8,6 +8,14 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
+import { JOURNEY_LEVEL_DAY_RANGES, levelForJourneyDay } from '../../../utils/journey-day-ranges.util';
+
+interface LevelBlock {
+  level: string;
+  dayStart: number;
+  dayEnd: number;
+  status: 'done' | 'active' | 'locked';
+}
 
 @Component({
   selector: 'app-go-student-journey-detail',
@@ -95,6 +103,35 @@ import { NotificationService } from '../../../services/notification.service';
         <p class="gsd-hint" *ngIf="!journeySync?.sequentialUnlock">
           Content for days after this stays locked for the student until you raise this day.
         </p>
+      </div>
+    </div>
+
+    <!-- Level Block Cards -->
+    <div class="gsd-level-cards">
+      <div
+        *ngFor="let lv of levelBlocks"
+        class="gsd-level-card"
+        [class.gsd-level-card--active]="lv.status === 'active'"
+        [class.gsd-level-card--done]="lv.status === 'done'"
+        [class.gsd-level-card--locked]="lv.status === 'locked'"
+      >
+        <div class="gsd-level-card-top">
+          <span class="gsd-level-badge" [class.gsd-level-badge--active]="lv.status === 'active'" [class.gsd-level-badge--done]="lv.status === 'done'" [class.gsd-level-badge--locked]="lv.status === 'locked'">{{ lv.level }}</span>
+          <span class="gsd-level-status-pill" [class.gsd-level-status-pill--active]="lv.status === 'active'" [class.gsd-level-status-pill--done]="lv.status === 'done'" [class.gsd-level-status-pill--locked]="lv.status === 'locked'">
+            {{ lv.status === 'active' ? 'Current Level' : lv.status === 'done' ? 'Completed' : 'Locked' }}
+          </span>
+        </div>
+        <div class="gsd-level-days">Days {{ lv.dayStart }}–{{ lv.dayEnd }}</div>
+        <button
+          type="button"
+          class="gsd-level-jump-btn"
+          [class.gsd-level-jump-btn--active]="lv.status === 'active'"
+          [class.gsd-level-jump-btn--done]="lv.status === 'done'"
+          [disabled]="saving"
+          (click)="jumpToLevel(lv)"
+        >
+          {{ lv.status === 'active' ? 'Restart from Day ' + lv.dayStart : lv.status === 'done' ? 'Go back to Day ' + lv.dayStart : 'Jump to Day ' + lv.dayStart }}
+        </button>
       </div>
     </div>
 
@@ -380,6 +417,50 @@ import { NotificationService } from '../../../services/notification.service';
     .gsd-table th { text-align: left; padding: 10px 12px; background: #03396c; color: #fff; font-size: 11px; text-transform: uppercase; }
     .gsd-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
     .gsd-day-pill { background: #dbeafe; color: #005b96; padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+
+    /* Level Block Cards */
+    .gsd-level-cards {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 18px 0 0;
+    }
+    @media (max-width: 700px) {
+      .gsd-level-cards { grid-template-columns: repeat(2, 1fr); }
+    }
+    .gsd-level-card {
+      background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px;
+      padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+      box-shadow: 0 2px 8px rgba(15,23,42,.05); transition: box-shadow .15s, border-color .15s;
+    }
+    .gsd-level-card--active {
+      border-color: #005b96; box-shadow: 0 4px 16px rgba(0,91,150,.13);
+      background: linear-gradient(135deg, #f0f8ff 0%, #e8f4fd 100%);
+    }
+    .gsd-level-card--done { border-color: #86efac; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); }
+    .gsd-level-card--locked { background: #f8fafc; opacity: .72; }
+    .gsd-level-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .gsd-level-badge {
+      font-size: 22px; font-weight: 800; letter-spacing: .02em;
+    }
+    .gsd-level-badge--active { color: #005b96; }
+    .gsd-level-badge--done { color: #15803d; }
+    .gsd-level-badge--locked { color: #94a3b8; }
+    .gsd-level-status-pill {
+      font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .gsd-level-status-pill--active { background: #dbeafe; color: #005b96; }
+    .gsd-level-status-pill--done { background: #dcfce7; color: #15803d; }
+    .gsd-level-status-pill--locked { background: #f1f5f9; color: #94a3b8; }
+    .gsd-level-days { font-size: 12px; color: #64748b; font-weight: 500; }
+    .gsd-level-jump-btn {
+      width: 100%; padding: 8px 10px; border-radius: 9px; border: 1.5px solid #e2e8f0;
+      font-size: 11px; font-weight: 600; cursor: pointer; background: #fff; color: #475569;
+      font-family: inherit; transition: background .15s, border-color .15s, color .15s; white-space: nowrap;
+    }
+    .gsd-level-jump-btn:hover:not(:disabled) { background: #f0f4f8; border-color: #bae6fd; color: #005b96; }
+    .gsd-level-jump-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .gsd-level-jump-btn--active { background: #005b96; color: #fff; border-color: #005b96; }
+    .gsd-level-jump-btn--active:hover:not(:disabled) { background: #03396c; border-color: #03396c; }
+    .gsd-level-jump-btn--done { background: #dcfce7; color: #15803d; border-color: #86efac; }
+    .gsd-level-jump-btn--done:hover:not(:disabled) { background: #bbf7d0; }
   `]
 })
 export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
@@ -400,6 +481,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   dayOptions: number[] = [];
   tab: 'recordings' | 'dgBot' | 'exercises' | 'arena' = 'recordings';
   error = '';
+  levelBlocks: LevelBlock[] = [];
 
   private sub?: Subscription;
   private studentId = '';
@@ -434,6 +516,44 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
     this.dayOptions = Array.from({ length: n }, (_, i) => i + 1);
   }
 
+  private rebuildLevelBlocks(currentDay: number): void {
+    const currentLevel = levelForJourneyDay(currentDay);
+    this.levelBlocks = JOURNEY_LEVEL_DAY_RANGES.map((r) => {
+      let status: 'done' | 'active' | 'locked';
+      if (r.level === currentLevel) {
+        status = 'active';
+      } else if (currentDay > r.dayEnd) {
+        status = 'done';
+      } else {
+        status = 'locked';
+      }
+      return { level: r.level, dayStart: r.dayStart, dayEnd: r.dayEnd, status };
+    });
+  }
+
+  jumpToLevel(lv: LevelBlock): void {
+    if (!this.studentId) return;
+    this.editDay = lv.dayStart;
+    this.saving = true;
+    this.http
+      .patch<{ currentCourseDay: number }>(
+        `${environment.apiUrl}/${this.goApiPath}/${this.studentId}/journey-day`,
+        { currentCourseDay: lv.dayStart },
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: () => {
+          this.saving = false;
+          this.notify.success(`Journey day set to Day ${lv.dayStart} (${lv.level} start). Student portal updated.`);
+          this.load(this.studentId);
+        },
+        error: (e) => {
+          this.saving = false;
+          this.notify.error(e?.error?.message || 'Failed to update journey day.');
+        }
+      });
+  }
+
   load(studentId: string): void {
     this.loading = true;
     this.error = '';
@@ -445,6 +565,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
         this.maxJourneyDay = r.journeyLength >= 1 ? Math.min(r.journeyLength, 200) : 200;
         this.rebuildDayOptions();
         this.editDay = r.student?.currentDay || 1;
+        this.rebuildLevelBlocks(this.editDay);
         if (r.journeySync?.reconciled) {
           this.notify.success(
             `Journey day synced to Day ${r.student?.currentDay} based on incomplete resources.`
