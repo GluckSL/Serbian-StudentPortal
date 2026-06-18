@@ -17,6 +17,14 @@ export interface TeacherBatchRow {
   attendance: number | null;
 }
 
+export interface LevelRate {
+  level: string;
+  rate: number | null;
+}
+
+const RATES_STORAGE_KEY = 'ta_teacher_level_rates';
+const TDS_PERCENT = 10;
+
 export interface TeacherSummaryRow {
   teacherId: string;
   tutor: string;
@@ -78,13 +86,23 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   readonly skeletonKpis = [1, 2, 3, 4];
   readonly skeletonRows = Array.from({ length: 8 });
 
+  managerTeacher: TeacherSummaryRow | null = null;
+  managerRates: LevelRate[] = [];
+  private allLevelRates: Record<string, Record<string, number>> = {};
+
   constructor(
     private http: HttpClient,
     private router: Router,
-  ) {}
+  ) {
+    const stored = localStorage.getItem(RATES_STORAGE_KEY);
+    if (stored) {
+      try { this.allLevelRates = JSON.parse(stored); } catch { this.allLevelRates = {}; }
+    }
+  }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.managerTeacher) { this.closeManager(); return; }
     this.closeDetail();
   }
 
@@ -217,6 +235,68 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     if (pct >= 80) return 'att-good';
     if (pct >= 60) return 'att-warn';
     return 'att-bad';
+  }
+
+  openManager(teacher: TeacherSummaryRow): void {
+    this.managerTeacher = teacher;
+    const levels = this.getTeacherLevels(teacher);
+    const saved = this.allLevelRates[teacher.teacherId] || {};
+    this.managerRates = levels.map((lvl) => ({ level: lvl, rate: saved[lvl] ?? null }));
+    document.body.style.overflow = 'hidden';
+  }
+
+  closeManager(): void {
+    this.managerTeacher = null;
+    this.managerRates = [];
+    document.body.style.overflow = '';
+  }
+
+  saveManagerRates(): void {
+    if (!this.managerTeacher) return;
+    const rateMap: Record<string, number> = {};
+    for (const lr of this.managerRates) {
+      if (lr.rate != null && lr.rate >= 0) rateMap[lr.level] = lr.rate;
+    }
+    this.allLevelRates[this.managerTeacher.teacherId] = rateMap;
+    localStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(this.allLevelRates));
+    this.closeManager();
+  }
+
+  private getTeacherLevels(_teacher: TeacherSummaryRow): string[] {
+    return ['A1', 'A2', 'B1', 'B2'];
+  }
+
+  computeTotal(teacher: TeacherSummaryRow): number {
+    const rates = this.allLevelRates[teacher.teacherId] || {};
+    if (teacher.batchBreakdown?.length) {
+      return teacher.batchBreakdown.reduce((sum, b) => {
+        const r = rates[b.level] ?? 0;
+        return sum + (b.tutorHours || 0) * r;
+      }, 0);
+    }
+    const levels = this.getTeacherLevels(teacher);
+    if (!levels.length) return 0;
+    const avgRate = levels.reduce((s, l) => s + (rates[l] ?? 0), 0) / levels.length;
+    return (teacher.tutorHours || 0) * avgRate;
+  }
+
+  computeTDS(teacher: TeacherSummaryRow): number {
+    return this.computeTotal(teacher) * TDS_PERCENT / 100;
+  }
+
+  computeFinal(teacher: TeacherSummaryRow): number {
+    return this.computeTotal(teacher) - this.computeTDS(teacher);
+  }
+
+  getRateDisplay(teacher: TeacherSummaryRow): string {
+    const rates = this.allLevelRates[teacher.teacherId];
+    if (!rates || !Object.keys(rates).length) return '—';
+    return Object.entries(rates).map(([l, r]) => `${l}:${r}`).join(', ');
+  }
+
+  hasRates(teacher: TeacherSummaryRow): boolean {
+    const rates = this.allLevelRates[teacher.teacherId];
+    return !!rates && Object.keys(rates).length > 0;
   }
 
   openTeacherReport(teacher: TeacherSummaryRow): void {

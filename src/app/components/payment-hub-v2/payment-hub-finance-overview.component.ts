@@ -6,6 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { environment } from '../../../environments/environment';
 import { BatchPaymentSummaryRow, PaymentHubApiService } from './payment-hub-api.service';
 import {
@@ -19,7 +20,7 @@ type BatchLevelStatus = '' | 'A1:ONGOING' | 'A1:COMPLETED' | 'A2:ONGOING' | 'A2:
 @Component({
   selector: 'app-payment-hub-finance-overview',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule],
+  imports: [CommonModule, FormsModule, RouterModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule, MatTooltipModule],
   templateUrl: './payment-hub-finance-overview.component.html',
   styleUrls: ['./payment-hub-finance-overview.component.scss', './payment-hub-insights-page.scss'],
 })
@@ -33,6 +34,7 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   visibleBatchLevelStatuses: Record<string, string> = {};
   batchRows: BatchPaymentSummaryRow[] = [];
   selectedBatchLevelByName: Record<string, BatchLevelStatus> = {};
+  selectedBatches = new Set<string>();
   counts: PortalStudentCounts = {
     portalNonTest: 0,
     ongoingNonTest: 0,
@@ -83,7 +85,19 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   }
 
   get selectedModalBatchCount(): number {
-    return this.availableBatchesToAdd.filter((b) => !!this.selectedBatchLevelByName[b]).length;
+    return [...this.selectedBatches].filter((b) => this.availableBatchesToAdd.includes(b)).length;
+  }
+
+  isBatchSelected(batch: string): boolean {
+    return this.selectedBatches.has(batch);
+  }
+
+  toggleBatchSelection(batch: string): void {
+    if (this.selectedBatches.has(batch)) {
+      this.selectedBatches.delete(batch);
+    } else {
+      this.selectedBatches.add(batch);
+    }
   }
 
   batchesRoute(_cohort: FinanceCohort): string {
@@ -116,25 +130,46 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
 
   addSelectedBatches(): void {
     if (!this.selectedModalBatchCount || this.savingVisibleBatches) return;
-    const selected = this.availableBatchesToAdd.filter((b) => !!this.selectedBatchLevelByName[b]);
+    const selected = [...this.selectedBatches].filter((b) => this.availableBatchesToAdd.includes(b));
     const next = [...new Set([...this.visibleBatches, ...selected])];
     const nextLevelStatuses: Record<string, string> = { ...this.visibleBatchLevelStatuses };
     selected.forEach((batch) => {
-      nextLevelStatuses[batch] = this.selectedBatchLevelByName[batch];
+      const level = this.selectedBatchLevelByName[batch];
+      if (level) nextLevelStatuses[batch] = level;
     });
+    this.persistVisibleBatches(next, nextLevelStatuses, `Added ${selected.length} batch(es) to the dashboard.`, () => {
+      this.showAddBatchModal = false;
+      this.selectedBatches = new Set();
+      this.selectedBatchLevelByName = {};
+    });
+  }
+
+  removeVisibleBatch(batch: string): void {
+    if (this.savingVisibleBatches) return;
+    const next = this.visibleBatches.filter((b) => b !== batch);
+    const nextLevelStatuses: Record<string, string> = { ...this.visibleBatchLevelStatuses };
+    delete nextLevelStatuses[batch];
+    this.persistVisibleBatches(next, nextLevelStatuses, `"${batch}" removed from dashboard.`);
+  }
+
+  private persistVisibleBatches(
+    batches: string[],
+    levelStatuses: Record<string, string>,
+    successMessage: string,
+    onSuccess?: () => void,
+  ): void {
     this.savingVisibleBatches = true;
-    this.api.updateFinanceVisibleBatches(next, nextLevelStatuses).subscribe({
+    this.api.updateFinanceVisibleBatches(batches, levelStatuses).subscribe({
       next: (res) => {
-        this.visibleBatches = [...(res.data?.visibleBatches || next)];
-        this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || nextLevelStatuses) };
+        this.visibleBatches = [...(res.data?.visibleBatches || batches)];
+        this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || levelStatuses) };
         this.savingVisibleBatches = false;
-        this.showAddBatchModal = false;
-        this.selectedBatchLevelByName = {};
-        this.snack.open(`Added ${selected.length} batch(es) to the dashboard.`, 'OK', { duration: 3000 });
+        onSuccess?.();
+        this.snack.open(successMessage, 'OK', { duration: 3000 });
       },
       error: (err) => {
         this.savingVisibleBatches = false;
-        this.snack.open(err?.error?.message || 'Could not add selected batches.', 'Dismiss', { duration: 4500 });
+        this.snack.open(err?.error?.message || 'Could not update dashboard batches.', 'Dismiss', { duration: 4500 });
       },
     });
   }
@@ -198,8 +233,9 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
 
   private pruneSelectedBatchLevels(): void {
     const available = new Set(this.availableBatchesToAdd);
+    this.selectedBatches = new Set([...this.selectedBatches].filter((b) => available.has(b)));
     this.selectedBatchLevelByName = Object.fromEntries(
-      Object.entries(this.selectedBatchLevelByName).filter(([batch, value]) => available.has(batch) && !!value),
+      Object.entries(this.selectedBatchLevelByName).filter(([batch]) => available.has(batch)),
     ) as Record<string, BatchLevelStatus>;
   }
 }

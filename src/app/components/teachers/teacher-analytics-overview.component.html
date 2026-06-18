@@ -136,6 +136,10 @@
               <th class="tao-num">Classes</th>
               <th class="tao-num">Total Hours</th>
               <th class="tao-num">Attendance</th>
+              <th class="tao-num">Per Hr Rate</th>
+              <th class="tao-num">Total (₹)</th>
+              <th class="tao-num">TDS (10%)</th>
+              <th class="tao-num">Final (₹)</th>
               <th class="tao-actions-col">Actions</th>
             </tr>
           </thead>
@@ -175,6 +179,22 @@
               <td class="tao-num" [ngClass]="attendanceClass(teacher.attendance)">
                 {{ formatAttendance(teacher.attendance) }}
               </td>
+              <td class="tao-num tao-rate-cell">
+                <span *ngIf="hasRates(teacher); else noRate" class="tao-rate-tag">{{ getRateDisplay(teacher) }}</span>
+                <ng-template #noRate><span class="tao-muted">—</span></ng-template>
+              </td>
+              <td class="tao-num tao-total-cell">
+                <span *ngIf="hasRates(teacher); else dash1">{{ computeTotal(teacher) | number:'1.0-0' }}</span>
+                <ng-template #dash1><span class="tao-muted">—</span></ng-template>
+              </td>
+              <td class="tao-num tao-tds-cell">
+                <span *ngIf="hasRates(teacher); else dash2">{{ computeTDS(teacher) | number:'1.0-0' }}</span>
+                <ng-template #dash2><span class="tao-muted">—</span></ng-template>
+              </td>
+              <td class="tao-num tao-final-cell">
+                <span *ngIf="hasRates(teacher); else dash3">{{ computeFinal(teacher) | number:'1.0-0' }}</span>
+                <ng-template #dash3><span class="tao-muted">—</span></ng-template>
+              </td>
               <td class="tao-actions-col">
                 <button type="button" class="tao-action-btn tao-action-btn--view" (click)="openDetail(teacher)">
                   <i class="fas fa-eye"></i> View
@@ -182,16 +202,68 @@
                 <button type="button" class="tao-action-btn tao-action-btn--report" (click)="openTeacherReport(teacher)">
                   <i class="fas fa-chart-line"></i> Report
                 </button>
+                <button type="button" class="tao-action-btn tao-action-btn--manager" (click)="openManager(teacher)">
+                  <i class="fas fa-dollar-sign"></i> Manager
+                </button>
               </td>
             </tr>
             <tr *ngIf="!filteredTeachers.length">
-              <td colspan="9" class="tao-empty">No teachers match your filters.</td>
+              <td colspan="13" class="tao-empty">No teachers match your filters.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
   </ng-container>
+
+  <!-- Manager modal -->
+  <div class="tao-modal-backdrop" *ngIf="managerTeacher" (click)="closeManager()"></div>
+  <div class="tao-manager-modal" *ngIf="managerTeacher" role="dialog" aria-modal="true">
+    <div class="tao-manager-modal__head">
+      <div>
+        <p class="tao-drawer__eyebrow">Rate Configuration</p>
+        <h2><i class="fas fa-dollar-sign"></i> Manager — {{ managerTeacher.tutor }}</h2>
+        <p class="tao-drawer__meta">Set per-hour rate for each level taught by this teacher</p>
+      </div>
+      <button type="button" class="tao-drawer__close" (click)="closeManager()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="tao-manager-modal__body">
+      <div class="tao-rate-grid">
+        <div class="tao-rate-row" *ngFor="let lr of managerRates">
+          <div class="tao-rate-level-badge">{{ lr.level }}</div>
+          <div class="tao-rate-input-wrap">
+            <span class="tao-rate-prefix">₹</span>
+            <input
+              type="number"
+              class="tao-rate-input"
+              [(ngModel)]="lr.rate"
+              min="0"
+              step="50"
+              placeholder="e.g. 1000"
+            />
+            <span class="tao-rate-suffix">/ hr</span>
+          </div>
+          <div class="tao-rate-preview" *ngIf="lr.rate != null && lr.rate > 0">
+            <span class="tao-rate-preview__label">Sample (10 hrs)</span>
+            <span class="tao-rate-preview__val">₹{{ (lr.rate * 10) | number:'1.0-0' }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="tao-manager-info">
+        <i class="fas fa-info-circle"></i>
+        TDS is automatically calculated at <strong>10%</strong> of the total amount.
+        Final = Total − TDS.
+      </div>
+    </div>
+    <div class="tao-manager-modal__foot">
+      <button type="button" class="tao-btn tao-btn--outline" (click)="closeManager()">Cancel</button>
+      <button type="button" class="tao-btn tao-btn--solid" (click)="saveManagerRates()">
+        <i class="fas fa-save"></i> Save Rates
+      </button>
+    </div>
+  </div>
 
   <!-- Detail modal -->
   <div class="tao-modal-backdrop" *ngIf="detailTeacher" (click)="closeDetail()"></div>

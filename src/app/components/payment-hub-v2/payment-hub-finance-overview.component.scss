@@ -273,8 +273,8 @@
 .ph-finance-add-batch-modal__columns,
 .ph-finance-add-batch-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
-  gap: 14px;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(180px, 220px);
+  gap: 12px;
   align-items: center;
 }
 
@@ -301,8 +301,28 @@
 }
 
 .ph-finance-add-batch-row {
-  padding: 12px 0;
+  padding: 10px 8px;
   border-bottom: 1px solid #f1f5f9;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &--selected {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+  }
+
+  &:hover:not(.ph-finance-add-batch-row--selected) {
+    background: #f8fafc;
+  }
+}
+
+.ph-finance-add-batch-row__check {
+  width: 18px;
+  height: 18px;
+  accent-color: #22c55e;
+  cursor: pointer;
+  flex: 0 0 auto;
 }
 
 .ph-finance-add-batch-row__batch {
@@ -431,6 +451,112 @@
     font-weight: 800;
     color: #0f172a;
   }
+}
+
+// ── Batch chips on the overview card ────────────────────────────────────────
+
+.ph-finance-batch-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #f0fdf4;
+  width: 100%;
+}
+
+.ph-finance-batch-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+
+  &__icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: #16a34a;
+    flex: 0 0 auto;
+  }
+
+  &__name {
+    flex: 1;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #0f172a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__level {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #15803d;
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    border-radius: 6px;
+    padding: 2px 7px;
+    flex: 0 0 auto;
+  }
+
+  &__remove {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    &:hover:not(:disabled) {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.ph-finance-batch-chips-empty {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+
+  strong {
+    color: #15803d;
+  }
+}
+
+// ── Modal: updated grid with checkbox column ─────────────────────────────────
+
+.ph-optional-hint {
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.7rem;
+  color: #94a3b8;
 }
 
 .ph-finance-overview-loading {

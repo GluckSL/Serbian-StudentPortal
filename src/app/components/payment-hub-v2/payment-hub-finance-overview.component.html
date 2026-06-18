@@ -169,7 +169,31 @@
             <mat-icon>arrow_forward</mat-icon>
           </a>
           <p class="ph-finance-overview-card__hint">
-            Add batches from the button above. This card shows how many batches are currently on this dashboard.
+            Batches are saved to the database and visible to all admins until removed.
+          </p>
+
+          <div class="ph-finance-batch-chips" *ngIf="!loadingVisibleBatches && visibleBatches.length">
+            <div class="ph-finance-batch-chip" *ngFor="let b of visibleBatches">
+              <mat-icon class="ph-finance-batch-chip__icon">label</mat-icon>
+              <span class="ph-finance-batch-chip__name">{{ b }}</span>
+              <span class="ph-finance-batch-chip__level" *ngIf="visibleBatchLevelStatuses[b]">
+                {{ visibleBatchLevelStatuses[b] }}
+              </span>
+              <button
+                type="button"
+                class="ph-finance-batch-chip__remove"
+                (click)="removeVisibleBatch(b)"
+                [disabled]="savingVisibleBatches"
+                [attr.aria-label]="'Remove ' + b + ' from dashboard'"
+                matTooltip="Remove from dashboard"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <p class="ph-finance-batch-chips-empty" *ngIf="!loadingVisibleBatches && !visibleBatches.length">
+            No batches added yet — use the <strong>+ Add Batch</strong> button above.
           </p>
         </article>
       </div>
@@ -212,20 +236,33 @@
       </div>
 
       <div class="ph-finance-add-batch-modal__columns">
-        <span>Batch number</span>
-        <span>Level</span>
+        <span></span>
+        <span>Batch</span>
+        <span>Level <em class="ph-optional-hint">(optional)</em></span>
       </div>
 
       <div class="ph-finance-add-batch-modal__body">
         <div class="ph-finance-add-batch-modal__state" *ngIf="loadingBatchOptions">
-          Loading batches...
+          Loading batches…
         </div>
 
         <div class="ph-finance-add-batch-modal__state" *ngIf="!loadingBatchOptions && !availableBatchesToAdd.length">
-          All batches are already added to this dashboard.
+          All available batches are already on this dashboard.
         </div>
 
-        <div class="ph-finance-add-batch-row" *ngFor="let batch of availableBatchesToAdd">
+        <label
+          class="ph-finance-add-batch-row"
+          [class.ph-finance-add-batch-row--selected]="isBatchSelected(batch)"
+          *ngFor="let batch of availableBatchesToAdd"
+          [attr.aria-label]="'Select batch ' + batch"
+        >
+          <input
+            type="checkbox"
+            class="ph-finance-add-batch-row__check"
+            [checked]="isBatchSelected(batch)"
+            (change)="toggleBatchSelection(batch)"
+            [disabled]="savingVisibleBatches"
+          />
           <div class="ph-finance-add-batch-row__batch">
             <mat-icon>label</mat-icon>
             <span>{{ batch }}</span>
@@ -234,14 +271,14 @@
             class="ph-finance-add-batch-row__select"
             [ngModel]="selectedBatchLevelByName[batch] || ''"
             (ngModelChange)="selectedBatchLevelByName[batch] = $event"
-            [disabled]="savingVisibleBatches"
+            [disabled]="savingVisibleBatches || !isBatchSelected(batch)"
             [attr.aria-label]="'Select level for ' + batch"
           >
             <option *ngFor="let opt of batchLevelStatusOptions" [ngValue]="opt.value">
               {{ opt.label }}
             </option>
           </select>
-        </div>
+        </label>
       </div>
 
       <div class="ph-finance-add-batch-modal__footer">

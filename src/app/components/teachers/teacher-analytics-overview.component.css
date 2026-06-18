@@ -271,7 +271,7 @@
 
 .tao-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 1300px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -444,6 +444,32 @@
 }
 
 .tao-action-btn--report:hover { background: #ede9fe; }
+
+.tao-action-btn--manager {
+  background: #fff7ed;
+  color: #ea580c;
+  border-color: #fed7aa;
+}
+
+.tao-action-btn--manager:hover { background: #ffedd5; }
+
+/* ── Computed columns ── */
+.tao-rate-cell { color: #0f172a; font-size: 12px; }
+
+.tao-rate-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #ea580c;
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.tao-total-cell { font-weight: 700; color: #0f172a; }
+.tao-tds-cell { font-weight: 600; color: #dc2626; }
+.tao-final-cell { font-weight: 800; color: #16a34a; }
 
 .tao-empty {
   text-align: center !important;
@@ -622,12 +648,174 @@
   background: #fafbfc;
 }
 
+/* ── Manager modal ── */
+.tao-manager-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, 96vw);
+  background: #fff;
+  z-index: 1002;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+  display: flex;
+  flex-direction: column;
+  animation: tao-pop-in 0.2s ease;
+  overflow: hidden;
+}
+
+@keyframes tao-pop-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.tao-manager-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(180deg, #fff7ed, #fff);
+}
+
+.tao-manager-modal__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tao-manager-modal__head h2 i { color: #ea580c; }
+
+.tao-manager-modal__body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.tao-manager-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafbfc;
+}
+
+.tao-rate-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.tao-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e8edf5;
+}
+
+.tao-rate-level-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  color: #ea580c;
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #fed7aa;
+}
+
+.tao-rate-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.tao-rate-prefix,
+.tao-rate-suffix {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.tao-rate-input {
+  flex: 1;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 0;
+}
+
+.tao-rate-input:focus {
+  outline: none;
+  border-color: #fb923c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+}
+
+.tao-rate-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.tao-rate-preview__label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.tao-rate-preview__val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.tao-manager-info {
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #15803d;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tao-manager-info i { color: #16a34a; flex-shrink: 0; }
+
 @media print {
   .tao-hero__actions,
   .tao-filters,
   .tao-action-btn,
   .tao-modal-backdrop,
-  .tao-drawer {
+  .tao-drawer,
+  .tao-manager-modal {
     display: none !important;
   }
 

@@ -331,6 +331,18 @@
                     <mat-icon>open_in_new</mat-icon>
                     Details
                   </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    class="ph-remove-batch-btn"
+                    color="warn"
+                    (click)="removeVisibleBatch(r.batch)"
+                    [disabled]="savingVisibleBatches"
+                    matTooltip="Remove from dashboard"
+                    aria-label="Remove batch from dashboard"
+                  >
+                    <mat-icon>remove_circle_outline</mat-icon>
+                  </button>
                 </td>
               </tr>
             </tbody>
