@@ -1005,11 +1005,30 @@ async function buildAdminRecordingRefs(filters = {}) {
   }
 
   const zoomQuery = { ...adminReadyZoomQuery() };
-  if (level && level !== 'ALL') zoomQuery.accessLevel = level;
+  // Include recordings with the exact level OR with no level set (null = no restriction, visible to all levels).
+  // This is consistent with how failed/processing recordings are filtered (null level passes through).
+  if (level && level !== 'ALL') {
+    zoomQuery.$and = zoomQuery.$and || [];
+    zoomQuery.$and.push({ $or: [{ accessLevel: level }, { accessLevel: null }] });
+  }
+
+  // When searching, find MeetingLinks whose topic matches so we can include their recordings.
+  let topicMatchedMeetingIds = [];
   if (searchRe) {
+    const topicMatchedMeetings = await MeetingLink.find({ topic: searchRe })
+      .select('_id')
+      .lean();
+    topicMatchedMeetingIds = topicMatchedMeetings.map((m) => m._id);
+  }
+
+  if (searchRe) {
+    const zoomIdOr = buildZoomMeetingIdSearchOr(String(search));
     zoomQuery.$and = zoomQuery.$and || [];
     zoomQuery.$and.push({
-      $or: [{ zoomMeetingId: searchRe }],
+      $or: [
+        ...(zoomIdOr.length ? zoomIdOr : [{ zoomMeetingId: searchRe }]),
+        ...(topicMatchedMeetingIds.length ? [{ meetingLinkId: { $in: topicMatchedMeetingIds } }] : []),
+      ],
     });
   }
 

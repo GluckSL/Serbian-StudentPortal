@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { CanActivate, Router, UrlTree } from '@angular/router';
-import { Observable, map, take } from 'rxjs';
-import { AuthService } from '../services/auth.service';
+import { Observable, filter, map, of, take } from 'rxjs';
+import { AuthService, getAuthToken } from '../services/auth.service';
 import { isCoursePlan } from '../utils/student-subscription-plans.util';
 
 /**
@@ -16,12 +16,23 @@ export class VisaDocsOnlyGuard implements CanActivate {
   ) {}
 
   canActivate(): Observable<boolean | UrlTree> {
+    if (!getAuthToken()) {
+      return of(this.router.createUrlTree(['/login']));
+    }
+
+    this.auth.hydrateUserFromStoredToken();
+
+    const tokenRole = this.auth.getRoleFromToken();
+    if (tokenRole && tokenRole !== 'STUDENT') {
+      return of(true);
+    }
+
     return this.auth.currentUser$.pipe(
+      filter((user) => user !== null),
       take(1),
       map((user) => {
-        if (!user) return this.router.createUrlTree(['/login']);
-        if (user.role !== 'STUDENT') return true;
-        if (isCoursePlan(user.subscription)) return true;
+        if (user!.role !== 'STUDENT') return true;
+        if (isCoursePlan(user!.subscription)) return true;
         return this.router.createUrlTree(['/student-documents']);
       }),
     );

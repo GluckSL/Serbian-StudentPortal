@@ -93,7 +93,31 @@ export class AuthService {
   currentUser$ = this.currentUserSubject.asObservable();
   router: any;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {
+    // New tabs boot a fresh Angular app — hydrate a minimal user from the stored JWT
+    // so route guards don't treat an active session as logged-out.
+    this.hydrateUserFromStoredToken();
+  }
+
+  /** Restore minimal user state from localStorage JWT (role/id/name) before /auth/profile returns. */
+  hydrateUserFromStoredToken(): void {
+    if (this.currentUserSubject.value) return;
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      const decoded = jwtDecode<{ id?: string; role?: string; name?: string; email?: string }>(token);
+      if (decoded?.role) {
+        this.currentUserSubject.next({
+          _id: decoded.id,
+          role: decoded.role,
+          name: decoded.name,
+          email: decoded.email,
+        });
+      }
+    } catch {
+      /* malformed token — guards will redirect to login */
+    }
+  }
 
   // ✅ Get teachers for a specific level and medium
   getTeachers(level: string, medium: string | string[]): Observable<any[]> {
@@ -278,8 +302,8 @@ export class AuthService {
   }
 
   isLoggedIn(): boolean {
-    const loggedIn = this.currentUserSubject.value !== null;
-    return loggedIn;
+    if (this.currentUserSubject.value !== null) return true;
+    return !!getAuthToken();
   }
 
   /** Role embedded in the JWT issued at login (fallback when profile payload omits role). */

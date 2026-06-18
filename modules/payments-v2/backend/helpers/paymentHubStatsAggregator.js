@@ -315,17 +315,32 @@ function computeReconciledLevelSlot(
   slot,
 ) {
   const studentLevel = String(student?.level || '').trim().toUpperCase();
-  const catalogExpected = studentLevel === slot
-    ? catalogFeeForLevelSlot(student, levelPriceMap, slot, studentRequests, approvedSubs)
-    : { LKR: 0, INR: 0, USD: 0 };
-  const received = receivedForLevelSlot(studentRequests, approvedSubs, studentLevel, slot);
-  const { live: slotLive } = computeTotalsForLevelSlot(
+  const { live: slotLive, balanceDue: slotBalanceDue, levelRequests } = computeTotalsForLevelSlot(
     studentRequests,
     approvedSubs,
     pendingSubs,
     slot,
     student.level,
   );
+
+  // When admin has set a custom quotation via payment mapping cards, prioritize it over
+  // the catalog default fee. The mapped quotation = what was already paid + any outstanding
+  // balance on those requests.
+  const hasMappedPayments = levelRequests.some((r) => !r.isArchived && r.status !== 'REJECTED');
+  let catalogExpected;
+  if (hasMappedPayments) {
+    catalogExpected = {
+      LKR: (slotLive.totalPaidLKR || 0) + (slotBalanceDue.pendingApprovalAmountLKR || 0),
+      INR: (slotLive.totalPaidINR || 0) + (slotBalanceDue.pendingApprovalAmountINR || 0),
+      USD: (slotLive.totalPaidUSD || 0) + (slotBalanceDue.pendingApprovalAmountUSD || 0),
+    };
+  } else {
+    catalogExpected = studentLevel === slot
+      ? catalogFeeForLevelSlot(student, levelPriceMap, slot, studentRequests, approvedSubs)
+      : { LKR: 0, INR: 0, USD: 0 };
+  }
+
+  const received = receivedForLevelSlot(studentRequests, approvedSubs, studentLevel, slot);
   const rawPending = pendingTotalsForLevelSlot(
     studentRequests,
     approvedSubs,
