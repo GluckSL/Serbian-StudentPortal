@@ -36,6 +36,10 @@ export class TeacherService {
   getClassBatches(): Observable<any> {
     return this.http.get<any>(`${this.baseUrl}/class-batches`, { withCredentials: true });
   }
+
+  getMonthlyHours(month: string): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/monthly-hours?month=${encodeURIComponent(month)}`, { withCredentials: true });
+  }
   
   getTeacherById(teacherId: string): Observable<any> {
     return this.http.get<any>(`${this.baseUrl}/${teacherId}`, { withCredentials: true });

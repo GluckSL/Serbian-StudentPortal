@@ -23,6 +23,54 @@
 
   <div class="teacher-content">
     <div class="container-fluid">
+      <div class="tmc-analytics-card">
+        <div class="tmc-analytics-head">
+          <div>
+            <h5><i class="fas fa-chart-line"></i> My Monthly Teaching Summary</h5>
+            <p>{{ monthlyAnalytics?.monthLabel || 'This month' }} · only your own classes are included</p>
+          </div>
+          <div class="tmc-analytics-actions">
+            <input type="month" class="form-control" [(ngModel)]="selectedAnalyticsMonth" (change)="loadMonthlyAnalytics()" />
+            <button type="button" class="btn btn-primary btn-sm" (click)="openMonthlyAnalyticsDetails()" [disabled]="loadingMonthlyAnalytics">
+              <i class="fas fa-external-link-alt"></i> Show full details
+            </button>
+          </div>
+        </div>
+        <div class="tmc-analytics-grid">
+          <div class="tmc-analytics-stat">
+            <span class="tmc-analytics-icon tmc-analytics-icon--blue"><i class="fas fa-clock"></i></span>
+            <div>
+              <small>Monthly Hours</small>
+              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">{{ formatHours(monthlyAnalytics?.totals?.totalHours || 0) }}</strong>
+            </div>
+          </div>
+          <div class="tmc-analytics-stat">
+            <span class="tmc-analytics-icon tmc-analytics-icon--violet"><i class="fas fa-video"></i></span>
+            <div>
+              <small>Classes</small>
+              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">{{ monthlyAnalytics?.totals?.totalMeetings || 0 }}</strong>
+            </div>
+          </div>
+          <div class="tmc-analytics-stat">
+            <span class="tmc-analytics-icon tmc-analytics-icon--green"><i class="fas fa-users"></i></span>
+            <div>
+              <small>Students</small>
+              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">{{ monthlyAnalytics?.totals?.totalStudents || 0 }}</strong>
+            </div>
+          </div>
+          <div class="tmc-analytics-stat">
+            <span class="tmc-analytics-icon tmc-analytics-icon--amber"><i class="fas fa-gift"></i></span>
+            <div>
+              <small>Total</small>
+              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">{{ formatCurrency(monthlyAnalytics?.totals?.totalBonus || 0) }}</strong>
+            </div>
+          </div>
+        </div>
+        <ng-template #analyticsLoading>
+          <strong class="tmc-analytics-loading">...</strong>
+        </ng-template>
+      </div>
+
       <div class="filters-card">
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">

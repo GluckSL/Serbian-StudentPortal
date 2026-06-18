@@ -129,6 +129,12 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
   {
+    path: 'teachers/:id/monthly-hours',
+    loadComponent: () => import('./components/teachers/teacher-monthly-hours.component').then(m => m.TeacherMonthlyHoursComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+  {
     path: 'teachers/:id/analytics',
     loadComponent: () => import('./components/teachers/teacher-analytics.component').then(m => m.TeacherAnalyticsComponent),
     canActivate: [AuthGuard, RoleGuard],

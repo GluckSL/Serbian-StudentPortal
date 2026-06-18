@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { TeacherService } from '../../services/teacher.service';
 import { ZoomService } from '../../services/zoom.service';
@@ -30,6 +30,9 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   currentPage = 1;
   pageSize = 15;
   readonly skeletonRows = [0, 1, 2, 3, 4, 5, 6, 7];
+  selectedAnalyticsMonth = this.getCurrentMonth();
+  monthlyAnalytics: any = null;
+  loadingMonthlyAnalytics = false;
 
   /** API lifecycle filter: scheduled | ongoing | ended */
   statusTab: 'scheduled' | 'ongoing' | 'ended' = 'scheduled';
@@ -81,7 +84,8 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     private joinClassFlow: JoinClassFlowService,
     private dialog: MatDialog,
     private cdr: ChangeDetectorRef,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -98,6 +102,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
       });
     }
     this.loadBatchOptions();
+    this.loadMonthlyAnalytics();
     this.loadClasses();
     this.joinLabelTimer = setInterval(() => this.cdr.markForCheck(), 30000);
   }
@@ -109,6 +114,53 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   get headerClassCount(): number {
     const sum = this.tabCounts.scheduled + this.tabCounts.ongoing + this.tabCounts.ended;
     return sum > 0 ? sum : this.totalCount;
+  }
+
+  loadMonthlyAnalytics(): void {
+    this.loadingMonthlyAnalytics = true;
+    this.teacherService.getMonthlyHours(this.selectedAnalyticsMonth).subscribe({
+      next: (res) => {
+        this.monthlyAnalytics = res?.success ? res.data : null;
+        if (res?.data?.month) this.selectedAnalyticsMonth = res.data.month;
+        this.loadingMonthlyAnalytics = false;
+      },
+      error: () => {
+        this.monthlyAnalytics = null;
+        this.loadingMonthlyAnalytics = false;
+      }
+    });
+  }
+
+  openMonthlyAnalyticsDetails(): void {
+    this.router.navigate(['/teacher-dashboard/monthly-hours'], {
+      queryParams: { month: this.selectedAnalyticsMonth }
+    });
+  }
+
+  formatHours(hours: number): string {
+    return (hours || 0).toFixed(2);
+  }
+
+  formatCurrency(amount: number): string {
+    return `₹${Math.round(amount || 0).toLocaleString('en-IN')}`;
+  }
+
+  formatAttendance(pct: number | null): string {
+    if (pct == null) return '—';
+    return `${pct.toFixed(2)}%`;
+  }
+
+  getMonthlyAttendance(): number | null {
+    const rows = this.monthlyAnalytics?.batchBreakdown || [];
+    const withAttendance = rows.filter((row: any) => row.attendance != null);
+    if (!withAttendance.length) return null;
+    const sum = withAttendance.reduce((total: number, row: any) => total + Number(row.attendance || 0), 0);
+    return Math.round((sum / withAttendance.length) * 100) / 100;
+  }
+
+  private getCurrentMonth(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
   setStatusTab(tab: 'scheduled' | 'ongoing' | 'ended'): void {

@@ -10,7 +10,12 @@ import { AuthGuard } from '../../guards/auth.guard'; // Ensure this path is corr
 
 const routes: Routes = [
   { path: '', component: TeacherDashboardComponent, canActivate: [AuthGuard] },
-  { path: 'my-classes', component: TeacherMyClassesComponent, canActivate: [AuthGuard] }
+  { path: 'my-classes', component: TeacherMyClassesComponent, canActivate: [AuthGuard] },
+  {
+    path: 'monthly-hours',
+    loadComponent: () => import('../teachers/teacher-monthly-hours.component').then(m => m.TeacherMonthlyHoursComponent),
+    canActivate: [AuthGuard]
+  }
 ];
 
 @NgModule({

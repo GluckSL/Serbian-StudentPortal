@@ -55,6 +55,10 @@ interface OverviewData {
   rows: TeacherSummaryRow[];
   totals: OverviewTotals;
   generatedAt: string;
+  filters?: {
+    month?: string;
+    monthLabel?: string;
+  };
 }
 
 @Component({
@@ -71,6 +75,7 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   filteredTeachers: TeacherSummaryRow[] = [];
   totals: OverviewTotals | null = null;
   generatedAt = '';
+  overviewMonthLabel = '';
   detailTeacher: TeacherSummaryRow | null = null;
   expandedBatchIds = new Set<string>();
 
@@ -80,8 +85,7 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   filterBatch = '';
   filterLevel = '';
   filterMedium = '';
-  dateFrom = '';
-  dateTo = '';
+  selectedMonth = this.getCurrentMonth();
 
   readonly skeletonKpis = [1, 2, 3, 4];
   readonly skeletonRows = Array.from({ length: 8 });
@@ -122,8 +126,7 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
 
     let url = `${apiUrl}/admin/teachers/analytics-overview`;
     const params: string[] = [];
-    if (this.dateFrom) params.push(`from=${encodeURIComponent(this.dateFrom)}`);
-    if (this.dateTo) params.push(`to=${encodeURIComponent(this.dateTo)}`);
+    if (this.selectedMonth) params.push(`month=${encodeURIComponent(this.selectedMonth)}`);
     if (params.length) url += `?${params.join('&')}`;
 
     this.http
@@ -137,6 +140,8 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
             this.teachers = res.data.teachers || res.data.rows || [];
             this.totals = res.data.totals || null;
             this.generatedAt = res.data.generatedAt || '';
+            this.selectedMonth = res.data.filters?.month || this.selectedMonth;
+            this.overviewMonthLabel = res.data.filters?.monthLabel || this.formatMonthLabel(this.selectedMonth);
             this.applyFilters();
           } else {
             this.error = 'Unable to load teacher analytics.';
@@ -170,12 +175,11 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     this.filterBatch = '';
     this.filterLevel = '';
     this.filterMedium = '';
-    this.dateFrom = '';
-    this.dateTo = '';
+    this.selectedMonth = this.getCurrentMonth();
     this.loadOverview();
   }
 
-  applyDateFilter(): void {
+  applyMonthFilter(): void {
     this.loadOverview();
   }
 
@@ -255,7 +259,8 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     if (!this.managerTeacher) return;
     const rateMap: Record<string, number> = {};
     for (const lr of this.managerRates) {
-      if (lr.rate != null && lr.rate >= 0) rateMap[lr.level] = lr.rate;
+      const rate = Number(lr.rate);
+      if (Number.isFinite(rate) && rate >= 0) rateMap[lr.level] = rate;
     }
     this.allLevelRates[this.managerTeacher.teacherId] = rateMap;
     localStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(this.allLevelRates));
@@ -270,14 +275,11 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     const rates = this.allLevelRates[teacher.teacherId] || {};
     if (teacher.batchBreakdown?.length) {
       return teacher.batchBreakdown.reduce((sum, b) => {
-        const r = rates[b.level] ?? 0;
+        const r = this.getRateForLevelText(b.level, rates) || this.getFallbackRateForTeacher(teacher, rates);
         return sum + (b.tutorHours || 0) * r;
       }, 0);
     }
-    const levels = this.getTeacherLevels(teacher);
-    if (!levels.length) return 0;
-    const avgRate = levels.reduce((s, l) => s + (rates[l] ?? 0), 0) / levels.length;
-    return (teacher.tutorHours || 0) * avgRate;
+    return (teacher.tutorHours || 0) * this.getFallbackRateForTeacher(teacher, rates);
   }
 
   computeTDS(teacher: TeacherSummaryRow): number {
@@ -299,9 +301,48 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     return !!rates && Object.keys(rates).length > 0;
   }
 
+  private getRateForLevelText(levelText: string, rates: Record<string, number>): number {
+    const levels = this.extractKnownLevels(levelText);
+    if (!levels.length) return 0;
+    if (levels.length === 1) return Number(rates[levels[0]] ?? 0);
+    const matchingRates = levels
+      .map((level) => Number(rates[level] ?? 0))
+      .filter((rate) => Number.isFinite(rate) && rate > 0);
+    if (matchingRates.length === 1) return matchingRates[0];
+    return 0;
+  }
+
+  private getFallbackRateForTeacher(teacher: TeacherSummaryRow, rates: Record<string, number>): number {
+    const levels = this.extractKnownLevels(teacher.levels);
+    const matchingRates = levels
+      .map((level) => Number(rates[level] ?? 0))
+      .filter((rate) => Number.isFinite(rate) && rate > 0);
+    if (matchingRates.length) {
+      return matchingRates.reduce((sum, rate) => sum + rate, 0) / matchingRates.length;
+    }
+    const allRates = Object.values(rates)
+      .map((rate) => Number(rate))
+      .filter((rate) => Number.isFinite(rate) && rate > 0);
+    return allRates.length ? allRates.reduce((sum, rate) => sum + rate, 0) / allRates.length : 0;
+  }
+
+  private extractKnownLevels(levelText: string): string[] {
+    const matches = String(levelText || '').toUpperCase().match(/\b(A1|A2|B1|B2)\b/g) || [];
+    return [...new Set(matches)];
+  }
+
   openTeacherReport(teacher: TeacherSummaryRow): void {
     const url = this.router.serializeUrl(
       this.router.createUrlTree(['/teachers', teacher.teacherId, 'analytics']),
+    );
+    window.open(url, '_blank');
+  }
+
+  openMonthlyHours(teacher: TeacherSummaryRow): void {
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/teachers', teacher.teacherId, 'monthly-hours'], {
+        queryParams: { month: this.selectedMonth },
+      }),
     );
     window.open(url, '_blank');
   }
@@ -310,7 +351,7 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     if (!this.filteredTeachers.length) return;
     const header = [
       'Tutor', 'Reg No', 'Email', 'Medium', 'Batches', 'Levels',
-      'Students', 'Classes', 'Total Tutor Hours', 'Attendance %',
+      'Students', 'Classes', 'Monthly Tutor Hours', 'Attendance %',
     ];
     const lines = this.filteredTeachers.map((t) => [
       t.tutor,
@@ -344,5 +385,19 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  private getCurrentMonth(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private formatMonthLabel(month: string): string {
+    const [year, monthNumber] = month.split('-').map(Number);
+    if (!year || !monthNumber) return month;
+    return new Date(year, monthNumber - 1, 1).toLocaleString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
   }
 }

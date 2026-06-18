@@ -276,6 +276,10 @@
   font-size: 13px;
 }
 
+.tao-table--compact {
+  min-width: 900px;
+}
+
 .tao-table thead th {
   position: sticky;
   top: 0;
@@ -296,6 +300,12 @@
   padding: 12px 14px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
+}
+
+.tao-table tfoot td {
+  padding: 12px 14px;
+  border-top: 1px solid #e8edf5;
+  background: #f8fafc;
 }
 
 .tao-row:hover td { background: #fafbff; }
@@ -475,6 +485,10 @@
   text-align: center !important;
   padding: 40px !important;
   color: #94a3b8;
+}
+
+.tao-monthly-meetings {
+  margin-top: 16px;
 }
 
 .tao-alert {

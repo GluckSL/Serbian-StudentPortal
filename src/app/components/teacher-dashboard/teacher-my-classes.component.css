@@ -25,6 +25,102 @@
 .teacher-content { padding: 0; }
 .teacher-content .container-fluid { padding: 0; }
 
+/* ── Monthly analytics ── */
+.tmc-analytics-card {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #e8ecf4;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.07);
+}
+.tmc-analytics-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tmc-analytics-head h5 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #011f4b;
+}
+.tmc-analytics-head h5 i { color: #005b96; font-size: 11px; }
+.tmc-analytics-head p {
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: #64748b;
+}
+.tmc-analytics-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tmc-analytics-actions .form-control {
+  width: 150px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.tmc-analytics-actions .btn {
+  height: 32px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.tmc-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+}
+.tmc-analytics-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.tmc-analytics-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.tmc-analytics-icon--blue { background: #e0f2fe; color: #0369a1; }
+.tmc-analytics-icon--violet { background: #ede9fe; color: #6d28d9; }
+.tmc-analytics-icon--green { background: #dcfce7; color: #15803d; }
+.tmc-analytics-icon--amber { background: #fef3c7; color: #b45309; }
+.tmc-analytics-stat small {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+.tmc-analytics-stat strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 800;
+  color: #0f172a;
+}
+.tmc-analytics-loading { color: #94a3b8 !important; }
+
 /* ── Filters ── */
 .filters-card { margin-bottom: 14px; }
 .filters-card .card { border: 1px solid #e8ecf4; border-radius: 14px; box-shadow: 0 2px 12px rgba(15,23,42,0.07); overflow: hidden; }
@@ -375,12 +471,16 @@
   .teacher-header { margin: 10px; padding: 12px 14px; }
   .teacher-dashboard { padding: 10px; }
   .teacher-stats-quick { justify-content: center; margin-top: 8px; }
+  .tmc-analytics-head { flex-direction: column; }
+  .tmc-analytics-actions { width: 100%; justify-content: flex-start; }
+  .tmc-analytics-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
   .modal-card--md, .modal-card--lg { max-width: 100%; }
   .action-btns { flex-direction: column; gap: 3px; }
 }
 @media (max-width: 576px) {
   .teacher-title { font-size: 13px; }
   .results-summary { text-align: center; }
+  .tmc-analytics-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Submissions action button ── */

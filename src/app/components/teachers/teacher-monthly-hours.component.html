@@ -1,0 +1,196 @@
+<div class="tao-page">
+  <header class="tao-hero">
+    <div class="tao-hero__content">
+      <a class="tao-back" [routerLink]="isTeacherSelfView ? '/teacher-dashboard/my-classes' : '/teachers/analytics-overview'">
+        <i class="fas fa-arrow-left"></i> {{ isTeacherSelfView ? 'My Classes' : 'Teacher Analytics' }}
+      </a>
+      <h1>Monthly Hour Details</h1>
+      <p class="tao-hero__sub" *ngIf="data">
+        {{ data.teacher.name }} · {{ data.monthLabel }} · grouped by batch and level
+      </p>
+      <p class="tao-hero__sub" *ngIf="loading">Loading monthly hour details...</p>
+    </div>
+    <div class="tao-hero__actions">
+      <button class="tao-btn tao-btn--outline" type="button" (click)="printPage()" [disabled]="loading || !data">
+        <i class="fas fa-print"></i> Print
+      </button>
+    </div>
+  </header>
+
+  <div *ngIf="loading" class="tao-alert">
+    <i class="fas fa-spinner fa-spin"></i> Loading monthly hour details...
+  </div>
+
+  <div *ngIf="error && !loading" class="tao-alert tao-alert--error">
+    <i class="fas fa-exclamation-circle"></i> {{ error }}
+  </div>
+
+  <ng-container *ngIf="data && !loading && !error">
+    <section class="tao-filters">
+      <div class="tao-filter">
+        <label>Month</label>
+        <input type="month" [(ngModel)]="selectedMonth" />
+      </div>
+      <div class="tao-filter tao-filter--actions">
+        <button class="tao-btn tao-btn--solid tao-btn--sm" type="button" (click)="loadMonthlyHours()">Show</button>
+      </div>
+    </section>
+
+    <section class="tao-summary">
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--sky"><i class="fas fa-clock"></i></span>
+        <div>
+          <span class="tao-kpi__label">Monthly hours</span>
+          <strong class="tao-kpi__value">{{ formatHours(data.totals.totalHours) }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--violet"><i class="fas fa-video"></i></span>
+        <div>
+          <span class="tao-kpi__label">Classes</span>
+          <strong class="tao-kpi__value">{{ data.totals.totalMeetings }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--emerald"><i class="fas fa-users"></i></span>
+        <div>
+          <span class="tao-kpi__label">Students</span>
+          <strong class="tao-kpi__value">{{ data.totals.totalStudents }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--amber"><i class="fas fa-calculator"></i></span>
+        <div>
+          <span class="tao-kpi__label">Calculation</span>
+          <strong class="tao-kpi__value">{{ formatMinutes(data.totals.totalMinutes) }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--emerald"><i class="fas fa-gift"></i></span>
+        <div>
+          <span class="tao-kpi__label">Attendance bonus</span>
+          <strong class="tao-kpi__value">{{ formatCurrency(data.totals.totalBonus) }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--violet"><i class="fas fa-rupee-sign"></i></span>
+        <div>
+          <span class="tao-kpi__label">Base total</span>
+          <strong class="tao-kpi__value">{{ hasSavedRates() ? formatCurrency(computeBaseTotal()) : '—' }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--amber"><i class="fas fa-percent"></i></span>
+        <div>
+          <span class="tao-kpi__label">TDS (10%)</span>
+          <strong class="tao-kpi__value">{{ hasSavedRates() ? formatCurrency(computeTDS()) : '—' }}</strong>
+        </div>
+      </article>
+      <article class="tao-kpi">
+        <span class="tao-kpi__icon tao-kpi__icon--emerald"><i class="fas fa-wallet"></i></span>
+        <div>
+          <span class="tao-kpi__label">Final</span>
+          <strong class="tao-kpi__value">{{ hasSavedRates() ? formatCurrency(computeFinal()) : '—' }}</strong>
+        </div>
+      </article>
+    </section>
+
+    <section class="tao-table-wrap">
+      <div class="tao-table-scroll">
+        <table class="tao-table tao-table--compact">
+          <thead>
+            <tr>
+              <th>Batch / Class</th>
+              <th>Level</th>
+              <th class="tao-num">Students</th>
+              <th class="tao-num">Classes</th>
+              <th class="tao-num">Minutes</th>
+              <th class="tao-num">Hours</th>
+              <th class="tao-num">Attendance</th>
+              <th class="tao-num">Per Hr Rate</th>
+              <th class="tao-num">Amount</th>
+              <th class="tao-num">Bonus Hours</th>
+              <th class="tao-num">Bonus</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of data.batchBreakdown">
+              <td><span class="tao-batch-pill">{{ row.batch }}</span></td>
+              <td><span class="tao-level-pill">{{ row.level }}</span></td>
+              <td class="tao-num">{{ row.studentCount }}</td>
+              <td class="tao-num">{{ row.meetingCount }}</td>
+              <td class="tao-num">{{ row.tutorMinutes }}</td>
+              <td class="tao-num tao-hours">{{ formatHours(row.tutorHours) }}</td>
+              <td class="tao-num" [ngClass]="attendanceClass(row.attendance)">
+                {{ formatAttendance(row.attendance) }}
+              </td>
+              <td class="tao-num">
+                <span *ngIf="getRateForLevel(row.level); else noRate">{{ formatCurrency(getRateForLevel(row.level)) }}</span>
+                <ng-template #noRate><span class="tao-muted">—</span></ng-template>
+              </td>
+              <td class="tao-num tao-total-cell">
+                <span *ngIf="getRateForLevel(row.level); else noAmount">{{ formatCurrency(computeRowTotal(row)) }}</span>
+                <ng-template #noAmount><span class="tao-muted">—</span></ng-template>
+              </td>
+              <td class="tao-num">{{ formatHours(row.bonusHours) }}</td>
+              <td class="tao-num tao-final-cell">{{ formatCurrency(row.bonusAmount) }}</td>
+            </tr>
+            <tr *ngIf="!data.batchBreakdown.length">
+              <td colspan="11" class="tao-empty">No completed class hours found for this month.</td>
+            </tr>
+          </tbody>
+          <tfoot *ngIf="data.batchBreakdown.length">
+            <tr>
+              <td colspan="5">
+                <strong>Total monthly hours</strong>
+                <span class="tao-muted"> · bonus applies only when monthly attendance is {{ data.totals.bonusThreshold }}% or more</span>
+              </td>
+              <td class="tao-num tao-hours"><strong>{{ formatHours(data.totals.totalHours) }}</strong></td>
+              <td></td>
+              <td></td>
+              <td class="tao-num tao-total-cell"><strong>{{ hasSavedRates() ? formatCurrency(computeBaseTotal()) : '—' }}</strong></td>
+              <td></td>
+              <td class="tao-num tao-final-cell"><strong>{{ formatCurrency(data.totals.totalBonus) }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="tao-table-wrap tao-monthly-meetings">
+      <div class="tao-table-scroll">
+        <table class="tao-table tao-table--compact">
+          <thead>
+            <tr>
+              <th>Class</th>
+              <th>Batch</th>
+              <th>Level</th>
+              <th>Date</th>
+              <th class="tao-num">Duration</th>
+              <th>Source</th>
+              <th class="tao-num">Present</th>
+              <th class="tao-num">Attendance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let meeting of data.meetings">
+              <td>{{ meeting.topic }}</td>
+              <td><span class="tao-batch-pill">{{ meeting.batch }}</span></td>
+              <td><span class="tao-level-pill">{{ meeting.level }}</span></td>
+              <td>{{ meeting.startTime | date:'medium' }}</td>
+              <td class="tao-num tao-hours">{{ formatMinutes(meeting.scheduledMinutes) }}</td>
+              <td><span class="tao-rate-tag">{{ meeting.durationSource }}</span></td>
+              <td class="tao-num">{{ meeting.present }}<span *ngIf="meeting.late"> +{{ meeting.late }} late</span></td>
+              <td class="tao-num" [ngClass]="attendanceClass(meeting.attendanceRate)">
+                {{ formatAttendance(meeting.attendanceRate) }}
+              </td>
+            </tr>
+            <tr *ngIf="!data.meetings.length">
+              <td colspan="8" class="tao-empty">No meeting rows to show for this month.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+</div>
