@@ -30,6 +30,7 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   loadingBatchOptions = true;
   savingVisibleBatches = false;
   showAddBatchModal = false;
+  showManageVisibleBatches = false;
   visibleBatches: string[] = [];
   visibleBatchLevelStatuses: Record<string, string> = {};
   batchRows: BatchPaymentSummaryRow[] = [];
@@ -128,6 +129,11 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     this.showAddBatchModal = false;
   }
 
+  toggleManageVisibleBatches(): void {
+    if (!this.visibleBatches.length) return;
+    this.showManageVisibleBatches = !this.showManageVisibleBatches;
+  }
+
   addSelectedBatches(): void {
     if (!this.selectedModalBatchCount || this.savingVisibleBatches) return;
     const selected = [...this.selectedBatches].filter((b) => this.availableBatchesToAdd.includes(b));
@@ -149,7 +155,9 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     const next = this.visibleBatches.filter((b) => b !== batch);
     const nextLevelStatuses: Record<string, string> = { ...this.visibleBatchLevelStatuses };
     delete nextLevelStatuses[batch];
-    this.persistVisibleBatches(next, nextLevelStatuses, `"${batch}" removed from dashboard.`);
+    this.persistVisibleBatches(next, nextLevelStatuses, `"${batch}" removed from dashboard.`, () => {
+      if (!next.length) this.showManageVisibleBatches = false;
+    });
   }
 
   private persistVisibleBatches(

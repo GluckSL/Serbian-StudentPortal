@@ -172,7 +172,18 @@
             Batches are saved to the database and visible to all admins until removed.
           </p>
 
-          <div class="ph-finance-batch-chips" *ngIf="!loadingVisibleBatches && visibleBatches.length">
+          <button
+            type="button"
+            class="ph-finance-manage-batches-btn"
+            *ngIf="!loadingVisibleBatches && visibleBatches.length"
+            (click)="toggleManageVisibleBatches()"
+            [attr.aria-expanded]="showManageVisibleBatches"
+          >
+            <mat-icon>{{ showManageVisibleBatches ? 'expand_less' : 'tune' }}</mat-icon>
+            <span>{{ showManageVisibleBatches ? 'Hide manage' : 'Manage batches' }}</span>
+          </button>
+
+          <div class="ph-finance-batch-chips" *ngIf="!loadingVisibleBatches && showManageVisibleBatches && visibleBatches.length">
             <div class="ph-finance-batch-chip" *ngFor="let b of visibleBatches">
               <mat-icon class="ph-finance-batch-chip__icon">label</mat-icon>
               <span class="ph-finance-batch-chip__name">{{ b }}</span>
