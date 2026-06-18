@@ -121,25 +121,42 @@
 
       <!-- Content Block Fields -->
       <div class="item-body" *ngIf="item.kind === 'content'">
-        <div class="field-row">
+        <!-- Content block utility row -->
+        <div class="cb-utilities">
+          <span class="utilities-label">Fields</span>
+          <button class="util-btn" [class.active]="isContentFieldVisible(item, 'title')" (click)="toggleContentField(item, 'title')">
+            <span class="material-icons">title</span> Title
+          </button>
+          <button class="util-btn" [class.active]="isContentFieldVisible(item, 'context')" (click)="toggleContentField(item, 'context')">
+            <span class="material-icons">description</span> Context
+          </button>
+          <button class="util-btn" [class.active]="isContentFieldVisible(item, 'instruction')" (click)="toggleContentField(item, 'instruction')">
+            <span class="material-icons">info</span> Instruction
+          </button>
+          <button class="util-btn" [class.active]="isContentFieldVisible(item, 'attachments')" (click)="toggleContentField(item, 'attachments')">
+            <span class="material-icons">attachment</span> Attachments
+          </button>
+        </div>
+
+        <div class="field-row" *ngIf="isContentFieldVisible(item, 'title')">
           <div class="field-group full">
             <label>Section Title</label>
             <input type="text" [(ngModel)]="item.sectionTitle" placeholder="e.g. Stufe 1 – Leicht" />
           </div>
         </div>
-        <div class="field-row">
+        <div class="field-row" *ngIf="isContentFieldVisible(item, 'context')">
           <div class="field-group full">
             <label>Context</label>
             <textarea [(ngModel)]="item.context" rows="3" placeholder="Shared context text for following questions..."></textarea>
           </div>
         </div>
-        <div class="field-row">
+        <div class="field-row" *ngIf="isContentFieldVisible(item, 'instruction')">
           <div class="field-group full">
             <label>Instruction</label>
             <input type="text" [(ngModel)]="item.instruction" placeholder="What students should do..." />
           </div>
         </div>
-        <div class="field-row">
+        <div class="field-row" *ngIf="isContentFieldVisible(item, 'attachments')">
           <div class="field-group full">
             <label>Attachments</label>
             <div *ngIf="!attachmentUploading" class="attachment-upload-row">
@@ -192,6 +209,7 @@
                   (change)="item.correctAnswerIndex = $event.checked ? oi : undefined"
                   matTooltip="Correct answer"
                 ></mat-checkbox>
+                <button class="item-btn item-btn-delete sm" (click)="removeOption(item, oi)" [disabled]="(item.options?.length ?? 0) <= 2"><span class="material-icons">close</span></button>
               </div>
               <button class="add-btn" (click)="addOption(item)">+ Add Option</button>
             </div>

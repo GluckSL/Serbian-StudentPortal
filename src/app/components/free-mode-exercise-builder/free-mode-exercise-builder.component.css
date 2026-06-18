@@ -115,7 +115,21 @@
   color: #7c3aed;
 }
 .util-btn:hover { background: #f3e8ff; }
+.util-btn.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
 .util-btn .material-icons { font-size: 14px; }
+
+/* Content Block field toggles */
+.cb-utilities {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
 
 /* Question Types Row */
 .fm-types {
