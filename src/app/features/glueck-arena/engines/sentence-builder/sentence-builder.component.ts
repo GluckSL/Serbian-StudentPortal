@@ -53,11 +53,30 @@ export interface SBResult {
             </div>
           </div>
 
+          <div
+            class="sb-bank"
+            cdkDropList
+            [id]="bankId"
+            [cdkDropListData]="wordBank"
+            [cdkDropListConnectedTo]="dropListIds"
+            [cdkDropListDisabled]="allLocked"
+            (cdkDropListDropped)="onBankDrop($event)"
+          >
+            <div class="sb-word" cdkDrag *ngFor="let word of wordBank" [cdkDragDisabled]="allLocked">
+              <span class="sb-word__pill">{{ word }}</span>
+            </div>
+          </div>
+
           <div class="sb-row-wrap" [class.sb-row-wrap--complete]="allLocked">
+            <div class="sb-row-wrap__title">
+              <mat-icon>south</mat-icon>
+              <span>Drop words here to build the sentence</span>
+            </div>
             <div class="sb-row">
               <div
                 *ngFor="let i of slotIndices"
                 class="sb-pos"
+                [class.sb-pos--empty]="!positionSlots[i].length"
                 [class.sb-pos--locked]="slotLocked[i]"
                 cdkDropList
                 [id]="slotId(i)"
@@ -65,6 +84,7 @@ export interface SBResult {
                 [cdkDropListConnectedTo]="dropListIds"
                 [cdkDropListDisabled]="slotLocked[i] || allLocked"
                 (cdkDropListDropped)="onSlotDrop($event, i)">
+                <span class="sb-pos__placeholder" *ngIf="!positionSlots[i].length">{{ i + 1 }}</span>
                 <div
                   *ngIf="positionSlots[i].length"
                   class="sb-word"
@@ -151,16 +171,52 @@ export interface SBResult {
       background: rgba(64, 89, 128, 0.08); padding: 4px 12px; border-radius: 999px;
     }
 
+    .sb-bank {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      min-height: 72px;
+      padding: 16px 14px;
+      margin-bottom: 18px;
+      background: #fff;
+      border: 2px solid #e2e8f0;
+      border-radius: 16px;
+    }
+    .sb-bank.cdk-drop-list-dragging,
+    .sb-bank.cdk-drop-list-receiving {
+      border-color: #a5b4fc;
+      background: #f8faff;
+    }
+
     .sb-row-wrap {
       position: relative;
-      padding: 16px 12px;
+      min-height: 170px;
+      padding: 18px 16px 22px;
       background: #f8fafc;
       border-radius: 16px;
-      border: 2px solid #e2e8f0;
+      border: 2px dashed #94a3b8;
     }
     .sb-row-wrap--complete {
       border-color: #22c55e;
       background: #f0fdf4;
+    }
+
+    .sb-row-wrap__title {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .sb-row-wrap__title mat-icon {
+      width: 18px;
+      height: 18px;
+      font-size: 18px;
+      color: #6366f1;
     }
 
     .sb-row {
@@ -178,8 +234,12 @@ export interface SBResult {
       align-items: center;
       justify-content: center;
       border-radius: 14px;
-      border: 2px dashed transparent;
+      border: 2px dashed #cbd5e1;
+      background: rgba(255, 255, 255, 0.72);
       transition: border-color 0.2s, background 0.2s;
+    }
+    .sb-pos--empty {
+      min-width: 84px;
     }
     .sb-pos.cdk-drop-list-dragging,
     .sb-pos.cdk-drop-list-receiving {
@@ -188,6 +248,11 @@ export interface SBResult {
     }
     .sb-pos--locked {
       border-color: rgba(34, 197, 94, 0.35);
+    }
+    .sb-pos__placeholder {
+      color: #94a3b8;
+      font-size: 13px;
+      font-weight: 800;
     }
 
     .sb-word { cursor: grab; }
@@ -281,6 +346,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
   currentIndex = 0;
   /** One word per fixed position — slot i always means position i+1 in the sentence */
   positionSlots: string[][] = [];
+  wordBank: string[] = [];
   slotIndices: number[] = [];
   slotLocked: boolean[] = [];
   wrongFlash: boolean[] = [];
@@ -311,8 +377,9 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
   get allLocked(): boolean {
     return this.slotCount > 0 && this.lockedCount === this.slotCount;
   }
+  readonly bankId = 'sb-word-bank';
   get dropListIds(): string[] {
-    return this.slotIndices.map(i => this.slotId(i));
+    return [this.bankId, ...this.slotIndices.map(i => this.slotId(i))];
   }
   get accuracy(): number {
     return this.questions.length ? Math.round((this.correctCount / this.questions.length) * 100) : 0;
@@ -339,7 +406,8 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
     if (!this.currentQ) { this.phase = 'complete'; return; }
     const shuffled = [...(this.currentQ.shuffledTokens || [])];
     const n = shuffled.length;
-    this.positionSlots = shuffled.map(token => [token]);
+    this.wordBank = shuffled;
+    this.positionSlots = Array.from({ length: n }, () => []);
     this.slotIndices = Array.from({ length: n }, (_, i) => i);
     this.slotLocked = Array(n).fill(false);
     this.wrongFlash = Array(n).fill(false);
@@ -369,34 +437,48 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
     if (this.allLocked) return;
     if (this.slotLocked[targetIndex]) return;
 
-    const fromIndex = this.parseSlotId(event.previousContainer.id);
-    if (Number.isNaN(fromIndex) || this.slotLocked[fromIndex]) return;
     if (event.previousContainer === event.container) return;
 
     this.hasUserInteracted = true;
 
     const fromList = event.previousContainer.data;
     const toList = event.container.data;
+    const fromBank = event.previousContainer.id === this.bankId;
+    const fromIndex = fromBank ? -1 : this.parseSlotId(event.previousContainer.id);
+    if (!fromBank && (Number.isNaN(fromIndex) || this.slotLocked[fromIndex])) return;
 
     if (fromList.length && toList.length) {
-      const temp = fromList[0];
-      fromList[0] = toList[0];
-      toList[0] = temp;
+      const incoming = fromList[event.previousIndex] ?? fromList[0];
+      const existing = toList[0];
+      toList[0] = incoming;
+      if (fromBank) {
+        fromList.splice(event.previousIndex, 1, existing);
+      } else {
+        fromList[0] = existing;
+      }
     } else if (fromList.length) {
       transferArrayItem(fromList, toList, event.previousIndex, event.currentIndex);
     }
 
     this.feedbackInstant(targetIndex);
-    if (fromIndex !== targetIndex) {
+    if (!fromBank && fromIndex !== targetIndex) {
       this.feedbackInstant(fromIndex);
     }
 
-    // A word might already be on its correct numbered slot due to shuffle; if neither
-    // endpoint of this swap was evaluated as correct above, lock those silently.
-    this.lockSilentAlreadyCorrectSlots();
     if (this.allLocked) {
       this.onAllSlotsLockedLocal();
     }
+  }
+
+  onBankDrop(event: CdkDragDrop<string[]>) {
+    this.audio.unlock();
+    if (this.allLocked) return;
+    if (event.previousContainer === event.container) return;
+    const fromIndex = this.parseSlotId(event.previousContainer.id);
+    if (Number.isNaN(fromIndex) || this.slotLocked[fromIndex]) return;
+    transferArrayItem(event.previousContainer.data, event.container.data, event.previousIndex, event.currentIndex);
+    this.hasUserInteracted = true;
+    this.lastWrongHint = '';
   }
 
   private normaliseToken(t: string): string {
