@@ -161,6 +161,22 @@ router.post('/', verifyToken, requirePlatinum, async (req, res) => {
       status: 'PENDING',
     });
 
+    // Race condition guard: concurrent submissions could bypass the pre-check above.
+    // If the total (pending + decided) now exceeds the limit, roll back this request.
+    const totalAfter = await RecordingAccessRequest.countDocuments({
+      studentId: req.user.id,
+      studentLevel: student.level,
+      status: { $in: ['PENDING', 'APPROVED', 'DECLINED'] },
+    });
+    if (totalAfter > REQUEST_LIMIT) {
+      await RecordingAccessRequest.deleteOne({ _id: request._id });
+      return res.status(400).json({
+        success: false,
+        message: `You have already used all ${REQUEST_LIMIT} recording requests for level ${student.level} (approved or declined).`,
+        quotaExhausted: true,
+      });
+    }
+
     const updatedQuota = await getQuota(req.user.id, student.level);
     sendNewRequestAdminEmail(request, meeting, updatedQuota).catch(() => {});
 
@@ -317,11 +333,16 @@ router.post(
         return res.status(400).json({ success: false, message: `Request is already ${request.status.toLowerCase()}.` });
       }
 
-      const decidedCount = await countDecidedForLevel(request.studentId, request.studentLevel);
+      // Check quota against the student's current level (not the snapshot on the request)
+      // so that a student who leveled up doesn't get stuck with un-approvable requests.
+      const student = await User.findById(request.studentId).select('level').lean();
+      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
+
+      const decidedCount = await countDecidedForLevel(request.studentId, student.level);
       if (decidedCount >= REQUEST_LIMIT) {
         return res.status(400).json({
           success: false,
-          message: `Student has already used all ${REQUEST_LIMIT} recording requests for level ${request.studentLevel}.`,
+          message: `Student has already used all ${REQUEST_LIMIT} recording requests for level ${student.level}.`,
         });
       }
 
