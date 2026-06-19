@@ -92,6 +92,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   filterLevel = 'ALL';
   filterBatch = 'ALL';
   searchQuery = '';
+  appliedSearchQuery = '';
 
   // Analytics
   analyticsSummary: Record<string, any> = {};
@@ -225,7 +226,6 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.stopManualUploadPolling();
     this.stopModalConversionPolling();
     if (this.directUploadXhr) { this.directUploadXhr.abort(); this.directUploadXhr = null; }
-    if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
   }
 
   private startProcessingClock(): void {
@@ -277,7 +277,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       limit: this.pageSize,
       level: this.filterLevel,
       batch: this.filterBatch,
-      search: this.searchQuery,
+      search: this.appliedSearchQuery,
     }).subscribe({
       next: (res) => {
         this.recordings = (res.recordings || []).map((r: AdminClassRecording) => ({
@@ -378,11 +378,9 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     return String(r._id || r.meetingLinkId || _index);
   }
 
-  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  onSearchInput(): void {
-    if (this.searchDebounceTimer) clearTimeout(this.searchDebounceTimer);
-    this.searchDebounceTimer = setTimeout(() => this.applyFilters(), 350);
+  applySearch(): void {
+    this.appliedSearchQuery = this.searchQuery.trim();
+    this.applyFilters();
   }
 
   applyFilters(): void {
@@ -1186,6 +1184,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   clearFilters(): void {
     this.searchQuery = '';
+    this.appliedSearchQuery = '';
     this.filterLevel = 'ALL';
     this.filterBatch = 'ALL';
     this.applyFilters();

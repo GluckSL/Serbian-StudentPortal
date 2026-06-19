@@ -916,11 +916,18 @@ function buildZoomMeetingIdSearchOr(search) {
   return clauses;
 }
 
+function isAdminBatchSearch(search) {
+  const raw = String(search || '').trim();
+  if (!raw) return false;
+  if (/^batch\s+[\w-]+$/i.test(raw)) return true;
+  return /^[0-9]{1,4}[a-z]?$/i.test(raw);
+}
+
 /** Processing/failed Zoom rows visible when admin searches (not in default ready list). */
 async function buildAdminInProgressZoomRefs(filters = {}) {
   const { level, batch, search } = filters;
   const rawSearch = String(search || '').trim();
-  if (!rawSearch) return [];
+  if (!rawSearch || isAdminBatchSearch(rawSearch)) return [];
 
   const searchRe = new RegExp(rawSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   const zoomIdOr = buildZoomMeetingIdSearchOr(rawSearch);
@@ -988,7 +995,8 @@ async function buildAdminInProgressZoomRefs(filters = {}) {
 /** Lightweight rows for sort/filter before hydrating a page of full records. */
 async function buildAdminRecordingRefs(filters = {}) {
   const { level, batch, search } = filters;
-  const searchRe = search
+  const batchSearch = isAdminBatchSearch(search);
+  const searchRe = search && !batchSearch
     ? new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
     : null;
 
@@ -1057,6 +1065,7 @@ async function buildAdminRecordingRefs(filters = {}) {
       ? m.batches.map((b) => String(b).trim()).filter(Boolean)
       : [];
     if (!matchesAdminBatchFilter(batch, manualBatches)) return;
+    if (batchSearch && !matchesAdminBatchFilter(search, manualBatches)) return;
     refs.push({
       kind: 'manual',
       id: m._id,
@@ -1074,7 +1083,9 @@ async function buildAdminRecordingRefs(filters = {}) {
       const mid = String(z.zoomMeetingId || '');
       if (!searchRe.test(topic) && !searchRe.test(mid)) return;
     }
-    if (!matchesAdminBatchFilter(batch, adminRecordingBatchLabels(z, meeting))) return;
+    const zoomBatchLabels = adminRecordingBatchLabels(z, meeting);
+    if (!matchesAdminBatchFilter(batch, zoomBatchLabels)) return;
+    if (batchSearch && !matchesAdminBatchFilter(search, zoomBatchLabels)) return;
     refs.push({
       kind: 'zoom',
       id: z.meetingLinkId,

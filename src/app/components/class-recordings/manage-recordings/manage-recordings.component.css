@@ -276,6 +276,16 @@
   padding-left: 36px;
 }
 
+.cr-btn--filter-search {
+  background: #0f2d52;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(15, 45, 82, 0.18);
+}
+
+.cr-btn--filter-search:hover:not(:disabled) {
+  background: #1a4a7a;
+}
+
 .cr-input--meeting-ids {
   min-width: 200px;
   background: rgba(255, 255, 255, 0.95);

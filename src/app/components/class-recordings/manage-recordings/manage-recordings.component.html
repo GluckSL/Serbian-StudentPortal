@@ -81,9 +81,13 @@
         <div class="cr-search-wrap">
           <i class="fa fa-search cr-search-icon"></i>
           <input class="cr-input cr-input--search" type="text"
-                 placeholder="Search title, description, or meeting ID…"
-                 [(ngModel)]="searchQuery" (input)="onSearchInput()">
+                 placeholder="Search title, description, meeting ID, or batch…"
+                 [(ngModel)]="searchQuery"
+                 (keyup.enter)="applySearch()">
         </div>
+        <button class="cr-btn cr-btn--filter-search" type="button" (click)="applySearch()">
+          Search
+        </button>
         <select class="cr-select" [(ngModel)]="filterLevel" (change)="applyFilters()">
           <option value="ALL">All Levels</option>
           <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
@@ -105,8 +109,8 @@
       <div *ngIf="!tableLoading && !totalCount" class="cr-empty">
         <i class="fa fa-video cr-empty__icon"></i>
         <h3>No ready recordings</h3>
-        <p *ngIf="!searchQuery">Only fully processed recordings with media appear here.</p>
-        <p *ngIf="searchQuery">
+        <p *ngIf="!appliedSearchQuery">Only fully processed recordings with media appear here.</p>
+        <p *ngIf="appliedSearchQuery">
           No <strong>ready</strong> recording matches this search. If a meeting is stuck in processing or failed,
           run <strong>Backfill</strong> with the meeting ID (force retry is enabled for targeted IDs).
         </p>

@@ -22,6 +22,19 @@ export class RoleGuard implements CanActivate {
     // Use cached user first — no HTTP call needed if already logged in
     const cachedUser = this.authService.getSnapshotUser();
     if (cachedUser) {
+      const subAdminNeedsFullProfile =
+        cachedUser?.role === 'SUB_ADMIN' &&
+        !cachedUser?.sidebarPermissions?.length &&
+        !Object.keys(cachedUser?.sidebarAccessLevels || {}).length;
+      if (subAdminNeedsFullProfile) {
+        return this.authService.refreshUserProfile().pipe(
+          map(user => this.checkRole(user, expectedRole, state.url)),
+          catchError(() => {
+            this.router.navigate(['/login']);
+            return of(false);
+          })
+        );
+      }
       return of(this.checkRole(cachedUser, expectedRole, state.url));
     }
 
