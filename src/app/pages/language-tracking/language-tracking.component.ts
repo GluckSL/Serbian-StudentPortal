@@ -12,7 +12,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, forkJoin, takeUntil } from 'rxjs';
+import * as XLSX from 'xlsx';
 
 import {
   LanguageTrackingApiService,
@@ -89,9 +90,12 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   error = '';
   kpis: LtKpis | null = null;
   students: LtStudentRow[] = [];
+  trend: LtTrendDay[] = [];
+  topStudents: LtStudentRow[] = [];
   total = 0;
   page = 1;
   readonly PAGE_SIZE = 25;
+  exporting = false;
 
   sort: 'totalSeconds' | 'name' | 'currentCourseDay' = 'totalSeconds';
 
@@ -430,6 +434,44 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.dispatchReminders([...this.selectedStudentIds]);
   }
 
+  exportReport(): void {
+    if (this.exporting) return;
+
+    const exportLimit = 100;
+    const totalRows = Math.max(0, this.total || 0);
+    const pages = Math.max(1, Math.ceil(totalRows / exportLimit));
+    this.exporting = true;
+
+    const requests = Array.from({ length: pages }, (_, i) =>
+      this.api.getOverview({
+        ...this.currentOverviewParams(),
+        page: i + 1,
+        limit: exportLimit,
+      }),
+    );
+
+    forkJoin(requests).subscribe({
+      next: (responses) => {
+        const first = responses[0];
+        const rows = responses.flatMap((r) => r.students || []);
+        this.downloadLanguageTrackingWorkbook(
+          first?.kpis || this.kpis,
+          first?.trend || this.trend,
+          first?.topStudents || this.topStudents,
+          rows,
+        );
+        this.exporting = false;
+        this.snackBar.open(`Exported ${rows.length} student(s)`, 'OK', { duration: 4000 });
+      },
+      error: () => {
+        this.exporting = false;
+        this.snackBar.open('Failed to export language tracking report. Please try again.', 'Dismiss', {
+          duration: 5000,
+        });
+      },
+    });
+  }
+
   private dispatchReminders(studentIds: string[], singleName?: string): void {
     if (this.sendingReminders || !studentIds.length) return;
     this.sendingReminders = true;
@@ -491,16 +533,9 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.error = '';
     this.api
       .getOverview({
-        from: this.from,
-        to: this.to,
-        cohort: this.cohort,
-        batches: this.selectedBatches.length ? this.selectedBatches : undefined,
-        level: this.level || undefined,
-        search: this.searchRaw.trim() || undefined,
-        includeTestAccounts: this.includeTestAccounts,
+        ...this.currentOverviewParams(),
         page: this.page,
         limit: this.PAGE_SIZE,
-        sort: this.sort,
       })
       .subscribe({
         next: (res: LtOverviewResponse) => {
@@ -508,6 +543,8 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
           this.hasLoadedOnce = true;
           this.kpis = res.kpis;
           this.students = res.students;
+          this.trend = res.trend || [];
+          this.topStudents = res.topStudents ?? res.students;
           this.total = res.total;
           this.buildCharts(res.topStudents ?? res.students, res.trend, res.kpis);
         },
@@ -628,6 +665,128 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  private currentOverviewParams() {
+    return {
+      from: this.from,
+      to: this.to,
+      cohort: this.cohort,
+      batches: this.selectedBatches.length ? this.selectedBatches : undefined,
+      level: this.level || undefined,
+      search: this.searchRaw.trim() || undefined,
+      includeTestAccounts: this.includeTestAccounts,
+      sort: this.sort,
+    };
+  }
+
+  private downloadLanguageTrackingWorkbook(
+    kpis: LtKpis | null,
+    trend: LtTrendDay[],
+    topStudents: LtStudentRow[],
+    students: LtStudentRow[],
+  ): void {
+    const wb = XLSX.utils.book_new();
+    const generatedAt = new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+
+    const summaryRows = [
+      ['Language Tracking Report'],
+      ['Generated At', generatedAt],
+      ['Date Range', `${this.from} to ${this.to}`],
+      ['Cohort', this.cohortLabel(this.cohort)],
+      ['Batches', this.selectedBatches.length ? this.selectedBatches.join(', ') : 'All batches'],
+      ['Level', this.level || 'All levels'],
+      ['Search', this.searchRaw.trim() || 'None'],
+      ['Test Accounts', this.includeTestAccounts ? 'Included' : 'Excluded'],
+      ['Sort', this.sortLabel(this.sort)],
+      [],
+      ['Card', 'Value'],
+      ['Total Learning Time', `${kpis?.totalLearningHours ?? 0}h`],
+      ['Active Students', `${kpis?.activeStudents ?? 0} / ${kpis?.totalStudents ?? 0}`],
+      ['Avg / Active Student', `${kpis?.avgMinutesPerStudent ?? 0}m`],
+      ['Top Source This Period', this.sourceLabel(kpis?.topSource || 'exercises')],
+      ['Exercises', `${kpis?.exercisesHours ?? 0}h`],
+      ['DG Bot', `${kpis?.digibotHours ?? 0}h`],
+      ['GluckArena', `${kpis?.arenaHours ?? 0}h`],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), 'Summary Cards');
+
+    const studentRows = students.map((s) => ({
+      Student: s.name || '',
+      'Reg No': s.regNo || '',
+      Email: s.email || '',
+      Batch: s.batch || '',
+      Level: s.level || '',
+      Subscription: s.subscription || '',
+      'GO Status': s.goStatus || '',
+      'Journey Day': s.currentCourseDay || '',
+      Exercises: this.formatDuration(s.exercisesSeconds),
+      'DG Bot': this.formatDuration(s.digibotSeconds),
+      Arena: this.formatDuration(s.arenaSeconds),
+      Total: this.formatDuration(s.totalSeconds),
+      'Exercises Seconds': s.exercisesSeconds || 0,
+      'DG Bot Seconds': s.digibotSeconds || 0,
+      'Arena Seconds': s.arenaSeconds || 0,
+      'Total Seconds': s.totalSeconds || 0,
+      'Last Learning At': this.formatExportDateTime(s.lastLearningAt),
+      'Test Account': s.isTestAccount ? 'Yes' : 'No',
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(studentRows), 'Student Details');
+
+    const trendRows = trend.map((d) => ({
+      Date: d.date,
+      Exercises: this.formatDuration(d.exercises),
+      'DG Bot': this.formatDuration(d.digibot),
+      Arena: this.formatDuration(d.arena),
+      Total: this.formatDuration(d.total),
+      'Exercises Seconds': d.exercises,
+      'DG Bot Seconds': d.digibot,
+      'Arena Seconds': d.arena,
+      'Total Seconds': d.total,
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(trendRows), 'Daily Trend');
+
+    const topRows = topStudents.map((s, index) => ({
+      Rank: index + 1,
+      Student: s.name || '',
+      'Reg No': s.regNo || '',
+      Batch: s.batch || '',
+      Exercises: this.formatDuration(s.exercisesSeconds),
+      'DG Bot': this.formatDuration(s.digibotSeconds),
+      Arena: this.formatDuration(s.arenaSeconds),
+      Total: this.formatDuration(s.totalSeconds),
+      'Total Seconds': s.totalSeconds || 0,
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(topRows), 'Top 10 Students');
+
+    XLSX.writeFile(wb, `language_tracking_${this.from}_to_${this.to}.xlsx`);
+  }
+
+  private formatExportDateTime(value: string | null): string {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  }
+
+  private cohortLabel(c: LtCohort): string {
+    if (c === 'platinum') return 'Platinum';
+    if (c === 'go') return 'Silver (GO)';
+    return 'All Students';
+  }
+
+  private sortLabel(sort: 'totalSeconds' | 'name' | 'currentCourseDay'): string {
+    if (sort === 'name') return 'Name';
+    if (sort === 'currentCourseDay') return 'Journey Day';
+    return 'Total Time';
+  }
 
   completionBarWidth(pct: number): number {
     return Math.max(0, Math.min(100, pct || 0));

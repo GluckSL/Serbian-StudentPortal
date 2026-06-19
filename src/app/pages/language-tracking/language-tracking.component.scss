@@ -72,6 +72,21 @@
   }
 }
 
+.lt-export-btn {
+  height: 36px !important;
+  border-radius: 999px !important;
+  padding: 0 0.85rem !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    margin-right: 0.25rem;
+  }
+}
+
 .lt-spin { animation: lt-spin 1s linear infinite; }
 @keyframes lt-spin { to { transform: rotate(360deg); } }
 

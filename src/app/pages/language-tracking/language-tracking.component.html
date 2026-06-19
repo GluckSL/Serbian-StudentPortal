@@ -10,6 +10,16 @@
       </p>
     </div>
     <div class="lt-hero__actions">
+      <button
+        mat-stroked-button
+        class="lt-export-btn"
+        type="button"
+        (click)="exportReport()"
+        [disabled]="loading || exporting || !kpis"
+        matTooltip="Export summary cards and student details">
+        <mat-icon>{{ exporting ? 'hourglass_empty' : 'download' }}</mat-icon>
+        {{ exporting ? 'Exporting...' : 'Export' }}
+      </button>
       <button mat-icon-button (click)="load()" matTooltip="Refresh data" [disabled]="loading">
         <mat-icon [class.lt-spin]="loading">refresh</mat-icon>
       </button>
