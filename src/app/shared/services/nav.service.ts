@@ -56,6 +56,7 @@ export class NavService {
     'finance-dashboard': [
       '/admin/finance-dashboard',
       '/admin/finance-dashboard/batches',
+      '/admin/payment-hub/student',
       '/admin/payment-hub/insights/batches'
     ],
     'enrollment-overview': [
