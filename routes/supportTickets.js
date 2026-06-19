@@ -36,10 +36,9 @@ const R2_PUBLIC_BASE = (process.env.R2_PUBLIC_BASE_URL || '').replace(/\/+$/, ''
 async function sendNewTicketAlert(ticket) {
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
-    to: 'Selvaganesh@gluckglobal.com',
+    to: 'Languageschool@gluckglobal.com',
     cc: [
       'sourav@gluckglobal.com',
-      'Languageschool@gluckglobal.com',
       'faiqua@gluckglobal.com',
       'techintern1@gluckglobal.com',
       'aiswarya@gluckglobal.com'

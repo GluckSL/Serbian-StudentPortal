@@ -4,9 +4,13 @@
 const transporter = require('../config/emailConfig');
 
 const WITHDRAWAL_ALERT_RECIPIENTS = [
-  'selvaganesh@gluckglobal.com',
   'ceo@gluckglobal.com',
   'sourav@gluckglobal.com',
+];
+
+const WITHDRAWAL_ALERT_CC_RECIPIENTS = [
+  'lawson@gluckglobal.com',
+  'aiswariya@gluckglobal.com',
 ];
 
 function getFromAddress() {
@@ -114,11 +118,12 @@ async function sendWithdrawalAlert({ subject, html }) {
     const info = await transporter.sendMail({
       from: getFromAddress(),
       to: WITHDRAWAL_ALERT_RECIPIENTS,
+      cc: WITHDRAWAL_ALERT_CC_RECIPIENTS,
       subject,
       html,
     });
     console.log(
-      `[withdrawal-alert] Sent to ${WITHDRAWAL_ALERT_RECIPIENTS.join(', ')} | messageId=${info.messageId}`
+      `[withdrawal-alert] Sent to ${WITHDRAWAL_ALERT_RECIPIENTS.join(', ')} | cc ${WITHDRAWAL_ALERT_CC_RECIPIENTS.join(', ')} | messageId=${info.messageId}`
     );
     return { ok: true, messageId: info.messageId };
   } catch (err) {
@@ -216,6 +221,7 @@ async function sendWithdrawalDecisionEmail(user, meta = {}) {
 
 module.exports = {
   WITHDRAWAL_ALERT_RECIPIENTS,
+  WITHDRAWAL_ALERT_CC_RECIPIENTS,
   sendWithdrawalLoginAttemptEmail,
   sendWithdrawalDecisionEmail,
 };
