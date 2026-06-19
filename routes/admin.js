@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
+const StudentChangeHistory = require('../models/StudentChangeHistory');
 const SignupApplication = require('../models/StudentSignupApplication');
 const MeetingLink = require('../models/MeetingLink');
 const Course = require('../models/Course');
@@ -16,6 +17,10 @@ const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDispla
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 const { computeStudentDataIssues } = require('../services/studentDataIssues');
+const {
+  recordStudentChange,
+  recordBulkStudentChanges,
+} = require('../services/studentChangeHistory.service');
 const {
   applyStudentCountryFilters,
   backfillPhoneCountries,
@@ -380,6 +385,26 @@ router.get('/students', verifyToken, isAdmin, async (req, res) => {
       message: 'Failed to fetch students',
       error: err.message
     });
+  }
+});
+
+router.get('/students/:studentId/change-history', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({ success: false, message: 'Invalid student ID' });
+    }
+
+    const history = await StudentChangeHistory.find({ studentId })
+      .populate('changedBy', 'name email role')
+      .sort({ changedAt: -1 })
+      .limit(500)
+      .lean();
+
+    return res.json({ success: true, count: history.length, data: history });
+  } catch (err) {
+    console.error('Error fetching student change history:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch student change history' });
   }
 });
 
@@ -1364,11 +1389,22 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       );
     }
 
+    const beforeStudents = await User.find({ _id: { $in: studentIds }, role: 'STUDENT' }).lean();
+
     // Update all selected students
     const result = await User.updateMany(
       { _id: { $in: studentIds }, role: 'STUDENT' },
       { $set: updateData }
     );
+
+    const afterStudents = await User.find({ _id: { $in: studentIds }, role: 'STUDENT' }).lean();
+    await recordBulkStudentChanges({
+      beforeDocs: beforeStudents,
+      afterDocs: afterStudents,
+      fields: Object.keys(updateData),
+      req,
+      source: 'admin_bulk_update'
+    });
 
     if (updates.currentCourseDay !== undefined) {
       try {
@@ -1670,10 +1706,18 @@ router.post('/batch-correct-details', verifyToken, isAdmin, async (req, res) => 
         continue;
       }
       try {
-        const result = await User.findByIdAndUpdate(studentId, { $set: sanitized }, { new: false });
+        const beforeStudent = await User.findById(studentId).lean();
+        const result = await User.findByIdAndUpdate(studentId, { $set: sanitized }, { new: true });
         if (!result) {
           failed.push({ studentId, reason: 'Student not found' });
         } else {
+          await recordStudentChange({
+            beforeDoc: beforeStudent,
+            afterDoc: result,
+            fields: Object.keys(sanitized),
+            req,
+            source: 'admin_batch_correct_details'
+          });
           updated++;
         }
       } catch (e) {

@@ -55,6 +55,7 @@ const {
   setupVerifyOtpLimiter,
   setupSetPasswordLimiter,
 } = require('../middleware/authRateLimit');
+const { recordStudentChange } = require('../services/studentChangeHistory.service');
 
 function signPasswordSetupToken(userId) {
   return jwt.sign(
@@ -2235,7 +2236,7 @@ router.put("/update-teacher-by-batch", async (req, res) => {
 
 
 // âœ… Update user by ID
-router.put("/:id", async (req, res) => {
+router.put("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     // 1ï¸âƒ£ Get existing user (OLD data)
     const existingUser = await User.findById(req.params.id);
@@ -2445,6 +2446,14 @@ router.put("/:id", async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     );
+
+    await recordStudentChange({
+      beforeDoc: existingUser,
+      afterDoc: updatedUser,
+      fields: Object.keys(updateData),
+      req,
+      source: 'auth_update_user'
+    });
 
     if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {
       try {
