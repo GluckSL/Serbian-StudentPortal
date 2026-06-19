@@ -255,6 +255,7 @@ async function getOverview(opts = {}) {
   const limit = Math.min(100, Math.max(1, parseInt(opts.limit, 10) || 25));
   const sortField = opts.sort || 'totalSeconds';
   const includeTest = opts.includeTestAccounts === true || opts.includeTestAccounts === 'true';
+  const includeProgress = opts.includeProgress === true || opts.includeProgress === 'true';
 
   // 1. Build the student filter once — merges cohort/batch/level/search into a single query
   const studentFilter = {
@@ -375,6 +376,11 @@ async function getOverview(opts = {}) {
     .sort((a, b) => b.totalSeconds - a.totalSeconds)
     .slice(0, 10);
 
+  if (includeProgress) {
+    const studentsById = new Map(students.map((s) => [String(s._id), s]));
+    await attachJourneyProgress(pagedRows, studentsById);
+  }
+
   // 8. KPIs
   const totalSecs = rows.reduce((s, r) => s + r.totalSeconds, 0);
   const activeCount = rows.filter((r) => r.totalSeconds > 0).length;
@@ -403,6 +409,60 @@ async function getOverview(opts = {}) {
     page,
     limit,
   };
+}
+
+function sourceProgress(done = 0, total = 0) {
+  const safeDone = Math.max(0, Number(done) || 0);
+  const safeTotal = Math.max(0, Number(total) || 0);
+  return {
+    done: safeDone,
+    total: safeTotal,
+    label: `${safeDone}/${safeTotal}`,
+  };
+}
+
+async function attachJourneyProgress(rows, studentsById) {
+  await Promise.all(
+    rows.map(async (row) => {
+      const student = studentsById.get(String(row.studentId));
+      const day = row.currentCourseDay || 1;
+      const emptyProgress = {
+        day,
+        completionPercent: 0,
+        doneTasks: 0,
+        totalTasks: 0,
+        sources: {
+          exercises: sourceProgress(0, 0),
+          dg: sourceProgress(0, 0),
+          arena: sourceProgress(0, 0),
+        },
+      };
+
+      if (!student || !resolveBatchForCompletion(student)) {
+        row.journeyProgress = emptyProgress;
+        return;
+      }
+
+      try {
+        const completion = await computeDayCompletionForStudent(student, day);
+        const breakdown = completion?.breakdown || {};
+        row.journeyProgress = {
+          day,
+          completionPercent: completion?.completionPercent || 0,
+          doneTasks: completion?.doneTasks || 0,
+          totalTasks: completion?.totalTasks || 0,
+          sources: {
+            exercises: sourceProgress(breakdown.exercises?.done, breakdown.exercises?.total),
+            dg: sourceProgress(breakdown.dg?.done, breakdown.dg?.total),
+            // GluckArena is tracked as learning time today, but not as journey-required tasks yet.
+            arena: sourceProgress(0, 0),
+          },
+        };
+      } catch (err) {
+        row.journeyProgress = { ...emptyProgress, error: true };
+      }
+    }),
+  );
 }
 
 // ── Student detail ─────────────────────────────────────────────────────────────

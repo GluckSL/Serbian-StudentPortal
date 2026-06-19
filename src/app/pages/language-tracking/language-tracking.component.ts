@@ -445,6 +445,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     const requests = Array.from({ length: pages }, (_, i) =>
       this.api.getOverview({
         ...this.currentOverviewParams(),
+        includeProgress: true,
         page: i + 1,
         limit: exportLimit,
       }),
@@ -733,8 +734,24 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
       'Total Seconds': s.totalSeconds || 0,
       'Last Learning At': this.formatExportDateTime(s.lastLearningAt),
       'Test Account': s.isTestAccount ? 'Yes' : 'No',
+      'Day Progress': this.progressLabel(s),
+      'Day Completion %': s.journeyProgress?.completionPercent ?? '',
+      'Exercises Progress': this.sourceProgressLabel(s, 'exercises'),
+      'DG Bot Progress': this.sourceProgressLabel(s, 'dg'),
+      'GluckArena Progress': this.sourceProgressLabel(s, 'arena'),
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(studentRows), 'Student Details');
+
+    const sourceProgressRows = students.flatMap((s) => [
+      this.studentSourceProgressRow(s, 'Exercises', 'exercises', s.exercisesSeconds),
+      this.studentSourceProgressRow(s, 'DG Bot', 'dg', s.digibotSeconds),
+      this.studentSourceProgressRow(s, 'GluckArena', 'arena', s.arenaSeconds),
+    ]);
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(sourceProgressRows),
+      'Source Progress',
+    );
 
     const trendRows = trend.map((d) => ({
       Date: d.date,
@@ -763,6 +780,46 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(topRows), 'Top 10 Students');
 
     XLSX.writeFile(wb, `language_tracking_${this.from}_to_${this.to}.xlsx`);
+  }
+
+  private studentSourceProgressRow(
+    student: LtStudentRow,
+    source: string,
+    key: 'exercises' | 'dg' | 'arena',
+    seconds: number,
+  ): Record<string, string | number> {
+    const progress = student.journeyProgress?.sources?.[key];
+    const total = progress?.total ?? 0;
+    const done = progress?.done ?? 0;
+    return {
+      Student: student.name || '',
+      'Reg No': student.regNo || '',
+      Email: student.email || '',
+      Batch: student.batch || '',
+      Level: student.level || '',
+      'Journey Day': student.journeyProgress?.day || student.currentCourseDay || '',
+      Source: source,
+      Progress: `${done}/${total}`,
+      Completed: done,
+      Total: total,
+      'Completion %': total > 0 ? Math.floor((done / total) * 100) : 0,
+      Time: this.formatDuration(seconds),
+      Seconds: seconds || 0,
+    };
+  }
+
+  private progressLabel(student: LtStudentRow): string {
+    const progress = student.journeyProgress;
+    if (!progress) return '';
+    return `${progress.doneTasks || 0}/${progress.totalTasks || 0}`;
+  }
+
+  private sourceProgressLabel(
+    student: LtStudentRow,
+    source: 'exercises' | 'dg' | 'arena',
+  ): string {
+    const progress = student.journeyProgress?.sources?.[source];
+    return progress?.label || '0/0';
   }
 
   private formatExportDateTime(value: string | null): string {

@@ -32,6 +32,25 @@ export interface LtTrendDay {
   total: number;
 }
 
+export interface LtSourceProgress {
+  done: number;
+  total: number;
+  label: string;
+}
+
+export interface LtStudentJourneyProgress {
+  day: number;
+  completionPercent: number;
+  doneTasks: number;
+  totalTasks: number;
+  error?: boolean;
+  sources: {
+    exercises: LtSourceProgress;
+    dg: LtSourceProgress;
+    arena: LtSourceProgress;
+  };
+}
+
 export interface LtStudentRow {
   studentId: string;
   name: string;
@@ -48,6 +67,7 @@ export interface LtStudentRow {
   arenaSeconds: number;
   lastLearningAt: string | null;
   isTestAccount?: boolean;
+  journeyProgress?: LtStudentJourneyProgress;
 }
 
 export interface LtOverviewResponse {
@@ -203,6 +223,7 @@ export interface LtOverviewParams {
   level?: string;
   search?: string;
   includeTestAccounts?: boolean;
+  includeProgress?: boolean;
   page?: number;
   limit?: number;
   sort?: LtSort;
@@ -227,6 +248,7 @@ export class LanguageTrackingApiService {
     if (p.level) params = params.set('level', p.level);
     if (p.search) params = params.set('search', p.search);
     if (p.includeTestAccounts === true) params = params.set('includeTestAccounts', 'true');
+    if (p.includeProgress === true) params = params.set('includeProgress', 'true');
     if (p.page) params = params.set('page', String(p.page));
     if (p.limit) params = params.set('limit', String(p.limit));
     if (p.sort) params = params.set('sort', p.sort);

@@ -47,6 +47,7 @@ router.get('/overview', verifyToken, requireLanguageTrackingView, async (req, re
       level: req.query.level,
       search: req.query.search,
       includeTestAccounts: req.query.includeTestAccounts === 'true',
+      includeProgress: req.query.includeProgress === 'true',
       page: req.query.page,
       limit: req.query.limit,
       sort: req.query.sort,
