@@ -77,7 +77,7 @@
           <mat-icon>account_balance_wallet</mat-icon>
         </div>
         <div class="sp-analytics-content">
-          <span class="sp-analytics-label">Total Amount Due</span>
+          <span class="sp-analytics-label">Total Amount</span>
           <span class="sp-analytics-value" *ngIf="catalogFeeDisplay">{{ catalogFeeDisplay!.currency }} {{ fmt(catalogFeeDisplay!.amount) }}</span>
           <span class="sp-analytics-value sp-analytics-muted" *ngIf="!catalogFeeDisplay">—</span>
           <span class="sp-analytics-sub">Level {{ catalog?.studentLevel || '—' }} Program Fee</span>
