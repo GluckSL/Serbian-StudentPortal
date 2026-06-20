@@ -48,14 +48,15 @@ export class NotificationService {
     });
   }
 
-  confirm(title: string, message: string, confirmText = 'Confirm', cancelText = 'Cancel'): Observable<boolean> {
-    const data: ConfirmDialogData = { title, message, confirmText, cancelText };
+  confirm(title: string, message: string, confirmText = 'Confirm', cancelText = 'Cancel', danger = false): Observable<boolean> {
+    const data: ConfirmDialogData = { title, message, confirmText, cancelText, danger };
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data,
       width: '420px',
       maxWidth: '90vw',
       disableClose: false,
       panelClass: 'confirm-dialog-panel',
+      position: undefined,
     });
     return ref.afterClosed().pipe(map(result => result === true));
   }

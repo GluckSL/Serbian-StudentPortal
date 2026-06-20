@@ -1,17 +1,51 @@
 <!-- src/app/components/student-dashboard/student-documents/student-documents.component.html -->
 <div class="student-documents-container">
-  <!-- Header -->
+  <!-- Header with Stats inside -->
   <div class="page-header">
-    <div class="header-content">
-      <h1>
-        <i class="fas fa-file-upload"></i>
-        My Documents
-      </h1>
-      <p class="subtitle">Upload and manage your certificates and documents</p>
+    <div class="header-top-row">
+      <div class="header-content">
+        <h1>
+          <i class="fas fa-file-upload"></i>
+          My Documents
+        </h1>
+        <p class="subtitle">Upload and manage your certificates and documents</p>
+      </div>
+      <button class="btn btn-header-upload" (click)="toggleUploadForm(); scrollToUploadForm()">
+        <i class="fas" [ngClass]="showUploadForm ? 'fa-times' : 'fa-plus'"></i>
+        {{ showUploadForm ? 'Close Form' : 'Upload Document' }}
+      </button>
     </div>
-    <button class="btn btn-primary" (click)="toggleUploadForm()" *ngIf="!showUploadForm">
-      <i class="fas fa-plus"></i> Upload Document
-    </button>
+    <div class="stats-section" *ngIf="stats">
+      <div class="stat-card">
+        <div class="stat-icon bg-primary"><i class="fas fa-file-alt"></i></div>
+        <div class="stat-content">
+          <h3>{{ stats.totalDocuments }}</h3>
+          <p>Total Documents</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon bg-success"><i class="fas fa-check-circle"></i></div>
+        <div class="stat-content">
+          <h3>{{ stats.verifiedDocuments }}</h3>
+          <p>Verified</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon bg-warning"><i class="fas fa-clock"></i></div>
+        <div class="stat-content">
+          <h3>{{ stats.pendingDocuments }}</h3>
+          <p>Pending Review</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon bg-info"><i class="fas fa-tasks"></i></div>
+        <div class="stat-content">
+          <h3>{{ stats.completionPercentage }}%</h3>
+          <p>Completion</p>
+          <p>{{ stats.requiredDocumentsUploaded }}/{{ stats.totalRequiredDocuments }} required</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Success/Error Messages -->
@@ -22,50 +56,9 @@
     <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
   </div>
 
-  <!-- Statistics Cards -->
-  <div class="stats-section" *ngIf="stats">
-    <div class="stat-card">
-      <div class="stat-icon bg-primary">
-        <i class="fas fa-file-alt"></i>
-      </div>
-      <div class="stat-content">
-        <h3>{{ stats.totalDocuments }}</h3>
-        <p>Total Documents</p>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon bg-success">
-        <i class="fas fa-check-circle"></i>
-      </div>
-      <div class="stat-content">
-        <h3>{{ stats.verifiedDocuments }}</h3>
-        <p>Verified</p>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon bg-warning">
-        <i class="fas fa-clock"></i>
-      </div>
-      <div class="stat-content">
-        <h3>{{ stats.pendingDocuments }}</h3>
-        <p>Pending Review</p>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon bg-info">
-        <i class="fas fa-tasks"></i>
-      </div>
-      <div class="stat-content">
-        <h3>{{ stats.completionPercentage }}%</h3>
-        <p>Completion</p>
-        <p>{{ stats.requiredDocumentsUploaded }}/{{ stats.totalRequiredDocuments }} required</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Upload Form -->
-  <div class="upload-form-section" *ngIf="showUploadForm">
-    <div class="form-card">
+  <!-- Upload Form Modal -->
+  <div class="upload-form-section" *ngIf="showUploadForm" (click)="toggleUploadForm()">
+    <div class="form-card" (click)="$event.stopPropagation()">
       <div class="form-header">
         <div class="form-header-title">
           <i class="fas fa-upload"></i>
@@ -76,61 +69,63 @@
         </span>
       </div>
       <div class="form-body">
-        <div class="form-group">
-          <label class="required">Document Type</label>
-          <select class="form-control" [(ngModel)]="selectedDocumentType" (ngModelChange)="onDocumentTypeChange()" [disabled]="isUploading">
-            <option value="">Select document type...</option>
-            <option *ngFor="let req of requirements" [value]="req.type">
-              {{ req.label }} {{ req.required ? '(Required)' : '(Optional)' }}
-            </option>
-          </select>
-          <small class="form-text" *ngIf="selectedDocumentType">
-            {{ getRequirementDescription(selectedDocumentType) }}
-          </small>
-        </div>
-
-        <div class="form-group">
-          <label class="required">Document Name</label>
-          <input
-            type="text"
-            class="form-control"
-            [(ngModel)]="documentName"
-            placeholder="e.g., O Level Certificate 2020"
-            [disabled]="isUploading">
-          <small class="form-text text-muted">
-            <i class="fas fa-info-circle"></i> Auto-filled from document type. You can edit this name.
-          </small>
-        </div>
-
-        <div class="form-group">
-          <label>Description (Optional)</label>
-          <textarea
-            class="form-control"
-            [(ngModel)]="documentDescription"
-            placeholder="Add any additional notes about this document..."
-            rows="3"
-            [disabled]="isUploading"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label class="required">Select File</label>
-          <div class="file-input-wrapper">
-            <input
-              type="file"
-              id="fileInput"
-              class="file-input"
-              (change)="onFileSelected($event)"
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              [disabled]="isUploading">
-            <label for="fileInput" class="file-input-label" (dragover)="allowDrop($event)" (drop)="onFileDropped($event)">
-              <i class="fas fa-cloud-upload-alt"></i>
-              <span *ngIf="!selectedFile">Choose file or drag here</span>
-              <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
-            </label>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="required">Document Type</label>
+            <select class="form-control" [(ngModel)]="selectedDocumentType" (ngModelChange)="onDocumentTypeChange()" [disabled]="isUploading">
+              <option value="">Select document type...</option>
+              <option *ngFor="let req of requirements" [value]="req.type">
+                {{ req.label }} {{ req.required ? '(Required)' : '(Optional)' }}
+              </option>
+            </select>
+            <small class="form-text" *ngIf="selectedDocumentType">
+              {{ getRequirementDescription(selectedDocumentType) }}
+            </small>
           </div>
-          <small class="form-text">
-            Accepted formats: PDF, JPG, PNG, DOC, DOCX (Max 10MB)
-          </small>
+
+          <div class="form-group">
+            <label class="required">Document Name</label>
+            <input
+              type="text"
+              class="form-control"
+              [(ngModel)]="documentName"
+              placeholder="e.g., O Level Certificate 2020"
+              [disabled]="isUploading">
+            <small class="form-text form-text--warn">
+              <i class="fas fa-info-circle"></i> Auto-filled. You can edit this.
+            </small>
+          </div>
+
+          <div class="form-group form-group--full">
+            <label>Description (Optional)</label>
+            <textarea
+              class="form-control"
+              [(ngModel)]="documentDescription"
+              placeholder="Add any additional notes about this document..."
+              rows="2"
+              [disabled]="isUploading"></textarea>
+          </div>
+
+          <div class="form-group form-group--full">
+            <label class="required">Select File</label>
+            <div class="file-input-wrapper">
+              <input
+                type="file"
+                id="fileInput"
+                class="file-input"
+                (change)="onFileSelected($event)"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                [disabled]="isUploading">
+              <label for="fileInput" class="file-input-label" (dragover)="allowDrop($event)" (drop)="onFileDropped($event)">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <span *ngIf="!selectedFile">Choose file or drag here</span>
+                <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
+              </label>
+            </div>
+            <small class="form-text">
+              Accepted formats: PDF, JPG, PNG, DOC, DOCX (Max 10MB)
+            </small>
+          </div>
         </div>
 
         <div class="form-actions">
@@ -191,43 +186,74 @@
   <!-- Hidden file input for requirement row uploads -->
   <input #reqFileInput type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="display:none" (change)="onReqFileSelected($event)" />
 
+  <!-- Filters and Search -->
+  <div class="filters-section">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Status</label>
+        <select class="form-control" [(ngModel)]="filterStatus">
+          <option value="ALL">All Status</option>
+          <option value="PENDING">Pending</option>
+          <option value="VERIFIED">Verified</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Document Type</label>
+        <select class="form-control" [(ngModel)]="filterType">
+          <option value="ALL">All Types</option>
+          <option *ngFor="let type of uploadedDocumentTypes" [value]="type">
+            {{ getRequirementLabel(type) }}
+          </option>
+        </select>
+      </div>
+      <div class="filter-group search-group">
+        <label>Search</label>
+        <div class="search-input-wrapper">
+          <i class="fas fa-search"></i>
+          <input
+            type="text"
+            class="form-control"
+            [(ngModel)]="searchQuery"
+            placeholder="Search documents...">
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Document Requirements Checklist -->
   <div class="requirements-section">
     <h3><i class="fas fa-clipboard-list"></i> Document Requirements</h3>
-    <!-- BEFORE: inline styles made this empty state inconsistent with the rest of the page and harder to tune for mobile. -->
     <div *ngIf="requirements.length === 0 && !isLoading" class="no-requirements-message">
       <i class="fas fa-check-circle"></i>
       <p>No document requirements for your program.</p>
     </div>
-    <!-- BEFORE: this section used req-view--mobile only, which hid the requirements checklist on desktop. -->
     <div class="requirements-cards req-view--mobile" *ngIf="requirements.length > 0">
-      <div class="req-card" *ngFor="let req of requirements" [class.req-card--required]="req.required">
+      <div class="req-card" *ngFor="let req of pagedRequirements" [class.req-card--required]="req.required">
         <div class="req-card-header">
           <div class="req-card-title">
             <i class="fas fa-file-alt req-card-icon"></i>
             <span>{{ req.label }}</span>
           </div>
-          <span class="badge" [class.bg-danger]="req.required" [class.bg-secondary]="!req.required">
+        </div>
+        <div class="req-card-badges-row">
+          <span class="badge" [class.badge--required]="req.required" [class.badge--optional]="!req.required">
             {{ req.required ? 'Required' : 'Optional' }}
           </span>
-        </div>
-        <div class="req-card-info-row">
-          <p class="req-card-desc">{{ req.description }}</p>
           <span class="badge badge--not-uploaded" *ngIf="!getLatestDocumentForType(req.type)">Not Uploaded</span>
+          <span class="badge" *ngIf="getLatestDocumentForType(req.type)" [ngClass]="getRequirementStatusBadgeClass(req.type)">
+            {{ getRequirementStatusText(req.type) }}
+          </span>
         </div>
-        <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
+        <p class="req-card-desc">{{ req.description }}</p>
         <small class="agreement-hint" *ngIf="isAgreementRequirement(req)">
           <i class="fas fa-info-circle"></i> Download the agreement, sign it, then use <strong>Upload Signed</strong> so admin can approve.
         </small>
-        <div class="req-card-body" *ngIf="getLatestDocumentForType(req.type) as latestDoc">
-          <div class="req-card-status">
-            <span class="badge" [ngClass]="getRequirementStatusBadgeClass(req.type)">
-              {{ getRequirementStatusText(req.type) }}
-            </span>
-            <small class="reupload-reason" *ngIf="getRequirementReuploadReason(req.type)">
-              Re-upload requested: {{ getRequirementReuploadReason(req.type) }}
-            </small>
-          </div>
+        <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
+        <div class="req-card-body" *ngIf="getRequirementReuploadReason(req.type)">
+          <small class="reupload-reason">
+            Re-upload requested: {{ getRequirementReuploadReason(req.type) }}
+          </small>
         </div>
         <div class="req-card-actions">
           <!-- Agreement: download PDF + upload signed copy for admin approval -->
@@ -268,7 +294,7 @@
               </button>
             </ng-container>
             <ng-template #uploadOnlyActionMobile>
-              <button class="btn btn-sm btn-outline-primary"
+              <button class="btn btn-sm btn-primary"
                       (click)="uploadFromRequirementRow(req)"
                       [disabled]="uploadingRequirementType === req.type">
                 <i class="fas fa-upload"></i> {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
@@ -278,40 +304,14 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- Filters and Search -->
-  <div class="filters-section">
-    <div class="filters-row">
-      <div class="filter-group">
-        <label>Status</label>
-        <select class="form-control" [(ngModel)]="filterStatus">
-          <option value="ALL">All Status</option>
-          <option value="PENDING">Pending</option>
-          <option value="VERIFIED">Verified</option>
-          <option value="REJECTED">Rejected</option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label>Document Type</label>
-        <select class="form-control" [(ngModel)]="filterType">
-          <option value="ALL">All Types</option>
-          <option *ngFor="let type of uploadedDocumentTypes" [value]="type">
-            {{ getRequirementLabel(type) }}
-          </option>
-        </select>
-      </div>
-      <div class="filter-group search-group">
-        <label>Search</label>
-        <div class="search-input-wrapper">
-          <i class="fas fa-search"></i>
-          <input
-            type="text"
-            class="form-control"
-            [(ngModel)]="searchQuery"
-            placeholder="Search documents...">
-        </div>
-      </div>
+    <div class="req-pagination" *ngIf="reqTotalPages > 1">
+      <button class="req-page-btn" (click)="prevReqPage()" [disabled]="reqPage === 0">
+        <i class="fas fa-chevron-left"></i> Prev
+      </button>
+      <span class="req-page-info">{{ reqPage + 1 }} / {{ reqTotalPages }}</span>
+      <button class="req-page-btn" (click)="nextReqPage()" [disabled]="reqPage === reqTotalPages - 1">
+        Next <i class="fas fa-chevron-right"></i>
+      </button>
     </div>
   </div>
 
@@ -334,7 +334,7 @@
       <h4>No Documents Found</h4>
       <p *ngIf="documents.length === 0">You haven't uploaded any documents yet.</p>
       <p *ngIf="documents.length > 0">No documents match your filters.</p>
-      <button class="btn btn-primary" (click)="toggleUploadForm()" *ngIf="documents.length === 0">
+      <button class="btn btn-primary" (click)="toggleUploadForm(); scrollToUploadForm()" *ngIf="documents.length === 0">
         <i class="fas fa-plus"></i> Upload Your First Document
       </button>
     </div>
