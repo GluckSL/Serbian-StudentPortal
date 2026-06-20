@@ -358,7 +358,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   // Delete document
   deleteDocument(documentId: string): void {
-    this.notify.confirm('Delete Document', 'Are you sure you want to delete this document?', 'Yes, Delete', 'Cancel', true).subscribe(async ok => {
+    this.notify.confirm('Delete Document', 'Are you sure you want to delete this document?', 'Yes, Delete', 'Cancel').subscribe(async ok => {
       if (!ok) return;
       try {
         const response = await this.documentService.deleteDocument(documentId).toPromise();
