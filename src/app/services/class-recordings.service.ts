@@ -55,6 +55,11 @@ export interface ManualUploadStatusResponse {
   createdAt: string;
 }
 
+export interface ManualUploadHistoryRow extends ClassRecording {
+  updatedAt?: string;
+  hlsReady: boolean;
+}
+
 export interface ManualUploadCreateResponse {
   success: boolean;
   message: string;
@@ -195,6 +200,14 @@ export class ClassRecordingsService {
     if (params.batch && params.batch !== 'ALL') qp.set('batch', params.batch);
     if (params.search?.trim()) qp.set('search', params.search.trim());
     return this.http.get<any>(`${this.url}/admin/all?${qp.toString()}`);
+  }
+
+  getManualUploadHistory(limit = 25): Observable<{
+    success: boolean;
+    rows: ManualUploadHistoryRow[];
+    summary: Record<string, number>;
+  }> {
+    return this.http.get<any>(`${this.url}/admin/upload-history?limit=${encodeURIComponent(String(limit))}`);
   }
 
   runZoomBackfill(payload: {

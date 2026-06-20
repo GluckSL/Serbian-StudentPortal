@@ -1208,6 +1208,40 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEAC
   }
 });
 
+// GET /api/class-recordings/admin/upload-history — recent manual upload processing states
+router.get('/admin/upload-history', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '25'), 10) || 25));
+    const rows = await ClassRecording.find({
+      active: true,
+      sourceType: 'HLS_UPLOAD',
+    })
+      .select('_id title level plan batches status errorMessage hlsKey duration isPublished createdAt updatedAt uploadedBy')
+      .populate('uploadedBy', 'name')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const summary = rows.reduce((acc, row) => {
+      const status = row.status || 'ready';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      rows: rows.map((row) => ({
+        ...row,
+        hlsReady: Boolean(row.hlsKey),
+      })),
+      summary,
+    });
+  } catch (error) {
+    console.error('Error fetching manual upload history:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/class-recordings/batches — Get unique batch values for dropdown
 router.get('/batches', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {

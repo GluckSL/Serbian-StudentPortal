@@ -11,6 +11,7 @@ import {
   ClassRecording,
   AdminClassRecording,
   ZoomWebhookAuditRow,
+  ManualUploadHistoryRow,
 } from '../../../services/class-recordings.service';
 import { RecordingAccessRequestService } from '../../../services/recording-access-request.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -28,6 +29,9 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   recordings: AdminClassRecording[] = [];
   totalCount = 0;
   readyTotalCount = 0;
+  manualUploadHistory: ManualUploadHistoryRow[] = [];
+  manualUploadHistorySummary: Record<string, number> = {};
+  manualUploadHistoryLoading = false;
   readonly skeletonRows = Array.from({ length: 10 });
   pageIndex = 0;
   pageSize = 15;
@@ -127,6 +131,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadRecordings();
+    this.loadManualUploadHistory();
     this.loadBatches();
     this.loadZoomTeachers();
     this.startProcessingClock();
@@ -297,6 +302,20 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         this.snackBar.open('Error loading recordings', 'Close', { duration: 3000 });
         this.loading = false;
         this.tableLoading = false;
+      },
+    });
+  }
+
+  loadManualUploadHistory(silent = false): void {
+    if (!silent) this.manualUploadHistoryLoading = true;
+    this.service.getManualUploadHistory(25).subscribe({
+      next: (res) => {
+        this.manualUploadHistory = res.rows || [];
+        this.manualUploadHistorySummary = res.summary || {};
+        this.manualUploadHistoryLoading = false;
+      },
+      error: () => {
+        this.manualUploadHistoryLoading = false;
       },
     });
   }
@@ -675,6 +694,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.uploadStatusLine = 'File received — converting to HLS on the server (runs in background)';
     this.updateConversionProgressDisplay();
     this.loadRecordings();
+    this.loadManualUploadHistory(true);
     this.startModalConversionPolling(recordingId);
     // Auto-send to background after 4 s so the admin can keep working.
     setTimeout(() => {
@@ -728,6 +748,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.modalConversionRecordingId = null;
     this.closeForm();
     this.loadRecordings();
+    this.loadManualUploadHistory(true);
   }
 
   private updateConversionProgressDisplay(): void {
@@ -782,7 +803,10 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     this.manualUploadPollTimer = setInterval(() => {
       this.service.getManualUploadStatus(recordingId).subscribe({
         next: (s) => {
-          if (s.status === 'processing') return;
+          if (s.status === 'processing') {
+            this.loadManualUploadHistory(true);
+            return;
+          }
           this.stopManualUploadPolling();
           if (s.status === 'ready') {
             this.snackBar.open(
@@ -794,6 +818,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
             this.snackBar.open(s.errorMessage || 'Video conversion failed.', 'Close', { duration: 7000 });
           }
           this.loadRecordings();
+          this.loadManualUploadHistory(true);
         },
         error: () => { /* ignore poll errors */ }
       });
@@ -1214,6 +1239,20 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
+  }
+
+  getManualUploadStatusLabel(row: ManualUploadHistoryRow): string {
+    if (row.status === 'processing') return 'Converting';
+    if (row.status === 'failed') return 'Failed';
+    if (row.status === 'ready' && row.isPublished === false) return 'Ready · Hidden';
+    return 'Ready';
+  }
+
+  getManualUploadStatusClass(row: ManualUploadHistoryRow): string {
+    if (row.status === 'processing') return 'cr-upload-chip--processing';
+    if (row.status === 'failed') return 'cr-upload-chip--failed';
+    if (row.status === 'ready' && row.isPublished === false) return 'cr-upload-chip--hidden';
+    return 'cr-upload-chip--ready';
   }
 
   formatBytes(bytes?: number): string {

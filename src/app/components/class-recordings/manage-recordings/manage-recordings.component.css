@@ -205,6 +205,135 @@
 .cr-stat--orange { border-color: #fed7aa; background: linear-gradient(180deg, #fff7ed, #fff); }
 .cr-stat--orange .cr-stat__val { color: #ea580c; }
 
+/* ── Manual Upload History ── */
+.cr-upload-history {
+  background: #fff;
+  border: 1px solid #e8ecf4;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+
+.cr-upload-history__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.cr-upload-history__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cr-upload-history__sub {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.cr-upload-history__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cr-upload-summary {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cr-upload-summary--failed {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.cr-upload-history__loading,
+.cr-upload-history__empty {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+
+.cr-upload-history__list {
+  display: grid;
+  gap: 8px;
+}
+
+.cr-upload-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.cr-upload-row__main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.cr-upload-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cr-upload-row__error {
+  color: #b91c1c;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.cr-upload-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cr-upload-chip--processing {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.cr-upload-chip--failed {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.cr-upload-chip--hidden {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.cr-upload-chip--ready {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
 /* ── Filters ── */
 .cr-filters-wrap {
   background: #fff;

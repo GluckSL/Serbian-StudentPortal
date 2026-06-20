@@ -71,6 +71,60 @@
       </div>
     </div>
 
+    <!-- ── Manual Upload History ── -->
+    <div class="cr-upload-history">
+      <div class="cr-upload-history__head">
+        <div>
+          <h3 class="cr-upload-history__title">Manual Upload History</h3>
+          <p class="cr-upload-history__sub">
+            Recent file uploads and HLS conversion status. Failed rows show the backend error.
+          </p>
+        </div>
+        <div class="cr-upload-history__actions">
+          <span class="cr-upload-summary" *ngIf="manualUploadHistorySummary['processing']">
+            {{ manualUploadHistorySummary['processing'] }} converting
+          </span>
+          <span class="cr-upload-summary cr-upload-summary--failed" *ngIf="manualUploadHistorySummary['failed']">
+            {{ manualUploadHistorySummary['failed'] }} failed
+          </span>
+          <button class="cr-btn cr-btn--outline" type="button" (click)="loadManualUploadHistory()"
+                  [disabled]="manualUploadHistoryLoading">
+            <i class="fa fa-rotate" [class.fa-spin]="manualUploadHistoryLoading"></i>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="manualUploadHistoryLoading" class="cr-upload-history__loading">
+        <div class="cr-spinner"></div>
+      </div>
+
+      <div *ngIf="!manualUploadHistoryLoading && !manualUploadHistory.length" class="cr-upload-history__empty">
+        No manual upload history found yet.
+      </div>
+
+      <div class="cr-upload-history__list" *ngIf="!manualUploadHistoryLoading && manualUploadHistory.length">
+        <div class="cr-upload-row" *ngFor="let item of manualUploadHistory">
+          <div class="cr-upload-row__main">
+            <span class="cr-cell-main">{{ item.title }}</span>
+            <span class="cr-cell-sub">
+              {{ item.level }} · {{ item.plan }} · {{ formatDateTime(item.createdAt) }}
+              <span *ngIf="item.uploadedBy?.name"> · {{ item.uploadedBy.name }}</span>
+            </span>
+            <span class="cr-upload-row__error" *ngIf="item.status === 'failed' && item.errorMessage">
+              {{ item.errorMessage }}
+            </span>
+          </div>
+          <div class="cr-upload-row__meta">
+            <span class="cr-upload-chip" [ngClass]="getManualUploadStatusClass(item)">
+              {{ getManualUploadStatusLabel(item) }}
+            </span>
+            <span class="cr-cell-sub" *ngIf="item.duration">{{ formatDuration(item.duration) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Filters ── -->
     <div class="cr-filters-wrap">
       <div class="cr-filters-head">
