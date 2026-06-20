@@ -28,7 +28,7 @@ export interface StudentDocument {
   documentTypeId: string;
   documentName: string;
   fileName: string;
-  filePath: string;
+  filePath?: string;
   fileSize: number;
   formattedFileSize: string;
   mimeType: string;

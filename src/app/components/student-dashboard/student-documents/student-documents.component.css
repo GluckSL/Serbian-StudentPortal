@@ -2,8 +2,9 @@
 
 .student-documents-container {
   padding: 16px;
-  max-width: 960px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   padding-bottom: 60px;
   box-sizing: border-box;

@@ -91,10 +91,13 @@ router.get('/my-documents', verifyToken, checkRole(['STUDENT']), async (req, res
     
     // Add formatted file sizes
     const documentsWithFormatting = documents.map((doc) =>
-      mapStudentDocument({
-        ...doc,
-        documentTypeDisplay: doc.documentTypeId?.name || doc.documentTypeDisplay || getDocumentTypeDisplayName(doc.documentType)
-      })
+      mapStudentDocument(
+        {
+          ...doc,
+          documentTypeDisplay: doc.documentTypeId?.name || doc.documentTypeDisplay || getDocumentTypeDisplayName(doc.documentType)
+        },
+        { includeFilePath: false }
+      )
     );
     
     res.json({
@@ -1012,14 +1015,18 @@ function mapRequirement(requirement) {
   };
 }
 
-function mapStudentDocument(doc) {
-  return {
+function mapStudentDocument(doc, options = {}) {
+  const mapped = {
     ...doc,
     remarks: doc.remarks || doc.verificationNotes || '',
     verificationNotes: doc.verificationNotes || doc.remarks || '',
     documentTypeDisplay: doc.documentTypeDisplay || getDocumentTypeDisplayName(doc.documentType),
     formattedFileSize: formatFileSize(doc.fileSize || 0)
   };
+  if (options.includeFilePath === false) {
+    delete mapped.filePath;
+  }
+  return mapped;
 }
 
 function formatFileSize(bytes) {
