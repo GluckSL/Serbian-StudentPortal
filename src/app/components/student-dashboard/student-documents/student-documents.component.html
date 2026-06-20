@@ -186,49 +186,96 @@
   <!-- Hidden file input for requirement row uploads -->
   <input #reqFileInput type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="display:none" (change)="onReqFileSelected($event)" />
 
-  <!-- Filters and Search -->
-  <div class="filters-section">
-    <div class="filters-row">
-      <div class="filter-group">
-        <label>Status</label>
-        <select class="form-control" [(ngModel)]="filterStatus">
-          <option value="ALL">All Status</option>
-          <option value="PENDING">Pending</option>
-          <option value="VERIFIED">Verified</option>
-          <option value="REJECTED">Rejected</option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label>Document Type</label>
-        <select class="form-control" [(ngModel)]="filterType">
-          <option value="ALL">All Types</option>
-          <option *ngFor="let type of uploadedDocumentTypes" [value]="type">
-            {{ getRequirementLabel(type) }}
-          </option>
-        </select>
-      </div>
-      <div class="filter-group search-group">
-        <label>Search</label>
-        <div class="search-input-wrapper">
-          <i class="fas fa-search"></i>
-          <input
-            type="text"
-            class="form-control"
-            [(ngModel)]="searchQuery"
-            placeholder="Search documents...">
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="docs-layout">
 
   <!-- Document Requirements Checklist -->
   <div class="requirements-section">
-    <h3><i class="fas fa-clipboard-list"></i> Document Requirements</h3>
     <div *ngIf="requirements.length === 0 && !isLoading" class="no-requirements-message">
       <i class="fas fa-check-circle"></i>
       <p>No document requirements for your program.</p>
     </div>
-    <div class="requirements-cards req-view--mobile" *ngIf="requirements.length > 0">
+    <!-- Desktop Table View -->
+    <div class="requirements-table-wrap req-view--desktop" *ngIf="requirements.length > 0">
+      <div class="req-table-header">
+        <i class="fas fa-clipboard-list"></i> Document Requirements
+      </div>
+      <table class="requirements-table">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let req of pagedRequirements" [class.required-row]="req.required">
+            <td>
+              <div class="doc-title"><i class="fas fa-file-alt" style="color:#005b96;margin-right:6px;"></i>{{ req.label }}</div>
+              <div class="doc-desc" *ngIf="req.description && req.description !== req.label">{{ req.description }}</div>
+              <small class="agreement-hint" *ngIf="isAgreementRequirement(req)">
+                <i class="fas fa-info-circle"></i> Download the agreement, sign it, then use <strong>Upload Signed</strong> so admin can approve.
+              </small>
+              <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
+              <small class="reupload-reason" *ngIf="getRequirementReuploadReason(req.type)">
+                Re-upload requested: {{ getRequirementReuploadReason(req.type) }}
+              </small>
+            </td>
+            <td>
+              <span class="badge" [class.badge--required]="req.required" [class.badge--optional]="!req.required">
+                {{ req.required ? 'Required' : 'Optional' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge badge--not-uploaded" *ngIf="!getLatestDocumentForType(req.type)">Not Uploaded</span>
+              <span class="badge" *ngIf="getLatestDocumentForType(req.type)" [ngClass]="getRequirementStatusBadgeClass(req.type)">
+                {{ getRequirementStatusText(req.type) }}
+              </span>
+            </td>
+            <td>
+              <div class="action-btn-group">
+                <ng-container *ngIf="isAgreementRequirement(req) && getAgreementForRequirement(req) as ag; else standardTableActions">
+                  <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewAgreement(ag)" title="View"><i class="fas fa-eye"></i></button>
+                  <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadAgreement(ag, 'generated')" title="Download"><i class="fas fa-download"></i></button>
+                  <button class="btn btn-sm btn-primary tbl-icon-btn" *ngIf="canUploadSignedAgreement(ag)" (click)="triggerSignedUpload(ag._id)" [disabled]="uploadingAgreementId === ag._id" title="Upload Signed">
+                    <i class="fas" [ngClass]="uploadingAgreementId === ag._id ? 'fa-spinner fa-spin' : 'fa-upload'"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary tbl-icon-btn" *ngIf="ag.signedFile && ag.status !== 'SENT'" (click)="downloadAgreement(ag, 'signed')" title="My Signed Copy"><i class="fas fa-file-download"></i></button>
+                </ng-container>
+                <ng-template #standardTableActions>
+                  <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyTable">
+                    <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewDocumentFile(latestDoc)" title="View"><i class="fas fa-eye"></i></button>
+                    <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadDocument(latestDoc)" title="Download"><i class="fas fa-download"></i></button>
+                    <button class="btn btn-sm btn-outline-danger tbl-icon-btn" (click)="uploadFromRequirementRow(req, true)" [disabled]="uploadingRequirementType === req.type" title="Replace"><i class="fas fa-sync-alt"></i></button>
+                  </ng-container>
+                  <ng-template #uploadOnlyTable>
+                    <button class="btn btn-sm btn-primary" (click)="uploadFromRequirementRow(req)" [disabled]="uploadingRequirementType === req.type" style="min-height:30px!important;height:30px!important;padding:0 10px!important;font-size:12px!important;">
+                      <i class="fas" [ngClass]="uploadingRequirementType === req.type ? 'fa-spinner fa-spin' : 'fa-upload'"></i>
+                      {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
+                    </button>
+                  </ng-template>
+                </ng-template>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- Pagination inside table wrap -->
+      <div class="req-pagination table-pagination" *ngIf="reqTotalPages > 1">
+        <button class="req-page-btn" (click)="prevReqPage()" [disabled]="reqPage === 0">
+          <i class="fas fa-chevron-left"></i> Prev
+        </button>
+        <span class="req-page-info">{{ reqPage + 1 }} / {{ reqTotalPages }}</span>
+        <button class="req-page-btn" (click)="nextReqPage()" [disabled]="reqPage === reqTotalPages - 1">
+          Next <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Card View -->
+    <div class="req-view--mobile mobile-req-wrap" *ngIf="requirements.length > 0">
+      <div class="req-table-header"><i class="fas fa-clipboard-list"></i> Document Requirements</div>
+      <div class="requirements-cards req-view--mobile-inner">
       <div class="req-card" *ngFor="let req of pagedRequirements" [class.req-card--required]="req.required">
         <div class="req-card-header">
           <div class="req-card-title">
@@ -245,7 +292,7 @@
             {{ getRequirementStatusText(req.type) }}
           </span>
         </div>
-        <p class="req-card-desc">{{ req.description }}</p>
+        <p class="req-card-desc" *ngIf="req.description && req.description !== req.label">{{ req.description }}</p>
         <small class="agreement-hint" *ngIf="isAgreementRequirement(req)">
           <i class="fas fa-info-circle"></i> Download the agreement, sign it, then use <strong>Upload Signed</strong> so admin can approve.
         </small>
@@ -303,8 +350,10 @@
           </ng-template>
         </div>
       </div>
-    </div>
-    <div class="req-pagination" *ngIf="reqTotalPages > 1">
+      </div><!-- end requirements-cards -->
+    </div><!-- end mobile-req-wrap -->
+    <!-- Mobile Pagination -->
+    <div class="req-pagination req-view--mobile" *ngIf="reqTotalPages > 1">
       <button class="req-page-btn" (click)="prevReqPage()" [disabled]="reqPage === 0">
         <i class="fas fa-chevron-left"></i> Prev
       </button>
@@ -315,12 +364,9 @@
     </div>
   </div>
 
-  <!-- Documents List -->
+
+  <!-- Uploaded Documents Table -->
   <div class="documents-section">
-    <h3>
-      <i class="fas fa-folder-open"></i>
-      Uploaded Documents ({{ filteredDocuments.length }})
-    </h3>
 
     <!-- Loading State -->
     <div class="loading-state" *ngIf="isLoading">
@@ -329,62 +375,158 @@
     </div>
 
     <!-- Empty State -->
-    <div class="empty-state" *ngIf="!isLoading && filteredDocuments.length === 0">
+    <div class="empty-state" *ngIf="!isLoading && documents.length === 0">
       <i class="fas fa-folder-open fa-3x"></i>
       <h4>No Documents Found</h4>
-      <p *ngIf="documents.length === 0">You haven't uploaded any documents yet.</p>
-      <p *ngIf="documents.length > 0">No documents match your filters.</p>
-      <button class="btn btn-primary" (click)="toggleUploadForm(); scrollToUploadForm()" *ngIf="documents.length === 0">
+      <p>You haven't uploaded any documents yet.</p>
+      <button class="btn btn-primary" (click)="toggleUploadForm(); scrollToUploadForm()">
         <i class="fas fa-plus"></i> Upload Your First Document
       </button>
     </div>
 
-    <!-- Documents Grid -->
-    <div class="documents-grid" *ngIf="!isLoading && filteredDocuments.length > 0">
-      <div *ngFor="let doc of filteredDocuments" class="document-card">
-        <div class="document-header">
-          <div class="document-icon">
-            <i class="fas" [ngClass]="getFileIcon(doc.mimeType)"></i>
+    <!-- Desktop Table -->
+    <div class="uploaded-table-wrap req-view--desktop" *ngIf="!isLoading && documents.length > 0">
+      <div class="req-table-header uploaded-table-header">
+        <span><i class="fas fa-folder-open"></i> Uploaded Documents ({{ filteredDocuments.length }})</span>
+        <div class="uploaded-filters">
+          <select class="form-control upload-filter-ctrl" [(ngModel)]="filterStatus">
+            <option value="ALL">All Status</option>
+            <option value="PENDING">Pending</option>
+            <option value="VERIFIED">Verified</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+          <select class="form-control upload-filter-ctrl" [(ngModel)]="filterType">
+            <option value="ALL">All Types</option>
+            <option *ngFor="let type of uploadedDocumentTypes" [value]="type">
+              {{ getRequirementLabel(type) }}
+            </option>
+          </select>
+          <div class="upload-filter-search">
+            <i class="fas fa-search"></i>
+            <input type="text" class="form-control upload-filter-ctrl" [(ngModel)]="searchQuery" placeholder="Search...">
           </div>
-          <div class="document-status">
-            <span class="badge" [ngClass]="getStatusBadgeClass(doc.status)">
-              <i class="fas" [ngClass]="getStatusIcon(doc.status)"></i>
-              {{ doc.status }}
-            </span>
-          </div>
-        </div>
-        <div class="document-body">
-          <h4>{{ doc.documentName }}</h4>
-          <p class="document-type">{{ doc.documentTypeDisplay }}</p>
-          <p class="document-description" *ngIf="doc.description">{{ doc.description }}</p>
-          <div class="document-meta">
-            <span><i class="fas fa-calendar"></i> {{ formatDate(doc.uploadedAt) }}</span>
-            <span><i class="fas fa-file"></i> {{ doc.formattedFileSize }}</span>
-          </div>
-          <div class="verification-info" *ngIf="doc.status === 'REJECTED' && doc.verificationNotes">
-            <div class="alert alert-danger">
-              <strong>Rejection Reason:</strong> {{ doc.verificationNotes }}
-            </div>
-          </div>
-        </div>
-        <div class="document-actions">
-          <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentFile(doc)">
-            <i class="fas fa-eye"></i> View
-          </button>
-          <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(doc)">
-            <i class="fas fa-download"></i> Download
-          </button>
-          <button
-            class="btn btn-sm btn-outline-danger"
-            (click)="deleteDocument(doc._id)"
-            [disabled]="doc.status === 'VERIFIED'"
-            [title]="doc.status === 'VERIFIED' ? 'Cannot delete verified documents. Contact admin if you need to update.' : 'Delete document'">
-            <i class="fas fa-trash"></i> Delete
-          </button>
         </div>
       </div>
+      <table class="requirements-table">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Size</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let doc of filteredDocuments">
+            <td>
+              <div class="doc-title">
+                <i class="fas" [ngClass]="getFileIcon(doc.mimeType)" style="color:#005b96;margin-right:6px;"></i>
+                {{ doc.documentName }}
+              </div>
+              <div class="doc-desc" *ngIf="doc.description">{{ doc.description }}</div>
+              <div class="doc-desc" *ngIf="doc.status === 'REJECTED' && doc.verificationNotes" style="color:#dc2626;">
+                <i class="fas fa-exclamation-circle"></i> {{ doc.verificationNotes }}
+              </div>
+            </td>
+            <td style="font-size:13px;color:#64748b;">{{ doc.documentTypeDisplay }}</td>
+            <td style="font-size:13px;color:#64748b;white-space:nowrap;">{{ formatDate(doc.uploadedAt) }}</td>
+            <td style="font-size:13px;color:#64748b;white-space:nowrap;">{{ doc.formattedFileSize }}</td>
+            <td>
+              <span class="badge" [ngClass]="getStatusBadgeClass(doc.status)">
+                <i class="fas" [ngClass]="getStatusIcon(doc.status)"></i>
+                {{ doc.status }}
+              </span>
+            </td>
+            <td>
+              <div class="action-btn-group">
+                <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewDocumentFile(doc)" title="View"><i class="fas fa-eye"></i></button>
+                <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadDocument(doc)" title="Download"><i class="fas fa-download"></i></button>
+                <button class="btn btn-sm btn-outline-danger tbl-icon-btn"
+                  (click)="deleteDocument(doc._id)"
+                  [disabled]="doc.status === 'VERIFIED'"
+                  [title]="doc.status === 'VERIFIED' ? 'Cannot delete verified documents' : 'Delete'">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+
+    <!-- Mobile Cards -->
+    <!-- Mobile Uploaded Docs Container -->
+    <div class="doc-cards-mobile mobile-req-wrap" *ngIf="!isLoading && documents.length > 0">
+      <div class="req-table-header"><i class="fas fa-folder-open"></i> Uploaded Documents ({{ filteredDocuments.length }})</div>
+
+      <!-- Filters inside container -->
+      <div class="mobile-filter-bar">
+        <div class="mf-status-chips">
+          <button class="mf-chip" [class.mf-chip--active]="filterStatus==='ALL'" (click)="filterStatus='ALL'">All</button>
+          <button class="mf-chip mf-chip--pending" [class.mf-chip--active]="filterStatus==='PENDING'" (click)="filterStatus='PENDING'"><i class="fas fa-clock"></i> Pending</button>
+          <button class="mf-chip mf-chip--verified" [class.mf-chip--active]="filterStatus==='VERIFIED'" (click)="filterStatus='VERIFIED'"><i class="fas fa-check"></i> Verified</button>
+          <button class="mf-chip mf-chip--rejected" [class.mf-chip--active]="filterStatus==='REJECTED'" (click)="filterStatus='REJECTED'"><i class="fas fa-times"></i> Rejected</button>
+        </div>
+        <div class="mf-bottom-row">
+          <div class="mf-search">
+            <i class="fas fa-search"></i>
+            <input type="text" [(ngModel)]="searchQuery" placeholder="Search documents...">
+          </div>
+          <select class="mf-select" [(ngModel)]="filterType">
+            <option value="ALL">All Types</option>
+            <option *ngFor="let type of uploadedDocumentTypes" [value]="type">{{ getRequirementLabel(type) }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Cards -->
+      <div class="documents-grid" *ngIf="filteredDocuments.length > 0">
+        <div *ngFor="let doc of filteredDocuments" class="document-card" [class.doc-card--pending]="doc.status==='PENDING'" [class.doc-card--verified]="doc.status==='VERIFIED'" [class.doc-card--rejected]="doc.status==='REJECTED'">
+          <div class="doc-card-inner">
+            <div class="doc-card-icon-col">
+              <div class="doc-file-icon" [class.doc-file-icon--pending]="doc.status==='PENDING'" [class.doc-file-icon--verified]="doc.status==='VERIFIED'" [class.doc-file-icon--rejected]="doc.status==='REJECTED'">
+                <i class="fas" [ngClass]="getFileIcon(doc.mimeType)"></i>
+              </div>
+            </div>
+            <div class="doc-card-content">
+              <div class="doc-card-top">
+                <div class="doc-card-name">{{ doc.documentName }}</div>
+                <span class="badge" [ngClass]="getStatusBadgeClass(doc.status)">
+                  <i class="fas" [ngClass]="getStatusIcon(doc.status)"></i> {{ doc.status }}
+                </span>
+              </div>
+              <p class="document-type" *ngIf="doc.documentTypeDisplay && doc.documentTypeDisplay.toLowerCase() !== doc.documentName.toLowerCase()">{{ doc.documentTypeDisplay }}</p>
+              <div class="doc-card-meta">
+                <span><i class="fas fa-calendar-alt"></i> {{ formatDate(doc.uploadedAt) }}</span>
+                <span><i class="fas fa-weight-hanging"></i> {{ doc.formattedFileSize }}</span>
+              </div>
+              <div class="verification-info" *ngIf="doc.status === 'REJECTED' && doc.verificationNotes">
+                <div class="alert alert-danger"><strong>Reason:</strong> {{ doc.verificationNotes }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="document-actions">
+            <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentFile(doc)"><i class="fas fa-eye"></i> View</button>
+            <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(doc)"><i class="fas fa-download"></i> Download</button>
+            <button class="btn btn-sm btn-outline-danger" (click)="deleteDocument(doc._id)"
+              [disabled]="doc.status === 'VERIFIED'"
+              [title]="doc.status === 'VERIFIED' ? 'Cannot delete verified documents.' : 'Delete document'">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="filteredDocuments.length === 0" style="text-align:center;padding:20px 16px;color:#94a3b8;font-size:14px;">
+        No documents match your filters.
+      </div>
+    </div>
+
   </div>
+
+  </div><!-- end docs-layout -->
 
   <!-- Document Details Modal -->
   <div class="modal-overlay" *ngIf="showDocumentDetails" (click)="closeDocumentDetails()">

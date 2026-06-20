@@ -50,7 +50,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   // Requirements pagination
   reqPage = 0;
-  readonly reqPageSize = 12;
+  readonly reqPageSize = 7;
   get pagedRequirements(): DocumentRequirement[] {
     return this.requirements.slice(this.reqPage * this.reqPageSize, (this.reqPage + 1) * this.reqPageSize);
   }
