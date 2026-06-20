@@ -47,6 +47,16 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   filterStatus: string = 'ALL';
   filterType: string = 'ALL';
   searchQuery: string = '';
+
+  // Requirements pagination
+  reqPage = 0;
+  readonly reqPageSize = 12;
+  get pagedRequirements(): DocumentRequirement[] {
+    return this.requirements.slice(this.reqPage * this.reqPageSize, (this.reqPage + 1) * this.reqPageSize);
+  }
+  get reqTotalPages(): number { return Math.max(1, Math.ceil(this.requirements.length / this.reqPageSize)); }
+  prevReqPage(): void { if (this.reqPage > 0) this.reqPage--; }
+  nextReqPage(): void { if (this.reqPage < this.reqTotalPages - 1) this.reqPage++; }
   
   // Messages
   successMessage: string = '';
@@ -348,7 +358,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   // Delete document
   deleteDocument(documentId: string): void {
-    this.notify.confirm('Delete Document', 'Are you sure you want to delete this document?', 'Yes, Delete', 'Cancel').subscribe(async ok => {
+    this.notify.confirm('Delete Document', 'Are you sure you want to delete this document?', 'Yes, Delete', 'Cancel', true).subscribe(async ok => {
       if (!ok) return;
       try {
         const response = await this.documentService.deleteDocument(documentId).toPromise();
@@ -386,6 +396,12 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
     if (!this.showUploadForm) {
       this.resetUploadForm();
     }
+  }
+
+  scrollToUploadForm(): void {
+    setTimeout(() => {
+      document.querySelector('.upload-form-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   }
 
   // Reset upload form
