@@ -46,7 +46,7 @@ interface BatchJourneySummary {
 }
 
 type BatchInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
-type FinancePaymentFilter = LanguageLevelSlot | 'all_language' | 'all_payment';
+type FinancePaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
 
 interface FinanceCurrencyTotals {
   lkr: number;
@@ -111,16 +111,33 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   filterLevel = '';
   tableSearch = '';
   batchInsight: BatchInsightFilter = '';
-  /** Default: all language fee slots combined (A1–B2). */
-  paymentFilter: FinancePaymentFilter = 'all_language';
-  readonly paymentFilterOptions: ReadonlyArray<{ value: FinancePaymentFilter; label: string; group?: 'level' | 'summary' }> = [
-    { value: 'A1', label: 'A1', group: 'level' },
-    { value: 'A2', label: 'A2', group: 'level' },
-    { value: 'B1', label: 'B1', group: 'level' },
-    { value: 'B2', label: 'B2', group: 'level' },
-    { value: 'all_language', label: 'All language fees', group: 'summary' },
-    { value: 'all_payment', label: 'All payment', group: 'summary' },
+  paymentScope: FinancePaymentScope = 'current_level';
+
+  readonly scopeButtons: ReadonlyArray<{ value: FinancePaymentScope; label: string }> = [
+    { value: 'current_level', label: 'Current Level' },
+    { value: 'all_language', label: 'All Language Fees' },
+    { value: 'all_payment', label: 'All Payment' },
   ];
+
+  readonly slotScopeOptions: ReadonlyArray<{ value: FinancePaymentScope; label: string }> = [
+    { value: 'A1', label: 'A1' },
+    { value: 'A2', label: 'A2' },
+    { value: 'B1', label: 'B1' },
+    { value: 'B2', label: 'B2' },
+    { value: 'DOCS', label: 'Document' },
+  ];
+
+  get isSlotScope(): boolean {
+    return this.slotScopeOptions.some((o) => o.value === this.paymentScope);
+  }
+
+  get slotScopeLabel(): string {
+    return this.slotScopeOptions.find((o) => o.value === this.paymentScope)?.label ?? 'Level / Type';
+  }
+
+  setPaymentScope(scope: FinancePaymentScope): void {
+    this.paymentScope = scope;
+  }
   /** Shared across all admins — only these batches appear on the finance dashboard. */
   visibleBatches: string[] = [];
   visibleBatchLevelStatuses: Record<string, string> = {};
@@ -550,13 +567,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       case 'all':
         return scoped.expected;
       case 'paid_full':
-        return this.paymentFilter === 'all_payment'
-          ? {
-              lkr: t.insightPaidFullLKR ?? 0,
-              inr: t.insightPaidFullINR ?? 0,
-              usd: t.insightPaidFullUSD ?? 0,
-            }
-          : this.scopedReceivedForSettledRows();
+        return this.scopedReceivedForSettledRows();
       case 'have_balance':
         return scoped.pending;
       case 'overdue':
@@ -599,29 +610,6 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     this.batchInsight = this.batchInsight === insight ? '' : insight;
   }
 
-  setPaymentFilter(filter: FinancePaymentFilter): void {
-    this.paymentFilter = filter;
-  }
-
-  paymentFilterLabel(): string {
-    return this.paymentFilterOptions.find((o) => o.value === this.paymentFilter)?.label ?? 'All language fees';
-  }
-
-  paymentFilterHint(): string {
-    switch (this.paymentFilter) {
-      case 'all_payment':
-        return 'All payment types — language, docs, visa, etc.';
-      case 'all_language':
-        return 'All language fees (A1–B2). Received + Pending = Total payment per batch.';
-      default:
-        return `${this.paymentFilter} fee only. Received is capped at catalog fee; Pending is still owed.`;
-    }
-  }
-
-  isPaymentFilterActive(value: FinancePaymentFilter): boolean {
-    return this.paymentFilter === value;
-  }
-
   private emptyCurrencyTotals(): FinanceCurrencyTotals {
     return { lkr: 0, inr: 0, usd: 0 };
   }
@@ -650,45 +638,49 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     pending: FinanceCurrencyTotals;
     overdue: FinanceCurrencyTotals;
   } {
-    if (this.paymentFilter === 'all_payment') {
-      return {
-        expected: {
-          lkr: r.fullExpectedLKR,
-          inr: r.fullExpectedINR,
-          usd: r.fullExpectedUSD,
-        },
-        received: { lkr: r.totalPaidLKR, inr: r.totalPaidINR, usd: r.totalPaidUSD },
-        pending: { lkr: r.fullPendingLKR, inr: r.fullPendingINR, usd: r.fullPendingUSD },
-        overdue: { lkr: r.fullOverdueLKR, inr: r.fullOverdueINR, usd: r.fullOverdueUSD },
-      };
+    const z = this.emptyCurrencyTotals();
+    switch (this.paymentScope) {
+      case 'current_level': {
+        const level = r.level as LanguageLevelSlot | null;
+        const slot = level ? r.levelSlots?.[level] : null;
+        if (slot) return this.totalsFromSlot(slot);
+        return {
+          expected: { lkr: r.totalExpectedLKR, inr: r.totalExpectedINR, usd: r.totalExpectedUSD },
+          received: { lkr: r.langPaidLKR, inr: r.langPaidINR, usd: r.langPaidUSD },
+          pending: { lkr: r.totalPendingLKR, inr: r.totalPendingINR, usd: r.totalPendingUSD },
+          overdue: { lkr: r.totalOverdueLKR, inr: r.totalOverdueINR, usd: r.totalOverdueUSD },
+        };
+      }
+      case 'all_language': {
+        if (r.allLanguageFees) return this.totalsFromSlot(r.allLanguageFees);
+        const summed = this.sumLevelSlots(r);
+        if (summed) return this.totalsFromSlot(summed);
+        return {
+          expected: { lkr: r.totalExpectedLKR, inr: r.totalExpectedINR, usd: r.totalExpectedUSD },
+          received: { lkr: r.langPaidLKR, inr: r.langPaidINR, usd: r.langPaidUSD },
+          pending: { lkr: r.totalPendingLKR, inr: r.totalPendingINR, usd: r.totalPendingUSD },
+          overdue: { lkr: r.totalOverdueLKR, inr: r.totalOverdueINR, usd: r.totalOverdueUSD },
+        };
+      }
+      case 'all_payment':
+        return {
+          expected: { lkr: r.fullExpectedLKR, inr: r.fullExpectedINR, usd: r.fullExpectedUSD },
+          received: { lkr: r.totalPaidLKR, inr: r.totalPaidINR, usd: r.totalPaidUSD },
+          pending: { lkr: r.fullPendingLKR, inr: r.fullPendingINR, usd: r.fullPendingUSD },
+          overdue: { lkr: r.fullOverdueLKR, inr: r.fullOverdueINR, usd: r.fullOverdueUSD },
+        };
+      case 'DOCS':
+        return {
+          expected: z,
+          received: { lkr: r.insightDocsLKR, inr: r.insightDocsINR, usd: r.insightDocsUSD },
+          pending: z,
+          overdue: z,
+        };
+      default: {
+        const slot = r.levelSlots?.[this.paymentScope as LanguageLevelSlot];
+        return slot ? this.totalsFromSlot(slot) : { expected: z, received: z, pending: z, overdue: z };
+      }
     }
-    if (this.paymentFilter === 'all_language') {
-      if (r.allLanguageFees) return this.totalsFromSlot(r.allLanguageFees);
-      const summed = this.sumLevelSlots(r);
-      if (summed) return this.totalsFromSlot(summed);
-      return {
-        expected: { lkr: r.totalExpectedLKR, inr: r.totalExpectedINR, usd: r.totalExpectedUSD },
-        received: { lkr: r.langPaidLKR, inr: r.langPaidINR, usd: r.langPaidUSD },
-        pending: { lkr: r.totalPendingLKR, inr: r.totalPendingINR, usd: r.totalPendingUSD },
-        overdue: { lkr: r.totalOverdueLKR, inr: r.totalOverdueINR, usd: r.totalOverdueUSD },
-      };
-    }
-    const slot = this.totalsFromSlot(r.levelSlots?.[this.paymentFilter]);
-    if (this.slotTotalsEmpty(slot) && this.batchRowMatchesLevel(r, this.paymentFilter)) {
-      return {
-        expected: { lkr: r.totalExpectedLKR, inr: r.totalExpectedINR, usd: r.totalExpectedUSD },
-        received: { lkr: r.langPaidLKR, inr: r.langPaidINR, usd: r.langPaidUSD },
-        pending: { lkr: r.totalPendingLKR, inr: r.totalPendingINR, usd: r.totalPendingUSD },
-        overdue: { lkr: r.totalOverdueLKR, inr: r.totalOverdueINR, usd: r.totalOverdueUSD },
-      };
-    }
-    return slot;
-  }
-
-  private batchRowMatchesLevel(r: BatchPaymentRow, level: LanguageLevelSlot): boolean {
-    if (r.level === level) return true;
-    const summary = (r.levelSummary || '').toUpperCase();
-    return summary.includes(`${level}:`) || summary.startsWith(level);
   }
 
   private sumLevelSlots(r: BatchPaymentRow): BatchLevelSlotTotals | null {
@@ -726,16 +718,6 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       acc.expectedUSD += s.expectedUSD ?? 0;
     }
     return hasAny ? acc : null;
-  }
-
-  private slotTotalsEmpty(t: {
-    expected: FinanceCurrencyTotals;
-    received: FinanceCurrencyTotals;
-    pending: FinanceCurrencyTotals;
-    overdue: FinanceCurrencyTotals;
-  }): boolean {
-    const sum = (c: FinanceCurrencyTotals) => c.lkr + c.inr + c.usd;
-    return sum(t.expected) + sum(t.received) + sum(t.pending) + sum(t.overdue) <= 0;
   }
 
   rowExpected(r: BatchPaymentRow): FinanceCurrencyTotals {

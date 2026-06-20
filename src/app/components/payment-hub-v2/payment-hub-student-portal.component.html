@@ -78,7 +78,7 @@
         </div>
         <div class="sp-analytics-content">
           <span class="sp-analytics-label">Total Amount</span>
-          <span class="sp-analytics-value" *ngIf="catalogFeeDisplay">{{ catalogFeeDisplay!.currency }} {{ fmt(catalogFeeDisplay!.amount) }}</span>
+          <span class="sp-analytics-value" *ngIf="catalogFeeDisplay">{{ currencyLabel(catalogFeeDisplay!.currency) }} {{ fmt(catalogFeeDisplay!.amount) }}</span>
           <span class="sp-analytics-value sp-analytics-muted" *ngIf="!catalogFeeDisplay">—</span>
           <span class="sp-analytics-sub">Level {{ catalog?.studentLevel || '—' }} Program Fee</span>
         </div>
@@ -112,7 +112,7 @@
         </div>
         <div class="sp-analytics-content">
           <span class="sp-analytics-label">Pending</span>
-          <span class="sp-analytics-value sp-analytics-amber" *ngIf="nextPaymentBlock">{{ nextPaymentBlock.currency }} {{ fmt(nextPaymentBlock.amount) }}</span>
+          <span class="sp-analytics-value sp-analytics-amber" *ngIf="nextPaymentBlock">{{ currencyLabel(nextPaymentBlock.currency) }} {{ fmt(nextPaymentBlock.amount) }}</span>
           <span class="sp-analytics-value sp-analytics-muted" *ngIf="!nextPaymentBlock">—</span>
           <span class="sp-analytics-sub" *ngIf="nextPaymentBlock">Next: {{ fmtDate(nextPaymentBlock.dueDate) }}</span>
           <span class="sp-analytics-sub" *ngIf="!nextPaymentBlock">{{ nextPaymentClearHint }}</span>
@@ -125,7 +125,7 @@
         </div>
         <div class="sp-analytics-content">
           <span class="sp-analytics-label">Balance Due</span>
-          <span class="sp-analytics-value sp-analytics-red" *ngIf="catalogBalanceDisplay">{{ catalogBalanceDisplay!.currency }} {{ fmt(catalogBalanceDisplay!.amount) }}</span>
+          <span class="sp-analytics-value sp-analytics-red" *ngIf="catalogBalanceDisplay">{{ currencyLabel(catalogBalanceDisplay!.currency) }} {{ fmt(catalogBalanceDisplay!.amount) }}</span>
           <span class="sp-analytics-value sp-analytics-green" *ngIf="!catalogBalanceDisplay">—</span>
           <span class="sp-analytics-sub" *ngIf="catalogBalanceDisplay">Remaining to pay</span>
           <span class="sp-analytics-sub" *ngIf="!catalogBalanceDisplay">All cleared!</span>
@@ -155,7 +155,7 @@
           <span>Documentation</span>
         </div>
         <div class="sp-mini-stat-value" *ngIf="documentationIsPaid && documentationPaidLine">
-          {{ documentationPaidLine!.currency }} {{ fmt(documentationPaidLine!.amount) }}
+          {{ currencyLabel(documentationPaidLine!.currency) }} {{ fmt(documentationPaidLine!.amount) }}
         </div>
         <div class="sp-mini-stat-value" *ngIf="!documentationIsPaid">Pending</div>
         <div class="sp-mini-stat-sub">{{ documentationIsPaid ? 'Fees settled' : 'Awaiting payment' }}</div>
@@ -234,7 +234,7 @@
       <div class="sp-level-fee-body" *ngIf="catalogFeeDisplay">
         <div class="sp-level-fee-amounts">
           <div class="sp-level-fee-line">
-            <span class="sp-level-fee-cur">{{ catalogFeeDisplay.currency }}</span>
+            <span class="sp-level-fee-cur">{{ currencyLabel(catalogFeeDisplay.currency) }}</span>
             <span class="sp-level-fee-num">{{ fmt(catalogFeeDisplay.amount) }}</span>
           </div>
         </div>
@@ -304,13 +304,13 @@
                   </div>
                 </td>
                 <td class="sp-cell-amount">
-                  <span class="sp-amount">{{ req.currency }} {{ fmt(req.amount) }}</span>
+                  <span class="sp-amount">{{ currencyLabel(req.currency) }} {{ fmt(req.amount) }}</span>
                 </td>
                 <td class="sp-cell-paid">
-                  <span class="sp-paid" [class.sp-paid-green]="req.amount - req.amountRemaining > 0">{{ req.currency }} {{ fmt(req.amount - req.amountRemaining) }}</span>
+                  <span class="sp-paid" [class.sp-paid-green]="req.amount - req.amountRemaining > 0">{{ currencyLabel(req.currency) }} {{ fmt(req.amount - req.amountRemaining) }}</span>
                 </td>
                 <td class="sp-cell-balance">
-                  <span class="sp-balance" [class.sp-balance-red]="req.amountRemaining > 0">{{ req.currency }} {{ fmt(req.amountRemaining) }}</span>
+                  <span class="sp-balance" [class.sp-balance-red]="req.amountRemaining > 0">{{ currencyLabel(req.currency) }} {{ fmt(req.amountRemaining) }}</span>
                 </td>
                 <td class="sp-cell-date">
                   <span class="sp-date" [class.sp-date-overdue]="isUrgent(req)">
@@ -353,7 +353,7 @@
                         <div class="sp-inst-card-body">
                           <div class="sp-inst-amount">
                             <span class="sp-inst-label">Amount</span>
-                            <span class="sp-inst-value">{{ inst.currency || req.currency }} {{ fmt(inst.requestedAmount) }}</span>
+                            <span class="sp-inst-value">{{ currencyLabel(inst.currency || req.currency) }} {{ fmt(inst.requestedAmount) }}</span>
                           </div>
                           <div class="sp-inst-due">
                             <span class="sp-inst-label">Due</span>
@@ -361,11 +361,11 @@
                           </div>
                           <div class="sp-inst-paid-amt" *ngIf="inst.paidAmount > 0">
                             <span class="sp-inst-label">Paid</span>
-                            <span class="sp-inst-value sp-inst-value-green">{{ inst.currency || req.currency }} {{ fmt(inst.paidAmount) }}</span>
+                            <span class="sp-inst-value sp-inst-value-green">{{ currencyLabel(inst.currency || req.currency) }} {{ fmt(inst.paidAmount) }}</span>
                           </div>
                           <div class="sp-inst-remaining" *ngIf="inst.remainingAmount > 0">
                             <span class="sp-inst-label">Remaining</span>
-                            <span class="sp-inst-value">{{ inst.currency || req.currency }} {{ fmt(inst.remainingAmount) }}</span>
+                            <span class="sp-inst-value">{{ currencyLabel(inst.currency || req.currency) }} {{ fmt(inst.remainingAmount) }}</span>
                           </div>
                         </div>
                       </div>

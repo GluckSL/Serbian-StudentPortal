@@ -960,11 +960,12 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   private buildMappingRemarks(): string {
     const userText = (this.mappingRemarks || '').trim();
     const parts: string[] = [];
+    const label = this.currencyLabel(this.mappingCurrency);
     if (this.mappingTotal != null && this.mappingTotal > 0) {
-      parts.push(`Quoted: ${this.mappingCurrency} ${this.fmt(this.mappingTotal)}`);
+      parts.push(`Quoted: ${label} ${this.fmt(this.mappingTotal)}`);
     }
     if (this.mappingBalance != null && this.mappingBalance >= 0) {
-      parts.push(`Balance: ${this.mappingCurrency} ${this.fmt(this.mappingBalance)}`);
+      parts.push(`Balance: ${label} ${this.fmt(this.mappingBalance)}`);
     }
     if (userText) parts.push(userText);
     return parts.join(' · ');
@@ -980,6 +981,10 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     const c = String(currency || '').trim().toUpperCase();
     if (c === 'INR' || c === 'USD') return c;
     return 'LKR';
+  }
+
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
   }
 }
 

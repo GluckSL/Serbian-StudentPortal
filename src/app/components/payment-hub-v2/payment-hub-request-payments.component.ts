@@ -602,4 +602,8 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     if (!id) return;
     window.open(`/admin/payment-request/student/${id}`, '_blank', 'noopener,noreferrer');
   }
+
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
+  }
 }

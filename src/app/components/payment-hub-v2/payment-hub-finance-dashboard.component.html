@@ -151,32 +151,34 @@
               <span *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} on dashboard</span>
               <span *ngIf="levelStatusFilter"> · {{ activeLevelStatusLabel() }}</span>
               <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
-              <span *ngIf="paymentFilter !== 'all_language'"> · {{ paymentFilterLabel() }}</span>
             </p>
           </div>
           <div class="ph-finance-table-actions">
-            <button
-              mat-icon-button
-              type="button"
-              class="ph-btn-payment-filter"
-              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
-              [matMenuTriggerFor]="paymentFilterMenu"
-              [matTooltip]="paymentFilterHint()"
-              aria-label="Payment amount filter"
-            >
-              <mat-icon>filter_list</mat-icon>
-            </button>
-            <mat-menu #paymentFilterMenu="matMenu" class="ph-payment-filter-menu">
+            <!-- Payment scope filter pills -->
+            <div class="ph-scope-filter-bar">
               <button
-                mat-menu-item
+                *ngFor="let btn of scopeButtons"
                 type="button"
-                *ngFor="let opt of paymentFilterOptions"
-                (click)="setPaymentFilter(opt.value)"
+                class="ph-scope-btn"
+                [class.ph-scope-btn--active]="paymentScope === btn.value"
+                (click)="setPaymentScope(btn.value)"
+              >{{ btn.label }}</button>
+              <button
+                type="button"
+                class="ph-scope-btn ph-scope-btn--dropdown"
+                [class.ph-scope-btn--active]="isSlotScope"
+                [matMenuTriggerFor]="slotScopeMenu"
               >
-                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
-                <span>{{ opt.label }}</span>
+                {{ isSlotScope ? slotScopeLabel : 'Level / Type' }}
+                <mat-icon>arrow_drop_down</mat-icon>
               </button>
-            </mat-menu>
+              <mat-menu #slotScopeMenu="matMenu">
+                <button mat-menu-item type="button" *ngFor="let opt of slotScopeOptions" (click)="setPaymentScope(opt.value)">
+                  <mat-icon>{{ paymentScope === opt.value ? 'check' : '' }}</mat-icon>
+                  <span>{{ opt.label }}</span>
+                </button>
+              </mat-menu>
+            </div>
             <button
               mat-stroked-button
               type="button"

@@ -49,7 +49,7 @@
             <td>
               <mat-form-field appearance="outline" class="bp-inline-cur" *ngIf="!previewMode">
                 <mat-select [(ngModel)]="r.currency">
-                  <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+                  <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
                 </mat-select>
               </mat-form-field>
               <span *ngIf="previewMode">{{ r.currency }}</span>

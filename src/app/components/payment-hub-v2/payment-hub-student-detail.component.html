@@ -267,7 +267,7 @@
 
               <div class="sd-slot-fullpaid-form" *ngIf="activeFullPaidSlot === slot.key && isLevelSlot(slot.key)">
                 <p class="sd-slot-fullpaid-form__hint">
-                  Enter the actual amount paid for {{ slot.label }} (e.g. {{ fullPaidCurrency }}
+                  Enter the actual amount paid for {{ slot.label }} (e.g. {{ currencyLabel(fullPaidCurrency) }}
                   {{ fmt(suggestFullPaidAmount(slot.key, fullPaidCurrency)) }} with 10% course discount instead of
                   {{ fmt(standardLevelFee(slot.key, fullPaidCurrency)) }}). Balance will be set to zero.
                 </p>
@@ -281,7 +281,7 @@
                     <select [(ngModel)]="fullPaidCurrency" (ngModelChange)="onFullPaidCurrencyChange(slot.key)">
                       <option value="LKR">LKR</option>
                       <option value="INR">INR</option>
-                      <option value="USD">USD</option>
+                      <option value="USD">EURO</option>
                     </select>
                   </label>
                   <label>
@@ -316,7 +316,7 @@
                     <select [(ngModel)]="mappingCurrency" (ngModelChange)="onMappingCurrencyChange(slot.key)">
                       <option value="LKR">LKR</option>
                       <option value="INR">INR</option>
-                      <option value="USD">USD</option>
+                      <option value="USD">EURO</option>
                     </select>
                   </label>
                   <label>
@@ -457,7 +457,7 @@
                         <select [(ngModel)]="editForm.currency">
                           <option value="LKR">LKR</option>
                           <option value="INR">INR</option>
-                          <option value="USD">USD</option>
+                          <option value="USD">EURO</option>
                         </select>
                       </label>
                       <label>

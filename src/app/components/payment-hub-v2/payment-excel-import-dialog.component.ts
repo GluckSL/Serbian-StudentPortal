@@ -73,6 +73,16 @@ const TYPE_ALIASES: Record<string, string> = {
 
 const VALID_CURRENCIES = new Set(['LKR', 'INR', 'USD']);
 
+function normalizeImportCurrency(value: string): string {
+  const c = String(value || '').trim().toUpperCase();
+  if (c === 'EUR' || c === 'EURO') return 'USD';
+  return c;
+}
+
+function displayCurrency(value: string): string {
+  return String(value || '').toUpperCase() === 'USD' ? 'EURO' : value;
+}
+
 function pickByAliases(row: Record<string, unknown>, aliases: string[], normalize: (h: string) => string): string {
   const keyByNorm = new Map<string, string>();
   for (const k of Object.keys(row)) {
@@ -377,7 +387,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       ['PLATINUM / Silver', 'Optional', 'Merged into Note as context (Plan: …)'],
       ['Batch', 'Optional', 'Merged into Note as context'],
       ['Status', 'Optional', 'Merged into Note as context'],
-      ['Currency', 'Recommended', 'LKR | INR | USD — inferred from student if blank'],
+      ['Currency', 'Recommended', 'LKR | INR | EURO — inferred from student if blank'],
       ['Lng Quoted', 'Optional', 'Aliases: Total amount, Language quoted'],
       ['Lng Received', 'Optional', 'Aliases: Amount, Paid amount (language payment amount)'],
       ['Bal', 'Optional', 'Aliases: Balance'],
@@ -476,7 +486,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       const batch = this.findBatch(r);
       const studentStatus = this.findStudentStatus(r);
       const note = this.mergeLegacyContextNote(this.findNote(r), plan, batch, studentStatus);
-      const currencyRaw = this.findCurrency(r).toUpperCase();
+      const currencyRaw = normalizeImportCurrency(this.findCurrency(r));
       const documentQuotation = this.parseNum(this.findDocumentQuotation(r));
       const documentReceived = this.parseNum(this.findDocumentReceived(r));
       const visaQuotation = this.parseNum(this.findVisaQuotation(r));
@@ -680,7 +690,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
       <td class="num">${esc(this.fmt(row.amount))}</td>
       <td class="num">${esc(this.fmt(row.totalAmount))}</td>
       <td class="num">${esc(this.fmt(row.balance))}</td>
-      <td>${esc(row.currency || row.effectiveCurrency)}</td>
+      <td>${esc(displayCurrency(row.currency || row.effectiveCurrency))}</td>
       <td>${esc(this.fmtDate(row.dateOfPayment))}</td>
       <td class="num">${esc(this.fmt(row.documentQuotation))}</td>
       <td class="num">${esc(this.fmt(row.documentReceived))}</td>
@@ -911,8 +921,8 @@ export class PaymentExcelImportDialogComponent implements OnInit {
     }
     if (row.currencyInferred) {
       out.push({
-        reason: `Currency was blank; using student profile currency (${row.effectiveCurrency}).`,
-        fix: 'Add an explicit Currency column value (LKR, INR, USD) if the default is wrong.',
+        reason: `Currency was blank; using student profile currency (${displayCurrency(row.effectiveCurrency)}).`,
+        fix: 'Add an explicit Currency column value (LKR, INR, EURO) if the default is wrong.',
       });
     }
     if (row.possibleDuplicate) {
@@ -950,7 +960,7 @@ export class PaymentExcelImportDialogComponent implements OnInit {
         Amount: r.amount ?? '',
         'Total amount': r.totalAmount ?? '',
         Balance: r.balance ?? '',
-        Currency: r.currency || r.effectiveCurrency,
+        Currency: displayCurrency(r.currency || r.effectiveCurrency),
         'Date of payment': r.dateOfPayment ? r.dateOfPayment.slice(0, 10) : '',
         Note: r.note,
         'Document quotation': r.documentQuotation ?? '',

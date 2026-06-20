@@ -46,7 +46,7 @@
       <mat-label>Currency</mat-label>
       <mat-select [(ngModel)]="filterCurrency">
         <mat-option value="">All currencies</mat-option>
-        <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+        <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
       </mat-select>
     </mat-form-field>
 

@@ -35,10 +35,12 @@ export interface CurrencyDisplayMeta {
 export const PAYMENT_CURRENCIES: CurrencyDisplayMeta[] = [
   { code: 'LKR', label: 'LKR', badgeClass: 'ph-ccy-badge--lkr' },
   { code: 'INR', label: 'INR', badgeClass: 'ph-ccy-badge--inr' },
+  { code: 'USD', label: 'EURO', badgeClass: 'ph-ccy-badge--eur' },
 ];
 
 export function normalizePaymentCurrency(code: string | null | undefined): PaymentCurrencyCode {
   const c = String(code || 'LKR').toUpperCase();
+  if (c === 'EUR' || c === 'EURO') return 'USD';
   if (c === 'LKR' || c === 'INR' || c === 'USD') return c;
   return 'USD';
 }

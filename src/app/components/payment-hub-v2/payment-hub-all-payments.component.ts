@@ -707,4 +707,8 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     };
     return map[slot] || 'ph-paid-slot';
   }
+
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
+  }
 }

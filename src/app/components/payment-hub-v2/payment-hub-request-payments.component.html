@@ -170,7 +170,7 @@
         <!-- Currency auto-detection notice -->
         <div class="currency-notice currency-notice--locked" *ngIf="currencyLocked">
           <mat-icon>flag</mat-icon>
-          Currency auto-detected as <strong>{{ currency }}</strong> from the student's phone number.
+          Currency auto-detected as <strong>{{ currencyLabel(currency) }}</strong> from the student's phone number.
         </div>
         <div class="currency-notice currency-notice--warn" *ngIf="currencyMixedWarning">
           <mat-icon>warning_amber</mat-icon>
@@ -186,12 +186,12 @@
           <!-- Show locked currency as a read-only chip when auto-detected; dropdown when mixed/unknown -->
           <div class="currency-locked-field" *ngIf="currencyLocked">
             <span class="currency-locked-label">Currency</span>
-            <span class="currency-locked-value">{{ currency }}</span>
+            <span class="currency-locked-value">{{ currencyLabel(currency) }}</span>
           </div>
           <mat-form-field appearance="outline" *ngIf="!currencyLocked">
             <mat-label>Currency</mat-label>
             <mat-select [(ngModel)]="currency">
-              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+              <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
             </mat-select>
           </mat-form-field>
 

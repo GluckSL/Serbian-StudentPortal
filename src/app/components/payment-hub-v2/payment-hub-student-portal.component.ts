@@ -902,6 +902,10 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     if (c === 'INR' || c === 'USD') return c;
     return 'LKR';
   }
+
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
+  }
 }
 
 type PortalLanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';

@@ -47,7 +47,7 @@
                 ₹{{ summary.totalPaidINR | number:'1.0-0' }}
               </span>
               <span *ngIf="summary.totalPaidUSD > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--usd">
-                ${{ summary.totalPaidUSD | number:'1.0-2' }}
+                EURO {{ summary.totalPaidUSD | number:'1.0-2' }}
               </span>
               <span *ngIf="summary.totalPaidLKR === 0 && summary.totalPaidINR === 0 && summary.totalPaidUSD === 0" class="ph-finance-students-kpi__nil">—</span>
             </div>
@@ -66,7 +66,7 @@
                 ₹{{ summary.totalPendingINR | number:'1.0-0' }}
               </span>
               <span *ngIf="summary.totalPendingUSD > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
-                ${{ summary.totalPendingUSD | number:'1.0-2' }}
+                EURO {{ summary.totalPendingUSD | number:'1.0-2' }}
               </span>
               <span *ngIf="summary.totalPendingLKR === 0 && summary.totalPendingINR === 0 && summary.totalPendingUSD === 0" class="ph-finance-students-kpi__nil">—</span>
             </div>
@@ -89,7 +89,7 @@
                 <span class="ph-finance-level-summary-row__amounts">
                   <span *ngIf="row.receivedLKR > 0">LKR {{ row.receivedLKR | number:'1.0-0' }}</span>
                   <span *ngIf="row.receivedINR > 0">₹{{ row.receivedINR | number:'1.0-0' }}</span>
-                  <span *ngIf="row.receivedUSD > 0">${{ row.receivedUSD | number:'1.0-2' }}</span>
+                  <span *ngIf="row.receivedUSD > 0">EURO {{ row.receivedUSD | number:'1.0-2' }}</span>
                   <span *ngIf="!hasLevelReceived(row)" class="ph-finance-level-summary-row__nil">—</span>
                 </span>
               </button>
@@ -114,7 +114,7 @@
                 <span class="ph-finance-level-summary-row__amounts">
                   <span *ngIf="row.remainingLKR > 0">LKR {{ row.remainingLKR | number:'1.0-0' }}</span>
                   <span *ngIf="row.remainingINR > 0">₹{{ row.remainingINR | number:'1.0-0' }}</span>
-                  <span *ngIf="row.remainingUSD > 0">${{ row.remainingUSD | number:'1.0-2' }}</span>
+                  <span *ngIf="row.remainingUSD > 0">EURO {{ row.remainingUSD | number:'1.0-2' }}</span>
                   <span *ngIf="!hasLevelRemaining(row)" class="ph-finance-level-summary-row__nil">—</span>
                 </span>
               </button>
@@ -174,29 +174,33 @@
                 </option>
               </select>
             </label>
-            <span class="ph-select-meta ph-select-meta--filter" *ngIf="paymentFilter !== 'all_language'">
-              {{ paymentFilterLabel() }}
-            </span>
             <span class="ph-select-meta ph-select-meta--filter" *ngIf="selectedLevels.length">
               Level: {{ levelFilterLabel() }}
               <button type="button" class="ph-finance-level-filter-chip-clear" (click)="clearAppliedLevelFilter()" matTooltip="Clear level filter">
                 <mat-icon>close</mat-icon>
               </button>
             </span>
+          </div>
+          <div class="ph-scope-filter-bar">
             <button
-              mat-icon-button
+              *ngFor="let btn of scopeButtons"
               type="button"
-              class="ph-btn-payment-filter"
-              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
-              [matMenuTriggerFor]="paymentFilterMenu"
-              [matTooltip]="paymentFilterHint()"
-              aria-label="Payment amount filter"
+              class="ph-scope-btn"
+              [class.ph-scope-btn--active]="paymentScope === btn.value"
+              (click)="setPaymentScope(btn.value)"
+            >{{ btn.label }}</button>
+            <button
+              type="button"
+              class="ph-scope-btn ph-scope-btn--dropdown"
+              [class.ph-scope-btn--active]="isSlotScope"
+              [matMenuTriggerFor]="slotScopeMenuFS"
             >
-              <mat-icon>filter_list</mat-icon>
+              {{ isSlotScope ? slotScopeLabel : 'Level / Type' }}
+              <mat-icon>arrow_drop_down</mat-icon>
             </button>
-            <mat-menu #paymentFilterMenu="matMenu">
-              <button mat-menu-item type="button" *ngFor="let opt of paymentFilterOptions" (click)="setPaymentFilter(opt.value)">
-                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
+            <mat-menu #slotScopeMenuFS="matMenu">
+              <button mat-menu-item type="button" *ngFor="let opt of slotScopeOptions" (click)="setPaymentScope(opt.value)">
+                <mat-icon>{{ paymentScope === opt.value ? 'check' : '' }}</mat-icon>
                 <span>{{ opt.label }}</span>
               </button>
             </mat-menu>
@@ -234,8 +238,8 @@
                 </th>
                 <th class="ph-num ph-col-compact">Journey day</th>
                 <th class="ph-num">Total received</th>
-                <th class="ph-num" [matTooltip]="paymentFilterHint()">Pending</th>
-                <th class="ph-num" [matTooltip]="paymentFilterHint()">Overdue</th>
+                <th class="ph-num">Pending</th>
+                <th class="ph-num">Overdue</th>
                 <th>Language fee</th>
                 <th>Status</th>
                 <th class="ph-col-actions">Actions</th>

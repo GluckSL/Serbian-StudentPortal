@@ -372,4 +372,8 @@ export class PaymentLegacyMapperDialogComponent implements OnInit, OnDestroy {
   fmt(n: number | null | undefined): string {
     return (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
+
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
+  }
 }

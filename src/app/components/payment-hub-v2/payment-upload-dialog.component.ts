@@ -68,7 +68,7 @@ export interface UploadDialogData {
           <mat-select [(ngModel)]="currency">
             <mat-option value="LKR">LKR</mat-option>
             <mat-option value="INR">INR</mat-option>
-            <mat-option value="USD">USD</mat-option>
+            <mat-option value="USD">EURO</mat-option>
           </mat-select>
         </mat-form-field>
       </div>

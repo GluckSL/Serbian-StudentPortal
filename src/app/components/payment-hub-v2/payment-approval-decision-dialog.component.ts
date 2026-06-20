@@ -235,6 +235,10 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
     return (val ?? 0).toLocaleString('en-IN');
   }
 
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
+  }
+
   onPaymentAmountChange(): void {
     const pay = Number(this.paymentAmount);
     if (Number.isFinite(pay) && pay > 0) {

@@ -17,14 +17,14 @@
     <mat-form-field appearance="outline" class="cr-field">
       <mat-label>Currency</mat-label>
       <mat-select [(ngModel)]="currency" (selectionChange)="onCurrencyChange()" [disabled]="saving">
-        <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+        <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <div class="cr-summary">
       <div class="cr-summary-item">
         <span class="cr-label">Current total received</span>
-        <span class="cr-val">{{ currency }} {{ fmt(currentTotal) }}</span>
+        <span class="cr-val">{{ currencyLabel(currency) }} {{ fmt(currentTotal) }}</span>
       </div>
       <mat-form-field appearance="outline" class="cr-field cr-field-amount">
         <mat-label>Correct to</mat-label>

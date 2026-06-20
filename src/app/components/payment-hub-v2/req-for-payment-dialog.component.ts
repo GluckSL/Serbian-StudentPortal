@@ -83,7 +83,7 @@ interface InstallmentRow {
       <mat-select [(ngModel)]="currency">
         <mat-option value="LKR">LKR</mat-option>
         <mat-option value="INR">INR</mat-option>
-        <mat-option value="USD">USD</mat-option>
+        <mat-option value="USD">EURO</mat-option>
       </mat-select>
     </mat-form-field>
 
@@ -109,7 +109,7 @@ interface InstallmentRow {
     <div class="inst-header">
       <span class="inst-title">Installment schedule</span>
       <span class="inst-total" [class.inst-total--ok]="installmentTotal > 0">
-        Total: {{ currency }} {{ installmentTotal | number:'1.0-2' }}
+      Total: {{ currency === 'USD' ? 'EURO' : currency }} {{ installmentTotal | number:'1.0-2' }}
       </span>
     </div>
 

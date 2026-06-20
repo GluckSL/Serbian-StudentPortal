@@ -9,7 +9,6 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import {
   BatchLevelSlotTotals,
-  BatchStudentPaymentFilter,
   BatchStudentPaymentRow,
   CohortStudentsPaymentDetail,
   CurrencyBucket,
@@ -48,6 +47,7 @@ interface LevelFilterOption {
 }
 
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue';
+type FinanceStudentPaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
 
 @Component({
   selector: 'app-payment-hub-finance-students',
@@ -85,23 +85,40 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
   readonly pageSizeOptions = [10, 50, 100, 150, 200, 300];
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   studentInsight: StudentInsightFilter = '';
-  paymentFilter: BatchStudentPaymentFilter = 'all_language';
+  paymentScope: FinanceStudentPaymentScope = 'current_level';
   levelFilterOpen = false;
   selectedLevels: string[] = [];
   draftSelectedLevels: string[] = [];
   levelFilterSearch = '';
   levelOptions: LevelFilterOption[] = [];
 
-  readonly paymentFilterOptions: ReadonlyArray<{ value: BatchStudentPaymentFilter; label: string }> = [
+  readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  readonly scopeButtons: ReadonlyArray<{ value: FinanceStudentPaymentScope; label: string }> = [
+    { value: 'current_level', label: 'Current Level' },
+    { value: 'all_language', label: 'All Language Fees' },
+    { value: 'all_payment', label: 'All Payment' },
+  ];
+
+  readonly slotScopeOptions: ReadonlyArray<{ value: FinanceStudentPaymentScope; label: string }> = [
     { value: 'A1', label: 'A1' },
     { value: 'A2', label: 'A2' },
     { value: 'B1', label: 'B1' },
     { value: 'B2', label: 'B2' },
-    { value: 'all_language', label: 'All language fees' },
-    { value: 'all_payment', label: 'All payment' },
+    { value: 'DOCS', label: 'Document' },
   ];
 
-  readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
+  get isSlotScope(): boolean {
+    return this.slotScopeOptions.some((o) => o.value === this.paymentScope);
+  }
+
+  get slotScopeLabel(): string {
+    return this.slotScopeOptions.find((o) => o.value === this.paymentScope)?.label ?? 'Level / Type';
+  }
+
+  setPaymentScope(scope: FinanceStudentPaymentScope): void {
+    this.paymentScope = scope;
+  }
 
   readonly studentInsightOptions = [
     { value: '' as StudentInsightFilter, key: 'all', label: 'Total students', icon: 'groups', color: 'slate', hint: 'Show all students' },
@@ -255,26 +272,6 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
     return this.studentInsightOptions.find((o) => o.value === this.studentInsight)?.label || '';
   }
 
-  setPaymentFilter(filter: BatchStudentPaymentFilter): void {
-    this.paymentFilter = filter;
-  }
-
-  paymentFilterLabel(): string {
-    return this.paymentFilterOptions.find((o) => o.value === this.paymentFilter)?.label ?? 'All language fees';
-  }
-
-  paymentFilterHint(): string {
-    switch (this.paymentFilter) {
-      case 'all_payment': return 'All payment types — language, docs, visa, etc.';
-      case 'all_language': return 'All language fees (A1–B2).';
-      default: return `${this.paymentFilter} fee only.`;
-    }
-  }
-
-  isPaymentFilterActive(value: BatchStudentPaymentFilter): boolean {
-    return this.paymentFilter === value;
-  }
-
   openLevelFilter(): void {
     this.draftSelectedLevels = [...this.selectedLevels];
     this.levelFilterSearch = '';
@@ -403,27 +400,51 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
   }
 
   private scopeTotalsFromRow(r: BatchStudentPaymentRow): { expected: StudentCurrencyTotals; received: StudentCurrencyTotals; pending: StudentCurrencyTotals; overdue: StudentCurrencyTotals } {
-    if (this.paymentFilter === 'all_payment') {
-      return {
-        expected: this.emptyCurrencyTotals(),
-        received: { lkr: r.totalPaidLKR ?? 0, inr: r.totalPaidINR ?? 0, usd: r.totalPaidUSD ?? 0 },
-        pending: { lkr: r.pendingApprovalAmountLKR ?? 0, inr: r.pendingApprovalAmountINR ?? 0, usd: r.pendingApprovalAmountUSD ?? 0 },
-        overdue: { lkr: r.overdueAmountLKR ?? 0, inr: r.overdueAmountINR ?? 0, usd: r.overdueAmountUSD ?? 0 },
-      };
+    const z = this.emptyCurrencyTotals();
+    switch (this.paymentScope) {
+      case 'current_level': {
+        const level = r.level as LanguageLevelSlot | null;
+        const slot = level ? r.levelSlots?.[level] : null;
+        if (slot) return this.totalsFromSlot(slot);
+        return {
+          expected: z,
+          received: { lkr: r.langPaidLKR ?? 0, inr: r.langPaidINR ?? 0, usd: r.langPaidUSD ?? 0 },
+          pending: { lkr: r.langPendingLKR ?? 0, inr: r.langPendingINR ?? 0, usd: r.langPendingUSD ?? 0 },
+          overdue: { lkr: r.langOverdueLKR ?? 0, inr: r.langOverdueINR ?? 0, usd: r.langOverdueUSD ?? 0 },
+        };
+      }
+      case 'all_language': {
+        if (r.allLanguageFees) return this.totalsFromSlot(r.allLanguageFees);
+        const summed = this.sumLevelSlots(r);
+        if (summed) return this.totalsFromSlot(summed);
+        return {
+          expected: z,
+          received: { lkr: r.langPaidLKR ?? 0, inr: r.langPaidINR ?? 0, usd: r.langPaidUSD ?? 0 },
+          pending: { lkr: r.langPendingLKR ?? 0, inr: r.langPendingINR ?? 0, usd: r.langPendingUSD ?? 0 },
+          overdue: { lkr: r.langOverdueLKR ?? 0, inr: r.langOverdueINR ?? 0, usd: r.langOverdueUSD ?? 0 },
+        };
+      }
+      case 'all_payment':
+        return {
+          expected: z,
+          received: { lkr: r.totalPaidLKR ?? 0, inr: r.totalPaidINR ?? 0, usd: r.totalPaidUSD ?? 0 },
+          pending: { lkr: r.pendingApprovalAmountLKR ?? 0, inr: r.pendingApprovalAmountINR ?? 0, usd: r.pendingApprovalAmountUSD ?? 0 },
+          overdue: { lkr: r.overdueAmountLKR ?? 0, inr: r.overdueAmountINR ?? 0, usd: r.overdueAmountUSD ?? 0 },
+        };
+      case 'DOCS': {
+        const docs = r.docsPaidByCurrency;
+        return {
+          expected: z,
+          received: { lkr: docs?.LKR ?? 0, inr: docs?.INR ?? 0, usd: docs?.USD ?? 0 },
+          pending: z,
+          overdue: z,
+        };
+      }
+      default: {
+        const slot = r.levelSlots?.[this.paymentScope as LanguageLevelSlot];
+        return slot ? this.totalsFromSlot(slot) : { expected: z, received: z, pending: z, overdue: z };
+      }
     }
-    if (this.paymentFilter === 'all_language') {
-      if (r.allLanguageFees) return this.totalsFromSlot(r.allLanguageFees);
-      const summed = this.sumLevelSlots(r);
-      if (summed) return this.totalsFromSlot(summed);
-      const z = this.emptyCurrencyTotals();
-      return {
-        expected: z,
-        received: { lkr: r.langPaidLKR ?? 0, inr: r.langPaidINR ?? 0, usd: r.langPaidUSD ?? 0 },
-        pending: { lkr: r.langPendingLKR ?? 0, inr: r.langPendingINR ?? 0, usd: r.langPendingUSD ?? 0 },
-        overdue: { lkr: r.langOverdueLKR ?? 0, inr: r.langOverdueINR ?? 0, usd: r.langOverdueUSD ?? 0 },
-      };
-    }
-    return this.totalsFromSlot(r.levelSlots?.[this.paymentFilter]);
   }
 
   rowReceived(r: BatchStudentPaymentRow): StudentCurrencyTotals {

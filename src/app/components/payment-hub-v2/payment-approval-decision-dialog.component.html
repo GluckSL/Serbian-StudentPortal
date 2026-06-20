@@ -53,7 +53,7 @@
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>Currency</mat-label>
           <mat-select [(ngModel)]="currency">
-            <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+            <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
@@ -82,7 +82,7 @@
       <h3 class="pad-section__title">Submission (proof)</h3>
       <div class="pad-form-grid">
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Credit amount ({{ currency }})</mat-label>
+          <mat-label>Credit amount ({{ currencyLabel(currency) }})</mat-label>
           <input matInput type="number" min="1" [(ngModel)]="creditedAmount" (ngModelChange)="onCreditedAmountChange()" />
           <mat-hint>Amount to approve and credit</mat-hint>
         </mat-form-field>
@@ -143,7 +143,7 @@
       (click)="confirmApprove()"
       [disabled]="!canApprove">
       <mat-icon>check_circle</mat-icon>
-      Approve {{ currency }} {{ fmt(creditedAmount) }}
+      Approve {{ currencyLabel(currency) }} {{ fmt(creditedAmount) }}
     </button>
   </div>
 </div>

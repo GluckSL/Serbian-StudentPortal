@@ -78,28 +78,27 @@
               </button>
             </span>
             <span class="ph-select-meta">{{ displayRows.length }} shown</span>
-            <span class="ph-select-meta ph-select-meta--filter" *ngIf="paymentFilter !== 'all_language'">
-              {{ paymentFilterLabel() }}
-            </span>
+          </div>
+          <div class="ph-scope-filter-bar">
             <button
-              mat-icon-button
+              *ngFor="let btn of scopeButtons"
               type="button"
-              class="ph-btn-payment-filter"
-              [class.ph-btn-payment-filter--active]="paymentFilter !== 'all_language'"
-              [matMenuTriggerFor]="paymentFilterMenu"
-              [matTooltip]="paymentFilterHint()"
-              aria-label="Payment amount filter"
+              class="ph-scope-btn"
+              [class.ph-scope-btn--active]="paymentScope === btn.value"
+              (click)="setPaymentScope(btn.value)"
+            >{{ btn.label }}</button>
+            <button
+              type="button"
+              class="ph-scope-btn ph-scope-btn--dropdown"
+              [class.ph-scope-btn--active]="isSlotScope"
+              [matMenuTriggerFor]="slotScopeMenu"
             >
-              <mat-icon>filter_list</mat-icon>
+              {{ isSlotScope ? slotScopeLabel : 'Level / Type' }}
+              <mat-icon>arrow_drop_down</mat-icon>
             </button>
-            <mat-menu #paymentFilterMenu="matMenu">
-              <button
-                mat-menu-item
-                type="button"
-                *ngFor="let opt of paymentFilterOptions"
-                (click)="setPaymentFilter(opt.value)"
-              >
-                <mat-icon>{{ isPaymentFilterActive(opt.value) ? 'check' : '' }}</mat-icon>
+            <mat-menu #slotScopeMenu="matMenu">
+              <button mat-menu-item type="button" *ngFor="let opt of slotScopeOptions" (click)="setPaymentScope(opt.value)">
+                <mat-icon>{{ paymentScope === opt.value ? 'check' : '' }}</mat-icon>
                 <span>{{ opt.label }}</span>
               </button>
             </mat-menu>
@@ -125,8 +124,8 @@
                 <th>Level</th>
                 <th class="ph-num ph-col-compact">Journey day</th>
                 <th class="ph-num">Total received</th>
-                <th class="ph-num" [matTooltip]="paymentFilterHint()">Pending</th>
-                <th class="ph-num" [matTooltip]="paymentFilterHint()">Overdue</th>
+                <th class="ph-num">Pending</th>
+                <th class="ph-num">Overdue</th>
                 <th>Language fee</th>
                 <th class="ph-col-actions">Actions</th>
               </tr>

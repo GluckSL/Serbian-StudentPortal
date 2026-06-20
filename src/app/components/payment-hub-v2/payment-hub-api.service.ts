@@ -399,8 +399,6 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   allLanguageFees?: BatchLevelSlotTotals;
 }
 
-export type BatchStudentPaymentFilter = LanguageLevelSlot | 'all_language' | 'all_payment';
-
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];

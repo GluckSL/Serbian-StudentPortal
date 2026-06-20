@@ -129,6 +129,10 @@ export class PaymentBulkLanguagePaidDialogComponent implements OnInit {
     return (n ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
   }
 
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
+  }
+
   close(ok: boolean): void {
     this.dialogRef.close(ok);
   }

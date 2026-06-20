@@ -120,6 +120,10 @@ export class PaymentCorrectReceivedDialogComponent {
     return (n ?? 0).toLocaleString('en-IN');
   }
 
+  currencyLabel(currency: string | null | undefined): string {
+    return String(currency || '').toUpperCase() === 'USD' ? 'EURO' : String(currency || '');
+  }
+
   private pickPrimaryCurrency(row: StudentTableRow): string {
     const inferred = String(row.inferredCurrency || '').toUpperCase();
     if (inferred === 'LKR' || inferred === 'INR' || inferred === 'USD') return inferred;
