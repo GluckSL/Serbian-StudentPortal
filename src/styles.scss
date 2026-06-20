@@ -355,6 +355,13 @@ button:disabled,
   margin: 0 !important;
 }
 
+/* Replace flat grey Material backdrop with a navy blur overlay */
+.cdk-overlay-backdrop.cdk-overlay-dark-backdrop {
+  background: rgba(1, 31, 75, 0.45) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
 /* ============================= */
 /* Global Responsive Utilities   */
 /* ============================= */
