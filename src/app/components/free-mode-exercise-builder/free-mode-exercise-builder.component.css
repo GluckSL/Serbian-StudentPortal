@@ -214,6 +214,22 @@
 .question-badge { color: #2563eb; background: #dbeafe; }
 .item-badge .material-icons { font-size: 14px; }
 
+.q-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.is-content .q-number { display: none; }
+
 .item-actions { display: flex; gap: 4px; }
 .item-btn {
   display: inline-flex;

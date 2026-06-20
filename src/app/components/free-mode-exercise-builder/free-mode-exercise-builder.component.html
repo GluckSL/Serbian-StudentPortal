@@ -106,6 +106,7 @@
           <span class="material-icons">{{ item.kind === 'content' ? 'article' : getTypeIcon(item.type!) }}</span>
           {{ item.kind === 'content' ? 'CONTENT' : getTypeLabel(item.type!) }}
         </span>
+        <span class="q-number" *ngIf="item.kind === 'question'">{{ item.questionIndex }}</span>
         <div class="item-actions">
           <button class="item-btn" (click)="moveItem(item.uid, -1)" [disabled]="idx === 0" matTooltip="Move up">
             <span class="material-icons">arrow_upward</span>
