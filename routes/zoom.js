@@ -701,10 +701,13 @@ router.get('/meetings', verifyToken, async (req, res) => {
     if (batch !== undefined && batch !== null && String(batch).trim() !== '') {
       const b = String(batch).trim();
       const asNum = Number(b);
+      const topicBatchClause = {
+        topic: new RegExp(`\\bbatch\\s*[-#:]*\\s*${escapeRegex(b)}\\b`, 'i')
+      };
       if (Number.isFinite(asNum) && String(asNum) === b) {
-        andClauses.push({ $or: [{ batch: b }, { batch: asNum }] });
+        andClauses.push({ $or: [{ batch: b }, { batch: asNum }, topicBatchClause] });
       } else {
-        andClauses.push({ batch: b });
+        andClauses.push({ $or: [{ batch: b }, topicBatchClause] });
       }
     }
 

@@ -21,6 +21,8 @@ const VALID_SLOT_KEYS = new Set(['A1', 'A2', 'B1', 'B2', 'DOCS', 'VISA']);
 const getEmailService = () => require('./emailService');
 
 const { activatePublicSignupStudent } = require('../../../../utils/signupActivation');
+const User = require('../../../../models/User');
+const BatchConfig = require('../../../../models/BatchConfig');
 
 
 const logAudit = (data) => PaymentAuditLog.create(data).catch((e) => console.error('[Audit]', e.message));
@@ -321,6 +323,45 @@ const applySubmissionReviewDetails = async ({ submissionId, adminId, adminRole, 
   return { submission, request, student };
 };
 
+// ─── AUTO GO ENROLLMENT ──────────────────────────────────────────────────────
+// After payment approval, Silver students at A1 or A2 level are automatically
+// placed into the GO journey. Tamil and English medium → GO-SILVER; Sinhala → GO-SINHALA.
+
+const GO_AUTO_ENROLL_LEVELS = new Set(['A1', 'A2']);
+
+async function autoEnrollGoIfEligible(studentId) {
+  try {
+    const student = await User.findById(studentId).select(
+      'subscription level goStatus medium goLanguage goJoiningDate'
+    );
+    if (!student) return;
+
+    if (String(student.subscription || '').toUpperCase() !== 'SILVER') return;
+    if (!GO_AUTO_ENROLL_LEVELS.has(String(student.level || '').toUpperCase())) return;
+    if (student.goStatus === 'GO') return;
+
+    const mediums = (student.medium || []).map((m) => String(m).toLowerCase());
+    const isSinhala = mediums.includes('sinhala');
+    const goBatchName = isSinhala ? 'GO-SINHALA' : 'GO-SILVER';
+    const goLanguage = isSinhala ? 'Sinhala' : 'Tamil';
+
+    await BatchConfig.findOneAndUpdate(
+      { batchName: goBatchName },
+      { $setOnInsert: { batchName: goBatchName, journeyLength: 200, batchCurrentDay: 1 } },
+      { upsert: true, new: true }
+    );
+
+    student.goStatus = 'GO';
+    student.goLanguage = goLanguage;
+    student.goJoiningDate = new Date();
+    await student.save();
+
+    console.log(`[autoEnrollGO] Student ${studentId} auto-enrolled into ${goBatchName}`);
+  } catch (err) {
+    console.error('[autoEnrollGO] Failed to auto-enroll student into GO journey:', err?.message || err);
+  }
+}
+
 // ─── APPROVE PAYMENT ─────────────────────────────────────────────────────────
 
 const approveSubmission = async ({
@@ -411,6 +452,9 @@ const approveSubmission = async ({
     }
   }
   // ──────────────────────────────────────────────────────────────────────────
+
+  // ── Auto-enroll Silver A1/A2 students in GO journey ──
+  autoEnrollGoIfEligible(student._id || student).catch(() => {});
 
   return { submission: submission.toObject(), request: refreshedRequest.toObject(), receiptNumber, isFullyPaid };
 };

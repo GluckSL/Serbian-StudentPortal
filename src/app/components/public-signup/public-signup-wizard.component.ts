@@ -88,7 +88,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
     { value: 'POST_LANDING', label: 'Post landing' },
   ];
 
-  readonly LEARN_FROM_LANGUAGE_OPTIONS = ['English', 'Hindi', 'Tamil', 'Telugu', 'Malayalam', 'Other'];
+  readonly LEARN_FROM_LANGUAGE_OPTIONS = ['English', 'Tamil', 'Sinhala'];
   readonly GERMAN_LEVEL_OPTIONS = ['A1', 'A2', 'B1', 'B2'];
   readonly bankDetailsInr = BANK_DETAILS_INR;
   readonly bankDetailsLkr = BANK_DETAILS_LKR;

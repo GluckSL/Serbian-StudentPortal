@@ -10,7 +10,7 @@ const WITHDRAWAL_ALERT_RECIPIENTS = [
 
 const WITHDRAWAL_ALERT_CC_RECIPIENTS = [
   'lawson@gluckglobal.com',
-  'aiswariya@gluckglobal.com',
+  'aiswarya@gluckglobal.com',
 ];
 
 function getFromAddress() {

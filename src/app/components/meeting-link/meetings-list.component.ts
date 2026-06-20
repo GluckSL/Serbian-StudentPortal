@@ -44,6 +44,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   /** Server pagination (filters apply to full collection, then slice) */
   pageIndex = 0;
   pageSize = 15;
+  private readonly batchEndedPageSize = 150;
   totalCount = 0;
   tabCounts: { scheduled: number; ongoing: number; ended: number } = {
     scheduled: 0,
@@ -103,12 +104,17 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
 
     const batchParam = this.batchFilter !== 'all' ? this.batchFilter : undefined;
     const searchTrim = this.searchQuery.trim();
+    const showBatchEndedInOnePage = this.shouldShowBatchEndedInOnePage();
+    if (showBatchEndedInOnePage && this.pageIndex !== 0) {
+      this.pageIndex = 0;
+    }
+    const requestPageSize = showBatchEndedInOnePage ? this.batchEndedPageSize : this.pageSize;
 
     this.zoomService
       .getAllMeetings({
         lifecycle: this.statusTab,
-        page: this.pageIndex + 1,
-        limit: this.pageSize,
+        page: showBatchEndedInOnePage ? 1 : this.pageIndex + 1,
+        limit: requestPageSize,
         search: searchTrim || undefined,
         batch: batchParam,
         includeTabCounts: true
@@ -120,7 +126,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
             this.meetings = response.data || [];
             this.userRole = response.userRole || '';
             this.totalCount = Number(response.totalCount) || 0;
-            const lastPageIndex = Math.max(Math.ceil(this.totalCount / this.pageSize) - 1, 0);
+            const lastPageIndex = Math.max(Math.ceil(this.totalCount / requestPageSize) - 1, 0);
             if (this.pageIndex > lastPageIndex) {
               this.pageIndex = lastPageIndex;
               this.loading = false;
@@ -200,6 +206,20 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     this.pageIndex = ev.pageIndex;
     this.pageSize = ev.pageSize;
     this.loadMeetings();
+  }
+
+  shouldShowBatchEndedInOnePage(): boolean {
+    return this.statusTab === 'ended' && this.batchFilter !== 'all';
+  }
+
+  showPaginator(): boolean {
+    if (this.totalCount <= 0) return false;
+    if (this.shouldShowBatchEndedInOnePage() && this.totalCount <= this.batchEndedPageSize) return false;
+    return true;
+  }
+
+  paginatorPageSize(): number {
+    return this.shouldShowBatchEndedInOnePage() ? this.batchEndedPageSize : this.pageSize;
   }
 
   tableColumns(): string[] {
@@ -494,6 +514,15 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
 
   getUniqueBatches(): string[] {
     return this.availableBatches.length ? this.availableBatches : [];
+  }
+
+  displayBatch(meeting: any): string {
+    const topicBatch = String(meeting?.topic || '').match(/\bbatch\s*[-#:]*\s*([A-Za-z0-9_-]+)\b/i)?.[1];
+    const rawBatch = String(meeting?.batch || '').trim();
+    if (topicBatch && (/^GO-/i.test(rawBatch) || rawBatch === '')) {
+      return topicBatch;
+    }
+    return rawBatch || topicBatch || '—';
   }
 
   isAdmin(): boolean {
