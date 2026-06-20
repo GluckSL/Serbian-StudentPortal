@@ -441,7 +441,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       aiGradingEnabled: q.aiGradingEnabled !== false
     };
     if (q.type === 'mcq') {
-      const options = [...(q.options || ['', '', '', ''])];
+      const options = [...(q.options || ['', ''])];
       const rawImages = Array.isArray(q.optionImageUrls) ? q.optionImageUrls.map((u: unknown) => String(u || '').trim()) : [];
       Object.assign(base, {
         question: q.question || '',
@@ -642,8 +642,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (qType === 'mcq') {
       q.question = '';
       q.imageUrl = '';
-      q.options = ['', '', '', ''];
-      q.optionImageUrls = ['', '', '', ''];
+      q.options = ['', ''];
+      q.optionImageUrls = ['', ''];
       q.correctAnswerIndex = 0;
       q.explanation = '';
     } else if (qType === 'matching') {
@@ -763,7 +763,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     if (qType === 'mcq') {
       q.question = '';
       q.imageUrl = parent.imageUrl || '';
-      q.options = ['', '', '', ''];
+      q.options = ['', ''];
       q.correctAnswerIndex = 0;
       q.explanation = parent.explanation || '';
     } else if (qType === 'matching') {

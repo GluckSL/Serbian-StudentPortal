@@ -90,7 +90,7 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
         <div class="content-attachments" *ngIf="item.attachmentUrls?.length">
           <div *ngFor="let url of item.attachmentUrls" class="attachment-item">
             <ng-container [ngSwitch]="getAttachmentType(url)">
-              <img *ngSwitchCase="'image'" [src]="resolveUrl(url)" class="att-img" />
+              <img *ngSwitchCase="'image'" [src]="resolveUrl(url)" class="att-img" (click)="openFullscreen($event)" />
               <audio *ngSwitchCase="'audio'" [src]="resolveUrl(url)" controls class="att-audio"></audio>
               <video *ngSwitchCase="'video'" [src]="resolveUrl(url)" controls class="att-video"></video>
               <a *ngSwitchDefault [href]="resolveUrl(url)" target="_blank" class="att-link">
@@ -112,7 +112,8 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
         <div class="q-body">
           <ng-container [ngSwitch]="item.question!.type">
             <!-- MCQ -->
-            <div *ngSwitchCase="'mcq'" class="mcq-options">
+            <ng-container *ngSwitchCase="'mcq'">
+            <div class="mcq-options" *ngIf="item.question!.options?.length">
               <p class="q-text">{{ item.question!.question }}</p>
               <div *ngFor="let opt of item.question!.options; let oi = index" class="mcq-option"
                 [class.selected]="getAnswer(item.questionIndex!).selectedOptionIndex === oi"
@@ -122,6 +123,7 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
                 <span class="material-icons check-icon">check_circle</span>
               </div>
             </div>
+            </ng-container>
 
             <!-- Matching -->
             <div *ngSwitchCase="'matching'">
@@ -463,8 +465,8 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
 
     .example-label { font-weight: 600; }
 
-    .content-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-    .att-img { max-height: 160px; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .content-attachments { display: flex; gap: 8px; margin-top: 6px; overflow-x: auto; flex-shrink: 0; }
+    .att-img { max-height: 480px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; }
     .att-audio { height: 36px; max-width: 100%; }
     .att-video { max-height: 200px; max-width: 100%; border-radius: 8px; }
     .att-link {
@@ -915,6 +917,10 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
       .result-card { padding: 28px 20px; }
       .score-pct { font-size: 32px; }
     }
+
+    @media (max-width: 762px) {
+      .att-img { width: 100%; }
+    }
   `]
 })
 export class FreeModeExerciseRendererComponent implements OnInit {
@@ -1334,6 +1340,13 @@ export class FreeModeExerciseRendererComponent implements OnInit {
 
   resolveUrl(url: string): string {
     return resolveMediaUrl(url);
+  }
+
+  openFullscreen(event: MouseEvent): void {
+    const el = event.target as HTMLElement;
+    if (el.requestFullscreen) {
+      el.requestFullscreen();
+    }
   }
 
   private updateAnsweredCount(): void {

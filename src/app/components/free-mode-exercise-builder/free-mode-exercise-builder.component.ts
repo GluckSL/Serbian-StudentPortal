@@ -17,6 +17,7 @@ interface QuestionTypeDef {
 export interface FreeModeItem {
   uid: number;
   kind: 'content' | 'question';
+  questionIndex?: number;
   type?: string;
   worksheetKind?: string | null;
   sectionTitle?: string;
@@ -166,6 +167,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
             this.initContentBlockFields(item);
           }
         }
+        this.reindexQuestions();
         this.loadingExercise = false;
       },
       error: (err) => {
@@ -265,6 +267,16 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
     return index;
   }
 
+  private reindexQuestions(): void {
+    let qi = 0;
+    for (const item of this.items) {
+      if (item.kind === 'question') {
+        qi++;
+        item.questionIndex = qi;
+      }
+    }
+  }
+
   private initContentBlockFields(item: FreeModeItem): void {
     const flags = new Set<string>();
     if (item.sectionTitle) flags.add('title');
@@ -329,7 +341,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       base.sampleAnswers = [];
     } else if (type === 'mcq') {
       base.question = '';
-      base.options = ['', '', '', ''];
+      base.options = ['', ''];
       base.correctAnswerIndex = 0;
       base.explanation = '';
     } else if (type === 'matching') {
@@ -377,6 +389,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       base.secondaryCaptionAtSeconds = 5;
     }
     this.items.push(base);
+    this.reindexQuestions();
   }
 
   private uid(): string {
@@ -386,6 +399,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   deleteItem(uid: number): void {
     this.items = this.items.filter(i => i.uid !== uid);
     this.contentBlockFieldVisibility.delete(uid);
+    this.reindexQuestions();
   }
 
   moveItem(uid: number, direction: -1 | 1): void {
@@ -395,6 +409,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
     if (newIdx < 0 || newIdx >= this.items.length) return;
     [this.items[idx], this.items[newIdx]] = [this.items[newIdx], this.items[idx]];
     this.items = [...this.items];
+    this.reindexQuestions();
   }
 
   addPair(item: FreeModeItem): void {
