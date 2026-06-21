@@ -1,0 +1,33 @@
+<div
+  class="wb-backdrop"
+  *ngIf="visible"
+  [class.wb-backdrop--out]="closing"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="'Welcome back, ' + (payload?.firstName || 'student')"
+  (click)="dismiss()"
+>
+  <div class="wb-card" [class.wb-card--in]="animating" [class.wb-card--out]="closing" (click)="$event.stopPropagation()">
+    <div class="wb-sparkles" aria-hidden="true">
+      <span class="wb-sparkle wb-sparkle--1">✨</span>
+      <span class="wb-sparkle wb-sparkle--2">⭐</span>
+      <span class="wb-sparkle wb-sparkle--3">✨</span>
+    </div>
+
+    <div class="wb-olly-wrap" [class.wb-olly-wrap--bounce]="animating">
+      <img class="wb-olly" src="assets/images/chatbot.jpg" alt="Olly, your study buddy" />
+      <span class="wb-wave" aria-hidden="true">👋</span>
+    </div>
+
+    <h2 class="wb-title">Welcome back, {{ payload?.firstName }}!</h2>
+    <p class="wb-message">{{ message }}</p>
+
+    <p class="wb-days" *ngIf="payload?.daysSince">
+      You were away for {{ payload?.daysSince }} day{{ payload?.daysSince === 1 ? '' : 's' }} — let's make today count.
+    </p>
+
+    <button type="button" class="wb-cta" (click)="dismiss()">
+      Let's study! 📚
+    </button>
+  </div>
+</div>

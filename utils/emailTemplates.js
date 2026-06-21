@@ -812,6 +812,166 @@ function buildPortalAbsenceReminderEmail({ name, daysSince, loginUrl, reminderNu
   };
 }
 
+/**
+ * Nightly digest email for the Language Team listing every student with
+ * 2+ consecutive class absences.
+ *
+ * @param {object}   params
+ * @param {Array}    params.absentStudents  - Array of student absence records
+ * @param {string}   params.absentStudents[].name
+ * @param {string}   params.absentStudents[].email
+ * @param {string}   params.absentStudents[].batch
+ * @param {number}   params.absentStudents[].streak          - consecutive absences count
+ * @param {string}   [params.absentStudents[].lastAttended]  - ISO date string of last attended class, or null
+ * @param {string}   [params.absentStudents[].assignedTeacher] - teacher's name
+ * @param {string}   params.reportDate  - human-readable date string shown in the email header
+ */
+function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportDate }) {
+  const dateLabel = escapeHtml(reportDate || new Date().toDateString());
+
+  const tableRows = absentStudents
+    .map((s, idx) => {
+      const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8f5ff';
+      const streakColor = s.streak >= 5 ? '#dc2626' : s.streak >= 3 ? '#d97706' : '#6c3fc5';
+      const lastAttendedLabel = s.lastAttended
+        ? escapeHtml(new Date(s.lastAttended).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
+        : '<span style="color:#9ca3af;font-style:italic;">Never recorded</span>';
+      return `
+      <tr style="background:${rowBg};">
+        <td style="padding:11px 14px;font-size:13px;color:#1e293b;border-bottom:1px solid #ede9fe;">${escapeHtml(s.name)}</td>
+        <td style="padding:11px 14px;font-size:13px;color:#374151;border-bottom:1px solid #ede9fe;">${escapeHtml(s.email || '—')}</td>
+        <td style="padding:11px 14px;font-size:13px;color:#374151;border-bottom:1px solid #ede9fe;text-align:center;">
+          <span style="display:inline-block;background:#ede9fe;color:#6c3fc5;font-weight:700;font-size:12px;padding:3px 10px;border-radius:20px;">
+            ${escapeHtml(String(s.batch || '—'))}
+          </span>
+        </td>
+        <td style="padding:11px 14px;font-size:13px;border-bottom:1px solid #ede9fe;text-align:center;">
+          <span style="display:inline-block;background:#fff1f2;color:${streakColor};font-weight:800;font-size:13px;padding:3px 12px;border-radius:20px;border:1px solid ${streakColor}33;">
+            ${s.streak} class${s.streak !== 1 ? 'es' : ''}
+          </span>
+        </td>
+        <td style="padding:11px 14px;font-size:13px;color:#374151;border-bottom:1px solid #ede9fe;text-align:center;">${lastAttendedLabel}</td>
+        <td style="padding:11px 14px;font-size:13px;color:#374151;border-bottom:1px solid #ede9fe;">${escapeHtml(s.assignedTeacher || '—')}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const totalCount = absentStudents.length;
+  const highRisk = absentStudents.filter((s) => s.streak >= 4).length;
+
+  return {
+    subject: `[Action Required] ${totalCount} Student${totalCount !== 1 ? 's' : ''} with 2+ Consecutive Absences — ${dateLabel}`,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consecutive Absence Report</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="700" cellspacing="0" cellpadding="0"
+               style="max-width:700px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">
+                Glück Global — Language Team
+              </h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.88);font-size:14px;">
+                Consecutive Absence Report &nbsp;·&nbsp; ${dateLabel}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Summary pills -->
+          <tr>
+            <td style="background:#f3eeff;padding:20px 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center">
+                    <span style="display:inline-block;background:#6c3fc5;color:#fff;font-size:13px;font-weight:700;padding:8px 22px;border-radius:20px;margin:0 6px;">
+                      ${totalCount} student${totalCount !== 1 ? 's' : ''} flagged
+                    </span>
+                    ${
+                      highRisk > 0
+                        ? `<span style="display:inline-block;background:#dc2626;color:#fff;font-size:13px;font-weight:700;padding:8px 22px;border-radius:20px;margin:0 6px;">
+                        ${highRisk} high-risk (4+ absences)
+                      </span>`
+                        : ''
+                    }
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0 0;text-align:center;">
+                    <p style="margin:0;color:#6c3fc5;font-size:13px;line-height:1.5;">
+                      The following students have been absent from <strong>2 or more consecutive</strong> live classes.<br/>
+                      Please follow up with them at the earliest.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Table -->
+          <tr>
+            <td style="padding:28px 32px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                <!-- Table header -->
+                <thead>
+                  <tr style="background:#6c3fc5;">
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student Name</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Email</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Consecutive Absences</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Last Attended</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Assigned Teacher</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tableRows || `
+                  <tr>
+                    <td colspan="6" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
+                      No students with consecutive absences today. 🎉
+                    </td>
+                  </tr>`}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer note -->
+          <tr>
+            <td style="padding:0 32px 28px;">
+              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:16px;">
+                This report is auto-generated every night at 12:00 AM IST by the Glück Global Student Portal.<br/>
+                Students are included if they missed their last 2 or more consecutive live classes.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Brand footer -->
+          <tr>
+            <td style="background:#f8fafc;padding:16px 40px;text-align:center;">
+              <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a></p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  };
+}
+
 module.exports = {
   buildPasswordResetOtpEmail,
   buildEmailChangeOtpEmail,
@@ -826,4 +986,5 @@ module.exports = {
   buildSignupApprovedWelcomeEmail,
   buildJourneyDayReminderEmail,
   buildPortalAbsenceReminderEmail,
+  buildConsecutiveAbsenceLanguageTeamEmail,
 };

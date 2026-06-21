@@ -108,8 +108,9 @@ function applyStudentCountryFilters(query, { phoneCountry, loginCountry }) {
 }
 
 async function recordStudentLogin(user, req) {
-  if (!user || user.role !== 'STUDENT') return;
+  if (!user || user.role !== 'STUDENT') return null;
   try {
+    const previousLastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
     const country = await resolveLoginCountry(req);
     user.lastLogin = new Date();
     user.lastLoginCountry = country;
@@ -124,8 +125,18 @@ async function recordStudentLogin(user, req) {
       userAgent: req.headers['user-agent'] || '',
       country,
     });
+
+    if (!previousLastLogin) return null;
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const daysSince = Math.floor((Date.now() - previousLastLogin.getTime()) / MS_PER_DAY);
+    if (daysSince < 2) return null;
+
+    const firstName = String(user.name || 'Student').trim().split(/\s+/)[0] || 'Student';
+    return { daysSince, firstName };
   } catch (e) {
     console.warn('Failed to record login activity:', e?.message || e);
+    return null;
   }
 }
 

@@ -2,7 +2,6 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -12,7 +11,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { environment } from '../../../environments/environment';
 import {
   BatchLevelSlotTotals,
   BatchPaymentSummaryRow,
@@ -38,12 +36,6 @@ import {
   formatStudentStatusLabel,
   parseFinanceCohortQuery,
 } from './payment-hub-finance-cohort.util';
-
-interface BatchJourneySummary {
-  batchName: string;
-  batchCurrentDay: number;
-  batchType?: 'new' | 'old';
-}
 
 type BatchInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
 type FinancePaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
@@ -141,6 +133,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   /** Shared across all admins — only these batches appear on the finance dashboard. */
   visibleBatches: string[] = [];
   visibleBatchLevelStatuses: Record<string, string> = {};
+  /** All batch names for cohort filters (from API — used by add-batch dropdown). */
+  allBatchNames: string[] = [];
   batchesToAdd: string[] = [];
   savingVisibleBatches = false;
   triggeringReport: 'morning' | 'evening' | null = null;
@@ -176,14 +170,12 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
 
   constructor(
     private readonly api: PaymentHubApiService,
-    private readonly http: HttpClient,
     private readonly router: Router,
     private readonly route: ActivatedRoute,
     private readonly snack: MatSnackBar,
   ) {}
 
   ngOnInit(): void {
-    this.loadVisibleBatches();
     this.route.queryParamMap.subscribe((params) => {
       const parsed = parseFinanceCohortQuery({
         cohort: params.get('cohort') ?? undefined,
@@ -199,17 +191,62 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     });
   }
 
-  private loadVisibleBatches(): void {
+  private load(): void {
+    this.loading = true;
     this.api.getFinanceVisibleBatches().subscribe({
       next: (res) => {
         this.visibleBatches = [...(res.data?.visibleBatches || [])];
         this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || {}) };
+        this.fetchBatchSummary();
       },
       error: () => {
         this.visibleBatches = [];
         this.visibleBatchLevelStatuses = {};
+        this.fetchBatchSummary();
       },
     });
+  }
+
+  private fetchBatchSummary(): void {
+    const params: Record<string, string> = {};
+    if (this.filterLevel) params['level'] = this.filterLevel;
+    if (this.cohort !== 'all') params['cohort'] = this.cohort;
+    if (this.cohortStatus) params['studentStatus'] = this.cohortStatus;
+    if (this.visibleBatches.length) {
+      params['batches'] = this.visibleBatches.join(',');
+    }
+
+    this.api.getBatchPaymentSummary(params).subscribe({
+      next: (summary) => {
+        this.summaryRows = summary.data?.batches || [];
+        this.allBatchNames = [...(summary.data?.batchNames || [])];
+        this.ingestSummaryBatchMeta(this.summaryRows);
+        this.applySummaryToView();
+        this.loading = false;
+      },
+      error: () => {
+        this.summaryRows = [];
+        this.batchRows = [];
+        this.allBatchNames = [];
+        this.loading = false;
+      },
+    });
+  }
+
+  private ingestSummaryBatchMeta(rows: BatchPaymentSummaryRow[]): void {
+    this.batchDayByKey.clear();
+    this.batchTypeByKey.clear();
+    for (const row of rows) {
+      const label = (row.batch || '').trim();
+      if (!label || label === '—') continue;
+      const key = normBatchKey(label);
+      if (row.batchCurrentDay != null && Number.isFinite(row.batchCurrentDay)) {
+        this.batchDayByKey.set(key, row.batchCurrentDay);
+      }
+      if (row.batchType) {
+        this.batchTypeByKey.set(key, row.batchType === 'old' ? 'old' : 'new');
+      }
+    }
   }
 
   get hasCohortFilter(): boolean {
@@ -248,55 +285,6 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       received: scoped.received,
       pending: scoped.pending,
     };
-  }
-
-  load(): void {
-    this.loading = true;
-    const params: Record<string, string> = {};
-    if (this.filterLevel) params['level'] = this.filterLevel;
-    if (this.cohort !== 'all') params['cohort'] = this.cohort;
-    if (this.cohortStatus) params['studentStatus'] = this.cohortStatus;
-
-    this.api.getBatchPaymentSummary(params).subscribe({
-      next: (summary) => {
-        this.summaryRows = summary.data?.batches || [];
-        this.applySummaryToView();
-        this.loading = false;
-        this.loadJourneyMeta();
-      },
-      error: () => {
-        this.summaryRows = [];
-        this.batchRows = [];
-        this.loading = false;
-      },
-    });
-  }
-
-  private loadJourneyMeta(): void {
-    this.http
-      .get<{ batches: BatchJourneySummary[]; upcomingBatches?: BatchJourneySummary[] }>(
-        `${environment.apiUrl}/batch-journey`,
-        { withCredentials: true },
-      )
-      .subscribe({
-        next: (journey) => {
-          this.ingestJourneyBatches([...(journey.batches || []), ...(journey.upcomingBatches || [])]);
-          this.applySummaryToView();
-        },
-        error: () => {},
-      });
-  }
-
-  private ingestJourneyBatches(list: BatchJourneySummary[]): void {
-    this.batchDayByKey.clear();
-    this.batchTypeByKey.clear();
-    for (const b of list) {
-      const label = (b.batchName || '').trim();
-      if (!label) continue;
-      const key = normBatchKey(label);
-      this.batchDayByKey.set(key, b.batchCurrentDay);
-      this.batchTypeByKey.set(key, String(b.batchType || '').toLowerCase() === 'old' ? 'old' : 'new');
-    }
   }
 
   private rowFromSummary(row: BatchPaymentSummaryRow): BatchPaymentRow {
@@ -411,7 +399,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   get batchOptions(): string[] {
-    return this.batchRows.map((r) => r.batch).filter((b) => b && b !== '—');
+    const fromSummary = this.allBatchNames.length
+      ? this.allBatchNames
+      : this.batchRows.map((r) => r.batch).filter((b) => b && b !== '—');
+    return fromSummary;
   }
 
   get hasVisibleBatches(): boolean {

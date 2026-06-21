@@ -34,6 +34,9 @@
             <button type="button" class="btn btn-primary btn-sm" (click)="openMonthlyAnalyticsDetails()" [disabled]="loadingMonthlyAnalytics">
               <i class="fas fa-external-link-alt"></i> Show full details
             </button>
+            <a class="btn btn-sm tmc-arena-analytics-btn" [routerLink]="['/teacher-dashboard/class-analytics']" title="Past class game participation summary">
+              <i class="fas fa-chart-bar"></i> Game history
+            </a>
           </div>
         </div>
         <div class="tmc-analytics-grid">
@@ -234,6 +237,14 @@
                       <button type="button" class="tbl-action-btn tbl-action-btn--submission" (click)="openSubmissions(m)" title="Student Submissions">
                         <i class="fas fa-inbox"></i> Submissions
                       </button>
+                      <a
+                        class="tbl-action-btn tbl-action-btn--participation"
+                        [class.tbl-action-btn--participation-live]="m.status === 'started'"
+                        [routerLink]="['/teacher-dashboard/live-participation', m._id]"
+                        title="See who is playing the GlückArena game right now"
+                      >
+                        <i class="fas fa-gamepad"></i> Live Games
+                      </a>
                       <a class="tbl-action-btn tbl-action-btn--open" [routerLink]="['/teacher/meetings', m._id]">Open</a>
                     </div>
                   </td>

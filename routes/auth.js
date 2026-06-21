@@ -73,7 +73,7 @@ function verifyPasswordSetupToken(token) {
   return decoded;
 }
 
-function issueLoginResponse(user, keepSessionActive, res) {
+function issueLoginResponse(user, keepSessionActive, res, extra = {}) {
   const remember = Boolean(keepSessionActive);
   const jwtExpires = remember ? '30d' : '24h';
   const token = jwt.sign(
@@ -81,7 +81,7 @@ function issueLoginResponse(user, keepSessionActive, res) {
     JWT_SECRET,
     { expiresIn: jwtExpires }
   );
-  return res.json({
+  const payload = {
     token,
     user: {
       name: user.name,
@@ -95,7 +95,11 @@ function issueLoginResponse(user, keepSessionActive, res) {
       sidebarDeletePermissions: user.sidebarDeletePermissions || [],
       teacherTabAccessLevels: user.teacherTabAccessLevels || {},
     },
-  });
+  };
+  if (extra.welcomeBack) {
+    payload.welcomeBack = extra.welcomeBack;
+  }
+  return res.json(payload);
 }
 
 function loginRequestMeta(req) {
@@ -1547,8 +1551,9 @@ router.post("/login", loginLimiter, async (req, res) => {
       });
     }
 
+    let welcomeBack = null;
     if (user.role === 'STUDENT') {
-      await recordStudentLogin(user, req);
+      welcomeBack = await recordStudentLogin(user, req);
     } else {
       try {
         user.lastLogin = new Date();
@@ -1565,7 +1570,7 @@ router.post("/login", loginLimiter, async (req, res) => {
       }
     }
 
-    return issueLoginResponse(user, keepSessionActive, res);
+    return issueLoginResponse(user, keepSessionActive, res, { welcomeBack });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1779,13 +1784,13 @@ router.post("/setup/set-password", setupSetPasswordLimiter, async (req, res) => 
     await setUserPassword(user, newPassword);
     user.mustChangePassword = false;
     user.passwordChangedAt = new Date();
-    await recordStudentLogin(user, req);
+    const welcomeBack = await recordStudentLogin(user, req);
 
     const credsMail = buildPortalCredentialsEmail({ name: user.name, regNo: user.regNo, email: user.email, password: newPassword });
     transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject: credsMail.subject, html: credsMail.html })
       .catch((e) => console.error('[setup/set-password] email failed:', e?.message));
 
-    return issueLoginResponse(user, keepSessionActive, res);
+    return issueLoginResponse(user, keepSessionActive, res, { welcomeBack });
   } catch (err) {
     console.error('[setup/set-password]', err);
     if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {

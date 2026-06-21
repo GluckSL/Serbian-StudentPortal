@@ -2,12 +2,10 @@
  * Finance Daily Report Email Service
  *
  * 10:00 AM IST — Morning Pending Report
- *   Shows every visible dashboard batch with: total students with balance,
- *   total pending (LKR + INR), and overdue age in days.
+ *   Current-level language fees for visible ONGOING batches (matches dashboard "Current Level").
  *
  * 06:00 PM IST — Evening Received Report
- *   Shows how much was approved/received today per visible batch,
- *   and what the remaining balance still is.
+ *   Current-level language fees received today + remaining balance per visible batch.
  */
 
 const mongoose = require('mongoose');
@@ -77,65 +75,102 @@ function overdueDaysLabel(isoDate) {
 
 // ─── Core: fetch per-batch data for visible batches ──────────────────────────
 async function fetchVisibleBatchData() {
-  const { aggregateBatchPaymentInsights } = require('../helpers/paymentHubStatsAggregator');
+  const {
+    aggregateBatchPaymentInsights,
+    currentLevelTotalsForBatchRow,
+  } = require('../helpers/paymentHubStatsAggregator');
 
   const settings = await FinanceDashboardSettings.getOrCreate();
   const visibleBatches = (settings.visibleBatches || []).filter(Boolean);
   if (!visibleBatches.length) return [];
 
-  const allData = await aggregateBatchPaymentInsights({});
+  const allData = await aggregateBatchPaymentInsights({
+    batches: visibleBatches,
+    studentStatus: 'ONGOING',
+  });
   const batchRows = allData.batches || [];
 
-  // Filter to visible batches only, normalize key
   const visibleSet = new Set(visibleBatches.map((b) => String(b).toLowerCase()));
   const rows = batchRows.filter((r) => visibleSet.has(String(r.batch || '').toLowerCase()));
 
-  return rows.map((r) => ({
-    batch: r.batch,
-    studentCount: r.studentCount || 0,
-    balanceStudents: r.balanceStudents || 0,
-    overdueStudents: r.overdueStudents || 0,
-    pendingLKR: r.totalPendingLKR || 0,
-    pendingINR: r.totalPendingINR || 0,
-    receivedLKR: r.totalPaidLKR || 0,
-    receivedINR: r.totalPaidINR || 0,
-    expectedLKR: r.totalExpectedLKR || 0,
-    expectedINR: r.totalExpectedINR || 0,
-    overdueLKR: r.totalOverdueLKR || 0,
-    overdueINR: r.totalOverdueINR || 0,
-    overdueSince: r.overdueSince || null,
-  }));
+  return rows.map((r) => {
+    const scoped = currentLevelTotalsForBatchRow(r);
+    const scopedOverdueTotal = (scoped.overdueLKR || 0) + (scoped.overdueINR || 0) + (scoped.overdueUSD || 0);
+    const scopedPendingTotal = (scoped.pendingLKR || 0) + (scoped.pendingINR || 0) + (scoped.pendingUSD || 0);
+    return {
+      batch: r.batch,
+      dominantLevel: scoped.dominantLevel,
+      studentCount: r.studentCount || 0,
+      balanceStudents: r.balanceStudents || 0,
+      overdueStudents: r.overdueStudents || 0,
+      pendingLKR: scoped.pendingLKR,
+      pendingINR: scoped.pendingINR,
+      receivedLKR: scoped.receivedLKR,
+      receivedINR: scoped.receivedINR,
+      expectedLKR: scoped.expectedLKR,
+      expectedINR: scoped.expectedINR,
+      overdueLKR: scoped.overdueLKR,
+      overdueINR: scoped.overdueINR,
+      overdueSince: scopedOverdueTotal > 0 || scopedPendingTotal > 0 ? (r.overdueSince || null) : null,
+    };
+  });
 }
 
-// ─── Approved today: per-batch breakdown ─────────────────────────────────────
+// ─── Approved today: per-batch breakdown (current-level language fees only) ───
 async function fetchTodayReceivedByBatch() {
   const User = mongoose.model('User');
   const PaymentFlowSubmission = require('../models/PaymentSubmission');
+  const PaymentRequest = require('../models/PaymentRequest');
+  const { slotForRequest, normalizeLevel, LANGUAGE_LEVELS } = require('../utils/levelSlotHelper');
 
   const todayStart = todayIST();
   const tomorrowStart = new Date(todayStart.getTime() + 86400000);
 
-  // All submissions approved today
   const approvedToday = await PaymentFlowSubmission.find({
     status: 'APPROVED',
     approvedAt: { $gte: todayStart, $lt: tomorrowStart },
     isArchived: { $ne: true },
   })
-    .select('studentId paidAmount currency approvedAt')
+    .select('studentId paymentRequestId paidAmount currency approvedAt')
     .lean();
 
   if (!approvedToday.length) return {};
 
   const studentIds = [...new Set(approvedToday.map((s) => String(s.studentId)))];
-  const students = await User.find({ _id: { $in: studentIds } })
-    .select('batch')
-    .lean();
+  const requestIds = [...new Set(approvedToday.map((s) => String(s.paymentRequestId)).filter(Boolean))];
+
+  const [students, requests] = await Promise.all([
+    User.find({ _id: { $in: studentIds } })
+      .select('batch level studentStatus')
+      .lean(),
+    PaymentRequest.find({ _id: { $in: requestIds } })
+      .select('paymentType customType remarks')
+      .lean(),
+  ]);
+
   const batchByStudent = {};
-  for (const s of students) batchByStudent[String(s._id)] = s.batch || 'Unknown';
+  const levelByStudent = {};
+  for (const s of students) {
+    if (String(s.studentStatus || '').toUpperCase() !== 'ONGOING') continue;
+    batchByStudent[String(s._id)] = s.batch || 'Unknown';
+    levelByStudent[String(s._id)] = normalizeLevel(s.level);
+  }
+
+  const requestById = {};
+  for (const req of requests) requestById[String(req._id)] = req;
 
   const byBatch = {};
   for (const sub of approvedToday) {
-    const batch = batchByStudent[String(sub.studentId)] || 'Unknown';
+    const sid = String(sub.studentId);
+    const batch = batchByStudent[sid];
+    if (!batch) continue;
+
+    const req = requestById[String(sub.paymentRequestId)];
+    const studentLevel = levelByStudent[sid];
+    const slot = slotForRequest(req, studentLevel);
+    if (!slot || !LANGUAGE_LEVELS.includes(slot)) continue;
+    if (studentLevel !== slot) continue;
+
     if (!byBatch[batch]) byBatch[batch] = { lkr: 0, inr: 0, usd: 0, count: 0 };
     const ccy = String(sub.currency || 'LKR').toUpperCase();
     if (ccy === 'INR') byBatch[batch].inr += sub.paidAmount || 0;
@@ -287,7 +322,8 @@ async function sendMorningReport() {
     <h2>Batch-wise Pending Balance</h2>
     ${tableHtml}
     <p style="font-size:12px;color:#94a3b8;margin-top:8px">
-      Only batches added to the Finance Dashboard are included. Total pending = expected fee − amount received.
+      Only batches added to the Finance Dashboard are included. Amounts use the <strong>Current Level</strong> language-fee scope
+      (dominant batch level), for <strong>ongoing</strong> students only — matching the finance dashboard view.
     </p>`;
 
   const dateStr = new Date().toLocaleDateString('en-IN', {
@@ -451,8 +487,8 @@ async function sendEveningReport() {
     <h2>📋 Table 2 — Full Balance Status as of 6 PM</h2>
     ${table2Html}
     <p style="font-size:12px;color:#94a3b8;margin-top:8px">
-      "Received today" = payments approved between midnight and 6 PM IST today.
-      "Still pending" = remaining balance as of this report.
+      "Received today" = current-level language-fee payments approved between midnight and 6 PM IST today.
+      "Still pending" = current-level remaining balance for ongoing students (matches dashboard "Current Level").
     </p>`;
 
   await sendReport({

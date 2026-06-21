@@ -4,6 +4,9 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const MeetingLink = require('../models/MeetingLink');
+const StudentGameStats = require('../models/StudentGameStats');
+const GameAttempt = require('../models/GameAttempt');
+const { getLiveGameMonitor } = require('../services/liveClassGameMonitor.service');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 function getTeacherAnalyticsMonth(queryMonth) {
@@ -381,6 +384,236 @@ router.get('/', verifyToken, async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch teachers', error: err.message });
   }
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GlückArena — live game monitor during online classes
+// ──────────────────────────────────────────────────────────────────────────────
+
+async function assertTeacherMeetingAccess(req, meeting) {
+  const teacherId = req.user.id;
+  const user = await User.findById(teacherId).select('role').lean();
+  const isAdminLike = ['ADMIN', 'SUB_ADMIN'].includes(user?.role);
+  const isOwnerOrAssigned =
+    (meeting.createdBy && meeting.createdBy.toString() === teacherId) ||
+    (meeting.assignedTeacher && meeting.assignedTeacher.toString() === teacherId);
+  if (!isAdminLike && !isOwnerOrAssigned) {
+    const err = new Error('Access denied – not your meeting');
+    err.status = 403;
+    throw err;
+  }
+}
+
+/**
+ * GET /api/teacher/meetings/:meetingId/live-game-monitor?gameSetId=
+ *
+ * Real-time view for teachers: which batch students are playing the journey game
+ * during this live class (in-progress, completed, or not started).
+ */
+router.get(
+  '/meetings/:meetingId/live-game-monitor',
+  verifyToken,
+  checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN']),
+  async (req, res) => {
+    try {
+      const { meetingId } = req.params;
+      const meeting = await MeetingLink.findById(meetingId).lean();
+      if (!meeting) {
+        return res.status(404).json({ success: false, message: 'Meeting not found' });
+      }
+      await assertTeacherMeetingAccess(req, meeting);
+
+      const gameSetId = String(req.query.gameSetId || '').trim() || null;
+      const data = await getLiveGameMonitor(meeting, gameSetId);
+      return res.json({ success: true, data });
+    } catch (err) {
+      if (err.status === 403) {
+        return res.status(403).json({ success: false, message: err.message });
+      }
+      console.error('live-game-monitor error:', err);
+      return res.status(500).json({ success: false, message: 'Server error', error: err.message });
+    }
+  }
+);
+
+/** @deprecated use live-game-monitor */
+router.get(
+  '/meetings/:meetingId/live-participation',
+  verifyToken,
+  checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN']),
+  (req, res) => {
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    res.redirect(307, `/api/teacher/meetings/${req.params.meetingId}/live-game-monitor${qs}`);
+  }
+);
+
+/**
+ * GET /api/teacher/class-analytics
+ *
+ * Returns aggregated analytics across all of this teacher's meetings:
+ *   - Per-meeting attendance summary (last 30 meetings)
+ *   - Batch-level engagement stats
+ *   - GlückArena engagement for students in teacher's batches
+ *   - Top arena performers among teacher's students
+ */
+router.get(
+  '/class-analytics',
+  verifyToken,
+  checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN']),
+  async (req, res) => {
+    try {
+      const teacherId = req.user.id;
+
+      const meetings = await MeetingLink.find({
+        $or: [{ createdBy: teacherId }, { assignedTeacher: teacherId }],
+        status: { $ne: 'cancelled' },
+      })
+        .select('topic batch plan startTime duration status attendance attendees attendanceRecorded courseDay')
+        .sort({ startTime: -1 })
+        .limit(50)
+        .lean();
+
+      // Collect unique students across all meetings
+      const studentIdSet = new Set();
+      for (const m of meetings) {
+        (m.attendees || []).forEach((a) => {
+          if (a.studentId) studentIdSet.add(a.studentId.toString());
+        });
+      }
+      const allStudentIds = [...studentIdSet];
+
+      // Fetch arena stats for all these students in one query
+      const arenaStats = await StudentGameStats.find({ studentId: { $in: allStudentIds } })
+        .select('studentId totalXp gamesCompleted totalCorrectAnswers totalAnswers currentStreak arenaLevel lastPlayedDate')
+        .lean();
+
+      const arenaByStudent = new Map(arenaStats.map((s) => [s.studentId.toString(), s]));
+
+      const studentDocs = await User.find({ _id: { $in: allStudentIds } })
+        .select('name batch level regNo')
+        .lean();
+      const userByStudent = new Map(studentDocs.map((s) => [s._id.toString(), s]));
+
+      // Build per-meeting analytics rows
+      const meetingRows = meetings.map((m) => {
+        const attendanceArr = Array.isArray(m.attendance) ? m.attendance : [];
+        const total = Array.isArray(m.attendees) ? m.attendees.length : 0;
+        const present = attendanceArr.filter((a) => a.attended === true || a.status === 'attended').length;
+        const late = attendanceArr.filter((a) => a.status === 'late').length;
+        const absent = Math.max(total - present - late, 0);
+        const attendanceRate = total > 0 ? Math.round(((present + late) / total) * 100) : null;
+
+        const studentIdsInMeeting = (m.attendees || []).map((a) => a.studentId?.toString()).filter(Boolean);
+        const arenaParticipants = studentIdsInMeeting.filter((sid) => arenaByStudent.has(sid)).length;
+
+        return {
+          _id: m._id,
+          topic: m.topic || 'Class',
+          batch: m.batch,
+          plan: m.plan,
+          startTime: m.startTime,
+          duration: m.duration,
+          status: m.status,
+          courseDay: m.courseDay,
+          attendanceRecorded: m.attendanceRecorded,
+          total,
+          present,
+          late,
+          absent,
+          attendanceRate,
+          arenaParticipants,
+          arenaParticipationRate: total > 0 ? Math.round((arenaParticipants / total) * 100) : null,
+        };
+      });
+
+      // Top arena performers
+      const topPerformers = allStudentIds
+        .map((sid) => {
+          const arena = arenaByStudent.get(sid);
+          const u = userByStudent.get(sid);
+          if (!arena || !u) return null;
+          const accuracy =
+            arena.totalAnswers > 0
+              ? Math.round((arena.totalCorrectAnswers / arena.totalAnswers) * 100)
+              : 0;
+          return {
+            studentId: sid,
+            name: u.name || '',
+            batch: u.batch || '',
+            level: u.level || '',
+            totalXp: arena.totalXp || 0,
+            gamesCompleted: arena.gamesCompleted || 0,
+            accuracy,
+            currentStreak: arena.currentStreak || 0,
+            arenaLevel: arena.arenaLevel || 1,
+            lastPlayedDate: arena.lastPlayedDate || null,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.totalXp - a.totalXp)
+        .slice(0, 20);
+
+      // Batch-level summary
+      const batchMap = new Map();
+      for (const m of meetingRows) {
+        const bk = m.batch || 'Unknown';
+        if (!batchMap.has(bk)) {
+          batchMap.set(bk, {
+            batch: bk,
+            meetings: 0,
+            totalStudents: 0,
+            totalPresent: 0,
+            totalStudentSlots: 0,
+            arenaParticipants: 0,
+          });
+        }
+        const b = batchMap.get(bk);
+        b.meetings += 1;
+        b.totalStudents = Math.max(b.totalStudents, m.total);
+        b.totalPresent += m.present + m.late;
+        b.totalStudentSlots += m.total;
+        b.arenaParticipants = Math.max(b.arenaParticipants, m.arenaParticipants);
+      }
+      const batchBreakdown = Array.from(batchMap.values()).map((b) => ({
+        ...b,
+        attendanceRate:
+          b.totalStudentSlots > 0
+            ? Math.round((b.totalPresent / b.totalStudentSlots) * 100)
+            : null,
+        arenaEngagementRate:
+          b.totalStudents > 0
+            ? Math.round((b.arenaParticipants / b.totalStudents) * 100)
+            : null,
+      }));
+
+      // Overall summary
+      const totalMeetings = meetingRows.length;
+      const totalStudents = allStudentIds.length;
+      const avgAttendanceRate =
+        meetingRows.filter((m) => m.attendanceRate !== null).length > 0
+          ? Math.round(
+              meetingRows
+                .filter((m) => m.attendanceRate !== null)
+                .reduce((s, m) => s + m.attendanceRate, 0) /
+                meetingRows.filter((m) => m.attendanceRate !== null).length
+            )
+          : null;
+      const totalArenaStudents = arenaStats.length;
+
+      return res.json({
+        success: true,
+        data: {
+          summary: { totalMeetings, totalStudents, avgAttendanceRate, totalArenaStudents },
+          meetingRows,
+          batchBreakdown,
+          topPerformers,
+        },
+      });
+    } catch (err) {
+      console.error('class-analytics error:', err);
+      return res.status(500).json({ success: false, message: 'Server error', error: err.message });
+    }
+  }
+);
 
 module.exports = router;
 
