@@ -46,6 +46,7 @@ const escapeRegexEmail = (str) => String(str || '').replace(/[-/\\^$*+?.()|[\]{}
 const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const { get: cacheGet, set: cacheSet } = require('../utils/simpleCache');
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
+const inflightOverall = new Map();
 
 async function buildLegacyJourneyPayments(studentId, email, { includeTotalInvoiced = false } = {}) {
   const StudentPayment = require('../models/StudentPayment');
@@ -673,55 +674,30 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
   }
 });
 
-// ─── GET /api/student-progress/performance-summary ─────────────────────
-// Student-facing aggregated data for the new performance-history page
-router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (req, res) => {
-  try {
-    const studentId = req.user.id;
-    const studentOid = new mongoose.Types.ObjectId(studentId);
+async function computePerformanceBody(student, studentOid, range, minDay, weekAgo, studentId) {
+  const currentDay = student.currentCourseDay || 1;
+  const journeyKeys = allStudentBatchStringsForContent(student);
 
-    // Step 1: Fetch student first (all other queries depend on student data)
-    const student = await User.findById(studentId)
-      .select('name email regNo level batch currentCourseDay')
-      .lean();
-    if (!student) return res.status(404).json({ message: 'Student not found' });
-    const currentDay = student.currentCourseDay || 1;
-
-    const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
-
-    if (range === 'overall') {
-      const cached = cacheGet(`perf-summary:${studentId}`);
-      if (cached) return res.json(cached);
-    }
-
-    const minDay = range === 'weekly' ? Math.max(1, currentDay - 6) : 1;
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 6);
-    weekAgo.setHours(0, 0, 0, 0);
-
-    const journeyKeys = allStudentBatchStringsForContent(student);
-
-    // Step 2: Run all 7 remaining independent queries in parallel
-    const exerciseAttemptPipeline = [
-      { $match: { studentId: studentOid, status: 'completed' } },
-      { $sort: { completedAt: -1 } },
-      { $group: { _id: '$exerciseId', doc: { $first: '$$ROOT' } } },
-      { $replaceRoot: { newRoot: '$doc' } },
-      { $sort: { completedAt: 1 } },
-      {
-        $lookup: {
-          from: 'digitalexercises',
-          localField: 'exerciseId',
-          foreignField: '_id',
-          pipeline: [{ $project: { title: 1, courseDay: 1, category: 1, level: 1 } }],
-          as: 'exerciseId',
-        },
+  const exerciseAttemptPipeline = [
+    { $match: { studentId: studentOid, status: 'completed' } },
+    { $sort: { completedAt: -1 } },
+    { $group: { _id: '$exerciseId', doc: { $first: '$$ROOT' } } },
+    { $replaceRoot: { newRoot: '$doc' } },
+    { $sort: { completedAt: 1 } },
+    {
+      $lookup: {
+        from: 'digitalexercises',
+        localField: 'exerciseId',
+        foreignField: '_id',
+        pipeline: [{ $project: { title: 1, courseDay: 1, category: 1, level: 1 } }],
+        as: 'exerciseId',
       },
-      { $unwind: { path: '$exerciseId', preserveNullAndEmptyArrays: false } },
-      ...(range === 'weekly'
-        ? [{ $match: { $or: [{ 'exerciseId.courseDay': { $exists: false } }, { 'exerciseId.courseDay': { $gte: minDay } }] } }]
-        : []),
-    ];
+    },
+    { $unwind: { path: '$exerciseId', preserveNullAndEmptyArrays: false } },
+    ...(range === 'weekly'
+      ? [{ $match: { $or: [{ 'exerciseId.courseDay': { $exists: false } }, { 'exerciseId.courseDay': { $gte: minDay } }] } }]
+      : []),
+  ];
 
     const sessionPipeline = [
       { $match: { studentId: studentOid, ...(range === 'weekly' ? { createdAt: { $gte: weekAgo } } : {}) } },
@@ -995,7 +971,61 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
 
     if (range === 'overall') cacheSet(`perf-summary:${studentId}`, body, CACHE_TTL_MS);
 
+    return body;
+}
+
+// ─── GET /api/student-progress/performance-summary ─────────────────────
+// Student-facing aggregated data for the new performance-history page
+router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const studentOid = new mongoose.Types.ObjectId(studentId);
+
+    const student = await User.findById(studentId)
+      .select('name email regNo level batch currentCourseDay')
+      .lean();
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
+
+    // ── Overall: cache / in-flight dedup ──────────────────────────
+    if (range === 'overall') {
+      const key = `perf-summary:${studentId}`;
+      const cached = cacheGet(key);
+      if (cached) return res.json(cached);
+
+      let p = inflightOverall.get(key);
+      if (!p) {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 6);
+        weekAgo.setHours(0, 0, 0, 0);
+        p = computePerformanceBody(student, studentOid, 'overall', 1, weekAgo, studentId);
+        inflightOverall.set(key, p.finally(() => inflightOverall.delete(key)));
+      }
+      const body = await p;
+      return res.json(body);
+    }
+
+    // ── Weekly: compute synchronously, respond, then fire bg overall ──
+    const minDay = Math.max(1, (student.currentCourseDay || 1) - 6);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const body = await computePerformanceBody(student, studentOid, 'weekly', minDay, weekAgo, studentId);
     res.json(body);
+
+    // Fire-and-forget overall computation
+    const overallKey = `perf-summary:${studentId}`;
+    if (!cacheGet(overallKey) && !inflightOverall.has(overallKey)) {
+      const bgWeekAgo = new Date();
+      bgWeekAgo.setDate(bgWeekAgo.getDate() - 6);
+      bgWeekAgo.setHours(0, 0, 0, 0);
+      const bgP = computePerformanceBody(student, studentOid, 'overall', 1, bgWeekAgo, studentId)
+        .then(b => { cacheSet(overallKey, b, CACHE_TTL_MS); return b; })
+        .catch(() => null);
+      inflightOverall.set(overallKey, bgP.finally(() => inflightOverall.delete(overallKey)));
+    }
   } catch (err) {
     console.error('performance-summary error:', err);
     res.status(500).json({ message: 'Failed to fetch performance summary', error: err.message });
