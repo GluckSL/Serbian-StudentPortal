@@ -137,6 +137,7 @@ const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFul
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
 const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
 const { scheduleGluckRoomAutoStart } = require('./jobs/gluckRoomAutoStart');
+const { scheduleDailyStudentStatusReport } = require('./jobs/dailyStudentStatusReport');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
@@ -614,6 +615,7 @@ connectMongoDb()
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
       scheduleGluckRoomAutoStart();
+      scheduleDailyStudentStatusReport();
 
       const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
       const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
