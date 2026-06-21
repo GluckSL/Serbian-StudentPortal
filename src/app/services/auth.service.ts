@@ -7,6 +7,7 @@ import { BehaviorSubject, Observable, tap, finalize } from 'rxjs';
 import { jwtDecode } from 'jwt-decode';
 import { environment } from '../../environments/environment';
 import { isCoursePlan } from '../utils/student-subscription-plans.util';
+import { WelcomeBackService } from './welcome-back.service';
 
 /** JWT key in localStorage (Bearer sent by authTokenInterceptor). */
 export const AUTH_STORAGE_KEY = 'authToken';
@@ -94,7 +95,10 @@ export class AuthService {
   currentUser$ = this.currentUserSubject.asObservable();
   router: any;
 
-  constructor(private http: HttpClient) {
+  constructor(
+    private http: HttpClient,
+    private welcomeBack: WelcomeBackService,
+  ) {
     // New tabs boot a fresh Angular app — hydrate a minimal user from the stored JWT
     // so route guards don't treat an active session as logged-out.
     this.hydrateUserFromStoredToken();
@@ -188,6 +192,7 @@ export class AuthService {
         if (response && response.user) {
           this.currentUserSubject.next(response.user);
         }
+        this.welcomeBack.queue(response?.welcomeBack);
       })
     );
   }
@@ -244,6 +249,7 @@ export class AuthService {
         if (response?.user) {
           this.currentUserSubject.next(response.user);
         }
+        this.welcomeBack.queue(response?.welcomeBack);
       })
     );
   }

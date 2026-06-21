@@ -36,6 +36,20 @@ function subAdminHasTabAccess(user, tabId, required = "view") {
   return canAccessLevel(getSubAdminTabLevel(user, tabId), required);
 }
 
+function getTeacherTabLevel(user, tabId) {
+  if (!user || user.role !== "TEACHER") return null;
+  const levels = accessLevelsToObject(user.teacherTabAccessLevels);
+  if (levels[tabId]) return levels[tabId];
+  const legacy = Array.isArray(user.teacherTabPermissions) ? user.teacherTabPermissions : [];
+  return legacy.includes(tabId) ? "view" : null;
+}
+
+/** Whether TEACHER has at least the required access on an assigned admin tab. */
+function teacherHasTabAccess(user, tabId, required = "view") {
+  if (!user || user.role !== "TEACHER") return false;
+  return canAccessLevel(getTeacherTabLevel(user, tabId), required);
+}
+
 /**
  * Whether a SUB_ADMIN may perform delete actions on a tab.
  * Full access always includes delete; edit + sidebarDeletePermissions grants delete.
@@ -57,4 +71,6 @@ module.exports = {
   subAdminCanDeleteOnTab,
   getSubAdminTabLevel,
   subAdminHasTabAccess,
+  getTeacherTabLevel,
+  teacherHasTabAccess,
 };

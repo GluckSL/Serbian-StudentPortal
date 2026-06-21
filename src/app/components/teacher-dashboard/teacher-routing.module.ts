@@ -15,6 +15,16 @@ const routes: Routes = [
     path: 'monthly-hours',
     loadComponent: () => import('../teachers/teacher-monthly-hours.component').then(m => m.TeacherMonthlyHoursComponent),
     canActivate: [AuthGuard]
+  },
+  {
+    path: 'live-participation/:meetingId',
+    loadComponent: () => import('./teacher-live-participation.component').then(m => m.TeacherLiveParticipationComponent),
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'class-analytics',
+    loadComponent: () => import('./teacher-class-analytics.component').then(m => m.TeacherClassAnalyticsComponent),
+    canActivate: [AuthGuard]
   }
 ];
 

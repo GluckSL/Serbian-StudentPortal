@@ -540,3 +540,25 @@
 .tsub-review-btn--correct:hover:not(:disabled) { filter: brightness(1.1); }
 .tsub-review-btn--wrong { background: #dc2626; color: #fff; }
 .tsub-review-btn--wrong:hover:not(:disabled) { filter: brightness(1.1); }
+
+/* ── Participation action button ── */
+.tbl-action-btn--participation {
+  background: #ede9fe; border: 1px solid #c4b5fd; color: #5b21b6;
+  text-decoration: none;
+}
+.tbl-action-btn--participation:hover { background: #ddd6fe; border-color: #a78bfa; }
+.tbl-action-btn--participation-live {
+  background: #7c3aed; border-color: #6d28d9; color: #fff;
+  animation: tmc-live-pulse 2s infinite;
+}
+.tbl-action-btn--participation-live:hover { background: #6d28d9; color: #fff; }
+@keyframes tmc-live-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,0.4); } 50% { box-shadow: 0 0 0 6px rgba(124,58,237,0); } }
+
+/* ── Arena & Participation analytics header button ── */
+.tmc-arena-analytics-btn {
+  background: #fef3c7; border: 1.5px solid #fcd34d; color: #92400e;
+  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;
+  text-decoration: none; padding: 5px 10px; border-radius: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tmc-arena-analytics-btn:hover { background: #fde68a; border-color: #f59e0b; }

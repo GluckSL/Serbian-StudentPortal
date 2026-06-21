@@ -7,8 +7,9 @@
     <h1><span class="material-icons">auto_awesome</span> Free Mode Exercise Builder</h1>
   </div>
 
-  <!-- Hidden file input for attachment uploads -->
+  <!-- Hidden file inputs -->
   <input type="file" #attachmentFileInput multiple accept="image/*,audio/*,video/*,application/pdf,.doc,.docx" (change)="onAttachmentFileSelected($event)" class="file-input-hidden" />
+  <input type="file" #mcqOptionImageFileInput accept="image/*" (change)="onMcqOptionImageSelected($event)" class="file-input-hidden" />
 
   <!-- Exercise Metadata -->
   <div class="fm-meta">
@@ -200,19 +201,79 @@
             </div>
           </div>
           <div class="field-row">
-            <div class="field-group full">
-              <label>Options</label>
-              <div *ngFor="let opt of item.options!; let oi = index; trackBy: trackByIndex" class="option-row">
-                <span class="option-letter">{{ 'ABCDEFGHIJ'[oi] }}</span>
-                <input type="text" [(ngModel)]="item.options![oi]" placeholder="Option {{ 'ABCDEFGHIJ'[oi] }}" />
-                <mat-checkbox
-                  [checked]="item.correctAnswerIndex === oi"
-                  (change)="item.correctAnswerIndex = $event.checked ? oi : undefined"
-                  matTooltip="Correct answer"
-                ></mat-checkbox>
-                <button class="item-btn item-btn-delete sm" (click)="removeOption(item, oi)" [disabled]="(item.options?.length ?? 0) <= 2"><span class="material-icons">close</span></button>
+            <div class="field-group full mcq-options-group">
+              <div class="mcq-options-head">
+                <label>Answer choices</label>
+                <span class="mcq-options-hint">Select the correct option</span>
               </div>
-              <button class="add-btn" (click)="addOption(item)">+ Add Option</button>
+              <p class="mcq-option-image-hint">Add an illustration per option — upload or paste a URL (e.g. from a worksheet PDF).</p>
+              <div class="mcq-options-list">
+                <div
+                  *ngFor="let opt of item.options!; let oi = index; trackBy: trackByIndex"
+                  class="mcq-option-card"
+                  [class.mcq-option-correct]="item.correctAnswerIndex === oi"
+                >
+                  <div class="mcq-option-main">
+                    <label class="mcq-radio-label" matTooltip="Mark as correct answer">
+                      <input type="radio" [name]="'mcq-correct-' + item.uid" [value]="oi" [(ngModel)]="item.correctAnswerIndex" />
+                      <span class="mcq-option-badge">{{ 'ABCDEFGHIJ'[oi] }}</span>
+                    </label>
+                    <input
+                      type="text"
+                      class="mcq-option-input"
+                      [(ngModel)]="item.options![oi]"
+                      [placeholder]="'Option ' + ('ABCDEFGHIJ'[oi])"
+                    />
+                    <div class="mcq-option-image-actions">
+                      <button
+                        type="button"
+                        class="btn-mcq-option-image"
+                        [class.has-image]="getMcqOptionImageUrl(item, oi)"
+                        (click)="triggerMcqOptionImageFile(item, oi)"
+                        [disabled]="isMcqOptionImageUploading(item, oi)"
+                        matTooltip="Upload option image"
+                      >
+                        <img *ngIf="getMcqOptionImageUrl(item, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="mcq-option-image-thumb" />
+                        <span class="material-icons" *ngIf="!getMcqOptionImageUrl(item, oi) && !isMcqOptionImageUploading(item, oi)">add_photo_alternate</span>
+                        <span class="material-icons spin" *ngIf="isMcqOptionImageUploading(item, oi)">hourglass_empty</span>
+                      </button>
+                      <button type="button" class="btn-mcq-option-link" (click)="toggleMcqOptionUrlInput(item, oi)" matTooltip="Paste image URL">
+                        <span class="material-icons">link</span>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-mcq-remove-opt"
+                      (click)="removeOption(item, oi)"
+                      *ngIf="(item.options?.length ?? 0) > 2"
+                      matTooltip="Remove option"
+                    >
+                      <span class="material-icons">close</span>
+                    </button>
+                  </div>
+                  <div class="mcq-option-image-url-row" *ngIf="isMcqOptionUrlExpanded(item, oi) || getMcqOptionImageUrl(item, oi)">
+                    <input
+                      type="text"
+                      class="mcq-option-image-url-input"
+                      [ngModel]="getMcqOptionImageUrl(item, oi)"
+                      (ngModelChange)="setMcqOptionImageUrl(item, oi, $event)"
+                      placeholder="https://… or path to extracted PDF image"
+                    />
+                    <button
+                      type="button"
+                      class="btn-mcq-option-clear"
+                      *ngIf="getMcqOptionImageUrl(item, oi)"
+                      (click)="removeMcqOptionImage(item, oi)"
+                      matTooltip="Remove image"
+                    >
+                      <span class="material-icons">delete_outline</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button class="mcq-add-option-btn" type="button" (click)="addOption(item)" *ngIf="(item.options?.length ?? 0) < 6">
+                <span class="material-icons">add</span> Add option
+              </button>
             </div>
           </div>
           <div class="field-row">

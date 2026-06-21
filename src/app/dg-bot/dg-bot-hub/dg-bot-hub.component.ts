@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, OnInit, SimpleChanges, inject } from '@angular/core';
+﻿﻿import { Component, Input, OnChanges, OnInit, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -326,7 +326,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   /**
    * Same flow as digital exercises (students):
    * - New: assigned journey day === current day, not fully complete, no saved partial progress yet.
-   * - Pending: partial progress, or past-day modules not finished, or (journey day scope) in-progress on “today”.
+   * - Pending: partial progress, past-day modules not finished, or no journey day assigned. Future-day modules (> current day) are excluded.
    * - Completed: module reached full completion (100% practice goal or natural conversation wrap-up).
    */
   private matchesStudentTab(m: DgModuleSummary, tab: HubTab): boolean {
@@ -358,7 +358,9 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     if (tab === 'new') {
       return dayNum != null && dayNum === cur && !inProgress;
     }
-    return inProgress || dayNum == null || dayNum !== cur;
+    // Pending: in-progress (any day), no course day, or past days not yet finished.
+    // Modules for future days (dayNum > cur) are NOT shown — they are still locked.
+    return inProgress || dayNum == null || dayNum < cur;
   }
 
   journeyDayLabel(m: DgModuleSummary): string {

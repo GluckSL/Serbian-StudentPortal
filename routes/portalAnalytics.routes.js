@@ -1,5 +1,6 @@
 const express = require('express');
-const { verifyToken, isAdmin } = require('../middleware/auth');
+const { verifyToken } = require('../middleware/auth');
+const { requireAdminOrSubAdminTab } = require('../middleware/subAdminTabAccess');
 const ctrl = require('../controllers/portalAnalytics.controller');
 
 const portalRouter = express.Router();
@@ -10,15 +11,17 @@ portalRouter.post('/end-session', verifyToken, ctrl.requireStudent, ctrl.endSess
 
 const analyticsRouter = express.Router();
 
-analyticsRouter.get('/filter-options', verifyToken, isAdmin, ctrl.filterOptions);
-analyticsRouter.get('/overview', verifyToken, isAdmin, ctrl.overview);
-analyticsRouter.get('/dashboard', verifyToken, isAdmin, ctrl.dashboard);
-analyticsRouter.get('/daily-logs', verifyToken, isAdmin, ctrl.dailyLogs);
-analyticsRouter.get('/student-wise', verifyToken, isAdmin, ctrl.studentWise);
-analyticsRouter.get('/page-wise', verifyToken, isAdmin, ctrl.pageWise);
-analyticsRouter.get('/timeline', verifyToken, isAdmin, ctrl.timeline);
-analyticsRouter.get('/session-wise', verifyToken, isAdmin, ctrl.sessionWise);
-analyticsRouter.get('/device-wise', verifyToken, isAdmin, ctrl.deviceWise);
-analyticsRouter.get('/learning/:kind', verifyToken, isAdmin, ctrl.learning);
+const requirePortalAnalyticsView = requireAdminOrSubAdminTab('portal-analytics', 'view');
+
+analyticsRouter.get('/filter-options', verifyToken, requirePortalAnalyticsView, ctrl.filterOptions);
+analyticsRouter.get('/overview', verifyToken, requirePortalAnalyticsView, ctrl.overview);
+analyticsRouter.get('/dashboard', verifyToken, requirePortalAnalyticsView, ctrl.dashboard);
+analyticsRouter.get('/daily-logs', verifyToken, requirePortalAnalyticsView, ctrl.dailyLogs);
+analyticsRouter.get('/student-wise', verifyToken, requirePortalAnalyticsView, ctrl.studentWise);
+analyticsRouter.get('/page-wise', verifyToken, requirePortalAnalyticsView, ctrl.pageWise);
+analyticsRouter.get('/timeline', verifyToken, requirePortalAnalyticsView, ctrl.timeline);
+analyticsRouter.get('/session-wise', verifyToken, requirePortalAnalyticsView, ctrl.sessionWise);
+analyticsRouter.get('/device-wise', verifyToken, requirePortalAnalyticsView, ctrl.deviceWise);
+analyticsRouter.get('/learning/:kind', verifyToken, requirePortalAnalyticsView, ctrl.learning);
 
 module.exports = { portalRouter, analyticsRouter };

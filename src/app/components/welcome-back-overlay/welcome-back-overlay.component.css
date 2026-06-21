@@ -1,0 +1,188 @@
+.wb-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  animation: wbFadeIn 0.35s ease forwards;
+}
+
+.wb-backdrop--out {
+  animation: wbFadeOut 0.28s ease forwards;
+}
+
+.wb-card {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 36px 28px 28px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #ffffff 0%, #f5f3ff 100%);
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.22),
+    0 0 0 1px rgba(108, 63, 197, 0.12);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(24px) scale(0.94);
+}
+
+.wb-card--in {
+  animation: wbCardIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.wb-card--out {
+  animation: wbCardOut 0.28s ease forwards;
+}
+
+.wb-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.wb-sparkle {
+  position: absolute;
+  font-size: 18px;
+  opacity: 0;
+  animation: wbSparkle 2.4s ease-in-out infinite;
+}
+
+.wb-sparkle--1 { top: 14%; left: 12%; animation-delay: 0.2s; }
+.wb-sparkle--2 { top: 18%; right: 14%; animation-delay: 0.8s; }
+.wb-sparkle--3 { bottom: 22%; left: 18%; animation-delay: 1.4s; }
+
+.wb-olly-wrap {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.wb-olly-wrap--bounce .wb-olly {
+  animation: wbOllyPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+}
+
+.wb-olly {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #fff;
+  box-shadow:
+    0 12px 32px rgba(108, 63, 197, 0.28),
+    0 0 0 3px rgba(108, 63, 197, 0.15);
+}
+
+.wb-wave {
+  position: absolute;
+  right: -4px;
+  bottom: 4px;
+  font-size: 28px;
+  animation: wbWave 1.2s ease-in-out 0.6s infinite;
+  transform-origin: 70% 70%;
+}
+
+.wb-title {
+  margin: 0 0 10px;
+  color: #1e1b4b;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.wb-message {
+  margin: 0 0 12px;
+  color: #475569;
+  font-size: 0.98rem;
+  line-height: 1.65;
+}
+
+.wb-days {
+  margin: 0 0 22px;
+  color: #7c3aed;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.wb-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+  padding: 14px 28px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6c3fc5 0%, #8b5cf6 100%);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(108, 63, 197, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wb-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(108, 63, 197, 0.42);
+}
+
+@keyframes wbFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes wbFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes wbCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes wbCardOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+}
+
+@keyframes wbOllyPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-8deg);
+  }
+  70% {
+    transform: scale(1.08) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes wbWave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(18deg); }
+  75% { transform: rotate(-8deg); }
+}
+
+@keyframes wbSparkle {
+  0%, 100% { opacity: 0; transform: scale(0.6) translateY(0); }
+  50% { opacity: 1; transform: scale(1) translateY(-6px); }
+}

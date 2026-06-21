@@ -20,8 +20,60 @@ const {
 const { computeLanguageFeeStatus, JOURNEY_DUE_FROM_DAY } = require('./languageFeeStatus');
 const { inferCurrencyFromPhone } = require('../utils/currencyHelper');
 const { EXCLUDE_TEST } = require('../../../../utils/analyticsFilters');
+const BatchConfig = require('../../../../models/BatchConfig');
+const { computeBatchDay } = require('../../../../utils/journeyPause');
+const { normalizeBatchType } = require('../../../../utils/batchType');
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+const PAYMENT_REQUEST_SELECT =
+  'studentId paymentType customType remarks isArchived status currency amount amountRemaining dueDate';
+const APPROVED_SUBMISSION_SELECT =
+  'studentId paymentRequestId paidAmount currency status submittedAt approvedAt paymentDate';
+const PENDING_SUBMISSION_SELECT = APPROVED_SUBMISSION_SELECT;
+
+function normBatchKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function buildUserQueryBase(filters = {}) {
+  const userQuery = { role: 'STUDENT' };
+  if (!filters.includeTestAccounts) {
+    Object.assign(userQuery, EXCLUDE_TEST);
+  }
+  if (filters.level && String(filters.level).trim()) {
+    userQuery.level = String(filters.level).trim();
+  }
+  applyStudentCohortFilters(userQuery, filters);
+  return userQuery;
+}
+
+async function loadBatchConfigMap(batchNames) {
+  const names = [...new Set((batchNames || []).filter((b) => b && b !== '—'))];
+  if (!names.length) return new Map();
+
+  const configs = await BatchConfig.find({ batchName: { $in: names } })
+    .select(
+      'batchName batchType batchStartDate batchCurrentDay journeyLength trialDayEnabled journeyPaused journeyPausedFrozenDay',
+    )
+    .lean();
+
+  const map = new Map();
+  for (const cfg of configs) {
+    map.set(normBatchKey(cfg.batchName), cfg);
+  }
+  return map;
+}
+
+function batchMetaFromConfig(cfg) {
+  if (!cfg) {
+    return { batchCurrentDay: null, batchType: 'new' };
+  }
+  return {
+    batchCurrentDay: computeBatchDay(cfg),
+    batchType: normalizeBatchType(cfg.batchType),
+  };
+}
 
 function buildLevelPriceMap(catalog, subscription) {
   const levelPriceMap = new Map();
@@ -961,48 +1013,59 @@ function applyStudentCohortFilters(userQuery, filters = {}) {
 
 /**
  * Per-batch payment insights using the same rules as Payment Hub dashboard + table.
- * @param {{ batch?: string, level?: string, studentStatus?: string, cohort?: string, subscription?: string }} filters
+ * @param {{ batch?: string, batches?: string[], level?: string, studentStatus?: string, cohort?: string, subscription?: string }} filters
  */
 async function aggregateBatchPaymentInsights(filters = {}) {
   const User = mongoose.model('User');
-  const userQuery = { role: 'STUDENT' };
-  if (!filters.includeTestAccounts) {
-    Object.assign(userQuery, EXCLUDE_TEST);
-  }
+  const userQuery = buildUserQueryBase(filters);
+
   if (filters.batch && String(filters.batch).trim()) {
     userQuery.batch = String(filters.batch).trim();
   }
-  if (filters.level && String(filters.level).trim()) {
-    userQuery.level = String(filters.level).trim();
+  if (Array.isArray(filters.batches) && filters.batches.length) {
+    userQuery.batch = { $in: filters.batches };
   }
-  applyStudentCohortFilters(userQuery, filters);
 
-  const [students, catalog] = await Promise.all([
-    User.find(userQuery).select('_id batch level phoneNumber currentCourseDay batchStartedOn courseStartDates').lean(),
+  const namesQuery = buildUserQueryBase(filters);
+  const [students, catalog, allBatchNamesRaw] = await Promise.all([
+    User.find(userQuery)
+      .select('_id batch level phoneNumber currentCourseDay batchStartedOn courseStartDates subscription')
+      .lean(),
     PaymentHubCatalog.getOrCreate(),
+    User.distinct('batch', { ...namesQuery, batch: { $nin: [null, ''] } }),
   ]);
+  const allBatchNames = (allBatchNamesRaw || [])
+    .map((b) => String(b || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
 
-  const levelPriceMap = buildLevelPriceMap(catalog);
+  const getPriceMapForStudent = buildSubscriptionPriceMapLookup(catalog);
   const batchMap = new Map();
   const totalsAcc = emptyBatchAccumulator();
 
   if (!students.length) {
-    return { batches: [], totalStudents: 0, batchNames: [], totals: null };
+    return { batches: [], totalStudents: 0, batchNames: allBatchNames, totals: null };
   }
 
   const ids = students.map((s) => s._id);
   const [requests, approvedSubs, pendingSubs] = await Promise.all([
-    PaymentRequest.find({ studentId: { $in: ids }, isArchived: false }).lean(),
+    PaymentRequest.find({ studentId: { $in: ids }, isArchived: false })
+      .select(PAYMENT_REQUEST_SELECT)
+      .lean(),
     PaymentFlowSubmission.find({
       studentId: { $in: ids },
       status: 'APPROVED',
       isArchived: false,
-    }).lean(),
+    })
+      .select(APPROVED_SUBMISSION_SELECT)
+      .lean(),
     PaymentFlowSubmission.find({
       studentId: { $in: ids },
       status: { $in: ['SUBMITTED', 'UNDER_REVIEW'] },
       isArchived: false,
-    }).lean(),
+    })
+      .select(PENDING_SUBMISSION_SELECT)
+      .lean(),
   ]);
 
   const requestsByStudent = groupDocsByStudentId(requests);
@@ -1014,6 +1077,7 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     const batch = batchLabelForStudent(student);
     if (!batchMap.has(batch)) batchMap.set(batch, emptyBatchAccumulator());
     const acc = batchMap.get(batch);
+    const levelPriceMapForStudent = getPriceMapForStudent(student.subscription);
 
     const studentRequests = requestsByStudent[sid] || [];
     const approved = approvedByStudent[sid] || [];
@@ -1056,14 +1120,14 @@ async function aggregateBatchPaymentInsights(filters = {}) {
       approved,
       pendingSubmissions,
       student,
-      levelPriceMap,
+      levelPriceMapForStudent,
     );
     const overdueStudent = applyJourneyOverdueAmounts(student, pendingStudent, {
       LKR: live.overdueAmountLKR,
       INR: live.overdueAmountINR,
       USD: live.overdueAmountUSD,
     });
-    const expectedStudent = catalogFeeForStudent(student, levelPriceMap);
+    const expectedStudent = catalogFeeForStudent(student, levelPriceMapForStudent);
     const dueStudent = dueFromPendingOverdue(pendingStudent, overdueStudent);
 
     const lv = String(student?.level || '').trim().toUpperCase();
@@ -1088,7 +1152,7 @@ async function aggregateBatchPaymentInsights(filters = {}) {
         studentRequests,
         approved,
         pendingSubmissions,
-        levelPriceMap,
+        levelPriceMapForStudent,
         slot,
       );
       addBuckets(acc.levelSlots[slot].expected, reconciled.expected);
@@ -1110,7 +1174,7 @@ async function aggregateBatchPaymentInsights(filters = {}) {
       approved,
       pendingSubmissions,
       student,
-      levelPriceMap,
+      levelPriceMapForStudent,
     );
     const langStatus = computeLanguageFeeStatus(outstanding, jDay);
 
@@ -1120,7 +1184,7 @@ async function aggregateBatchPaymentInsights(filters = {}) {
         studentRequests,
         approved,
         pendingSubmissions,
-        levelPriceMap,
+        levelPriceMapForStudent,
       )) {
         trackEarliestOverdue(acc, converted);
         trackEarliestOverdue(totalsAcc, converted);
@@ -1201,18 +1265,24 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     }
   }
 
+  const batchConfigMap = await loadBatchConfigMap([...batchMap.keys()]);
   const batches = [...batchMap.entries()]
-    .map(([batch, acc]) => finalizeBatchRow(batch, acc))
+    .map(([batch, acc]) => {
+      const row = finalizeBatchRow(batch, acc);
+      const meta = batchMetaFromConfig(batchConfigMap.get(normBatchKey(batch)));
+      row.batchCurrentDay = meta.batchCurrentDay;
+      row.batchType = meta.batchType;
+      return row;
+    })
     .sort((a, b) => b.totalPaidLKR - a.totalPaidLKR || b.totalPaidINR - a.totalPaidINR);
 
-  const batchNames = batches.map((b) => b.batch).filter((n) => n && n !== '—');
   const totals = finalizeBatchRow('__all__', totalsAcc);
   delete totals.batch;
 
   return {
     batches,
     totalStudents: students.length,
-    batchNames,
+    batchNames: allBatchNames,
     totals,
   };
 }
@@ -1328,6 +1398,61 @@ function slotTotalsToFields(received, pending, overdue, expected) {
   };
 }
 
+/** Most common CEFR level in a batch (matches finance dashboard batch row). */
+function dominantLevelFromCounts(levelCounts) {
+  let best = null;
+  let max = 0;
+  for (const [lv, n] of Object.entries(levelCounts || {})) {
+    const count = Number(n) || 0;
+    if (count > max) {
+      max = count;
+      best = String(lv || '').trim().toUpperCase();
+    }
+  }
+  return best || null;
+}
+
+/**
+ * Payment totals for one batch row using the finance dashboard "Current Level" scope:
+ * dominant level slot when available, otherwise per-student current-level fallbacks.
+ */
+function currentLevelTotalsForBatchRow(row) {
+  const level = dominantLevelFromCounts(row?.levelCounts);
+  const slot = level && row?.levelSlots?.[level] ? row.levelSlots[level] : null;
+  if (slot) {
+    return {
+      dominantLevel: level,
+      pendingLKR: slot.pendingLKR || 0,
+      pendingINR: slot.pendingINR || 0,
+      pendingUSD: slot.pendingUSD || 0,
+      overdueLKR: slot.overdueLKR || 0,
+      overdueINR: slot.overdueINR || 0,
+      overdueUSD: slot.overdueUSD || 0,
+      receivedLKR: slot.receivedLKR || 0,
+      receivedINR: slot.receivedINR || 0,
+      receivedUSD: slot.receivedUSD || 0,
+      expectedLKR: slot.expectedLKR || 0,
+      expectedINR: slot.expectedINR || 0,
+      expectedUSD: slot.expectedUSD || 0,
+    };
+  }
+  return {
+    dominantLevel: level,
+    pendingLKR: row?.totalPendingLKR || 0,
+    pendingINR: row?.totalPendingINR || 0,
+    pendingUSD: row?.totalPendingUSD || 0,
+    overdueLKR: row?.totalOverdueLKR || 0,
+    overdueINR: row?.totalOverdueINR || 0,
+    overdueUSD: row?.totalOverdueUSD || 0,
+    receivedLKR: row?.langPaidLKR || 0,
+    receivedINR: row?.langPaidINR || 0,
+    receivedUSD: row?.langPaidUSD || 0,
+    expectedLKR: row?.totalExpectedLKR || 0,
+    expectedINR: row?.totalExpectedINR || 0,
+    expectedUSD: row?.totalExpectedUSD || 0,
+  };
+}
+
 /** Per-student A1–B2 slot totals for batch student table payment filters. */
 function buildStudentLevelSlotTotals(student, studentRequests, approvedSubs, pendingSubs, levelPriceMap) {
   const levelSlots = {};
@@ -1384,4 +1509,6 @@ module.exports = {
   VALID_STUDENT_INSIGHTS,
   studentMatchesInsight,
   filterStudentsByInsight,
+  dominantLevelFromCounts,
+  currentLevelTotalsForBatchRow,
 };

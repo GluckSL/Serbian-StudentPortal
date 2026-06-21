@@ -113,12 +113,14 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
           <ng-container [ngSwitch]="item.question!.type">
             <!-- MCQ -->
             <ng-container *ngSwitchCase="'mcq'">
-            <div class="mcq-options" *ngIf="item.question!.options?.length">
+            <div class="mcq-options" *ngIf="item.question!.options?.length" [class.mcq-options--visual]="hasMcqOptionImages(item.question!)">
               <p class="q-text">{{ item.question!.question }}</p>
               <div *ngFor="let opt of item.question!.options; let oi = index" class="mcq-option"
                 [class.selected]="getAnswer(item.questionIndex!).selectedOptionIndex === oi"
+                [class.mcq-option--visual]="hasMcqOptionImages(item.question!)"
                 (click)="setMcqAnswer(item.questionIndex!, oi)">
-                <span class="option-letter">{{ 'ABCDEFGHIJ'[oi] }}</span>
+                <img *ngIf="getMcqOptionImageUrl(item.question!, oi) as optImg" [src]="resolveUrl(optImg)" alt="" class="mcq-option-img" />
+                <span class="option-letter">{{ hasMcqOptionImages(item.question!) ? 'abcd'[oi] : 'ABCDEFGHIJ'[oi] }}</span>
                 <span class="option-text">{{ opt }}</span>
                 <span class="material-icons check-icon">check_circle</span>
               </div>
@@ -559,6 +561,7 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
 
     /* MCQ */
     .mcq-options { display: flex; flex-direction: column; gap: 6px; }
+    .mcq-options--visual { gap: 10px; }
 
     .mcq-option {
       display: flex;
@@ -570,9 +573,21 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
       cursor: pointer;
       transition: all 0.15s;
     }
+    .mcq-option--visual {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
 
     .mcq-option:hover { border-color: #7dd3fc; background: #bae6fd; }
     .mcq-option.selected { border-color: #0369a1; background: #bae6fd; }
+    .mcq-option-img {
+      width: 72px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      flex-shrink: 0;
+    }
 
     .option-letter {
       display: flex;
@@ -1340,6 +1355,16 @@ export class FreeModeExerciseRendererComponent implements OnInit {
 
   resolveUrl(url: string): string {
     return resolveMediaUrl(url);
+  }
+
+  getMcqOptionImageUrl(question: any, oi: number): string {
+    const urls = Array.isArray(question?.optionImageUrls) ? question.optionImageUrls : [];
+    return String(urls[oi] || '').trim();
+  }
+
+  hasMcqOptionImages(question: any): boolean {
+    const urls = Array.isArray(question?.optionImageUrls) ? question.optionImageUrls : [];
+    return urls.some((u: unknown) => !!String(u || '').trim());
   }
 
   openFullscreen(event: MouseEvent): void {

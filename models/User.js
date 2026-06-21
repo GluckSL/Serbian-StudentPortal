@@ -143,6 +143,11 @@ const UserSchema = new mongoose.Schema({
   consecutiveAbsenceAlertSentAt: { type: Date, default: null },
   consecutiveAbsenceAlertStreak: { type: Number, default: null },
 
+  // Portal login-absence reminder email tracking
+  portalAbsenceReminderSentAt: { type: Date, default: null },
+  /** Reminders sent in the current absence streak (max 3, reset on login). */
+  portalAbsenceReminderCount: { type: Number, default: 0 },
+
   // GO Silver batch fields
   goStatus: { type: String, enum: ['GO'], default: undefined },
   /** Tamil → GO-SILVER journey; Sinhala → GO-SINHALA journey */

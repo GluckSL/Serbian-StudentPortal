@@ -94,8 +94,12 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   attachmentUploading = false;
   currentAttachmentItem: FreeModeItem | null = null;
   contentBlockFieldVisibility: Map<number, Set<string>> = new Map();
+  currentMcqOptionImage: { item: FreeModeItem; oi: number } | null = null;
+  mcqOptionImageUploadingKey: string | null = null;
+  mcqOptionUrlExpandedKey: string | null = null;
 
   @ViewChild('attachmentFileInput') attachmentFileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('mcqOptionImageFileInput') mcqOptionImageFileInput!: ElementRef<HTMLInputElement>;
   levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties = ['Beginner', 'Intermediate', 'Advanced'];
@@ -342,6 +346,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
     } else if (type === 'mcq') {
       base.question = '';
       base.options = ['', ''];
+      base.optionImageUrls = ['', ''];
       base.correctAnswerIndex = 0;
       base.explanation = '';
     } else if (type === 'matching') {
@@ -439,17 +444,109 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   addOption(item: FreeModeItem): void {
     item.options = item.options || [];
     item.options.push('');
+    this.ensureMcqOptionImages(item);
+    item.optionImageUrls!.push('');
   }
 
   removeOption(item: FreeModeItem, idx: number): void {
     item.options = item.options || [];
     item.options.splice(idx, 1);
+    this.ensureMcqOptionImages(item);
+    item.optionImageUrls!.splice(idx, 1);
     if (item.correctAnswerIndex !== undefined) {
       if (item.correctAnswerIndex === idx) {
-        item.correctAnswerIndex = undefined;
+        item.correctAnswerIndex = 0;
       } else if (idx < item.correctAnswerIndex) {
         item.correctAnswerIndex -= 1;
       }
+    }
+    if (item.correctAnswerIndex !== undefined && item.correctAnswerIndex >= (item.options?.length ?? 0)) {
+      item.correctAnswerIndex = 0;
+    }
+  }
+
+  ensureMcqOptionImages(item: FreeModeItem): void {
+    if (!Array.isArray(item.options)) return;
+    if (!Array.isArray(item.optionImageUrls)) {
+      item.optionImageUrls = item.options.map(() => '');
+      return;
+    }
+    while (item.optionImageUrls.length < item.options.length) item.optionImageUrls.push('');
+    while (item.optionImageUrls.length > item.options.length) item.optionImageUrls.pop();
+  }
+
+  mcqOptionKey(item: FreeModeItem, oi: number): string {
+    return `${item.uid}-${oi}`;
+  }
+
+  getMcqOptionImageUrl(item: FreeModeItem, oi: number): string {
+    this.ensureMcqOptionImages(item);
+    return String(item.optionImageUrls?.[oi] || '').trim();
+  }
+
+  isMcqOptionImageUploading(item: FreeModeItem, oi: number): boolean {
+    return this.mcqOptionImageUploadingKey === this.mcqOptionKey(item, oi);
+  }
+
+  toggleMcqOptionUrlInput(item: FreeModeItem, oi: number): void {
+    const key = this.mcqOptionKey(item, oi);
+    this.mcqOptionUrlExpandedKey = this.mcqOptionUrlExpandedKey === key ? null : key;
+  }
+
+  isMcqOptionUrlExpanded(item: FreeModeItem, oi: number): boolean {
+    return this.mcqOptionUrlExpandedKey === this.mcqOptionKey(item, oi);
+  }
+
+  triggerMcqOptionImageFile(item: FreeModeItem, oi: number): void {
+    this.currentMcqOptionImage = { item, oi };
+    this.mcqOptionImageFileInput?.nativeElement?.click();
+  }
+
+  onMcqOptionImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const target = this.currentMcqOptionImage;
+    this.currentMcqOptionImage = null;
+    input.value = '';
+    if (!file || !target) return;
+    if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+      this.snackBar.open('Please select an image file', 'Close', { duration: 4000, panelClass: ['error-snack'] });
+      return;
+    }
+    const { item, oi } = target;
+    const key = this.mcqOptionKey(item, oi);
+    this.mcqOptionImageUploadingKey = key;
+    this.exerciseService.uploadQuestionAttachment(file).subscribe({
+      next: (res) => {
+        const canonicalUrl = String(res?.canonicalUrl || res?.url || '').trim();
+        if (!canonicalUrl || this.getAttachmentType(canonicalUrl) !== 'image') {
+          this.mcqOptionImageUploadingKey = null;
+          this.snackBar.open('Uploaded file is not a valid image', 'Close', { duration: 4000, panelClass: ['error-snack'] });
+          return;
+        }
+        this.ensureMcqOptionImages(item);
+        item.optionImageUrls![oi] = canonicalUrl;
+        this.mcqOptionImageUploadingKey = null;
+        this.mcqOptionUrlExpandedKey = null;
+        this.snackBar.open('Option image uploaded', 'Close', { duration: 3000 });
+      },
+      error: (err) => {
+        this.mcqOptionImageUploadingKey = null;
+        this.snackBar.open(err.error?.error || 'Image upload failed', 'Close', { duration: 4000, panelClass: ['error-snack'] });
+      }
+    });
+  }
+
+  setMcqOptionImageUrl(item: FreeModeItem, oi: number, raw: string): void {
+    this.ensureMcqOptionImages(item);
+    item.optionImageUrls![oi] = String(raw || '').trim();
+  }
+
+  removeMcqOptionImage(item: FreeModeItem, oi: number): void {
+    this.ensureMcqOptionImages(item);
+    item.optionImageUrls![oi] = '';
+    if (this.mcqOptionUrlExpandedKey === this.mcqOptionKey(item, oi)) {
+      this.mcqOptionUrlExpandedKey = null;
     }
   }
 
