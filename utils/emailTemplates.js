@@ -695,6 +695,123 @@ function buildForcePasswordResetEmail({ name, regNo, otp, loginUrl, expiresMinut
   };
 }
 
+/**
+ * Motivational re-engagement email for students who haven't logged in for 3+ days.
+ * @param {object} params
+ * @param {string} params.name      - Student's full name
+ * @param {number} params.daysSince - Number of days since last login
+ * @param {string} params.loginUrl  - Portal login URL
+ */
+function buildPortalAbsenceReminderEmail({ name, daysSince, loginUrl, reminderNumber = 1 }) {
+  const messages = [
+    {
+      headline: 'You\'re one step away from your dream! 🌟',
+      body: `German fluency doesn't come by waiting — it comes by showing up, one day at a time. You were doing so well, and we don't want you to lose that momentum. Log in today and pick up right where you left off!`,
+    },
+    {
+      headline: 'We miss you in class! 💙',
+      body: `Your German journey is waiting for you. Every session you attend brings you closer to the life you've been working toward. Even 15 minutes today can make a huge difference — come back and keep going!`,
+    },
+    {
+      headline: 'Don\'t let your hard work fade! 🔥',
+      body: `You've already put so much effort into learning German. Missing a few days is completely normal — but the key is getting back on track quickly. Log in now and let's continue building toward your goal together.`,
+    },
+    {
+      headline: 'Your German dream is still within reach! 🎯',
+      body: `Every great language learner faces moments of pause — but the ones who succeed are the ones who choose to come back. We believe in you. Log in today, even for a short session, and feel that progress reignite!`,
+    },
+  ];
+
+  const pick = messages[(Math.max(1, reminderNumber) - 1) % messages.length];
+
+  return {
+    subject: `We miss you, ${name}! Come back to your German journey 💙`,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>We miss you!</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0"
+               style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">
+                Glück Global
+              </h1>
+              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
+                German Study Buddy
+              </p>
+            </td>
+          </tr>
+
+          <!-- Illustration row -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#f3eeff 0%,#ede9fe 100%);padding:28px 40px;text-align:center;">
+              <p style="margin:0;font-size:48px;line-height:1;">✈️</p>
+              <p style="margin:8px 0 0;color:#6c3fc5;font-size:18px;font-weight:700;">
+                ${escapeHtml(pick.headline)}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px 40px;">
+              <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
+                Hello <strong>${escapeHtml(name)}</strong>,
+              </p>
+              <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.7;">
+                ${escapeHtml(pick.body)}
+              </p>
+
+              <!-- Absence info pill -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center" style="padding:0 0 28px;">
+                    <span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:13px;font-weight:600;padding:8px 20px;border-radius:20px;border:1px solid #fcd34d;">
+                      You haven't visited the portal in <strong>${daysSince} day${daysSince !== 1 ? 's' : ''}</strong>
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA button -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center" style="padding:0 0 28px;">
+                    <a href="${escapeHtml(loginUrl)}"
+                       style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:16px;font-weight:700;text-decoration:none;padding:16px 44px;border-radius:10px;letter-spacing:0.3px;">
+                      Log In &amp; Continue Learning →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;color:#64748b;font-size:13px;line-height:1.6;text-align:center;">
+                Your team at Glück Global is rooting for you every step of the way. 🙌
+              </p>
+            </td>
+          </tr>
+
+          ${emailFooter()}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  };
+}
+
 module.exports = {
   buildPasswordResetOtpEmail,
   buildEmailChangeOtpEmail,
@@ -708,4 +825,5 @@ module.exports = {
   buildJobApplicationReceivedAdminEmail,
   buildSignupApprovedWelcomeEmail,
   buildJourneyDayReminderEmail,
+  buildPortalAbsenceReminderEmail,
 };

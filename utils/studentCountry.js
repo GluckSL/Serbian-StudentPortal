@@ -113,6 +113,8 @@ async function recordStudentLogin(user, req) {
     const country = await resolveLoginCountry(req);
     user.lastLogin = new Date();
     user.lastLoginCountry = country;
+    user.portalAbsenceReminderCount = 0;
+    user.portalAbsenceReminderSentAt = null;
     await user.save();
     await UserActivityLog.create({
       userId: user._id,

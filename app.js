@@ -133,6 +133,7 @@ const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
 const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
 const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
 const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
+const { schedulePortalAbsenceReminders } = require('./jobs/portalAbsenceReminder');
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
 const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
@@ -610,6 +611,7 @@ connectMongoDb()
       scheduleMissedActivitiesAlerts();
       scheduleWeeklyReports();
       scheduleConsecutiveAbsenceAlerts();
+      schedulePortalAbsenceReminders();
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
