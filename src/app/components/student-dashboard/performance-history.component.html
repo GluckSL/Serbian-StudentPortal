@@ -71,6 +71,13 @@
       </div>
     </section>
 
+    <!-- ═══ Journey Map ═══ -->
+    <app-journey-map
+      [currentDay]="currentDay"
+      [journeyLength]="data.student.journeyLength || 200"
+      [studentName]="studentName"
+    ></app-journey-map>
+
     <!-- ═══ Charts Row ═══ -->
     <section class="charts-row">
       <div class="chart-card">

@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
+import { JourneyMapComponent } from './journey-map.component';
 
 interface Kpis {
   overallCompletionPct: number; overallDone: number; overallTotal: number;
@@ -42,7 +43,7 @@ interface SummaryResponse {
 @Component({
   selector: 'app-performance-history',
   standalone: true,
-  imports: [CommonModule, NgChartsModule],
+  imports: [CommonModule, NgChartsModule, JourneyMapComponent],
   templateUrl: './performance-history.component.html',
   styleUrls: ['./performance-history.component.scss']
 })
