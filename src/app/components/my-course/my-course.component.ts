@@ -35,6 +35,10 @@ import {
   PaymentRequestItem,
 } from '../payment-hub-v2/payment-hub-api.service';
 import {
+  LoginStreakService,
+  LoginStreakData,
+} from '../../services/login-streak.service';
+import {
   clampJourneyDayForBatch,
   journeyDaysThrough,
   formatJourneyDayLabel,
@@ -142,6 +146,9 @@ export class MyCourseComponent implements OnInit {
   announcementLoadError = false;
   private lastAnnouncementId: string | null = null;
 
+  loginStreakData: LoginStreakData | null = null;
+  showStreakPopup = false;
+
   // ── Recording access request panel ──────────────────────────────────────────
   showRecordingReqPanel = false;
   recordingReqClasses: EligibleClass[] = [];
@@ -202,6 +209,52 @@ export class MyCourseComponent implements OnInit {
     'Believe in the version of you who finishes what you start.'
   ];
 
+  get streakDayLabels(): string[] {
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  }
+
+  isStreakDayFilled(index: number): boolean {
+    const dateStr = this.loginStreakData?.weekDates?.[index];
+    if (!dateStr) return false;
+    return this.loginStreakData?.loggedDates?.includes(dateStr) ?? false;
+  }
+
+  isStreakDayToday(index: number): boolean {
+    const today = new Date().toISOString().slice(0, 10);
+    return this.loginStreakData?.weekDates?.[index] === today;
+  }
+
+  get weeklyRewardEmoji(): string {
+    const tier = this.loginStreakData?.weeklyRewardTier;
+    if (tier === 'trophy') return '🏆';
+    if (tier === 'gold') return '🥇';
+    if (tier === 'silver') return '🥈';
+    if (tier === 'bronze') return '🥉';
+    return '';
+  }
+
+  closeStreakPopup(): void {
+    this.showStreakPopup = false;
+  }
+
+  get streakRewardText(): string {
+    const tier = this.loginStreakData?.weeklyRewardTier;
+    if (tier === 'trophy') return 'Trophy Unlocked!';
+    if (tier === 'gold') return 'Gold Unlocked!';
+    if (tier === 'silver') return 'Silver Unlocked!';
+    if (tier === 'bronze') return 'Bronze Unlocked!';
+    return '';
+  }
+
+  get weeklyRewardLabel(): string {
+    const tier = this.loginStreakData?.weeklyRewardTier;
+    if (tier === 'trophy') return 'Trophy';
+    if (tier === 'gold') return 'Gold';
+    if (tier === 'silver') return 'Silver';
+    if (tier === 'bronze') return 'Bronze';
+    return '';
+  }
+
   private pickTabHeaderQuote(): void {
     const list = this.tabHeaderQuotes;
     this.tabHeaderQuote = list[Math.floor(Math.random() * list.length)] || list[0];
@@ -224,6 +277,7 @@ export class MyCourseComponent implements OnInit {
     private recordingReqService: RecordingAccessRequestService,
     private paymentHubApi: PaymentHubApiService,
     private sprechenApi: SprechenApiService,
+    private loginStreakService: LoginStreakService,
   ) {}
 
   ngOnInit(): void {
@@ -297,6 +351,19 @@ export class MyCourseComponent implements OnInit {
       });
     this.loading = false;
     this.pickTabHeaderQuote();
+
+    // Check login streak (records first login of the day + triggers popup)
+    this.loginStreakService.checkLoginStreak().subscribe({
+      next: (res) => {
+        if (this.destroyed) return;
+        this.loginStreakData = res?.data ?? null;
+        if (res?.data?.isFirstLoginToday && !this.destroyed) {
+          this.showStreakPopup = true;
+          setTimeout(() => { this.showStreakPopup = false; }, 5000);
+        }
+      },
+      error: () => {},
+    });
 
     // Defer the payment-hub request so it doesn't compete with journey / meetings on initial load.
     setTimeout(() => { if (!this.destroyed) this.loadLanguageFeeDue(); }, 1500);
