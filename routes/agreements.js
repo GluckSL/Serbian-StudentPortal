@@ -1,4 +1,4 @@
-// routes/agreements.js — Agreement template management and student agreement sharing
+   // routes/agreements.js — Agreement template management and student agreement sharing
 
 const express = require('express');
 const router = express.Router();
