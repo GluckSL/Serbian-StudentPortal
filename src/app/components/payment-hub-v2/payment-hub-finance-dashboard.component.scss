@@ -270,6 +270,228 @@
   vertical-align: middle;
 }
 
+// ── Commencement / Next Payment Date column ───────────────────────────────
+
+.ph-col-commence {
+  width: 15%;
+  vertical-align: middle;
+}
+
+.ph-commence-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  min-width: 0;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+
+  &--near {
+    background: linear-gradient(145deg, #fff1f2 0%, #ffe4e6 100%);
+    border-color: #fda4af;
+    box-shadow: 0 0 0 1px rgba(225, 29, 72, 0.08);
+
+    .ph-commence-card__icon {
+      color: #e11d48;
+    }
+
+    .ph-commence-card__date {
+      color: #be123c;
+    }
+
+    .ph-commence-card__amount ::ng-deep .ph-currency-value--compact {
+      color: #be123c;
+    }
+  }
+
+  &--past {
+    background: #fafafa;
+    border-color: #e5e7eb;
+    opacity: 0.85;
+
+    .ph-commence-card__date {
+      color: #64748b;
+      text-decoration: line-through;
+    }
+  }
+
+  &--manual .ph-commence-card__date-row {
+    justify-content: space-between;
+  }
+}
+
+.ph-commence-card__date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ph-commence-card__icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #6366f1;
+}
+
+.ph-commence-card__date {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.ph-commence-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.ph-commence-card--manual:hover .ph-commence-card__actions {
+  opacity: 1;
+}
+
+.ph-commence-card__amount {
+  padding-top: 2px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.35);
+
+  ::ng-deep .ph-currency-row--compact {
+    justify-content: flex-start;
+    padding: 2px 0 0;
+  }
+
+  ::ng-deep .ph-currency-value--compact {
+    font-size: 12px;
+    font-weight: 700;
+    color: #b45309;
+  }
+
+  ::ng-deep .ph-ccy-badge-code {
+    font-size: 9px;
+  }
+}
+
+.ph-commence-card--near .ph-commence-card__amount {
+  border-top-color: rgba(251, 113, 133, 0.4);
+}
+
+.ph-commence-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+
+  mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+  }
+
+  &:hover:not(:disabled) {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  &--confirm {
+    color: #059669;
+
+    &:hover:not(:disabled) {
+      background: #d1fae5;
+      color: #047857;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &--danger {
+    &:hover:not(:disabled) {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+  }
+}
+
+.ph-commence-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1.5px dashed #cbd5e1;
+  background: #fafbfc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: #94a3b8;
+  }
+
+  &:hover {
+    border-color: #818cf8;
+    background: #eef2ff;
+    color: #4338ca;
+
+    mat-icon {
+      color: #6366f1;
+    }
+  }
+}
+
+.ph-commence-editor {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ph-commence-date-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  max-width: 130px;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    border-color: rgba(99, 102, 241, 0.55);
+    background: #fff;
+  }
+}
+
 .ph-overdue-days {
   display: block;
   font-size: 15px;
@@ -798,7 +1020,7 @@
 
 .ph-finance-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1200px;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;

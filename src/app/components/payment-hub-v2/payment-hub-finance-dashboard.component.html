@@ -226,6 +226,7 @@
               <col class="ph-col-money" />
               <col class="ph-col-money" />
               <col class="ph-col-money" />
+              <col class="ph-col-commence" />
               <col class="ph-col-journey" />
               <col class="ph-col-actions" />
             </colgroup>
@@ -238,6 +239,7 @@
                 <th class="ph-num ph-col-money">Received</th>
                 <th class="ph-num ph-col-money">Pending</th>
                 <th class="ph-num ph-col-money">Overdue</th>
+                <th class="ph-col-commence">Commencement</th>
                 <th class="ph-col-journey">Journey</th>
                 <th class="ph-col-actions">Action</th>
               </tr>
@@ -315,6 +317,117 @@
                   </ng-container>
                   <ng-template #noOverdue><span class="ph-ccy-empty">—</span></ng-template>
                 </td>
+
+                <!-- ── Commencement / Next Payment Date ───────────────────── -->
+                <td class="ph-col-commence">
+
+                  <!-- NEW batch -->
+                  <ng-container *ngIf="r.batchType === 'new'">
+                    <ng-container *ngIf="getNextPaymentInfo(r) as info; else noCommenceNew">
+                      <div
+                        class="ph-commence-card"
+                        [class.ph-commence-card--near]="info.isNear"
+                        [class.ph-commence-card--past]="info.isPast"
+                        [matTooltip]="info.tooltip"
+                      >
+                        <div class="ph-commence-card__date-row">
+                          <mat-icon class="ph-commence-card__icon" aria-hidden="true">event</mat-icon>
+                          <span class="ph-commence-card__date">{{ info.dateStr }}</span>
+                        </div>
+                        <div class="ph-commence-card__amount" *ngIf="info.amountLKR > 0 || info.amountINR > 0 || info.amountUSD > 0">
+                          <app-payment-currency-totals
+                            [lkr]="info.amountLKR"
+                            [inr]="info.amountINR"
+                            [usd]="info.amountUSD"
+                            [compact]="true"
+                            [hideZero]="true"
+                          ></app-payment-currency-totals>
+                        </div>
+                      </div>
+                    </ng-container>
+                    <ng-template #noCommenceNew><span class="ph-ccy-empty">—</span></ng-template>
+                  </ng-container>
+
+                  <!-- OLD batch -->
+                  <ng-container *ngIf="r.batchType === 'old'">
+                    <div class="ph-commence-editor" *ngIf="editingPaymentDateBatch === r.batch">
+                      <input
+                        type="date"
+                        class="ph-commence-date-input"
+                        [(ngModel)]="editingPaymentDateValue"
+                        (keydown.enter)="saveManualPaymentDate(r.batch)"
+                        (keydown.escape)="cancelEditPaymentDate()"
+                      />
+                      <button
+                        type="button"
+                        class="ph-commence-icon-btn ph-commence-icon-btn--confirm"
+                        (click)="saveManualPaymentDate(r.batch)"
+                        [disabled]="!editingPaymentDateValue"
+                        matTooltip="Save date"
+                      ><mat-icon>check</mat-icon></button>
+                      <button
+                        type="button"
+                        class="ph-commence-icon-btn"
+                        (click)="cancelEditPaymentDate()"
+                        matTooltip="Cancel"
+                      ><mat-icon>close</mat-icon></button>
+                    </div>
+
+                    <ng-container *ngIf="editingPaymentDateBatch !== r.batch">
+                      <ng-container *ngIf="getNextPaymentInfo(r) as info; else noOldDate">
+                        <div
+                          class="ph-commence-card ph-commence-card--manual"
+                          [class.ph-commence-card--near]="info.isNear"
+                          [class.ph-commence-card--past]="info.isPast"
+                          [matTooltip]="info.tooltip"
+                        >
+                          <div class="ph-commence-card__date-row">
+                            <mat-icon class="ph-commence-card__icon" aria-hidden="true">event</mat-icon>
+                            <span class="ph-commence-card__date">{{ info.dateStr }}</span>
+                            <div class="ph-commence-card__actions">
+                              <button
+                                type="button"
+                                class="ph-commence-icon-btn"
+                                (click)="startEditPaymentDate(r.batch)"
+                                matTooltip="Edit date"
+                                aria-label="Edit payment date"
+                              ><mat-icon>edit</mat-icon></button>
+                              <button
+                                type="button"
+                                class="ph-commence-icon-btn ph-commence-icon-btn--danger"
+                                (click)="clearManualPaymentDate(r.batch)"
+                                matTooltip="Remove date"
+                                aria-label="Remove payment date"
+                              ><mat-icon>close</mat-icon></button>
+                            </div>
+                          </div>
+                          <div class="ph-commence-card__amount" *ngIf="info.amountLKR > 0 || info.amountINR > 0 || info.amountUSD > 0">
+                            <app-payment-currency-totals
+                              [lkr]="info.amountLKR"
+                              [inr]="info.amountINR"
+                              [usd]="info.amountUSD"
+                              [compact]="true"
+                              [hideZero]="true"
+                            ></app-payment-currency-totals>
+                          </div>
+                        </div>
+                      </ng-container>
+
+                      <ng-template #noOldDate>
+                        <button
+                          type="button"
+                          class="ph-commence-add-btn"
+                          (click)="startEditPaymentDate(r.batch)"
+                          matTooltip="Set next payment date manually"
+                        >
+                          <mat-icon>event_available</mat-icon>
+                          Set date
+                        </button>
+                      </ng-template>
+                    </ng-container>
+                  </ng-container>
+                </td>
+
                 <td class="ph-col-journey">
                   <span
                     class="ph-day-badge ph-day-badge--ratio"

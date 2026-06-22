@@ -75,19 +75,29 @@ function overdueDaysLabel(isoDate) {
 
 // ─── Core: fetch per-batch data for visible batches ──────────────────────────
 async function fetchVisibleBatchData() {
+  const PaymentHubCatalog = require('../models/PaymentHubCatalog');
   const {
     aggregateBatchPaymentInsights,
     currentLevelTotalsForBatchRow,
   } = require('../helpers/paymentHubStatsAggregator');
+  const { computeCommencementForBatch } = require('../helpers/financeCommencementHelper');
 
   const settings = await FinanceDashboardSettings.getOrCreate();
   const visibleBatches = (settings.visibleBatches || []).filter(Boolean);
   if (!visibleBatches.length) return [];
 
-  const allData = await aggregateBatchPaymentInsights({
-    batches: visibleBatches,
-    studentStatus: 'ONGOING',
-  });
+  const manualDates =
+    settings.manualNextPaymentDates instanceof Map
+      ? Object.fromEntries(settings.manualNextPaymentDates)
+      : settings.manualNextPaymentDates || {};
+
+  const [allData, catalog] = await Promise.all([
+    aggregateBatchPaymentInsights({
+      batches: visibleBatches,
+      studentStatus: 'ONGOING',
+    }),
+    PaymentHubCatalog.getOrCreate(),
+  ]);
   const batchRows = allData.batches || [];
 
   const visibleSet = new Set(visibleBatches.map((b) => String(b).toLowerCase()));
@@ -97,6 +107,7 @@ async function fetchVisibleBatchData() {
     const scoped = currentLevelTotalsForBatchRow(r);
     const scopedOverdueTotal = (scoped.overdueLKR || 0) + (scoped.overdueINR || 0) + (scoped.overdueUSD || 0);
     const scopedPendingTotal = (scoped.pendingLKR || 0) + (scoped.pendingINR || 0) + (scoped.pendingUSD || 0);
+    const commencement = computeCommencementForBatch(r, catalog, manualDates[r.batch]);
     return {
       batch: r.batch,
       dominantLevel: scoped.dominantLevel,
@@ -112,8 +123,63 @@ async function fetchVisibleBatchData() {
       overdueLKR: scoped.overdueLKR,
       overdueINR: scoped.overdueINR,
       overdueSince: scopedOverdueTotal > 0 || scopedPendingTotal > 0 ? (r.overdueSince || null) : null,
+      commencement,
     };
   });
+}
+
+function formatCommencementCell(commencement) {
+  if (!commencement) return '—';
+  const near = commencement.isNear;
+  const dateClass = near ? 'commence-near' : '';
+  const amtClass = near ? 'commence-near' : 'amber';
+  const parts = [`<span class="${dateClass}" style="font-weight:700">${commencement.dateStr}</span>`];
+  const amounts = [];
+  if (commencement.amountLKR > 0) amounts.push(`LKR ${fmtNum(commencement.amountLKR)}`);
+  if (commencement.amountINR > 0) amounts.push(`INR ${fmtNum(commencement.amountINR)}`);
+  if (amounts.length) {
+    parts.push(`<span class="${amtClass}" style="font-size:12px">${amounts.join(' · ')}</span>`);
+  }
+  return parts.join('<br/>');
+}
+
+function commencementSummaryHtml(rows) {
+  const upcoming = rows
+    .filter((r) => r.commencement && !r.commencement.isPast)
+    .sort((a, b) => (a.commencement.daysUntil ?? 999) - (b.commencement.daysUntil ?? 999));
+  if (!upcoming.length) return '';
+
+  const nearCount = upcoming.filter((r) => r.commencement.isNear).length;
+  let listRows = '';
+  for (const r of upcoming.slice(0, 12)) {
+    const c = r.commencement;
+    const rowStyle = c.isNear ? 'background:#fff1f2' : '';
+    listRows += `
+      <tr style="${rowStyle}">
+        <td class="batch-name">${r.batch}</td>
+        <td>${c.currentLevel || '—'} → ${c.nextLevel || '—'}</td>
+        <td class="num ${c.isNear ? 'commence-near' : ''}">${c.dateStr}</td>
+        <td class="num ${c.isNear ? 'commence-near' : 'amber'}">${c.amountLKR > 0 ? 'LKR ' + fmtNum(c.amountLKR) : '—'}</td>
+        <td class="num ${c.isNear ? 'commence-near' : 'amber'}">${c.amountINR > 0 ? 'INR ' + fmtNum(c.amountINR) : '—'}</td>
+        <td class="num">${r.studentCount}</td>
+      </tr>`;
+  }
+
+  return `
+    <h2>📅 Upcoming Level Commencements${nearCount ? ` <span style="color:#dc2626;font-size:13px">(${nearCount} within 5 days)</span>` : ''}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Batch</th>
+          <th>Level change</th>
+          <th style="text-align:right">Commencement</th>
+          <th style="text-align:right">Projected (LKR)</th>
+          <th style="text-align:right">Projected (INR)</th>
+          <th style="text-align:right">Students</th>
+        </tr>
+      </thead>
+      <tbody>${listRows}</tbody>
+    </table>`;
 }
 
 // ─── Approved today: per-batch breakdown (current-level language fees only) ───
@@ -211,6 +277,7 @@ function emailWrapper(title, badge, badgeColor, bodyHtml) {
   .overdue-ok{color:#64748b}
   .green{color:#16a34a;font-weight:700}
   .amber{color:#d97706;font-weight:700}
+  .commence-near{color:#dc2626;font-weight:800}
   .footer-note{font-size:11px;color:#94a3b8;margin-top:20px;text-align:center}
   .summary-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
   .stat-box{flex:1;min-width:140px;background:#f8fafc;border:1px solid #e2e8f0;
@@ -297,6 +364,7 @@ async function sendMorningReport() {
         <td class="num amber">${r.pendingINR > 0 ? 'INR ' + fmtNum(r.pendingINR) : '—'}</td>
         <td class="num overdue-${isHot ? 'hot' : 'ok'}">${r.overdueStudents > 0 ? r.overdueStudents + ' student' + (r.overdueStudents > 1 ? 's' : '') : '—'}</td>
         <td class="num ${isHot ? 'overdue-hot' : 'overdue-ok'}">${overdayLabel}</td>
+        <td class="num">${formatCommencementCell(r.commencement)}</td>
       </tr>`;
   }
 
@@ -310,6 +378,7 @@ async function sendMorningReport() {
             <th style="text-align:right">Pending INR</th>
             <th style="text-align:right">Overdue Students</th>
             <th style="text-align:right">Overdue Since</th>
+            <th style="text-align:right">Commencement</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
@@ -319,11 +388,14 @@ async function sendMorningReport() {
   const bodyHtml = `
     <h2>📋 Morning Pending Summary — ${now}</h2>
     ${summaryBoxes}
+    ${commencementSummaryHtml(rows)}
     <h2>Batch-wise Pending Balance</h2>
     ${tableHtml}
     <p style="font-size:12px;color:#94a3b8;margin-top:8px">
       Only batches added to the Finance Dashboard are included. Amounts use the <strong>Current Level</strong> language-fee scope
       (dominant batch level), for <strong>ongoing</strong> students only — matching the finance dashboard view.
+      <strong>Commencement</strong> = next level start date (auto for new batches, manual for old) with projected collection
+      (students × next-level catalog fee). Rows within <strong>5 days</strong> are highlighted in red.
     </p>`;
 
   const dateStr = new Date().toLocaleDateString('en-IN', {
@@ -453,6 +525,7 @@ async function sendEveningReport() {
         <td class="num amber">${r.pendingLKR > 0 ? 'LKR ' + fmtNum(r.pendingLKR) : '—'}</td>
         <td class="num amber">${r.pendingINR > 0 ? 'INR ' + fmtNum(r.pendingINR) : '—'}</td>
         <td class="num ${(r.overdueStudents || 0) > 0 ? 'overdue-hot' : 'overdue-ok'}">${r.overdueStudents > 0 ? r.overdueStudents : '—'}</td>
+        <td class="num">${formatCommencementCell(r.commencement)}</td>
       </tr>`;
   }
 
@@ -466,6 +539,7 @@ async function sendEveningReport() {
             <th style="text-align:right">Still Pending (LKR)</th>
             <th style="text-align:right">Still Pending (INR)</th>
             <th style="text-align:right">Overdue</th>
+            <th style="text-align:right">Commencement</th>
           </tr>
         </thead>
         <tbody>${balanceRows}</tbody>
@@ -482,6 +556,7 @@ async function sendEveningReport() {
   const bodyHtml = `
     <h2>📊 Evening Collection Summary — ${now}</h2>
     ${summaryBoxes}
+    ${commencementSummaryHtml(rows)}
     <h2>💰 Table 1 — Payments Received Today (by Batch)</h2>
     ${table1Html}
     <h2>📋 Table 2 — Full Balance Status as of 6 PM</h2>
@@ -489,6 +564,7 @@ async function sendEveningReport() {
     <p style="font-size:12px;color:#94a3b8;margin-top:8px">
       "Received today" = current-level language-fee payments approved between midnight and 6 PM IST today.
       "Still pending" = current-level remaining balance for ongoing students (matches dashboard "Current Level").
+      <strong>Commencement</strong> shows the next level payment date and projected batch collection; within 5 days is red.
     </p>`;
 
   await sendReport({

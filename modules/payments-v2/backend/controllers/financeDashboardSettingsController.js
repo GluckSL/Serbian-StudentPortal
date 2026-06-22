@@ -16,6 +16,7 @@ const getVisibleBatches = async (req, res) => {
       data: {
         visibleBatches: settings.visibleBatches || [],
         visibleBatchLevelStatuses: toPlainObject(settings.visibleBatchLevelStatuses),
+        manualNextPaymentDates: toPlainObject(settings.manualNextPaymentDates),
         updatedAt: settings.updatedAt || null,
       },
     });
@@ -37,6 +38,34 @@ const updateVisibleBatches = async (req, res) => {
       data: {
         visibleBatches: settings.visibleBatches || [],
         visibleBatchLevelStatuses: toPlainObject(settings.visibleBatchLevelStatuses),
+        manualNextPaymentDates: toPlainObject(settings.manualNextPaymentDates),
+        updatedAt: settings.updatedAt || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+const updateBatchCommencementDate = async (req, res) => {
+  try {
+    const batch = String(req.body?.batch || '').trim();
+    if (!batch) {
+      return res.status(400).json({ success: false, message: 'batch is required.' });
+    }
+    const date = req.body?.date;
+    const dateIso = date == null || date === '' ? null : String(date).trim();
+    if (dateIso && !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+      return res.status(400).json({ success: false, message: 'date must be YYYY-MM-DD.' });
+    }
+    const adminId = getAuthUserId(req);
+    const settings = await FinanceDashboardSettings.setManualNextPaymentDate(batch, dateIso, adminId);
+    res.json({
+      success: true,
+      data: {
+        batch,
+        date: dateIso,
+        manualNextPaymentDates: toPlainObject(settings.manualNextPaymentDates),
         updatedAt: settings.updatedAt || null,
       },
     });
@@ -68,5 +97,6 @@ const triggerReport = async (req, res) => {
 module.exports = {
   getVisibleBatches,
   updateVisibleBatches,
+  updateBatchCommencementDate,
   triggerReport,
 };
