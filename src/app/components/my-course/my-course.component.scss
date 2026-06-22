@@ -1334,6 +1334,99 @@
   border-color: #c7d2fe;
 }
 
+.mc-side-card--streak {
+  background: linear-gradient(165deg, #fefce8 0%, #ffffff 50%, #fffbeb 100%);
+  border-color: #fde68a;
+}
+
+.sc-side-stats {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+
+.sc-side-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sc-side-stat__icon {
+  font-size: 1.1rem;
+}
+
+.sc-side-stat__value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1e1b4b;
+  line-height: 1;
+}
+
+.sc-side-stat__label {
+  font-size: 0.72rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+}
+
+.sc-side-week {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.sc-side-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+}
+
+.sc-side-day__dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  background: #f8fafc;
+  transition: all 0.2s;
+}
+
+.sc-side-day--filled .sc-side-day__dot {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  border-color: #3b82f6;
+}
+
+.sc-side-day--today .sc-side-day__dot {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
+.sc-side-day__label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.sc-side-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.sc-side-foot__reward {
+  font-weight: 700;
+  color: #92400e;
+}
+
+.sc-side-foot__count {
+  color: #64748b;
+  font-weight: 600;
+}
+
 .mc-side-card__eyebrow {
   margin: 0 0 10px;
   font-size: 11px;
@@ -4621,4 +4714,209 @@
       cursor: not-allowed;
     }
   }
+}
+
+// ── Streak popup ──────────────────────────────────────────────────────────────
+
+.sc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  animation: scFadeIn 0.25s ease-out;
+}
+
+@keyframes scFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sc {
+  background: linear-gradient(180deg, #0f0a1e 0%, #1a102e 30%, #231540 70%, #1a0f2e 100%);
+  border-radius: 24px;
+  padding: 40px 28px 24px;
+  max-width: 340px;
+  width: 88vw;
+  color: #fff;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 24px 80px rgba(0, 0, 0, 0.7);
+  animation: scCardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scCardIn {
+  from { opacity: 0; transform: scale(0.85) translateY(24px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.sc-glow {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.sc-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 2;
+  padding: 0;
+  line-height: 1;
+}
+
+.sc-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.sc-badge {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15), 0 8px 24px rgba(245, 158, 11, 0.25);
+}
+
+.sc-badge-icon {
+  font-size: 1.6rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.sc-streak-num {
+  font-size: 3.2rem;
+  font-weight: 900;
+  line-height: 1;
+  background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 60%, #b45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+.sc-streak-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 24px;
+}
+
+.sc-week {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 24px;
+  padding: 0 4px;
+}
+
+.sc-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.sc-day-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+  background: transparent;
+}
+
+.sc-day--done .sc-day-dot {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15);
+}
+
+.sc-day--done .sc-day-dot svg path {
+  stroke: #1a1025;
+}
+
+.sc-day--today .sc-day-dot {
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.sc-day--today.sc-day--done .sc-day-dot {
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.25);
+}
+
+.sc-day-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.sc-trophies {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.sc-trophy-icon {
+  font-size: 1rem;
+}
+
+.sc-trophy-count {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fbbf24;
+  line-height: 1;
+}
+
+.sc-trophy-text {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.sc-reward {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+  border-radius: 100px;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fbbf24;
 }

@@ -142,6 +142,36 @@
         </div>
       </div>
 
+      <div class="mc-side-card mc-side-card--streak" *ngIf="loginStreakData">
+        <p class="mc-side-card__eyebrow">Streak</p>
+        <div class="sc-side-stats">
+          <div class="sc-side-stat">
+            <span class="sc-side-stat__icon">🔥</span>
+            <span class="sc-side-stat__value">{{ loginStreakData.currentStreak }}</span>
+            <span class="sc-side-stat__label">Day Streak</span>
+          </div>
+          <div class="sc-side-stat">
+            <span class="sc-side-stat__icon">🏆</span>
+            <span class="sc-side-stat__value">{{ loginStreakData.totalTrophies }}</span>
+            <span class="sc-side-stat__label">Trophies</span>
+          </div>
+        </div>
+        <div class="sc-side-week">
+          <div class="sc-side-day" *ngFor="let d of streakDayLabels; let i = index"
+            [class.sc-side-day--filled]="isStreakDayFilled(i)"
+            [class.sc-side-day--today]="isStreakDayToday(i)">
+            <span class="sc-side-day__dot"></span>
+            <span class="sc-side-day__label">{{ d }}</span>
+          </div>
+        </div>
+        <div class="sc-side-foot">
+          <span class="sc-side-foot__reward" *ngIf="loginStreakData.weeklyRewardTier">
+            {{ weeklyRewardEmoji }} {{ weeklyRewardLabel }}
+          </span>
+          <span class="sc-side-foot__count">{{ loginStreakData.weeklyDays }}/7 this week</span>
+        </div>
+      </div>
+
       <div class="mc-side-card mc-side-card--updates">
         <p class="mc-side-card__eyebrow">Updates</p>
         <!-- Announcements are shown under Help & Support (messenger) → Announcements -->
@@ -919,12 +949,56 @@
                 <span class="mc-exam-history__badge" [class.pass]="s.scores.passed" [class.fail]="!s.scores.passed">
                   {{ s.scores.passed ? 'Passed' : 'Failed' }}
                 </span>
-              </div>
-            </div>
-          </div>
+    </div>
+  </div>
+</div>
         </div>
       </ng-container>
     </aside>
+  </div>
+</div>
+
+<!-- Streak popup overlay -->
+<div class="sc-overlay" *ngIf="showStreakPopup" (click)="closeStreakPopup()">
+  <div class="sc" (click)="$event.stopPropagation()">
+    <button class="sc-close" (click)="closeStreakPopup()" aria-label="Close">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <div class="sc-glow"></div>
+
+    <div class="sc-badge">
+      <span class="sc-badge-icon">🔥</span>
+    </div>
+
+    <div class="sc-streak-num">{{ loginStreakData?.currentStreak }}</div>
+    <div class="sc-streak-label">Day Streak</div>
+
+    <div class="sc-week">
+      <div class="sc-day" *ngFor="let d of streakDayLabels; let i = index"
+        [class.sc-day--done]="isStreakDayFilled(i)"
+        [class.sc-day--today]="isStreakDayToday(i)">
+        <div class="sc-day-dot">
+          <svg *ngIf="isStreakDayFilled(i)" width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 7.5L5.5 10L11 4" stroke="#1a1025" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="sc-day-label">{{ d }}</span>
+      </div>
+    </div>
+
+    <div class="sc-trophies">
+      <span class="sc-trophy-icon">🏆</span>
+      <span class="sc-trophy-count">{{ loginStreakData?.totalTrophies }}</span>
+      <span class="sc-trophy-text">Trophies</span>
+    </div>
+
+    <div class="sc-reward" *ngIf="loginStreakData?.weeklyRewardTier">
+      <span>{{ weeklyRewardEmoji }}</span>
+      <span>{{ streakRewardText }}</span>
+    </div>
   </div>
 </div>
 

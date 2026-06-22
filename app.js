@@ -435,7 +435,9 @@ const classDoubtRoutes = require('./routes/classDoubts');
 app.use('/api/class-doubts', classDoubtRoutes);
 
 const interactiveGamesRoutes = require('./routes/interactiveGames');
+const studentLoginStreakRoutes = require('./routes/studentLoginStreak');
 app.use('/api/interactive-games', interactiveGamesRoutes);
+app.use('/api/student/login-streak', studentLoginStreakRoutes);
 
 const languageTrackingRoutes = require('./routes/languageTracking');
 app.use('/api/language-tracking', languageTrackingRoutes);
