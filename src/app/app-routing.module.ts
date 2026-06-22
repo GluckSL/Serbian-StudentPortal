@@ -344,6 +344,20 @@ export const routes: Routes = [
   // Test Accounts management
   { path: 'admin/test-accounts', loadComponent: () => import('./components/admin-dashboard/test-accounts/test-accounts.component').then(m => m.TestAccountsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN'] } },
 
+  // Correction Panel
+  {
+    path: 'admin/correction/review/:studentId/:exerciseId/:attemptId',
+    loadComponent: () => import('./components/admin-dashboard/correction/correction-review.component').then(m => m.CorrectionReviewComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+  {
+    path: 'admin/correction',
+    loadComponent: () => import('./components/admin-dashboard/correction/correction.component').then(m => m.CorrectionComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+  },
+
   // Journey Management
   { path: 'admin/journey/go/:studentId', loadComponent: () => import('./components/admin-dashboard/go-student-journey-detail/go-student-journey-detail.component').then(m => m.GoStudentJourneyDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/journey/all-students', loadComponent: () => import('./components/admin-dashboard/journey-all-students/journey-all-students.component').then(m => m.JourneyAllStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },

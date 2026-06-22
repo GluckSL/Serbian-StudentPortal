@@ -1,0 +1,308 @@
+.journey-map {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+  margin-bottom: 24px;
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+.journey-map__body {
+  position: relative;
+}
+
+.journey-map__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.journey-map__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.journey-map__stem {
+  position: absolute;
+  width: 3px;
+  background: #94a3b8;
+  transform: translateX(-50%);
+  z-index: 1;
+  transition: background 0.3s ease;
+
+  &.journey-map__stem--active {
+    background: #22c55e;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: inherit;
+  }
+}
+
+.journey-map__checkpoint {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.checkpoint-node {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  transition: background 0.3s ease, border-color 0.3s ease;
+
+  &.checkpoint-node--completed,
+  &.checkpoint-node--current {
+    background: #22c55e;
+    border: 3px solid #22c55e;
+  }
+
+  &.checkpoint-node--locked {
+    background: transparent;
+    border: 2.5px solid #94a3b8;
+  }
+
+  &.checkpoint-node--current {
+    animation: pulse-glow 2s ease-out infinite;
+  }
+
+  .material-icons {
+    font-size: 20px;
+    color: #fff;
+
+    &.checkpoint-node__icon--locked {
+      color: #94a3b8;
+    }
+  }
+}
+
+.checkpoint-node__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .material-icons {
+    font-size: 11px;
+    color: #fff;
+  }
+}
+
+.journey-map__label {
+  position: absolute;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 2;
+
+  &.journey-map__label--locked {
+    .journey-map__label__title {
+      color: #94a3b8;
+    }
+    .journey-map__label__day {
+      color: #cbd5e1;
+    }
+  }
+}
+
+.journey-map__label__title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+}
+
+.journey-map__label__day {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.you-are-here {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+  animation: youAreHereIn 0.5s ease-out both;
+}
+
+@keyframes youAreHereIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.you-are-here__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 2.5px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+}
+
+.you-are-here__bubble {
+  background: #f97316;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.25);
+  position: relative;
+  margin-top: 4px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #f97316;
+  }
+}
+
+.journey-map__footer {
+  text-align: center;
+  padding: 14px 16px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  border-top: 1px solid #f1f5f9;
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .journey-map {
+    border-radius: 12px;
+    overflow: visible;
+  }
+
+  .journey-map__body {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .journey-map__svg {
+    width: 1000px;
+  }
+
+  .journey-map__overlay {
+    width: 1000px;
+    inset: auto;
+    left: 0;
+    top: 0;
+    bottom: 0;
+  }
+
+  .journey-map__footer {
+    font-size: 11px;
+    padding: 10px 12px 12px;
+  }
+
+  .checkpoint-node {
+    width: 36px;
+    height: 36px;
+
+    .material-icons {
+      font-size: 16px;
+    }
+  }
+
+  .checkpoint-node__badge {
+    width: 15px;
+    height: 15px;
+    top: -3px;
+    right: -3px;
+
+    .material-icons {
+      font-size: 9px;
+    }
+  }
+
+  .journey-map__label__title {
+    font-size: 10px;
+  }
+
+  .journey-map__label__day {
+    font-size: 9px;
+  }
+
+  .you-are-here__avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
+
+  .you-are-here__bubble {
+    font-size: 9px;
+    padding: 3px 10px;
+  }
+}

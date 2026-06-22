@@ -3,8 +3,8 @@
   <div class="perf-header">
     <h1>Performance History</h1>
     <div class="range-toggles">
-      <button [class.active]="rangeMode==='overall'" (click)="setRange('overall')">Overall</button>
       <button [class.active]="rangeMode==='weekly'" (click)="setRange('weekly')">Weekly</button>
+      <button [class.active]="rangeMode==='overall'" (click)="setRange('overall')">Overall</button>
     </div>
   </div>
 
@@ -70,6 +70,13 @@
         <span class="card-sub">total time</span>
       </div>
     </section>
+
+    <!-- ═══ Journey Map ═══ -->
+    <app-journey-map
+      [currentDay]="currentDay"
+      [journeyLength]="data.student.journeyLength || 200"
+      [studentName]="studentName"
+    ></app-journey-map>
 
     <!-- ═══ Charts Row ═══ -->
     <section class="charts-row">

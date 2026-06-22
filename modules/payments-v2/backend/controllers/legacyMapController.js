@@ -295,7 +295,7 @@ const resetPaymentSlotHandler = async (req, res) => {
     }
 
     const { studentId } = req.params;
-    const { slotKey, reason } = req.body;
+    const { slotKey, reason, requestIds } = req.body;
     if (!studentId || !mongoose.isValidObjectId(studentId)) {
       return res.status(400).json({ success: false, message: 'Valid studentId is required' });
     }
@@ -311,6 +311,7 @@ const resetPaymentSlotHandler = async (req, res) => {
       adminId,
       adminRole: req.user.role,
       reason,
+      requestIds: Array.isArray(requestIds) ? requestIds : undefined,
     });
 
     const cleared = result.requestsArchived > 0;

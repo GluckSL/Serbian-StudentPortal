@@ -115,6 +115,7 @@ const reminderRoutes = require('./routes/reminders');
 const crmPortalRoutes = require('./routes/crmPortal');
 const testAccountRoutes = require('./routes/testAccounts');
 const gluckRoomRoutes = require('./routes/gluckRoom');
+const correctionRoutes = require('./routes/correction');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -133,7 +134,6 @@ const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
 const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
 const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
 const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
-const { schedulePortalAbsenceReminders } = require('./jobs/portalAbsenceReminder');
 const { scheduleConsecutiveAbsenceEmailReport } = require('./jobs/consecutiveAbsenceEmailReport');
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
@@ -389,6 +389,7 @@ app.use('/api/allreminders', allRemindersRoutes);
 app.use('/api/crm', crmPortalRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/gluckroom', gluckRoomRoutes);
+app.use('/api/correction', correctionRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
@@ -436,7 +437,9 @@ const classDoubtRoutes = require('./routes/classDoubts');
 app.use('/api/class-doubts', classDoubtRoutes);
 
 const interactiveGamesRoutes = require('./routes/interactiveGames');
+const studentLoginStreakRoutes = require('./routes/studentLoginStreak');
 app.use('/api/interactive-games', interactiveGamesRoutes);
+app.use('/api/student/login-streak', studentLoginStreakRoutes);
 
 const languageTrackingRoutes = require('./routes/languageTracking');
 app.use('/api/language-tracking', languageTrackingRoutes);
@@ -614,7 +617,6 @@ connectMongoDb()
       scheduleWeeklyReports();
       scheduleConsecutiveAbsenceAlerts();
       scheduleConsecutiveAbsenceEmailReport();
-      schedulePortalAbsenceReminders();
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();

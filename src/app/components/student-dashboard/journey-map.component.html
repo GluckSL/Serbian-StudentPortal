@@ -1,0 +1,117 @@
+<div class="journey-map">
+  <div class="journey-map__body">
+    <svg
+      viewBox="0 0 1000 340"
+      class="journey-map__svg"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#e0f2fe" />
+          <stop offset="100%" stop-color="#f0f9ff" />
+        </linearGradient>
+        <linearGradient id="groundGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#e2e8f0" />
+          <stop offset="100%" stop-color="#cbd5e1" />
+        </linearGradient>
+        <linearGradient
+          id="roadGrad"
+          gradientUnits="userSpaceOnUse"
+          x1="70"
+          y1="0"
+          x2="930"
+          y2="0"
+        >
+          <stop offset="0%" stop-color="#f59e0b" />
+          <stop [attr.offset]="roadTransitionPct + '%'" stop-color="#f59e0b" />
+          <stop [attr.offset]="roadTransitionPct + '%'" stop-color="#d1d5db" />
+          <stop offset="100%" stop-color="#d1d5db" />
+        </linearGradient>
+      </defs>
+
+      <rect width="1000" height="340" fill="url(#skyGrad)" />
+      <rect y="270" width="1000" height="70" fill="url(#groundGrad)" />
+      <path [attr.d]="cityscapePath" fill="#93b8d8" opacity="0.35" />
+
+      <path
+        [attr.d]="roadPath"
+        stroke="url(#roadGrad)"
+        stroke-width="36"
+        fill="none"
+        stroke-linecap="round"
+      />
+      <path
+        [attr.d]="roadPath"
+        stroke="white"
+        stroke-width="2.5"
+        fill="none"
+        stroke-dasharray="10,8"
+        opacity="0.85"
+      />
+    </svg>
+
+    <div class="journey-map__overlay">
+      <ng-container *ngFor="let _ of checkpoints; let i = index">
+        <div
+          class="journey-map__stem"
+          [class.journey-map__stem--active]="isStemActive(i)"
+          [style.left]="nodeLeftPct(i)"
+          [style.top]="stemTopPct()"
+          [style.height]="stemHeightPct(i)"
+        ></div>
+      </ng-container>
+
+      <ng-container *ngFor="let cp of checkpoints; let i = index">
+        <div
+          class="journey-map__checkpoint"
+          [style.left]="nodeLeftPct(i)"
+          [style.top]="nodeCenterTopPct()"
+        >
+          <div *ngIf="isCurrent(i)" class="you-are-here">
+            <div class="you-are-here__avatar">{{ initials }}</div>
+            <div class="you-are-here__bubble">Du bist hier!</div>
+          </div>
+
+          <div
+            class="checkpoint-node"
+            [class.checkpoint-node--completed]="isCompleted(i)"
+            [class.checkpoint-node--current]="isCurrent(i)"
+            [class.checkpoint-node--locked]="isLocked(i)"
+          >
+            <span
+              class="material-icons"
+              [class.checkpoint-node__icon--locked]="isLocked(i)"
+            >{{ cp.icon }}</span>
+
+            <div
+              class="checkpoint-node__badge"
+              *ngIf="isCompleted(i)"
+            >
+              <span class="material-icons">check</span>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngFor="let cp of checkpoints; let i = index">
+        <div
+          class="journey-map__label"
+          [class.journey-map__label--locked]="isLocked(i)"
+          [style.left]="nodeLeftPct(i)"
+          [style.top]="labelBelowRoadPct()"
+        >
+          <div class="journey-map__label__title">
+            {{ i + 1 }}. {{ cp.label }}
+          </div>
+          <div class="journey-map__label__day">Day {{ cp.day }}</div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+
+  <div class="journey-map__footer">
+    Tag {{ currentDay }} von {{ journeyLength }} &middot;
+    {{ completionPct }}% der Reise abgeschlossen 🎉
+  </div>
+</div>

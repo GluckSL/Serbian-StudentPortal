@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
+import { JourneyMapComponent } from './journey-map.component';
 
 interface Kpis {
   overallCompletionPct: number; overallDone: number; overallTotal: number;
@@ -42,14 +43,14 @@ interface SummaryResponse {
 @Component({
   selector: 'app-performance-history',
   standalone: true,
-  imports: [CommonModule, NgChartsModule],
+  imports: [CommonModule, NgChartsModule, JourneyMapComponent],
   templateUrl: './performance-history.component.html',
   styleUrls: ['./performance-history.component.scss']
 })
 export class PerformanceHistoryComponent implements OnInit {
   isLoading = true;
   data: SummaryResponse | null = null;
-  rangeMode: 'overall' | 'weekly' = 'overall';
+  rangeMode: 'overall' | 'weekly' = 'weekly';
   private _activeTable: 'classes' | 'exercises' | 'dg' | 'tests' = 'classes';
   get activeTable() { return this._activeTable; }
   set activeTable(v: 'classes' | 'exercises' | 'dg' | 'tests') { this._activeTable = v; this.detailPage = 0; }
@@ -124,7 +125,30 @@ export class PerformanceHistoryComponent implements OnInit {
   }
 
   private buildLineChart(): void {
-    const breakdown = this.data!.dayBreakdown;
+    const raw = this.data!.dayBreakdown;
+
+    const bucketSize = this.rangeMode === 'overall' ? Math.max(1, Math.floor(raw.length / 25)) : 1;
+    const bucketed: DayRow[] = [];
+    if (bucketSize > 1) {
+      for (let i = 0; i < raw.length; i += bucketSize) {
+        const slice = raw.slice(i, i + bucketSize);
+        let totalScore = 0, scoreCount = 0, totalExercises = 0;
+        for (const d of slice) {
+          if (d.avgScore > 0) { totalScore += d.avgScore; scoreCount++; }
+          totalExercises += d.exercisesDone;
+        }
+        bucketed.push({
+          day: slice[0].day,
+          exercisesDone: totalExercises,
+          classesAttended: 0, classesTotal: 0,
+          avgScore: scoreCount ? Math.round(totalScore / scoreCount) : 0,
+          sessions: 0, studyMinutes: 0
+        });
+      }
+    }
+
+    const breakdown = bucketSize > 1 ? bucketed : raw;
+
     this.lineChartData = {
       labels: breakdown.map(d => String(d.day)),
       datasets: [
@@ -134,8 +158,9 @@ export class PerformanceHistoryComponent implements OnInit {
           borderColor: '#4f46e5',
           backgroundColor: 'rgba(79, 70, 229, 0.1)',
           fill: true,
-          tension: 0.3,
-          pointRadius: 3
+          tension: 0.4,
+          pointRadius: 2,
+          pointHitRadius: 5
         },
         {
           label: 'Exercises Done',
@@ -143,8 +168,9 @@ export class PerformanceHistoryComponent implements OnInit {
           borderColor: '#10b981',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
           fill: true,
-          tension: 0.3,
-          pointRadius: 3,
+          tension: 0.4,
+          pointRadius: 2,
+          pointHitRadius: 5,
           yAxisID: 'y1'
         }
       ]

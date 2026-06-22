@@ -16,6 +16,7 @@ import { PaymentUploadDialogComponent } from './payment-upload-dialog.component'
 import { AuthService } from '../../services/auth.service';
 import { InvoiceData, renderInvoiceHTML, generatePdfFromHtml, formatProformaNumber, loadInvoiceLogoDataUrl } from '../../utils/invoice-pdf.util';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
+import { normalizeLevel, slotForPaymentRequest, type LanguageLevelSlot, type PaymentSlotKey } from './payment-level-slot.util';
 @Component({
   selector: 'app-payment-hub-student-portal',
   standalone: true,
@@ -881,20 +882,8 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     return this.paymentSlots.some((slot) => this.slotSummary(slot.key).requestCount > 0);
   }
 
-  private slotForRequest(req: PaymentRequest): PortalPaymentSlotKey | null {
-    if (req.paymentType === 'DOCS_PAYMENT') return 'DOCS';
-    if (req.paymentType === 'VISA_PAYMENT') return 'VISA';
-    if (req.paymentType === 'CUSTOM_PAYMENT') return this.normalizeLevel(req.customType);
-    if (req.paymentType !== 'LANGUAGE_FEE') return null;
-    const fallbackLevel = this.normalizeLevel(this.catalog?.studentLevel);
-    const mappedLevel = this.normalizeLevel(req.customType) || fallbackLevel;
-    return mappedLevel;
-  }
-
-  private normalizeLevel(level: string | undefined | null): PortalLanguageLevelSlot | null {
-    const val = String(level || '').trim().toUpperCase();
-    if (val === 'A1' || val === 'A2' || val === 'B1' || val === 'B2') return val;
-    return null;
+  private slotForRequest(req: PaymentRequest): PaymentSlotKey | null {
+    return slotForPaymentRequest(req, this.catalog?.studentLevel);
   }
 
   private normCurrency(currency: string | undefined | null): PortalCurrencyKey {

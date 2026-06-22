@@ -290,8 +290,8 @@
   <!-- Empty tab state -->
   <div class="empty-state" *ngIf="!loading && exercises.length > 0 && filteredExercises.length === 0">
     <span class="material-icons empty-icon">inbox</span>
-    <h3>No {{ activeTab }} exercises</h3>
-    <p>Try another tab or adjust your filters</p>
+    <h3>No {{ activeTab === 'all' ? '' : activeTab + ' ' }}exercises found</h3>
+    <p>Try {{ activeTab !== 'all' ? 'another tab or ' : '' }}adjusting your filters</p>
     <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Clear Filters</button>
   </div>
 

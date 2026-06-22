@@ -43,6 +43,10 @@ const SprechenExamModule = require('../models/SprechenExamModule');
 const SprechenExamSession = require('../models/SprechenExamSession');
 
 const escapeRegexEmail = (str) => String(str || '').replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const { get: cacheGet, set: cacheSet } = require('../utils/simpleCache');
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
+const inflightOverall = new Map();
 
 async function buildLegacyJourneyPayments(studentId, email, { includeTotalInvoiced = false } = {}) {
   const StudentPayment = require('../models/StudentPayment');
@@ -670,51 +674,35 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
   }
 });
 
-// ─── GET /api/student-progress/performance-summary ─────────────────────
-// Student-facing aggregated data for the new performance-history page
-router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (req, res) => {
-  try {
-    const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const studentId = req.user.id;
-    const studentOid = new mongoose.Types.ObjectId(studentId);
+async function computePerformanceBody(student, studentOid, range, minDay, weekAgo, studentId) {
+  const currentDay = student.currentCourseDay || 1;
+  const journeyKeys = allStudentBatchStringsForContent(student);
 
-    // Step 1: Fetch student first (all other queries depend on student data)
-    const student = await User.findById(studentId)
-      .select('name email regNo level batch currentCourseDay')
-      .lean();
-    if (!student) return res.status(404).json({ message: 'Student not found' });
-    const currentDay = student.currentCourseDay || 1;
-
-    const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
-    const minDay = range === 'weekly' ? Math.max(1, currentDay - 6) : 1;
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 6);
-    weekAgo.setHours(0, 0, 0, 0);
-
-    const journeyKeys = allStudentBatchStringsForContent(student);
-
-    // Step 2: Run all 7 remaining independent queries in parallel
-    const exerciseAttemptPipeline = [
-      { $match: { studentId: studentOid, status: 'completed' } },
-      { $sort: { completedAt: 1 } },
-      {
-        $lookup: {
-          from: 'digitalexercises',
-          localField: 'exerciseId',
-          foreignField: '_id',
-          pipeline: [{ $project: { title: 1, courseDay: 1, category: 1, level: 1 } }],
-          as: 'exerciseId',
-        },
+  const exerciseAttemptPipeline = [
+    { $match: { studentId: studentOid, status: 'completed' } },
+    { $sort: { completedAt: -1 } },
+    { $group: { _id: '$exerciseId', doc: { $first: '$$ROOT' } } },
+    { $replaceRoot: { newRoot: '$doc' } },
+    { $sort: { completedAt: 1 } },
+    {
+      $lookup: {
+        from: 'digitalexercises',
+        localField: 'exerciseId',
+        foreignField: '_id',
+        pipeline: [{ $project: { title: 1, courseDay: 1, category: 1, level: 1 } }],
+        as: 'exerciseId',
       },
-      { $unwind: { path: '$exerciseId', preserveNullAndEmptyArrays: false } },
-      ...(range === 'weekly'
-        ? [{ $match: { $or: [{ 'exerciseId.courseDay': { $exists: false } }, { 'exerciseId.courseDay': { $gte: minDay } }] } }]
-        : []),
-    ];
+    },
+    { $unwind: { path: '$exerciseId', preserveNullAndEmptyArrays: false } },
+    ...(range === 'weekly'
+      ? [{ $match: { $or: [{ 'exerciseId.courseDay': { $exists: false } }, { 'exerciseId.courseDay': { $gte: minDay } }] } }]
+      : []),
+  ];
 
     const sessionPipeline = [
       { $match: { studentId: studentOid, ...(range === 'weekly' ? { createdAt: { $gte: weekAgo } } : {}) } },
       { $sort: { createdAt: -1 } },
+      { $limit: 500 },
       {
         $lookup: {
           from: 'learningmodules',
@@ -739,7 +727,7 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
       ExerciseAttempt.aggregate(exerciseAttemptPipeline),
       journeyKeys.length
         ? MeetingLink.find({
-            $or: journeyKeys.map(k => ({ batch: new RegExp(`^${escapeRegExp(k)}$`, 'i') })),
+            batch: { $in: journeyKeys.map(k => new RegExp(`^${escapeRegExp(k)}$`, 'i')) },
             status: { $ne: 'cancelled' },
           }).select('topic startTime duration courseDay attendance status').lean()
         : Promise.resolve([]),
@@ -758,13 +746,18 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
 
     const journeyLength = batchConfig?.journeyLength || 200;
 
-    const exercisesWithData = attempts.filter(a => {
-      if (!a.exerciseId) return false;
-      if (!a.exerciseId?.courseDay) return range === 'overall';
-      return a.exerciseId.courseDay >= minDay;
-    });
-    const completedExerciseIds = new Set(exercisesWithData.map(a => String(a.exerciseId._id)));
+    const activeDgModuleIds = new Set(dgModulesList.map(m => String(m._id)));
+    const completedSet = new Set(completedDgModuleIds.map(id => String(id)));
+    const dgBotModules = dgModulesList.map(m => ({
+      moduleId: m._id, title: m.title, level: m.level,
+      courseDay: m.courseDay,
+      completed: completedSet.has(String(m._id))
+    }));
+    const dgBotTotal = dgModulesList.length;
+    const dgBotCompleted = completedDgModuleIds.filter(id => activeDgModuleIds.has(String(id))).length;
+    const dgBotPct = dgBotTotal ? Math.min(100, Math.round((dgBotCompleted / dgBotTotal) * 100)) : 0;
 
+    // Filter meetings by range
     const filteredMeetings = meetings.filter(m => {
       if (!m.courseDay) return range === 'overall';
       return m.courseDay >= minDay;
@@ -772,53 +765,171 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
 
     const filteredSessions = sessions; // already filtered by date in aggregation pipeline
 
-    const activeDgModuleIds = new Set(dgModulesList.map(m => String(m._id)));
-    const dgBotCompleted = completedDgModuleIds.filter(id => activeDgModuleIds.has(String(id))).length;
-    const completedSet = new Set(completedDgModuleIds.map(id => String(id)));
-    const dgBotModules = dgModulesList.map(m => ({
-      moduleId: m._id, title: m.title, level: m.level,
-      courseDay: m.courseDay,
-      completed: completedSet.has(String(m._id))
-    }));
+    // ── Day map init ───────────────────────────────────────────────
+    const dayMap = {};
+    for (let d = minDay; d <= currentDay; d++) {
+      dayMap[d] = { day: d, exercisesDone: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0, sessions: 0, studyMinutes: 0, _exIds: new Set() };
+    }
 
-    const dgBotTotal = dgModulesList.length;
+    // ── Category map init ──────────────────────────────────────────
+    const CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
+    const catMap = {};
+    CATEGORIES.forEach(c => { catMap[c] = { totalScore: 0, count: 0 }; });
 
+    // ── Single pass over exercise attempts ─────────────────────────
+    const completedExerciseIds = new Set();
+    const exercisesWithData = [];
+    const exerciseRows = [];
+    const day6Tests = [];
+    let totalExerciseScore = 0;
+    let exerciseScoreCount = 0;
+    let exerciseMinutes = 0;
+
+    for (const a of attempts) {
+      if (!a.exerciseId) continue;
+      if (!a.exerciseId.courseDay && range === 'weekly') continue;
+      if (a.exerciseId.courseDay && a.exerciseId.courseDay < minDay) continue;
+
+      exercisesWithData.push(a);
+
+      const exIdStr = String(a.exerciseId._id);
+      completedExerciseIds.add(exIdStr);
+      const score = a.scorePercentage || 0;
+      if (score > 0) { totalExerciseScore += score; exerciseScoreCount += 1; }
+      exerciseMinutes += Math.round((a.timeSpentSeconds || 0) / 60);
+
+      const d = a.exerciseId.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d]._exIds.add(exIdStr);
+        dayMap[d].totalScore += score;
+        dayMap[d].scoreCount += 1;
+        dayMap[d].studyMinutes += Math.round((a.timeSpentSeconds || 0) / 60);
+      }
+
+      const cat = a.exerciseId.category;
+      if (cat && catMap[cat]) {
+        catMap[cat].totalScore += score;
+        catMap[cat].count += 1;
+      }
+
+      if (d && d % 6 === 0) {
+        day6Tests.push({
+          day: d, type: 'exercise', id: a._id,
+          title: a.exerciseId.title || 'Untitled',
+          category: a.exerciseId.category || null,
+          score, timeSpentMinutes: Math.round((a.timeSpentSeconds || 0) / 60),
+          status: 'completed'
+        });
+      }
+
+      exerciseRows.push({
+        attemptId: a._id, exerciseId: a.exerciseId._id,
+        title: a.exerciseId.title || 'Untitled',
+        courseDay: d, category: a.exerciseId.category,
+        scorePercent: score, timeSpentSeconds: a.timeSpentSeconds || 0,
+        completedAt: a.completedAt
+      });
+    }
+
+    Object.values(dayMap).forEach(d => { d.exercisesDone = d._exIds.size; delete d._exIds; });
+
+    // ── Single pass over meetings ──────────────────────────────────
+    const now = new Date();
+    const endedMeetings = [];
+    const liveClasses = [];
+    let classAttendedCount = 0;
+    let classMinutes = 0;
+
+    for (const m of filteredMeetings) {
+      const d = m.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].classesTotal += 1;
+        if ((m.attendance || []).some(a => String(a.studentId || a.userId) === String(studentId) && a.attended)) {
+          dayMap[d].classesAttended += 1;
+        }
+        if (m.status === 'ended') dayMap[d].studyMinutes += Number(m.duration || 0);
+      }
+
+      const attended = (m.attendance || []).some(
+        a => String(a.studentId || a.userId) === String(studentId) && a.attended
+      );
+
+      const meetingEnd = new Date(m.startTime).getTime() + (m.duration || 0) * 60000;
+      const hasEnded = m.status === 'ended' || (m.status !== 'cancelled' && meetingEnd < now.getTime());
+      if (hasEnded) {
+        endedMeetings.push(m);
+        classMinutes += Number(m.duration || 0);
+        if (attended) classAttendedCount += 1;
+      }
+
+      liveClasses.push({
+        meetingId: m._id, topic: m.topic, startTime: m.startTime,
+        duration: m.duration, courseDay: m.courseDay, attended,
+        status: m.status, hasEnded
+      });
+    }
+
+    const classTotal = endedMeetings.length;
+    const classPct = classTotal ? Math.round((classAttendedCount / classTotal) * 100) : 0;
+
+    // ── Single pass over sessions ──────────────────────────────────
+    const sessionRows = [];
+    let sessionMinutes = 0;
+    let totalSessionScore = 0;
+    let sessionScoreCount = 0;
+    const allVocab = new Set();
+
+    for (const s of filteredSessions) {
+      const d = s.moduleId?.courseDay;
+      if (d && dayMap[d]) {
+        dayMap[d].sessions += 1;
+        dayMap[d].studyMinutes += s.durationMinutes || 0;
+      }
+
+      const sessionScore = Number(s.summary?.totalScore || 0);
+      if (sessionScore > 0) { totalSessionScore += sessionScore; sessionScoreCount += 1; }
+      sessionMinutes += s.durationMinutes || 0;
+
+      if (s.summary?.vocabularyUsed) {
+        s.summary.vocabularyUsed.forEach(w => allVocab.add(w));
+      }
+
+      if (s.sessionType === 'test' && d && d % 6 === 0) {
+        day6Tests.push({
+          day: d, type: 'session', id: s._id,
+          title: `${s.moduleTitle || 'AI'} Test`,
+          category: s.moduleId?.category || null,
+          score: sessionScore,
+          timeSpentMinutes: s.durationMinutes || 0,
+          status: s.sessionState
+        });
+      }
+
+      sessionRows.push({
+        id: s._id, sessionId: s.sessionId, sessionType: s.sessionType,
+        sessionState: s.sessionState, module: s.moduleId ? {
+          id: s.moduleId._id, title: s.moduleTitle, level: s.moduleLevel,
+          category: s.moduleId.category, courseDay: s.moduleId.courseDay
+        } : null,
+        summary: s.summary, durationMinutes: s.durationMinutes,
+        startTime: s.startTime, createdAt: s.createdAt
+      });
+    }
+
+    day6Tests.sort((a, b) => a.day - b.day);
+
+    // ── Compute KPIs ───────────────────────────────────────────────
     const exerciseCompleted = completedExerciseIds.size;
     const exercisePct = exerciseTotal
       ? Math.min(100, Math.round((exerciseCompleted / exerciseTotal) * 100))
       : (exerciseCompleted ? 100 : 0);
 
-    const now = new Date();
-    const endedMeetings = filteredMeetings.filter(m => {
-      if (m.status === 'ended') return true;
-      if (m.status === 'cancelled') return false;
-      const meetingEnd = new Date(m.startTime).getTime() + (m.duration || 0) * 60000;
-      return meetingEnd < now.getTime();
-    });
-    const classTotal = endedMeetings.length;
-    const classAttended = endedMeetings.filter(m =>
-      (m.attendance || []).some(a => String(a.studentId || a.userId) === String(studentId) && a.attended)
-    ).length;
-    const classPct = classTotal ? Math.round((classAttended / classTotal) * 100) : 0;
-
-    const dgBotPct = dgBotTotal ? Math.min(100, Math.round((dgBotCompleted / dgBotTotal) * 100)) : 0;
-
     const sessionCount = filteredSessions.length;
-    const allScores = [
-      ...exercisesWithData.map(a => a.scorePercentage || 0).filter(n => n > 0),
-      ...filteredSessions.map(s => Number(s.summary?.totalScore || 0)).filter(n => n > 0)
-    ];
-    const avgScore = allScores.length
-      ? Math.min(100, Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length))
+    const avgScore = (exerciseScoreCount + sessionScoreCount)
+      ? Math.min(100, Math.round((totalExerciseScore + totalSessionScore) / (exerciseScoreCount + sessionScoreCount)))
       : 0;
 
-    const sessionMinutes = filteredSessions.reduce((s, r) => s + (r.durationMinutes || 0), 0);
-    const exerciseMinutes = exercisesWithData.reduce((s, a) => s + Math.round((a.timeSpentSeconds || 0) / 60), 0);
-    const classMinutes = endedMeetings.reduce((s, m) => s + Number(m.duration || 0), 0);
     const totalStudyMinutes = sessionMinutes + exerciseMinutes + classMinutes;
-
-    const allVocab = new Set();
-    filteredSessions.forEach(s => { if (s.summary?.vocabularyUsed) s.summary.vocabularyUsed.forEach(w => allVocab.add(w)); });
 
     const overallDone = currentDay;
     const overallTotal = journeyLength;
@@ -829,125 +940,26 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
     const kpis = {
       overallCompletionPct, overallDone, overallTotal,
       exerciseCompleted, exerciseTotal, exercisePct,
-      classAttended, classTotal, classPct,
+      classAttended: classAttendedCount, classTotal, classPct,
       dgBotCompleted, dgBotTotal, dgBotPct,
       sessionCount, avgScore, totalStudyMinutes,
       totalVocabulary: allVocab.size
     };
 
-    const dayMap = {};
-    for (let d = minDay; d <= currentDay; d++) {
-      dayMap[d] = { day: d, exercisesDone: 0, classesAttended: 0, classesTotal: 0, totalScore: 0, scoreCount: 0, sessions: 0, studyMinutes: 0, _exIds: new Set() };
-    }
-    exercisesWithData.forEach(a => {
-      const d = a.exerciseId?.courseDay;
-      if (d && dayMap[d]) {
-        dayMap[d]._exIds.add(String(a.exerciseId._id));
-        dayMap[d].totalScore += a.scorePercentage || 0;
-        dayMap[d].scoreCount += 1;
-        dayMap[d].studyMinutes += Math.round((a.timeSpentSeconds || 0) / 60);
-      }
-    });
-    Object.values(dayMap).forEach(d => { d.exercisesDone = d._exIds.size; delete d._exIds; });
-    filteredMeetings.forEach(m => {
-      const d = m.courseDay;
-      if (d && dayMap[d]) {
-        dayMap[d].classesTotal += 1;
-        if ((m.attendance || []).some(a => String(a.studentId || a.userId) === String(studentId) && a.attended)) {
-          dayMap[d].classesAttended += 1;
-        }
-        if (m.status === 'ended') dayMap[d].studyMinutes += Number(m.duration || 0);
-      }
-    });
-    filteredSessions.forEach(s => {
-      const d = s.moduleId?.courseDay;
-      if (d && dayMap[d]) {
-        dayMap[d].sessions += 1;
-        dayMap[d].studyMinutes += s.durationMinutes || 0;
-      }
-    });
+    // ── Day breakdown ──────────────────────────────────────────────
     const dayBreakdown = Object.values(dayMap).map(d => ({
       day: d.day, exercisesDone: d.exercisesDone, classesAttended: d.classesAttended,
       classesTotal: d.classesTotal, avgScore: d.scoreCount ? Math.round(d.totalScore / d.scoreCount) : 0,
       sessions: d.sessions, studyMinutes: d.studyMinutes
     }));
 
-    const CATEGORIES = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
-    const catMap = {};
-    CATEGORIES.forEach(c => { catMap[c] = { totalScore: 0, count: 0 }; });
-    exercisesWithData.forEach(a => {
-      const cat = a.exerciseId?.category;
-      if (cat && catMap[cat]) {
-        catMap[cat].totalScore += a.scorePercentage || 0;
-        catMap[cat].count += 1;
-      }
-    });
+    // ── Category performance ───────────────────────────────────────
     const categoryPerformance = CATEGORIES.map(cat => ({
       category: cat, attempts: catMap[cat].count,
       avgScore: catMap[cat].count ? Math.round(catMap[cat].totalScore / catMap[cat].count) : 0
     }));
 
-    const day6Tests = [];
-    exercisesWithData.forEach(a => {
-      const d = a.exerciseId?.courseDay;
-      if (d && d % 6 === 0) {
-        day6Tests.push({
-          day: d, type: 'exercise', id: a._id,
-          title: a.exerciseId?.title || 'Untitled',
-          category: a.exerciseId?.category || null,
-          score: a.scorePercentage || 0,
-          timeSpentMinutes: Math.round((a.timeSpentSeconds || 0) / 60),
-          status: 'completed'
-        });
-      }
-    });
-    filteredSessions.filter(s => s.sessionType === 'test').forEach(s => {
-      const d = s.moduleId?.courseDay;
-      if (d && d % 6 === 0) {
-        day6Tests.push({
-          day: d, type: 'session', id: s._id,
-          title: `${s.moduleTitle || 'AI'} Test`,
-          category: s.moduleId?.category || null,
-          score: s.summary?.totalScore || 0,
-          timeSpentMinutes: s.durationMinutes || 0,
-          status: s.sessionState
-        });
-      }
-    });
-    day6Tests.sort((a, b) => a.day - b.day);
-
-    const liveClasses = filteredMeetings.map(m => {
-      const attended = (m.attendance || []).some(
-        a => String(a.studentId || a.userId) === String(studentId) && a.attended
-      );
-      const meetingEnd = new Date(m.startTime).getTime() + (m.duration || 0) * 60000;
-      const hasEnded = m.status === 'ended' || (m.status !== 'cancelled' && meetingEnd < now.getTime());
-      return {
-        meetingId: m._id, topic: m.topic, startTime: m.startTime,
-        duration: m.duration, courseDay: m.courseDay, attended,
-        status: m.status, hasEnded
-      };
-    });
-
-    const exerciseRows = exercisesWithData.map(a => ({
-      attemptId: a._id, exerciseId: a.exerciseId?._id,
-      title: a.exerciseId?.title || 'Untitled',
-      courseDay: a.exerciseId?.courseDay, category: a.exerciseId?.category,
-      scorePercent: a.scorePercentage || 0, timeSpentSeconds: a.timeSpentSeconds || 0,
-      completedAt: a.completedAt
-    }));
-
-    const sessionRows = filteredSessions.map(s => ({
-      id: s._id, sessionId: s.sessionId, sessionType: s.sessionType,
-      sessionState: s.sessionState, module: s.moduleId ? {
-        id: s.moduleId._id, title: s.moduleTitle, level: s.moduleLevel,
-        category: s.moduleId.category, courseDay: s.moduleId.courseDay
-      } : null,
-      summary: s.summary, durationMinutes: s.durationMinutes,
-      startTime: s.startTime, createdAt: s.createdAt
-    }));
-
-    res.json({
+    const body = {
       student: {
         _id: student._id, name: student.name, email: student.email,
         regNo: student.regNo, level: student.level, batch: student.batch,
@@ -955,7 +967,65 @@ router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (r
       },
       kpis, dayBreakdown, categoryPerformance, day6Tests,
       exercises: exerciseRows, liveClasses, sessions: sessionRows, dgBotModules
-    });
+    };
+
+    if (range === 'overall') cacheSet(`perf-summary:${studentId}`, body, CACHE_TTL_MS);
+
+    return body;
+}
+
+// ─── GET /api/student-progress/performance-summary ─────────────────────
+// Student-facing aggregated data for the new performance-history page
+router.get('/performance-summary', verifyToken, checkRole(['STUDENT']), async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const studentOid = new mongoose.Types.ObjectId(studentId);
+
+    const student = await User.findById(studentId)
+      .select('name email regNo level batch currentCourseDay')
+      .lean();
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    const range = req.query.range === 'weekly' ? 'weekly' : 'overall';
+
+    // ── Overall: cache / in-flight dedup ──────────────────────────
+    if (range === 'overall') {
+      const key = `perf-summary:${studentId}`;
+      const cached = cacheGet(key);
+      if (cached) return res.json(cached);
+
+      let p = inflightOverall.get(key);
+      if (!p) {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 6);
+        weekAgo.setHours(0, 0, 0, 0);
+        p = computePerformanceBody(student, studentOid, 'overall', 1, weekAgo, studentId);
+        inflightOverall.set(key, p.finally(() => inflightOverall.delete(key)));
+      }
+      const body = await p;
+      return res.json(body);
+    }
+
+    // ── Weekly: compute synchronously, respond, then fire bg overall ──
+    const minDay = Math.max(1, (student.currentCourseDay || 1) - 6);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    weekAgo.setHours(0, 0, 0, 0);
+
+    const body = await computePerformanceBody(student, studentOid, 'weekly', minDay, weekAgo, studentId);
+    res.json(body);
+
+    // Fire-and-forget overall computation
+    const overallKey = `perf-summary:${studentId}`;
+    if (!cacheGet(overallKey) && !inflightOverall.has(overallKey)) {
+      const bgWeekAgo = new Date();
+      bgWeekAgo.setDate(bgWeekAgo.getDate() - 6);
+      bgWeekAgo.setHours(0, 0, 0, 0);
+      const bgP = computePerformanceBody(student, studentOid, 'overall', 1, bgWeekAgo, studentId)
+        .then(b => { cacheSet(overallKey, b, CACHE_TTL_MS); return b; })
+        .catch(() => null);
+      inflightOverall.set(overallKey, bgP.finally(() => inflightOverall.delete(overallKey)));
+    }
   } catch (err) {
     console.error('performance-summary error:', err);
     res.status(500).json({ message: 'Failed to fetch performance summary', error: err.message });

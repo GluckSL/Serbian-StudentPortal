@@ -221,6 +221,7 @@ import { MaterialModule } from '../../../shared/material.module';
           <th>Completions</th>
           <th>Avg Score</th>
           <th>Students</th>
+          <th class="tested-col">Tested</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -283,6 +284,18 @@ import { MaterialModule } from '../../../shared/material.module';
                 <span class="material-icons">{{ ex.watchOnlyMode ? 'mic_off' : 'mic' }}</span>
               </button>
             </div>
+          </td>
+          <td class="tested-col">
+            <button
+              type="button"
+              class="tester-badge-btn"
+              [class.tester-badge-btn--verified]="ex.testerVerified"
+              (click)="markTesterVerified(ex)"
+              [disabled]="ex.testerVerified"
+              [matTooltip]="ex.testerVerified ? 'Tested by QA' : 'Mark as tested'"
+            >
+              <span class="material-icons">verified</span>
+            </button>
           </td>
           <td class="actions-cell">
             <button class="btn-icon btn-test" (click)="testExercise(ex)" [matTooltip]="ex.isFreeMode ? 'Test as student (Free Mode)' : 'Test as student'">
@@ -842,6 +855,34 @@ import { MaterialModule } from '../../../shared/material.module';
     .watch-only-btn--on:hover { color: #92400e; background: #fde68a; }
     .watch-only-btn:not(.watch-only-btn--on):hover { color: #374151; background: #e2e8f0; }
 
+    .tested-col {
+      width: 44px;
+      text-align: center;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+
+    .tester-badge-btn {
+      background: #f1f5f9;
+      border: none;
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 8px;
+      color: #94a3b8;
+      transition: color 0.15s, background 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tester-badge-btn .material-icons { font-size: 18px; }
+    .tester-badge-btn:hover:not(:disabled) { color: #005b96; background: #e2e8f0; }
+    .tester-badge-btn--verified {
+      color: #005b96;
+      background: #dbeafe;
+      cursor: default;
+    }
+
     .center { text-align: center; }
     .text-muted { color: #94a3b8; }
 
@@ -1239,6 +1280,25 @@ export class DigitalExerciseManagementComponent implements OnInit {
       },
       error: (err) => {
         const msg = err?.error?.error || err?.error?.message || err?.message || 'Failed to update watch-only mode';
+        this.showError(msg);
+      }
+    });
+  }
+
+  markTesterVerified(exercise: DigitalExercise): void {
+    if (exercise.testerVerified) return;
+    const id = exercise._id ?? (exercise as any).id;
+    if (!id) {
+      this.showError('Cannot update: exercise id missing');
+      return;
+    }
+    this.exerciseService.markTesterVerified(String(id)).subscribe({
+      next: (res) => {
+        exercise.testerVerified = res?.testerVerified ?? true;
+        this.showSuccess('Exercise marked as tested');
+      },
+      error: (err) => {
+        const msg = err?.error?.error || err?.error?.message || err?.message || 'Failed to mark as tested';
         this.showError(msg);
       }
     });

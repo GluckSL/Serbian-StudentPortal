@@ -1,0 +1,401 @@
+<div class="cp-page">
+
+  <!-- Header -->
+  <div class="cp-header">
+    <div class="cp-title">
+      <h1><span class="material-icons">build_circle</span> Correction Panel</h1>
+      <p>Search students, review journey day resources, and fix marks or completion issues.</p>
+    </div>
+    <button class="cp-refresh" (click)="loadStats(); loadStudents()" [disabled]="listLoading || statsLoading">
+      <span class="material-icons" [class.spin]="listLoading || statsLoading">sync</span>
+      {{ listLoading || statsLoading ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="cp-kpis" *ngIf="!statsLoading">
+    <div class="cp-kpi">
+      <span class="cp-kpi__label">Total Students</span>
+      <strong>{{ stats.totalStudents }}</strong>
+    </div>
+    <div class="cp-kpi cp-kpi--blue">
+      <span class="cp-kpi__label">On Journey</span>
+      <strong>{{ stats.onJourney }}</strong>
+    </div>
+    <div class="cp-kpi cp-kpi--green">
+      <span class="cp-kpi__label">A1 Level</span>
+      <strong>{{ stats.a1 }}</strong>
+    </div>
+    <div class="cp-kpi cp-kpi--purple">
+      <span class="cp-kpi__label">A2 & Above</span>
+      <strong>{{ stats.a2Plus }}</strong>
+    </div>
+  </div>
+
+  <div class="cp-kpis" *ngIf="statsLoading">
+    <div class="cp-kpi cp-kpi--skeleton" *ngFor="let _ of skeletonKpis">
+      <span class="cp-skeleton cp-skeleton--sm"></span>
+      <strong class="cp-skeleton cp-skeleton--lg"></strong>
+    </div>
+  </div>
+
+  <!-- ═══ LIST VIEW ═══ -->
+  <ng-container *ngIf="viewMode === 'list'">
+
+    <!-- Filters -->
+    <div class="cp-filters" *ngIf="!showInitialSkeleton">
+      <div class="cp-search-wrap">
+        <span class="material-icons">search</span>
+        <input
+          type="text"
+          [(ngModel)]="filterSearch"
+          (ngModelChange)="onFilterChange()"
+          placeholder="Search by name, email or student ID…"
+          [disabled]="listLoading"
+        />
+      </div>
+      <select [(ngModel)]="filterBatch" (ngModelChange)="onFilterChange()" [disabled]="listLoading">
+        <option value="">All Batches</option>
+        <option *ngFor="let b of batchOptions" [value]="b">{{ b }}</option>
+      </select>
+      <select [(ngModel)]="filterLevel" (ngModelChange)="onFilterChange()" [disabled]="listLoading">
+        <option value="">All Levels</option>
+        <option *ngFor="let l of levelOptions" [value]="l">{{ l }}</option>
+      </select>
+      <select [(ngModel)]="filterPlan" (ngModelChange)="onFilterChange()" [disabled]="listLoading">
+        <option value="">All Plans</option>
+        <option *ngFor="let p of planOptions" [value]="p">{{ p }}</option>
+      </select>
+      <select class="cp-page-size" [ngModel]="pageSize" (ngModelChange)="onPageSizeChange($event)" [disabled]="listLoading">
+        <option *ngFor="let n of pageSizeOptions" [ngValue]="n">{{ n }} / page</option>
+      </select>
+    </div>
+
+    <div class="cp-filters cp-filters--skeleton" *ngIf="showInitialSkeleton" aria-hidden="true">
+      <span class="cp-skeleton cp-skeleton--search"></span>
+      <span class="cp-skeleton cp-skeleton--select" *ngFor="let _ of skeletonFilters"></span>
+    </div>
+
+    <div *ngIf="listError" class="cp-error">
+      <span class="material-icons">error_outline</span> {{ listError }}
+    </div>
+
+    <!-- Skeleton table (initial load) -->
+    <div *ngIf="showInitialSkeleton" class="cp-table-wrap cp-table-wrap--skeleton" aria-busy="true" aria-label="Loading students">
+      <table class="cp-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Student ID</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th>Plan</th>
+            <th>Journey Day</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let _ of skeletonRows">
+            <td><span class="cp-skeleton cp-skeleton--cell"></span></td>
+            <td><span class="cp-skeleton cp-skeleton--cell-sm"></span></td>
+            <td><span class="cp-skeleton cp-skeleton--cell-sm"></span></td>
+            <td><span class="cp-skeleton cp-skeleton--pill"></span></td>
+            <td><span class="cp-skeleton cp-skeleton--pill"></span></td>
+            <td><span class="cp-skeleton cp-skeleton--cell-sm"></span></td>
+            <td><span class="cp-skeleton cp-skeleton--pill"></span></td>
+            <td><span class="cp-skeleton cp-skeleton--icon"></span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="cp-pagination cp-pagination--skeleton">
+        <span class="cp-skeleton cp-skeleton--pagination-info"></span>
+        <div class="cp-pagination__controls">
+          <span class="cp-skeleton cp-skeleton--page-btn" *ngFor="let _ of skeletonFilters"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty -->
+    <div *ngIf="!listLoading && !listError && students.length === 0" class="cp-empty">
+      <span class="material-icons">person_off</span>
+      <p>No students found matching your filters.</p>
+    </div>
+
+    <!-- Student Table -->
+    <ng-container *ngIf="students.length > 0">
+      <div class="cp-table-wrap" [class.cp-table-wrap--refreshing]="showTableRefreshing">
+        <div class="cp-table-refresh" *ngIf="showTableRefreshing" aria-hidden="true">
+          <span class="cp-skeleton cp-skeleton--refresh-bar"></span>
+        </div>
+        <table class="cp-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Student ID</th>
+              <th>Batch</th>
+              <th>Level</th>
+              <th>Plan</th>
+              <th>Journey Day</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of students; trackBy: trackStudent">
+              <td>
+                <div class="cp-student-cell">
+                  <div class="cp-avatar">{{ s.name.charAt(0).toUpperCase() }}</div>
+                  <div>
+                    <strong>{{ s.name }}</strong>
+                    <small>{{ s.email }}</small>
+                  </div>
+                </div>
+              </td>
+              <td class="cp-mono"><strong>{{ s.regNo || '—' }}</strong></td>
+              <td>{{ s.batch || '—' }}</td>
+              <td><span class="cp-badge cp-badge--level">{{ s.level || '—' }}</span></td>
+              <td><span class="cp-badge cp-badge--plan">{{ s.subscription || '—' }}</span></td>
+              <td>
+                <span class="cp-day-badge">Day {{ s.currentCourseDay || 0 }}</span>
+              </td>
+              <td>
+                <span class="cp-status" [class.cp-status--ongoing]="s.studentStatus === 'ONGOING'">
+                  {{ s.studentStatus || '—' }}
+                </span>
+              </td>
+              <td>
+                <button class="cp-btn-manage" (click)="openStudent(s)" title="Open correction panel">
+                  <span class="material-icons">build</span>
+                  Correct
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="cp-pagination">
+        <span class="cp-pagination__info">
+          Showing {{ (currentPage - 1) * pageSize + 1 }}–{{ currentPage * pageSize > totalStudents ? totalStudents : currentPage * pageSize }}
+          of {{ totalStudents }} students
+        </span>
+        <div class="cp-pagination__controls">
+          <button class="cp-page-btn" [disabled]="currentPage <= 1" (click)="goToPage(currentPage - 1)">
+            <span class="material-icons">chevron_left</span>
+          </button>
+          <button
+            *ngFor="let p of pageNumbers"
+            class="cp-page-btn"
+            [class.cp-page-btn--active]="p === currentPage"
+            (click)="goToPage(p)"
+          >{{ p }}</button>
+          <button class="cp-page-btn" [disabled]="currentPage >= totalPages" (click)="goToPage(currentPage + 1)">
+            <span class="material-icons">chevron_right</span>
+          </button>
+        </div>
+      </div>
+    </ng-container>
+  </ng-container>
+
+  <!-- ═══ DETAIL VIEW ═══ -->
+  <ng-container *ngIf="viewMode === 'detail' && selectedStudent">
+
+    <div class="cp-detail-nav">
+      <button class="cp-back-btn" (click)="backToList()">
+        <span class="material-icons">arrow_back</span> Back to students
+      </button>
+    </div>
+
+    <div class="cp-student-bar">
+      <div class="cp-avatar cp-avatar--lg">{{ selectedStudent.name.charAt(0).toUpperCase() }}</div>
+      <div class="cp-student-bar__info">
+        <span class="cp-student-bar__name">{{ selectedStudent.name }}</span>
+        <span class="cp-student-bar__meta">
+          {{ selectedStudent.email }} &nbsp;·&nbsp; {{ selectedStudent.regNo || '—' }}
+          &nbsp;·&nbsp; Batch {{ selectedStudent.batch || '—' }}
+          &nbsp;·&nbsp; {{ selectedStudent.level || '—' }}
+        </span>
+      </div>
+      <div class="cp-day-pill">Journey Day <strong>{{ selectedStudent.currentCourseDay || 0 }}</strong></div>
+    </div>
+
+    <div class="cp-section-label">
+      <span class="material-icons">map</span>
+      Journey Days (1 – {{ selectedStudent.currentCourseDay || 0 }})
+    </div>
+
+    <div class="cp-empty" *ngIf="!loadingDays && dayCards.length === 0">
+      <span class="material-icons">info</span>
+      <p>No resources found for this student's journey yet.</p>
+    </div>
+
+    <div class="cp-day-grid cp-day-grid--skeleton" *ngIf="loadingDays">
+      <div class="cp-day-card cp-day-card--skeleton" *ngFor="let _ of skeletonDayCards">
+        <span class="cp-skeleton cp-skeleton--day-num"></span>
+        <span class="cp-skeleton cp-skeleton--day-chips"></span>
+      </div>
+    </div>
+
+    <div class="cp-day-grid" *ngIf="!loadingDays && dayCards.length > 0">
+      <div
+        class="cp-day-card"
+        [class.cp-day-card--active]="selectedDay === card.day"
+        *ngFor="let card of dayCards"
+        (click)="selectDay(card.day)"
+      >
+        <div class="cp-day-card__num">Day {{ card.day }}</div>
+        <div class="cp-day-card__chips">
+          <span class="cp-chip cp-chip--ex" *ngIf="card.exerciseCount > 0">
+            <span class="material-icons">fitness_center</span>{{ card.exerciseCount }}
+          </span>
+          <span class="cp-chip cp-chip--dg" *ngIf="card.dgCount > 0">
+            <span class="material-icons">pets</span>{{ card.dgCount }}
+          </span>
+          <span class="cp-chip cp-chip--game" *ngIf="card.gameCount > 0">
+            <span class="material-icons">sports_esports</span>{{ card.gameCount }}
+          </span>
+          <span class="cp-chip cp-chip--rec" *ngIf="card.recordingCount && card.recordingCount > 0">
+            <span class="material-icons">videocam</span>{{ card.recordingCount }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Day resources -->
+    <div class="cp-day-panel" *ngIf="selectedDay !== null">
+      <div class="cp-day-panel__header">
+        <span class="material-icons">event_note</span>
+        Day {{ selectedDay }} — Resources
+      </div>
+
+      <div class="cp-resources cp-resources--skeleton" *ngIf="loadingResources">
+        <div class="cp-resource cp-resource--skeleton" *ngFor="let _ of skeletonResources">
+          <span class="cp-skeleton cp-skeleton--resource-icon"></span>
+          <div class="cp-resource__info">
+            <span class="cp-skeleton cp-skeleton--resource-title"></span>
+            <span class="cp-skeleton cp-skeleton--resource-sub"></span>
+          </div>
+          <span class="cp-skeleton cp-skeleton--pill"></span>
+          <span class="cp-skeleton cp-skeleton--score"></span>
+          <span class="cp-skeleton cp-skeleton--action"></span>
+        </div>
+      </div>
+
+      <div class="cp-resources" *ngIf="!loadingResources && dayResources">
+
+        <div class="cp-empty" *ngIf="allResources().length === 0">
+          <span class="material-icons">layers_clear</span>
+          <p>No resources assigned to Day {{ selectedDay }}.</p>
+        </div>
+
+        <div class="cp-resource-group" *ngIf="dayResources.exercises.length > 0">
+          <div class="cp-resource-group__title"><span class="material-icons">fitness_center</span> Exercises</div>
+          <ng-container *ngFor="let item of dayResources.exercises">
+            <ng-container *ngTemplateOutlet="resourceRow; context: { $implicit: item }"></ng-container>
+          </ng-container>
+        </div>
+
+        <div class="cp-resource-group" *ngIf="dayResources.dgModules.length > 0">
+          <div class="cp-resource-group__title"><span class="material-icons">pets</span> DG Bot Modules</div>
+          <ng-container *ngFor="let item of dayResources.dgModules">
+            <ng-container *ngTemplateOutlet="resourceRow; context: { $implicit: item }"></ng-container>
+          </ng-container>
+        </div>
+
+        <div class="cp-resource-group" *ngIf="dayResources.games.length > 0">
+          <div class="cp-resource-group__title"><span class="material-icons">sports_esports</span> Glück Arena</div>
+          <ng-container *ngFor="let item of dayResources.games">
+            <ng-container *ngTemplateOutlet="resourceRow; context: { $implicit: item }"></ng-container>
+          </ng-container>
+        </div>
+
+        <div class="cp-resource-group" *ngIf="dayResources.recordings?.length">
+          <div class="cp-resource-group__title"><span class="material-icons">videocam</span> Class Recordings</div>
+          <ng-container *ngFor="let item of dayResources.recordings">
+            <ng-container *ngTemplateOutlet="resourceRow; context: { $implicit: item }"></ng-container>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+
+</div>
+
+<!-- Resource row template -->
+<ng-template #resourceRow let-item>
+  <div class="cp-resource" [class.cp-resource--done]="item.completed">
+    <span class="material-icons cp-resource__icon" [ngClass]="'cp-resource__icon--' + item.type">{{ getTypeIcon(item.type) }}</span>
+    <div class="cp-resource__info">
+      <span class="cp-resource__title">{{ item.title }}</span>
+      <span class="cp-resource__sub">
+        {{ getTypeLabel(item.type) }}
+        <ng-container *ngIf="item.sequenceLetter"> · Part {{ item.sequenceLetter | uppercase }}</ng-container>
+      </span>
+    </div>
+    <span class="cp-resource__status" [ngClass]="getStatusClass(item)">{{ getStatusLabel(item) }}</span>
+    <div class="cp-resource__score">
+      <strong [class.cp-score-perfect]="item.completed">{{ getScoreDisplay(item) }}</strong>
+      <small>{{ item.type === 'recording' ? 'Watched' : 'Score' }}</small>
+    </div>
+    <div class="cp-resource__actions">
+      <button
+        class="cp-btn-review"
+        *ngIf="canReviewExercise(item)"
+        (click)="openReview(item)"
+        title="Open full review in new tab"
+      >
+        <span class="material-icons">open_in_new</span> Review
+      </button>
+      <button
+        class="cp-btn-correct"
+        *ngIf="item.type === 'exercise' && !canReviewExercise(item)"
+        [disabled]="isActionLoading(item)"
+        (click)="openCorrection(item)"
+        title="Set score manually"
+      >
+        <span class="material-icons">edit</span> Correct
+      </button>
+      <button class="cp-btn-complete" [disabled]="item.completed || isActionLoading(item)" (click)="markComplete(item)">
+        <span class="material-icons" [class.spin]="isActionLoading(item)">{{ isActionLoading(item) ? 'autorenew' : (item.completed ? 'check_circle' : (item.type === 'recording' ? 'play_circle' : 'check_circle')) }}</span>
+        {{ getActionLabel(item) }}
+      </button>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Correction modal -->
+<div class="cp-modal-overlay" *ngIf="correctionItem" (click)="closeCorrection()">
+  <div class="cp-modal" (click)="$event.stopPropagation()">
+    <div class="cp-modal__header">
+      <span class="material-icons">edit_note</span>
+      <div>
+        <div class="cp-modal__title">Manual Score Correction</div>
+        <div class="cp-modal__sub">{{ correctionItem.title }}</div>
+      </div>
+      <button class="cp-modal__close" (click)="closeCorrection()"><span class="material-icons">close</span></button>
+    </div>
+    <div class="cp-modal__body">
+      <label class="cp-modal__label">Set Score Percentage</label>
+      <div class="cp-score-row">
+        <input type="range" class="cp-slider" min="0" max="100" step="1" [(ngModel)]="correctionScore" />
+        <div class="cp-score-input-wrap">
+          <input type="number" class="cp-score-input" min="0" max="100" [(ngModel)]="correctionScore" />
+          <span>%</span>
+        </div>
+      </div>
+      <div class="cp-score-hint">
+        Current: <strong>{{ correctionItem.scorePercentage != null ? (correctionItem.scorePercentage | number:'1.0-0') + '%' : 'Not attempted' }}</strong>
+        → New: <strong class="cp-score-new">{{ correctionScore }}%</strong>
+      </div>
+    </div>
+    <div class="cp-modal__footer">
+      <button class="cp-btn-secondary" (click)="closeCorrection()">Cancel</button>
+      <button class="cp-btn-primary" [disabled]="correctionLoading" (click)="submitCorrection()">
+        <span class="material-icons" [class.spin]="correctionLoading">{{ correctionLoading ? 'autorenew' : 'save' }}</span>
+        {{ correctionLoading ? 'Saving…' : 'Save Correction' }}
+      </button>
+    </div>
+  </div>
+</div>

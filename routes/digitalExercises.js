@@ -169,7 +169,7 @@ function applyWatchOnlyVideoPass(exercise, q, isCorrect, pointsEarned, correctAn
   }
   return {
     isCorrect: true,
-    pointsEarned: q.points || 1,
+    pointsEarned: questionTotalPoints(q),
     correctAnswer: { ...(correctAnswer || {}), score: 100, watchOnlyPass: true },
   };
 }
@@ -480,7 +480,7 @@ function applyThresholdScoring(q, rawScore) {
   const threshold = normalizeThresholdForQuestion(q);
   const scoringMode = normalizeScoringModeForQuestion(q);
   const score = Math.max(0, Math.min(100, Number(rawScore) || 0));
-  const maxPoints = q?.points || 1;
+  const maxPoints = q?.points ?? 1;
   const isCorrect = score >= threshold;
   const pointsEarned = scoringMode === 'proportional'
     ? parseFloat(((score / 100) * maxPoints).toFixed(2))
@@ -490,8 +490,8 @@ function applyThresholdScoring(q, rawScore) {
 
 function questionTotalPoints(q) {
   const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
-  const subPts = subs.reduce((sum, sq) => sum + (sq?.points || 1), 0);
-  return (q?.points || 1) + subPts;
+  const subPts = subs.reduce((sum, sq) => sum + (sq?.points ?? 1), 0);
+  return (q?.points ?? 1) + subPts;
 }
 
 function exerciseTotalPoints(questions) {
@@ -712,7 +712,7 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
       };
     } else {
       subIsCorrect = rawScore >= 100;
-      subPoints = subIsCorrect ? (sq.points || 1) : 0;
+      subPoints = subIsCorrect ? (sq.points ?? 1) : 0;
       subCorrectOut = { ...(subCorrectAnswer || {}), score: rawScore, aiGradingEnabled: false };
     }
 
@@ -999,17 +999,17 @@ function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap, exercise 
   } else if (q.type === 'pronunciation') {
     const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
     isCorrect = score >= 70;
-    pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+    pointsEarned = isCorrect ? (q.points ?? 1) : parseFloat(((score / 100) * (q.points ?? 1)).toFixed(2));
     correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
   } else if (q.type === 'video-pronunciation') {
     const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
     const threshold = normalizeThresholdForQuestion(q);
     isCorrect = score >= threshold;
-    pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+    pointsEarned = isCorrect ? (q.points ?? 1) : parseFloat(((score / 100) * (q.points ?? 1)).toFixed(2));
     correctAnswer = { ...(correctAnswer || {}), score, threshold, aiGradingEnabled: false };
   } else {
     isCorrect = rawScore >= 100;
-    pointsEarned = isCorrect ? (q.points || 1) : 0;
+    pointsEarned = isCorrect ? (q.points ?? 1) : 0;
     correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
   }
 
@@ -1265,7 +1265,7 @@ function gradeSubQuestionForReview(sq, subResp) {
     return { isCorrect: scoring.isCorrect, pointsEarned: scoring.pointsEarned };
   }
   const isCorrect = rawScore >= 100;
-  return { isCorrect, pointsEarned: isCorrect ? (sq.points || 1) : 0 };
+  return { isCorrect, pointsEarned: isCorrect ? (sq.points ?? 1) : 0 };
 }
 
 function getSubQuestionReviewGrade(q, r, sq, si, subResp) {
@@ -1363,7 +1363,7 @@ function buildPerQuestionReview(exercise, attempt) {
       promptSnippet: questionPromptSnippet(q, i),
       isCorrect: parentGrade.isCorrect,
       pointsEarned: parentGrade.pointsEarned,
-      maxPoints: q.points || 1,
+      maxPoints: q.points ?? 1,
       studentAnswer: formatStudentAnswerForReview(q, r),
       expectedAnswer: formatCorrectAnswerForReview(q),
       isSubQuestion: false,
@@ -1385,7 +1385,7 @@ function buildPerQuestionReview(exercise, attempt) {
           promptSnippet: questionPromptSnippet(sq, si),
           isCorrect: subGrade.isCorrect,
           pointsEarned: subGrade.pointsEarned,
-          maxPoints: sq.points || 1,
+          maxPoints: sq.points ?? 1,
           studentAnswer: formatStudentAnswerForReview(sq, subResponseToReviewShape(sq, subResp)),
           expectedAnswer: formatCorrectAnswerForReview(sq),
           isSubQuestion: true,
@@ -1768,9 +1768,14 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           andClauses.push({ courseDay: -1 });
         }
       } else {
-        // General browse: unassigned or journey days in [minAssignedDay, current] (no Trial for Silver GO).
+        // A1 and A2 content is always visible to students; higher levels follow the journey day gate.
         const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
-        andClauses.push(studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay));
+        andClauses.push({
+          $or: [
+            { level: { $in: ['A1', 'A2'] } },
+            studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay)
+          ]
+        });
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
       appendNotBlockedToAndClauses(
@@ -2315,7 +2320,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .select(
-        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode isActive isFreeMode createdBy createdAt updatedAt questions.type'
+        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode testerVerified isActive isFreeMode createdBy createdAt updatedAt questions.type'
       )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
@@ -2648,7 +2653,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
           attachmentUrl: (currentAttachmentUrls[0] || ''),
           example: currentExample,
           answerExplanation: item.answerExplanation || '',
-          points: item.points || 1,
+          points: item.points ?? 1,
           // Copy all type-specific fields
           question: item.question || '',
           imageUrl: item.imageUrl || '',
@@ -2792,7 +2797,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
           attachmentUrl: (currentAttachmentUrls[0] || ''),
           example: currentExample,
           answerExplanation: item.answerExplanation || '',
-          points: item.points || 1,
+          points: item.points ?? 1,
           question: item.question || '',
           imageUrl: item.imageUrl || '',
           options: item.options || [],
@@ -2874,6 +2879,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     exercise.questions = normalizeQuestionContexts(questions);
     exercise.trailingContentBlocks = trailingContentBlocks;
     exercise.isFreeMode = true;
+    exercise.testerVerified = false;
     exercise.lastUpdatedBy = req.user.id;
     exercise.updatedAt = new Date();
 
@@ -2910,6 +2916,22 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
   } catch (err) {
     console.error('PATCH /digital-exercises/:id/visibility error:', err);
     res.status(500).json({ error: err.message || 'Failed to update visibility' });
+  }
+});
+
+// PATCH /api/digital-exercises/:id/tester-verified  — Mark exercise as QA-tested
+router.patch('/:id/tester-verified', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findByIdAndUpdate(
+      req.params.id,
+      { $set: { testerVerified: true, updatedAt: new Date() } },
+      { new: true, runValidators: false }
+    );
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    res.json({ success: true, testerVerified: exercise.testerVerified });
+  } catch (err) {
+    console.error('PATCH /digital-exercises/:id/tester-verified error:', err);
+    res.status(500).json({ error: err.message || 'Failed to mark exercise as tested' });
   }
 });
 
@@ -3017,6 +3039,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
     }
     preserveTopLevelMedia(existingTopMedia, exercise, mediaClears);
     canonicalizeExerciseForStorage(exercise);
+    exercise.testerVerified = false;
     exercise.lastUpdatedBy = req.user.id;
     exercise.updatedAt = new Date();
 
@@ -3335,17 +3358,17 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
     } else if (q.type === 'pronunciation') {
       const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
       isCorrect = score >= 70;
-      pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+      pointsEarned = isCorrect ? (q.points ?? 1) : parseFloat(((score / 100) * (q.points ?? 1)).toFixed(2));
       correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
     } else if (q.type === 'video-pronunciation') {
       const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
       const threshold = normalizeThresholdForQuestion(q);
       isCorrect = score >= threshold;
-      pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+      pointsEarned = isCorrect ? (q.points ?? 1) : parseFloat(((score / 100) * (q.points ?? 1)).toFixed(2));
       correctAnswer = { ...(correctAnswer || {}), score, threshold, aiGradingEnabled: false };
     } else {
       isCorrect = rawScore >= 100;
-      pointsEarned = isCorrect ? (q.points || 1) : 0;
+      pointsEarned = isCorrect ? (q.points ?? 1) : 0;
       correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
     }
 
@@ -3656,17 +3679,17 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
       } else if (q.type === 'pronunciation') {
         const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
         isCorrect = score >= 70;
-        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+        pointsEarned = isCorrect ? (q.points ?? 1) : parseFloat(((score / 100) * (q.points ?? 1)).toFixed(2));
         correctAnswer = { ...(correctAnswer || {}), score, aiGradingEnabled: false };
       } else if (q.type === 'video-pronunciation') {
         const score = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
         const threshold = normalizeThresholdForQuestion(q);
         isCorrect = score >= threshold;
-        pointsEarned = isCorrect ? (q.points || 1) : Math.round((q.points || 1) * score / 100);
+        pointsEarned = isCorrect ? (q.points ?? 1) : parseFloat(((score / 100) * (q.points ?? 1)).toFixed(2));
         correctAnswer = { ...(correctAnswer || {}), score, threshold, aiGradingEnabled: false };
       } else {
         isCorrect = rawScore >= 100;
-        pointsEarned = isCorrect ? (q.points || 1) : 0;
+        pointsEarned = isCorrect ? (q.points ?? 1) : 0;
         correctAnswer = { ...(correctAnswer || {}), score: rawScore, aiGradingEnabled: false };
       }
 
@@ -3946,7 +3969,7 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
         return res.status(400).json({ error: 'Invalid sub-question index' });
       }
       const sq = subs[subQi];
-      const maxSubPts = Number(sq?.points) || 1;
+      const maxSubPts = Number(sq?.points) ?? 1;
       if (!Array.isArray(targetResp.subQuestionGrades)) targetResp.subQuestionGrades = [];
       const existing = targetResp.subQuestionGrades.find((g) => Number(g.questionIndex) === subQi);
       const gradeEntry = {
@@ -3974,7 +3997,7 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
         if (!Array.isArray(targetResp.subQuestionGrades)) targetResp.subQuestionGrades = [];
         for (let si = 0; si < subs.length; si++) {
           const sq = subs[si];
-          const maxSubPts = Number(sq?.points) || 1;
+          const maxSubPts = Number(sq?.points) ?? 1;
           const pts = shouldBeCorrect ? maxSubPts : 0;
           const existing = targetResp.subQuestionGrades.find((g) => Number(g.questionIndex) === si);
           const gradeEntry = {
@@ -3991,7 +4014,7 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
             targetResp.subQuestionGrades.push(gradeEntry);
           }
         }
-        const parentPts = shouldBeCorrect ? (Number(q.points) || 1) : 0;
+        const parentPts = shouldBeCorrect ? (Number(q.points) ?? 1) : 0;
         targetResp.pointsEarned = parentPts + targetResp.subQuestionGrades.reduce(
           (sum, g) => sum + (Number(g.pointsEarned) || 0),
           0
@@ -4598,7 +4621,7 @@ router.post(
         context: question.context || '',
         instruction: question.instruction || '',
         example: question.example || '',
-        points: Number(question.points) || 1
+        points: Number(question.points) ?? 1
       };
 
       // Build source description for the AI
