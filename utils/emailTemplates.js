@@ -972,6 +972,140 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
   };
 }
 
+/**
+ * Morning digest for Language Team — students who missed live classes more than 2 times.
+ * @param {object} params
+ * @param {Array<{ name: string, batch: string, missedCount: number, missedDates: Date[] }>} params.flaggedStudents
+ * @param {string} params.reportDate
+ */
+function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDate }) {
+  const dateLabel = escapeHtml(reportDate || new Date().toDateString());
+
+  const formatClassDate = (d) =>
+    new Date(d).toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
+    });
+
+  const tableRows = flaggedStudents
+    .map((s, idx) => {
+      const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8f5ff';
+      const countColor = s.missedCount >= 5 ? '#dc2626' : s.missedCount >= 4 ? '#d97706' : '#6c3fc5';
+      const datesLabel = (s.missedDates || [])
+        .map((d) => escapeHtml(formatClassDate(d)))
+        .join('<br/>') || '<span style="color:#9ca3af;font-style:italic;">—</span>';
+
+      return `
+      <tr style="background:${rowBg};">
+        <td style="padding:11px 14px;font-size:13px;color:#1e293b;border-bottom:1px solid #ede9fe;font-weight:600;">${escapeHtml(s.name)}</td>
+        <td style="padding:11px 14px;font-size:13px;color:#374151;border-bottom:1px solid #ede9fe;text-align:center;">
+          <span style="display:inline-block;background:#ede9fe;color:#6c3fc5;font-weight:700;font-size:12px;padding:3px 10px;border-radius:20px;">
+            ${escapeHtml(String(s.batch || '—'))}
+          </span>
+        </td>
+        <td style="padding:11px 14px;font-size:13px;border-bottom:1px solid #ede9fe;text-align:center;">
+          <span style="display:inline-block;background:#fff1f2;color:${countColor};font-weight:800;font-size:13px;padding:3px 12px;border-radius:20px;border:1px solid ${countColor}33;">
+            ${s.missedCount}
+          </span>
+        </td>
+        <td style="padding:11px 14px;font-size:12px;color:#374151;border-bottom:1px solid #ede9fe;line-height:1.55;">${datesLabel}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const totalCount = flaggedStudents.length;
+
+  return {
+    subject: `[Morning Report] ${totalCount} Student${totalCount !== 1 ? 's' : ''} with 3+ Missed Live Classes — ${dateLabel}`,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Missed Live Class Report</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="760" cellspacing="0" cellpadding="0"
+               style="max-width:760px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+          <tr>
+            <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">
+                Glück Global — Missed Live Class Report
+              </h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.88);font-size:14px;">
+                Morning digest &nbsp;·&nbsp; ${dateLabel}
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f3eeff;padding:20px 40px;text-align:center;">
+              <span style="display:inline-block;background:#6c3fc5;color:#fff;font-size:13px;font-weight:700;padding:8px 22px;border-radius:20px;">
+                ${totalCount} student${totalCount !== 1 ? 's' : ''} flagged
+              </span>
+              <p style="margin:12px 0 0;color:#6c3fc5;font-size:13px;line-height:1.5;">
+                Students listed below have missed <strong>more than 2 live classes</strong> (fully absent, 0% attendance).<br/>
+                Please follow up with them at the earliest.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:28px 32px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                <thead>
+                  <tr style="background:#6c3fc5;">
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student Name</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Classes Missed</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Missed Class Dates</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${tableRows || `
+                  <tr>
+                    <td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
+                      No students with more than 2 missed live classes today. 🎉
+                    </td>
+                  </tr>`}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 28px;">
+              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:16px;">
+                This report is auto-generated every morning at 10:00 AM IST by the Glück Global Student Portal.<br/>
+                A class counts as missed when attendance was recorded and the student was fully absent (0% participation).
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8fafc;padding:16px 40px;text-align:center;">
+              <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a></p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  };
+}
+
 module.exports = {
   buildPasswordResetOtpEmail,
   buildEmailChangeOtpEmail,
@@ -987,4 +1121,5 @@ module.exports = {
   buildJourneyDayReminderEmail,
   buildPortalAbsenceReminderEmail,
   buildConsecutiveAbsenceLanguageTeamEmail,
+  buildMissedLiveClassMorningReportEmail,
 };

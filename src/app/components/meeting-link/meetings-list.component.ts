@@ -71,6 +71,8 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
 
   isBulkEditing = false;
   isSelectingAllBatch = false;
+  /** Track which meeting is currently being recreated */
+  recreatingMeetingId: string | null = null;
 
   constructor(
     private router: Router,
@@ -532,9 +534,6 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   getTeacherName(meeting: any): string {
     return meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown Teacher';
   }
-
-  /** Track which meeting is currently being recreated */
-  recreatingMeetingId: string | null = null;
 
   /** Only show Recreate for admins on non-ended meetings that have a Zoom ID */
   canShowRecreateButton(meeting: any): boolean {
