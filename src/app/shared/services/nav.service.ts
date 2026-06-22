@@ -108,7 +108,8 @@ export class NavService {
         { id: 'bf-team-battles', label: 'Team Battles', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null },
         { id: 'teacher-resources', label: 'Teacher Resources', icon: 'folder_shared', route: '/admin/teacher-resources', subGroup: null },
         { id: 'journey',           label: 'Journey',            icon: 'map', route: '/admin/journey',             subGroup: null },
-        { id: 'go-students',       label: 'GO Students',        icon: 'rocket_launch', route: '/admin/go-students',         subGroup: null }
+        { id: 'go-students',       label: 'GO Students',        icon: 'rocket_launch', route: '/admin/go-students',         subGroup: null },
+        { id: 'correction',        label: 'Correction',         icon: 'build_circle', route: '/admin/correction',           subGroup: null }
       ]
     },
     {

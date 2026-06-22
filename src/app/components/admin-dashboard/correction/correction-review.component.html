@@ -1,0 +1,186 @@
+<div class="cr-page">
+  <header class="cr-topbar">
+    <a class="cr-back" [href]="backLink">
+      <span class="material-icons">arrow_back</span>
+      Back to Correction Panel
+    </a>
+    <div class="cr-topbar__actions">
+      <button type="button" class="cr-refresh" (click)="refresh()" [disabled]="loading">
+        <span class="material-icons" [class.spin]="loading">sync</span>
+        Refresh
+      </button>
+    </div>
+  </header>
+
+  <!-- Loading skeleton -->
+  <div class="cr-skeleton-wrap" *ngIf="loading" aria-busy="true">
+    <div class="cr-hero cr-hero--skeleton">
+      <span class="cr-sk cr-sk--title"></span>
+      <span class="cr-sk cr-sk--sub"></span>
+      <div class="cr-summary cr-summary--skeleton">
+        <span class="cr-sk cr-sk--ring"></span>
+        <div class="cr-sk-stats">
+          <span class="cr-sk cr-sk--stat" *ngFor="let _ of skeletonRows"></span>
+        </div>
+      </div>
+    </div>
+    <div class="cr-card cr-card--skeleton" *ngFor="let _ of skeletonRows">
+      <span class="cr-sk cr-sk--row"></span>
+    </div>
+  </div>
+
+  <div class="cr-error" *ngIf="error && !loading">
+    <span class="material-icons">error_outline</span>
+    <p>{{ error }}</p>
+    <a class="cr-back cr-back--inline" [href]="backLink">Return to Correction Panel</a>
+  </div>
+
+  <ng-container *ngIf="data && !loading">
+    <section class="cr-hero">
+      <div class="cr-hero__text">
+        <p class="cr-eyebrow">Correction · Review Attempt</p>
+        <h1>{{ data.exercise.title }}</h1>
+        <p class="cr-student-line">
+          <strong>{{ studentDisplayName() }}</strong>
+          <span *ngIf="studentMeta()">{{ studentMeta() }}</span>
+        </p>
+        <p class="cr-meta">
+          {{ data.exercise.level }} · {{ data.exercise.category }}
+          <span *ngIf="journeyDay"> · Journey Day {{ journeyDay }}</span>
+          · Attempt #{{ data.attempt.attemptNumber ?? '—' }}
+          · {{ formatDate(data.attempt.completedAt) }}
+        </p>
+      </div>
+
+      <div class="cr-summary">
+        <div class="cr-ring" aria-hidden="true">
+          <svg viewBox="0 0 36 36">
+            <path class="cr-ring__track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path class="cr-ring__fill" [attr.stroke-dasharray]="scoreRingDash()" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+          </svg>
+          <div class="cr-ring__center">
+            <strong>{{ data.attempt.scorePercentage }}%</strong>
+            <small>Score</small>
+          </div>
+        </div>
+        <div class="cr-stats">
+          <div class="cr-stat cr-stat--ok">
+            <strong>{{ data.summary.correctCount }}</strong>
+            <span>Correct</span>
+          </div>
+          <div class="cr-stat cr-stat--bad">
+            <strong>{{ data.summary.wrongCount }}</strong>
+            <span>Wrong</span>
+          </div>
+          <div class="cr-stat">
+            <strong>{{ data.summary.totalQuestions }}</strong>
+            <span>Questions</span>
+          </div>
+          <div class="cr-stat cr-stat--pts" *ngIf="data.attempt.earnedPoints != null">
+            <strong>{{ data.attempt.earnedPoints }}/{{ data.attempt.totalPoints }}</strong>
+            <span>Points</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="cr-action-error" *ngIf="actionError">{{ actionError }}</p>
+
+    <section class="cr-card" *ngIf="wrongRows(data.perQuestion).length > 0">
+      <div class="cr-card__head">
+        <span class="material-icons">rule_folder</span>
+        <div>
+          <h2>Needs correction</h2>
+          <p>Compare student answer vs expected — click to mark as correct.</p>
+        </div>
+        <span class="cr-badge cr-badge--warn">{{ wrongRows(data.perQuestion).length }} wrong</span>
+      </div>
+      <div class="cr-table-wrap">
+        <table class="cr-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Question</th>
+              <th>Student answer</th>
+              <th>Expected answer</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of wrongRows(data.perQuestion)" class="cr-row--wrong">
+              <td class="cr-num">{{ row.displayIndex }}</td>
+              <td class="cr-prompt">
+                <span class="cr-sub-tag" *ngIf="row.isSubQuestion">Sub</span>
+                {{ row.promptSnippet }}
+              </td>
+              <td class="cr-ans cr-ans--student">{{ row.studentAnswer || '—' }}</td>
+              <td class="cr-ans cr-ans--expected">{{ row.expectedAnswer || '—' }}</td>
+              <td class="cr-action">
+                <button
+                  type="button"
+                  class="cr-btn-fix"
+                  [disabled]="updatingQuestionIndex !== null"
+                  (click)="markAsCorrect(row)"
+                >
+                  <span class="material-icons">check_circle</span>
+                  {{ isUpdatingRow(row) ? 'Saving…' : 'Mark correct' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="cr-card">
+      <div class="cr-card__head">
+        <span class="material-icons">view_list</span>
+        <div>
+          <h2>All questions</h2>
+          <p>Full attempt log for auditing.</p>
+        </div>
+      </div>
+      <div class="cr-table-wrap">
+        <table class="cr-table cr-table--full">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Result</th>
+              <th>Question</th>
+              <th>Student answer</th>
+              <th>Expected</th>
+              <th>Pts</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of data.perQuestion" [class.cr-row--wrong]="!row.isCorrect">
+              <td class="cr-num">{{ row.displayIndex }}</td>
+              <td>
+                <span class="cr-pill" [class.cr-pill--ok]="row.isCorrect" [class.cr-pill--bad]="!row.isCorrect">
+                  {{ row.isCorrect ? 'Correct' : 'Wrong' }}
+                </span>
+                <span class="cr-override-tag" *ngIf="row.staffOverride">Staff override</span>
+              </td>
+              <td class="cr-prompt">{{ row.promptSnippet }}</td>
+              <td class="cr-ans">{{ row.studentAnswer || '—' }}</td>
+              <td class="cr-ans cr-ans--muted">{{ row.expectedAnswer || '—' }}</td>
+              <td class="cr-pts">{{ row.pointsEarned }} / {{ row.maxPoints }}</td>
+              <td class="cr-action">
+                <button
+                  *ngIf="!row.isCorrect"
+                  type="button"
+                  class="cr-btn-fix cr-btn-fix--sm"
+                  [disabled]="updatingQuestionIndex !== null"
+                  (click)="markAsCorrect(row)"
+                >
+                  {{ isUpdatingRow(row) ? '…' : 'Fix' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+</div>

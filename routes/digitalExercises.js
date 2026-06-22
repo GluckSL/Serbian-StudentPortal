@@ -2320,7 +2320,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .select(
-        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode isActive isFreeMode createdBy createdAt updatedAt questions.type'
+        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode testerVerified isActive isFreeMode createdBy createdAt updatedAt questions.type'
       )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
@@ -2879,6 +2879,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     exercise.questions = normalizeQuestionContexts(questions);
     exercise.trailingContentBlocks = trailingContentBlocks;
     exercise.isFreeMode = true;
+    exercise.testerVerified = false;
     exercise.lastUpdatedBy = req.user.id;
     exercise.updatedAt = new Date();
 
@@ -2915,6 +2916,22 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
   } catch (err) {
     console.error('PATCH /digital-exercises/:id/visibility error:', err);
     res.status(500).json({ error: err.message || 'Failed to update visibility' });
+  }
+});
+
+// PATCH /api/digital-exercises/:id/tester-verified  — Mark exercise as QA-tested
+router.patch('/:id/tester-verified', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const exercise = await DigitalExercise.findByIdAndUpdate(
+      req.params.id,
+      { $set: { testerVerified: true, updatedAt: new Date() } },
+      { new: true, runValidators: false }
+    );
+    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    res.json({ success: true, testerVerified: exercise.testerVerified });
+  } catch (err) {
+    console.error('PATCH /digital-exercises/:id/tester-verified error:', err);
+    res.status(500).json({ error: err.message || 'Failed to mark exercise as tested' });
   }
 });
 
@@ -3022,6 +3039,7 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN'])
     }
     preserveTopLevelMedia(existingTopMedia, exercise, mediaClears);
     canonicalizeExerciseForStorage(exercise);
+    exercise.testerVerified = false;
     exercise.lastUpdatedBy = req.user.id;
     exercise.updatedAt = new Date();
 

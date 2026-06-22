@@ -266,6 +266,8 @@ export interface DigitalExercise {
    * video clip and tap "Next". Controlled by admin only (default: false).
    */
   watchOnlyMode?: boolean;
+  /** QA badge: true when a tester marked the exercise as reviewed in admin list. */
+  testerVerified?: boolean;
   /** Content blocks that trail after the last question (free mode builder). */
   trailingContentBlocks?: Array<{
     sectionTitle?: string;
@@ -598,6 +600,16 @@ export class DigitalExerciseService {
 
   toggleWatchOnlyMode(id: string, watchOnlyMode: boolean): Observable<any> {
     return this.http.patch(`${this.apiUrl}/${id}/watch-only`, { watchOnlyMode }, { withCredentials: true });
+  }
+
+  markTesterVerified(id: string): Observable<{ success: boolean; testerVerified: boolean }> {
+    return this.http.patch<{ success: boolean; testerVerified: boolean }>(
+      `${this.apiUrl}/${id}/tester-verified`,
+      {},
+      { withCredentials: true }
+    ).pipe(
+      tap(() => this.invalidateExerciseListCache()),
+    );
   }
 
   toggleActive(id: string): Observable<any> {
