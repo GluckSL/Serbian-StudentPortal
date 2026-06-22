@@ -532,4 +532,45 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   getTeacherName(meeting: any): string {
     return meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown Teacher';
   }
+
+  /** Track which meeting is currently being recreated */
+  recreatingMeetingId: string | null = null;
+
+  /** Only show Recreate for admins on non-ended meetings that have a Zoom ID */
+  canShowRecreateButton(meeting: any): boolean {
+    return (
+      this.isAdmin() &&
+      !!meeting.zoomMeetingId &&
+      this.effectiveTabStatus(meeting) !== 'ended'
+    );
+  }
+
+  recreateMeeting(meeting: any, event: Event): void {
+    event.stopPropagation();
+    if (this.recreatingMeetingId) return;
+
+    const confirmed = window.confirm(
+      `Recreate the Zoom meeting for "${meeting.topic}"?\n\n` +
+      `The current Zoom link is broken (error 3,001). This will create a fresh Zoom meeting ` +
+      `and update the link for teachers and students.`
+    );
+    if (!confirmed) return;
+
+    this.recreatingMeetingId = meeting._id;
+    this.zoomService.recreateMeeting(meeting._id).subscribe({
+      next: (res: any) => {
+        this.recreatingMeetingId = null;
+        if (res?.success) {
+          this.notify.success(`Zoom meeting recreated! New ID: ${res.newZoomMeetingId}`);
+          this.loadMeetings();
+        } else {
+          this.notify.error(res?.message || 'Failed to recreate the Zoom meeting.');
+        }
+      },
+      error: (err: any) => {
+        this.recreatingMeetingId = null;
+        this.notify.error(err?.error?.message || 'Failed to recreate the Zoom meeting. Please try again.');
+      }
+    });
+  }
 }
