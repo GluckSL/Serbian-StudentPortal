@@ -14,7 +14,7 @@ const timelineService = require('./timelineService');
 const installmentService = require('./installmentService');
 const receiptService = require('./receiptService');
 const { computeLiveTotalsFromData } = require('../utils/currencyBreakdownHelper');
-const { slotForRequest } = require('../utils/levelSlotHelper');
+const { collectRequestsForSlotReset } = require('../utils/levelSlotHelper');
 
 const VALID_SLOT_KEYS = new Set(['A1', 'A2', 'B1', 'B2', 'DOCS', 'VISA']);
 
@@ -856,7 +856,7 @@ const resetPaymentSlot = async ({ studentId, slotKey, adminId, adminRole, reason
   if (!student) throw new Error('Student not found');
 
   const allRequests = await PaymentRequest.find({ studentId, isArchived: false }).lean();
-  const toArchive = allRequests.filter((req) => slotForRequest(req, student.level) === slot);
+  const toArchive = collectRequestsForSlotReset(allRequests, slot, student.level);
 
   if (!toArchive.length) {
     return { slot, requestsArchived: 0, submissionsArchived: 0 };

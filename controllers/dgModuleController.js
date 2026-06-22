@@ -270,8 +270,11 @@ exports.listStudent = async (req, res) => {
       moduleQuery.sort({ title: 1 }).lean(),
       User.findById(req.user.id).select('blockedJourneyLevels').lean(),
     ]);
+    const A1_A2_LEVELS = new Set(['A1', 'A2']);
     const unlockedForDay = (modules || []).filter((m) => {
-      if (!dgModuleUnlockedForAccess(access, m?.courseDay)) return false;
+      // A1 and A2 content is always visible regardless of journey day.
+      const isA1A2 = A1_A2_LEVELS.has(String(m?.level || '').toUpperCase());
+      if (!isA1A2 && !dgModuleUnlockedForAccess(access, m?.courseDay)) return false;
       if (isContentBlockedForStudent(studentDoc, { courseDay: m?.courseDay, level: m?.level })) return false;
       return true;
     });

@@ -12,7 +12,7 @@ import { AuthService } from '../../services/auth.service';
 import { parseAdminCourseDayOrNull, TRIAL_JOURNEY_DAY } from '../../utils/journey-day.util';
 import { digitalExercisePlayCommands, exerciseIdForRoute } from '../../utils/digital-exercise-id.util';
 
-type TabType = 'completed' | 'pending' | 'new';
+type TabType = 'completed' | 'pending' | 'new' | 'all';
 
 @Component({
   selector: 'app-digital-exercises',
@@ -31,7 +31,7 @@ export class DigitalExercisesComponent implements OnInit {
   userRole: string = '';
   isTeacherOrAdmin = false;
 
-  activeTab: TabType = 'new';
+  activeTab: TabType = 'all';
 
   // Filters
   searchQuery = '';
@@ -166,11 +166,14 @@ export class DigitalExercisesComponent implements OnInit {
 
   /**
    * Students:
+   * - All: show everything (no filter).
    * - New: exercise day === current journey day, not yet passed.
    * - Pending: any other incomplete (past days, future/locked preview, or unassigned day).
    * - Completed: passed (≥ pass score), any day.
    */
   private matchesStudentTab(ex: DigitalExercise, tab: TabType): boolean {
+    if (tab === 'all') return true;
+
     const passed = this.isAttemptPassing(ex.studentAttempt);
     const dayNum = this.exerciseCourseDayNum(ex);
     const cur = this.studentCourseDay;
@@ -196,6 +199,8 @@ export class DigitalExercisesComponent implements OnInit {
 
   /** Teachers/admins: original 14-day new vs pending split; completed = any attempt. */
   private applyTabFilterLegacy(exercises: DigitalExercise[], tab: TabType): DigitalExercise[] {
+    if (tab === 'all') return exercises;
+
     const now = Date.now();
     const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
 

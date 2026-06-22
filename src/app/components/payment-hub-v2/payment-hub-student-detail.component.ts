@@ -22,6 +22,7 @@ import {
 } from './payment-language-fee-status.util';
 import { currentJourneyDayFromStudent } from './payment-journey-metrics.util';
 import { LEVEL_PAYMENT_CONFIG, suggestInrForLevel } from './level-payment-config';
+import { normalizeLevel, slotForPaymentRequest, type LanguageLevelSlot, type PaymentSlotKey } from './payment-level-slot.util';
 
 @Component({
   selector: 'app-payment-hub-student-detail',
@@ -285,7 +286,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   /** Student's current CEFR level (A1–B2). */
   currentLevelSlot(): LanguageLevelSlot | null {
-    return this.normalizeLevel(this.history?.student?.level);
+    return normalizeLevel(this.history?.student?.level);
   }
 
   /** Reset summary-card level filters when student history loads. */
@@ -554,7 +555,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   /** Slots with mapped requests, plus current student level when expanding the grid. */
   visiblePaymentSlots(): Array<{ key: PaymentSlotKey; label: string }> {
     if (this.showAllMappingSlots) return this.paymentSlots;
-    const current = this.normalizeLevel(this.history?.student?.level);
+    const current = normalizeLevel(this.history?.student?.level);
     return this.paymentSlots.filter((slot) => {
       if (this.slotSummary(slot.key).requestCount > 0) return true;
       return current && slot.key === current;
@@ -650,11 +651,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   }
 
   private slotForRequest(req: PaymentRequest): PaymentSlotKey | null {
-    if (req.paymentType === 'DOCS_PAYMENT') return 'DOCS';
-    if (req.paymentType === 'VISA_PAYMENT') return 'VISA';
-    if (req.paymentType === 'CUSTOM_PAYMENT') return this.normalizeLevel(req.customType);
-    if (req.paymentType !== 'LANGUAGE_FEE') return null;
-    return this.normalizeLevel(req.customType) || this.normalizeLevel(this.history?.student?.level);
+    return slotForPaymentRequest(req, this.history?.student?.level);
   }
 
   beginMap(slotKey: PaymentSlotKey): void {
@@ -663,13 +660,9 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     const initial = this.slotAmountsForCurrency(slotKey, initialCurrency);
     this.activeMapSlot = slotKey;
     this.mappingCurrency = initialCurrency;
-    this.mappingAmount =
-      initial.balance > 0 ? initial.balance : initial.paid > 0 ? initial.paid : null;
     this.mappingTotal = initial.requested > 0 ? initial.requested : null;
+    this.mappingAmount = initial.paid > 0 ? initial.paid : null;
     this.mappingBalance = initial.balance > 0 ? initial.balance : null;
-    if (this.mappingAmount != null && this.mappingTotal != null && this.mappingTotal > 0) {
-      this.mappingBalance = Math.max(0, this.mappingTotal - this.mappingAmount);
-    }
     this.mappingDate = new Date().toISOString().slice(0, 10);
     this.mappingRemarks = '';
   }
@@ -971,12 +964,6 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     return parts.join(' · ');
   }
 
-  private normalizeLevel(level: string | undefined | null): LanguageLevelSlot | null {
-    const val = String(level || '').trim().toUpperCase();
-    if (val === 'A1' || val === 'A2' || val === 'B1' || val === 'B2') return val;
-    return null;
-  }
-
   private normCurrency(currency: string | undefined | null): CurrencyKey {
     const c = String(currency || '').trim().toUpperCase();
     if (c === 'INR' || c === 'USD') return c;
@@ -988,9 +975,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   }
 }
 
-type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';
 type StatLevelFilter = 'ALL' | LanguageLevelSlot;
-type PaymentSlotKey = LanguageLevelSlot | 'DOCS' | 'VISA';
 type CurrencyKey = 'LKR' | 'INR' | 'USD';
 
 interface PaymentSlotSummary {
