@@ -1,11 +1,13 @@
 const StudentLoginStreak = require('../models/StudentLoginStreak');
 
-const REWARD_TIERS = [
-  { days: 4, tier: 'bronze' },
-  { days: 5, tier: 'silver' },
-  { days: 6, tier: 'gold' },
-  { days: 7, tier: 'trophy' },
-];
+function computeRewardTierForDate(dateStr) {
+  if (!dateStr) return null;
+  const day = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+  if (day === 0) return 'trophy';
+  if (day <= 2) return 'bronze';
+  if (day <= 4) return 'silver';
+  return 'gold';
+}
 
 function getWeekKey(d) {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -39,16 +41,6 @@ function isYesterday(lastDateStr, todayStr) {
   return diff === 1;
 }
 
-function computeRewardTier(weeklyDays) {
-  let best = null;
-  for (const r of REWARD_TIERS) {
-    if (weeklyDays >= r.days) {
-      best = r.tier;
-    }
-  }
-  return best;
-}
-
 async function checkAndRecordStreak(studentId) {
   const today = new Date().toISOString().slice(0, 10);
   const currentWeekKey = getWeekKey(new Date());
@@ -76,12 +68,13 @@ async function checkAndRecordStreak(studentId) {
     return formatResponse(record, weekDates, false);
   }
 
-  const nextTrophyCount = record.totalTrophies;
-
   if (isYesterday(record.lastLoginDate, today)) {
     record.currentStreak += 1;
   } else {
     record.currentStreak = 1;
+    record.weeklyDays = 0;
+    record.weeklyRewardTier = null;
+    record.loggedDates = [];
   }
 
   record.bestStreak = Math.max(record.bestStreak, record.currentStreak);
@@ -99,7 +92,7 @@ async function checkAndRecordStreak(studentId) {
     }
   }
 
-  const newTier = computeRewardTier(record.weeklyDays);
+  const newTier = computeRewardTierForDate(today);
   if (newTier === 'trophy' && record.weeklyRewardTier !== 'trophy') {
     record.totalTrophies = (record.totalTrophies || 0) + 1;
   }

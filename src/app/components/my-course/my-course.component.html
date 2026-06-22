@@ -25,6 +25,10 @@
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
           Subscription <strong>{{ userProfile.subscription }}</strong>
         </span>
+        <span class="mc-hero__pill" *ngIf="loginStreakData">
+          <span class="material-icons mc-hero__pill-icon mc-hero__pill-icon--fire" aria-hidden="true">local_fire_department</span>
+          <strong>{{ loginStreakData.currentStreak }}</strong> day streak · <span class="material-icons mc-hero__pill-icon mc-hero__pill-icon--trophy" aria-hidden="true">emoji_events</span> <strong>{{ loginStreakData.totalTrophies }}</strong>
+        </span>
         <span *ngIf="showLanguageFeeDueCard" class="mc-hero__fee-card"
           [class.mc-hero__fee-card--green]="languageFeeBannerTone === 'green'"
           [class.mc-hero__fee-card--yellow]="languageFeeBannerTone === 'yellow'"
@@ -142,7 +146,11 @@
         </div>
       </div>
 
-      <div class="mc-side-card mc-side-card--streak" *ngIf="loginStreakData">
+      <div class="mc-side-card mc-side-card--streak" 
+           [class.mc-side-card--streak--bronze]="loginStreakData.weeklyRewardTier === 'bronze'"
+           [class.mc-side-card--streak--silver]="loginStreakData.weeklyRewardTier === 'silver'"
+           [class.mc-side-card--streak--gold]="loginStreakData.weeklyRewardTier === 'gold' || loginStreakData.weeklyRewardTier === 'trophy'"
+           *ngIf="loginStreakData">
         <p class="mc-side-card__eyebrow">Streak</p>
         <div class="sc-side-stats">
           <div class="sc-side-stat">
@@ -159,8 +167,12 @@
         <div class="sc-side-week">
           <div class="sc-side-day" *ngFor="let d of streakDayLabels; let i = index"
             [class.sc-side-day--filled]="isStreakDayFilled(i)"
-            [class.sc-side-day--today]="isStreakDayToday(i)">
-            <span class="sc-side-day__dot"></span>
+            [class.sc-side-day--today]="isStreakDayToday(i)"
+            [class.sc-side-day--mon-tue]="i === 0 || i === 1"
+            [class.sc-side-day--wed-thu]="i === 2 || i === 3"
+            [class.sc-side-day--fri-sat]="i === 4 || i === 5">
+            <span class="sc-side-day__dot" *ngIf="i < 6 || (i === 6 && !isStreakDayFilled(i))"></span>
+            <span class="sc-side-day__trophy" *ngIf="i === 6 && isStreakDayFilled(i)">🏆</span>
             <span class="sc-side-day__label">{{ d }}</span>
           </div>
         </div>
