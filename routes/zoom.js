@@ -3346,4 +3346,155 @@ router.post('/enforce-private-chat-off', verifyToken, checkRole(['ADMIN']), asyn
   }
 });
 
+/**
+ * POST /api/zoom/meeting/:id/recreate-zoom
+ *
+ * Recreates the Zoom meeting on Zoom's servers for a portal meeting whose
+ * original Zoom link has become invalid (error 3,001 — meeting deleted/expired).
+ *
+ * - Calls Zoom API to create a new meeting with the same topic/time/duration/host.
+ * - Silently attempts to delete the old Zoom meeting (no-op if already gone).
+ * - Updates the MeetingLink document (new IDs, URLs, password).
+ * - Updates the associated TimeTable slot if one is linked.
+ * - Only ADMIN / TEACHER_ADMIN may call this endpoint.
+ */
+router.post(
+  '/meeting/:id/recreate-zoom',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: 'Invalid meeting ID.' });
+      }
+
+      const meeting = await MeetingLink.findById(id).lean();
+      if (!meeting) {
+        return res.status(404).json({ success: false, message: 'Meeting not found.' });
+      }
+
+      if (!meeting.hostEmail) {
+        return res
+          .status(422)
+          .json({ success: false, message: 'Meeting has no Zoom host email — cannot recreate.' });
+      }
+
+      // ── 1. Attempt to delete the stale Zoom meeting (best-effort) ────────────
+      if (meeting.zoomMeetingId) {
+        try {
+          await zoomService.deleteMeeting(meeting.zoomMeetingId, meeting.hostEmail);
+        } catch (_ignoreErr) {
+          // Already gone — that's fine
+        }
+      }
+
+      // ── 2. Create a fresh Zoom meeting with the same details ─────────────────
+      // Zoom expects start time in "YYYY-MM-DDTHH:mm:ss" local time for the given TZ
+      const tz = meeting.timezone || 'Asia/Kolkata';
+      const startDate = new Date(meeting.startTime);
+      const pad = (n) => String(n).padStart(2, '0');
+      // Format as a local datetime string that Zoom accepts
+      const localParts = startDate
+        .toLocaleString('en-CA', { timeZone: tz, hour12: false })
+        .replace(',', '')
+        .split(' ');
+      // en-CA gives "YYYY-MM-DD HH:mm:ss"
+      const slotStartTime = localParts[0] + 'T' + (localParts[1] || '00:00').slice(0, 5); // YYYY-MM-DDTHH:mm
+
+      const zoomResult = await zoomService.createMeeting(
+        {
+          topic: meeting.topic,
+          startTime: slotStartTime,
+          duration: meeting.duration || 60,
+          timezone: tz,
+          agenda: meeting.agenda || `German Language Class - Batch ${meeting.batch}`,
+        },
+        meeting.hostEmail
+      );
+
+      if (!zoomResult.success) {
+        return res.status(502).json({
+          success: false,
+          message: 'Zoom API failed to create a new meeting. Please try again.',
+        });
+      }
+
+      const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
+      const raw = zoomResult.meeting;
+      const newPwd =
+        String(raw.password || '').trim() ||
+        extractZoomPwdFromJoinUrl(raw.joinUrl) ||
+        '';
+
+      // ── 3. Persist updated Zoom data to MeetingLink ──────────────────────────
+      const updatedMeeting = await MeetingLink.findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            zoomMeetingId: String(raw.id),
+            zoomMeetingUuid: raw.uuid ? String(raw.uuid) : undefined,
+            zoomPassword: newPwd,
+            joinUrl: raw.joinUrl,
+            startUrl: raw.startUrl,
+            link: raw.joinUrl,
+            // Reset attendee join URLs to the new Zoom URL
+            'attendees.$[].joinUrl': raw.joinUrl,
+          },
+        },
+        { new: true }
+      ).lean();
+
+      // ── 4. Re-link the TimeTable slot with the new Zoom data ─────────────────
+      try {
+        const TimeTable = require('../models/TimeTable');
+        const meetingDate = new Date(meeting.startTime);
+        const dayOfWeek = meetingDate
+          .toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' })
+          .toLowerCase();
+
+        const timetable = await TimeTable.findOne({
+          batch: meeting.batch,
+          weekStartDate: { $lte: meetingDate },
+          weekEndDate: { $gte: meetingDate },
+        });
+
+        if (timetable) {
+          const daySlots = timetable[dayOfWeek];
+          if (Array.isArray(daySlots)) {
+            const slotIndex = daySlots.findIndex(
+              (s) => s.zoomMeetingId === meeting.zoomMeetingId
+            );
+            if (slotIndex !== -1) {
+              timetable[dayOfWeek][slotIndex].zoomMeetingId = String(raw.id);
+              timetable[dayOfWeek][slotIndex].zoomJoinUrl = raw.joinUrl;
+              timetable[dayOfWeek][slotIndex].zoomPassword = newPwd;
+              timetable[dayOfWeek][slotIndex].meetingLinked = true;
+              await timetable.save();
+              console.log(`[Recreate Zoom] Timetable slot updated for batch ${meeting.batch} on ${dayOfWeek}`);
+            }
+          }
+        }
+      } catch (ttErr) {
+        console.error('[Recreate Zoom] Timetable update failed (non-critical):', ttErr.message);
+      }
+
+      console.log(
+        `[Recreate Zoom] Meeting ${id} recreated: old Zoom ID ${meeting.zoomMeetingId} → new ${raw.id}`
+      );
+
+      return res.json({
+        success: true,
+        message: 'Zoom meeting recreated successfully.',
+        meeting: updatedMeeting,
+        newZoomMeetingId: String(raw.id),
+      });
+    } catch (error) {
+      console.error('[Recreate Zoom] Error:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
 module.exports = router;

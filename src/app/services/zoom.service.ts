@@ -234,6 +234,16 @@ export class ZoomService {
   }
 
   /**
+   * Recreate a broken Zoom meeting (error 3,001 / invalid link).
+   * Creates a fresh Zoom meeting on Zoom's servers and updates the portal record.
+   */
+  recreateMeeting(meetingId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/recreate-zoom`, {}, {
+      withCredentials: true
+    });
+  }
+
+  /**
    * Get meeting participants (for attendance)
    */
   getMeetingParticipants(zoomMeetingId: string): Observable<any> {
