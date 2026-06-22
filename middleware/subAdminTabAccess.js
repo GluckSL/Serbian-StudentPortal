@@ -1,10 +1,12 @@
 const User = require('../models/User');
-const { subAdminHasTabAccess } = require('../services/subAdminPermissions');
+const { subAdminHasTabAccess, teacherHasTabAccess } = require('../services/subAdminPermissions');
 
 const ADMIN_STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN'];
 
 /**
- * ADMIN / TEACHER_ADMIN pass through; SUB_ADMIN requires sidebar tab access.
+ * ADMIN / TEACHER_ADMIN pass through unconditionally.
+ * SUB_ADMIN requires sidebar tab access.
+ * TEACHER requires the tab to be assigned via teacherTabPermissions / teacherTabAccessLevels.
  */
 function requireAdminOrSubAdminTab(tabId, requiredLevel = 'view') {
   return async (req, res, next) => {
@@ -17,16 +19,26 @@ function requireAdminOrSubAdminTab(tabId, requiredLevel = 'view') {
       return next();
     }
 
-    if (role !== 'SUB_ADMIN') {
+    if (role !== 'SUB_ADMIN' && role !== 'TEACHER') {
       return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
     }
 
     try {
-      const user = await User.findById(req.user.id)
-        .select('role sidebarPermissions sidebarAccessLevels')
-        .lean();
-      if (subAdminHasTabAccess(user, tabId, requiredLevel)) {
-        return next();
+      if (role === 'SUB_ADMIN') {
+        const user = await User.findById(req.user.id)
+          .select('role sidebarPermissions sidebarAccessLevels')
+          .lean();
+        if (subAdminHasTabAccess(user, tabId, requiredLevel)) {
+          return next();
+        }
+      } else {
+        // TEACHER — check assigned admin tab permissions
+        const user = await User.findById(req.user.id)
+          .select('role teacherTabPermissions teacherTabAccessLevels')
+          .lean();
+        if (teacherHasTabAccess(user, tabId, requiredLevel)) {
+          return next();
+        }
       }
     } catch (err) {
       console.error('[subAdminTabAccess]', tabId, err);

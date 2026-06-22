@@ -7,12 +7,13 @@ import { CommonModule } from '@angular/common';
 import { filter } from 'rxjs/operators';
 import { AuthService } from './services/auth.service';
 import { SupportFabComponent } from './components/support-fab/support-fab.component';
+import { WelcomeBackOverlayComponent } from './components/welcome-back-overlay/welcome-back-overlay.component';
 import { PortalTrackingService } from './services/portal-tracking.service';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, FooterComponent, SidebarComponent, RouterModule, CommonModule, SupportFabComponent],
+  imports: [RouterOutlet, FooterComponent, SidebarComponent, RouterModule, CommonModule, SupportFabComponent, WelcomeBackOverlayComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })

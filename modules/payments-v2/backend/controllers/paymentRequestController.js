@@ -1102,10 +1102,15 @@ function detectLevelFromPaymentRequest(req) {
 // ─── Batch payment summary (aggregated — no per-student payload) ─────────────
 const getBatchPaymentSummary = async (req, res) => {
   try {
-    const { batch, level, studentStatus, cohort, subscription } = req.query;
+    const { batch, level, studentStatus, cohort, subscription, batches } = req.query;
     const batchFilters = parseHubFilters(req.query);
+    const batchList = String(batches || '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
     const data = await aggregateBatchPaymentInsights({
       batch: batch && String(batch).trim() ? String(batch).trim() : undefined,
+      batches: batchList.length ? batchList : undefined,
       level: level && String(level).trim() ? String(level).trim() : undefined,
       studentStatus: studentStatus && String(studentStatus).trim() ? String(studentStatus).trim() : undefined,
       cohort: cohort && String(cohort).trim() ? String(cohort).trim() : undefined,

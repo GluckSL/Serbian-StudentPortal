@@ -242,8 +242,8 @@ async function renameBatchAcrossSystem(oldName, newName) {
   };
 }
 
-async function checkDayCompletion(studentId, batchNameOrNames, day) {
-  return computeJourneyDayCompletion(studentId, batchNameOrNames, day);
+async function checkDayCompletion(studentId, batchNameOrNames, day, options = {}) {
+  return computeJourneyDayCompletion(studentId, batchNameOrNames, day, options);
 }
 
 // ─── GET /api/batch-journey ─────────────────────────────────────────────────
@@ -978,13 +978,17 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
 
     const day = resolveCourseDay(student.currentCourseDay, studentTrial);
     const batchKeys = allStudentBatchStringsForContent(student);
-    const result = await checkDayCompletion(student._id, batchKeys, day);
     const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
     const cfgBatch = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
     const batchCfg =
       cfgBatch
         ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(cfgBatch)}$`, 'i') }).lean()
         : null;
+    const result = await checkDayCompletion(student._id, batchKeys, day, {
+      includeDg: batchCfg?.batchType === 'new',
+      goStatus: student.goStatus,
+      subscription: student.subscription
+    });
     const strictJourneyRule = !!(batchCfg && batchCfg.strictJourneyRule);
     const strictJourneyThresholdPercent =
       batchCfg && batchCfg.strictJourneyThresholdPercent != null
@@ -1032,7 +1036,12 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
       return res.json({ advanced: false, message: 'Student has already completed the journey.', currentDay });
     }
 
-    const completion = await checkDayCompletion(student._id, batchKeys, currentDay);
+    const completion = await checkDayCompletion(student._id, batchKeys, currentDay, {
+      includeDg: cfg.batchType === 'new',
+      goStatus: student.goStatus,
+      subscription: student.subscription,
+      studentLevel: student.level
+    });
 
     if (!force) {
       if (cfg.strictJourneyRule && !meetsStrictThreshold(completion, cfg)) {

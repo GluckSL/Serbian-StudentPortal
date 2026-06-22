@@ -18,28 +18,31 @@ import { ZoomService } from '../../services/zoom.service';
   template: `
     <div class="attendance-container">
       <!-- Header -->
-      <mat-card class="header-card">
-        <div class="header-content">
-          <button mat-icon-button (click)="goBack()">
+      <div class="page-header">
+        <div class="page-header__left">
+          <button mat-icon-button class="back-btn" (click)="goBack()" aria-label="Go back">
             <mat-icon>arrow_back</mat-icon>
           </button>
-          <h2>Meeting Attendance Report</h2>
+          <div>
+            <h2 class="page-header__title">Meeting Attendance Report</h2>
+            <p class="page-header__sub">Class session analytics &amp; participant mapping</p>
+          </div>
         </div>
-      </mat-card>
+      </div>
 
       <!-- Loading State -->
       <div *ngIf="loading" class="loading-container">
-        <mat-spinner></mat-spinner>
-        <p>Loading attendance data...</p>
+        <div class="loading-spinner"></div>
+        <p class="loading-title">Loading attendance data...</p>
         <p class="hint">This may take a few moments if the meeting just ended.</p>
       </div>
 
       <!-- Error State -->
-      <mat-card *ngIf="error && !loading" class="error-card">
-        <mat-icon color="warn">error</mat-icon>
+      <div *ngIf="error && !loading" class="error-card">
+        <mat-icon class="error-icon">error_outline</mat-icon>
         <h3>{{ error }}</h3>
         <p *ngIf="error.includes('not yet available')">
-          Zoom typically takes 5-10 minutes to process meeting data after it ends. 
+          Zoom typically takes 5-10 minutes to process meeting data after it ends.
           Please wait a few minutes and try again.
         </p>
         <div class="error-actions">
@@ -52,60 +55,74 @@ import { ZoomService } from '../../services/zoom.service';
             Back
           </button>
         </div>
-      </mat-card>
+      </div>
 
       <!-- Attendance Data -->
       <div *ngIf="attendanceData && !loading && !error">
         <!-- Meeting Info -->
-        <mat-card class="meeting-info-card">
+        <div class="meeting-info-card">
           <div class="meeting-info-header">
-            <h3>{{ attendanceData.topic }}</h3>
-            <button mat-stroked-button color="primary" (click)="refetchAttendance()" [disabled]="refetching || loading">
+            <div class="meeting-info-title">
+              <span class="meeting-badge">Class Session</span>
+              <h3>{{ attendanceData.topic }}</h3>
+            </div>
+            <button class="refetch-btn" (click)="refetchAttendance()" [disabled]="refetching || loading">
               <mat-icon>{{ refetching ? 'hourglass_empty' : 'refresh' }}</mat-icon>
               {{ refetching ? 'Re-fetching...' : 'Re-fetch from Zoom' }}
             </button>
           </div>
           <div class="meeting-details">
-            <div class="detail-item">
+            <div class="detail-chip">
               <mat-icon>event</mat-icon>
               <span>{{ formatDate(attendanceData.startTime) }}</span>
             </div>
-            <div class="detail-item">
+            <div class="detail-chip">
               <mat-icon>schedule</mat-icon>
               <span>{{ attendanceData.duration }} minutes</span>
             </div>
-            <div class="detail-item">
+            <div class="detail-chip">
               <mat-icon>tag</mat-icon>
-              <span>Meeting ID: {{ attendanceData.zoomMeetingId }}</span>
+              <span>ID {{ attendanceData.zoomMeetingId }}</span>
             </div>
           </div>
-        </mat-card>
+        </div>
 
         <!-- Summary Cards -->
         <div class="summary-grid">
-          <mat-card class="summary-card">
-            <mat-icon class="icon-success">check_circle</mat-icon>
-            <h3>{{ attendanceData.attendedCount }}</h3>
-            <p>Attended</p>
-          </mat-card>
+          <div class="stat-card stat-card--green">
+            <div class="stat-card__icon"><mat-icon>check_circle</mat-icon></div>
+            <div class="stat-card__body">
+              <div class="stat-card__val">{{ attendanceData.attendedCount }}</div>
+              <div class="stat-card__lbl">Attended</div>
+            </div>
+          </div>
 
-          <mat-card class="summary-card">
-            <mat-icon class="icon-warn">cancel</mat-icon>
-            <h3>{{ attendanceData.absentCount }}</h3>
-            <p>Absent</p>
-          </mat-card>
+          <div class="stat-card stat-card--red">
+            <div class="stat-card__icon"><mat-icon>cancel</mat-icon></div>
+            <div class="stat-card__body">
+              <div class="stat-card__val">{{ attendanceData.absentCount }}</div>
+              <div class="stat-card__lbl">Absent</div>
+            </div>
+          </div>
 
-          <mat-card class="summary-card">
-            <mat-icon class="icon-info">people</mat-icon>
-            <h3>{{ attendanceData.totalStudents }}</h3>
-            <p>Total Students</p>
-          </mat-card>
+          <div class="stat-card stat-card--blue">
+            <div class="stat-card__icon"><mat-icon>groups</mat-icon></div>
+            <div class="stat-card__body">
+              <div class="stat-card__val">{{ attendanceData.totalStudents }}</div>
+              <div class="stat-card__lbl">Total Students</div>
+            </div>
+          </div>
 
-          <mat-card class="summary-card">
-            <mat-icon class="icon-primary">percent</mat-icon>
-            <h3>{{ getAttendanceRate() }}%</h3>
-            <p>Attendance Rate</p>
-          </mat-card>
+          <div class="stat-card"
+               [class.stat-card--green]="getAttendanceRate() >= 75"
+               [class.stat-card--amber]="getAttendanceRate() >= 50 && getAttendanceRate() < 75"
+               [class.stat-card--red]="getAttendanceRate() < 50">
+            <div class="stat-card__icon"><mat-icon>trending_up</mat-icon></div>
+            <div class="stat-card__body">
+              <div class="stat-card__val">{{ getAttendanceRate() }}%</div>
+              <div class="stat-card__lbl">Attendance Rate</div>
+            </div>
+          </div>
         </div>
 
         <div *ngIf="mapMessage" class="map-message" [class.map-success]="mapSuccess" [class.map-error]="!mapSuccess">
@@ -125,41 +142,51 @@ import { ZoomService } from '../../services/zoom.service';
             </ng-template>
 
             <!-- Matching Statistics -->
-            <mat-card class="stats-card" *ngIf="attendanceData.matchingStats">
-              <h3>Matching Quality</h3>
+            <div class="stats-card" *ngIf="attendanceData.matchingStats">
+              <div class="section-head">
+                <h3>Matching Quality</h3>
+                <span class="section-head__hint">How students were linked to Zoom participants</span>
+              </div>
               <div class="matching-stats">
-                <div class="stat-item">
-                  <mat-icon class="icon-success">email</mat-icon>
-                  <span>{{ attendanceData.matchingStats.emailMatches }} Email Matches</span>
+                <div class="match-pill match-pill--green">
+                  <mat-icon>email</mat-icon>
+                  <span class="match-pill__val">{{ attendanceData.matchingStats.emailMatches }}</span>
+                  <span class="match-pill__lbl">Email Matches</span>
                 </div>
-                <div class="stat-item">
-                  <mat-icon class="icon-info">person</mat-icon>
-                  <span>{{ attendanceData.matchingStats.exactNameMatches }} Exact Name</span>
+                <div class="match-pill match-pill--blue">
+                  <mat-icon>person</mat-icon>
+                  <span class="match-pill__val">{{ attendanceData.matchingStats.exactNameMatches }}</span>
+                  <span class="match-pill__lbl">Exact Name</span>
                 </div>
-                <div class="stat-item">
-                  <mat-icon class="icon-warn">person_outline</mat-icon>
-                  <span>{{ attendanceData.matchingStats.partialNameMatches }} Partial Name</span>
+                <div class="match-pill match-pill--amber">
+                  <mat-icon>person_outline</mat-icon>
+                  <span class="match-pill__val">{{ attendanceData.matchingStats.partialNameMatches }}</span>
+                  <span class="match-pill__lbl">Partial Name</span>
                 </div>
-                <div class="stat-item" *ngIf="attendanceData.matchingStats.manualReviewRequired > 0">
-                  <mat-icon class="icon-error">warning</mat-icon>
-                  <span>{{ attendanceData.matchingStats.manualReviewRequired }} Need Review</span>
+                <div class="match-pill match-pill--red" *ngIf="attendanceData.matchingStats.manualReviewRequired > 0">
+                  <mat-icon>warning</mat-icon>
+                  <span class="match-pill__val">{{ attendanceData.matchingStats.manualReviewRequired }}</span>
+                  <span class="match-pill__lbl">Need Review</span>
                 </div>
               </div>
-            </mat-card>
+            </div>
 
             <!-- Attendance Table -->
-            <mat-card class="table-card">
+            <div class="table-card">
               <div class="attendance-header-row">
-                <h3>Detailed Attendance</h3>
+                <div>
+                  <h3>Detailed Attendance</h3>
+                  <p class="section-head__hint">Per-student status, match quality, and manual overrides</p>
+                </div>
                 <button
-                  mat-stroked-button
-                  color="primary"
+                  class="action-btn action-btn--outline"
                   (click)="markAllStudentsAttended()"
                   [disabled]="manualMarkingAll || !hasAbsentStudents()">
                   <mat-icon>{{ manualMarkingAll ? 'hourglass_empty' : 'done_all' }}</mat-icon>
                   {{ manualMarkingAll ? 'Marking...' : 'Mark All' }}
                 </button>
               </div>
+              <div class="table-wrap">
               <table mat-table [dataSource]="attendanceData.attendance" class="attendance-table">
                 <ng-container matColumnDef="name">
                   <th mat-header-cell *matHeaderCellDef>Student Name</th>
@@ -256,9 +283,10 @@ import { ZoomService } from '../../services/zoom.service';
                 </ng-container>
 
                 <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="data-row"></tr>
               </table>
-            </mat-card>
+              </div>
+            </div>
           </mat-tab>
 
           <!-- TAB 2: Portal join clicks (informational) -->
@@ -268,7 +296,7 @@ import { ZoomService } from '../../services/zoom.service';
               Portal Join Clicks ({{ getPortalJoinCount() }})
             </ng-template>
 
-            <mat-card class="table-card">
+            <div class="table-card">
               <div class="all-participants-header">
                 <h3>Portal Join Clicks</h3>
                 <p class="subtitle">
@@ -277,14 +305,15 @@ import { ZoomService } from '../../services/zoom.service';
                   All Zoom Participants to spot students who clicked but did not reach Zoom.
                 </p>
               </div>
-              <p class="portal-join-hint" *ngIf="getPortalJoinCount() === 0">
-                No portal join clicks recorded for this meeting yet.
-              </p>
+              <div class="empty-hint" *ngIf="getPortalJoinCount() === 0">
+                <mat-icon>touch_app</mat-icon>
+                <p>No portal join clicks recorded for this meeting yet.</p>
+              </div>
+              <div class="table-wrap" *ngIf="getPortalJoinCount() > 0">
               <table
                 mat-table
                 [dataSource]="attendanceData.portalJoins || []"
-                class="attendance-table"
-                *ngIf="getPortalJoinCount() > 0">
+                class="attendance-table">
                 <ng-container matColumnDef="pjName">
                   <th mat-header-cell *matHeaderCellDef>Student Name</th>
                   <td mat-cell *matCellDef="let j">{{ j.name }}</td>
@@ -318,9 +347,10 @@ import { ZoomService } from '../../services/zoom.service';
                 </ng-container>
 
                 <tr mat-header-row *matHeaderRowDef="portalJoinColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: portalJoinColumns;"></tr>
+                <tr mat-row *matRowDef="let row; columns: portalJoinColumns;" class="data-row"></tr>
               </table>
-            </mat-card>
+              </div>
+            </div>
           </mat-tab>
 
           <!-- TAB 3: All Zoom Participants -->
@@ -330,7 +360,7 @@ import { ZoomService } from '../../services/zoom.service';
               All Zoom Participants ({{ uniqueZoomParticipantCount }})
             </ng-template>
 
-            <mat-card class="table-card">
+            <div class="table-card">
               <div class="all-participants-header">
                 <h3>All Zoom Participants</h3>
                 <div class="participants-stats-bar">
@@ -352,6 +382,7 @@ import { ZoomService } from '../../services/zoom.service';
                 </p>
               </div>
 
+              <div class="table-wrap">
               <table mat-table [dataSource]="attendanceData.allParticipants" class="attendance-table">
                 <ng-container matColumnDef="pName">
                   <th mat-header-cell *matHeaderCellDef>Zoom Display Name</th>
@@ -448,24 +479,25 @@ import { ZoomService } from '../../services/zoom.service';
                 </ng-container>
 
                 <tr mat-header-row *matHeaderRowDef="participantColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: participantColumns;"></tr>
+                <tr mat-row *matRowDef="let row; columns: participantColumns;" class="data-row"></tr>
               </table>
-            </mat-card>
+              </div>
+            </div>
           </mat-tab>
         </mat-tab-group>
 
         <!-- Actions -->
-        <div class="actions">
-          <button mat-raised-button color="primary" (click)="exportToCSV()">
+        <div class="actions-bar">
+          <button class="action-btn action-btn--primary" (click)="exportToCSV()">
             <mat-icon>download</mat-icon>
             Export CSV
           </button>
-          <button mat-raised-button color="accent" (click)="reviewAttendance()" 
+          <button class="action-btn action-btn--amber" (click)="reviewAttendance()"
                   *ngIf="hasItemsNeedingReview()">
             <mat-icon>rate_review</mat-icon>
             Review Matches ({{ getReviewCount() }})
           </button>
-          <button mat-stroked-button (click)="goBack()">
+          <button class="action-btn action-btn--ghost" (click)="goBack()">
             <mat-icon>arrow_back</mat-icon>
             Back to Meeting
           </button>
@@ -474,188 +506,546 @@ import { ZoomService } from '../../services/zoom.service';
     </div>
   `,
   styles: [`
+    :host {
+      display: block;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
     .attendance-container {
-      padding: 20px;
+      padding: 16px;
       max-width: 1400px;
       margin: 0 auto;
     }
 
-    .header-card {
-      margin-bottom: 20px;
-    }
-
-    .header-content {
+    /* ── Page Header ── */
+    .page-header {
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #b3cde0 0%, #c5d9ea 100%);
+      padding: 14px 18px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(1, 31, 75, 0.08);
     }
 
-    .header-content h2 {
+    .page-header__left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .back-btn {
+      color: #011f4b !important;
+    }
+
+    .page-header__title {
       margin: 0;
-      flex: 1;
+      font-size: 20px;
+      font-weight: 700;
+      color: #011f4b;
     }
 
+    .page-header__sub {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: #011f4b;
+      opacity: 0.65;
+    }
+
+    /* ── Loading ── */
     .loading-container {
-      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       padding: 60px 20px;
+      gap: 12px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
 
-    .loading-container mat-spinner {
-      margin: 0 auto 20px;
+    .loading-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #005b96;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #334155;
     }
 
     .hint {
-      color: #666;
-      font-size: 14px;
-      margin-top: 10px;
+      color: #64748b;
+      font-size: 13px;
+      margin: 0;
     }
 
+    /* ── Error ── */
     .error-card {
       text-align: center;
-      padding: 40px;
+      padding: 40px 24px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #fecaca;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
 
-    .error-card mat-icon {
+    .error-icon {
       font-size: 48px;
       width: 48px;
       height: 48px;
-      margin-bottom: 20px;
+      color: #dc2626;
+      margin-bottom: 12px;
+    }
+
+    .error-card h3 {
+      margin: 0 0 8px;
+      color: #0f172a;
+      font-size: 16px;
+    }
+
+    .error-card p {
+      color: #64748b;
+      font-size: 13px;
+      margin: 0 0 16px;
     }
 
     .error-actions {
       display: flex;
       gap: 10px;
       justify-content: center;
-      margin-top: 20px;
+      flex-wrap: wrap;
     }
 
+    /* ── Meeting Info ── */
     .meeting-info-card {
-      margin-bottom: 20px;
-      padding: 20px;
-    }
-
-    .meeting-info-card h3 {
-      margin: 0 0 15px 0;
-      color: #1976d2;
+      margin-bottom: 16px;
+      padding: 20px 22px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      border-left: 4px solid #005b96;
     }
 
     .meeting-info-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      gap: 12px;
+      align-items: flex-start;
+      gap: 16px;
       flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .meeting-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: #dbeafe;
+      color: #1d4ed8;
+      margin-bottom: 6px;
+    }
+
+    .meeting-info-title h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.3;
+    }
+
+    .refetch-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .refetch-btn:hover:not(:disabled) {
+      background: #dbeafe;
+      border-color: #93c5fd;
+    }
+
+    .refetch-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .refetch-btn mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
     }
 
     .meeting-details {
       display: flex;
-      gap: 30px;
+      gap: 10px;
       flex-wrap: wrap;
     }
 
-    .detail-item {
+    .detail-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .detail-chip mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: #64748b;
+    }
+
+    /* ── Summary Stat Cards ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 16px;
+      border-radius: 14px;
+      border: 1px solid #e8ecf4;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .stat-card__icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .stat-card__icon mat-icon {
+      font-size: 24px;
+      width: 24px;
+      height: 24px;
+    }
+
+    .stat-card__val {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-card__lbl {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+
+    .stat-card--green  { border-color: #bbf7d0; background: linear-gradient(135deg, #f0fdf4, #fff); }
+    .stat-card--green  .stat-card__icon { background: #dcfce7; color: #16a34a; }
+    .stat-card--green  .stat-card__val  { color: #16a34a; }
+
+    .stat-card--red    { border-color: #fecaca; background: linear-gradient(135deg, #fef2f2, #fff); }
+    .stat-card--red    .stat-card__icon { background: #fee2e2; color: #dc2626; }
+    .stat-card--red    .stat-card__val  { color: #dc2626; }
+
+    .stat-card--blue   { border-color: #bfdbfe; background: linear-gradient(135deg, #eff6ff, #fff); }
+    .stat-card--blue   .stat-card__icon { background: #dbeafe; color: #1d4ed8; }
+    .stat-card--blue   .stat-card__val  { color: #1d4ed8; }
+
+    .stat-card--amber  { border-color: #fde68a; background: linear-gradient(135deg, #fffbeb, #fff); }
+    .stat-card--amber  .stat-card__icon { background: #fef3c7; color: #b45309; }
+    .stat-card--amber  .stat-card__val  { color: #b45309; }
+
+    /* ── Map Message ── */
+    .map-message {
       display: flex;
       align-items: center;
       gap: 8px;
-      color: #666;
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      font-weight: 500;
     }
 
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin-bottom: 20px;
+    .map-success {
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
     }
 
-    .summary-card {
-      text-align: center;
-      padding: 30px 20px;
+    .map-error {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
     }
 
-    .summary-card mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      margin-bottom: 10px;
-    }
+    .map-message button { margin-left: auto; }
 
-    .icon-success { color: #4caf50; }
-    .icon-warn { color: #f44336; }
-    .icon-info { color: #2196f3; }
-    .icon-primary { color: #1976d2; }
-
-    .summary-card h3 {
-      margin: 10px 0 5px 0;
-      font-size: 32px;
-      font-weight: bold;
-    }
-
-    .summary-card p {
-      margin: 0;
-      color: #666;
-    }
-
+    /* ── Tabs ── */
     .attendance-tabs {
-      margin-bottom: 20px;
+      margin-bottom: 16px;
+    }
+
+    :host ::ng-deep .attendance-tabs .mat-mdc-tab-header {
+      background: #fff;
+      border-radius: 14px 14px 0 0;
+      border: 1px solid #e8ecf4;
+      border-bottom: none;
+      padding: 0 8px;
+    }
+
+    :host ::ng-deep .attendance-tabs .mat-mdc-tab-body-wrapper {
+      background: transparent;
     }
 
     .tab-icon {
       margin-right: 6px;
-      font-size: 20px;
-      height: 20px;
-      width: 20px;
+      font-size: 18px;
+      height: 18px;
+      width: 18px;
     }
 
-    .table-card {
-      padding: 20px;
-      margin-bottom: 20px;
+    /* ── Section Cards ── */
+    .stats-card, .table-card {
+      padding: 18px 20px;
       margin-top: 16px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
 
-    .table-card h3 {
-      margin: 0 0 20px 0;
+    .section-head {
+      margin-bottom: 14px;
     }
 
+    .section-head h3, .table-card h3, .all-participants-header h3 {
+      margin: 0 0 2px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .section-head__hint {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    /* ── Matching Pills ── */
+    .matching-stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .match-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+
+    .match-pill mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .match-pill__val {
+      font-size: 18px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .match-pill__lbl {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .match-pill--green { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .match-pill--blue  { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .match-pill--amber { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+    .match-pill--red   { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+
+    /* ── Table ── */
     .attendance-header-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       gap: 12px;
-      margin-bottom: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid #f1f5f9;
     }
 
     .attendance-table {
       width: 100%;
+      min-width: 900px;
     }
 
+    :host ::ng-deep .attendance-table .mat-mdc-header-row {
+      background: #03396c;
+    }
+
+    :host ::ng-deep .attendance-table .mat-mdc-header-cell {
+      color: #fff !important;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: none;
+    }
+
+    :host ::ng-deep .attendance-table .mat-mdc-cell {
+      font-size: 13px;
+      color: #334155;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    :host ::ng-deep .attendance-table .data-row:hover {
+      background: #f8fafc;
+    }
+
+    /* ── Status Chips ── */
     .status-attended {
-      background-color: #e8f5e9;
-      color: #2e7d32;
+      background-color: #dcfce7 !important;
+      color: #166534 !important;
+      font-weight: 600;
+      font-size: 12px;
     }
 
     .status-absent {
-      background-color: #ffebee;
-      color: #c62828;
+      background-color: #fee2e2 !important;
+      color: #991b1b !important;
+      font-weight: 600;
+      font-size: 12px;
     }
 
     .chip-unmapped {
-      background-color: #fff3e0;
-      color: #e65100;
+      background-color: #fef3c7 !important;
+      color: #b45309 !important;
+      font-weight: 600;
+      font-size: 12px;
     }
 
+    mat-chip mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-right: 4px;
+    }
+
+    .warning-icon {
+      margin-left: 4px !important;
+      margin-right: 0 !important;
+      color: #f59e0b;
+    }
+
+    /* ── Confidence ── */
+    .confidence-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .confidence-high     { background-color: #dcfce7 !important; color: #166534 !important; }
+    .confidence-medium   { background-color: #fef3c7 !important; color: #b45309 !important; }
+    .confidence-low      { background-color: #fff7ed !important; color: #c2410c !important; }
+    .confidence-very-low { background-color: #fee2e2 !important; color: #991b1b !important; }
+
+    .match-method {
+      font-size: 11px;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    .name-comparison {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .zoom-name { font-weight: 600; color: #0f172a; }
+
+    .name-diff-icon {
+      color: #3b82f6;
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .no-match, .no-data {
+      color: #cbd5e1;
+      font-style: italic;
+    }
+
+    /* ── Participant Stats ── */
     .participants-stats-bar {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 10px;
+      margin: 8px 0 10px;
     }
 
     .stat-badge {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 3px 10px;
-      border-radius: 14px;
+      padding: 4px 12px;
+      border-radius: 999px;
       font-size: 12px;
       font-weight: 600;
     }
@@ -666,138 +1056,48 @@ import { ZoomService } from '../../services/zoom.service';
       height: 14px;
     }
 
-    .stat-unique {
-      background: #e3f2fd;
-      color: #1565c0;
-    }
-
-    .stat-raw {
-      background: #f3e5f5;
-      color: #6a1b9a;
-    }
-
-    .stat-reconnects {
-      background: #fff3e0;
-      color: #e65100;
-    }
+    .stat-unique     { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .stat-raw        { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+    .stat-reconnects { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
 
     .session-badge {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: #fff3e0;
-      color: #e65100;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: #fffbeb;
+      color: #b45309;
       font-size: 12px;
-      font-weight: 600;
-      cursor: default;
+      font-weight: 700;
+      border: 1px solid #fde68a;
     }
 
-    .single-session {
-      color: #9e9e9e;
+    .single-session { color: #94a3b8; font-size: 13px; }
+
+    .all-participants-header .subtitle {
+      color: #64748b;
       font-size: 13px;
+      margin: 0;
+      line-height: 1.5;
     }
 
-    mat-chip mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      margin-right: 5px;
-    }
-
-    .warning-icon {
-      margin-left: 5px !important;
-      margin-right: 0 !important;
-      color: #ff9800;
-    }
-
-    .stats-card {
-      padding: 20px;
-      margin-bottom: 20px;
-      margin-top: 16px;
-    }
-
-    .stats-card h3 {
-      margin: 0 0 15px 0;
-      color: #1976d2;
-    }
-
-    .matching-stats {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-    }
-
-    .stat-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: #f5f5f5;
-      border-radius: 6px;
-    }
-
-    .icon-error { color: #f44336; }
-
-    .confidence-cell {
+    .empty-hint {
       display: flex;
       flex-direction: column;
-      gap: 4px;
-    }
-
-    .confidence-high {
-      background-color: #e8f5e9;
-      color: #2e7d32;
-    }
-
-    .confidence-medium {
-      background-color: #fff3e0;
-      color: #e65100;
-    }
-
-    .confidence-low {
-      background-color: #fff8e1;
-      color: #f57c00;
-    }
-
-    .confidence-very-low {
-      background-color: #ffebee;
-      color: #c62828;
-    }
-
-    .match-method {
-      font-size: 11px;
-      color: #666;
-      font-style: italic;
-    }
-
-    .name-comparison {
-      display: flex;
       align-items: center;
-      gap: 5px;
+      padding: 40px 20px;
+      gap: 8px;
+      color: #94a3b8;
     }
 
-    .zoom-name {
-      font-weight: 500;
+    .empty-hint mat-icon {
+      font-size: 36px;
+      width: 36px;
+      height: 36px;
     }
 
-    .name-diff-icon {
-      color: #2196f3;
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
+    .empty-hint p { margin: 0; font-size: 13px; }
 
-    .no-match, .no-data {
-      color: #999;
-      font-style: italic;
-    }
-
-    .actions {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-    }
-
+    /* ── Duration Ring ── */
     .duration-cell {
       display: flex;
       align-items: center;
@@ -837,23 +1137,7 @@ import { ZoomService } from '../../services/zoom.service';
       color: #334155;
     }
 
-    .all-participants-header h3 {
-      margin: 0 0 4px 0;
-    }
-
-    .all-participants-header .subtitle {
-      color: #666;
-      font-size: 13px;
-      margin: 0 0 16px 0;
-    }
-
-    .portal-join-hint {
-      color: #666;
-      font-size: 14px;
-      margin: 0;
-      font-style: italic;
-    }
-
+    /* ── Map Form ── */
     .map-inline-form {
       display: flex;
       align-items: center;
@@ -865,32 +1149,82 @@ import { ZoomService } from '../../services/zoom.service';
       font-size: 13px;
     }
 
-    .map-input .mat-mdc-form-field-subscript-wrapper {
-      display: none;
-    }
+    .map-input .mat-mdc-form-field-subscript-wrapper { display: none; }
 
-    .map-message {
-      display: flex;
+    /* ── Action Buttons ── */
+    .action-btn {
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      font-size: 14px;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
     }
 
-    .map-success {
-      background: #e8f5e9;
-      color: #2e7d32;
+    .action-btn mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
     }
 
-    .map-error {
-      background: #ffebee;
-      color: #c62828;
+    .action-btn--primary {
+      background: #005b96;
+      color: #fff;
+    }
+    .action-btn--primary:hover { background: #03396c; }
+
+    .action-btn--outline {
+      background: #fff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+    .action-btn--outline:hover:not(:disabled) { background: #eff6ff; }
+    .action-btn--outline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .action-btn--amber {
+      background: #fef3c7;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .action-btn--amber:hover { background: #fde68a; }
+
+    .action-btn--ghost {
+      background: #fff;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    .action-btn--ghost:hover { background: #f8fafc; }
+
+    .actions-bar {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 20px;
+      margin-top: 8px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #e8ecf4;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
 
-    .map-message button {
-      margin-left: auto;
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 600px) {
+      .attendance-container { padding: 10px; }
+      .summary-grid { grid-template-columns: 1fr; }
+      .page-header__title { font-size: 16px; }
+      .stat-card__val { font-size: 22px; }
+      .meeting-info-header { flex-direction: column; }
+      .refetch-btn { width: 100%; justify-content: center; }
     }
   `]
 })

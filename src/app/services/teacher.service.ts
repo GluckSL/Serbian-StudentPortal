@@ -45,6 +45,20 @@ export class TeacherService {
     return this.http.get<any>(`${this.baseUrl}/${teacherId}`, { withCredentials: true });
   }
 
+  /** Live game monitor — who is playing the journey game during this class. */
+  getMeetingLiveGameMonitor(meetingId: string, gameSetId?: string): Observable<any> {
+    let url = `${this.baseUrl}/meetings/${meetingId}/live-game-monitor`;
+    if (gameSetId) url += `?gameSetId=${encodeURIComponent(gameSetId)}`;
+    return this.http.get<any>(url, { withCredentials: true });
+  }
 
+  /** @deprecated use getMeetingLiveGameMonitor */
+  getMeetingLiveParticipation(meetingId: string): Observable<any> {
+    return this.getMeetingLiveGameMonitor(meetingId);
+  }
 
+  /** Aggregated class analytics + arena engagement for this teacher. */
+  getClassAnalytics(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/class-analytics`, { withCredentials: true });
+  }
 }

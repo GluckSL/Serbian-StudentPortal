@@ -453,6 +453,8 @@ export interface BatchLevelSlotTotals {
 
 export interface BatchPaymentSummaryRow extends CurrencyPaidTotals {
   batch: string;
+  batchCurrentDay?: number | null;
+  batchType?: 'new' | 'old';
   studentCount: number;
   totalPaid: number;
   totalPendingLKR?: number;

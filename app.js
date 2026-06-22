@@ -133,10 +133,13 @@ const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
 const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
 const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
 const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
+const { schedulePortalAbsenceReminders } = require('./jobs/portalAbsenceReminder');
+const { scheduleConsecutiveAbsenceEmailReport } = require('./jobs/consecutiveAbsenceEmailReport');
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
 const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
 const { scheduleGluckRoomAutoStart } = require('./jobs/gluckRoomAutoStart');
+const { scheduleDailyStudentStatusReport } = require('./jobs/dailyStudentStatusReport');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
@@ -612,10 +615,13 @@ connectMongoDb()
       scheduleMissedActivitiesAlerts();
       scheduleWeeklyReports();
       scheduleConsecutiveAbsenceAlerts();
+      scheduleConsecutiveAbsenceEmailReport();
+      schedulePortalAbsenceReminders();
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
       scheduleGluckRoomAutoStart();
+      scheduleDailyStudentStatusReport();
 
       const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
       const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');

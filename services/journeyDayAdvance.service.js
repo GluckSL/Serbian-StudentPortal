@@ -407,7 +407,7 @@ async function applyJourneyDayRollovers() {
             ? silverGoCompletionOptions(s)
             : {
                 includeRecordings: false,
-                includeDg: false,
+                includeDg: cfg.batchType === 'new',
                 includeLearningModules: true,
                 studentLevel: s.level,
                 studentPlan: s.subscription,
