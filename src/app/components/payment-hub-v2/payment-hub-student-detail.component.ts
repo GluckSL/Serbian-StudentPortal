@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -613,6 +614,11 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   resetSlotPayments(slotKey: PaymentSlotKey): void {
     if (!this.history?.student?._id || !this.canResetSlot(slotKey)) return;
+    const requests = this.requestsForSlot(slotKey).filter((r) => r._id);
+    if (!requests.length) {
+      this.snack.open(`${slotKey} was already empty — nothing to reset`, 'OK', { duration: 4000 });
+      return;
+    }
     const label = this.paymentSlots.find((s) => s.key === slotKey)?.label || slotKey;
     const msg =
       `Reset all payments for ${label}?\n\n` +
@@ -620,24 +626,28 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     if (!window.confirm(msg)) return;
 
     this.resettingSlotKey = slotKey;
-    this.api
-      .resetPaymentSlot(this.history.student._id, {
-        slotKey,
-        reason: `Admin reset ${slotKey} payment slot`,
-      })
-      .subscribe({
-        next: (res) => {
-          this.resettingSlotKey = null;
-          if (this.activeMapSlot === slotKey) this.cancelMap();
-          if (this.activeFullPaidSlot === slotKey) this.cancelFullPaid();
-          this.snack.open(res.message || `${label} reset`, 'OK', { duration: 5000 });
-          this.load();
-        },
-        error: (e) => {
-          this.resettingSlotKey = null;
-          this.snack.open(e?.error?.message || 'Could not reset payments', 'Dismiss', { duration: 5000 });
-        },
-      });
+    forkJoin(
+      requests.map((req) =>
+        this.api.archiveRequest(req._id!, `Admin reset ${slotKey} payment slot`),
+      ),
+    ).subscribe({
+      next: () => {
+        this.resettingSlotKey = null;
+        if (this.activeMapSlot === slotKey) this.cancelMap();
+        if (this.activeFullPaidSlot === slotKey) this.cancelFullPaid();
+        this.snack.open(
+          `${label} payments cleared — paid and balance are now 0 (${requests.length} record${requests.length === 1 ? '' : 's'} archived)`,
+          'OK',
+          { duration: 5000 },
+        );
+        this.load();
+      },
+      error: (e) => {
+        this.resettingSlotKey = null;
+        this.snack.open(e?.error?.message || 'Could not reset payments', 'Dismiss', { duration: 5000 });
+        this.load();
+      },
+    });
   }
 
   /** Template handler — narrows level slot before opening full-paid form. */
