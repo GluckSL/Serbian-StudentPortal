@@ -1768,9 +1768,14 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           andClauses.push({ courseDay: -1 });
         }
       } else {
-        // General browse: unassigned or journey days in [minAssignedDay, current] (no Trial for Silver GO).
+        // A1 and A2 content is always visible to students; higher levels follow the journey day gate.
         const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
-        andClauses.push(studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay));
+        andClauses.push({
+          $or: [
+            { level: { $in: ['A1', 'A2'] } },
+            studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay)
+          ]
+        });
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
       appendNotBlockedToAndClauses(

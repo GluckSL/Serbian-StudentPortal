@@ -1094,7 +1094,7 @@ function detectLevelFromPaymentRequest(req) {
     .join(' ')
     .toUpperCase();
   for (const lv of CEFR_LEVELS) {
-    if (hay.includes(lv)) return lv;
+    if (new RegExp(`\\b${lv}\\b`).test(hay)) return lv;
   }
   return null;
 }

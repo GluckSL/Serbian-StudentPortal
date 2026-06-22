@@ -1245,19 +1245,31 @@ router.get('/admin/upload-history', verifyToken, checkRole(['ADMIN', 'TEACHER_AD
 // GET /api/class-recordings/batches — Get unique batch values for dropdown
 router.get('/batches', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    const students = await User.find({ role: 'STUDENT' })
-      .select('batch goStatus subscription')
-      .lean();
+    const [students, configBatchNames] = await Promise.all([
+      User.find({ role: 'STUDENT' })
+        .select('batch goStatus subscription')
+        .lean(),
+      BatchConfig.distinct('batchName', { batchName: { $ne: null, $ne: '' } })
+    ]);
 
     const seen = new Set();
     const batches = [];
+    const addBatch = (raw) => {
+      const label = String(raw || '').trim();
+      const normalized = label.toLowerCase();
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      batches.push(label);
+    };
+
     for (const student of students) {
       for (const batch of allStudentBatchStringsForContent(student)) {
-        const normalized = String(batch || '').trim().toLowerCase();
-        if (!normalized || seen.has(normalized)) continue;
-        seen.add(normalized);
-        batches.push(String(batch).trim());
+        addBatch(batch);
       }
+    }
+    // Include journey batches even when no students are assigned yet (same as batch-journey list).
+    for (const name of configBatchNames || []) {
+      addBatch(name);
     }
 
     const merged = mergePortalBatchNames(batches);

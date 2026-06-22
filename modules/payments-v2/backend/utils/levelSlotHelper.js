@@ -16,14 +16,14 @@ const normalizeLevel = (level) => {
   return null;
 };
 
-/** Detect A1–B2 from customType, remarks, or paymentType label (legacy imports). */
+/** Detect A1–B2 from customType / remarks (word-boundary match — avoids false hits in emails). */
 const detectLevelFromRequest = (req) => {
   const hay = [req?.customType, req?.remarks, req?.paymentType]
     .filter(Boolean)
     .join(' ')
     .toUpperCase();
   for (const lv of LANGUAGE_LEVELS) {
-    if (hay.includes(lv)) return lv;
+    if (new RegExp(`\\b${lv}\\b`).test(hay)) return lv;
   }
   return null;
 };
@@ -33,15 +33,48 @@ const slotForRequest = (req, studentLevel) => {
   const pt = String(req.paymentType || '').trim().toUpperCase();
   if (pt === 'DOCS_PAYMENT') return 'DOCS';
   if (pt === 'VISA_PAYMENT') return 'VISA';
-  const detected = detectLevelFromRequest(req);
   if (pt === 'CUSTOM_PAYMENT' || pt === 'CUSTOM') {
-    return detected || normalizeLevel(req.customType);
+    return normalizeLevel(req.customType) || detectLevelFromRequest(req);
   }
   if (pt === 'LANGUAGE_FEE') {
-    return detected || normalizeLevel(req.customType) || normalizeLevel(studentLevel);
+    return (
+      normalizeLevel(req.customType)
+      || normalizeLevel(studentLevel)
+      || detectLevelFromRequest(req)
+    );
   }
+  const detected = detectLevelFromRequest(req);
   if (detected) return detected;
   return null;
+};
+
+/**
+ * Requests to archive when resetting a slot — aligned with legacy map / Payment Hub cards.
+ * LANGUAGE_FEE without customType maps to the student's current level (not remark substring guesses).
+ */
+const collectRequestsForSlotReset = (requests, slot, studentLevel) => {
+  const slotUpper = String(slot || '').trim().toUpperCase();
+  const studentSlot = normalizeLevel(studentLevel);
+
+  return (requests || []).filter((req) => {
+    if (!req || req.isArchived) return false;
+    const pt = String(req.paymentType || '').trim().toUpperCase();
+
+    if (slotUpper === 'DOCS') return pt === 'DOCS_PAYMENT';
+    if (slotUpper === 'VISA') return pt === 'VISA_PAYMENT';
+
+    if (!LANGUAGE_LEVELS.includes(slotUpper)) return false;
+
+    if (pt === 'CUSTOM_PAYMENT' || pt === 'CUSTOM') {
+      return normalizeLevel(req.customType) === slotUpper;
+    }
+    if (pt === 'LANGUAGE_FEE') {
+      const customSlot = normalizeLevel(req.customType);
+      if (customSlot) return customSlot === slotUpper;
+      return studentSlot === slotUpper;
+    }
+    return slotForRequest(req, studentLevel) === slotUpper;
+  });
 };
 
 const filterRequestsForSlot = (requests, slot, studentLevel) => {
@@ -153,6 +186,7 @@ module.exports = {
   normalizeLevel,
   detectLevelFromRequest,
   slotForRequest,
+  collectRequestsForSlotReset,
   filterRequestsForSlot,
   filterSubmissionsForRequestIds,
   computeTotalsForLevelSlot,

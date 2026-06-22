@@ -14,7 +14,7 @@ const timelineService = require('./timelineService');
 const installmentService = require('./installmentService');
 const receiptService = require('./receiptService');
 const { computeLiveTotalsFromData } = require('../utils/currencyBreakdownHelper');
-const { slotForRequest } = require('../utils/levelSlotHelper');
+const { collectRequestsForSlotReset } = require('../utils/levelSlotHelper');
 
 const VALID_SLOT_KEYS = new Set(['A1', 'A2', 'B1', 'B2', 'DOCS', 'VISA']);
 
@@ -845,34 +845,40 @@ const bulkResetStudentPayments = async ({ studentIds, adminId, adminRole, reason
 
 // ─── Reset one payment mapping slot (A1 / A2 / Docs / Visa, etc.) ───────────
 
-const resetPaymentSlot = async ({ studentId, slotKey, adminId, adminRole, reason }) => {
+const resetPaymentSlot = async ({ studentId, slotKey, adminId, adminRole, reason, requestIds }) => {
   const slot = String(slotKey || '').trim().toUpperCase();
   if (!VALID_SLOT_KEYS.has(slot)) {
     throw new Error('slotKey must be A1, A2, B1, B2, DOCS, or VISA');
   }
 
   const User = mongoose.model('User');
-  const student = await User.findOne({ _id: studentId, role: 'STUDENT' }).select('level').lean();
+  const student = await User.findById(studentId).select('level').lean();
   if (!student) throw new Error('Student not found');
 
   const allRequests = await PaymentRequest.find({ studentId, isArchived: false }).lean();
-  const toArchive = allRequests.filter((req) => slotForRequest(req, student.level) === slot);
+  let toArchive;
+  if (Array.isArray(requestIds) && requestIds.length) {
+    const idSet = new Set(requestIds.map((id) => String(id)));
+    toArchive = allRequests.filter((req) => idSet.has(String(req._id)));
+  } else {
+    toArchive = collectRequestsForSlotReset(allRequests, slot, student.level);
+  }
 
   if (!toArchive.length) {
     return { slot, requestsArchived: 0, submissionsArchived: 0 };
   }
 
-  const requestIds = toArchive.map((r) => r._id);
+  const archiveIds = toArchive.map((r) => r._id);
   const archivedAt = new Date();
   const archiveReason = reason?.trim() || `${slot} payment slot reset by admin`;
 
   await PaymentRequest.updateMany(
-    { _id: { $in: requestIds }, isArchived: false },
+    { _id: { $in: archiveIds }, isArchived: false },
     { $set: { isArchived: true, archivedAt, archivedBy: adminId, archiveReason } },
   );
 
   const subResult = await PaymentFlowSubmission.updateMany(
-    { paymentRequestId: { $in: requestIds }, isArchived: false },
+    { paymentRequestId: { $in: archiveIds }, isArchived: false },
     { $set: { isArchived: true, archivedAt, archivedBy: adminId } },
   );
 

@@ -1,4 +1,4 @@
-﻿﻿import { Component, Input, OnChanges, OnInit, SimpleChanges, inject } from '@angular/core';
+﻿import { Component, Input, OnChanges, OnInit, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -13,7 +13,7 @@ import { DgApiService } from '../dg-api.service';
 import type { DgModuleSummary } from '../dg-bot.types';
 import { clampJourneyDay } from '../../utils/journey-day.util';
 
-type HubTab = 'completed' | 'pending' | 'new';
+type HubTab = 'completed' | 'pending' | 'new' | 'all';
 
 @Component({
   selector: 'app-dg-bot-hub',
@@ -58,7 +58,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   loading = true;
   error: string | null = null;
 
-  activeTab: HubTab = 'new';
+  activeTab: HubTab = 'all';
   studentCourseDay = 1;
   unlockMode: 'daily' | 'weekly' | 'none' = 'daily';
   dgUnlockedWeek = 1;
@@ -325,11 +325,14 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   /**
    * Same flow as digital exercises (students):
+   * - All: show everything (no filter).
    * - New: assigned journey day === current day, not fully complete, no saved partial progress yet.
    * - Pending: partial progress, past-day modules not finished, or no journey day assigned. Future-day modules (> current day) are excluded.
    * - Completed: module reached full completion (100% practice goal or natural conversation wrap-up).
    */
   private matchesStudentTab(m: DgModuleSummary, tab: HubTab): boolean {
+    if (tab === 'all') return true;
+
     const completed = this.isModuleCompleted(m);
     const inProgress = this.moduleHasPartialProgress(m);
     const dayNum = this.moduleCourseDayNum(m);
