@@ -1,6 +1,6 @@
 // src/app/components/digital-exercises/digital-exercises.component.ts
 
-import { Component, OnInit, Input, HostListener } from '@angular/core';
+import { Component, OnInit, OnChanges, SimpleChanges, Input, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -21,17 +21,21 @@ type TabType = 'completed' | 'pending' | 'new' | 'all';
   templateUrl: './digital-exercises.component.html',
   styleUrls: ['./digital-exercises.component.css']
 })
-export class DigitalExercisesComponent implements OnInit {
+export class DigitalExercisesComponent implements OnInit, OnChanges {
   /** Hides the large page header when embedded (e.g. My Course). */
   @Input() embedded = false;
+  /** When embedded in My Course: true while the Exercises tab is visible. */
+  @Input() tabActive = false;
 
   exercises: DigitalExercise[] = [];
   filteredExercises: DigitalExercise[] = [];
   loading = false;
   userRole: string = '';
   isTeacherOrAdmin = false;
+  accessDenied = false;
+  accessReason: string | null = null;
 
-  activeTab: TabType = 'all';
+  activeTab: TabType = 'pending';
 
   // Filters
   searchQuery = '';
@@ -96,6 +100,16 @@ export class DigitalExercisesComponent implements OnInit {
     this.loadExercises();
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    const tabChange = changes['tabActive'];
+    if (!this.embedded || !tabChange) return;
+    const nowActive = !!this.tabActive;
+    const wasActive = !!tabChange.previousValue;
+    if (nowActive && !wasActive && !this.loading) {
+      this.applyDefaultTab();
+    }
+  }
+
   loadExercises(): void {
     this.loading = true;
     const filters: any = {
@@ -112,11 +126,13 @@ export class DigitalExercisesComponent implements OnInit {
     this.exerciseService.getExercises(filters).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
+        this.accessDenied = !!res.accessDenied;
+        this.accessReason = res.accessReason || null;
         const d = Number(res?.studentCourseDay);
         if (role === 'STUDENT' && Number.isFinite(d) && d >= 1) {
           this.studentCourseDay = Math.min(200, Math.floor(d));
         }
-        this.applyTabFilter();
+        this.applyDefaultTab();
         this.loading = false;
       },
       error: () => { this.loading = false; }
@@ -128,13 +144,36 @@ export class DigitalExercisesComponent implements OnInit {
     this.applyTabFilter();
   }
 
+  /** Open New when today's exercises exist; otherwise Pending. */
+  private applyDefaultTab(): void {
+    this.activeTab = this.countExercisesForTab('new') > 0 ? 'new' : 'pending';
+    this.currentPage = 1;
+    this.applyTabFilter();
+  }
+
+  private countExercisesForTab(tab: TabType): number {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    const isStudent = role === 'STUDENT';
+    let list = isStudent
+      ? this.exercises.filter(
+          (ex) => this.isExerciseUnlockedForStudentDay(ex) && this.matchesStudentTab(ex, tab)
+        )
+      : this.applyTabFilterLegacy(this.exercises, tab);
+    if (isStudent && this.isSilverGoStudent()) {
+      list = list.filter((ex) => this.exerciseCourseDayNum(ex) !== TRIAL_JOURNEY_DAY);
+    }
+    return list.length;
+  }
+
   private applyTabFilter(): void {
     const role = this.authService.getSnapshotUser()?.role || this.userRole;
     const isStudent = role === 'STUDENT';
 
     let list: DigitalExercise[];
     if (isStudent) {
-      list = this.exercises.filter((ex) => this.matchesStudentTab(ex, this.activeTab));
+      list = this.exercises.filter(
+        (ex) => this.isExerciseUnlockedForStudentDay(ex) && this.matchesStudentTab(ex, this.activeTab)
+      );
       if (this.isSilverGoStudent()) {
         list = list.filter((ex) => this.exerciseCourseDayNum(ex) !== TRIAL_JOURNEY_DAY);
       }
@@ -168,7 +207,7 @@ export class DigitalExercisesComponent implements OnInit {
    * Students:
    * - All: show everything (no filter).
    * - New: exercise day === current journey day, not yet passed.
-   * - Pending: any other incomplete (past days, future/locked preview, or unassigned day).
+   * - Pending: incomplete from past days (not current day).
    * - Completed: passed (≥ pass score), any day.
    */
   private matchesStudentTab(ex: DigitalExercise, tab: TabType): boolean {
@@ -355,11 +394,17 @@ export class DigitalExercisesComponent implements OnInit {
   isExerciseDayLocked(ex: DigitalExercise): boolean {
     const role = this.authService.getSnapshotUser()?.role || this.userRole;
     if (role !== 'STUDENT') return false;
-    const cd = ex.courseDay;
-    if (cd == null || cd === undefined) return false;
-    const n = Number(cd);
-    if (this.isSilverGoStudent() && n === TRIAL_JOURNEY_DAY) return true;
-    return Number.isFinite(n) && n > this.studentCourseDay;
+    return !this.isExerciseUnlockedForStudentDay(ex);
+  }
+
+  /** Student may list/play exercises on or before their journey day (unassigned = always ok). */
+  isExerciseUnlockedForStudentDay(ex: DigitalExercise): boolean {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    if (role !== 'STUDENT') return true;
+    const dayNum = this.exerciseCourseDayNum(ex);
+    if (dayNum == null) return true;
+    if (this.isSilverGoStudent() && dayNum === TRIAL_JOURNEY_DAY) return false;
+    return dayNum <= this.studentCourseDay;
   }
 
   isExerciseSequenceLocked(ex: DigitalExercise): boolean {
@@ -418,9 +463,8 @@ export class DigitalExercisesComponent implements OnInit {
   }
 
   get journeyWeekHint(): string {
-    const a = this.studentCourseDay;
-    const b = Math.min(200, a + 6);
-    return `Showing journey days ${a}–${b} (unlock each item on its day)`;
+    const cur = this.studentCourseDay;
+    return `Unlocked through Day ${cur} — future days unlock as you progress`;
   }
 
   hasType(exercise: DigitalExercise, type: string): boolean {

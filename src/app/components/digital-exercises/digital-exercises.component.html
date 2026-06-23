@@ -24,22 +24,6 @@
 
   <!-- Filters Bar -->
   <div class="filters-section" [class.filters-section--embedded]="embedded">
-    <div class="search-wrap">
-      <span class="material-icons search-icon">search</span>
-      <input
-        type="text"
-        class="search-input"
-        [placeholder]="searchInputPlaceholder"
-        [(ngModel)]="searchQuery"
-        (input)="onSearchChange()"
-      />
-      <button class="clear-btn" *ngIf="searchQuery" (click)="searchQuery=''; onSearchChange()">
-        <span class="material-icons">close</span>
-      </button>
-    </div>
-    <button class="clear-filters-btn clear-filters-btn--mobile-search" *ngIf="hasActiveFilters()" (click)="clearFilters()">
-      <span class="material-icons">filter_alt_off</span> Clear
-    </button>
     <div class="filter-chips">
       <div class="dex-filter-wrap">
         <button
@@ -116,15 +100,28 @@
           >{{ d }}</button>
         </div>
       </div>
-      <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
-      <button class="clear-filters-btn clear-filters-btn--desktop" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+      <div class="search-wrap">
+        <span class="material-icons search-icon">search</span>
+        <input
+          type="text"
+          class="search-input"
+          [placeholder]="searchInputPlaceholder"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchChange()"
+        />
+        <button class="clear-btn" *ngIf="searchQuery" (click)="searchQuery=''; onSearchChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
       </button>
+      <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
     </div>
   </div>
 
   <!-- Tabs + compact analytics entry (students) -->
-  <div class="mc-tabs-wrap" *ngIf="!loading && exercises.length > 0">
+  <div class="mc-tabs-wrap" *ngIf="!loading">
     <div class="mc-tabs">
       <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
       <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
@@ -275,16 +272,28 @@
   <!-- Empty State -->
   <div class="empty-state" *ngIf="!loading && exercises.length === 0">
     <span class="material-icons empty-icon">search_off</span>
-    <h3>{{ hasActiveFilters() ? 'No exercises match your filters' : 'No exercises yet' }}</h3>
-    <p *ngIf="hasActiveFilters()">Try adjusting or clearing your filters</p>
-    <p *ngIf="!hasActiveFilters() && !isTeacherOrAdmin">Exercises will appear here once your teacher creates them</p>
-    <div *ngIf="!hasActiveFilters() && isTeacherOrAdmin">
+    <ng-container *ngIf="hasActiveFilters()">
+      <h3>No exercises match your filters</h3>
+      <p>Try adjusting or clearing your filters</p>
+      <button class="btn-clear-filters" (click)="clearFilters()">Clear Filters</button>
+    </ng-container>
+    <ng-container *ngIf="!hasActiveFilters() && accessDenied">
+      <h3>Exercises not available</h3>
+      <p *ngIf="accessReason === 'BATCH_NOT_ACTIVE'">Your batch is not yet active. Please contact your teacher to enable access.</p>
+      <p *ngIf="accessReason === 'LEARNING_DISABLED'">Exercise access is not enabled for your batch type. Please contact your teacher.</p>
+      <p *ngIf="!accessReason">Exercise access is currently unavailable. Please contact your teacher.</p>
+    </ng-container>
+    <ng-container *ngIf="!hasActiveFilters() && !accessDenied && !isTeacherOrAdmin">
+      <h3>No exercises yet</h3>
+      <p>Exercises will appear here once your teacher creates them</p>
+    </ng-container>
+    <ng-container *ngIf="!hasActiveFilters() && !accessDenied && isTeacherOrAdmin">
+      <h3>No exercises yet</h3>
       <p>Get started by creating your first interactive exercise</p>
       <button class="btn-create" (click)="navigateToCreate()">
         <span class="material-icons">add</span> Create Exercise
       </button>
-    </div>
-    <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Clear Filters</button>
+    </ng-container>
   </div>
 
   <!-- Empty tab state -->

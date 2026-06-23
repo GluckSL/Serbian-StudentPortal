@@ -457,9 +457,9 @@ export interface ExerciseFilters {
   status?: string;
   page?: number;
   limit?: number;
-  /** Student list: only exercises tagged for this journey day */
+  /** Student / Journey list: numeric journey day 0–200 */
   todayOnly?: boolean;
-  /** Admin list: numeric day 1–200, or "unassigned" */
+  /** Admin list: numeric day 1–200, or "unassigned"; students: filter to one journey day */
   courseDay?: string | number;
 }
 

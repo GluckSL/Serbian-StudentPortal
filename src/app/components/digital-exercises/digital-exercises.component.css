@@ -223,7 +223,7 @@
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  align-items: stretch;
+  align-items: center;
   margin-bottom: 16px;;
   box-shadow: 0 2px 10px rgba(3, 57, 108, 0.06);
   box-sizing: border-box;
@@ -237,9 +237,18 @@
 
 .search-wrap {
   position: relative;
-  flex: 1 1 220px;
-  min-width: 0;
+  flex: 1 1 280px;
+  min-width: 180px;
   max-width: 100%;
+}
+
+/* Custom dropdown filters — matching journey filter style */
+.dex-filter-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  width: 160px;
+  min-width: 130px;
+  max-width: 200px;
 }
 
 .search-icon {
@@ -300,16 +309,9 @@
   gap: 10px;
   flex-wrap: wrap;
   align-items: center;
-  flex: 1 1 100%;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
-}
-
-/* Custom dropdown filters — matching journey filter style */
-.dex-filter-wrap {
-  position: relative;
-  flex: 1 1 140px;
-  min-width: 0;
-  max-width: 200px;
 }
 
 .dex-filter {
@@ -398,15 +400,14 @@
   font-weight: 500;
   color: #dc2626;
   transition: all 0.2s;
+  flex: 0 0 auto;
+  height: 44px;
+  box-sizing: border-box;
 }
 
 .clear-filters-btn:hover {
   background: #fee2e2;
   border-color: #f87171;
-}
-
-.clear-filters-btn--mobile-search {
-  display: none;
 }
 
 
@@ -1083,6 +1084,13 @@
     width: 100%;
   }
 
+  .search-wrap {
+    grid-column: 1 / -1;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
   .dex-filter-wrap {
     max-width: none;
     width: 100%;
@@ -1145,14 +1153,8 @@
     font-weight: 700;
     white-space: nowrap;
     flex: 0 0 auto;
-  }
-
-  .clear-filters-btn--mobile-search {
-    display: inline-flex;
-  }
-
-  .clear-filters-btn--desktop {
-    display: none;
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .clear-filters-btn .material-icons {
