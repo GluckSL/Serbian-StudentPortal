@@ -230,7 +230,7 @@ exports.listStudent = async (req, res) => {
     const gluckExamOnly =
       String(req.query.gluckExamOnly) === 'true' || String(req.query.gluckExamOnly) === '1';
     const access = await getStudentDgJourneyAccess(req.user.id);
-    if (!access.enabled || access.dgBotEnabled === false) {
+    if (access.dgBotEnabled === false) {
       return res.json({
         modules: [],
         studentCourseDay: access.courseDay ?? 1,
@@ -242,10 +242,8 @@ exports.listStudent = async (req, res) => {
       ? Math.min(200, Math.max(1, Math.floor(Number(access.courseDay))))
       : 1;
 
-    const batchFilter =
-      access.batchKeys && access.batchKeys.length
-        ? moduleTargetingQuery(access.batchKeys)
-        : {};
+    const batchKeys = access.batchKeys || [];
+    const batchFilter = batchKeys.length ? moduleTargetingQuery(batchKeys) : {};
     const moduleFilter = {
       isActive: true,
       visibleToStudents: true,
@@ -377,12 +375,6 @@ exports.getPlay = async (req, res) => {
 
     if (req.user.role === 'STUDENT') {
       const access = await getStudentDgJourneyAccess(req.user.id);
-      if (!access.enabled) {
-        return res.status(403).json({
-          message: 'Journey content is not enabled for your batch yet.',
-          code: 'JOURNEY_NOT_ACTIVE',
-        });
-      }
       if (access.dgBotEnabled === false) {
         return res.status(403).json({
           message: 'DG modules are not available for your batch.',

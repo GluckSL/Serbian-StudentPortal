@@ -28,6 +28,9 @@
         <span class="mc-hero__pill" *ngIf="loginStreakData">
           <span class="material-icons mc-hero__pill-icon mc-hero__pill-icon--fire" aria-hidden="true">local_fire_department</span>
           <strong>{{ loginStreakData.currentStreak }}</strong> day streak · <span class="material-icons mc-hero__pill-icon mc-hero__pill-icon--trophy" aria-hidden="true">emoji_events</span> <strong>{{ loginStreakData.totalTrophies }}</strong>
+        <span class="mc-hero__pill" *ngIf="studentBatchLabel">
+          <span class="material-icons mc-hero__pill-icon" aria-hidden="true">groups</span>
+          Batch <strong>{{ studentBatchLabel }}</strong>
         </span>
         <span *ngIf="showLanguageFeeDueCard" class="mc-hero__fee-card"
           [class.mc-hero__fee-card--green]="languageFeeBannerTone === 'green'"
@@ -60,6 +63,10 @@
             <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
             Subscription <strong>{{ userProfile.subscription }}</strong>
           </span>
+          <span class="mc-hero__pill" *ngIf="studentBatchLabel">
+            <span class="material-icons mc-hero__pill-icon" aria-hidden="true">groups</span>
+            Batch <strong>{{ studentBatchLabel }}</strong>
+          </span>
         </div>
       </div>
     </div>
@@ -68,12 +75,12 @@
   <!-- Tabs -->
   <div class="mc-tabs-wrap">
     <div class="mc-tabs" role="tablist">
-      <button *ngIf="allowsLearningContent" type="button" role="tab" class="mc-tab"
+      <button type="button" role="tab" class="mc-tab"
         [class.mc-tab--on]="activeTab === 'classes'" (click)="setTab('classes')">
         <span class="mc-tab-text mc-tab-text--desktop">My class</span>
         <span class="mc-tab-text mc-tab-text--mobile">My class</span>
       </button>
-      <button *ngIf="allowsLearningContent" type="button" role="tab" class="mc-tab"
+      <button *ngIf="showExercisesTab" type="button" role="tab" class="mc-tab"
         [class.mc-tab--on]="activeTab === 'exercises'" (click)="setTab('exercises')">
         Exercises
       </button>

@@ -173,6 +173,9 @@ export class MyCourseComponent implements OnInit {
   /** Full user profile from AuthService (contains subscription, role, etc.) */
   userProfile: any = null;
 
+  /** False until GET /student-progress/journey returns — avoids tab flash before access flags load. */
+  journeyProfileLoaded = false;
+
   private readonly motivateLines = [
     'You’re going strong — keep showing up!',
     'Small steps every day add up. Proud of you!',
@@ -335,6 +338,8 @@ export class MyCourseComponent implements OnInit {
       .subscribe({
         next: (journey) => {
           this.journey = journey;
+          this.journeyProfileLoaded = true;
+          this.reconcileTabAfterJourneyProfile();
           this.loadDayCompletionData();
           setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
           if (!this._tourChecked) {
@@ -396,7 +401,7 @@ export class MyCourseComponent implements OnInit {
           replaceUrl: true
         });
       }
-      if (t === 'exercises' && !this.allowsLearningContent) {
+      if (t === 'exercises' && !this.showExercisesTab) {
         this.activeTab = 'classes';
       } else if (t === 'talk-buddy' && !this.allowsTalkBuddyTab) {
         this.activeTab = 'classes';
@@ -669,7 +674,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   setTab(tab: MyCourseTab): void {
-    if (tab === 'exercises' && !this.allowsLearningContent) {
+    if (tab === 'exercises' && !this.showExercisesTab) {
       tab = 'classes';
     }
     if (tab === 'talk-buddy' && !this.allowsTalkBuddyTab) {
@@ -687,11 +692,22 @@ export class MyCourseComponent implements OnInit {
       this.loadJourneyTabData();
       this.loadJourneyGames();
     }
+    if (tab === 'gluck-exam') {
+      this.loadGluckExamData();
+    }
     if (tab === 'classes') {
       this.refreshJourneyForPendingCelebration();
     }
-    if (tab === 'gluck-exam') {
-      this.loadGluckExamData();
+  }
+
+  /** After journey profile loads, move off tabs the student no longer has access to. */
+  private reconcileTabAfterJourneyProfile(): void {
+    if (this.activeTab === 'exercises' && !this.showExercisesTab) {
+      this.setTab('classes');
+      return;
+    }
+    if (this.activeTab === 'talk-buddy' && !this.allowsTalkBuddyTab) {
+      this.setTab('classes');
     }
   }
 
@@ -966,6 +982,16 @@ export class MyCourseComponent implements OnInit {
     return '—';
   }
 
+  /** Student batch label for hero badges (journey profile → login profile → auth snapshot). */
+  get studentBatchLabel(): string {
+    const fromJourney = String(this.profile?.batch || '').trim();
+    if (fromJourney) return fromJourney;
+    const fromUser = String(this.userProfile?.batch || '').trim();
+    if (fromUser) return fromUser;
+    const u = this.authService.getSnapshotUser();
+    return String(u?.batch || '').trim();
+  }
+
   get learningPct(): number {
     const lp = this.levelProgression;
     const completed = lp.filter((l: any) => l.status === 'completed').length;
@@ -1034,15 +1060,31 @@ export class MyCourseComponent implements OnInit {
   }
 
   get allowsLearningContent(): boolean {
-    return this.profile?.learningContentEnabled !== false;
+    if (!this.journeyProfileLoaded) return false;
+    if (this.isOldBatchStudent) return false;
+    return this.profile?.learningContentEnabled === true;
+  }
+
+  /** Legacy/old batches: live classes + recordings + journey tabs, but not digital exercises. */
+  get isOldBatchStudent(): boolean {
+    if (!this.journeyProfileLoaded) return false;
+    return String(this.profile?.batchType || '').toLowerCase() === 'old';
+  }
+
+  /** Exercises tab — new-batch students with learning content only. */
+  get showExercisesTab(): boolean {
+    return this.journeyProfileLoaded && !this.isOldBatchStudent && this.profile?.learningContentEnabled === true;
   }
 
   /** Old batches with admin DG Bot toggle, or any batch with full learning content. */
   get allowsDgBot(): boolean {
+    if (!this.journeyProfileLoaded) return false;
     return this.profile?.dgBotEnabled !== false;
   }
 
   get allowsTalkBuddyTab(): boolean {
+    if (!this.journeyProfileLoaded) return true;
+    if (this.isOldBatchStudent) return true;
     return this.allowsLearningContent || this.allowsDgBot;
   }
 

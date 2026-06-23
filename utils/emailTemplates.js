@@ -981,22 +981,10 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
 function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDate }) {
   const dateLabel = escapeHtml(reportDate || new Date().toDateString());
 
-  const formatClassDate = (d) =>
-    new Date(d).toLocaleDateString('en-IN', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'Asia/Kolkata',
-    });
-
   const tableRows = flaggedStudents
     .map((s, idx) => {
       const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8f5ff';
       const countColor = s.missedCount >= 5 ? '#dc2626' : s.missedCount >= 4 ? '#d97706' : '#6c3fc5';
-      const datesLabel = (s.missedDates || [])
-        .map((d) => escapeHtml(formatClassDate(d)))
-        .join('<br/>') || '<span style="color:#9ca3af;font-style:italic;">—</span>';
 
       return `
       <tr style="background:${rowBg};">
@@ -1011,7 +999,6 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
             ${s.missedCount}
           </span>
         </td>
-        <td style="padding:11px 14px;font-size:12px;color:#374151;border-bottom:1px solid #ede9fe;line-height:1.55;">${datesLabel}</td>
       </tr>`;
     })
     .join('');
@@ -1067,13 +1054,12 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
                     <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student Name</th>
                     <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
                     <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Classes Missed</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Missed Class Dates</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${tableRows || `
                   <tr>
-                    <td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
+                    <td colspan="3" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
                       No students with more than 2 missed live classes today. 🎉
                     </td>
                   </tr>`}

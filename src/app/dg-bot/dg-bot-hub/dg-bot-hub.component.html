@@ -108,9 +108,9 @@
       </div>
     </div>
 
-    <!-- My Course → Gluck Buddy tab: optional title search only -->
-    <div class="dg-hub__toolbar" *ngIf="embedded && !journeyFixedDay && modules.length > 0">
-      <div class="dg-hub__search-wrap dg-hub__search-wrap--toolbar">
+    <!-- My Course → Gluck Buddy / Journey day: Completed · Pending · New -->
+    <div class="dg-hub__toolbar" *ngIf="embedded">
+      <div class="dg-hub__search-wrap dg-hub__search-wrap--toolbar" *ngIf="!journeyFixedDay">
         <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
         <input type="text" class="dg-hub__search-input" [placeholder]="searchInputPlaceholder" [(ngModel)]="searchQuery" (input)="onSearchInput()" />
         <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
@@ -132,22 +132,10 @@
         <span class="material-icons" aria-hidden="true">calendar_today</span>
         Journey day {{ studentCourseDay }} — “New” matches today’s assigned lessons.
       </p>
-    </div>
-
-    <div class="dg-hub__filters dg-hub__filters--search-only" *ngIf="showEmbeddedSearchOnly() && !embedded">
-      <div class="dg-hub__search-wrap">
-        <span class="material-icons dg-hub__search-icon" aria-hidden="true">search</span>
-        <input
-          type="text"
-          class="dg-hub__search-input"
-          [placeholder]="searchInputPlaceholder"
-          [(ngModel)]="searchQuery"
-          (input)="onSearchInput()"
-        />
-        <button type="button" class="dg-hub__clear-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">
-          <span class="material-icons">close</span>
-        </button>
-      </div>
+      <p class="dg-hub__day-hint" *ngIf="journeyFixedDay != null">
+        <span class="material-icons" aria-hidden="true">calendar_today</span>
+        Showing Glück Buddy for <strong>{{ journeyFixedDay === 0 ? 'Trial' : 'Day ' + journeyFixedDay }}</strong>.
+      </p>
     </div>
 
     <div class="mc-tabs-wrap" *ngIf="!embedded">
@@ -223,10 +211,11 @@
       </div>
     </section>
 
-    <section *ngIf="modules.length > 0 && filteredModules.length === 0" class="dg-hub__empty dg-hub__empty--soft">
+    <section *ngIf="!loading && modules.length > 0 && filteredModules.length === 0" class="dg-hub__empty dg-hub__empty--soft">
       <img class="dg-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
-      <h3>No modules found</h3>
-      <p>{{ activeTab === 'all' ? 'No modules match your search.' : 'Nothing here for ' }}<strong *ngIf="activeTab !== 'all'">{{ activeTab }}</strong>{{ activeTab === 'all' ? '' : ' yet. Try another status or clear your search.' }}</p>
+      <h3>No modules in {{ activeTab }}</h3>
+      <p *ngIf="activeTab === 'all'">No modules match your search.</p>
+      <p *ngIf="activeTab !== 'all'">Nothing here for <strong>{{ activeTab }}</strong> yet. Try another status or clear your search.</p>
       <div class="dg-hub__empty-actions" *ngIf="embedded">
         <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'new'" (click)="setTab('new')">View New</button>
         <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'pending'" (click)="setTab('pending')">View Pending</button>
@@ -234,16 +223,24 @@
       </div>
     </section>
 
-    <section *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null" class="dg-hub__empty dg-hub__empty--soft">
+    <section *ngIf="!loading && modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null" class="dg-hub__empty dg-hub__empty--soft">
       <div class="dg-hub__empty-icon">🦊</div>
       <h3>No Gluck Buddy for this day</h3>
       <p>There are no speaking lessons assigned to <strong>Day {{ journeyFixedDay }}</strong> yet.</p>
     </section>
 
-    <section *ngIf="modules.length === 0 && rawModuleCount === 0" class="dg-hub__empty">
+    <section *ngIf="!loading && modules.length === 0 && rawModuleCount === 0" class="dg-hub__empty">
       <div class="dg-hub__empty-icon">🦊</div>
-      <h3>No Gluck Buddy assigned for your current day</h3>
-      <p>Only modules matching your journey day are shown. Ask your teacher to assign/publish a lesson for Day {{ studentCourseDay }}.</p>
+      <h3>No Glück Buddy modules yet</h3>
+      <p *ngIf="journeyFixedDay != null">
+        Nothing is assigned for <strong>Day {{ journeyFixedDay }}</strong> yet. Check back later or try another journey day.
+      </p>
+      <p *ngIf="journeyFixedDay == null && unlockMode === 'weekly'">
+        Your teacher has not published modules for your current unlocked week yet. Complete each week to unlock the next.
+      </p>
+      <p *ngIf="journeyFixedDay == null && unlockMode !== 'weekly'">
+        Your teacher has not published speaking practice modules for <strong>Day {{ studentCourseDay }}</strong> yet.
+      </p>
     </section>
   </ng-container>
 </div>
