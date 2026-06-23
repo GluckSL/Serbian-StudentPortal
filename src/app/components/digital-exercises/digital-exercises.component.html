@@ -24,22 +24,6 @@
 
   <!-- Filters Bar -->
   <div class="filters-section" [class.filters-section--embedded]="embedded">
-    <div class="search-wrap">
-      <span class="material-icons search-icon">search</span>
-      <input
-        type="text"
-        class="search-input"
-        [placeholder]="searchInputPlaceholder"
-        [(ngModel)]="searchQuery"
-        (input)="onSearchChange()"
-      />
-      <button class="clear-btn" *ngIf="searchQuery" (click)="searchQuery=''; onSearchChange()">
-        <span class="material-icons">close</span>
-      </button>
-    </div>
-    <button class="clear-filters-btn clear-filters-btn--mobile-search" *ngIf="hasActiveFilters()" (click)="clearFilters()">
-      <span class="material-icons">filter_alt_off</span> Clear
-    </button>
     <div class="filter-chips">
       <div class="dex-filter-wrap">
         <button
@@ -116,10 +100,23 @@
           >{{ d }}</button>
         </div>
       </div>
-      <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
-      <button class="clear-filters-btn clear-filters-btn--desktop" *ngIf="hasActiveFilters()" (click)="clearFilters()">
+      <div class="search-wrap">
+        <span class="material-icons search-icon">search</span>
+        <input
+          type="text"
+          class="search-input"
+          [placeholder]="searchInputPlaceholder"
+          [(ngModel)]="searchQuery"
+          (input)="onSearchChange()"
+        />
+        <button class="clear-btn" *ngIf="searchQuery" (click)="searchQuery=''; onSearchChange()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
         <span class="material-icons">filter_alt_off</span> Clear
       </button>
+      <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
     </div>
   </div>
 

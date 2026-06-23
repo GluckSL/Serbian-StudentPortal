@@ -227,6 +227,7 @@
               <col class="ph-col-money" />
               <col class="ph-col-money" />
               <col class="ph-col-commence" />
+              <col class="ph-col-money" />
               <col class="ph-col-journey" />
               <col class="ph-col-actions" />
             </colgroup>
@@ -240,6 +241,7 @@
                 <th class="ph-num ph-col-money">Pending</th>
                 <th class="ph-num ph-col-money">Overdue</th>
                 <th class="ph-col-commence">Commencement</th>
+                <th class="ph-num ph-col-money">Prev. Level Pending</th>
                 <th class="ph-col-journey">Journey</th>
                 <th class="ph-col-actions">Action</th>
               </tr>
@@ -433,6 +435,23 @@
                         </button>
                       </ng-template>
                     </ng-container>
+                  </ng-container>
+                </td>
+
+                <!-- ── Previous Levels Pending ───────────────────────────── -->
+                <td class="ph-num ph-money-cell ph-col-money">
+                  <ng-container *ngIf="rowPrevLevelsPending(r) as prev">
+                    <ng-container *ngIf="prev.lkr + prev.inr + prev.usd > 0; else noPrevPending">
+                      <app-payment-currency-pending-totals
+                        [lkr]="prev.lkr"
+                        [inr]="prev.inr"
+                        [usd]="prev.usd"
+                        [compact]="true"
+                        [hideZero]="true"
+                        [matTooltip]="'Pending balance from levels before ' + (r.level || 'current')"
+                      ></app-payment-currency-pending-totals>
+                    </ng-container>
+                    <ng-template #noPrevPending><span class="ph-ccy-empty">—</span></ng-template>
                   </ng-container>
                 </td>
 
