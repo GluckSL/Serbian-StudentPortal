@@ -317,6 +317,17 @@
   color: #e0f0ff;
 }
 
+.mc-hero__pill-icon--fire {
+  background: linear-gradient(135deg, #ef4444, #f97316, #eab308);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.mc-hero__pill-icon--trophy {
+  color: #fbbf24;
+}
+
 .mc-hero__photo {
   flex: 0 0 auto;
   align-self: center;
@@ -1335,8 +1346,23 @@
 }
 
 .mc-side-card--streak {
-  background: linear-gradient(165deg, #fefce8 0%, #ffffff 50%, #fffbeb 100%);
-  border-color: #fde68a;
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.mc-side-card--streak--bronze {
+  background: linear-gradient(165deg, #d4b896 0%, #f0e6d8 50%, #c9ab84 100%);
+  border-color: #8B5E3C;
+}
+
+.mc-side-card--streak--silver {
+  background: linear-gradient(165deg, #e2e8f0 0%, #f8fafc 50%, #cbd5e1 100%);
+  border-color: #64748b;
+}
+
+.mc-side-card--streak--gold {
+  background: linear-gradient(165deg, #fef3c7 0%, #fffbeb 50%, #fde68a 100%);
+  border-color: #d97706;
 }
 
 .sc-side-stats {
@@ -1394,13 +1420,38 @@
   transition: all 0.2s;
 }
 
+.sc-side-day__trophy {
+  font-size: 46px;
+  line-height: 1;
+  color: #f59e0b;
+  filter: drop-shadow(0 3px 6px rgba(217, 119, 6, 0.5));
+}
+
 .sc-side-day--filled .sc-side-day__dot {
-  background: linear-gradient(135deg, #60a5fa, #3b82f6);
-  border-color: #3b82f6;
+  background: #94a3b8;
+  border-color: #94a3b8;
+}
+
+.sc-side-day--mon-tue.sc-side-day--filled .sc-side-day__dot {
+  background: #CD7F32;
+  border-color: #B87333;
+}
+
+.sc-side-day--fri-sat.sc-side-day--filled .sc-side-day__dot {
+  background: #f59e0b;
+  border-color: #d97706;
 }
 
 .sc-side-day--today .sc-side-day__dot {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.35);
+}
+
+.sc-side-day--mon-tue.sc-side-day--today .sc-side-day__dot {
+  box-shadow: 0 0 0 2px rgba(92, 58, 30, 0.35);
+}
+
+.sc-side-day--fri-sat.sc-side-day--today .sc-side-day__dot {
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.35);
 }
 
 .sc-side-day__label {
@@ -2781,6 +2832,62 @@
 
 .mc-day-section-card--arena {
   margin-top: 10px;
+}
+
+.mc-day-section-card--exercises .mc-day-section__head,
+.mc-day-section-card--exercises .mc-day-section__intro {
+  background: #dbeafe;
+}
+
+.mc-day-section-card--arena .mc-day-section__head,
+.mc-day-section-card--arena .mc-day-section__intro {
+  background: #fef9c3;
+}
+
+.mc-day-section-card--talkbuddy .mc-day-section__head,
+.mc-day-section-card--talkbuddy .mc-day-section__intro {
+  background: #dcfce7;
+}
+
+.mc-day-section-card--exercises .mc-day-section__head,
+.mc-day-section-card--arena .mc-day-section__head,
+.mc-day-section-card--talkbuddy .mc-day-section__head {
+  margin: -10px -10px 0;
+  padding: 10px 10px 6px;
+  border-radius: 11px 11px 0 0;
+}
+
+.mc-day-section-card--exercises .mc-day-section__intro,
+.mc-day-section-card--arena .mc-day-section__intro,
+.mc-day-section-card--talkbuddy .mc-day-section__intro {
+  margin: 0 -10px 8px;
+  padding: 0 10px 10px;
+  color: #334155;
+}
+
+.mc-day-section-card--exercises .mc-day-section__head h4,
+.mc-day-section-card--arena .mc-day-section__head h4,
+.mc-day-section-card--talkbuddy .mc-day-section__head h4 {
+  color: #0f172a;
+}
+
+.mc-day-section-card--exercises .mc-day-section__count,
+.mc-day-section-card--talkbuddy .mc-day-section__count {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
+.mc-day-section-card--arena .mc-day-section__count {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
+.mc-day-section-card--talkbuddy .mc-day-section__count--muted {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
 }
 
 .mc-day-item {

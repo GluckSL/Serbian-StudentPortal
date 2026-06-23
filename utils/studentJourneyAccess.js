@@ -72,13 +72,25 @@ async function getJourneyAccessForStudent(student) {
   const activeBatchConfigs = await BatchConfig.find({ journeyActive: true })
     .select('batchName batchType oldBatchDgBotAccess trialDayEnabled')
     .lean();
+  const allBatchConfigs = await BatchConfig.find({})
+    .select('batchName batchType oldBatchDgBotAccess trialDayEnabled journeyActive')
+    .lean();
   const activeMap = new Map();
   for (const cfg of activeBatchConfigs) {
     const key = normalizeBatch(cfg.batchName);
     if (!key) continue;
     activeMap.set(key, cfg);
   }
+  const allMap = new Map();
+  for (const cfg of allBatchConfigs) {
+    const key = normalizeBatch(cfg.batchName);
+    if (!key) continue;
+    allMap.set(key, cfg);
+  }
   const matchedConfigs = batchKeys
+    .map((key) => allMap.get(normalizeBatch(key)))
+    .filter(Boolean);
+  const activeMatched = batchKeys
     .map((key) => activeMap.get(normalizeBatch(key)))
     .filter(Boolean);
   const trialDayEnabled = resolveTrialDayEnabled(matchedConfigs);
@@ -98,13 +110,13 @@ async function getJourneyAccessForStudent(student) {
     });
   }
 
-  const enabled = matchedConfigs.length > 0;
+  const enabled = activeMatched.length > 0;
   const hasNewBatchType = matchedConfigs.some((cfg) => isLearningEnabled(cfg.batchType));
   const learningEnabled = enabled && hasNewBatchType;
   const hasOldDgAccess = matchedConfigs.some(
     (cfg) => isOldBatchType(cfg.batchType) && !!cfg.oldBatchDgBotAccess
   );
-  const dgBotEnabled = enabled && (hasNewBatchType || hasOldDgAccess);
+  const dgBotEnabled = matchedConfigs.length > 0 && (hasNewBatchType || hasOldDgAccess);
   const dgUnlockMode = hasNewBatchType ? 'daily' : hasOldDgAccess ? 'weekly' : 'none';
   const primaryCfg = matchedConfigs[0] || null;
   const batchType = primaryCfg ? normalizeBatchType(primaryCfg.batchType) : BATCH_TYPE_NEW;

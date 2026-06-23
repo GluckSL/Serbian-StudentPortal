@@ -32,7 +32,7 @@ const { recoverExerciseMedia } = require('../utils/exerciseMediaRecover');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
-const { isValidAdminCourseDay } = require('../utils/journeyDay');
+const { isValidAdminCourseDay, parseAdminCourseDay } = require('../utils/journeyDay');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
@@ -1491,10 +1491,32 @@ async function teacherCanEditExercise(user, exercise) {
   return level === 'edit' || level === 'full';
 }
 
+/** View-level access: any teacher who has the exercises tab assigned (view/edit/full) can read. */
+async function teacherCanViewExercise(user, exercise) {
+  if (user.role !== 'TEACHER') return true;
+  const owner = exerciseOwnerId(exercise);
+  if (owner === String(user.id)) return true;
+  const teacherUser = await loadTeacherPermissions(user.id);
+  const level = teacherExercisesTabLevel(teacherUser);
+  return level === 'view' || level === 'edit' || level === 'full';
+}
+
 async function assertTeacherOwnsExercise(user, exercise) {
   if (user.role === 'TEACHER') {
     const canEdit = await teacherCanEditExercise(user, exercise);
     if (!canEdit) {
+      const err = new Error('Forbidden');
+      err.statusCode = 403;
+      throw err;
+    }
+  }
+}
+
+/** For read-only routes (analytics, completions): allow any teacher with the exercises tab. */
+async function assertTeacherCanViewExercise(user, exercise) {
+  if (user.role === 'TEACHER') {
+    const canView = await teacherCanViewExercise(user, exercise);
+    if (!canView) {
       const err = new Error('Forbidden');
       err.statusCode = 403;
       throw err;
@@ -1733,6 +1755,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
     ];
 
     let studentExerciseAccess = null;
+    let listSort = { createdAt: -1 };
     if (req.user.role === 'STUDENT') {
       andClauses.push({ visibleToStudents: true });
       studentExerciseAccess = await getStudentExerciseAccess(req.user.id);
@@ -1744,7 +1767,9 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
-          accessibleLevels: studentExerciseAccess.accessibleLevels
+          accessibleLevels: studentExerciseAccess.accessibleLevels,
+          accessDenied: true,
+          accessReason: 'BATCH_NOT_ACTIVE'
         });
       }
       if (studentExerciseAccess.learningEnabled === false) {
@@ -1755,27 +1780,31 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
-          accessibleLevels: studentExerciseAccess.accessibleLevels
+          accessibleLevels: studentExerciseAccess.accessibleLevels,
+          accessDenied: true,
+          accessReason: 'LEARNING_DISABLED'
         });
       }
       const studentCourseDay = studentExerciseAccess.courseDay;
       const minAssignedDay = studentExerciseAccess.minAssignedContentDay ?? 1;
+      const requestedCourseDay = parseAdminCourseDay(req.query.courseDay);
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
-      if (todayOnly) {
+      if (requestedCourseDay != null) {
+        if (requestedCourseDay > studentCourseDay || requestedCourseDay < minAssignedDay) {
+          andClauses.push({ courseDay: -1 });
+        } else {
+          andClauses.push({ courseDay: requestedCourseDay });
+          listSort = { sequenceLetter: 1, title: 1, createdAt: -1 };
+        }
+      } else if (todayOnly) {
         if (studentCourseDay >= minAssignedDay) {
           andClauses.push({ courseDay: studentCourseDay });
         } else {
           andClauses.push({ courseDay: -1 });
         }
       } else {
-        // A1 and A2 content is always visible to students; higher levels follow the journey day gate.
         const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
-        andClauses.push({
-          $or: [
-            { level: { $in: ['A1', 'A2'] } },
-            studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay)
-          ]
-        });
+        andClauses.push(studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay));
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
       appendNotBlockedToAndClauses(
@@ -1816,7 +1845,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       DigitalExercise.countDocuments(filter),
       DigitalExercise.aggregate([
         { $match: filter },
-        { $sort: { createdAt: -1 } },
+        { $sort: listSort },
         { $skip: (pageNum - 1) * limitNum },
         { $limit: limitNum },
         {
@@ -3892,7 +3921,7 @@ router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER
     }).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    await assertTeacherOwnsExercise(req.user, exercise);
+    await assertTeacherCanViewExercise(req.user, exercise);
 
     const attempt = await ExerciseAttempt.findOne({
       _id: req.params.attemptId,
@@ -4173,7 +4202,7 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       isDeleted: { $ne: true }
     }).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
-    await assertTeacherOwnsExercise(req.user, exercise);
+    await assertTeacherCanViewExercise(req.user, exercise);
 
     const { date, studentId, page = 1, limit = 50, all } = req.query;
     const filter = { exerciseId: req.params.id };

@@ -106,6 +106,8 @@ export class MyCourseComponent implements OnInit {
   progressRange: ProgressRange = 'weekly';
 
   private journeyDayExercises: DigitalExercise[] = [];
+  journeyDayExercisesLoading = false;
+  journeyDayExercisesLoadingDay: number | null = null;
   private journeyDayGameSets: GameSet[] = [];
   /** True when the student's batch has at least one published arena game. */
   hasJourneyArenaAccess = false;
@@ -172,6 +174,9 @@ export class MyCourseComponent implements OnInit {
 
   /** Full user profile from AuthService (contains subscription, role, etc.) */
   userProfile: any = null;
+
+  /** False until GET /student-progress/journey returns — avoids tab flash before access flags load. */
+  journeyProfileLoaded = false;
 
   private readonly motivateLines = [
     'You’re going strong — keep showing up!',
@@ -335,7 +340,10 @@ export class MyCourseComponent implements OnInit {
       .subscribe({
         next: (journey) => {
           this.journey = journey;
+          this.journeyProfileLoaded = true;
+          this.reconcileTabAfterJourneyProfile();
           this.loadDayCompletionData();
+          this.refreshJourneyDayExercisesIfNeeded();
           setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
           if (!this._tourChecked) {
             this._tourChecked = true;
@@ -387,6 +395,21 @@ export class MyCourseComponent implements OnInit {
 
     this.route.queryParamMap.subscribe((q) => {
       let t = q.get('tab');
+      const d = q.get('day');
+      let journeyDayFromUrl: number | null = null;
+      if (d != null && d !== '' && Number.isFinite(Number(d))) {
+        const n = Number(d);
+        const min = this.trialDayEnabled ? 0 : 1;
+        if (n >= min && n <= 200) journeyDayFromUrl = n;
+      }
+      if (journeyDayFromUrl != null) {
+        const prevDay = this.selectedJourneyDay;
+        this.selectedJourneyDay = journeyDayFromUrl;
+        if (this.activeTab === 'journey' && journeyDayFromUrl !== prevDay) {
+          this.loadJourneyDayExercises(journeyDayFromUrl);
+        }
+      }
+
       if (t === 'modules') {
         t = 'talk-buddy';
         this.router.navigate([], {
@@ -396,7 +419,7 @@ export class MyCourseComponent implements OnInit {
           replaceUrl: true
         });
       }
-      if (t === 'exercises' && !this.allowsLearningContent) {
+      if (t === 'exercises' && !this.showExercisesTab) {
         this.activeTab = 'classes';
       } else if (t === 'talk-buddy' && !this.allowsTalkBuddyTab) {
         this.activeTab = 'classes';
@@ -412,12 +435,6 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = t;
         this.tabVisited.add(t);
         this.loadGluckExamData();
-      }
-      const d = q.get('day');
-      if (d != null && d !== '' && Number.isFinite(Number(d))) {
-        const n = Number(d);
-        const min = this.trialDayEnabled ? 0 : 1;
-        if (n >= min && n <= 200) this.selectedJourneyDay = n;
       }
     });
   }
@@ -471,36 +488,69 @@ export class MyCourseComponent implements OnInit {
     });
   }
 
-  /** Full exercise list (loaded lazily on Journey tab first visit). */
-  private _fullExercisesLoaded = false;
+  /** Full exercise list (loaded per journey day on Journey tab). */
+  private readonly _journeyDaysLoaded = new Set<number>();
 
   /**
-   * Loads a paginated exercise list for the Journey tab.
-   * Only called when the Journey tab is first opened; the My Class badge uses
-   * the lighter initial set already stored in journeyDayExercises.
+   * Loads exercises tagged to a specific journey day (Journey tab + completion badge).
    */
-  loadFullExercisesForJourney(): void {
-    if (this._fullExercisesLoaded || this.destroyed) return;
-    this._fullExercisesLoaded = true;
-    const courseDay = this.journeyCourseDay;
-    this.exerciseService
-      .getExercises({ page: 1, limit: 50 })
+  loadJourneyDayExercises(day: number, force = false): void {
+    if (this.destroyed || !this.journeyProfileLoaded) return;
+    if (!this.allowsLearningContent) return;
+    if (!force && this._journeyDaysLoaded.has(day)) return;
+
+    this.journeyDayExercisesLoading = true;
+    this.journeyDayExercisesLoadingDay = day;
+    this._journeyDaysLoaded.add(day);
+
+    const request$ = force
+      ? this.exerciseService.refreshExercises({ page: 1, limit: 100, courseDay: day })
+      : this.exerciseService.getExercises({ page: 1, limit: 100, courseDay: day });
+
+    request$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
-          this.journeyDayExercises = items;
-          // Refresh quick-access with full dataset
-          const unlocked = items.filter((ex) => {
-            if (ex.studentAttempt) return false;
-            const exDay = ex.courseDay;
-            return exDay == null || exDay <= courseDay;
-          });
-          unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
-          this.nextNewDigitalExercise = unlocked[0] || null;
+          this.mergeJourneyExercises(items);
+          if (day === this.journeyCourseDay) {
+            const unlocked = items.filter((ex) => {
+              if (ex.studentAttempt) return false;
+              const exDay = ex.courseDay;
+              return exDay == null || exDay <= day;
+            });
+            unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
+            this.nextNewDigitalExercise = unlocked[0] || null;
+          }
         },
-        error: () => {}
+        error: () => {
+          this._journeyDaysLoaded.delete(day);
+        },
+        complete: () => {
+          if (this.journeyDayExercisesLoadingDay === day) {
+            this.journeyDayExercisesLoading = false;
+            this.journeyDayExercisesLoadingDay = null;
+          }
+        }
       });
+  }
+
+  /** Load journey-day exercises once profile access flags are known. */
+  private refreshJourneyDayExercisesIfNeeded(): void {
+    if (this.destroyed || !this.journeyProfileLoaded || !this.allowsLearningContent) return;
+    if (!this.tabVisited.has('journey') && this.activeTab !== 'journey') return;
+    this.loadJourneyDayExercises(this.selectedJourneyDay, true);
+  }
+
+  private mergeJourneyExercises(incoming: DigitalExercise[]): void {
+    const byId = new Map<string, DigitalExercise>();
+    for (const ex of this.journeyDayExercises) {
+      if (ex?._id) byId.set(String(ex._id), ex);
+    }
+    for (const ex of incoming) {
+      if (ex?._id) byId.set(String(ex._id), ex);
+    }
+    this.journeyDayExercises = Array.from(byId.values());
   }
 
   private loadQuickAccess(onDone?: () => void): void {
@@ -513,19 +563,15 @@ export class MyCourseComponent implements OnInit {
       if (pending <= 0) onDone?.();
     };
 
-    // Lightweight fetch: only current + adjacent days for the day-completion badge
-    // and the "next exercise" quick-access card on My Class.
-    // The Journey tab triggers loadFullExercisesForJourney() for the full 500-item list.
+    // Fetch exercises for the current journey day (completion badge + quick access).
     this.exerciseService
-      .getExercises({ page: 1, limit: 60 })
+      .getExercises({ page: 1, limit: 100, courseDay: courseDay })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
-          // Only replace the full list if Journey hasn't already loaded the 500-item set
-          if (!this._fullExercisesLoaded) {
-            this.journeyDayExercises = items;
-          }
+          this._journeyDaysLoaded.add(courseDay);
+          this.mergeJourneyExercises(items);
           const unlocked = items.filter((ex) => {
             const noAttempt = !ex.studentAttempt;
             if (!noAttempt) return false;
@@ -536,7 +582,7 @@ export class MyCourseComponent implements OnInit {
           this.nextNewDigitalExercise = unlocked[0] || null;
         },
         error: () => {
-          this.journeyDayExercises = [];
+          this._journeyDaysLoaded.delete(courseDay);
         },
         complete: () => finish()
       });
@@ -577,11 +623,12 @@ export class MyCourseComponent implements OnInit {
   private _journeyClassesRefreshed = false;
 
   private loadJourneyTabData(): void {
-    if (this._journeyTabDataLoaded) return;
-    this._journeyTabDataLoaded = true;
-    this.loadDayCompletionData(true);
-    this.loadGluckExamData();
-    this.loadFullExercisesForJourney();
+    if (!this._journeyTabDataLoaded) {
+      this._journeyTabDataLoaded = true;
+      this.loadDayCompletionData(true);
+      this.loadGluckExamData();
+    }
+    this.refreshJourneyDayExercisesIfNeeded();
   }
 
   private loadJourneyGames(): void {
@@ -669,7 +716,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   setTab(tab: MyCourseTab): void {
-    if (tab === 'exercises' && !this.allowsLearningContent) {
+    if (tab === 'exercises' && !this.showExercisesTab) {
       tab = 'classes';
     }
     if (tab === 'talk-buddy' && !this.allowsTalkBuddyTab) {
@@ -687,11 +734,22 @@ export class MyCourseComponent implements OnInit {
       this.loadJourneyTabData();
       this.loadJourneyGames();
     }
+    if (tab === 'gluck-exam') {
+      this.loadGluckExamData();
+    }
     if (tab === 'classes') {
       this.refreshJourneyForPendingCelebration();
     }
-    if (tab === 'gluck-exam') {
-      this.loadGluckExamData();
+  }
+
+  /** After journey profile loads, move off tabs the student no longer has access to. */
+  private reconcileTabAfterJourneyProfile(): void {
+    if (this.activeTab === 'exercises' && !this.showExercisesTab) {
+      this.setTab('classes');
+      return;
+    }
+    if (this.activeTab === 'talk-buddy' && !this.allowsTalkBuddyTab) {
+      this.setTab('classes');
     }
   }
 
@@ -966,6 +1024,16 @@ export class MyCourseComponent implements OnInit {
     return '—';
   }
 
+  /** Student batch label for hero badges (journey profile → login profile → auth snapshot). */
+  get studentBatchLabel(): string {
+    const fromJourney = String(this.profile?.batch || '').trim();
+    if (fromJourney) return fromJourney;
+    const fromUser = String(this.userProfile?.batch || '').trim();
+    if (fromUser) return fromUser;
+    const u = this.authService.getSnapshotUser();
+    return String(u?.batch || '').trim();
+  }
+
   get learningPct(): number {
     const lp = this.levelProgression;
     const completed = lp.filter((l: any) => l.status === 'completed').length;
@@ -1034,15 +1102,31 @@ export class MyCourseComponent implements OnInit {
   }
 
   get allowsLearningContent(): boolean {
-    return this.profile?.learningContentEnabled !== false;
+    if (!this.journeyProfileLoaded) return false;
+    if (this.isOldBatchStudent) return false;
+    return this.profile?.learningContentEnabled === true;
+  }
+
+  /** Legacy/old batches: live classes + recordings + journey tabs, but not digital exercises. */
+  get isOldBatchStudent(): boolean {
+    if (!this.journeyProfileLoaded) return false;
+    return String(this.profile?.batchType || '').toLowerCase() === 'old';
+  }
+
+  /** Exercises tab — new-batch students with learning content only. */
+  get showExercisesTab(): boolean {
+    return this.journeyProfileLoaded && !this.isOldBatchStudent && this.profile?.learningContentEnabled === true;
   }
 
   /** Old batches with admin DG Bot toggle, or any batch with full learning content. */
   get allowsDgBot(): boolean {
+    if (!this.journeyProfileLoaded) return false;
     return this.profile?.dgBotEnabled !== false;
   }
 
   get allowsTalkBuddyTab(): boolean {
+    if (!this.journeyProfileLoaded) return true;
+    if (this.isOldBatchStudent) return true;
     return this.allowsLearningContent || this.allowsDgBot;
   }
 
@@ -1099,6 +1183,7 @@ export class MyCourseComponent implements OnInit {
 
   selectJourneyDay(day: number): void {
     this.selectedJourneyDay = day;
+    this.loadJourneyDayExercises(day);
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { tab: 'journey', day },

@@ -21,13 +21,28 @@ function studentTargetBatchKeys(student) {
   return normalizeBatchKeys(labels);
 }
 
+function expandBatchKeyLookupVariants(keys) {
+  const out = new Set();
+  for (const raw of keys || []) {
+    const k = normalizeBatchKey(raw);
+    if (!k) continue;
+    out.add(k);
+    out.add(`Batch ${k}`);
+    out.add(`batch ${k}`);
+    out.add(`BATCH ${k}`);
+  }
+  return [...out];
+}
+
 /**
  * Mongo query snippet: module is visible to the student batch when:
  * - module has no batch keys (unassigned = visible to all), OR
  * - module targetBatchKeys intersects student's target batch keys.
  */
 function moduleTargetingQuery(studentKeys) {
-  const keys = Array.isArray(studentKeys) ? studentKeys.filter(Boolean) : [];
+  const keys = expandBatchKeyLookupVariants(
+    Array.isArray(studentKeys) ? studentKeys : normalizeBatchKeys(studentKeys)
+  );
   return {
     $or: [
       { targetBatchKeys: { $exists: false } },

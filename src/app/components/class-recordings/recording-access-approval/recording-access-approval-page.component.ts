@@ -14,7 +14,7 @@ import {
   RequestHistoryCounts,
 } from '../../../services/recording-access-request.service';
 
-type ApprovalTab = 'pending' | 'history';
+type ApprovalTab = 'pending' | 'history' | 'ready';
 
 @Component({
   selector: 'app-recording-access-approval-page',
@@ -29,6 +29,7 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
   historyRequests: ReviewedRequest[] = [];
   historyCounts: RequestHistoryCounts | null = null;
   historyStatusFilter: '' | 'APPROVED' | 'DECLINED' = '';
+  batchFilter = '';
   historyPage = 1;
   historyTotal = 0;
   readonly historyPageSize = 50;
@@ -97,10 +98,10 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
 
   setTab(tab: ApprovalTab): void {
     this.activeTab = tab;
-    if (tab === 'pending') {
-      this.loadRequests();
-    } else {
+    if (tab === 'history') {
       this.loadHistory();
+    } else {
+      this.loadRequests();
     }
   }
 
@@ -170,6 +171,40 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
 
   get readyRecordingCount(): number {
     return this.requests.filter((r) => r.hasRecording).length;
+  }
+
+  get batchOptions(): string[] {
+    const set = new Set<string>();
+    for (const r of this.requests) {
+      const b = String(r.studentBatch || '').trim();
+      if (b) set.add(b);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }
+
+  /** Pending or Ready tab list, optionally filtered by batch. */
+  get displayedPendingRequests(): PendingRequest[] {
+    let list =
+      this.activeTab === 'ready'
+        ? this.requests.filter((r) => r.hasRecording)
+        : this.requests;
+    const batch = String(this.batchFilter || '').trim();
+    if (batch) {
+      list = list.filter((r) => String(r.studentBatch || '').trim() === batch);
+    }
+    return list;
+  }
+
+  get displayedReadyCount(): number {
+    return this.displayedPendingRequests.length;
+  }
+
+  refreshActiveTab(): void {
+    if (this.activeTab === 'history') {
+      this.loadHistory();
+    } else {
+      this.loadRequests();
+    }
   }
 
   isRowBusy(req: PendingRequest): boolean {

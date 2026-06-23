@@ -43,9 +43,9 @@
       </button>
     </div>
 
-    <div class="gb-hub__panel" role="tabpanel" *ngIf="hasAnyModules">
+    <div class="gb-hub__panel" role="tabpanel">
       <app-dg-bot-hub
-        *ngIf="subTab === 'practice' && showPracticeTab"
+        *ngIf="subTab === 'practice'"
         [embedded]="true"
         [hideEmbeddedHeader]="true"
         [journeyFixedDay]="journeyFixedDay"
@@ -65,17 +65,17 @@
         [journeyFixedDay]="journeyFixedDay"
         tutorName="Olly Tutor"
       ></app-sprechen-exam-hub>
-    </div>
 
-    <section class="gb-hub__empty" *ngIf="!hasAnyModules">
-      <img class="gb-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
-      <h3>No Glück Buddy modules yet</h3>
-      <p *ngIf="journeyFixedDay != null">
-        Nothing is assigned for <strong>Day {{ journeyFixedDay }}</strong> yet. Check back later or try another journey day.
-      </p>
-      <p *ngIf="journeyFixedDay == null">
-        Your teacher has not published speaking practice or exam modules for <strong>Day {{ studentCourseDay }}</strong> yet.
-      </p>
-    </section>
+      <section class="gb-hub__empty" *ngIf="subTab === 'exam' && !showExamTab">
+        <img class="gb-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
+        <h3>No exam modules yet</h3>
+        <p *ngIf="journeyFixedDay != null">
+          Nothing is assigned for <strong>Day {{ journeyFixedDay }}</strong> yet.
+        </p>
+        <p *ngIf="journeyFixedDay == null">
+          Your teacher has not published exam simulations for <strong>Day {{ studentCourseDay }}</strong> yet.
+        </p>
+      </section>
+    </div>
   </ng-container>
 </div>

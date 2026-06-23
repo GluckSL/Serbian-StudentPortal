@@ -99,6 +99,9 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   }
 
   ngOnInit(): void {
+    if (this.embedded) {
+      this.activeTab = 'new';
+    }
     const u = this.auth.getSnapshotUser();
     if (!this.embedded && u?.role === 'STUDENT') {
       this.router.navigate(['/student/my-course'], {

@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const { getJourneyAccessForStudent } = require('./studentJourneyAccess');
 const { minimumAssignedContentDay } = require('./journeyDay');
+const { studentTargetBatchKeys } = require('./batchTargeting');
 const {
   computeDgUnlockedWeek,
   dgModuleUnlockedForWeekly,
@@ -29,10 +30,11 @@ async function getStudentDgJourneyAccess(userId) {
     };
   }
   const journeyAccess = await getJourneyAccessForStudent(u);
+  const batchKeys = studentTargetBatchKeys(u);
   const unlockMode = journeyAccess.dgUnlockMode === 'weekly' ? 'weekly' : 'daily';
   let dgUnlockedWeek = 1;
   if (unlockMode === 'weekly' && journeyAccess.dgBotEnabled) {
-    dgUnlockedWeek = await computeDgUnlockedWeek(userId, journeyAccess.batchKeys || []);
+    dgUnlockedWeek = await computeDgUnlockedWeek(userId, batchKeys);
   } else if (unlockMode === 'daily') {
     dgUnlockedWeek = Math.ceil((journeyAccess.contentUnlockDay ?? journeyAccess.courseDay ?? 1) / 7);
   }
@@ -45,7 +47,7 @@ async function getStudentDgJourneyAccess(userId) {
     dgUnlockedWeek,
     courseDay: journeyAccess.contentUnlockDay ?? journeyAccess.courseDay,
     minAssignedContentDay: minimumAssignedContentDay(u, journeyAccess.trialDayEnabled),
-    batchKeys: journeyAccess.batchKeys || [],
+    batchKeys,
   };
 }
 

@@ -737,6 +737,24 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     return this.scopeTotalsFromRow(r).overdue;
   }
 
+  /** Sum of pending amounts from all levels that came BEFORE the batch's current level. */
+  rowPrevLevelsPending(r: BatchPaymentRow): FinanceCurrencyTotals {
+    const levelOrder: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
+    const currentLevel = (r.level ?? '') as LanguageLevelSlot;
+    const currentIdx = levelOrder.indexOf(currentLevel);
+    if (currentIdx <= 0) return this.emptyCurrencyTotals();
+    const prevLevels = levelOrder.slice(0, currentIdx);
+    let lkr = 0, inr = 0, usd = 0;
+    for (const lvl of prevLevels) {
+      const slot = r.levelSlots?.[lvl];
+      if (!slot) continue;
+      lkr += slot.pendingLKR ?? 0;
+      inr += slot.pendingINR ?? 0;
+      usd += slot.pendingUSD ?? 0;
+    }
+    return { lkr, inr, usd };
+  }
+
   isInsightActive(value: BatchInsightFilter): boolean {
     return this.batchInsight === value;
   }

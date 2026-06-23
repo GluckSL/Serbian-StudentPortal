@@ -5,9 +5,11 @@ import { environment } from '../../../environments/environment';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { JourneyMapComponent } from './journey-map.component';
+import { LoginStreakService, LoginStreakData } from '../../services/login-streak.service';
 
 interface Kpis {
   overallCompletionPct: number; overallDone: number; overallTotal: number;
+  resourceCompletionPct: number; resourceDone: number; resourceTotal: number;
   exerciseCompleted: number; exerciseTotal: number; exercisePct: number;
   classAttended: number; classTotal: number; classPct: number;
   dgBotCompleted: number; dgBotTotal: number; dgBotPct: number;
@@ -50,6 +52,7 @@ interface SummaryResponse {
 export class PerformanceHistoryComponent implements OnInit {
   isLoading = true;
   data: SummaryResponse | null = null;
+  loginStreakData: LoginStreakData | null = null;
   rangeMode: 'overall' | 'weekly' = 'weekly';
   private _activeTable: 'classes' | 'exercises' | 'dg' | 'tests' = 'classes';
   get activeTable() { return this._activeTable; }
@@ -90,10 +93,14 @@ export class PerformanceHistoryComponent implements OnInit {
     }
   };
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private loginStreakService: LoginStreakService) {}
 
   ngOnInit(): void {
     this.loadSummary();
+    this.loginStreakService.getLoginStreak().subscribe({
+      next: (res) => { this.loginStreakData = res?.data ?? null; },
+      error: () => {}
+    });
   }
 
   setRange(mode: 'overall' | 'weekly'): void {

@@ -465,4 +465,12 @@ export class InteractiveGameService {
   getTeamBattleStandings(): Observable<{ success: boolean; standings: import('../glueck-arena.types').TeamBattleStanding[] }> {
     return this.http.get<any>(`${this.base}/admin/battlefield/team-battles/standings`);
   }
+
+  // ── Student Search (for manual team creation) ─────────────────────────
+  searchStudents(q: string, limit = 20): Observable<{ data: { _id: string; name: string; regNo: string; email: string }[] }> {
+    return this.http.get<any>(`${environment.apiUrl}/google-sheet/students/search`, {
+      params: { q, limit: String(limit) },
+      withCredentials: true,
+    });
+  }
 }

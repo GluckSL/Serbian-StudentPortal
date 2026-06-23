@@ -69,11 +69,20 @@
   gap: 8px;
 }
 
+.rar-tabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
 .rar-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
   flex-wrap: wrap;
+  margin-bottom: 0;
 }
 
 .rar-tab {
@@ -116,6 +125,17 @@
 .rar-tab__badge--muted {
   background: #e2e8f0;
   color: #475569;
+}
+
+.rar-tab__badge--ready {
+  background: #059669;
+  color: #fff;
+}
+
+.rar-batch-filter {
+  min-width: 160px;
+  font-size: 13px;
+  margin-left: auto;
 }
 
 .rar-stats {

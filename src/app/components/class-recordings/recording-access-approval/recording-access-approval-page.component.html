@@ -11,23 +11,36 @@
       </p>
     </div>
     <div class="rar-header__actions">
-      <button type="button" class="rar-btn rar-btn--ghost" (click)="activeTab === 'pending' ? loadRequests() : loadHistory()" [disabled]="loading || historyLoading">
+      <button type="button" class="rar-btn rar-btn--ghost" (click)="refreshActiveTab()" [disabled]="loading || historyLoading">
         <mat-icon>refresh</mat-icon>
         Refresh
       </button>
     </div>
   </header>
 
-  <nav class="rar-tabs" aria-label="Request queues">
-    <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'pending'" (click)="setTab('pending')">
-      Pending
-      <span class="rar-tab__badge" *ngIf="requests.length">{{ requests.length }}</span>
-    </button>
-    <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'history'" (click)="setTab('history')">
-      History
-      <span class="rar-tab__badge rar-tab__badge--muted" *ngIf="historyCounts?.reviewed">{{ historyCounts?.reviewed }}</span>
-    </button>
-  </nav>
+  <div class="rar-tabs-bar">
+    <nav class="rar-tabs" aria-label="Request queues">
+      <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'pending'" (click)="setTab('pending')">
+        Pending
+        <span class="rar-tab__badge" *ngIf="requests.length">{{ requests.length }}</span>
+      </button>
+      <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'history'" (click)="setTab('history')">
+        History
+        <span class="rar-tab__badge rar-tab__badge--muted" *ngIf="historyCounts?.reviewed">{{ historyCounts?.reviewed }}</span>
+      </button>
+      <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'ready'" (click)="setTab('ready')">
+        Ready
+        <span class="rar-tab__badge rar-tab__badge--ready" *ngIf="readyRecordingCount">{{ readyRecordingCount }}</span>
+      </button>
+    </nav>
+    <mat-form-field appearance="outline" class="rar-batch-filter" subscriptSizing="dynamic" *ngIf="activeTab === 'pending' || activeTab === 'ready'">
+      <mat-label>Batch</mat-label>
+      <mat-select [(ngModel)]="batchFilter">
+        <mat-option value="">All batches</mat-option>
+        <mat-option *ngFor="let b of batchOptions" [value]="b">Batch {{ b }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
 
   <div class="rar-stats" *ngIf="activeTab === 'pending'">
     <div class="rar-stat rar-stat--purple">
@@ -41,6 +54,21 @@
     <div class="rar-stat rar-stat--amber">
       <span class="rar-stat__val">{{ loading ? '…' : requests.length - readyRecordingCount }}</span>
       <span class="rar-stat__lbl">Awaiting upload</span>
+    </div>
+  </div>
+
+  <div class="rar-stats" *ngIf="activeTab === 'ready'">
+    <div class="rar-stat rar-stat--green">
+      <span class="rar-stat__val">{{ loading ? '…' : displayedReadyCount }}</span>
+      <span class="rar-stat__lbl">Recording ready</span>
+    </div>
+    <div class="rar-stat rar-stat--purple" *ngIf="batchFilter">
+      <span class="rar-stat__val">{{ loading ? '…' : readyRecordingCount }}</span>
+      <span class="rar-stat__lbl">Ready (all batches)</span>
+    </div>
+    <div class="rar-stat rar-stat--amber">
+      <span class="rar-stat__val">{{ loading ? '…' : requests.length - readyRecordingCount }}</span>
+      <span class="rar-stat__lbl">Still awaiting upload</span>
     </div>
   </div>
 
@@ -59,7 +87,7 @@
     </div>
   </div>
 
-  <div class="rar-banner rar-banner--error" *ngIf="activeTab === 'pending' && error && !loading">
+  <div class="rar-banner rar-banner--error" *ngIf="(activeTab === 'pending' || activeTab === 'ready') && error && !loading">
     <mat-icon>error_outline</mat-icon>
     {{ error }}
     <button type="button" class="rar-banner__retry" (click)="loadRequests()">Try again</button>
@@ -71,7 +99,7 @@
     <button type="button" class="rar-banner__retry" (click)="loadHistory()">Try again</button>
   </div>
 
-  <div class="rar-card" *ngIf="activeTab === 'pending' && loading">
+  <div class="rar-card" *ngIf="(activeTab === 'pending' || activeTab === 'ready') && loading">
     <table class="rar-table rar-table--skeleton">
       <thead>
         <tr>
@@ -100,9 +128,30 @@
     <button type="button" class="rar-btn rar-btn--primary" (click)="goToRecordings()">Back to Class Recordings</button>
   </div>
 
-  <div class="rar-card" *ngIf="activeTab === 'pending' && !loading && requests.length">
+  <div class="rar-card rar-card--empty" *ngIf="activeTab === 'ready' && !loading && !error && !readyRecordingCount">
+    <mat-icon class="rar-empty__icon">videocam_off</mat-icon>
+    <h2>No recordings ready yet</h2>
+    <p>Pending requests will appear here once the class recording is in the portal.</p>
+  </div>
+
+  <div class="rar-card rar-card--empty" *ngIf="activeTab === 'ready' && !loading && !error && readyRecordingCount && !displayedPendingRequests.length">
+    <mat-icon class="rar-empty__icon">filter_alt_off</mat-icon>
+    <h2>No matches for this batch</h2>
+    <p>Try another batch or clear the filter to see all ready requests.</p>
+  </div>
+
+  <div class="rar-card rar-card--empty" *ngIf="activeTab === 'pending' && !loading && !error && requests.length && !displayedPendingRequests.length">
+    <mat-icon class="rar-empty__icon">filter_alt_off</mat-icon>
+    <h2>No matches for this batch</h2>
+    <p>Try another batch or clear the filter to see all pending requests.</p>
+  </div>
+
+  <div class="rar-card" *ngIf="(activeTab === 'pending' || activeTab === 'ready') && !loading && displayedPendingRequests.length">
     <div class="rar-card__toolbar">
-      <span class="rar-card__count">{{ requests.length }} request{{ requests.length !== 1 ? 's' : '' }} waiting</span>
+      <span class="rar-card__count">
+        <ng-container *ngIf="activeTab === 'pending'">{{ displayedPendingRequests.length }} request{{ displayedPendingRequests.length !== 1 ? 's' : '' }} waiting</ng-container>
+        <ng-container *ngIf="activeTab === 'ready'">{{ displayedReadyCount }} ready to approve</ng-container>
+      </span>
     </div>
     <div class="rar-table-wrap">
       <table class="rar-table">
@@ -119,7 +168,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let req of requests">
+          <tr *ngFor="let req of displayedPendingRequests">
             <td class="rar-cell-student">
               <span class="rar-student-name">{{ req.studentName }}</span>
               <span class="rar-student-email">{{ req.studentEmail }}</span>

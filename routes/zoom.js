@@ -12,7 +12,6 @@ const checkRole = require('../middleware/checkRole');
 const { findBestParticipantMatch } = require('../services/zoomParticipantMatch');
 const { scheduleDispatchEvent, sanitizeMeetingLink } = require('../services/studentPortalCrmWebhook');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
-const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
 const { resolveMeetingJoinPwd } = require('../utils/zoomJoinUrls');
 const { getJoinLogDataForMeeting, getPortalJoinsForMeeting } = require('../services/joinLogHelpers');
@@ -1278,12 +1277,6 @@ function studentAttendanceFromMeeting(meetingDoc, sid, studentEmail) {
   };
 }
 
-function filterMeetingsNotBlocked(student, rows) {
-  if (!student || !Array.isArray(rows)) return rows || [];
-  return rows.filter(
-    (m) => !isContentBlockedForStudent(student, { courseDay: m.courseDay, level: student.level })
-  );
-}
 
 function mapStudentMeetingRow(req, meeting, studentId, studentEmail, studentDay) {
   const now = new Date();
@@ -1459,10 +1452,9 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       ]);
 
       const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
-      let data = meetings.map((m) =>
+      const data = meetings.map((m) =>
         mapStudentMeetingRow(req, m, studentId, student.email, studentDay)
       );
-      data = filterMeetingsNotBlocked(student, data);
 
       const payload = {
         success: true,
@@ -1489,10 +1481,9 @@ router.get('/student-meetings', verifyToken, async (req, res) => {
       .sort({ startTime: -1 })
       .lean();
 
-    let meetingsWithStatus = meetings.map((meeting) =>
+    const meetingsWithStatus = meetings.map((meeting) =>
       mapStudentMeetingRow(req, meeting, studentId, student.email, studentDay)
     );
-    meetingsWithStatus = filterMeetingsNotBlocked(student, meetingsWithStatus);
 
     res.status(200).json({
       success: true,

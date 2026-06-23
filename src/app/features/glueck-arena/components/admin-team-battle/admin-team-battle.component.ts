@@ -11,6 +11,9 @@ import { environment } from '../../../../../environments/environment';
 import { Subscription } from 'rxjs';
 
 interface BatchSummary { batchName: string; }
+interface StudentSearchResult { _id: string; name: string; regNo: string; email: string; }
+
+type TeamKey = 'teamA' | 'teamB';
 
 @Component({
   selector: 'app-admin-team-battle',
@@ -179,50 +182,130 @@ interface BatchSummary { batchName: string; }
 
         <fieldset class="atb-team-set">
           <legend>Team A</legend>
-          <div class="atb-field" *ngIf="!form.teamA.batchName">
-            <label>Select Batch</label>
-            <select [(ngModel)]="form.teamA.batchName" class="atb-select" (ngModelChange)="onBatchSelect('teamA')">
-              <option value="" disabled>Choose a batch</option>
-              <option *ngFor="let b of availableBatches" [value]="b.batchName" [disabled]="b.batchName === form.teamB.batchName">{{ b.batchName }}</option>
-            </select>
+
+          <!-- Mode Toggle -->
+          <div class="atb-mode-toggle">
+            <button type="button" class="atb-mode-btn" [class.atb-mode-btn--active]="form.teamA.teamMode === 'batch'" (click)="setTeamMode('teamA', 'batch')">Batch</button>
+            <button type="button" class="atb-mode-btn" [class.atb-mode-btn--active]="form.teamA.teamMode === 'manual'" (click)="setTeamMode('teamA', 'manual')">Manual</button>
           </div>
-          <div *ngIf="form.teamA.batchName" class="atb-batch-selected">
-            <div class="atb-batch-selected__header">
-              <strong>{{ form.teamA.name }}</strong>
-              <button mat-stroked-button color="warn" (click)="clearTeam('teamA')">Change</button>
+
+          <!-- Batch Mode -->
+          <ng-container *ngIf="form.teamA.teamMode === 'batch'">
+            <div class="atb-field" *ngIf="!form.teamA.batchName">
+              <label>Select Batch</label>
+              <select [(ngModel)]="form.teamA.batchName" class="atb-select" (ngModelChange)="onBatchSelect('teamA')">
+                <option value="" disabled>Choose a batch</option>
+                <option *ngFor="let b of availableBatches" [value]="b.batchName" [disabled]="b.batchName === form.teamB.batchName">{{ b.batchName }}</option>
+              </select>
             </div>
-            <div class="atb-batch-selected__count">
-              <mat-icon>people</mat-icon> {{ form.teamA.members.length }} students
+            <div *ngIf="form.teamA.batchName" class="atb-batch-selected">
+              <div class="atb-batch-selected__header">
+                <strong>{{ form.teamA.name }}</strong>
+                <button mat-stroked-button color="warn" (click)="clearTeam('teamA')">Change</button>
+              </div>
+              <div class="atb-batch-selected__count">
+                <mat-icon>people</mat-icon> {{ form.teamA.members.length }} students
+              </div>
+              <div class="atb-batch-selected__members" *ngIf="form.teamA.members.length > 0">
+                <span class="atb-batch-member" *ngFor="let m of form.teamA.members | slice:0:20">{{ m.name }}</span>
+                <span class="atb-batch-member atb-batch-member--more" *ngIf="form.teamA.members.length > 20">+{{ form.teamA.members.length - 20 }} more</span>
+              </div>
             </div>
-            <div class="atb-batch-selected__members" *ngIf="form.teamA.members.length > 0">
-              <span class="atb-batch-member" *ngFor="let m of form.teamA.members | slice:0:20">{{ m.name }}</span>
-              <span class="atb-batch-member atb-batch-member--more" *ngIf="form.teamA.members.length > 20">+{{ form.teamA.members.length - 20 }} more</span>
+          </ng-container>
+
+          <!-- Manual Mode -->
+          <ng-container *ngIf="form.teamA.teamMode === 'manual'">
+            <div class="atb-field">
+              <label>Team Name</label>
+              <input [ngModel]="form.teamA.name" (ngModelChange)="form.teamA.name = $event; autoGenerateTitle()" placeholder="e.g. Die Meisters" class="atb-input">
             </div>
-          </div>
+            <div class="atb-field atb-search-field">
+              <label>Add Students</label>
+              <input [(ngModel)]="form.teamA.searchQuery"
+                     (input)="onSearchInput('teamA')"
+                     (focus)="onSearchFocus('teamA')"
+                     (blur)="onSearchBlur('teamA')"
+                     placeholder="Search by name, regNo, or email..."
+                     class="atb-input" autocomplete="off">
+              <div class="atb-search-dd" *ngIf="form.teamA.searchFocused && form.teamA.searchResults.length > 0">
+                <div class="atb-search-dd__row" *ngFor="let s of form.teamA.searchResults" (mousedown)="addMember('teamA', s)">
+                  <div class="atb-search-dd__name">{{ s.name }} <span class="atb-search-dd__reg">{{ s.regNo }}</span></div>
+                  <div class="atb-search-dd__email">{{ s.email }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="atb-chips">
+              <span class="atb-chip" *ngFor="let m of form.teamA.members; let i = index">
+                <button type="button" class="atb-chip__remove" (click)="removeMember('teamA', i)">×</button>
+                {{ m.name }}
+              </span>
+              <span class="atb-chip atb-chip--hint" *ngIf="form.teamA.members.length === 0">No students selected yet</span>
+            </div>
+          </ng-container>
         </fieldset>
 
         <fieldset class="atb-team-set">
           <legend>Team B</legend>
-          <div class="atb-field" *ngIf="!form.teamB.batchName">
-            <label>Select Batch</label>
-            <select [(ngModel)]="form.teamB.batchName" class="atb-select" (ngModelChange)="onBatchSelect('teamB')">
-              <option value="" disabled>Choose a batch</option>
-              <option *ngFor="let b of availableBatches" [value]="b.batchName" [disabled]="b.batchName === form.teamA.batchName">{{ b.batchName }}</option>
-            </select>
+
+          <!-- Mode Toggle -->
+          <div class="atb-mode-toggle">
+            <button type="button" class="atb-mode-btn" [class.atb-mode-btn--active]="form.teamB.teamMode === 'batch'" (click)="setTeamMode('teamB', 'batch')">Batch</button>
+            <button type="button" class="atb-mode-btn" [class.atb-mode-btn--active]="form.teamB.teamMode === 'manual'" (click)="setTeamMode('teamB', 'manual')">Manual</button>
           </div>
-          <div *ngIf="form.teamB.batchName" class="atb-batch-selected">
-            <div class="atb-batch-selected__header">
-              <strong>{{ form.teamB.name }}</strong>
-              <button mat-stroked-button color="warn" (click)="clearTeam('teamB')">Change</button>
+
+          <!-- Batch Mode -->
+          <ng-container *ngIf="form.teamB.teamMode === 'batch'">
+            <div class="atb-field" *ngIf="!form.teamB.batchName">
+              <label>Select Batch</label>
+              <select [(ngModel)]="form.teamB.batchName" class="atb-select" (ngModelChange)="onBatchSelect('teamB')">
+                <option value="" disabled>Choose a batch</option>
+                <option *ngFor="let b of availableBatches" [value]="b.batchName" [disabled]="b.batchName === form.teamA.batchName">{{ b.batchName }}</option>
+              </select>
             </div>
-            <div class="atb-batch-selected__count">
-              <mat-icon>people</mat-icon> {{ form.teamB.members.length }} students
+            <div *ngIf="form.teamB.batchName" class="atb-batch-selected">
+              <div class="atb-batch-selected__header">
+                <strong>{{ form.teamB.name }}</strong>
+                <button mat-stroked-button color="warn" (click)="clearTeam('teamB')">Change</button>
+              </div>
+              <div class="atb-batch-selected__count">
+                <mat-icon>people</mat-icon> {{ form.teamB.members.length }} students
+              </div>
+              <div class="atb-batch-selected__members" *ngIf="form.teamB.members.length > 0">
+                <span class="atb-batch-member" *ngFor="let m of form.teamB.members | slice:0:20">{{ m.name }}</span>
+                <span class="atb-batch-member atb-batch-member--more" *ngIf="form.teamB.members.length > 20">+{{ form.teamB.members.length - 20 }} more</span>
+              </div>
             </div>
-            <div class="atb-batch-selected__members" *ngIf="form.teamB.members.length > 0">
-              <span class="atb-batch-member" *ngFor="let m of form.teamB.members | slice:0:20">{{ m.name }}</span>
-              <span class="atb-batch-member atb-batch-member--more" *ngIf="form.teamB.members.length > 20">+{{ form.teamB.members.length - 20 }} more</span>
+          </ng-container>
+
+          <!-- Manual Mode -->
+          <ng-container *ngIf="form.teamB.teamMode === 'manual'">
+            <div class="atb-field">
+              <label>Team Name</label>
+              <input [ngModel]="form.teamB.name" (ngModelChange)="form.teamB.name = $event; autoGenerateTitle()" placeholder="e.g. Die Überflieger" class="atb-input">
             </div>
-          </div>
+            <div class="atb-field atb-search-field">
+              <label>Add Students</label>
+              <input [(ngModel)]="form.teamB.searchQuery"
+                     (input)="onSearchInput('teamB')"
+                     (focus)="onSearchFocus('teamB')"
+                     (blur)="onSearchBlur('teamB')"
+                     placeholder="Search by name, regNo, or email..."
+                     class="atb-input" autocomplete="off">
+              <div class="atb-search-dd" *ngIf="form.teamB.searchFocused && form.teamB.searchResults.length > 0">
+                <div class="atb-search-dd__row" *ngFor="let s of form.teamB.searchResults" (mousedown)="addMember('teamB', s)">
+                  <div class="atb-search-dd__name">{{ s.name }} <span class="atb-search-dd__reg">{{ s.regNo }}</span></div>
+                  <div class="atb-search-dd__email">{{ s.email }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="atb-chips">
+              <span class="atb-chip" *ngFor="let m of form.teamB.members; let i = index">
+                <button type="button" class="atb-chip__remove" (click)="removeMember('teamB', i)">×</button>
+                {{ m.name }}
+              </span>
+              <span class="atb-chip atb-chip--hint" *ngIf="form.teamB.members.length === 0">No students selected yet</span>
+            </div>
+          </ng-container>
         </fieldset>
 
         <div class="atb-dialog-actions">
@@ -284,6 +367,29 @@ interface BatchSummary { batchName: string; }
     .atb-batch-member { font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 999px; }
     .atb-batch-member--more { background: #e2e8f0; color: #64748b; }
 
+    /* Mode toggle */
+    .atb-mode-toggle { display: flex; gap: 0; margin-bottom: 14px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .atb-mode-btn { flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: #f8fafc; color: #64748b; transition: all .15s; }
+    .atb-mode-btn:not(:last-child) { border-right: 1px solid #e2e8f0; }
+    .atb-mode-btn--active { background: #405980; color: #fff; }
+
+    /* Search dropdown */
+    .atb-search-field { position: relative; }
+    .atb-search-dd { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); max-height: 240px; overflow-y: auto; margin-top: 4px; }
+    .atb-search-dd__row { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9; transition: background .1s; }
+    .atb-search-dd__row:last-child { border-bottom: none; }
+    .atb-search-dd__row:hover { background: #f1f5f9; }
+    .atb-search-dd__name { font-size: 14px; font-weight: 600; color: #1e293b; }
+    .atb-search-dd__reg { font-size: 12px; font-weight: 400; color: #94a3b8; margin-left: 8px; }
+    .atb-search-dd__email { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+    /* Chips */
+    .atb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .atb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; background: #f1f5f9; color: #475569; padding: 4px 8px 4px 4px; border-radius: 999px; }
+    .atb-chip--hint { background: transparent; color: #94a3b8; font-style: italic; padding: 4px 0; }
+    .atb-chip__remove { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; border: none; background: #e2e8f0; color: #64748b; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; transition: background .15s; }
+    .atb-chip__remove:hover { background: #ef4444; color: #fff; }
+
     .atb-scorecard { margin-top: 16px; padding-top: 16px; border-top: 2px solid #e2e8f0; }
     .atb-scorecard__header { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 8px; }
     .atb-scorecard__team { text-align: center; padding: 12px 24px; background: #f8fafc; border-radius: 12px; min-width: 140px; }
@@ -317,14 +423,31 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
   scorecardData: TeamBattleDto | null = null;
   loadingScorecard: string | null = null;
   private subs: Subscription[] = [];
+  private searchTimers: Record<TeamKey, any> = { teamA: null, teamB: null };
 
   form = {
     title: '',
     gameSetId: '',
     gameType: 'scramble_rush',
     rounds: 5,
-    teamA: { name: '', batchName: '', members: [] as { id: string; name: string }[] },
-    teamB: { name: '', batchName: '', members: [] as { id: string; name: string }[] },
+    teamA: {
+      name: '',
+      batchName: '',
+      teamMode: 'batch' as 'batch' | 'manual',
+      members: [] as { id: string; name: string }[],
+      searchQuery: '',
+      searchResults: [] as StudentSearchResult[],
+      searchFocused: false,
+    },
+    teamB: {
+      name: '',
+      batchName: '',
+      teamMode: 'batch' as 'batch' | 'manual',
+      members: [] as { id: string; name: string }[],
+      searchQuery: '',
+      searchResults: [] as StudentSearchResult[],
+      searchFocused: false,
+    },
   };
 
   constructor(
@@ -333,7 +456,11 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() { this.load(); this.loadSets(); this.loadBatches(); }
-  ngOnDestroy() { this.subs.forEach(s => s.unsubscribe()); }
+  ngOnDestroy() {
+    this.subs.forEach(s => s.unsubscribe());
+    clearTimeout(this.searchTimers.teamA);
+    clearTimeout(this.searchTimers.teamB);
+  }
 
   loadSets() {
     this.subs.push(this.svc.getCatalog({ limit: 50 }).subscribe(res => {
@@ -401,25 +528,56 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
       gameSetId: '',
       gameType: 'scramble_rush',
       rounds: 5,
-      teamA: { name: '', batchName: '', members: [] },
-      teamB: { name: '', batchName: '', members: [] },
+      teamA: { name: '', batchName: '', teamMode: 'batch', members: [], searchQuery: '', searchResults: [], searchFocused: false },
+      teamB: { name: '', batchName: '', teamMode: 'batch', members: [], searchQuery: '', searchResults: [], searchFocused: false },
     };
     this.showCreate = true;
   }
 
   canCreate(): boolean {
-    return !!(
-      this.form.title &&
-      this.form.gameSetId &&
-      this.form.teamA.batchName &&
-      this.form.teamB.batchName &&
-      this.form.teamA.batchName !== this.form.teamB.batchName &&
-      this.form.teamA.members.length > 0 &&
-      this.form.teamB.members.length > 0
-    );
+    if (!this.form.title || !this.form.gameSetId) return false;
+    return this.teamValid('teamA') && this.teamValid('teamB');
   }
 
-  async onBatchSelect(team: 'teamA' | 'teamB') {
+  private teamValid(team: TeamKey): boolean {
+    const t = this.form[team];
+    if (t.teamMode === 'batch') {
+      return !!t.batchName && t.members.length > 0;
+    }
+    return !!t.name && t.members.length > 0;
+  }
+
+  autoGenerateTitle() {
+    if (this.form.title) return;
+
+    const getTeamName = (team: TeamKey): string => {
+      const t = this.form[team];
+      if (t.teamMode === 'batch' && t.batchName) return t.batchName;
+      if (t.teamMode === 'manual' && t.name) return t.name;
+      return '';
+    };
+
+    const aName = getTeamName('teamA');
+    const bName = getTeamName('teamB');
+    if (aName && bName) {
+      this.form.title = `${aName} vs ${bName}`;
+    }
+  }
+
+  setTeamMode(team: TeamKey, mode: 'batch' | 'manual') {
+    const t = this.form[team];
+    t.teamMode = mode;
+    t.batchName = '';
+    t.searchQuery = '';
+    t.searchResults = [];
+    t.searchFocused = false;
+    if (mode === 'batch') {
+      t.name = '';
+      t.members = [];
+    }
+  }
+
+  async onBatchSelect(team: TeamKey) {
     const batchName = this.form[team].batchName;
     if (!batchName) return;
     try {
@@ -431,15 +589,57 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
       );
       this.form[team].name = batchName;
       this.form[team].members = (res.students || []).map(s => ({ id: s._id, name: s.name }));
-      if (!this.form.title) {
-        const other = team === 'teamA' ? this.form.teamB.batchName : this.form.teamA.batchName;
-        this.form.title = other ? `${batchName} vs ${other}` : '';
-      }
+      this.autoGenerateTitle();
     } catch {
       this.form[team].batchName = '';
       this.form[team].name = '';
       this.form[team].members = [];
     }
+  }
+
+  onSearchInput(team: TeamKey) {
+    clearTimeout(this.searchTimers[team]);
+    const q = this.form[team].searchQuery.trim();
+    if (!q || q.length < 2) {
+      this.form[team].searchResults = [];
+      return;
+    }
+    this.searchTimers[team] = setTimeout(async () => {
+      try {
+        const res = await firstValueFrom(this.svc.searchStudents(q));
+        const existingIds = new Set(this.form[team].members.map(m => m.id));
+        this.form[team].searchResults = (res.data || []).filter(s => !existingIds.has(s._id));
+      } catch {
+        this.form[team].searchResults = [];
+      }
+    }, 250);
+  }
+
+  onSearchFocus(team: TeamKey) {
+    this.form[team].searchFocused = true;
+    if (this.form[team].searchQuery.trim().length >= 2) {
+      this.onSearchInput(team);
+    }
+  }
+
+  onSearchBlur(team: TeamKey) {
+    setTimeout(() => {
+      this.form[team].searchFocused = false;
+    }, 200);
+  }
+
+  addMember(team: TeamKey, student: StudentSearchResult) {
+    if (this.form[team].members.some(m => m.id === student._id)) return;
+    this.form[team].members.push({ id: student._id, name: student.name });
+    this.form[team].searchQuery = '';
+    this.form[team].searchResults = [];
+    this.form[team].searchFocused = false;
+
+    this.autoGenerateTitle();
+  }
+
+  removeMember(team: TeamKey, index: number) {
+    this.form[team].members.splice(index, 1);
   }
 
   toggleScorecard(id: string) {
@@ -457,33 +657,44 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
     }));
   }
 
-  clearTeam(team: 'teamA' | 'teamB') {
+  clearTeam(team: TeamKey) {
     this.form[team].batchName = '';
     this.form[team].name = '';
     this.form[team].members = [];
+    this.form[team].searchQuery = '';
+    this.form[team].searchResults = [];
+    this.form[team].searchFocused = false;
   }
 
   createTeamBattle() {
     if (!this.canCreate()) return;
     this.creating = true;
 
+    const buildTeam = (team: TeamKey) => {
+      const t = this.form[team];
+      if (t.teamMode === 'batch') {
+        return {
+          name: t.name,
+          type: 'classroom',
+          classroomId: t.batchName,
+          members: t.members,
+        };
+      }
+      return {
+        name: t.name,
+        type: 'manual',
+        classroomId: null,
+        members: t.members,
+      };
+    };
+
     this.subs.push(this.svc.createTeamBattle({
       title: this.form.title,
       gameSetId: this.form.gameSetId,
       gameType: this.form.gameType,
       rounds: this.form.rounds,
-      teamA: {
-        name: this.form.teamA.name,
-        type: 'classroom',
-        classroomId: this.form.teamA.batchName,
-        members: this.form.teamA.members,
-      },
-      teamB: {
-        name: this.form.teamB.name,
-        type: 'classroom',
-        classroomId: this.form.teamB.batchName,
-        members: this.form.teamB.members,
-      },
+      teamA: buildTeam('teamA'),
+      teamB: buildTeam('teamB'),
     }).subscribe({
       next: () => {
         this.creating = false;
