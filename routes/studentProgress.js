@@ -937,8 +937,15 @@ async function computePerformanceBody(student, studentOid, range, minDay, weekAg
       ? Math.min(100, Math.round((overallDone / overallTotal) * 100))
       : 0;
 
+    const resourceDone = exerciseCompleted + classAttendedCount + dgBotCompleted;
+    const resourceTotal = exerciseTotal + classTotal + dgBotTotal;
+    const resourceCompletionPct = resourceTotal
+      ? Math.min(100, Math.round((resourceDone / resourceTotal) * 100))
+      : 0;
+
     const kpis = {
       overallCompletionPct, overallDone, overallTotal,
+      resourceCompletionPct, resourceDone, resourceTotal,
       exerciseCompleted, exerciseTotal, exercisePct,
       classAttended: classAttendedCount, classTotal, classPct,
       dgBotCompleted, dgBotTotal, dgBotPct,
