@@ -2,8 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 
 export interface WelcomeBackPayload {
-  firstName: string;
-  daysSince: number;
+  missedClass?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -12,7 +11,7 @@ export class WelcomeBackService {
   readonly pending$ = this.pendingSubject.asObservable();
 
   queue(payload: WelcomeBackPayload | null | undefined): void {
-    if (payload?.firstName) {
+    if (payload?.missedClass) {
       this.pendingSubject.next(payload);
     }
   }

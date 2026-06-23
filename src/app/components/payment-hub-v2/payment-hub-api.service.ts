@@ -621,11 +621,34 @@ export class PaymentHubApiService {
 
   getFinanceVisibleBatches(): Observable<{
     success: boolean;
-    data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null };
+    data: {
+      visibleBatches: string[];
+      visibleBatchLevelStatuses?: Record<string, string>;
+      manualNextPaymentDates?: Record<string, string>;
+      updatedAt?: string | null;
+    };
   }> {
-    return this.http.get<{ success: boolean; data: { visibleBatches: string[]; visibleBatchLevelStatuses?: Record<string, string>; updatedAt?: string | null } }>(
+    return this.http.get<{
+      success: boolean;
+      data: {
+        visibleBatches: string[];
+        visibleBatchLevelStatuses?: Record<string, string>;
+        manualNextPaymentDates?: Record<string, string>;
+        updatedAt?: string | null;
+      };
+    }>(
       `${this.base}/finance-dashboard/visible-batches`,
     );
+  }
+
+  updateFinanceBatchCommencementDate(batch: string, date: string | null): Observable<{
+    success: boolean;
+    data: { batch: string; date: string | null; manualNextPaymentDates?: Record<string, string> };
+  }> {
+    return this.http.put<{
+      success: boolean;
+      data: { batch: string; date: string | null; manualNextPaymentDates?: Record<string, string> };
+    }>(`${this.base}/finance-dashboard/batch-commencement-date`, { batch, date });
   }
 
   updateFinanceVisibleBatches(batches: string[], batchLevelStatuses?: Record<string, string>): Observable<{

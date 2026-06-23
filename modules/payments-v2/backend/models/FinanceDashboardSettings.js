@@ -11,6 +11,12 @@ const schema = new mongoose.Schema({
     of: String,
     default: {},
   },
+  /** Manual next payment dates for old batches (batch name → YYYY-MM-DD). */
+  manualNextPaymentDates: {
+    type: Map,
+    of: String,
+    default: {},
+  },
   updatedAt: { type: Date, default: Date.now },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 });
@@ -57,13 +63,51 @@ schema.statics.setVisibleBatches = async function setVisibleBatches(batches, upd
     existing?.visibleBatchLevelStatuses instanceof Map
       ? Object.fromEntries(existing.visibleBatchLevelStatuses)
       : existing?.visibleBatchLevelStatuses || {};
+  const existingManualDates =
+    existing?.manualNextPaymentDates instanceof Map
+      ? Object.fromEntries(existing.manualNextPaymentDates)
+      : existing?.manualNextPaymentDates || {};
   const visibleBatchLevelStatuses = normalizeBatchLevelStatuses(batchLevelStatuses, visibleBatches, existingStatuses);
+  const manualNextPaymentDates = {};
+  for (const batch of visibleBatches) {
+    if (existingManualDates[batch]) manualNextPaymentDates[batch] = existingManualDates[batch];
+  }
   return this.findByIdAndUpdate(
     'global',
     {
       $set: {
         visibleBatches,
         visibleBatchLevelStatuses,
+        manualNextPaymentDates,
+        updatedAt: new Date(),
+        updatedBy: updatedBy || undefined,
+      },
+    },
+    { new: true, upsert: true },
+  ).lean();
+};
+
+schema.statics.setManualNextPaymentDate = async function setManualNextPaymentDate(batch, dateIso, updatedBy) {
+  const label = String(batch || '').trim();
+  if (!label) throw new Error('batch is required.');
+
+  const existing = await this.findById('global').lean();
+  const manualDates =
+    existing?.manualNextPaymentDates instanceof Map
+      ? Object.fromEntries(existing.manualNextPaymentDates)
+      : { ...(existing?.manualNextPaymentDates || {}) };
+
+  if (dateIso) {
+    manualDates[label] = String(dateIso).trim();
+  } else {
+    delete manualDates[label];
+  }
+
+  return this.findByIdAndUpdate(
+    'global',
+    {
+      $set: {
+        manualNextPaymentDates: manualDates,
         updatedAt: new Date(),
         updatedBy: updatedBy || undefined,
       },

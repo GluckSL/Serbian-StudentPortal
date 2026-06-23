@@ -41,14 +41,6 @@ export class WelcomeBackOverlayComponent implements OnInit, OnDestroy {
     if (this.showTimer) clearTimeout(this.showTimer);
   }
 
-  get message(): string {
-    const days = this.payload?.daysSince ?? 2;
-    if (days >= 3) {
-      return 'We are so happy to have you back! Let\'s catch up on your classes and keep moving toward your German dream — every session brings you closer.';
-    }
-    return 'Great to see you again! Let\'s pick up where you left off and stay on track with your batch.';
-  }
-
   dismiss(): void {
     if (this.closing) return;
     this.closing = true;

@@ -1,128 +1,117 @@
 /**
- * Nightly Language-Team digest — students with 2+ consecutive class absences.
+ * Morning missed-live-class digest for the Language Team.
  *
- * Runs every night at 12:00 AM IST (Asia/Colombo = UTC+5:30).
+ * Runs every day at 10:00 AM IST (Asia/Colombo).
  *
  * Logic:
  *   1. Fetch all active ONGOING students.
- *   2. For each student, pull their last MEETINGS_TO_CHECK recorded meetings
- *      for their batch and walk backward counting consecutive absences.
- *   3. Collect every student whose streak is >= CONSECUTIVE_THRESHOLD (2).
- *   4. Send a single HTML digest email (with a sortable table) to the
- *      Language Team inbox.  If no students qualify, no email is sent.
- *
- * The email is a digest — one message per night regardless of how many
- * students qualify — so there is no per-student flag or duplicate-guard needed.
+ *   2. For each student, scan recorded ended live classes for their batch/plan.
+ *   3. Count fully missed classes (0% attendance) and collect the dates.
+ *   4. Include students with MORE than 2 missed classes (3+).
+ *   5. Send one HTML digest to languageschool@gluckglobal.com and sourav@gluckglobal.com.
  */
 
 const cron = require('node-cron');
 const MeetingLink = require('../models/MeetingLink');
 const User = require('../models/User');
 const transporter = require('../config/emailConfig');
-const { buildConsecutiveAbsenceLanguageTeamEmail } = require('../utils/emailTemplates');
+const { buildMissedLiveClassMorningReportEmail } = require('../utils/emailTemplates');
+const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
+const { isMeetingMissed } = require('../utils/missedClassReminder');
 
-// ── Configuration ────────────────────────────────────────────────────────────
+/** Students must have missed MORE than this many live classes to be included. */
+const MISSED_MORE_THAN = 2;
 
-/** Minimum consecutive absences to include a student in the report. */
-const CONSECUTIVE_THRESHOLD = 2;
+const REPORT_RECIPIENTS = [
+  process.env.LANGUAGE_SCHOOL_EMAIL || 'languageschool@gluckglobal.com',
+  'sourav@gluckglobal.com',
+]
+  .map((e) => String(e || '').trim().toLowerCase())
+  .filter(Boolean)
+  .filter((e, i, arr) => arr.indexOf(e) === i);
 
-/** How many recent meetings per student to scan. */
-const MEETINGS_TO_CHECK = 10;
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-/** Recipient — Language Team inbox. Falls back to the primary EMAIL_USER. */
-const LANGUAGE_TEAM_EMAIL =
-  process.env.LANGUAGE_SCHOOL_EMAIL ||
-  process.env.EMAIL_USER ||
-  'languageschool@gluckglobal.com';
+async function collectMissedClassesForStudent(student) {
+  const batchKeys = allStudentBatchStringsForContent(student);
+  if (!batchKeys.length) return [];
 
-// ── Core logic ────────────────────────────────────────────────────────────────
+  const batchOr = batchKeys.map((k) => ({
+    batch: new RegExp(`^${escapeRegExp(k)}$`, 'i'),
+  }));
+
+  const meetings = await MeetingLink.find({
+    $and: [
+      { plan: { $in: [student.subscription, 'ALL'] } },
+      { $or: batchOr },
+      { attendanceRecorded: true },
+      { status: { $ne: 'cancelled' } },
+    ],
+  })
+    .sort({ startTime: -1 })
+    .select('startTime duration status attendance courseDay topic')
+    .lean();
+
+  const missedDates = [];
+  const studentId = student._id;
+  const studentEmail = student.email;
+
+  for (const meeting of meetings) {
+    if (isContentBlockedForStudent(student, { courseDay: meeting.courseDay, level: student.level })) {
+      continue;
+    }
+    if (isMeetingMissed(meeting, studentId, studentEmail)) {
+      missedDates.push(meeting.startTime);
+    }
+  }
+
+  return missedDates;
+}
 
 async function processConsecutiveAbsenceEmailReport() {
   const students = await User.find({ role: 'STUDENT', isActive: true, studentStatus: 'ONGOING' })
-    .select('_id name email batch assignedTeacher')
+    .select('_id name email batch subscription level')
     .lean();
 
   if (!students.length) {
-    console.log('[ConsecutiveAbsenceReport] No active students found — skipping.');
+    console.log('[MissedClassMorningReport] No active students found — skipping.');
     return;
   }
 
-  // Build a map of teacher IDs we need to resolve → name
-  const teacherIdSet = new Set(
-    students.map((s) => String(s.assignedTeacher)).filter(Boolean)
-  );
-  const teacherMap = {};
-  if (teacherIdSet.size) {
-    const teachers = await User.find({ _id: { $in: [...teacherIdSet] } })
-      .select('_id name')
-      .lean();
-    teachers.forEach((t) => {
-      teacherMap[String(t._id)] = t.name;
-    });
-  }
-
-  const absentStudents = [];
+  const flaggedStudents = [];
 
   for (const student of students) {
     try {
-      const recentMeetings = await MeetingLink.find({
-        batch: student.batch,
-        attendanceRecorded: true,
-        'attendance.studentId': student._id,
-      })
-        .sort({ startTime: -1 })
-        .limit(MEETINGS_TO_CHECK)
-        .select('startTime attendance')
-        .lean();
+      const missedDates = await collectMissedClassesForStudent(student);
+      if (missedDates.length <= MISSED_MORE_THAN) continue;
 
-      if (recentMeetings.length < CONSECUTIVE_THRESHOLD) continue;
-
-      // Walk from most-recent backward; count consecutive absences
-      let streak = 0;
-      let lastAttended = null;
-
-      for (const meeting of recentMeetings) {
-        const record = meeting.attendance.find(
-          (a) => String(a.studentId) === String(student._id)
-        );
-        if (record && !record.attended) {
-          streak++;
-        } else {
-          // First meeting where student was present — record the date
-          if (record && record.attended) {
-            lastAttended = meeting.startTime;
-          }
-          break;
-        }
-      }
-
-      if (streak < CONSECUTIVE_THRESHOLD) continue;
-
-      absentStudents.push({
+      flaggedStudents.push({
         name: student.name,
-        email: student.email,
         batch: student.batch,
-        streak,
-        lastAttended: lastAttended || null,
-        assignedTeacher: student.assignedTeacher
-          ? teacherMap[String(student.assignedTeacher)] || null
-          : null,
+        missedCount: missedDates.length,
+        missedDates: missedDates.sort((a, b) => new Date(b) - new Date(a)),
       });
     } catch (err) {
       console.error(
-        `[ConsecutiveAbsenceReport] ❌ Error processing ${student.name}:`,
+        `[MissedClassMorningReport] ❌ Error processing ${student.name}:`,
         err.message
       );
     }
   }
 
-  if (!absentStudents.length) {
-    console.log('[ConsecutiveAbsenceReport] ✅ No students with 2+ consecutive absences — email not sent.');
+  if (!flaggedStudents.length) {
+    console.log(
+      '[MissedClassMorningReport] ✅ No students with more than 2 missed live classes — email not sent.'
+    );
     return;
   }
 
-  // Sort: highest streak first, then alphabetically by batch
-  absentStudents.sort((a, b) => b.streak - a.streak || a.batch.localeCompare(b.batch));
+  flaggedStudents.sort(
+    (a, b) => b.missedCount - a.missedCount || String(a.batch).localeCompare(String(b.batch))
+  );
 
   const reportDate = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
@@ -132,38 +121,35 @@ async function processConsecutiveAbsenceEmailReport() {
     timeZone: 'Asia/Kolkata',
   });
 
-  const { subject, html } = buildConsecutiveAbsenceLanguageTeamEmail({
-    absentStudents,
+  const { subject, html } = buildMissedLiveClassMorningReportEmail({
+    flaggedStudents,
     reportDate,
   });
 
   await transporter.sendMail({
     from: `"${process.env.EMAIL_FROM_NAME || 'Glück Global Portal'}" <${process.env.EMAIL_USER}>`,
-    to: LANGUAGE_TEAM_EMAIL,
+    to: REPORT_RECIPIENTS.join(', '),
     subject,
     html,
   });
 
   console.log(
-    `[ConsecutiveAbsenceReport] ✅ Report sent to ${LANGUAGE_TEAM_EMAIL} — ${absentStudents.length} student(s) flagged.`
+    `[MissedClassMorningReport] ✅ Report sent to ${REPORT_RECIPIENTS.join(', ')} — ${flaggedStudents.length} student(s) flagged.`
   );
 }
 
-// ── Scheduler ─────────────────────────────────────────────────────────────────
-
 function scheduleConsecutiveAbsenceEmailReport() {
-  // 12:00 AM IST every night (Asia/Colombo = Asia/Kolkata = UTC+5:30)
   cron.schedule(
-    '0 0 * * *',
+    '0 10 * * *',
     () => {
       processConsecutiveAbsenceEmailReport().catch((err) =>
-        console.error('[ConsecutiveAbsenceReport] ❌ Job error:', err.message)
+        console.error('[MissedClassMorningReport] ❌ Job error:', err.message)
       );
     },
     { timezone: 'Asia/Colombo' }
   );
   console.log(
-    '📅 [ConsecutiveAbsenceReport] Scheduled — nightly 12:00 AM IST; Language Team digest for 2+ consecutive absences'
+    '📅 [MissedClassMorningReport] Scheduled — daily 10:00 AM IST; digest for students with 3+ missed live classes'
   );
 }
 

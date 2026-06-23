@@ -233,6 +233,17 @@
               <mat-icon>notifications_active</mat-icon>
               Remind
             </button>
+            <button *ngIf="canShowRecreateButton(meeting)"
+                    mat-stroked-button
+                    color="warn"
+                    class="recreate-action-btn"
+                    (click)="recreateMeeting(meeting, $event)"
+                    [disabled]="recreatingMeetingId === meeting._id"
+                    matTooltip="Fix broken Zoom link (error 3,001)">
+              <mat-icon>refresh</mat-icon>
+              <span *ngIf="recreatingMeetingId !== meeting._id">Fix Link</span>
+              <span *ngIf="recreatingMeetingId === meeting._id">Fixing…</span>
+            </button>
             <button mat-icon-button (click)="viewMeeting(meeting._id); $event.stopPropagation()"
                     matTooltip="View details">
               <mat-icon>visibility</mat-icon>
@@ -311,6 +322,17 @@
             (click)="openRemindDialog(meeting, $event)">
             <mat-icon>notifications_active</mat-icon>
             Remind
+          </button>
+          <button
+            *ngIf="canShowRecreateButton(meeting)"
+            mat-stroked-button
+            color="warn"
+            class="recreate-action-btn"
+            (click)="recreateMeeting(meeting, $event)"
+            [disabled]="recreatingMeetingId === meeting._id">
+            <mat-icon>refresh</mat-icon>
+            <span *ngIf="recreatingMeetingId !== meeting._id">Fix Link</span>
+            <span *ngIf="recreatingMeetingId === meeting._id">Fixing…</span>
           </button>
           <button mat-button (click)="viewMeeting(meeting._id); $event.stopPropagation()">
             <mat-icon>visibility</mat-icon>

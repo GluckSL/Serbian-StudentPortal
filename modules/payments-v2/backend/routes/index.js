@@ -29,6 +29,7 @@ router.get('/batches/summary', ctrl.getBatchPaymentSummary);
 router.get('/finance-dashboard/students', ctrl.getCohortStudentsPaymentDetail);
 router.get('/finance-dashboard/visible-batches', financeDashboardSettingsCtrl.getVisibleBatches);
 router.put('/finance-dashboard/visible-batches', requireFinanceAdmin, financeDashboardSettingsCtrl.updateVisibleBatches);
+router.put('/finance-dashboard/batch-commencement-date', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchCommencementDate);
 router.post('/finance-dashboard/trigger-report/:type', requireFinanceAdmin, financeDashboardSettingsCtrl.triggerReport);
 
 // ─── Admin: Batch students payment breakdown (Payment Hub insights) ─────────

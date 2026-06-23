@@ -31,7 +31,9 @@ app-header {
 }
 
 .shell-content > .main-content > app-digital-exercise-player,
-.shell-content > .main-content > app-game-play-shell {
+.shell-content > .main-content > app-game-play-shell,
+.shell-content > .main-content > app-correction,
+.shell-content > .main-content > app-correction-review {
   flex: 1 1 0;
   min-height: 0;
   min-width: 0;
