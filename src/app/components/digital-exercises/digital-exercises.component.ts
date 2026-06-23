@@ -30,6 +30,8 @@ export class DigitalExercisesComponent implements OnInit {
   loading = false;
   userRole: string = '';
   isTeacherOrAdmin = false;
+  accessDenied = false;
+  accessReason: string | null = null;
 
   activeTab: TabType = 'all';
 
@@ -112,6 +114,8 @@ export class DigitalExercisesComponent implements OnInit {
     this.exerciseService.getExercises(filters).subscribe({
       next: (res) => {
         this.exercises = res.exercises || [];
+        this.accessDenied = !!res.accessDenied;
+        this.accessReason = res.accessReason || null;
         const d = Number(res?.studentCourseDay);
         if (role === 'STUDENT' && Number.isFinite(d) && d >= 1) {
           this.studentCourseDay = Math.min(200, Math.floor(d));

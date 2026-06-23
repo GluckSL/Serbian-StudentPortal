@@ -1766,7 +1766,9 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
-          accessibleLevels: studentExerciseAccess.accessibleLevels
+          accessibleLevels: studentExerciseAccess.accessibleLevels,
+          accessDenied: true,
+          accessReason: 'BATCH_NOT_ACTIVE'
         });
       }
       if (studentExerciseAccess.learningEnabled === false) {
@@ -1777,7 +1779,9 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           pages: 0,
           studentCourseDay: studentExerciseAccess.courseDay,
           studentLevel: studentExerciseAccess.studentLevel,
-          accessibleLevels: studentExerciseAccess.accessibleLevels
+          accessibleLevels: studentExerciseAccess.accessibleLevels,
+          accessDenied: true,
+          accessReason: 'LEARNING_DISABLED'
         });
       }
       const studentCourseDay = studentExerciseAccess.courseDay;
