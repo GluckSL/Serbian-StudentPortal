@@ -582,19 +582,22 @@ async function sendEveningReport() {
 function scheduleFinanceDailyReports() {
   const cron = require('node-cron');
 
-  // 10:00 AM IST = 04:30 UTC
-  cron.schedule('30 4 * * *', () => {
+  // node-cron v4 uses the system's local timezone by default, so we always
+  // specify timezone explicitly to ensure correct firing regardless of server locale.
+
+  // 10:00 AM IST
+  cron.schedule('0 10 * * *', () => {
     sendMorningReport().catch((err) =>
       console.error('[FinanceReport] ❌ Morning report failed:', err.message),
     );
-  });
+  }, { timezone: 'Asia/Kolkata' });
 
-  // 6:00 PM IST = 12:30 UTC
-  cron.schedule('30 12 * * *', () => {
+  // 6:00 PM IST
+  cron.schedule('0 18 * * *', () => {
     sendEveningReport().catch((err) =>
       console.error('[FinanceReport] ❌ Evening report failed:', err.message),
     );
-  });
+  }, { timezone: 'Asia/Kolkata' });
 
   console.log('📊 [FinanceReport] Scheduled: morning (10 AM IST) + evening (6 PM IST) batch reports');
 }
