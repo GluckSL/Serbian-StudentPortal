@@ -360,6 +360,43 @@
   opacity: 1;
 }
 
+.ph-commence-card__next-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  align-self: flex-start;
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+  border-radius: 6px;
+  padding: 1px 7px 1px 4px;
+  line-height: 1.4;
+}
+
+.ph-commence-card__next-level-icon {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+.ph-commence-card__next-level-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5b21b6;
+  letter-spacing: 0.02em;
+}
+
+.ph-commence-card--near .ph-commence-card__next-level {
+  background: #fff1f2;
+  border-color: #fda4af;
+}
+
+.ph-commence-card--near .ph-commence-card__next-level-icon,
+.ph-commence-card--near .ph-commence-card__next-level-label {
+  color: #be123c;
+}
+
 .ph-commence-card__amount {
   padding-top: 2px;
   border-top: 1px dashed rgba(148, 163, 184, 0.35);

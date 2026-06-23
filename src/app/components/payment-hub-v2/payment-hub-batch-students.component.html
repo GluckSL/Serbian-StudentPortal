@@ -123,9 +123,9 @@
                 <th>Email</th>
                 <th>Level</th>
                 <th class="ph-num ph-col-compact">Journey day</th>
+                <th class="ph-num">Total amount</th>
                 <th class="ph-num">Total received</th>
                 <th class="ph-num">Pending</th>
-                <th class="ph-num">Overdue</th>
                 <th>Language fee</th>
                 <th class="ph-col-actions">Actions</th>
               </tr>
@@ -137,6 +137,15 @@
                 <td><span class="ph-level-pill">{{ r.level }}</span></td>
                 <td class="ph-num ph-col-compact">
                   <span class="ph-day-badge ph-day-badge--ratio">{{ journeyDayDisplay(r) }}</span>
+                </td>
+                <td class="ph-num ph-paid-cell">
+                  <app-payment-currency-totals
+                    [lkr]="rowExpected(r).lkr"
+                    [inr]="rowExpected(r).inr"
+                    [usd]="rowExpected(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
                 </td>
                 <td class="ph-num ph-val-green ph-paid-cell">
                   <app-payment-currency-totals
@@ -155,16 +164,6 @@
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-pending-totals>
-                </td>
-                <td class="ph-num ph-val-red ph-paid-cell">
-                  <app-payment-currency-overdue-totals
-                    [lkr]="rowOverdue(r).lkr"
-                    [inr]="rowOverdue(r).inr"
-                    [usd]="rowOverdue(r).usd"
-                    [sinceDate]="r.overdueSince"
-                    [compact]="true"
-                    [hideZero]="true"
-                  ></app-payment-currency-overdue-totals>
                 </td>
                 <td>
                   <span class="ph-pill" [ngClass]="languageFeePillClass(r)">{{ languageFeeStatusLabel(r) }}</span>

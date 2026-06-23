@@ -1491,10 +1491,32 @@ async function teacherCanEditExercise(user, exercise) {
   return level === 'edit' || level === 'full';
 }
 
+/** View-level access: any teacher who has the exercises tab assigned (view/edit/full) can read. */
+async function teacherCanViewExercise(user, exercise) {
+  if (user.role !== 'TEACHER') return true;
+  const owner = exerciseOwnerId(exercise);
+  if (owner === String(user.id)) return true;
+  const teacherUser = await loadTeacherPermissions(user.id);
+  const level = teacherExercisesTabLevel(teacherUser);
+  return level === 'view' || level === 'edit' || level === 'full';
+}
+
 async function assertTeacherOwnsExercise(user, exercise) {
   if (user.role === 'TEACHER') {
     const canEdit = await teacherCanEditExercise(user, exercise);
     if (!canEdit) {
+      const err = new Error('Forbidden');
+      err.statusCode = 403;
+      throw err;
+    }
+  }
+}
+
+/** For read-only routes (analytics, completions): allow any teacher with the exercises tab. */
+async function assertTeacherCanViewExercise(user, exercise) {
+  if (user.role === 'TEACHER') {
+    const canView = await teacherCanViewExercise(user, exercise);
+    if (!canView) {
       const err = new Error('Forbidden');
       err.statusCode = 403;
       throw err;
@@ -3892,7 +3914,7 @@ router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER
     }).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    await assertTeacherOwnsExercise(req.user, exercise);
+    await assertTeacherCanViewExercise(req.user, exercise);
 
     const attempt = await ExerciseAttempt.findOne({
       _id: req.params.attemptId,
@@ -4173,7 +4195,7 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       isDeleted: { $ne: true }
     }).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
-    await assertTeacherOwnsExercise(req.user, exercise);
+    await assertTeacherCanViewExercise(req.user, exercise);
 
     const { date, studentId, page = 1, limit = 50, all } = req.query;
     const filter = { exerciseId: req.params.id };

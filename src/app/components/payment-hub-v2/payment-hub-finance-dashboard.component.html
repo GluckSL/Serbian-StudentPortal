@@ -334,6 +334,10 @@
                           <mat-icon class="ph-commence-card__icon" aria-hidden="true">event</mat-icon>
                           <span class="ph-commence-card__date">{{ info.dateStr }}</span>
                         </div>
+                        <div class="ph-commence-card__next-level" *ngIf="info.nextLevel">
+                          <mat-icon class="ph-commence-card__next-level-icon" aria-hidden="true">arrow_forward</mat-icon>
+                          <span class="ph-commence-card__next-level-label">{{ info.nextLevel }}</span>
+                        </div>
                         <div class="ph-commence-card__amount" *ngIf="info.amountLKR > 0 || info.amountINR > 0 || info.amountUSD > 0">
                           <app-payment-currency-totals
                             [lkr]="info.amountLKR"
@@ -400,6 +404,10 @@
                                 aria-label="Remove payment date"
                               ><mat-icon>close</mat-icon></button>
                             </div>
+                          </div>
+                          <div class="ph-commence-card__next-level" *ngIf="info.nextLevel">
+                            <mat-icon class="ph-commence-card__next-level-icon" aria-hidden="true">arrow_forward</mat-icon>
+                            <span class="ph-commence-card__next-level-label">{{ info.nextLevel }}</span>
                           </div>
                           <div class="ph-commence-card__amount" *ngIf="info.amountLKR > 0 || info.amountINR > 0 || info.amountUSD > 0">
                             <app-payment-currency-totals
