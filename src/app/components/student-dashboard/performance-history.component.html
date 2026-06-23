@@ -29,12 +29,12 @@
     <div class="overall-progress">
       <div class="progress-header">
         <span class="progress-label">Overall Completion</span>
-        <span class="progress-value">{{ data.kpis.overallCompletionPct }}%</span>
+        <span class="progress-value">{{ data.kpis.resourceCompletionPct }}%</span>
       </div>
       <div class="progress-track">
-        <div class="progress-fill" [style.width.%]="data.kpis.overallCompletionPct"></div>
+        <div class="progress-fill" [style.width.%]="data.kpis.resourceCompletionPct"></div>
       </div>
-      <span class="progress-sub">Day {{ data.kpis.overallDone }} of {{ data.kpis.overallTotal }}</span>
+      <span class="progress-sub">{{ data.kpis.resourceDone }} of {{ data.kpis.resourceTotal }} resources completed</span>
     </div>
 
     <!-- ═══ Summary Cards ═══ -->
@@ -68,6 +68,16 @@
         <span class="card-label">Study Time</span>
         <span class="card-value">{{ formatMinutes(data.kpis.totalStudyMinutes) }}</span>
         <span class="card-sub">total time</span>
+      </div>
+      <div class="summary-card card-streak" *ngIf="loginStreakData">
+        <span class="card-label">Streak</span>
+        <span class="card-value">{{ loginStreakData.currentStreak }}</span>
+        <span class="card-sub">day streak</span>
+      </div>
+      <div class="summary-card card-trophies" *ngIf="loginStreakData">
+        <span class="card-label">Trophies</span>
+        <span class="card-value">{{ loginStreakData.totalTrophies }}</span>
+        <span class="card-sub">total earned</span>
       </div>
     </section>
 
