@@ -273,6 +273,10 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
     }
   }
 
+  rowExpected(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
+    return this.scopeTotalsFromRow(r).expected;
+  }
+
   rowReceived(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
     return this.scopeTotalsFromRow(r).received;
   }
