@@ -282,7 +282,7 @@
   </div>
 
   <div class="mc-panel" *ngIf="tabVisited.has('exercises')" [hidden]="activeTab !== 'exercises'" role="tabpanel">
-    <app-digital-exercises [embedded]="true"></app-digital-exercises>
+    <app-digital-exercises [embedded]="true" [tabActive]="activeTab === 'exercises'"></app-digital-exercises>
   </div>
 
   <!-- Digital learning modules (Modules tab) removed — content was `app-learning-modules`. -->

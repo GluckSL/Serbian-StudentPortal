@@ -1,6 +1,6 @@
 // src/app/components/digital-exercises/digital-exercises.component.ts
 
-import { Component, OnInit, Input, HostListener } from '@angular/core';
+import { Component, OnInit, OnChanges, SimpleChanges, Input, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -21,9 +21,11 @@ type TabType = 'completed' | 'pending' | 'new' | 'all';
   templateUrl: './digital-exercises.component.html',
   styleUrls: ['./digital-exercises.component.css']
 })
-export class DigitalExercisesComponent implements OnInit {
+export class DigitalExercisesComponent implements OnInit, OnChanges {
   /** Hides the large page header when embedded (e.g. My Course). */
   @Input() embedded = false;
+  /** When embedded in My Course: true while the Exercises tab is visible. */
+  @Input() tabActive = false;
 
   exercises: DigitalExercise[] = [];
   filteredExercises: DigitalExercise[] = [];
@@ -33,7 +35,7 @@ export class DigitalExercisesComponent implements OnInit {
   accessDenied = false;
   accessReason: string | null = null;
 
-  activeTab: TabType = 'all';
+  activeTab: TabType = 'pending';
 
   // Filters
   searchQuery = '';
@@ -98,6 +100,16 @@ export class DigitalExercisesComponent implements OnInit {
     this.loadExercises();
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    const tabChange = changes['tabActive'];
+    if (!this.embedded || !tabChange) return;
+    const nowActive = !!this.tabActive;
+    const wasActive = !!tabChange.previousValue;
+    if (nowActive && !wasActive && !this.loading) {
+      this.applyDefaultTab();
+    }
+  }
+
   loadExercises(): void {
     this.loading = true;
     const filters: any = {
@@ -120,7 +132,7 @@ export class DigitalExercisesComponent implements OnInit {
         if (role === 'STUDENT' && Number.isFinite(d) && d >= 1) {
           this.studentCourseDay = Math.min(200, Math.floor(d));
         }
-        this.applyTabFilter();
+        this.applyDefaultTab();
         this.loading = false;
       },
       error: () => { this.loading = false; }
@@ -130,6 +142,25 @@ export class DigitalExercisesComponent implements OnInit {
   setTab(tab: TabType): void {
     this.activeTab = tab;
     this.applyTabFilter();
+  }
+
+  /** Open New when today's exercises exist; otherwise Pending. */
+  private applyDefaultTab(): void {
+    this.activeTab = this.countExercisesForTab('new') > 0 ? 'new' : 'pending';
+    this.currentPage = 1;
+    this.applyTabFilter();
+  }
+
+  private countExercisesForTab(tab: TabType): number {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    const isStudent = role === 'STUDENT';
+    let list = isStudent
+      ? this.exercises.filter((ex) => this.matchesStudentTab(ex, tab))
+      : this.applyTabFilterLegacy(this.exercises, tab);
+    if (isStudent && this.isSilverGoStudent()) {
+      list = list.filter((ex) => this.exerciseCourseDayNum(ex) !== TRIAL_JOURNEY_DAY);
+    }
+    return list.length;
   }
 
   private applyTabFilter(): void {
