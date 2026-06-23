@@ -392,6 +392,21 @@ export class MyCourseComponent implements OnInit {
 
     this.route.queryParamMap.subscribe((q) => {
       let t = q.get('tab');
+      const d = q.get('day');
+      let journeyDayFromUrl: number | null = null;
+      if (d != null && d !== '' && Number.isFinite(Number(d))) {
+        const n = Number(d);
+        const min = this.trialDayEnabled ? 0 : 1;
+        if (n >= min && n <= 200) journeyDayFromUrl = n;
+      }
+      if (journeyDayFromUrl != null) {
+        const prevDay = this.selectedJourneyDay;
+        this.selectedJourneyDay = journeyDayFromUrl;
+        if (this.activeTab === 'journey' && journeyDayFromUrl !== prevDay) {
+          this.loadJourneyDayExercises(journeyDayFromUrl);
+        }
+      }
+
       if (t === 'modules') {
         t = 'talk-buddy';
         this.router.navigate([], {
@@ -417,12 +432,6 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = t;
         this.tabVisited.add(t);
         this.loadGluckExamData();
-      }
-      const d = q.get('day');
-      if (d != null && d !== '' && Number.isFinite(Number(d))) {
-        const n = Number(d);
-        const min = this.trialDayEnabled ? 0 : 1;
-        if (n >= min && n <= 200) this.selectedJourneyDay = n;
       }
     });
   }
@@ -476,36 +485,49 @@ export class MyCourseComponent implements OnInit {
     });
   }
 
-  /** Full exercise list (loaded lazily on Journey tab first visit). */
-  private _fullExercisesLoaded = false;
+  /** Full exercise list (loaded per journey day on Journey tab). */
+  private readonly _journeyDaysLoaded = new Set<number>();
 
   /**
-   * Loads a paginated exercise list for the Journey tab.
-   * Only called when the Journey tab is first opened; the My Class badge uses
-   * the lighter initial set already stored in journeyDayExercises.
+   * Loads exercises tagged to a specific journey day (Journey tab + completion badge).
    */
-  loadFullExercisesForJourney(): void {
-    if (this._fullExercisesLoaded || this.destroyed) return;
-    this._fullExercisesLoaded = true;
-    const courseDay = this.journeyCourseDay;
+  loadJourneyDayExercises(day: number, force = false): void {
+    if (this.destroyed || !this.allowsLearningContent) return;
+    if (!force && this._journeyDaysLoaded.has(day)) return;
+    this._journeyDaysLoaded.add(day);
+
     this.exerciseService
-      .getExercises({ page: 1, limit: 50 })
+      .getExercises({ page: 1, limit: 100, courseDay: day })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
-          this.journeyDayExercises = items;
-          // Refresh quick-access with full dataset
-          const unlocked = items.filter((ex) => {
-            if (ex.studentAttempt) return false;
-            const exDay = ex.courseDay;
-            return exDay == null || exDay <= courseDay;
-          });
-          unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
-          this.nextNewDigitalExercise = unlocked[0] || null;
+          this.mergeJourneyExercises(items);
+          if (day === this.journeyCourseDay) {
+            const unlocked = items.filter((ex) => {
+              if (ex.studentAttempt) return false;
+              const exDay = ex.courseDay;
+              return exDay == null || exDay <= day;
+            });
+            unlocked.sort((a, b) => this.getPublishedTs(b) - this.getPublishedTs(a));
+            this.nextNewDigitalExercise = unlocked[0] || null;
+          }
         },
-        error: () => {}
+        error: () => {
+          this._journeyDaysLoaded.delete(day);
+        }
       });
+  }
+
+  private mergeJourneyExercises(incoming: DigitalExercise[]): void {
+    const byId = new Map<string, DigitalExercise>();
+    for (const ex of this.journeyDayExercises) {
+      if (ex?._id) byId.set(String(ex._id), ex);
+    }
+    for (const ex of incoming) {
+      if (ex?._id) byId.set(String(ex._id), ex);
+    }
+    this.journeyDayExercises = Array.from(byId.values());
   }
 
   private loadQuickAccess(onDone?: () => void): void {
@@ -518,19 +540,15 @@ export class MyCourseComponent implements OnInit {
       if (pending <= 0) onDone?.();
     };
 
-    // Lightweight fetch: only current + adjacent days for the day-completion badge
-    // and the "next exercise" quick-access card on My Class.
-    // The Journey tab triggers loadFullExercisesForJourney() for the full 500-item list.
+    // Fetch exercises for the current journey day (completion badge + quick access).
     this.exerciseService
-      .getExercises({ page: 1, limit: 60 })
+      .getExercises({ page: 1, limit: 100, courseDay: courseDay })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           const items: DigitalExercise[] = Array.isArray(res?.exercises) ? res.exercises : [];
-          // Only replace the full list if Journey hasn't already loaded the 500-item set
-          if (!this._fullExercisesLoaded) {
-            this.journeyDayExercises = items;
-          }
+          this._journeyDaysLoaded.add(courseDay);
+          this.mergeJourneyExercises(items);
           const unlocked = items.filter((ex) => {
             const noAttempt = !ex.studentAttempt;
             if (!noAttempt) return false;
@@ -541,7 +559,7 @@ export class MyCourseComponent implements OnInit {
           this.nextNewDigitalExercise = unlocked[0] || null;
         },
         error: () => {
-          this.journeyDayExercises = [];
+          this._journeyDaysLoaded.delete(courseDay);
         },
         complete: () => finish()
       });
@@ -586,7 +604,7 @@ export class MyCourseComponent implements OnInit {
     this._journeyTabDataLoaded = true;
     this.loadDayCompletionData(true);
     this.loadGluckExamData();
-    this.loadFullExercisesForJourney();
+    this.loadJourneyDayExercises(this.selectedJourneyDay, true);
   }
 
   private loadJourneyGames(): void {
@@ -1141,6 +1159,7 @@ export class MyCourseComponent implements OnInit {
 
   selectJourneyDay(day: number): void {
     this.selectedJourneyDay = day;
+    this.loadJourneyDayExercises(day);
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { tab: 'journey', day },

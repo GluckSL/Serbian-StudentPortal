@@ -32,7 +32,7 @@ const { recoverExerciseMedia } = require('../utils/exerciseMediaRecover');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
-const { isValidAdminCourseDay } = require('../utils/journeyDay');
+const { isValidAdminCourseDay, parseAdminCourseDay } = require('../utils/journeyDay');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
@@ -1755,6 +1755,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
     ];
 
     let studentExerciseAccess = null;
+    let listSort = { createdAt: -1 };
     if (req.user.role === 'STUDENT') {
       andClauses.push({ visibleToStudents: true });
       studentExerciseAccess = await getStudentExerciseAccess(req.user.id);
@@ -1786,22 +1787,24 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       }
       const studentCourseDay = studentExerciseAccess.courseDay;
       const minAssignedDay = studentExerciseAccess.minAssignedContentDay ?? 1;
+      const requestedCourseDay = parseAdminCourseDay(req.query.courseDay);
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
-      if (todayOnly) {
+      if (requestedCourseDay != null) {
+        if (requestedCourseDay > studentCourseDay || requestedCourseDay < minAssignedDay) {
+          andClauses.push({ courseDay: -1 });
+        } else {
+          andClauses.push({ courseDay: requestedCourseDay });
+          listSort = { sequenceLetter: 1, title: 1, createdAt: -1 };
+        }
+      } else if (todayOnly) {
         if (studentCourseDay >= minAssignedDay) {
           andClauses.push({ courseDay: studentCourseDay });
         } else {
           andClauses.push({ courseDay: -1 });
         }
       } else {
-        // A1 and A2 content is always visible to students; higher levels follow the journey day gate.
         const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
-        andClauses.push({
-          $or: [
-            { level: { $in: ['A1', 'A2'] } },
-            studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay)
-          ]
-        });
+        andClauses.push(studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay));
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
       appendNotBlockedToAndClauses(
@@ -1842,7 +1845,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       DigitalExercise.countDocuments(filter),
       DigitalExercise.aggregate([
         { $match: filter },
-        { $sort: { createdAt: -1 } },
+        { $sort: listSort },
         { $skip: (pageNum - 1) * limitNum },
         { $limit: limitNum },
         {

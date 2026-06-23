@@ -155,7 +155,9 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
     const role = this.authService.getSnapshotUser()?.role || this.userRole;
     const isStudent = role === 'STUDENT';
     let list = isStudent
-      ? this.exercises.filter((ex) => this.matchesStudentTab(ex, tab))
+      ? this.exercises.filter(
+          (ex) => this.isExerciseUnlockedForStudentDay(ex) && this.matchesStudentTab(ex, tab)
+        )
       : this.applyTabFilterLegacy(this.exercises, tab);
     if (isStudent && this.isSilverGoStudent()) {
       list = list.filter((ex) => this.exerciseCourseDayNum(ex) !== TRIAL_JOURNEY_DAY);
@@ -169,7 +171,9 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
 
     let list: DigitalExercise[];
     if (isStudent) {
-      list = this.exercises.filter((ex) => this.matchesStudentTab(ex, this.activeTab));
+      list = this.exercises.filter(
+        (ex) => this.isExerciseUnlockedForStudentDay(ex) && this.matchesStudentTab(ex, this.activeTab)
+      );
       if (this.isSilverGoStudent()) {
         list = list.filter((ex) => this.exerciseCourseDayNum(ex) !== TRIAL_JOURNEY_DAY);
       }
@@ -203,7 +207,7 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
    * Students:
    * - All: show everything (no filter).
    * - New: exercise day === current journey day, not yet passed.
-   * - Pending: any other incomplete (past days, future/locked preview, or unassigned day).
+   * - Pending: incomplete from past days (not current day).
    * - Completed: passed (≥ pass score), any day.
    */
   private matchesStudentTab(ex: DigitalExercise, tab: TabType): boolean {
@@ -390,11 +394,17 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   isExerciseDayLocked(ex: DigitalExercise): boolean {
     const role = this.authService.getSnapshotUser()?.role || this.userRole;
     if (role !== 'STUDENT') return false;
-    const cd = ex.courseDay;
-    if (cd == null || cd === undefined) return false;
-    const n = Number(cd);
-    if (this.isSilverGoStudent() && n === TRIAL_JOURNEY_DAY) return true;
-    return Number.isFinite(n) && n > this.studentCourseDay;
+    return !this.isExerciseUnlockedForStudentDay(ex);
+  }
+
+  /** Student may list/play exercises on or before their journey day (unassigned = always ok). */
+  isExerciseUnlockedForStudentDay(ex: DigitalExercise): boolean {
+    const role = this.authService.getSnapshotUser()?.role || this.userRole;
+    if (role !== 'STUDENT') return true;
+    const dayNum = this.exerciseCourseDayNum(ex);
+    if (dayNum == null) return true;
+    if (this.isSilverGoStudent() && dayNum === TRIAL_JOURNEY_DAY) return false;
+    return dayNum <= this.studentCourseDay;
   }
 
   isExerciseSequenceLocked(ex: DigitalExercise): boolean {
@@ -453,9 +463,8 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   }
 
   get journeyWeekHint(): string {
-    const a = this.studentCourseDay;
-    const b = Math.min(200, a + 6);
-    return `Showing journey days ${a}–${b} (unlock each item on its day)`;
+    const cur = this.studentCourseDay;
+    return `Unlocked through Day ${cur} — future days unlock as you progress`;
   }
 
   hasType(exercise: DigitalExercise, type: string): boolean {
