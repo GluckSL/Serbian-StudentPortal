@@ -106,6 +106,8 @@ export class MyCourseComponent implements OnInit {
   progressRange: ProgressRange = 'weekly';
 
   private journeyDayExercises: DigitalExercise[] = [];
+  journeyDayExercisesLoading = false;
+  journeyDayExercisesLoadingDay: number | null = null;
   private journeyDayGameSets: GameSet[] = [];
   /** True when the student's batch has at least one published arena game. */
   hasJourneyArenaAccess = false;
@@ -341,6 +343,7 @@ export class MyCourseComponent implements OnInit {
           this.journeyProfileLoaded = true;
           this.reconcileTabAfterJourneyProfile();
           this.loadDayCompletionData();
+          this.refreshJourneyDayExercisesIfNeeded();
           setTimeout(() => this.maybeShowJourneyCongratulations(), 400);
           if (!this._tourChecked) {
             this._tourChecked = true;
@@ -492,12 +495,19 @@ export class MyCourseComponent implements OnInit {
    * Loads exercises tagged to a specific journey day (Journey tab + completion badge).
    */
   loadJourneyDayExercises(day: number, force = false): void {
-    if (this.destroyed || !this.allowsLearningContent) return;
+    if (this.destroyed || !this.journeyProfileLoaded) return;
+    if (!this.allowsLearningContent) return;
     if (!force && this._journeyDaysLoaded.has(day)) return;
+
+    this.journeyDayExercisesLoading = true;
+    this.journeyDayExercisesLoadingDay = day;
     this._journeyDaysLoaded.add(day);
 
-    this.exerciseService
-      .getExercises({ page: 1, limit: 100, courseDay: day })
+    const request$ = force
+      ? this.exerciseService.refreshExercises({ page: 1, limit: 100, courseDay: day })
+      : this.exerciseService.getExercises({ page: 1, limit: 100, courseDay: day });
+
+    request$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
@@ -515,8 +525,21 @@ export class MyCourseComponent implements OnInit {
         },
         error: () => {
           this._journeyDaysLoaded.delete(day);
+        },
+        complete: () => {
+          if (this.journeyDayExercisesLoadingDay === day) {
+            this.journeyDayExercisesLoading = false;
+            this.journeyDayExercisesLoadingDay = null;
+          }
         }
       });
+  }
+
+  /** Load journey-day exercises once profile access flags are known. */
+  private refreshJourneyDayExercisesIfNeeded(): void {
+    if (this.destroyed || !this.journeyProfileLoaded || !this.allowsLearningContent) return;
+    if (!this.tabVisited.has('journey') && this.activeTab !== 'journey') return;
+    this.loadJourneyDayExercises(this.selectedJourneyDay, true);
   }
 
   private mergeJourneyExercises(incoming: DigitalExercise[]): void {
@@ -600,11 +623,12 @@ export class MyCourseComponent implements OnInit {
   private _journeyClassesRefreshed = false;
 
   private loadJourneyTabData(): void {
-    if (this._journeyTabDataLoaded) return;
-    this._journeyTabDataLoaded = true;
-    this.loadDayCompletionData(true);
-    this.loadGluckExamData();
-    this.loadJourneyDayExercises(this.selectedJourneyDay, true);
+    if (!this._journeyTabDataLoaded) {
+      this._journeyTabDataLoaded = true;
+      this.loadDayCompletionData(true);
+      this.loadGluckExamData();
+    }
+    this.refreshJourneyDayExercisesIfNeeded();
   }
 
   private loadJourneyGames(): void {

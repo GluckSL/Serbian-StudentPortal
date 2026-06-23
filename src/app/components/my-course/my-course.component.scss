@@ -2834,6 +2834,62 @@
   margin-top: 10px;
 }
 
+.mc-day-section-card--exercises .mc-day-section__head,
+.mc-day-section-card--exercises .mc-day-section__intro {
+  background: #dbeafe;
+}
+
+.mc-day-section-card--arena .mc-day-section__head,
+.mc-day-section-card--arena .mc-day-section__intro {
+  background: #fef9c3;
+}
+
+.mc-day-section-card--talkbuddy .mc-day-section__head,
+.mc-day-section-card--talkbuddy .mc-day-section__intro {
+  background: #dcfce7;
+}
+
+.mc-day-section-card--exercises .mc-day-section__head,
+.mc-day-section-card--arena .mc-day-section__head,
+.mc-day-section-card--talkbuddy .mc-day-section__head {
+  margin: -10px -10px 0;
+  padding: 10px 10px 6px;
+  border-radius: 11px 11px 0 0;
+}
+
+.mc-day-section-card--exercises .mc-day-section__intro,
+.mc-day-section-card--arena .mc-day-section__intro,
+.mc-day-section-card--talkbuddy .mc-day-section__intro {
+  margin: 0 -10px 8px;
+  padding: 0 10px 10px;
+  color: #334155;
+}
+
+.mc-day-section-card--exercises .mc-day-section__head h4,
+.mc-day-section-card--arena .mc-day-section__head h4,
+.mc-day-section-card--talkbuddy .mc-day-section__head h4 {
+  color: #0f172a;
+}
+
+.mc-day-section-card--exercises .mc-day-section__count,
+.mc-day-section-card--talkbuddy .mc-day-section__count {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
+.mc-day-section-card--arena .mc-day-section__count {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
+.mc-day-section-card--talkbuddy .mc-day-section__count--muted {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
 .mc-day-item {
   display: grid;
   grid-template-columns: 1fr auto auto;

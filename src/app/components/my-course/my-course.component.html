@@ -450,12 +450,20 @@
     </div>
 
     <div class="mc-day-sections" *ngIf="allowsLearningContent">
-      <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises"
-        *ngIf="selectedDayExercises.length">
+      <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises">
         <div class="mc-day-section__head">
           <h4>Exercises</h4>
-          <span class="mc-day-section__count">{{ selectedDayExercises.length }}</span>
+          <span class="mc-day-section__count" *ngIf="selectedDayExercises.length">{{ selectedDayExercises.length }}</span>
         </div>
+        <p class="mc-day-section__intro">Digital exercises assigned to journey day {{ selectedJourneyDay }}.</p>
+        <p class="mc-jc-empty mc-jc-empty--tight"
+          *ngIf="journeyDayExercisesLoading && journeyDayExercisesLoadingDay === selectedJourneyDay">
+          Loading exercises…
+        </p>
+        <p class="mc-jc-empty mc-jc-empty--tight"
+          *ngIf="!journeyDayExercisesLoading && !selectedDayExercises.length">
+          No exercises are assigned to day {{ selectedJourneyDay }} yet.
+        </p>
         <div class="mc-day-item" *ngFor="let ex of selectedDayExercises">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" [title]="getExerciseHoverDetails(ex)"
             (click)="openExercise(ex)" (keydown.enter)="openExercise(ex)">
