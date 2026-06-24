@@ -58,7 +58,6 @@ router.get('/students/search', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']
     const students = await User.find({
       role: 'STUDENT',
       $or: [{ name: rx }, { regNo: rx }, { email: rx }],
-      isTestAccount: { $ne: true },
     })
       .select('name regNo email')
       .sort({ regNo: 1 })

@@ -11,7 +11,6 @@ const antiCheat = require('./antiCheat');
 const auditLog = require('./auditLog');
 const replayService = require('./replays');
 
-const DEFAULT_ROUNDS = 10;
 const FAST_ANSWER_BONUS = 5;
 const COMBO_STREAK_BONUS = 3;
 const COMBO_THRESHOLD = 3;
@@ -30,10 +29,6 @@ const battleMetrics = {
 
 function roundDurationMs() {
   return config.multiplayer?.answerWindowMs || 15_000;
-}
-
-function maxRounds() {
-  return config.multiplayer?.battleRounds || DEFAULT_ROUNDS;
 }
 
 function sanitizeQuestionForClient(q, gameType, index) {
@@ -194,7 +189,6 @@ async function initBattle(roomId, sanitizeRoomFn, buildLeaderboardFn) {
     isDeleted: false,
   })
     .sort({ order: 1 })
-    .limit(maxRounds())
     .lean();
 
   if (!questions.length) {

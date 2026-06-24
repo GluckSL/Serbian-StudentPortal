@@ -2,22 +2,58 @@ const crypto = require('crypto');
 const GameQuestion = require('../../models/GameQuestion');
 const GameSet = require('../../models/GameSet');
 const BattlefieldStats = require('../../models/BattlefieldStats');
+const ArenaRoom = require('../../models/ArenaRoom');
 const config = require('../../config/glueckArena');
 const { attachScrambled, evaluateAnswer: evalScramble } = require('./scrambleRush');
-const { getShuffledTokens, evaluateAnswer: evalSentence } = require('./sentenceBuilder');
+const { getShuffledTokens, tokenize, evaluateAnswer: evalSentence } = require('./sentenceBuilder');
 const { basePoints } = require('./scoring');
 const battlefieldElo = require('./battlefieldElo');
 
 const rooms = new Map();
-const roundTimers = new Map();
+const autoStartTimers = new Map();
 
-const DEFAULT_ROUNDS = 10;
-const FAST_ANSWER_BONUS = 5;
 const COMBO_STREAK_BONUS = 3;
 const COMBO_THRESHOLD = 3;
 
 function generateCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
+}
+
+async function loadRoomFromMongo(code) {
+  const doc = await ArenaRoom.findOne({ inviteCode: code?.toUpperCase() }).lean();
+  if (!doc) return null;
+  const bfRoom = {
+    _id: doc._id?.toString() || `bf_${doc.inviteCode}`,
+    inviteCode: doc.inviteCode,
+    hostId: doc.hostId || '',
+    hostName: doc.hostName || '',
+    gameSetId: doc.gameSetId,
+    gameType: doc.gameType,
+    status: doc.status || 'lobby',
+    players: (doc.players || []).map(p => ({
+      studentId: String(p.studentId),
+      name: p.name || '',
+      score: p.score || 0,
+      isReady: p.isReady || false,
+      isConnected: p.isConnected || false,
+      correctAnswers: p.correctAnswers || 0,
+      totalAnswers: p.totalAnswers || 0,
+      socketId: p.socketId || null,
+      lastHeartbeatAt: p.lastHeartbeatAt || Date.now(),
+    })),
+    maxPlayers: doc.maxPlayers || 8,
+    roomName: doc.roomName || '',
+    isPublic: !!doc.isPublic,
+    password: doc.password || null,
+    teamMode: !!doc.teamMode,
+    startedAt: doc.startedAt || null,
+    endsAt: doc.endsAt || Date.now() + 3600000,
+    rematchVotes: [],
+    battle: null,
+    _mongoId: doc._id,
+  };
+  rooms.set(code?.toUpperCase(), bfRoom);
+  return bfRoom;
 }
 
 function sanitizeRoom(room) {
@@ -40,10 +76,8 @@ function sanitizeRoom(room) {
       totalAnswers: p.totalAnswers || 0,
     })),
     maxPlayers: room.maxPlayers,
-    currentRound: room.battle?.currentRound ?? 0,
+    currentRound: 0,
     totalRounds: room.battle?.totalRounds ?? 0,
-    roundStartedAt: room.battle?.roundStartedAt ?? null,
-    roundEndsAt: room.battle?.roundEndsAt ?? null,
     startedAt: room.startedAt,
     endsAt: room.endsAt,
     rematchVotes: (room.rematchVotes || []).length,
@@ -99,7 +133,6 @@ async function createRoom(hostId, hostName, gameSetId, gameType, opts = {}) {
     endsAt: Date.now() + (config.multiplayer?.roomTtlMinutes || 30) * 60000,
     rematchVotes: [],
     battle: null,
-    currentQuestionIndex: 0,
   };
 
   rooms.set(code, room);
@@ -154,8 +187,11 @@ function leaveRoom(code, studentId) {
 }
 
 function getRoom(code) {
-  const room = rooms.get(code?.toUpperCase());
-  return room ? sanitizeRoom(room) : null;
+  return sanitizeRoom(rooms.get(code?.toUpperCase()));
+}
+
+function getRawRoom(code) {
+  return rooms.get(code?.toUpperCase()) || null;
 }
 
 function setPlayerReady(code, studentId, ready) {
@@ -168,13 +204,78 @@ function setPlayerReady(code, studentId, ready) {
   return sanitizeRoom(room);
 }
 
+function allPlayersReady(code) {
+  const room = rooms.get(code?.toUpperCase());
+  if (!room) return false;
+  const connected = room.players.filter(p => p.isConnected);
+  return connected.length >= 2 && connected.every(p => p.isReady);
+}
+
+function tryAutoStart(code, io, seconds = 5) {
+  const key = code?.toUpperCase();
+  const room = rooms.get(key);
+  if (!room || room.status !== 'lobby') return false;
+  if (!allPlayersReady(code)) return false;
+
+  room.status = 'countdown';
+  room.startedAt = Date.now();
+
+  io.to(`room:${key}`).emit('arena:countdown', { seconds, autoStart: true });
+
+  let sec = seconds;
+  const timer = setInterval(() => {
+    sec -= 1;
+    if (sec <= 0) {
+      clearInterval(timer);
+      autoStartTimers.delete(key);
+      beginPlaying(code, io).then((playing) => {
+        if (playing?.error) {
+          io.to(`room:${key}`).emit('arena:error', { message: playing.error });
+          return;
+        }
+        io.to(`room:${key}`).emit('arena:playing', { room: playing.room });
+      });
+    } else {
+      io.to(`room:${key}`).emit('arena:countdown_tick', { seconds: sec });
+    }
+  }, 1000);
+
+  autoStartTimers.set(key, timer);
+  return true;
+}
+
+function clearAutoStartTimer(code) {
+  const key = code?.toUpperCase();
+  const timer = autoStartTimers.get(key);
+  if (timer) {
+    clearInterval(timer);
+    autoStartTimers.delete(key);
+  }
+}
+
+function cancelAutoStart(code) {
+  clearAutoStartTimer(code);
+  const room = rooms.get(code?.toUpperCase());
+  if (room && room.status === 'countdown') {
+    room.status = 'lobby';
+    room.startedAt = null;
+    return sanitizeRoom(room);
+  }
+  return null;
+}
+
+function isAutoStarting(code) {
+  return autoStartTimers.has(code?.toUpperCase());
+}
+
 function startCountdown(code, hostId) {
   const room = rooms.get(code?.toUpperCase());
   if (!room) return { ok: false, message: 'Room not found' };
   if (String(room.hostId) !== String(hostId)) return { ok: false, message: 'Only host can start' };
   if (room.status !== 'lobby') return { ok: false, message: 'Cannot start' };
-  if (!room.players.every(p => p.isReady)) return { ok: false, message: 'Not all players ready' };
-  if (room.players.length < 1) return { ok: false, message: 'Need at least one player' };
+  const connected = room.players.filter(p => p.isConnected);
+  if (!connected.every(p => p.isReady)) return { ok: false, message: 'Not all players ready' };
+  if (connected.length < 1) return { ok: false, message: 'Need at least one player' };
 
   room.status = 'countdown';
   room.startedAt = Date.now();
@@ -191,7 +292,6 @@ async function beginPlaying(code, io) {
     isDeleted: false,
   })
     .sort({ order: 1 })
-    .limit(DEFAULT_ROUNDS)
     .lean();
 
   if (!questions.length) {
@@ -202,18 +302,13 @@ async function beginPlaying(code, io) {
     sanitizeQuestionForClient(q, room.gameType, idx)
   );
 
-  const duration = config.multiplayer?.answerWindowMs || 15000;
   room.status = 'playing';
   room.battle = {
     totalRounds: sanitizedQuestions.length,
-    roundDurationMs: duration,
     questions: sanitizedQuestions,
     currentRound: 0,
-    roundStartedAt: null,
-    roundEndsAt: null,
-    roundAnsweredBy: [],
-    roundResults: [],
     comboStreaks: {},
+    playerProgress: {},
     questionDocs: questions.map(q => ({
       questionId: String(q._id),
       word: q.word,
@@ -224,66 +319,31 @@ async function beginPlaying(code, io) {
       imageUrl: q.imageUrl || null,
       translation: q.translation || '',
       category: q.category || '',
+      hint: q.hint || '',
+      questionText: q.questionText || '',
+      options: (q.options || []).map((o) => ({ text: o.text, isCorrect: o.isCorrect })),
+      searchWords: q.searchWords || [],
     })),
   };
-  room.currentQuestionIndex = 0;
 
-  startRound(code, io);
-  return { ok: true, room: sanitizeRoom(room) };
-}
-
-function startRound(code, io) {
-  clearRoundTimer(code);
-  const room = rooms.get(code?.toUpperCase());
-  if (!room?.battle) return;
-
-  const b = room.battle;
-  if (b.currentRound >= b.totalRounds) {
-    return finishGame(code, io);
+  // Initialize per-player progress
+  for (const player of room.players) {
+    const sid = String(player.studentId);
+    room.battle.playerProgress[sid] = { answeredIds: {}, answeredCount: 0, completed: false };
   }
 
-  const now = Date.now();
-  b.roundStartedAt = now;
-  b.roundEndsAt = now + b.roundDurationMs;
-  b.roundAnsweredBy = [];
-  b.roundResults = [];
-  room.currentQuestionIndex = b.currentRound;
-
-  const roundPayload = {
-    roundIndex: b.currentRound,
-    totalRounds: b.totalRounds,
-    question: b.questions[b.currentRound],
-    roundStartedAt: b.roundStartedAt,
-    roundEndsAt: b.roundEndsAt,
-    serverTime: Date.now(),
-    roundDurationMs: b.roundDurationMs,
-  };
-
-  broadcastToRoom(code, io, 'arena:battle_round', { round: roundPayload, room: sanitizeRoom(room) });
-  broadcastToRoom(code, io, 'arena:leaderboard', { players: buildLeaderboard(room) });
-
-  const timer = setTimeout(() => endRound(code, io), b.roundDurationMs);
-  roundTimers.set(code.toUpperCase(), timer);
-}
-
-function endRound(code, io) {
-  clearRoundTimer(code);
-  const room = rooms.get(code?.toUpperCase());
-  if (!room?.battle) return;
-
-  room.battle.currentRound += 1;
-
-  broadcastToRoom(code, io, 'arena:battle_round_end', {
-    roundIndex: room.battle.currentRound - 1,
-    results: room.battle.roundResults || [],
+  broadcastToRoom(code, io, 'arena:battle_round', {
+    round: {
+      roundIndex: 0,
+      totalRounds: sanitizedQuestions.length,
+      question: sanitizedQuestions,
+      serverTime: Date.now(),
+    },
     room: sanitizeRoom(room),
   });
+  broadcastToRoom(code, io, 'arena:leaderboard', { players: buildLeaderboard(room) });
 
-  if (room.battle.currentRound >= room.battle.totalRounds) {
-    finishGame(code, io);
-  } else {
-    startRound(code, io);
-  }
+  return { ok: true, room: sanitizeRoom(room) };
 }
 
 function submitAnswer(code, studentId, payload, io) {
@@ -293,24 +353,40 @@ function submitAnswer(code, studentId, payload, io) {
   }
 
   const b = room.battle;
-  const roundIndex = parseInt(payload.roundIndex, 10);
-  if (roundIndex !== b.currentRound) return { ok: false, message: 'Stale round' };
+  const sid = String(studentId);
+  const progress = b.playerProgress[sid];
+  if (!progress) return { ok: false, message: 'Player not in battle' };
+  if (progress.completed) return { ok: false, message: 'Already completed' };
 
-  if (b.roundAnsweredBy.some(id => String(id) === String(studentId))) {
-    return { ok: false, message: 'Already answered' };
+  const questionIndex = parseInt(payload?.roundIndex, 10);
+  if (!Number.isFinite(questionIndex) || questionIndex < 0) {
+    return { ok: false, message: 'Invalid question index' };
   }
-
-  if (Date.now() > b.roundEndsAt + 500) {
-    return { ok: false, message: 'Round ended' };
-  }
-
-  const question = b.questions[roundIndex];
+  const question = b.questions[questionIndex];
   if (!question) return { ok: false, message: 'Invalid question' };
+
+  // Verify client's questionId matches the question at this index
+  if (payload.questionId && question.questionId !== payload.questionId) {
+    return { ok: false, message: 'Question mismatch' };
+  }
+
+  const isPairGame = ['word_picture_match', 'image_matching', 'memory'].includes(room.gameType);
+
+  // For pair-based games, track per-pair; for others, track per-question
+  if (isPairGame) {
+    if (!progress.answeredPairs) progress.answeredPairs = {};
+    const qPairs = progress.answeredPairs[question.questionId] || [];
+    if (payload.pairIndex != null && qPairs.includes(payload.pairIndex)) {
+      return { ok: false, message: 'Already answered this pair' };
+    }
+  } else {
+    if (progress.answeredIds?.[question.questionId]) {
+      return { ok: false, message: 'Already answered' };
+    }
+  }
 
   const qDoc = b.questionDocs?.find(d => d.questionId === question.questionId);
   if (!qDoc) return { ok: false, message: 'Question data missing' };
-
-  const responseTimeMs = Math.max(0, Date.now() - b.roundStartedAt);
 
   let evalResult;
   let revealCorrect = null;
@@ -325,7 +401,8 @@ function submitAnswer(code, studentId, payload, io) {
     );
     if (!evalResult.isCorrect) revealCorrect = { sentence: qDoc.correctSentence };
   } else if (room.gameType === 'image_matching') {
-    const correctWord = qDoc.word || (qDoc.pairs?.[0]?.word) || '';
+    const pair = qDoc.pairs?.[payload.pairIndex];
+    const correctWord = pair?.word || qDoc.word || '';
     const isCorrect = (payload.typedWord || '').toLowerCase().trim() === correctWord.toLowerCase().trim();
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
     if (!isCorrect) revealCorrect = { word: correctWord };
@@ -366,21 +443,51 @@ function submitAnswer(code, studentId, payload, io) {
     const isCorrect = tappedCategory === targetCategory;
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
     if (!isCorrect) revealCorrect = { word: `Category: ${qDoc.category || ''}` };
+  } else if (room.gameType === 'jumbled_words') {
+    const submitted = (payload.typedWord || '').toLowerCase().trim();
+    const correct = (qDoc.word || '').toLowerCase().trim();
+    const isCorrect = submitted === correct;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: qDoc.word || '' };
+  } else if (room.gameType === 'hangman') {
+    const submitted = (payload.typedWord || '').toLowerCase().trim();
+    const correct = (qDoc.word || '').toLowerCase().trim();
+    const isCorrect = submitted === correct;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: qDoc.word || '' };
+  } else if (room.gameType === 'word_picture_match') {
+    const pair = qDoc.pairs?.[payload.pairIndex];
+    const expected = (pair?.word || '').toLowerCase().trim();
+    const received = (payload.typedWord || '').toLowerCase().trim();
+    console.log(`[battlefield] wp_match: pairIndex=${payload.pairIndex}, qDoc.pairs=${JSON.stringify(qDoc.pairs)}, expected="${expected}", received="${received}", match=${expected === received}`);
+    const isCorrect = !!(pair && expected === received);
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: pair?.word || qDoc.word || '' };
+  } else if (room.gameType === 'multiple_choice') {
+    const selectedIndex = parseInt(payload.selectedIndex ?? payload.slotIndex, 10);
+    const correctIdx = (qDoc.options || []).findIndex((o) => o.isCorrect);
+    const isCorrect = selectedIndex === correctIdx;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { correctIndex: correctIdx };
+  } else if (room.gameType === 'spin_wheel' || room.gameType === 'tap_boxes') {
+    const submitted = (payload.typedWord || '').toLowerCase().trim();
+    const correct = (qDoc.word || '').toLowerCase().trim();
+    const isCorrect = correct ? submitted === correct : true;
+    evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : 0 };
+    if (!isCorrect) revealCorrect = { word: qDoc.word || '' };
+  } else if (room.gameType === 'word_search') {
+    evalResult = { isCorrect: true, points: basePoints(room.gameType) };
   } else {
-    return { ok: false, message: 'Unsupported game type' };
+    evalResult = { isCorrect: true, points: basePoints(room.gameType) };
+    revealCorrect = null;
   }
 
+  console.log(`[battlefield] answer: student=${sid}, gameType=${room.gameType}, qIdx=${questionIndex}, pairIdx=${payload.pairIndex}, typedWord="${payload.typedWord}", isCorrect=${evalResult.isCorrect}`);
+
   let points = evalResult.isCorrect ? (evalResult.points || basePoints(room.gameType)) : 0;
-  let fastest = false;
   let comboStreak = 0;
-  const sid = String(studentId);
 
   if (evalResult.isCorrect) {
-    const priorCorrect = b.roundResults.some(r => r.isCorrect);
-    if (!priorCorrect) {
-      fastest = true;
-      points += FAST_ANSWER_BONUS;
-    }
     b.comboStreaks[sid] = (b.comboStreaks[sid] || 0) + 1;
     comboStreak = b.comboStreaks[sid];
     if (comboStreak >= COMBO_THRESHOLD) {
@@ -393,16 +500,6 @@ function submitAnswer(code, studentId, payload, io) {
   const player = room.players.find(p => String(p.studentId) === sid);
   if (!player) return { ok: false, message: 'Not in room' };
 
-  b.roundAnsweredBy.push(studentId);
-  b.roundResults.push({
-    studentId,
-    isCorrect: evalResult.isCorrect,
-    points,
-    responseTimeMs,
-    fastest,
-    comboStreak,
-  });
-
   player.totalAnswers = (player.totalAnswers || 0) + 1;
   if (evalResult.isCorrect) {
     player.correctAnswers = (player.correctAnswers || 0) + 1;
@@ -411,30 +508,60 @@ function submitAnswer(code, studentId, payload, io) {
   player.lastAnswerAt = Date.now();
   player.lastHeartbeatAt = Date.now();
 
+  let completed = false;
+  // Track answered questions/pairs (any order)
+  if (isPairGame) {
+    if (payload.pairIndex != null && !(progress.answeredPairs[question.questionId] || []).includes(payload.pairIndex)) {
+      if (!progress.answeredPairs[question.questionId]) progress.answeredPairs[question.questionId] = [];
+      progress.answeredPairs[question.questionId].push(payload.pairIndex);
+    }
+    const totalPairs = b.questions.reduce((sum, q) => sum + (q.pairs?.length || 0), 0);
+    progress.answeredCount = Object.values(progress.answeredPairs || {}).reduce((sum, arr) => sum + arr.length, 0);
+    completed = progress.answeredCount >= totalPairs;
+    if (completed) progress.completed = true;
+  } else {
+    if (!progress.answeredIds) progress.answeredIds = {};
+    if (!progress.answeredIds[question.questionId]) {
+      progress.answeredIds[question.questionId] = true;
+      progress.answeredCount = (progress.answeredCount || 0) + 1;
+    }
+    completed = progress.answeredCount >= b.totalRounds;
+    if (completed) progress.completed = true;
+  }
+
   const answerResult = {
     isCorrect: evalResult.isCorrect,
     points: evalResult.isCorrect ? points : 0,
-    fastest,
     comboStreak,
     correctAnswer: revealCorrect,
-    responseTimeMs,
   };
 
+  // Check if all connected players completed
   const connectedPlayers = room.players.filter(p => p.isConnected !== false);
-  const answeredCount = b.roundAnsweredBy.length;
-  if (answeredCount >= Math.max(1, connectedPlayers.length)) {
-    setImmediate(() => endRound(code, io));
+  const completionStatus = connectedPlayers.map(p => {
+    const prog = b.playerProgress[String(p.studentId)];
+    return { studentId: p.studentId, answeredCount: prog?.answeredCount, completed: prog?.completed };
+  });
+  console.log(`[battlefield] allCompleted check: connected=${connectedPlayers.length}, status=${JSON.stringify(completionStatus)}, totalPairs=${b.questions?.reduce((s, q) => s + (q.pairs?.length || 0), 0)}, totalRounds=${b.totalRounds}`);
+  const allCompleted = connectedPlayers.every(p => {
+    const prog = b.playerProgress[String(p.studentId)];
+    return prog?.completed;
+  });
+
+  if (allCompleted) {
+    console.log('[battlefield] ALL COMPLETED — calling finishGame');
+    setImmediate(() => finishGame(code, io));
   }
 
   return {
     ok: true,
     result: answerResult,
     leaderboard: buildLeaderboard(room),
+    completed,
   };
 }
 
 function finishGame(code, io) {
-  clearRoundTimer(code);
   const room = rooms.get(code?.toUpperCase());
   if (!room) return null;
 
@@ -447,6 +574,24 @@ function finishGame(code, io) {
   persistResults(room, leaderboard).catch(err => {
     console.error('[battlefieldRoomManager] persist error:', err.message);
   });
+
+  if (room._mongoId) {
+    ArenaRoom.findByIdAndUpdate(room._mongoId, {
+      $set: {
+        status: 'finished',
+        players: room.players.map(p => ({
+          studentId: p.studentId,
+          name: p.name,
+          score: p.score || 0,
+          isReady: p.isReady,
+          isConnected: p.isConnected,
+          correctAnswers: p.correctAnswers || 0,
+          totalAnswers: p.totalAnswers || 0,
+          lastAnswerAt: p.lastAnswerAt || new Date(),
+        })),
+      },
+    }).catch(err => console.error('[battlefieldRoomManager] ArenaRoom save error:', err.message));
+  }
 
   return { ok: true, results: leaderboard, room: sanitizeRoom(room) };
 }
@@ -493,7 +638,6 @@ function requestRematch(code, studentId) {
       p.isReady = false;
     });
     room.battle = null;
-    room.currentQuestionIndex = 0;
     return { ok: true, rematchAccepted: true, room: sanitizeRoom(room) };
   }
   return { ok: true, rematchAccepted: false, votes, needed };
@@ -521,28 +665,24 @@ function listPublicRooms() {
   return result.sort((a, b) => b.playerCount - a.playerCount);
 }
 
-function getSnapshot(code) {
+function getSnapshot(code, studentId) {
   const room = rooms.get(code?.toUpperCase());
   if (!room) return null;
+  const sid = studentId ? String(studentId) : null;
+  const progress = sid ? room.battle?.playerProgress?.[sid] : null;
   return {
     room: sanitizeRoom(room),
     snapshot: room.battle ? {
       battle: {
         totalRounds: room.battle.totalRounds,
-        currentRound: room.battle.currentRound,
-        roundDurationMs: room.battle.roundDurationMs,
-        roundStartedAt: room.battle.roundStartedAt,
-        roundEndsAt: room.battle.roundEndsAt,
+        currentRound: progress?.answeredCount ?? 0,
         serverTime: Date.now(),
       },
       round: {
-        roundIndex: room.battle.currentRound,
+        roundIndex: 0,
         totalRounds: room.battle.totalRounds,
-        question: room.battle.questions[room.battle.currentRound],
-        roundStartedAt: room.battle.roundStartedAt,
-        roundEndsAt: room.battle.roundEndsAt,
+        question: room.battle.questions,
         serverTime: Date.now(),
-        roundDurationMs: room.battle.roundDurationMs,
       },
     } : null,
   };
@@ -559,15 +699,8 @@ function cancelRoom(code, userId) {
 }
 
 function cleanupRoom(code) {
-  clearRoundTimer(code);
+  clearAutoStartTimer(code);
   rooms.delete(code?.toUpperCase());
-}
-
-function clearRoundTimer(code) {
-  const key = code?.toUpperCase();
-  const t = roundTimers.get(key);
-  if (t) clearTimeout(t);
-  roundTimers.delete(key);
 }
 
 function broadcastToRoom(code, io, event, payload) {
@@ -584,12 +717,12 @@ async function persistResults(room, leaderboard) {
         {
           $inc: {
             gamesPlayed: 1,
+            totalScore: p.score || 0,
             correctAnswers: p.correctAnswers || 0,
             totalAnswers: p.totalAnswers || 0,
           },
           $set: {
-            totalScore: p.score || 0,
-            lastPlayedAt: new Date(),
+            lastGameAt: new Date(),
           },
         },
         { upsert: true }
@@ -617,6 +750,7 @@ function sanitizeQuestionForClient(q, gameType, index) {
       questionId: String(q._id),
       index,
       scrambledLetters: scrambled.scrambledLetters,
+      answerWord: q.word || '',
       hint: q.hint || '',
       audioUrl: q.audioUrl || null,
       imageUrl: q.imageUrl || null,
@@ -624,26 +758,31 @@ function sanitizeQuestionForClient(q, gameType, index) {
     };
   }
   if (gameType === 'sentence_builder') {
+    const correctTokens = q.tokens?.length ? q.tokens : tokenize(q.correctSentence || '');
     return {
       questionId: String(q._id),
       index,
       shuffledTokens: getShuffledTokens(q),
+      correctTokens,
+      correctSentence: q.correctSentence || '',
       translation: q.translation || '',
       sentenceAudioUrl: q.sentenceAudioUrl || null,
     };
   }
   if (gameType === 'image_matching') {
-    const base = { questionId: String(q._id), index, word: q.word || '' };
-    if (q.imageUrl) {
-      const options = getShuffledOptions(q);
-      return { ...base, imageUrl: q.imageUrl, options };
-    }
-    if (q.pairs?.length) {
-      const pair = q.pairs[0];
-      const options = getShuffledOptions(q);
-      return { ...base, imageUrl: pair.imageUrl || null, options };
-    }
-    return { ...base, options: [q.word, '…'] };
+    return {
+      _id: String(q._id),
+      questionId: String(q._id),
+      gameType: 'image_matching',
+      order: index,
+      pairs: (q.pairs || []).map(p => ({
+        hint: p.hint || '',
+        imageUrl: p.imageUrl || null,
+        audioUrl: p.audioUrl || null,
+      })),
+      word: q.word || '',
+      words: (q.pairs || []).map(p => p.word).filter(Boolean),
+    };
   }
   if (gameType === 'gender_stack') {
     return {
@@ -651,6 +790,7 @@ function sanitizeQuestionForClient(q, gameType, index) {
       index,
       word: q.word || '',
       translation: q.translation || '',
+      articleGender: q.articleGender || null,
     };
   }
   if (gameType === 'flashcards') {
@@ -659,6 +799,7 @@ function sanitizeQuestionForClient(q, gameType, index) {
       index,
       prompt: q.hint || q.word || 'Translate this word',
       hint: q.translation || '',
+      answerWord: q.word || '',
     };
   }
   if (gameType === 'matching') {
@@ -677,6 +818,7 @@ function sanitizeQuestionForClient(q, gameType, index) {
       pairs,
       shuffledLeft: tokens.map(t => t.trim()),
       shuffledRight,
+      tokens,
     };
   }
   if (gameType === 'flapjugation') {
@@ -696,6 +838,66 @@ function sanitizeQuestionForClient(q, gameType, index) {
       category: q.category || '',
     };
   }
+  if (gameType === 'jumbled_words') {
+    return {
+      questionId: String(q._id),
+      index,
+      jumbledLetters: q.jumbledLetters || [],
+      letterCount: q.letterCount || 0,
+      hint: q.hint || '',
+      answerWord: q.word || '',
+    };
+  }
+  if (gameType === 'hangman') {
+    return {
+      questionId: String(q._id),
+      index,
+      hint: q.hint || q.translation || '',
+      word: q.word || '',
+      answerWord: q.word || '',
+      imageUrl: q.imageUrl || null,
+    };
+  }
+  if (gameType === 'word_picture_match') {
+    return {
+      questionId: String(q._id),
+      index,
+      word: q.word || '',
+      imageUrl: q.imageUrl || null,
+      answerWord: q.word || '',
+      pairs: q.pairs || [],
+    };
+  }
+  if (gameType === 'memory') {
+    return {
+      questionId: String(q._id),
+      index,
+      pairs: q.pairs || [],
+      answerWord: q.word || '',
+    };
+  }
+  if (gameType === 'multiple_choice') {
+    const shuffled = [...(q.options || [])].sort(() => Math.random() - 0.5);
+    return {
+      questionId: String(q._id),
+      index,
+      questionText: q.questionText || '',
+      options: shuffled.map(o => ({ text: o.text, isCorrect: o.isCorrect })),
+      imageUrl: q.imageUrl || null,
+      audioUrl: q.audioUrl || null,
+      correctIndex: shuffled.findIndex(o => o.isCorrect),
+      answerWord: q.word || '',
+    };
+  }
+  if (gameType === 'spin_wheel') {
+    return { questionId: String(q._id), index, phrase: q.word || q.hint || '' };
+  }
+  if (gameType === 'tap_boxes') {
+    return { questionId: String(q._id), index, phrase: q.word || q.hint || '' };
+  }
+  if (gameType === 'word_search') {
+    return { questionId: String(q._id), index, searchWords: q.searchWords || [] };
+  }
   return { questionId: String(q._id), index };
 }
 
@@ -713,7 +915,13 @@ module.exports = {
   joinRoom,
   leaveRoom,
   getRoom,
+  getRawRoom,
   setPlayerReady,
+  allPlayersReady,
+  tryAutoStart,
+  clearAutoStartTimer,
+  cancelAutoStart,
+  isAutoStarting,
   startCountdown,
   beginPlaying,
   submitAnswer,
@@ -727,4 +935,5 @@ module.exports = {
   cleanupRoom,
   sanitizeRoom,
   buildLeaderboard,
+  loadRoomFromMongo,
 };

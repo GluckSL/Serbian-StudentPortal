@@ -22,7 +22,6 @@ const BattlefieldTeamBattleSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'active', 'finished', 'cancelled'], default: 'pending' },
   teamA: { type: TeamSchema, required: true },
   teamB: { type: TeamSchema, required: true },
-  rounds: { type: Number, default: 5 },
   currentRound: { type: Number, default: 0 },
   winner: { type: String, enum: ['teamA', 'teamB', null], default: null },
   roomCode: { type: String, default: null },

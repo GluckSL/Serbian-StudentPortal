@@ -23,7 +23,6 @@ import {
       ></app-game-hud>
 
       <div class="immp__board" *ngIf="question && !answered">
-        <div class="immp__counter">Round {{ roundIndex + 1 }} / {{ totalRounds }}</div>
         <div class="immp__image-area">
           <img *ngIf="question.imageUrl" [src]="question.imageUrl" alt="Match the word" class="immp__image">
           <div class="immp__no-image" *ngIf="!question.imageUrl">

@@ -26,7 +26,6 @@ import {
       ></app-game-hud>
 
       <div class="sbmp__board" *ngIf="question && !answered">
-        <div class="sbmp__counter">Round {{ roundIndex + 1 }} / {{ totalRounds }}</div>
         <div class="sbmp__translation" *ngIf="question.translation">
           <mat-icon>translate</mat-icon> {{ question.translation }}
         </div>

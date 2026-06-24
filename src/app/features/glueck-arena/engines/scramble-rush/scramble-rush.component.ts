@@ -550,6 +550,8 @@ const DEADLINE_Y = 88;
 
       min-width: 0;
 
+      overflow-x: hidden;
+
       background: linear-gradient(180deg, rgba(15, 23, 42, 0.65) 0%, rgba(30, 27, 75, 0.45) 100%);
 
       border-radius: 24px;
@@ -1361,6 +1363,12 @@ const DEADLINE_Y = 88;
 
 
 
+    @media (max-width: 1500px) {
+
+      .sr__buddy { display: none; }
+
+    }
+
     @media (max-width: 820px) {
 
       .sr__playfield { flex-direction: column; align-items: stretch; gap: 4px; }
@@ -1414,6 +1422,8 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
 
   @ViewChild('wordInput') wordInputRef!: ElementRef<HTMLInputElement>;
+
+  @ViewChild('arena') arenaRef!: ElementRef<HTMLElement>;
 
 
 
@@ -1703,8 +1713,13 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
 
     const letters = q.scrambledLetters || [];
     const letterCount = letters.length;
-    const xMin = letterCount > 8 ? 24 : 12;
-    const xMax = letterCount > 8 ? 76 : 88;
+    const isLong = letterCount > 8;
+    const charWidth = isLong ? 20 : 26;
+    const estimatedTileWidth = letterCount * charWidth + 36;
+    const arenaWidth = this.arenaRef?.nativeElement?.clientWidth ?? 800;
+    const halfTilePct = ((estimatedTileWidth / 2 / arenaWidth) * 100) + 2;
+    const xMin = Math.min(Math.max(halfTilePct, 0), 50);
+    const xMax = Math.max(Math.min(100 - halfTilePct, 100), 50);
 
     const now = Date.now();
     const perWordMs = this.getQuestionFallMs(q);

@@ -34,7 +34,6 @@ interface MpTile {
       ></app-game-hud>
 
       <div class="jwmp__board" *ngIf="question && !answered">
-        <div class="jwmp__counter">Round {{ roundIndex + 1 }} / {{ totalRounds }}</div>
         <div class="jwmp__picture-area" *ngIf="question.imageUrl">
           <img [src]="question.imageUrl" alt="" class="jwmp__picture">
         </div>

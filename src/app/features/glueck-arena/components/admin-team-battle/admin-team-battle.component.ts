@@ -68,7 +68,7 @@ type TeamKey = 'teamA' | 'teamB';
             </div>
           </div>
           <div class="atb__card-meta">
-            <span>Round {{ b.currentRound }}/{{ b.rounds }}</span>
+            <span *ngIf="b.status === 'active'">Round {{ b.currentRound }}</span>
             <span *ngIf="b.roomCode">Room: {{ b.roomCode }}</span>
           </div>
           <div class="atb__card-actions">
@@ -175,11 +175,6 @@ type TeamKey = 'teamA' | 'teamB';
           </select>
         </div>
 
-        <div class="atb-field">
-          <label>Rounds</label>
-          <input [(ngModel)]="form.rounds" type="number" min="1" max="20" class="atb-input" style="width:80px">
-        </div>
-
         <fieldset class="atb-team-set">
           <legend>Team A</legend>
 
@@ -222,7 +217,7 @@ type TeamKey = 'teamA' | 'teamB';
             <div class="atb-field atb-search-field">
               <label>Add Students</label>
               <input [(ngModel)]="form.teamA.searchQuery"
-                     (input)="onSearchInput('teamA')"
+                     (ngModelChange)="onSearchInput('teamA')"
                      (focus)="onSearchFocus('teamA')"
                      (blur)="onSearchBlur('teamA')"
                      placeholder="Search by name, regNo, or email..."
@@ -286,7 +281,7 @@ type TeamKey = 'teamA' | 'teamB';
             <div class="atb-field atb-search-field">
               <label>Add Students</label>
               <input [(ngModel)]="form.teamB.searchQuery"
-                     (input)="onSearchInput('teamB')"
+                     (ngModelChange)="onSearchInput('teamB')"
                      (focus)="onSearchFocus('teamB')"
                      (blur)="onSearchBlur('teamB')"
                      placeholder="Search by name, regNo, or email..."
@@ -424,12 +419,12 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
   loadingScorecard: string | null = null;
   private subs: Subscription[] = [];
   private searchTimers: Record<TeamKey, any> = { teamA: null, teamB: null };
+  private searchRequestSeqs: Record<TeamKey, number> = { teamA: 0, teamB: 0 };
 
   form = {
     title: '',
     gameSetId: '',
     gameType: 'scramble_rush',
-    rounds: 5,
     teamA: {
       name: '',
       batchName: '',
@@ -527,7 +522,6 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
       title: '',
       gameSetId: '',
       gameType: 'scramble_rush',
-      rounds: 5,
       teamA: { name: '', batchName: '', teamMode: 'batch', members: [], searchQuery: '', searchResults: [], searchFocused: false },
       teamB: { name: '', batchName: '', teamMode: 'batch', members: [], searchQuery: '', searchResults: [], searchFocused: false },
     };
@@ -604,13 +598,17 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
       this.form[team].searchResults = [];
       return;
     }
+    const seq = ++this.searchRequestSeqs[team];
     this.searchTimers[team] = setTimeout(async () => {
       try {
         const res = await firstValueFrom(this.svc.searchStudents(q));
+        if (seq !== this.searchRequestSeqs[team]) return;
         const existingIds = new Set(this.form[team].members.map(m => m.id));
         this.form[team].searchResults = (res.data || []).filter(s => !existingIds.has(s._id));
-      } catch {
+      } catch (e) {
+        if (seq !== this.searchRequestSeqs[team]) return;
         this.form[team].searchResults = [];
+        console.error('Student search error:', e);
       }
     }, 250);
   }
@@ -692,7 +690,6 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
       title: this.form.title,
       gameSetId: this.form.gameSetId,
       gameType: this.form.gameType,
-      rounds: this.form.rounds,
       teamA: buildTeam('teamA'),
       teamB: buildTeam('teamB'),
     }).subscribe({

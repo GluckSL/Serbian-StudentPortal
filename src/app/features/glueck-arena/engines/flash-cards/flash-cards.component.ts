@@ -7,7 +7,16 @@ import { XpFloatComponent } from '../../shared/xp-float/xp-float.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
 import { InteractiveGameService } from '../../services/interactive-game.service';
 import { GameAudioService } from '../../services/game-audio.service';
-import { ScrambleQuestion, GameAttempt } from '../../glueck-arena.types';
+import { GameAttempt } from '../../glueck-arena.types';
+
+export interface FlashCardQuestion {
+  _id: string;
+  prompt: string;
+  hint?: string;
+  scrambledLetters?: string[];
+  word?: string;
+  answerWord?: string;
+}
 
 export interface FCResult {
   score: number;
@@ -34,8 +43,8 @@ export interface FCResult {
       <div class="fc__card" *ngIf="phase === 'playing' && currentQuestion">
         <div class="fc__card-inner">
           <div class="fc__prompt">{{ currentQuestion.hint || 'Translate this word' }}</div>
-          <div class="fc__word-display" *ngIf="!flipped">{{ currentQuestion.scrambledLetters?.join(' ') || '***' }}</div>
-          <div class="fc__reveal" *ngIf="flipped">{{ currentQuestion.word }}</div>
+          <div class="fc__word-display" *ngIf="!flipped">{{ currentQuestion.scrambledLetters?.join(' ') || currentQuestion.word || '***' }}</div>
+          <div class="fc__reveal" *ngIf="flipped">{{ currentQuestion.word || currentQuestion.answerWord || '—' }}</div>
         </div>
         <button class="fc__flip-btn" mat-stroked-button (click)="flip()" *ngIf="!flipped">
           <mat-icon>visibility</mat-icon> Show answer
@@ -95,7 +104,7 @@ export interface FCResult {
 })
 export class FlashCardsComponent implements OnInit, OnDestroy {
   @Input() attempt!: GameAttempt;
-  @Input() questions: ScrambleQuestion[] = [];
+  @Input() questions: FlashCardQuestion[] = [];
   @Output() onComplete = new EventEmitter<FCResult>();
 
   phase: 'playing' | 'complete' = 'playing';

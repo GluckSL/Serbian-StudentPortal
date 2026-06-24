@@ -23,7 +23,6 @@ import {
       ></app-game-hud>
 
       <div class="gsmp__board" *ngIf="question && !answered">
-        <div class="gsmp__counter">Round {{ roundIndex + 1 }} / {{ totalRounds }}</div>
         <div class="gsmp__word">{{ question.word }}</div>
         <p class="gsmp__translation" *ngIf="question.translation">Translation: {{ question.translation }}</p>
         <p class="gsmp__question">Which article does this noun take?</p>

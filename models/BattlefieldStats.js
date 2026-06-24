@@ -7,6 +7,9 @@ const BattlefieldStatsSchema = new mongoose.Schema({
   losses: { type: Number, default: 0 },
   elo: { type: Number, default: 1000 },
   tier: { type: String, enum: ['bronze', 'silver', 'gold', 'platinum', 'diamond'], default: 'bronze' },
+  totalScore: { type: Number, default: 0 },
+  correctAnswers: { type: Number, default: 0 },
+  totalAnswers: { type: Number, default: 0 },
   lastGameAt: { type: Date, default: null },
 }, { timestamps: true });
 

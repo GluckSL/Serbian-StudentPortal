@@ -23,7 +23,6 @@ import {
       ></app-game-hud>
 
       <div class="mmp__board" *ngIf="question && !answered">
-        <div class="mmp__counter">Round {{ roundIndex + 1 }} / {{ totalRounds }}</div>
         <p class="mmp__instruction">Match each item on the left with the correct one on the right</p>
         <div class="mmp__pairs">
           <div class="mmp__pair" *ngFor="let pair of displayPairs; let i = index">

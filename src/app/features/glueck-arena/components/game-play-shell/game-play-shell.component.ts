@@ -392,7 +392,7 @@ export interface IMResult {
       width: 100%;
       max-width: 1320px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 0;
       box-sizing: border-box;
       flex: 1;
       display: flex;

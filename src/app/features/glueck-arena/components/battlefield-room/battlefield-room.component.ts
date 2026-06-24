@@ -4,34 +4,48 @@ import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../../../shared/material.module';
 import { ArenaSocketService } from '../../services/arena-socket.service';
-import { InteractiveGameService } from '../../services/interactive-game.service';
+import { BattlefieldGameService } from '../../services/battlefield-game.service';
 import { BattlefieldChatComponent } from '../../shared/battlefield-chat/battlefield-chat.component';
 import { ConfettiBurstComponent } from '../../shared/confetti-burst/confetti-burst.component';
-import { ScrambleRushMpComponent } from '../../engines/scramble-rush-mp/scramble-rush-mp.component';
-import { SentenceBuilderMpComponent } from '../../engines/sentence-builder-mp/sentence-builder-mp.component';
-import { ImageMatchingMpComponent } from '../../engines/image-matching-mp/image-matching-mp.component';
-import { GenderStackMpComponent } from '../../engines/gender-stack-mp/gender-stack-mp.component';
-import { FlashCardsMpComponent } from '../../engines/flash-cards-mp/flash-cards-mp.component';
-import { MatchingMpComponent } from '../../engines/matching-mp/matching-mp.component';
-import { FlapjugationMpComponent } from '../../engines/flapjugation-mp/flapjugation-mp.component';
-import { WhackawortMpComponent } from '../../engines/whackawort-mp/whackawort-mp.component';
+import { ScrambleRushComponent, SRResult } from '../../engines/scramble-rush/scramble-rush.component';
+import { SentenceBuilderComponent } from '../../engines/sentence-builder/sentence-builder.component';
+import { ImageMatchingComponent } from '../../engines/image-matching/image-matching.component';
+import { GenderStackComponent } from '../../engines/gender-stack/gender-stack.component';
+import { FlashCardsComponent } from '../../engines/flash-cards/flash-cards.component';
+import { MatchingComponent } from '../../engines/matching/matching.component';
+import { FlapjugationComponent } from '../../engines/flapjugation/flapjugation.component';
+import { WhackawortComponent } from '../../engines/whackawort/whackawort.component';
+import { JumbledWordsComponent } from '../../engines/jumbled-words/jumbled-words.component';
+import { HangmanGameComponent } from '../../engines/hangman-game/hangman-game.component';
+import { MemoryGameComponent } from '../../engines/memory-game/memory-game.component';
+import { WordPictureMatchComponent } from '../../engines/word-picture-match/word-picture-match.component';
+import { MultipleChoiceComponent } from '../../engines/multiple-choice/multiple-choice.component';
+import { SpinWheelComponent } from '../../engines/spin-wheel/spin-wheel.component';
+import { TapBoxesComponent } from '../../engines/tap-boxes/tap-boxes.component';
+import { WordSearchComponent } from '../../engines/word-search/word-search.component';
 import {
-  ArenaRoomState, ArenaLeaderboardEntry, ArenaBattleRound, ArenaBattleAnswerResult,
-  ChatMessage,
+  ArenaRoomState, ChatMessage, GameAttempt, GameSet, GameQuestion, GameLevel,
 } from '../../glueck-arena.types';
+import { InteractiveGameService } from '../../services/interactive-game.service';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../../services/auth.service';
 
 @Component({
   selector: 'app-battlefield-room',
   standalone: true,
+  providers: [
+    BattlefieldGameService,
+    { provide: InteractiveGameService, useExisting: BattlefieldGameService },
+  ],
   imports: [
     CommonModule, RouterModule, FormsModule, MaterialModule,
     BattlefieldChatComponent, ConfettiBurstComponent,
-    ScrambleRushMpComponent, SentenceBuilderMpComponent,
-    ImageMatchingMpComponent, GenderStackMpComponent,
-    FlashCardsMpComponent, MatchingMpComponent, FlapjugationMpComponent,
-    WhackawortMpComponent,
+    ScrambleRushComponent, SentenceBuilderComponent,
+    ImageMatchingComponent, GenderStackComponent,
+    FlashCardsComponent, MatchingComponent, FlapjugationComponent,
+    WhackawortComponent, JumbledWordsComponent, HangmanGameComponent,
+    MemoryGameComponent, WordPictureMatchComponent, MultipleChoiceComponent,
+    SpinWheelComponent, TapBoxesComponent, WordSearchComponent,
   ],
   template: `
     <div class="bfroom">
@@ -86,9 +100,9 @@ import { AuthService } from '../../../../services/auth.service';
                 <span class="bfroom__info-label">Host</span>
                 <span class="bfroom__info-value">{{ hostName }}</span>
               </div>
-              <div class="bfroom__info-row" *ngIf="phase === 'playing' && currentRound">
-                <span class="bfroom__info-label">Round</span>
-                <span class="bfroom__info-value">{{ currentRound.roundIndex + 1 }} / {{ currentRound.totalRounds }}</span>
+              <div class="bfroom__info-row" *ngIf="attempt">
+                <span class="bfroom__info-label">Questions</span>
+                <span class="bfroom__info-value">{{ attempt.totalQuestions }}</span>
               </div>
             </div>
 
@@ -167,47 +181,112 @@ import { AuthService } from '../../../../services/auth.service';
               </button>
             </div>
 
-            <!-- Playing phase - Game Engine Rendered Here -->
+            <!-- Playing phase - Single-player Game Engines -->
             <div class="bfroom__game" *ngIf="phase === 'playing'">
-              <!-- Engine placeholder - actual component loaded dynamically -->
               <div class="bfroom__engine-wrapper">
-                <ng-container [ngSwitch]="room.gameType">
-                  <app-scramble-rush-mp *ngSwitchCase="'scramble_rush'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-scramble-rush-mp>
-                  <app-sentence-builder-mp *ngSwitchCase="'sentence_builder'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-sentence-builder-mp>
-                  <app-image-matching-mp *ngSwitchCase="'image_matching'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-image-matching-mp>
-                  <app-gender-stack-mp *ngSwitchCase="'gender_stack'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-gender-stack-mp>
-                  <app-flash-cards-mp *ngSwitchCase="'flashcards'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-flash-cards-mp>
-                  <app-matching-mp *ngSwitchCase="'matching'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-matching-mp>
-                  <app-flapjugation-mp *ngSwitchCase="'flapjugation'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-flapjugation-mp>
-                  <app-whackawort-mp *ngSwitchCase="'whackawort'"
-                    [round]="currentRound" [localScore]="myScore" [answerResult]="lastResult"
-                    (submitAnswer)="onAnswer($event)">
-                  </app-whackawort-mp>
+                <ng-container *ngIf="!playerCompleted && gameQuestions.length > 0">
+                <app-scramble-rush
+                  *ngIf="attempt && room.gameType === 'scramble_rush'"
+                  [attempt]="attempt!" [questions]="gameQuestions"
+                  [levels]="gameLevels"
+                  (onComplete)="onGameComplete($event)">
+                </app-scramble-rush>
+                <app-sentence-builder
+                  *ngIf="attempt && gameSet && room.gameType === 'sentence_builder'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-sentence-builder>
+                <app-image-matching
+                  *ngIf="attempt && gameSet && room.gameType === 'image_matching'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions" [shuffledWords]="gameShuffledWords"
+                  (onComplete)="onGameComplete($event)">
+                </app-image-matching>
+                <app-gender-stack
+                  *ngIf="attempt && gameSet && room.gameType === 'gender_stack'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-gender-stack>
+                <app-flash-cards
+                  *ngIf="attempt && room.gameType === 'flashcards'"
+                  [attempt]="attempt!" [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-flash-cards>
+                <app-matching
+                  *ngIf="attempt && room.gameType === 'matching'"
+                  [attempt]="attempt!" [questions]="gameQuestions"
+                  [shuffledRightOptions]="gameShuffledWords"
+                  (onComplete)="onGameComplete($event)">
+                </app-matching>
+                <app-flapjugation
+                  *ngIf="gameSet && room.gameType === 'flapjugation'"
+                  [gameSet]="gameSet!" [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-flapjugation>
+                <app-whackawort
+                  *ngIf="attempt && room.gameType === 'whackawort'"
+                  [attempt]="attempt!" [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-whackawort>
+                <app-jumbled-words
+                  *ngIf="attempt && gameSet && room.gameType === 'jumbled_words'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-jumbled-words>
+                <app-hangman-game
+                  *ngIf="attempt && gameSet && room.gameType === 'hangman'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-hangman-game>
+                <app-memory-game
+                  *ngIf="attempt && gameSet && room.gameType === 'memory'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-memory-game>
+                <app-word-picture-match
+                  *ngIf="attempt && gameSet && room.gameType === 'word_picture_match'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions" [shuffledWords]="gameShuffledWords"
+                  (onComplete)="onGameComplete($event)">
+                </app-word-picture-match>
+                <app-multiple-choice
+                  *ngIf="attempt && gameSet && room.gameType === 'multiple_choice'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-multiple-choice>
+                <app-spin-wheel
+                  *ngIf="attempt && gameSet && room.gameType === 'spin_wheel'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-spin-wheel>
+                <app-tap-boxes
+                  *ngIf="attempt && gameSet && room.gameType === 'tap_boxes'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-tap-boxes>
+                <app-word-search
+                  *ngIf="attempt && gameSet && room.gameType === 'word_search'"
+                  [attempt]="attempt!" [gameSet]="gameSet!"
+                  [questions]="gameQuestions"
+                  (onComplete)="onGameComplete($event)">
+                </app-word-search>
                 </ng-container>
-                <div class="bfroom__engine-fallback" *ngIf="!currentRound">
+                <div class="bfroom__engine-fallback" *ngIf="(!attempt || gameQuestions.length === 0) && !playerCompleted">
                   <mat-spinner diameter="32"></mat-spinner>
-                  <span>Waiting for round…</span>
+                  <span>Preparing game…</span>
+                </div>
+                <div class="bfroom__waiting" *ngIf="playerCompleted">
+                  <mat-icon class="bfroom__waiting-icon">hourglass_empty</mat-icon>
+                  <h3>You're done!</h3>
+                  <p>Waiting for other players to finish…</p>
                 </div>
               </div>
             </div>
@@ -307,8 +386,9 @@ import { AuthService } from '../../../../services/auth.service';
     .bfroom__center { display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 24px; flex: 1; }
     .bfroom__lobby { flex: 1; display: flex; align-items: center; justify-content: center; }
     .bfroom__countdown { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .bfroom__game { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 800px; }
-    .bfroom__engine-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .bfroom__game { flex: 1; display: flex; flex-direction: column; width: 100%; }
+    .bfroom__engine-wrapper { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .bfroom__engine-wrapper > * { flex: 1; min-height: 0; width: 100%; }
     .bfroom__finished { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .bfroom__lobby-card { text-align: center; max-width: 420px; width: 100%; }
     .bfroom__lobby-icon { font-size: 64px; width: 64px; height: 64px; color: #405980; }
@@ -331,6 +411,10 @@ import { AuthService } from '../../../../services/auth.service';
     @keyframes count-pop { 0% { transform: scale(1.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
     .bfroom__engine-fallback { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #94a3b8; padding: 48px; }
+    .bfroom__waiting { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 48px; text-align: center; flex: 1; }
+    .bfroom__waiting-icon { font-size: 64px; width: 64px; height: 64px; color: #f59e0b; }
+    .bfroom__waiting h3 { font-size: 22px; color: #1e293b; margin: 8px 0 0; }
+    .bfroom__waiting p { font-size: 14px; color: #64748b; }
 
     .bfroom__finished { text-align: center; padding: 32px; }
     .bfroom__finished-icon { font-size: 72px; width: 72px; height: 72px; color: #ff8f00; }
@@ -384,22 +468,29 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
   countdown: number | null = null;
   userId = '';
   isReady = false;
-  currentRound: ArenaBattleRound | null = null;
-  lastResult: ArenaBattleAnswerResult | null = null;
   chatMessages: ChatMessage[] = [];
   showConfetti = false;
   copiedInvite = false;
   showLeftDrawer = false;
   showRightDrawer = false;
 
+  attempt: GameAttempt | null = null;
+  gameSet: GameSet | null = null;
+  gameQuestions: any[] = [];
+  gameShuffledWords: string[] = [];
+  gameLevels: GameLevel[] = [];
+  playerCompleted = false;
+
   private subs: Subscription[] = [];
   private code = '';
+  private gameInitialized = false;
+  private timers: ReturnType<typeof setTimeout>[] = [];
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private socket: ArenaSocketService,
-    private svc: InteractiveGameService,
+    private bfService: BattlefieldGameService,
     private auth: AuthService,
   ) {}
 
@@ -412,18 +503,15 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
     return host?.name || 'Unknown';
   }
 
-  get myScore(): number {
-    const me = this.room?.players?.find(p => p.studentId === this.userId);
-    return me?.score || 0;
-  }
-
   get sortedPlayers(): any[] {
     return [...(this.room?.players || [])].sort((a, b) => b.score - a.score);
   }
 
   get allReady(): boolean {
     const players = this.room?.players;
-    return players ? players.length >= 2 && players.every(p => p.isReady) : false;
+    if (!players) return false;
+    const connected = players.filter((p: any) => p.isConnected);
+    return connected.length >= 2 && connected.every((p: any) => p.isReady);
   }
 
   ngOnInit() {
@@ -435,15 +523,14 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
 
     this.socket.connect();
 
-    setTimeout(() => {
+    this.timers.push(setTimeout(() => {
       if (!this.room) this.router.navigate(['/glueck-arena/battlefield']);
-    }, 5000);
+    }, 5000));
 
     this.subs.push(this.socket.room$.subscribe(room => {
       this.room = room;
       if (room) {
         this.phase = room.status;
-        this.sortedPlayers; // trigger re-evaluation
       }
     }));
 
@@ -452,19 +539,33 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
     this.subs.push(this.socket.countdown$.subscribe(c => this.countdown = c));
 
     this.subs.push(this.socket.battleRound$.subscribe(r => {
-      this.currentRound = r;
-      this.lastResult = null;
-    }));
-
-    this.subs.push(this.socket.battleAnswerAck$.subscribe(ack => {
-      if (ack.result) {
-        this.lastResult = ack.result;
+      if (!r) {
+        this.gameInitialized = false;
+        return;
+      }
+      if (this.gameInitialized) return;
+      if (Array.isArray(r.question)) {
+        this.initGameData(r.question);
+      } else if (r.question) {
+        this.initGameData([r.question]);
       }
     }));
 
+    this.subs.push(this.socket.leaderboard$.subscribe(entries => {
+      if (!this.room) return;
+      const players = [...(this.room.players || [])];
+      for (const entry of entries) {
+        const p = players.find(x => x.studentId === entry.studentId);
+        if (p) p.score = entry.score;
+      }
+      this.room = { ...this.room, players };
+    }));
+
     this.subs.push(this.socket.finished$.subscribe(() => {
+      this.playerCompleted = false;
+      this.gameInitialized = false;
       this.showConfetti = true;
-      setTimeout(() => this.showConfetti = false, 3000);
+      this.timers.push(setTimeout(() => this.showConfetti = false, 3000));
     }));
 
     this.subs.push(this.socket.chatMessage$.subscribe(msg => {
@@ -495,7 +596,87 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subs.forEach(s => s.unsubscribe());
+    this.timers.forEach(t => clearTimeout(t));
     this.socket.disconnect();
+  }
+
+  private initGameData(questions: any[]) {
+    console.log('[battlefield] initGameData called with', questions?.length, 'questions, gameInitialized:', this.gameInitialized, 'room:', !!this.room);
+    if (this.gameInitialized || !this.room) return;
+    this.gameInitialized = true;
+
+    const gt = this.room.gameType;
+    const allQuestions = questions.map((q, i) => ({
+      _id: q.questionId || q._id || `q_${i}`,
+      gameType: gt,
+      order: i,
+      ...q,
+    }));
+
+    this.bfService.init(allQuestions, gt, this.userId);
+
+    this.gameSet = {
+      _id: this.room.gameSetId || 'bf_set',
+      title: this.room.roomName || 'Battlefield Game',
+      gameType: gt as GameSet['gameType'],
+      description: '',
+      difficulty: 'Intermediate',
+      level: null,
+      thumbnailUrl: null,
+      icon: '',
+      category: '',
+      tags: [],
+      targetLanguage: '',
+      xpReward: 0,
+      timerSettings: { sessionLimitSeconds: null, perQuestionSeconds: null },
+      visibleToStudents: false,
+      courseDay: null,
+      sequenceLetter: null,
+      isPublished: true,
+      isArchived: false,
+      questionCount: allQuestions.length,
+      estimatedDurationMinutes: 0,
+      createdAt: '',
+      updatedAt: '',
+    };
+
+    this.attempt = {
+      _id: this.bfService.attemptId,
+      studentId: this.userId,
+      gameSetId: this.room.gameSetId || '',
+      gameType: gt as any,
+      status: 'in-progress',
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+      timeSpentSeconds: 0,
+      score: 0,
+      xpEarned: 0,
+      accuracy: 0,
+      totalQuestions: allQuestions.length,
+      correctAnswers: 0,
+      livesRemaining: 3,
+      currentLevel: 0,
+      wordsCompleted: 0,
+      attemptNumber: 1,
+    };
+
+    this.gameQuestions = allQuestions;
+    this.gameLevels = [];
+    this.gameShuffledWords = allQuestions.flatMap(q =>
+      (q as any).words?.length ? (q as any).words : [q.answerWord || q.word || '']
+    ).filter(Boolean);
+
+    console.log('[battlefield] initGameData complete — questions:', this.gameQuestions.length, 'gameType:', this.room.gameType);
+    this.phase = 'playing';
+  }
+
+  onGameComplete(result: any) {
+    if (this.gameQuestions.length === 0) {
+      console.warn('[battlefield] onGameComplete with empty questions — ignoring');
+      return;
+    }
+    this.playerCompleted = true;
+    this.socket.notifyPlayerDone();
   }
 
   toggleReady() {
@@ -509,11 +690,6 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
 
   cancelGame() {
     this.socket.cancelRoom();
-  }
-
-  onAnswer(payload: any) {
-    if (!this.currentRound) return;
-    this.socket.submitBattleAnswer({ roundIndex: this.currentRound.roundIndex, ...payload });
   }
 
   rematch() {
@@ -530,7 +706,7 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
     const url = `${window.location.origin}/glueck-arena/battlefield/room/${code}`;
     navigator.clipboard?.writeText(url).catch(() => {});
     this.copiedInvite = true;
-    setTimeout(() => this.copiedInvite = false, 2000);
+    this.timers.push(setTimeout(() => this.copiedInvite = false, 2000));
   }
 
   onSendMessage(msg: string) {

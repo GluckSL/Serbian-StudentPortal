@@ -176,6 +176,14 @@ export class ArenaSocketService implements OnDestroy {
 
     });
 
+    this.socket.on('arena:countdown_cancelled', () => {
+
+      this.phase$.next('lobby');
+
+      this.countdown$.next(null);
+
+    });
+
 
 
     this.socket.on('arena:playing', (p: { room: ArenaRoomState }) => {
@@ -400,6 +408,11 @@ export class ArenaSocketService implements OnDestroy {
 
     this.socket?.emit('arena:battle_answer', { code: this.roomCode, ...payload });
 
+  }
+
+  notifyPlayerDone(): void {
+    if (!this.roomCode) return;
+    this.socket?.emit('arena:battle_player_done', { code: this.roomCode });
   }
 
 

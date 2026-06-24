@@ -16,6 +16,7 @@ const config = require('../config/glueckArena');
 
 let ioInstance = null;
 const socketToUser = new Map();
+const autoStartTimers = new Map();
 
 function emitToRoom(code, event, payload) {
   ioInstance?.to(`room:${code}`).emit(event, payload);
@@ -78,13 +79,26 @@ function initGlueckArenaSockets(httpServer) {
         return socket.emit('arena:error', { message: 'Rate limit' });
       }
 
-      const bfRoom = battlefieldRoomManager.getRoom(code);
+      let bfRoom = battlefieldRoomManager.getRoom(code);
+      if (!bfRoom) {
+        const loaded = await battlefieldRoomManager.loadRoomFromMongo(code);
+        if (loaded) bfRoom = battlefieldRoomManager.getRoom(code);
+      }
       if (bfRoom) {
         const result = battlefieldRoomManager.joinRoom(code, socket.userId, socket.userName, socket.id);
         if (!result.ok) return socket.emit('arena:error', { message: result.message });
         socket.join(`room:${result.room.inviteCode}`);
         socket.data.roomCode = result.room.inviteCode;
         io.to(`room:${result.room.inviteCode}`).emit('arena:room', { room: result.room });
+
+        // Cancel auto-start if a new player joins mid-countdown (they aren't ready)
+        if (battlefieldRoomManager.isAutoStarting(code)) {
+          const cancelledRoom = battlefieldRoomManager.cancelAutoStart(code);
+          if (cancelledRoom) {
+            io.to(`room:${code}`).emit('arena:room', { room: cancelledRoom });
+          }
+        }
+
         if (!result.isReconnect) {
           const sysMsg = battlefieldChat.addMessage(
             result.room.inviteCode, 'system', 'System', `${socket.userName} joined the room`, true
@@ -94,7 +108,7 @@ function initGlueckArenaSockets(httpServer) {
         const chatHistory = battlefieldChat.getHistory(result.room.inviteCode);
         if (chatHistory.length) socket.emit('arena:chat_history', chatHistory);
         if (result.room.status === 'playing') {
-          const snap = battlefieldRoomManager.getSnapshot(code);
+          const snap = battlefieldRoomManager.getSnapshot(code, socket.userId);
           if (snap?.snapshot) socket.emit('arena:battle_snapshot', snap.snapshot);
         }
         return;
@@ -107,6 +121,20 @@ function initGlueckArenaSockets(httpServer) {
       socket.join(`room:${result.room.inviteCode}`);
       socket.data.roomCode = result.room.inviteCode;
       io.to(`room:${result.room.inviteCode}`).emit('arena:room', { room: result.room });
+
+      // Cancel auto-start if new player joins a MongoDB room mid-countdown
+      if (autoStartTimers.has(code.toUpperCase())) {
+        const timer = autoStartTimers.get(code.toUpperCase());
+        if (timer) clearInterval(timer);
+        autoStartTimers.delete(code.toUpperCase());
+        await ArenaRoom.findOneAndUpdate(
+          { inviteCode: code.toUpperCase() },
+          { $set: { status: 'lobby', startedAt: null } }
+        );
+        const cancelledRoom = await multiplayerService.getRoomByCode(code);
+        if (cancelledRoom) io.to(`room:${code}`).emit('arena:room', { room: cancelledRoom });
+      }
+
       if (!result.isReconnect) {
         const sysMsg = battlefieldChat.addMessage(
           result.room.inviteCode, 'system', 'System', `${socket.userName} joined the room`, true
@@ -128,18 +156,80 @@ function initGlueckArenaSockets(httpServer) {
       if (bfRoom) {
         const updated = battlefieldRoomManager.setPlayerReady(code, socket.userId, ready);
         if (updated) io.to(`room:${code}`).emit('arena:room', { room: updated });
+
+        // Auto-start when all connected players are ready
+        if (ready && battlefieldRoomManager.allPlayersReady(code)) {
+          if (!battlefieldRoomManager.isAutoStarting(code)) {
+            battlefieldRoomManager.tryAutoStart(code, io, 5);
+          }
+        } else {
+          const cancelledRoom = battlefieldRoomManager.cancelAutoStart(code);
+          if (cancelledRoom) {
+            io.to(`room:${code}`).emit('arena:room', { room: cancelledRoom });
+          }
+        }
         return;
       }
 
       const room = await multiplayerService.getRoomByCode(code);
       if (!room) return;
       const updated = await multiplayerService.setPlayerReady(room._id, socket.userId, ready);
-      io.to(`room:${code}`).emit('arena:room', { room: updated });
+      if (updated) io.to(`room:${code}`).emit('arena:room', { room: updated });
+
+      // Auto-start for MongoDB rooms (admin team battles)
+      if (ready) {
+        const fullRoom = await ArenaRoom.findById(room._id);
+        if (fullRoom && fullRoom.status === 'lobby' && fullRoom.players.length >= 2 && fullRoom.players.every(p => p.isReady)) {
+          if (!autoStartTimers.has(code.toUpperCase())) {
+            await ArenaRoom.findByIdAndUpdate(room._id, { $set: { status: 'countdown', startedAt: new Date() } });
+            io.to(`room:${code}`).emit('arena:countdown', { seconds: 5, autoStart: true });
+            let sec = 5;
+            const timer = setInterval(() => {
+              sec -= 1;
+              if (sec <= 0) {
+                clearInterval(timer);
+                autoStartTimers.delete(code.toUpperCase());
+                multiplayerService.beginPlaying(room._id, code).then((playing) => {
+                  if (playing?.error) {
+                    io.to(`room:${code}`).emit('arena:error', { message: playing.error });
+                    return;
+                  }
+                  io.to(`room:${code.toUpperCase()}`).emit('arena:playing', { room: playing });
+                });
+              } else {
+                io.to(`room:${code}`).emit('arena:countdown_tick', { seconds: sec });
+              }
+            }, 1000);
+            autoStartTimers.set(code.toUpperCase(), timer);
+          }
+        }
+      } else {
+        const timer = autoStartTimers.get(code.toUpperCase());
+        if (timer) {
+          clearInterval(timer);
+          autoStartTimers.delete(code.toUpperCase());
+          await ArenaRoom.findByIdAndUpdate(room._id, { $set: { status: 'lobby', startedAt: null } });
+          const cancelledRoom = await multiplayerService.getRoomByCode(code);
+          if (cancelledRoom) io.to(`room:${code}`).emit('arena:room', { room: cancelledRoom });
+        }
+      }
     });
 
     socket.on('arena:start', async ({ code }) => {
       const bfRoom = battlefieldRoomManager.getRoom(code);
       if (bfRoom) {
+        // If auto-start is already counting down, skip wait and begin immediately
+        if (battlefieldRoomManager.isAutoStarting(code)) {
+          battlefieldRoomManager.clearAutoStartTimer(code);
+          const playing = await battlefieldRoomManager.beginPlaying(code, io);
+          if (playing?.error) {
+            io.to(`room:${code}`).emit('arena:error', { message: playing.error });
+            return;
+          }
+          io.to(`room:${code.toUpperCase()}`).emit('arena:playing', { room: playing.room });
+          return;
+        }
+
         const result = battlefieldRoomManager.startCountdown(code, socket.userId);
         if (!result.ok) return socket.emit('arena:error', { message: result.message });
         io.to(`room:${code}`).emit('arena:countdown', { seconds: 3 });
@@ -154,7 +244,7 @@ function initGlueckArenaSockets(httpServer) {
                 io.to(`room:${code}`).emit('arena:error', { message: playing.error });
                 return;
               }
-              io.to(`room:${code}`).emit('arena:playing', { room: playing.room });
+              io.to(`room:${code.toUpperCase()}`).emit('arena:playing', { room: playing.room });
             });
           }
         }, 1000);
@@ -162,7 +252,26 @@ function initGlueckArenaSockets(httpServer) {
       }
 
       const room = await multiplayerService.getRoomByCode(code);
-      if (!room || String(room.hostId) !== socket.userId) return;
+      if (!room) return;
+
+      // If auto-start is already counting down for MongoDB room, allow host to skip wait
+      if (autoStartTimers.has(code.toUpperCase())) {
+        if (String(room.hostId) !== socket.userId) {
+          return socket.emit('arena:error', { message: 'Only host can start' });
+        }
+        const timer = autoStartTimers.get(code.toUpperCase());
+        if (timer) clearInterval(timer);
+        autoStartTimers.delete(code.toUpperCase());
+        const playing = await multiplayerService.beginPlaying(room._id, code);
+        if (playing?.error) {
+          io.to(`room:${code}`).emit('arena:error', { message: playing.error });
+          return;
+        }
+        io.to(`room:${code.toUpperCase()}`).emit('arena:playing', { room: playing });
+        return;
+      }
+
+      if (String(room.hostId) !== socket.userId) return;
       const result = await multiplayerService.startRoom(room._id, socket.userId);
       if (!result.ok) return socket.emit('arena:error', { message: result.message });
       io.to(`room:${code}`).emit('arena:countdown', { seconds: 3 });
@@ -177,7 +286,7 @@ function initGlueckArenaSockets(httpServer) {
               io.to(`room:${code}`).emit('arena:error', { message: playing.error });
               return;
             }
-            io.to(`room:${code}`).emit('arena:playing', { room: playing });
+            io.to(`room:${code.toUpperCase()}`).emit('arena:playing', { room: playing });
           });
         }
       }, 1000);
@@ -221,12 +330,25 @@ function initGlueckArenaSockets(httpServer) {
     /** Realtime battle answer — server validates all game types */
     socket.on('arena:battle_answer', async (payload) => {
       const { code, roundIndex } = payload || {};
-      if (!code) return;
+      if (!code) {
+        console.warn('[battlefield] arena:battle_answer missing code');
+        return;
+      }
+      console.log('[battlefield] arena:battle_answer received', JSON.stringify(payload));
 
       const bfRoom = battlefieldRoomManager.getRoom(code);
       if (bfRoom) {
-        const result = battlefieldRoomManager.submitAnswer(code, socket.userId, payload, io);
-        if (!result.ok) return socket.emit('arena:error', { message: result.message });
+        let result;
+        try {
+          result = battlefieldRoomManager.submitAnswer(code, socket.userId, payload, io);
+        } catch (err) {
+          console.error('[battlefield] submitAnswer CRASHED:', err);
+          return socket.emit('arena:error', { message: 'Server error processing answer' });
+        }
+        if (!result.ok) {
+          console.warn('[battlefield] submitAnswer not ok:', result.message);
+          return socket.emit('arena:error', { message: result.message });
+        }
         io.to(`room:${code}`).emit('arena:battle_answer_result', {
           studentId: socket.userId,
           roundIndex,
@@ -237,6 +359,15 @@ function initGlueckArenaSockets(httpServer) {
           roundIndex,
           result: result.result,
         });
+
+        // Propagate score to team battle for admin-created rooms
+        const fullRoom = await ArenaRoom.findOne({ inviteCode: code.toUpperCase() });
+        if (fullRoom?.teamMode && fullRoom?.teamBattleId) {
+          teamBattleService.submitTeamAnswer(fullRoom.teamBattleId, socket.userId, {
+            points: result.result?.points || 0,
+            roundIndex,
+          }).catch(err => console.error('[teamBattle] submitTeamAnswer error:', err.message));
+        }
         return;
       }
 
@@ -260,6 +391,28 @@ function initGlueckArenaSockets(httpServer) {
         }
       } catch (e) {
         console.error('[teamBattle] propagate error:', e.message);
+      }
+    });
+
+    /** Player notifies server they've completed their game (all pairs answered or out of lives) */
+    socket.on('arena:battle_player_done', ({ code }) => {
+      const bfRoom = battlefieldRoomManager.getRawRoom(code);
+      if (!bfRoom || !bfRoom.battle) return;
+      const progress = bfRoom.battle.playerProgress[String(socket.userId)];
+      if (!progress) return;
+      if (progress.completed) return;
+      progress.completed = true;
+      console.log(`[battlefield] player_done: ${socket.userId} marked completed`);
+      // Check if all connected players are done
+      const allDone = bfRoom.players
+        .filter(p => p.isConnected !== false)
+        .every(p => {
+          const prog = bfRoom.battle.playerProgress[String(p.studentId)];
+          return prog?.completed;
+        });
+      if (allDone) {
+        console.log('[battlefield] ALL PLAYERS DONE via player_done — finishing game');
+        battlefieldRoomManager.finishGame(code, io);
       }
     });
 
@@ -356,6 +509,24 @@ function initGlueckArenaSockets(httpServer) {
       socketToUser.delete(socket.id);
       const wasSpectator = socket.data.isSpectator;
       const wasRoomCode = socket.data.roomCode;
+
+      // Cancel auto-start if a player disconnects during countdown
+      if (wasRoomCode) {
+        if (battlefieldRoomManager.isAutoStarting(wasRoomCode)) {
+          const cancelledRoom = battlefieldRoomManager.cancelAutoStart(wasRoomCode);
+          if (cancelledRoom) {
+            io.to(`room:${wasRoomCode}`).emit('arena:room', { room: cancelledRoom });
+          }
+        } else if (autoStartTimers.has(wasRoomCode.toUpperCase())) {
+          const timer = autoStartTimers.get(wasRoomCode.toUpperCase());
+          if (timer) clearInterval(timer);
+          autoStartTimers.delete(wasRoomCode.toUpperCase());
+          await ArenaRoom.findOneAndUpdate(
+            { inviteCode: wasRoomCode.toUpperCase() },
+            { $set: { status: 'lobby', startedAt: null } }
+          );
+        }
+      }
 
       battlefieldRoomManager.handleDisconnect(socket.userId, socket.id);
       await multiplayerService.handleDisconnect(socket.userId, socket.id);

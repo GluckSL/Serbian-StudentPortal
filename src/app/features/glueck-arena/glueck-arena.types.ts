@@ -571,7 +571,7 @@ export interface ArenaRoomState {
 export interface ArenaBattlePublic {
   totalRounds: number;
   currentRound: number;
-  roundDurationMs: number;
+  roundDurationMs?: number;
   roundStartedAt?: string | null;
   roundEndsAt?: string | null;
   serverTime?: number;
@@ -598,7 +598,8 @@ export interface ArenaBattleSentenceQuestion {
 export interface ArenaBattleRound {
   roundIndex: number;
   totalRounds: number;
-  question: ArenaBattleScrambleQuestion | ArenaBattleSentenceQuestion | ArenaBattleImageQuestion | ArenaBattleGenderQuestion | ArenaBattleFlashCardQuestion | ArenaBattleMatchingQuestion | ArenaBattleFlapjugationQuestion | ArenaBattleWhackawortQuestion | ArenaBattleJumbledWordsQuestion;
+  /** In battlefield, this is an array of ALL questions sent at once */
+  question: any;
   roundStartedAt?: string;
   roundEndsAt?: string;
   serverTime: number;
@@ -744,7 +745,6 @@ export interface TeamBattleDto {
     score: number;
     members: { id: string; name: string; score: number }[];
   };
-  rounds: number;
   currentRound: number;
   winner: string | null;
   roomCode: string | null;

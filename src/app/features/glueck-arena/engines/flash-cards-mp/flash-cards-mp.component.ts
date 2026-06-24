@@ -24,7 +24,6 @@ import {
       ></app-game-hud>
 
       <div class="fcmp__card" *ngIf="question && !answered">
-        <div class="fcmp__counter">Round {{ roundIndex + 1 }} / {{ totalRounds }}</div>
         <div class="fcmp__prompt">{{ question.prompt }}</div>
         <div class="fcmp__hint" *ngIf="question.hint">
           <mat-icon>lightbulb</mat-icon> {{ question.hint }}

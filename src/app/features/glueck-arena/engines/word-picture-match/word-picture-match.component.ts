@@ -176,8 +176,8 @@ export class WordPictureMatchComponent implements OnInit, OnDestroy {
   private startTime = Date.now();
   private questionWords: string[] = [];
 
-  get livesArr(): number[] { return Array(this.lives).fill(0); }
-  get lostLivesArr(): number[] { return Array(3 - this.lives).fill(0); }
+  get livesArr(): number[] { return Array(Math.max(0, this.lives || 0)).fill(0); }
+  get lostLivesArr(): number[] { return Array(Math.max(0, 3 - (this.lives || 0))).fill(0); }
 
   formatWord(word: string): string {
     return germanUppercase(word);

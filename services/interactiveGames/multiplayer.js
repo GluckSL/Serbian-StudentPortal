@@ -338,21 +338,40 @@ async function getLiveStats() {
 }
 
 async function listPublicRooms(filters = {}) {
-  const query = {
-    isPublic: true,
+  const baseQuery = {
     status: { $in: ['lobby', 'playing'] },
     endsAt: { $gt: new Date() },
   };
-  if (filters.gameType) query.gameType = filters.gameType;
+  if (filters.gameType) baseQuery.gameType = filters.gameType;
   if (filters.search) {
-    query.roomName = { $regex: filters.search, $options: 'i' };
+    baseQuery.roomName = { $regex: filters.search, $options: 'i' };
   }
-  const rooms = await ArenaRoom.find(query)
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .populate('hostId', 'name username')
-    .lean();
-  return rooms.map(r => ({
+
+  // Public rooms (student-created, non-team)
+  const publicQuery = { ...baseQuery, isPublic: true, teamMode: { $ne: true } };
+
+  // Team battle rooms where current user is a member
+  let teamRoomQuery = null;
+  if (filters.userId) {
+    teamRoomQuery = { ...baseQuery, teamMode: true, 'players.studentId': filters.userId };
+  }
+
+  const [publicRooms, teamRooms] = await Promise.all([
+    ArenaRoom.find(publicQuery)
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate('hostId', 'name username')
+      .lean(),
+    teamRoomQuery
+      ? ArenaRoom.find(teamRoomQuery)
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .populate('hostId', 'name username')
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const mapped = (r) => ({
     inviteCode: r.inviteCode,
     roomName: r.roomName || '',
     gameType: r.gameType,
@@ -361,10 +380,19 @@ async function listPublicRooms(filters = {}) {
     playerCount: (r.players || []).filter(p => p.isConnected).length,
     maxPlayers: r.maxPlayers,
     status: r.status,
-    isPublic: true,
+    isPublic: !!r.isPublic,
     hasPassword: !!r.password,
     teamMode: !!r.teamMode,
-  }));
+  });
+
+  const seen = new Set();
+  return [...publicRooms, ...teamRooms]
+    .filter(r => {
+      if (seen.has(r.inviteCode)) return false;
+      seen.add(r.inviteCode);
+      return true;
+    })
+    .map(mapped);
 }
 
 module.exports = {

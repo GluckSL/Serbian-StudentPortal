@@ -9,7 +9,7 @@ function inviteCode() {
 }
 
 async function createTeamBattle(adminId, payload) {
-  const { title, gameSetId, gameType, teamA, teamB, rounds, startsAt } = payload;
+  const { title, gameSetId, gameType, teamA, teamB, startsAt } = payload;
   if (!title || !gameSetId || !gameType || !teamA || !teamB) {
     return { ok: false, message: 'Missing required fields' };
   }
@@ -40,7 +40,6 @@ async function createTeamBattle(adminId, payload) {
       members: teamB.members.map(m => ({ studentId: m.id || m, name: m.name || '' })),
       score: 0,
     },
-    rounds: rounds || 5,
     startsAt: startsAt || new Date(),
   });
 
@@ -74,7 +73,7 @@ async function startTeamBattle(battleId, adminId) {
     gameSetId: battle.gameSetId,
     gameType: battle.gameType,
     roomName: battle.title,
-    isPublic: true,
+    isPublic: false,
     teamMode: true,
     teamBattleId: battle._id,
     maxPlayers: allPlayers.length,

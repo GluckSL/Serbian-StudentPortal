@@ -38,7 +38,6 @@ module.exports = {
     maxPlayers: 8,
     answerWindowMs: 15000,
     heartbeatIntervalMs: 15000,
-    battleRounds: 10,
     spectatorDelayMs: 3000,
     maxSpectatorsPerRoom: 50,
     eventBatching: process.env.GA_SOCKET_BATCH !== 'false',

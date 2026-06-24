@@ -564,6 +564,7 @@ exports.listBattlefieldRooms = async (req, res) => {
     const dbRooms = await multiplayerService.listPublicRooms({
       gameType: req.query.gameType,
       search: req.query.search,
+      userId: req.user?.id,
     });
     const memRooms = battlefieldRoomManager.listPublicRooms();
     const merged = [...memRooms, ...dbRooms.filter(d => !memRooms.some(m => m.inviteCode === d.inviteCode))];

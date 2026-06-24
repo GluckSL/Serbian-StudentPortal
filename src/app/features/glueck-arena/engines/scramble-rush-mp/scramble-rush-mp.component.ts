@@ -31,7 +31,6 @@ import { germanUppercase } from '../../utils/german-text';
       ></app-game-hud>
 
       <div class="srmp__arena" *ngIf="question">
-        <div class="srmp__round-badge">Round {{ roundIndex + 1 }} / {{ totalRounds }}</div>
         <div class="srmp__letters">{{ displayLetters }}</div>
         <p class="srmp__hint" *ngIf="question.hint">{{ question.hint }}</p>
         <button type="button" class="srmp__audio" *ngIf="question.audioUrl"
