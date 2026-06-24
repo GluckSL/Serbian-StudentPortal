@@ -19,7 +19,7 @@ import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { digitalExercisePlayCommands } from '../../utils/digital-exercise-id.util';
 import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
-import { SprechenExamModuleSummary, SprechenExamSummary } from '../../sprechen-exam/sprechen-exam.types';
+import { SprechenExamModuleSummary, SprechenExamSummary, SprechenScores, SprechenSessionSummary } from '../../sprechen-exam/sprechen-exam.types';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { GameSet } from '../../features/glueck-arena/glueck-arena.types';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
@@ -50,6 +50,14 @@ type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey' | 'gluck-e
 type JourneyFilter = 'all' | 'completed' | 'pending';
 type ProgressRange = 'weekly' | 'overall';
 type GluckExamSubTab = 'weekly-test' | 'exams';
+interface GluckExamLastItemData {
+  type: 'sprechen' | 'exercise' | 'gluck-buddy';
+  title: string;
+  moduleTitle?: string;
+  scores?: SprechenScores;
+  scorePercentage?: number;
+  passed?: boolean;
+}
 
 @Component({
   selector: 'app-my-course',
@@ -838,7 +846,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   gluckExamExerciseDone(ex: DigitalExercise): boolean {
-    return this.isAttemptPassing(ex.studentAttempt);
+    return !!ex.studentAttempt;
   }
 
   isAttemptPassing(att: ExerciseAttempt | null | undefined): boolean {
@@ -852,7 +860,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   gluckExamSprechenDone(m: SprechenExamModuleSummary): boolean {
-    return !!m.studentProgress?.lastCompleted;
+    return this.gluckExamSummary?.sessions?.some(s => s.moduleId === m._id) ?? false;
   }
 
   /** Pending Glück Exam items (not yet completed) — drives tab notification badges. */
@@ -900,6 +908,60 @@ export class MyCourseComponent implements OnInit {
     const list =
       this.gluckExamSubTab === 'weekly-test' ? this.gluckExamWeeklySprechen : this.gluckExamExamSprechen;
     return list.some((mod) => !this.gluckExamSprechenDone(mod));
+  }
+
+  get gluckExamLastItem(): GluckExamLastItemData | null {
+    const examSprechenIds = new Set(this.gluckExamExamSprechen.map(m => m._id));
+
+    let lastSprechen: SprechenSessionSummary | null = null;
+    for (const s of this.gluckExamSummary?.sessions ?? []) {
+      if (examSprechenIds.has(s.moduleId)) {
+        if (!lastSprechen || s.completedAt > lastSprechen.completedAt) {
+          lastSprechen = s;
+        }
+      }
+    }
+
+    let lastExercise: DigitalExercise | null = null;
+    for (const ex of this.gluckExamExamExercises) {
+      if (ex.studentAttempt?.completedAt) {
+        if (!lastExercise || ex.studentAttempt.completedAt > lastExercise.studentAttempt!.completedAt!) {
+          lastExercise = ex;
+        }
+      }
+    }
+
+    let bestTime = 0;
+    let result: GluckExamLastItemData | null = null;
+
+    if (lastSprechen) {
+      const t = new Date(lastSprechen.completedAt).getTime();
+      if (t > bestTime) {
+        bestTime = t;
+        result = {
+          type: 'sprechen',
+          title: lastSprechen.moduleTitle,
+          moduleTitle: lastSprechen.moduleTitle,
+          scores: lastSprechen.scores,
+        };
+      }
+    }
+    if (lastExercise) {
+      const t = lastExercise.studentAttempt!.completedAt!.getTime();
+      if (t > bestTime) {
+        result = {
+          type: 'exercise',
+          title: lastExercise.title,
+          scorePercentage: lastExercise.studentAttempt!.scorePercentage ?? 0,
+          passed: this.isAttemptPassing(lastExercise.studentAttempt),
+        };
+      }
+    }
+    if (!result) {
+      const doneBuddy = this.gluckExamExamDgModules.find(m => m.studentProgress?.completed);
+      if (doneBuddy) result = { type: 'gluck-buddy', title: doneBuddy.title };
+    }
+    return result;
   }
 
   openSprechenExamModule(m: SprechenExamModuleSummary): void {

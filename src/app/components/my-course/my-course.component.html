@@ -901,25 +901,58 @@
       <!-- Last exam card -->
       <div class="mc-side-card mc-side-card--exam-last">
         <p class="mc-side-card__eyebrow">Last exam</p>
-        <ng-container *ngIf="gluckExamSummary?.lastSession as last; else noLastExam">
-          <div class="mc-exam-score">
-            <div class="mc-exam-score__ring" [class.mc-exam-score__ring--pass]="last.scores.passed"
-              [class.mc-exam-score__ring--fail]="!last.scores.passed">
-              <span class="mc-exam-score__total">{{ last.scores.total }}</span>
-              <span class="mc-exam-score__max">/15</span>
-            </div>
-            <div class="mc-exam-score__info">
-              <span class="mc-exam-score__pass" [class.pass]="last.scores.passed" [class.fail]="!last.scores.passed">
-                {{ last.scores.passed ? 'Passed' : 'Failed' }}
-              </span>
-              <span class="mc-exam-score__module">{{ last.moduleTitle }}</span>
-            </div>
-          </div>
-          <div class="mc-exam-breakdown">
-            <span class="mc-exam-breakdown__item">Teil 1: {{ last.scores.teil1 }}/3</span>
-            <span class="mc-exam-breakdown__item">Teil 2: {{ last.scores.teil2 }}/6</span>
-            <span class="mc-exam-breakdown__item">Teil 3: {{ last.scores.teil3 }}/6</span>
-          </div>
+        <ng-container *ngIf="gluckExamLastItem as last; else noLastExam">
+          <ng-container [ngSwitch]="last.type">
+            <ng-container *ngSwitchCase="'sprechen'">
+              <div class="mc-exam-score">
+                <div class="mc-exam-score__ring" [class.mc-exam-score__ring--pass]="last.scores?.passed"
+                  [class.mc-exam-score__ring--fail]="!last.scores?.passed">
+                  <span class="mc-exam-score__total">{{ last.scores?.total }}</span>
+                  <span class="mc-exam-score__max">/15</span>
+                </div>
+                <div class="mc-exam-score__info">
+                  <span class="mc-exam-score__pass" [class.pass]="last.scores?.passed" [class.fail]="!last.scores?.passed">
+                    {{ last.scores?.passed ? 'Passed' : 'Failed' }}
+                  </span>
+                  <span class="mc-exam-score__module">{{ last.moduleTitle }}</span>
+                </div>
+              </div>
+              <div class="mc-exam-breakdown">
+                <span class="mc-exam-breakdown__item">Teil 1: {{ last.scores?.teil1 }}/3</span>
+                <span class="mc-exam-breakdown__item">Teil 2: {{ last.scores?.teil2 }}/6</span>
+                <span class="mc-exam-breakdown__item">Teil 3: {{ last.scores?.teil3 }}/6</span>
+              </div>
+            </ng-container>
+            <ng-container *ngSwitchCase="'exercise'">
+              <div class="mc-exam-score">
+                <div class="mc-exam-score__ring"
+                  [class.mc-exam-score__ring--pass]="last.passed"
+                  [class.mc-exam-score__ring--fail]="!last.passed">
+                  <span class="mc-exam-score__total">{{ last.scorePercentage }}</span>
+                  <span class="mc-exam-score__max">%</span>
+                </div>
+                <div class="mc-exam-score__info">
+                  <span class="mc-exam-score__pass"
+                    [class.pass]="last.passed"
+                    [class.fail]="!last.passed">
+                    {{ last.passed ? 'Passed' : 'Failed' }}
+                  </span>
+                  <span class="mc-exam-score__module">{{ last.title }}</span>
+                </div>
+              </div>
+            </ng-container>
+            <ng-container *ngSwitchCase="'gluck-buddy'">
+              <div class="mc-exam-score">
+                <div class="mc-exam-score__ring mc-exam-score__ring--pass">
+                  <span class="material-icons" style="font-size:24px">check_circle</span>
+                </div>
+                <div class="mc-exam-score__info">
+                  <span class="mc-exam-score__pass pass">Completed</span>
+                  <span class="mc-exam-score__module">{{ last.title }}</span>
+                </div>
+              </div>
+            </ng-container>
+          </ng-container>
         </ng-container>
         <ng-template #noLastExam>
           <p class="mc-side-card__muted">No exams taken yet.</p>
