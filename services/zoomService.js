@@ -331,11 +331,16 @@ class ZoomService {
     updateData.settings.registrants_email_notification = false;
     updateData.settings.private_chat = false;
 
-    await axios.patch(`${zoomConfig.apiBaseUrl}/meetings/${meetingId}`, updateData, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-    });
-    console.log('✅ Meeting updated');
-    return { success: true };
+    try {
+      await axios.patch(`${zoomConfig.apiBaseUrl}/meetings/${meetingId}`, updateData, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      console.log('✅ Meeting updated');
+      return { success: true };
+    } catch (error) {
+      const zoomMsg = error.response?.data?.message;
+      throw new Error(zoomMsg || error.message || 'Failed to update Zoom meeting');
+    }
   }
 
   /**

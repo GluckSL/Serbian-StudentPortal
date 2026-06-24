@@ -1697,7 +1697,14 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
     const zoomUpdateData = {};
     
     if (topic) zoomUpdateData.topic = topic;
-    if (startTime) zoomUpdateData.start_time = startTime;
+    if (startTime) {
+      const tz = timezone || meeting.timezone || 'Asia/Kolkata';
+      const localStart = formatZoomLocalStartTime(startTime, tz);
+      if (localStart) {
+        zoomUpdateData.start_time = localStart;
+        zoomUpdateData.timezone = tz;
+      }
+    }
     if (duration) zoomUpdateData.duration = duration;
     if (timezone) zoomUpdateData.timezone = timezone;
     if (agenda) zoomUpdateData.agenda = agenda;
@@ -1714,7 +1721,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
     // Update meeting in Zoom
     if (Object.keys(zoomUpdateData).length > 0) {
       console.log('📝 Updating Zoom meeting:', meeting.zoomMeetingId);
-      await zoomService.updateMeeting(meeting.zoomMeetingId, zoomUpdateData);
+      await syncZoomMeetingFields(meeting, zoomUpdateData);
     }
 
     // Update meeting in database
@@ -1873,6 +1880,93 @@ function applyClockTimeToMeetingDate(existingStart, clockHHmm) {
   return next.toISOString();
 }
 
+/** Zoom expects local wall-clock time for the meeting timezone (not UTC ISO). */
+function formatZoomLocalStartTime(dateInput, timezone = 'Asia/Kolkata') {
+  const startDate = new Date(dateInput);
+  if (Number.isNaN(startDate.getTime())) return null;
+  const localParts = startDate
+    .toLocaleString('en-CA', { timeZone: timezone, hour12: false })
+    .replace(',', '')
+    .split(' ');
+  return `${localParts[0]}T${(localParts[1] || '00:00:00').slice(0, 5)}`;
+}
+
+function isZoomNotFoundError(err) {
+  if (err?.response?.status === 404) return true;
+  return /status code 404/i.test(String(err?.message || ''));
+}
+
+async function recreateZoomMeetingInPlace(meeting) {
+  const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
+
+  if (!meeting.hostEmail) {
+    throw new Error('Meeting has no Zoom host email — cannot recreate');
+  }
+
+  const oldZoomId = meeting.zoomMeetingId ? String(meeting.zoomMeetingId) : null;
+
+  if (oldZoomId) {
+    try {
+      await zoomService.deleteMeeting(oldZoomId);
+    } catch (_ignore) {
+      // Already deleted on Zoom
+    }
+  }
+
+  const tz = meeting.timezone || 'Asia/Kolkata';
+  const slotStartTime = formatZoomLocalStartTime(meeting.startTime, tz);
+  if (!slotStartTime) {
+    throw new Error('Invalid meeting start time for Zoom recreate');
+  }
+
+  const zoomResult = await zoomService.createMeeting(
+    {
+      topic: meeting.topic,
+      startTime: slotStartTime,
+      duration: meeting.duration || 60,
+      timezone: tz,
+      agenda: meeting.agenda || `German Language Class - Batch ${meeting.batch}`,
+    },
+    meeting.hostEmail
+  );
+
+  if (!zoomResult.success) {
+    throw new Error('Zoom API failed to create a new meeting');
+  }
+
+  const raw = zoomResult.meeting;
+  const newPwd =
+    String(raw.password || '').trim() ||
+    extractZoomPwdFromJoinUrl(raw.joinUrl) ||
+    '';
+
+  meeting.zoomMeetingId = String(raw.id);
+  meeting.zoomMeetingUuid = raw.uuid ? String(raw.uuid) : meeting.zoomMeetingUuid;
+  meeting.zoomPassword = newPwd;
+  meeting.joinUrl = raw.joinUrl;
+  meeting.startUrl = raw.startUrl;
+  meeting.link = raw.joinUrl;
+  for (const attendee of meeting.attendees || []) {
+    attendee.joinUrl = raw.joinUrl;
+  }
+
+  return { oldZoomId, newZoomId: meeting.zoomMeetingId };
+}
+
+async function syncZoomMeetingFields(meeting, zoomUpdateData) {
+  const zoomId = String(meeting.zoomMeetingId || '').trim();
+  if (!zoomId) {
+    return recreateZoomMeetingInPlace(meeting);
+  }
+  try {
+    await zoomService.updateMeeting(zoomId, zoomUpdateData);
+    return { oldZoomId: zoomId, newZoomId: zoomId, recreated: false };
+  } catch (err) {
+    if (!isZoomNotFoundError(err)) throw err;
+    return recreateZoomMeetingInPlace(meeting);
+  }
+}
+
 router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
   try {
     const { meetingIds, updates = {}, attendeeUpdates = {} } = req.body;
@@ -1967,9 +2061,14 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
           if (duration) { zoomUpdateData.duration = duration; meeting.duration = duration; }
           if (agenda !== undefined && agenda !== null) { zoomUpdateData.agenda = agenda; meeting.agenda = agenda; }
           if (effectiveStartTime) {
-            zoomUpdateData.start_time = effectiveStartTime;
             const nextStartMs = new Date(effectiveStartTime).getTime();
             meeting.startTime = new Date(effectiveStartTime);
+            const tz = meeting.timezone || 'Asia/Kolkata';
+            const localStart = formatZoomLocalStartTime(meeting.startTime, tz);
+            if (localStart) {
+              zoomUpdateData.start_time = localStart;
+              zoomUpdateData.timezone = tz;
+            }
             if (prevStartMs !== nextStartMs) {
               meeting.reminderEmailSent = false;
               meeting.reminderEmailSentAt = undefined;
@@ -1988,9 +2087,13 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
           }
 
           // Sync Zoom if anything changed
+          let timetableZoomLookupId = meeting.zoomMeetingId ? String(meeting.zoomMeetingId) : null;
           if (Object.keys(zoomUpdateData).length > 0) {
             try {
-              await zoomService.updateMeeting(meeting.zoomMeetingId, zoomUpdateData);
+              const syncResult = await syncZoomMeetingFields(meeting, zoomUpdateData);
+              if (syncResult?.oldZoomId) {
+                timetableZoomLookupId = syncResult.oldZoomId;
+              }
             } catch (zoomErr) {
               results.push({ meetingId, success: false, message: `Zoom update failed: ${zoomErr.message}` });
               return;
@@ -2020,7 +2123,7 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
                 const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
                 for (const day of days) {
                   if (!Array.isArray(timetable[day])) continue;
-                  const slotIdx = timetable[day].findIndex((s) => s.zoomMeetingId === meeting.zoomMeetingId);
+                  const slotIdx = timetable[day].findIndex((s) => s.zoomMeetingId === timetableZoomLookupId);
                   if (slotIdx !== -1) {
                     if (effectiveStartTime) {
                       // Move to new day
@@ -2030,6 +2133,11 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
                     } else {
                       // Only end time changed (duration update)
                       timetable[day][slotIdx].end = slotEnd;
+                      if (timetableZoomLookupId !== meeting.zoomMeetingId) {
+                        timetable[day][slotIdx].zoomMeetingId = meeting.zoomMeetingId;
+                        timetable[day][slotIdx].zoomJoinUrl = meeting.joinUrl;
+                        timetable[day][slotIdx].zoomPassword = meeting.zoomPassword;
+                      }
                     }
                     await timetable.save();
                     break;
