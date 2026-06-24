@@ -24,7 +24,7 @@ import {
   GoRecordingResourceType,
 } from '../../../services/go-recording-resource.service';
 import Hls, { ErrorData } from 'hls.js';
-import { hlsAuthXhrSetup } from '../../../utils/hls-auth-xhr';
+import { hlsAuthXhrSetup, hlsAuthFetchSetup } from '../../../utils/hls-auth-xhr';
 
 /** Single active list filter (combined with search text). Uses attendance, not Zoom "attempted". */
 export type RecordingListFilter =
@@ -558,17 +558,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
           hlsAuthXhrSetup(xhr, url);
         },
-        fetchSetup: (context: any, initParams: any) => {
-          const token = getAuthToken();
-          const headers = new Headers(initParams?.headers || {});
-          if (token) {
-            headers.set('Authorization', `Bearer ${token}`);
-          }
-          return new Request(context.url, {
-            ...initParams,
-            headers,
-          });
-        },
+        fetchSetup: hlsAuthFetchSetup,
       });
 
       this.hls.loadSource(hlsUrl);

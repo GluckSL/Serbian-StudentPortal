@@ -7,6 +7,13 @@ import { MaterialModule } from '../../shared/material.module';
 import { GluckRoomService } from '../../services/gluck-room.service';
 import { AuthService } from '../../services/auth.service';
 
+/** How often (ms) to poll the server for status changes */
+const AUTO_REFRESH_MS = 30_000;
+/** How often (ms) to tick the countdown labels */
+const COUNTDOWN_TICK_MS = 30_000;
+/** How many minutes before start to open the join window */
+const JOIN_WINDOW_MINUTES = 10;
+
 @Component({
   selector: 'app-gluck-room-list',
   standalone: true,
@@ -32,12 +39,17 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   totalCount = 0;
   tabIndex = 0;
 
-  actionLoadingId: string | null = null;
+  tabCounts: { scheduled: number; active: number; ended: number } = { scheduled: 0, active: 0, ended: 0 };
 
+  actionLoadingId: string | null = null;
   availableBatches: string[] = [];
 
   private loadSeq = 0;
   private filterDebounceTimer?: ReturnType<typeof setTimeout>;
+  /** Periodically re-fetch so status transitions (scheduled→live→ended) are picked up */
+  private autoRefreshTimer?: ReturnType<typeof setInterval>;
+  /** Keeps countdown labels fresh without a network round-trip */
+  private countdownTickTimer?: ReturnType<typeof setInterval>;
 
   get displayedColumns(): string[] {
     const cols = ['sessionName', 'host', 'batch', 'plan', 'dateTime', 'duration'];
@@ -58,27 +70,36 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     this.userRole = user?.role || '';
     this.isStudent = this.userRole === 'STUDENT';
     this.loadSessions();
+
+    // Auto-refresh: re-fetch server data so live/ended transitions appear automatically
+    this.autoRefreshTimer = setInterval(() => {
+      this.loadSessions({ silent: true });
+    }, AUTO_REFRESH_MS);
+
+    // Countdown tick: re-render labels (no network call)
+    this.countdownTickTimer = setInterval(() => {
+      this.cdr.markForCheck();
+    }, COUNTDOWN_TICK_MS);
   }
 
   ngOnDestroy(): void {
     if (this.filterDebounceTimer) clearTimeout(this.filterDebounceTimer);
+    if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
+    if (this.countdownTickTimer) clearInterval(this.countdownTickTimer);
   }
 
-  loadSessions(): void {
+  loadSessions(opts: { silent?: boolean } = {}): void {
     const seq = ++this.loadSeq;
-    this.loading = true;
-    this.error = '';
-
-    const statusMap: Record<string, string> = {
-      scheduled: 'scheduled',
-      active: 'active',
-      ended: 'ended'
-    };
+    if (!opts.silent) {
+      this.loading = true;
+      this.error = '';
+    }
 
     const params: Record<string, any> = {
-      status: statusMap[this.statusTab],
+      status: this.statusTab,
       page: this.pageIndex + 1,
-      limit: this.pageSize
+      limit: this.pageSize,
+      includeTabCounts: 'true'
     };
 
     if (this.batchFilter !== 'all') params['batch'] = this.batchFilter;
@@ -91,6 +112,13 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
         if (res.success) {
           this.sessions = res.data || [];
           this.totalCount = res.totalCount || 0;
+          if (res.tabCounts) {
+            this.tabCounts = {
+              scheduled: res.tabCounts.scheduled ?? 0,
+              active: res.tabCounts.active ?? 0,
+              ended: res.tabCounts.ended ?? 0
+            };
+          }
           if (Array.isArray(res.availableBatches)) {
             this.availableBatches = res.availableBatches;
           }
@@ -102,14 +130,18 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
             return;
           }
         } else {
-          this.error = res.message || 'Failed to load sessions';
+          if (!opts.silent) this.error = res.message || 'Failed to load sessions';
         }
         this.loading = false;
+        this.cdr.markForCheck();
       },
       error: (err) => {
         if (seq !== this.loadSeq) return;
-        this.error = err.error?.message || 'Failed to load sessions';
+        if (!opts.silent) {
+          this.error = err.error?.message || 'Failed to load sessions';
+        }
         this.loading = false;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -142,6 +174,8 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     this.loadSessions();
   }
 
+  // ── Actions ────────────────────────────────────────────────────────────
+
   createSession(): void {
     this.router.navigate(['/gluck-room/create']);
   }
@@ -161,13 +195,20 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
 
   startSession(id: string, event: Event): void {
     event.stopPropagation();
-    if (!confirm('Start this session? This will create a LiveKit room and begin recording.')) return;
+    if (!confirm('Start this session? This will open the live room.')) return;
     this.actionLoadingId = id;
     this.gluckRoomService.startSession(id).subscribe({
       next: (res) => {
         this.actionLoadingId = null;
-        if (res.success) this.loadSessions();
-        else this.error = res.message;
+        if (res.success) {
+          // Switch to live tab and reload
+          this.tabIndex = 1;
+          this.statusTab = 'active';
+          this.pageIndex = 0;
+          this.loadSessions();
+        } else {
+          this.error = res.message;
+        }
       },
       error: (err) => {
         this.actionLoadingId = null;
@@ -178,13 +219,20 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
 
   endSession(id: string, event: Event): void {
     event.stopPropagation();
-    if (!confirm('End this session? Recording will be finalized and uploaded.')) return;
+    if (!confirm('End this session? Recording will be finalised.')) return;
     this.actionLoadingId = id;
     this.gluckRoomService.endSession(id).subscribe({
       next: (res) => {
         this.actionLoadingId = null;
-        if (res.success) this.loadSessions();
-        else this.error = res.message;
+        if (res.success) {
+          // Switch to completed tab after ending
+          this.tabIndex = 2;
+          this.statusTab = 'ended';
+          this.pageIndex = 0;
+          this.loadSessions();
+        } else {
+          this.error = res.message;
+        }
       },
       error: (err) => {
         this.actionLoadingId = null;
@@ -207,7 +255,7 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
 
   deleteEndedSession(id: string, event: Event): void {
     event.stopPropagation();
-    if (!confirm('Delete this completed session permanently? This will remove all participant and recording data.')) return;
+    if (!confirm('Delete this completed session permanently?')) return;
     this.gluckRoomService.deleteSession(id).subscribe({
       next: (res) => {
         if (res.success) this.loadSessions();
@@ -229,13 +277,55 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
         if (res.success && res.data.recordingId) {
           this.router.navigate(['/gluck-room/recording', res.data.recordingId]);
         } else {
-          this.error = res.message || 'No recording found for this session';
+          this.error = res.message || 'No recording found';
         }
       },
-      error: (err) => {
-        this.error = err.error?.message || 'Failed to load recording';
-      }
+      error: (err) => { this.error = err.error?.message || 'Failed to load recording'; }
     });
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+
+  tabCount(tab: 'scheduled' | 'active' | 'ended'): number {
+    return this.tabCounts[tab] ?? 0;
+  }
+
+  /**
+   * Returns true when the session is within the join window:
+   *  • JOIN_WINDOW_MINUTES before the scheduled start, up to maxDurationMinutes after.
+   */
+  canJoinSession(session: any): boolean {
+    const now = Date.now();
+    const start = new Date(session.scheduledStartTime).getTime();
+    const end = start + (session.maxDurationMinutes || 180) * 60_000;
+    const windowOpen = start - JOIN_WINDOW_MINUTES * 60_000;
+    return now >= windowOpen && now <= end;
+  }
+
+  /** Label shown on the Join button for upcoming sessions */
+  joinButtonLabel(session: any): string {
+    if (session.status === 'active') return 'Join';
+    if (this.canJoinSession(session)) return 'Join';
+    return this.timeUntilJoinOpens(session);
+  }
+
+  /** Whether to show a Start button (host only, within window, not yet active) */
+  canStartSession(session: any): boolean {
+    if (!this.isHost(session) || session.status !== 'scheduled') return false;
+    return this.canJoinSession(session);
+  }
+
+  timeUntilJoinOpens(session: any): string {
+    const start = new Date(session.scheduledStartTime).getTime();
+    const windowOpen = start - JOIN_WINDOW_MINUTES * 60_000;
+    const ms = windowOpen - Date.now();
+    if (ms <= 0) return 'Starting now';
+    const totalMins = Math.floor(ms / 60_000);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hours > 0) return `Join in ${hours}h ${mins > 0 ? `${mins}m` : ''}`.trim();
+    if (totalMins >= 1) return `Join in ${totalMins}m`;
+    return 'Starting now';
   }
 
   formatDate(d: string | Date): string {
@@ -246,28 +336,17 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   }
 
   formatDuration(minutes: number): string {
-    if (!minutes) return '-';
+    if (!minutes) return '—';
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return h > 0 ? `${h}h ${m}m` : `${m} min`;
   }
 
   statusLabel(status: string): string {
-    const map: Record<string, string> = { scheduled: 'Upcoming', active: 'Live', ended: 'Completed', cancelled: 'Cancelled' };
+    const map: Record<string, string> = {
+      scheduled: 'Upcoming', active: 'Live', ended: 'Completed', cancelled: 'Cancelled'
+    };
     return map[status] || status;
-  }
-
-  timeUntilStart(scheduledStartTime: string | Date): string {
-    const now = Date.now();
-    const start = new Date(scheduledStartTime).getTime();
-    const diff = start - now;
-    if (diff <= 0) return 'Starting now';
-    const days = Math.floor(diff / 86400000);
-    const hours = Math.floor((diff % 86400000) / 3600000);
-    const minutes = Math.floor((diff % 3600000) / 60000);
-    if (days > 0) return `Join in ${days}d ${hours}h`;
-    if (hours > 0) return `Join in ${hours}h ${minutes}m`;
-    return `Join in ${minutes}m`;
   }
 
   isHost(session: any): boolean {

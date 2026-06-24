@@ -200,6 +200,38 @@ async function applySilverGoContentUnlockToStudent(student) {
   return student;
 }
 
+/** Load student with GO track fields + journey unlock — must match student-feed access checks. */
+async function loadStudentForRecordingAccess(userId) {
+  await reconcileSilverGoCourseDay(userId);
+  const student = await User.findById(userId)
+    .select(`${SILVER_GO_STUDENT_SELECT} blockedJourneyLevels`)
+    .lean();
+  if (!student) return null;
+  await applySilverGoContentUnlockToStudent(student);
+  const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
+  student.journeyAccessEnabled = journeyAccess.enabled;
+  return student;
+}
+
+async function assertStudentCanAccessManualRecording(recording, userId) {
+  const student = await loadStudentForRecordingAccess(userId);
+  if (!student) {
+    return { ok: false, status: 404, message: 'Student not found.' };
+  }
+  if (!student.journeyAccessEnabled) {
+    return { ok: false, status: 403, message: 'Journey content is not enabled for your batch yet.' };
+  }
+  if (canUserAccessManualRecording(recording, student)) {
+    return { ok: true, student };
+  }
+  const rules = await getActiveRulesForStudentBatch(student);
+  const crossBatchOk = rules.length > 0 && await canAccessManualViaCrossBatch(recording, student, rules);
+  if (crossBatchOk) {
+    return { ok: true, student };
+  }
+  return { ok: false, status: 403, message: 'This recording is not available for your profile.' };
+}
+
 function canUserAccessManualRecording(recording, student) {
   if (!recording?.active) return false;
   if (recording.isPublished === false) return false;
@@ -1692,19 +1724,9 @@ router.get('/:id/hls/playlist', verifyMediaToken, async (req, res) => {
     }
 
     if (!isClassRecordingStaff(req.user.role)) {
-      const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
-      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
-      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
-      if (!journeyAccess.enabled) {
-        return res.status(403).json({ success: false, message: 'Journey content is not enabled for your batch yet.' });
-      }
-      student.journeyAccessEnabled = journeyAccess.enabled;
-      if (!canUserAccessManualRecording(recording, student)) {
-        const rules = await getActiveRulesForStudentBatch(student);
-        const crossBatchOk = rules.length > 0 && await canAccessManualViaCrossBatch(recording, student, rules);
-        if (!crossBatchOk) {
-          return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
-        }
+      const access = await assertStudentCanAccessManualRecording(recording, req.user.id);
+      if (!access.ok) {
+        return res.status(access.status).json({ success: false, message: access.message });
       }
     }
 
@@ -1748,19 +1770,9 @@ router.post('/:id/view', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Recording not found.' });
     }
     if (!isClassRecordingStaff(req.user.role)) {
-      const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay blockedJourneyLevels').lean();
-      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
-      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
-      if (!journeyAccess.enabled) {
-        return res.status(403).json({ success: false, message: 'Journey content is not enabled for your batch yet.' });
-      }
-      student.journeyAccessEnabled = journeyAccess.enabled;
-      if (!canUserAccessManualRecording(recording, student)) {
-        const rules = await getActiveRulesForStudentBatch(student);
-        const crossBatchOk = rules.length > 0 && await canAccessManualViaCrossBatch(recording, student, rules);
-        if (!crossBatchOk) {
-          return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
-        }
+      const access = await assertStudentCanAccessManualRecording(recording, req.user.id);
+      if (!access.ok) {
+        return res.status(access.status).json({ success: false, message: access.message });
       }
     }
     // Resume support: last playback position + total watch time across ALL previous sessions.
@@ -1868,15 +1880,9 @@ router.put('/:id/duration', verifyToken, async (req, res) => {
     }
 
     if (!isClassRecordingStaff(req.user.role)) {
-      const student = await User.findById(req.user.id).select('batch level subscription goStatus currentCourseDay').lean();
-      if (!student) return res.status(404).json({ success: false, message: 'Student not found.' });
-      const journeyAccess = await getJourneyAccessForStudent({ ...student, role: 'STUDENT' });
-      if (!journeyAccess.enabled) {
-        return res.status(403).json({ success: false, message: 'Journey content is not enabled for your batch yet.' });
-      }
-      student.journeyAccessEnabled = journeyAccess.enabled;
-      if (!canUserAccessManualRecording(recording, student)) {
-        return res.status(403).json({ success: false, message: 'This recording is not available for your profile.' });
+      const access = await assertStudentCanAccessManualRecording(recording, req.user.id);
+      if (!access.ok) {
+        return res.status(access.status).json({ success: false, message: access.message });
       }
     }
 
@@ -2205,7 +2211,7 @@ router.get('/zoom/my-batch', verifyToken, async (req, res) => {
     const isStaff = isClassRecordingStaff(role);
     const student = isStaff
       ? null
-      : await User.findById(userId).select('batch level subscription goStatus currentCourseDay').lean();
+      : await loadStudentForRecordingAccess(userId);
     if (!isStaff && !student) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }

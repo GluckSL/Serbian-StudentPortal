@@ -1,7 +1,7 @@
 <!-- Wait for auth check on page refresh -->
 <ng-container *ngIf="authChecked; else appLoading">
 
-  <!-- Gluck Room: full-screen, no sidebar/header/footer -->
+  <!-- Live Gluck Room session: full-screen, no sidebar/header/footer -->
   <ng-container *ngIf="isGluckRoom">
     <router-outlet></router-outlet>
   </ng-container>

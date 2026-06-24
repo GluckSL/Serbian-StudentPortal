@@ -15,7 +15,7 @@ import {
   ClassRecordingsService,
   ZoomRecordingResponse,
 } from '../../../services/class-recordings.service';
-import { hlsAuthXhrSetup } from '../../../utils/hls-auth-xhr';
+import { hlsAuthXhrSetup, hlsAuthFetchSetup } from '../../../utils/hls-auth-xhr';
 import Hls, { ErrorData } from 'hls.js';
 import { getAuthToken } from '../../../services/auth.service';
 
@@ -160,17 +160,7 @@ export class ZoomRecordingPlayerComponent implements OnInit, OnDestroy, OnChange
         xhrSetup: (xhr: XMLHttpRequest, url?: string) => {
           hlsAuthXhrSetup(xhr, url);
         },
-        fetchSetup: (context: any, initParams: any) => {
-          const token = getAuthToken();
-          const headers = new Headers(initParams?.headers || {});
-          if (token) {
-            headers.set('Authorization', `Bearer ${token}`);
-          }
-          return new Request(context.url, {
-            ...initParams,
-            headers,
-          });
-        },
+        fetchSetup: hlsAuthFetchSetup,
       });
       this.hls.loadSource(url);
       this.hls.attachMedia(video);

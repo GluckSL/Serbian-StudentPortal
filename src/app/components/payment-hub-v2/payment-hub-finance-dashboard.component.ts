@@ -284,6 +284,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     if (this.filterLevel && this.cohortStatus) {
       return `${this.filterLevel} · ${formatStudentStatusLabel(this.cohortStatus)}`;
     }
+    if (this.cohort === 'all' && this.cohortStatus === 'ONGOING') {
+      return 'Platinum - Ongoing Language payment';
+    }
     const parts = [financeCohortLabel(this.cohort)];
     if (this.cohortStatus) parts.push(formatStudentStatusLabel(this.cohortStatus));
     return parts.join(' · ');
