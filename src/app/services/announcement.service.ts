@@ -39,6 +39,14 @@ export interface AnnouncementTargetStudent {
   isTestAccount?: boolean;
 }
 
+export interface AnnouncementTargetTeacher {
+  _id: string;
+  name: string;
+  regNo: string;
+  email: string;
+  role?: string;
+}
+
 export interface AnnouncementsAdminPage {
   total: number;
   page: number;
@@ -87,8 +95,20 @@ export class AnnouncementService {
 
   getTargetStudents(
     batches: string[]
-  ): Observable<{ success: boolean; data: AnnouncementTargetStudent[]; total: number }> {
-    return this.http.get<{ success: boolean; data: AnnouncementTargetStudent[]; total: number }>(
+  ): Observable<{
+    success: boolean;
+    data: AnnouncementTargetStudent[];
+    total: number;
+    teachers?: AnnouncementTargetTeacher[];
+    teacherTotal?: number;
+  }> {
+    return this.http.get<{
+      success: boolean;
+      data: AnnouncementTargetStudent[];
+      total: number;
+      teachers?: AnnouncementTargetTeacher[];
+      teacherTotal?: number;
+    }>(
       `${this.apiUrl}/target-students`,
       {
         withCredentials: true,

@@ -1,8 +1,13 @@
 const User = require('../models/User');
 const transporter = require('../config/emailConfig');
 const sanitizeHtml = require('sanitize-html');
-
-const GO_STUDENTS_TARGET_NORMALIZED = 'gostudents';
+const {
+  normalizeBatchKey,
+  isGoStudentsTarget,
+  isGoStudentRecord,
+  normalizeBatchList,
+  findTeachersForTargetBatches
+} = require('./announcementRecipients');
 
 const ANNOUNCEMENT_HTML_SANITIZE_OPTIONS = {
   allowedTags: [
@@ -52,28 +57,6 @@ const ANNOUNCEMENT_HTML_SANITIZE_OPTIONS = {
   }
 };
 
-function normalizeBatchKey(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\bbatch\b/g, '')
-    .replace(/[^a-z0-9]/g, '');
-}
-
-function isGoStudentsTarget(value) {
-  return normalizeBatchKey(value) === GO_STUDENTS_TARGET_NORMALIZED;
-}
-
-function isGoStudentRecord(student) {
-  return String(student?.goStatus || '')
-    .trim()
-    .toUpperCase() === 'GO';
-}
-
-function normalizeBatchList(values) {
-  return Array.from(new Set((values || []).map((b) => normalizeBatchKey(b)).filter(Boolean)));
-}
-
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -101,15 +84,15 @@ async function sendAnnouncementEmails({ recipients, subject, body, title }) {
   const bodyHtml = sanitizeAnnouncementHtml(body);
 
   const results = await Promise.allSettled(
-    recipients.map(({ email, studentName }) => {
-      const safeStudentName = escapeHtml(studentName || 'Student');
+    recipients.map(({ email, recipientName, studentName }) => {
+      const safeRecipientName = escapeHtml(recipientName || studentName || 'there');
 
       const html = `
         <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.6;">
           <p style="margin:0 0 12px 0; font-weight:700;">Announcement</p>
 
           <p style="margin:0 0 12px 0;">
-            Hi <strong>${safeStudentName}</strong>,
+            Hi <strong>${safeRecipientName}</strong>,
           </p>
 
           <p style="margin:0 0 16px 0;">
@@ -159,20 +142,25 @@ async function dispatchWebsiteEmailAnnouncement({
     .lean();
 
   const includeGoStudents = (targetBatches || []).some((target) => isGoStudentsTarget(target));
-  const recipients = students
+  const studentRecipients = students
     .filter((s) => {
       if (includeGoStudents && isGoStudentRecord(s)) return true;
       return targetKeys.includes(normalizeBatchKey(s.batch));
     })
     .map((s) => ({
       email: String(s.email || '').trim().toLowerCase(),
-      studentName: String(s.name || '').trim()
+      recipientName: String(s.name || '').trim()
     }))
     .filter((r) => r.email);
 
+  const teacherRecipients = (await findTeachersForTargetBatches(targetBatches, targetKeys)).map((t) => ({
+    email: t.email,
+    recipientName: t.name
+  }));
+
   const recipientsByEmail = new Map();
-  for (const r of recipients) {
-    if (!recipientsByEmail.has(r.email)) recipientsByEmail.set(r.email, r);
+  for (const recipient of [...studentRecipients, ...teacherRecipients]) {
+    if (!recipientsByEmail.has(recipient.email)) recipientsByEmail.set(recipient.email, recipient);
   }
 
   const cleanedRecipients = Array.from(recipientsByEmail.values());

@@ -5,6 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { QuillModule } from 'ngx-quill';
 import {
   AnnouncementTargetStudent,
+  AnnouncementTargetTeacher,
   AnnouncementDeliveryType,
   AnnouncementItem,
   AnnouncementService
@@ -54,6 +55,7 @@ export class AdminAnnouncementsComponent implements OnInit {
   batchToAdd = '';
   selectedFiles: File[] = [];
   targetStudents: AnnouncementTargetStudent[] = [];
+  targetTeachers: AnnouncementTargetTeacher[] = [];
   loadingTargetStudents = false;
   loading = false;
   saving = false;
@@ -254,6 +256,7 @@ export class AdminAnnouncementsComponent implements OnInit {
   loadTargetStudentsPreview(): void {
     if (!this.selectedBatches.length) {
       this.targetStudents = [];
+      this.targetTeachers = [];
       this.loadingTargetStudents = false;
       return;
     }
@@ -262,15 +265,18 @@ export class AdminAnnouncementsComponent implements OnInit {
     this.announcementService.getTargetStudents(this.selectedBatches).subscribe({
       next: (res) => {
         this.targetStudents = res?.data || [];
+        this.targetTeachers = res?.teachers || [];
         this.loadingTargetStudents = false;
         console.info('[admin-announcements] target students preview loaded', {
           selectedBatches: this.selectedBatches,
-          totalStudents: this.targetStudents.length
+          totalStudents: this.targetStudents.length,
+          totalTeachers: this.targetTeachers.length
         });
       },
       error: () => {
         this.loadingTargetStudents = false;
         this.targetStudents = [];
+        this.targetTeachers = [];
         this.notify.error('Failed to load students for selected batch.');
       }
     });
@@ -421,6 +427,7 @@ export class AdminAnnouncementsComponent implements OnInit {
     this.scheduleAt = '';
     this.selectedBatches = [];
     this.targetStudents = [];
+    this.targetTeachers = [];
     this.batchToAdd = '';
     this.selectedFiles = [];
   }

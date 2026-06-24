@@ -8,6 +8,10 @@
       <p class="zr-header__sub">Completed class sessions &amp; attendance analytics</p>
     </div>
     <div class="zr-header__actions">
+      <button class="zr-btn zr-btn--analytics" (click)="generateAnalytics()" title="Select classes using checkboxes then click to export analytics">
+        <i class="fa fa-chart-line"></i> Generate Analytics
+        <span class="zr-sel-badge" *ngIf="selectedCount > 0">{{ selectedCount }}</span>
+      </button>
       <button class="zr-btn zr-btn--primary" (click)="exportToCSV()">
         <i class="fa fa-download"></i> Export CSV
       </button>
@@ -97,6 +101,13 @@
     <table *ngIf="loadingPage || meetingsPage.length > 0" class="zr-table">
       <thead>
         <tr>
+          <th class="zr-th-check">
+            <input type="checkbox" class="zr-checkbox"
+                   [checked]="allPageSelected"
+                   [indeterminate]="somePageSelected && !allPageSelected"
+                   (change)="toggleSelectAll()"
+                   title="Select all on this page">
+          </th>
           <th>Date &amp; Time</th>
           <th>Topic</th>
           <th *ngIf="!isTeacherRole">Teacher</th>
@@ -110,6 +121,7 @@
       <tbody>
         <ng-container *ngIf="loadingPage">
           <tr class="zr-row zr-row--skeleton" [attr.aria-busy]="true" *ngFor="let _ of skeletonRows">
+            <td class="zr-td-check"><div class="zr-skeleton zr-skeleton--sm"></div></td>
             <td><div class="zr-skeleton zr-skeleton--md"></div><div class="zr-skeleton zr-skeleton--sm"></div></td>
             <td><div class="zr-skeleton zr-skeleton--md"></div></td>
             <td *ngIf="!isTeacherRole"><div class="zr-skeleton zr-skeleton--md"></div></td>
@@ -121,7 +133,14 @@
           </tr>
         </ng-container>
 
-        <tr *ngFor="let m of meetingsPage" class="zr-row">
+        <tr *ngFor="let m of meetingsPage" class="zr-row" [class.zr-row--selected]="selectedMeetingIds.has(m._id)">
+
+          <!-- Checkbox -->
+          <td class="zr-td-check">
+            <input type="checkbox" class="zr-checkbox"
+                   [checked]="selectedMeetingIds.has(m._id)"
+                   (change)="toggleSelect(m._id)">
+          </td>
 
           <!-- Date -->
           <td>

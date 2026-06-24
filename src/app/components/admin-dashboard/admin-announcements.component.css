@@ -759,6 +759,19 @@
   font-size: 0.74rem;
 }
 
+.ann-targets__role {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #03396c;
+  background: rgba(3, 57, 108, 0.08);
+}
+
 .ann-targets__more {
   font-size: 0.78rem;
   color: #475569;

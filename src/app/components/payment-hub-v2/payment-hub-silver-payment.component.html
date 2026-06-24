@@ -1,0 +1,593 @@
+<div class="ph-insights-page ph-silver-payment-page">
+  <div class="ph-insights-header">
+    <div class="ph-insights-header-inner">
+      <a routerLink="/admin/finance-dashboard" class="ph-insights-back">
+        <mat-icon>arrow_back</mat-icon>
+        Back to Finance Dashboard
+      </a>
+      <div class="ph-silver-payment-header-row">
+        <div>
+          <h1 class="ph-insights-title">
+            <mat-icon class="ph-silver-payment-title-icon">workspace_premium</mat-icon>
+            Silver Payment
+          </h1>
+          <p class="ph-insights-sub">Student-level Silver payment tracking. Add students from GO Tamil, GO Sinhala, other batches, or individually by search.</p>
+        </div>
+        <button
+          type="button"
+          class="ph-silver-payment-add-btn"
+          (click)="openAddModal()"
+        >
+          <mat-icon>person_add</mat-icon>
+          <span>Add Students</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ph-insights-body">
+    <ng-container *ngIf="!loading; else skeleton">
+
+      <!-- ── Summary KPI cards ── -->
+      <div class="ph-finance-students-kpi-grid" *ngIf="totalStudents > 0 || rows.length > 0">
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--total">
+          <mat-icon>groups</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__value">{{ insightCounts['all'] || 0 }}</span>
+            <span class="ph-finance-students-kpi__label">Total students</span>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--paid">
+          <mat-icon>payments</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__label">Total received</span>
+            <div class="ph-finance-students-kpi__amounts">
+              <span *ngIf="totalPaidLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--lkr">
+                LKR {{ totalPaidLKR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="totalPaidINR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--inr">
+                ₹{{ totalPaidINR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="totalPaidUSD > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--usd">
+                EURO {{ totalPaidUSD | number:'1.0-2' }}
+              </span>
+              <span *ngIf="totalPaidLKR === 0 && totalPaidINR === 0 && totalPaidUSD === 0" class="ph-finance-students-kpi__nil">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--pending">
+          <mat-icon>pending_actions</mat-icon>
+          <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__label">Total remaining</span>
+            <div class="ph-finance-students-kpi__amounts">
+              <span *ngIf="totalPendingLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
+                LKR {{ totalPendingLKR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="totalPendingINR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
+                ₹{{ totalPendingINR | number:'1.0-0' }}
+              </span>
+              <span *ngIf="totalPendingUSD > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
+                EURO {{ totalPendingUSD | number:'1.0-2' }}
+              </span>
+              <span *ngIf="totalPendingLKR === 0 && totalPendingINR === 0 && totalPendingUSD === 0" class="ph-finance-students-kpi__nil">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Insight filter cards ── -->
+      <div class="ph-health-grid" *ngIf="rows.length || insightCounts['all']">
+        <p class="ph-health-grid-heading">Payment breakdown · click to filter</p>
+        <div class="ph-health-cards">
+          <button
+            type="button"
+            class="ph-health-card ph-health-card--{{ opt.color }}"
+            *ngFor="let opt of studentInsightOptions"
+            [class.ph-health-card--active]="isInsightActive(opt.value)"
+            [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
+            (click)="applyInsightFilter(opt.value)"
+            [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+          >
+            <div class="ph-health-card-icon"><mat-icon>{{ opt.icon }}</mat-icon></div>
+            <div class="ph-health-card-body">
+              <span class="ph-health-card-label">{{ opt.label }}</span>
+              <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
+              <div class="ph-health-card-amount" *ngIf="hasInsightAmount(opt.key)">
+                <app-payment-currency-totals
+                  *ngIf="opt.amountKind === 'expected' || opt.amountKind === 'received'"
+                  [lkr]="insightAmountLkr(opt.key)"
+                  [inr]="insightAmountInr(opt.key)"
+                  [usd]="insightAmountUsd(opt.key)"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-totals>
+                <app-payment-currency-pending-totals
+                  *ngIf="opt.amountKind === 'pending'"
+                  [lkr]="insightAmountLkr(opt.key)"
+                  [inr]="insightAmountInr(opt.key)"
+                  [usd]="insightAmountUsd(opt.key)"
+                  [compact]="true"
+                  [hideZero]="true"
+                ></app-payment-currency-pending-totals>
+              </div>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">Received + remaining</span>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'paid_full'">
+                All received · {{ studentPct(insightCount(opt.key), insightCount('all')) }} fully paid
+              </span>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'have_balance'">
+                All outstanding · {{ studentPct(insightCount(opt.key), insightCount('all')) }} with balance
+              </span>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'all' && notStartedCount() > 0">
+                {{ notStartedCount() }} not started yet
+              </span>
+            </div>
+            <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Students table ── -->
+      <section class="ph-table-section ph-surface" id="ph-silver-stu-table">
+        <div class="ph-table-toolbar">
+          <div class="ph-table-toolbar-left">
+            <h2 class="ph-section-title">Students</h2>
+            <span class="ph-insight-filter-chip" *ngIf="studentInsight">
+              <mat-icon>filter_alt</mat-icon>
+              {{ activeInsightLabel() }}
+              <button type="button" class="ph-insight-filter-clear" (click)="applyInsightFilter(studentInsight)" matTooltip="Clear filter">
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
+            <span class="ph-select-meta ph-select-meta--filter" *ngIf="selectedLevels.length">
+              Level: {{ levelFilterLabel() }}
+              <button type="button" class="ph-finance-level-filter-chip-clear" (click)="clearAppliedLevelFilter()" matTooltip="Clear level filter">
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
+            <span class="ph-select-meta">
+              {{ pageStart }}-{{ pageEnd }} of {{ totalStudents }} shown
+            </span>
+            <label class="ph-finance-students-page-size">
+              <span>Rows</span>
+              <select
+                [ngModel]="pageSize"
+                (ngModelChange)="onPageSizeChange($event)"
+                [disabled]="loading"
+                aria-label="Rows per page"
+              >
+                <option *ngFor="let size of pageSizeOptions" [ngValue]="size">
+                  {{ size }}
+                </option>
+              </select>
+            </label>
+          </div>
+          <div class="ph-batch-stu-search-wrap">
+            <mat-icon class="ph-batch-stu-search-icon" aria-hidden="true">search</mat-icon>
+            <input
+              class="ph-batch-stu-search-input"
+              type="search"
+              [(ngModel)]="searchQuery"
+              (ngModelChange)="onSearchChange()"
+              placeholder="Search by name, email, or batch…"
+              aria-label="Search students"
+            />
+          </div>
+        </div>
+
+        <div class="ph-table-responsive" *ngIf="displayRows.length; else empty">
+          <table class="ph-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Student</th>
+                <th>Batch</th>
+                <th>
+                  <button
+                    type="button"
+                    class="ph-finance-students-th-filter"
+                    [class.ph-finance-students-th-filter--active]="selectedLevels.length"
+                    (click)="openLevelFilter()"
+                    matTooltip="Filter by level · click to open"
+                  >
+                    <span>Level</span>
+                    <mat-icon>filter_list</mat-icon>
+                  </button>
+                </th>
+                <th class="ph-num ph-col-compact">Journey day</th>
+                <th class="ph-num">
+                  <button
+                    type="button"
+                    class="ph-finance-students-th-filter"
+                    [class.ph-finance-students-th-filter--active]="studentInsight === 'paid_full'"
+                    (click)="applyInsightFilter('paid_full')"
+                    matTooltip="Filter payment clear · click again to clear"
+                  >
+                    <span>Total received</span>
+                    <mat-icon>filter_list</mat-icon>
+                  </button>
+                </th>
+                <th class="ph-num">
+                  <button
+                    type="button"
+                    class="ph-finance-students-th-filter"
+                    [class.ph-finance-students-th-filter--active]="studentInsight === 'have_balance'"
+                    (click)="applyInsightFilter('have_balance')"
+                    matTooltip="Filter remaining balance · click again to clear"
+                  >
+                    <span>Pending</span>
+                    <mat-icon>filter_list</mat-icon>
+                  </button>
+                </th>
+                <th>Language fee</th>
+                <th>Status</th>
+                <th class="ph-col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of displayRows; let i = index">
+                <td class="ph-num ph-row-num">{{ rowNumber(i) }}</td>
+                <td class="ph-name-cell">
+                  <span class="ph-name-main">{{ r.name }}</span>
+                  <span class="ph-name-email">{{ r.email }}</span>
+                </td>
+                <td>
+                  <span class="ph-batch-tag" *ngIf="r.batch; else noBatch">{{ r.batch }}</span>
+                  <ng-template #noBatch><span class="ph-nil">—</span></ng-template>
+                </td>
+                <td><span class="ph-level-pill">{{ r.level }}</span></td>
+                <td class="ph-num ph-col-compact">
+                  <span class="ph-day-badge ph-day-badge--ratio">{{ journeyDayDisplay(r) }}</span>
+                </td>
+                <td class="ph-num ph-val-green ph-paid-cell">
+                  <app-payment-currency-totals
+                    [lkr]="rowReceived(r).lkr"
+                    [inr]="rowReceived(r).inr"
+                    [usd]="rowReceived(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
+                <td class="ph-num ph-val-amber ph-paid-cell">
+                  <app-payment-currency-pending-totals
+                    [lkr]="rowPending(r).lkr"
+                    [inr]="rowPending(r).inr"
+                    [usd]="rowPending(r).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-pending-totals>
+                </td>
+                <td>
+                  <span class="ph-pill" [ngClass]="languageFeePillClass(r)">{{ languageFeeStatusLabel(r) }}</span>
+                </td>
+                <td>
+                  <span class="ph-status-chip" *ngIf="r.studentStatus">{{ formatStudentStatus(r.studentStatus) }}</span>
+                </td>
+                <td class="ph-col-actions ph-silver-actions">
+                  <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(r)" matTooltip="Open full payment history">
+                    <mat-icon>open_in_new</mat-icon>
+                    Payments
+                  </button>
+                  <button
+                    type="button"
+                    class="ph-silver-remove-btn"
+                    (click)="removeStudent(r)"
+                    [disabled]="removingStudentId === r.studentId"
+                    matTooltip="Remove from Silver Payment list"
+                  >
+                    <mat-icon>{{ removingStudentId === r.studentId ? 'hourglass_empty' : 'remove_circle_outline' }}</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ng-template #empty>
+          <div class="ph-silver-empty-state">
+            <mat-icon class="ph-silver-empty-icon">workspace_premium</mat-icon>
+            <p class="ph-silver-empty-title">
+              {{ searchQuery || studentInsight || selectedLevels.length ? 'No students match your filter.' : 'No students added yet.' }}
+            </p>
+            <p class="ph-silver-empty-sub" *ngIf="!searchQuery && !studentInsight && !selectedLevels.length">
+              Use the <strong>Add Students</strong> button to add students from GO Tamil, GO Sinhala, other batches, or by individual search.
+            </p>
+            <button
+              *ngIf="!searchQuery && !studentInsight && !selectedLevels.length"
+              type="button"
+              class="ph-silver-empty-btn"
+              (click)="openAddModal()"
+            >
+              <mat-icon>person_add</mat-icon>
+              Add Students
+            </button>
+          </div>
+        </ng-template>
+
+        <div class="ph-finance-students-pagination" *ngIf="totalStudents > pageSize">
+          <button type="button" class="ph-finance-students-page-btn" (click)="goToPage(page - 1)" [disabled]="page <= 1 || loading">
+            <mat-icon>chevron_left</mat-icon>
+            Previous
+          </button>
+          <span class="ph-finance-students-page-meta">
+            Page {{ page }} of {{ totalPages }}
+          </span>
+          <button type="button" class="ph-finance-students-page-btn" (click)="goToPage(page + 1)" [disabled]="page >= totalPages || loading">
+            Next
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </section>
+
+    </ng-container>
+
+    <ng-template #skeleton>
+      <div class="ph-skeleton-layout" aria-busy="true" aria-label="Loading Silver Payment students">
+        <div class="ph-finance-students-kpi-grid ph-finance-students-kpi-grid--skeleton">
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3]"></div>
+        </div>
+        <div class="ph-health-cards ph-batch-stu-skeleton-cards">
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3]"></div>
+        </div>
+        <div class="ph-skeleton-table"></div>
+      </div>
+    </ng-template>
+  </div>
+
+  <!-- ── Add Students Modal ── -->
+  <div
+    class="ph-silver-modal-backdrop"
+    *ngIf="showAddModal"
+    role="presentation"
+    (click)="closeAddModal()"
+  >
+    <section
+      class="ph-silver-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ph-silver-modal-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="ph-silver-modal__head">
+        <div>
+          <h2 id="ph-silver-modal-title">Add Students to Silver Payment</h2>
+          <p>Select from a batch or search for individual students.</p>
+        </div>
+        <button
+          type="button"
+          class="ph-silver-modal__close"
+          (click)="closeAddModal()"
+          [disabled]="addingFromBatch"
+          aria-label="Close modal"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <!-- Mode tabs -->
+      <div class="ph-silver-modal__tabs">
+        <button
+          type="button"
+          class="ph-silver-modal__tab"
+          [class.ph-silver-modal__tab--active]="addMode === 'batch'"
+          (click)="setAddMode('batch')"
+        >
+          <mat-icon>view_module</mat-icon>
+          Select Batch
+        </button>
+        <button
+          type="button"
+          class="ph-silver-modal__tab"
+          [class.ph-silver-modal__tab--active]="addMode === 'student'"
+          (click)="setAddMode('student')"
+        >
+          <mat-icon>person_search</mat-icon>
+          Search Student
+        </button>
+      </div>
+
+      <!-- ── Batch mode ── -->
+      <div class="ph-silver-modal__body" *ngIf="addMode === 'batch'">
+        <div class="ph-silver-modal__loading" *ngIf="loadingBatchOptions">
+          <mat-spinner diameter="28"></mat-spinner>
+          <span>Loading batches…</span>
+        </div>
+
+        <ng-container *ngIf="!loadingBatchOptions">
+          <p class="ph-silver-modal__hint">
+            Select one or more batches. All students from the selected batches will be added to the Silver Payment list.
+          </p>
+          <p class="ph-silver-modal__selection-meta" *ngIf="selectedBatchCount">
+            <mat-icon>check_box</mat-icon>
+            {{ selectedBatchCount }} batch{{ selectedBatchCount === 1 ? '' : 'es' }} selected
+          </p>
+
+          <div class="ph-silver-batch-section" *ngIf="batchOptions.length">
+            <!-- GO batches -->
+            <div class="ph-silver-batch-group">
+              <p class="ph-silver-batch-group__label ph-silver-batch-group__label--go">GO Batches (Journey Management)</p>
+              <label
+                class="ph-silver-batch-row"
+                [class.ph-silver-batch-row--selected]="isBatchSelected(opt.id)"
+                *ngFor="let opt of goBatchOptions"
+              >
+                <input
+                  type="checkbox"
+                  class="ph-silver-batch-row__check"
+                  [checked]="isBatchSelected(opt.id)"
+                  (change)="toggleBatchSelection(opt.id)"
+                />
+                <div class="ph-silver-batch-row__icon ph-silver-batch-row__icon--go">
+                  <mat-icon>star</mat-icon>
+                </div>
+                <div class="ph-silver-batch-row__info">
+                  <span class="ph-silver-batch-row__name">{{ opt.label }}</span>
+                  <span class="ph-silver-batch-row__desc">{{ opt.description }}</span>
+                </div>
+              </label>
+            </div>
+
+            <!-- Regular batches -->
+            <div class="ph-silver-batch-group" *ngIf="regularBatchOptions.length">
+              <p class="ph-silver-batch-group__label ph-silver-batch-group__label--regular">Regular Batches</p>
+              <label
+                class="ph-silver-batch-row"
+                [class.ph-silver-batch-row--selected]="isBatchSelected(opt.id)"
+                *ngFor="let opt of regularBatchOptions"
+              >
+                <input
+                  type="checkbox"
+                  class="ph-silver-batch-row__check"
+                  [checked]="isBatchSelected(opt.id)"
+                  (change)="toggleBatchSelection(opt.id)"
+                />
+                <div class="ph-silver-batch-row__icon ph-silver-batch-row__icon--regular">
+                  <mat-icon>label</mat-icon>
+                </div>
+                <div class="ph-silver-batch-row__info">
+                  <span class="ph-silver-batch-row__name">{{ opt.label }}</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <p class="ph-silver-modal__empty" *ngIf="!batchOptions.length">
+            No batches available.
+          </p>
+        </ng-container>
+      </div>
+
+      <!-- ── Student search mode ── -->
+      <div class="ph-silver-modal__body" *ngIf="addMode === 'student'">
+        <p class="ph-silver-modal__hint">
+          Search students by name, email, or registration number and add them individually.
+        </p>
+        <div class="ph-silver-search-wrap">
+          <mat-icon class="ph-silver-search-icon" aria-hidden="true">search</mat-icon>
+          <input
+            class="ph-silver-search-input"
+            type="search"
+            [(ngModel)]="studentSearchQuery"
+            (ngModelChange)="onStudentSearchChange()"
+            placeholder="Search name, email, or reg no…"
+            aria-label="Search student"
+            autofocus
+          />
+          <mat-spinner diameter="18" *ngIf="searchingStudents" class="ph-silver-search-spinner"></mat-spinner>
+        </div>
+
+        <div class="ph-silver-search-results" *ngIf="searchResults.length">
+          <div
+            class="ph-silver-search-result"
+            *ngFor="let s of searchResults"
+            [class.ph-silver-search-result--added]="s.alreadyAdded"
+          >
+            <div class="ph-silver-search-result__info">
+              <span class="ph-silver-search-result__name">{{ s.name }}</span>
+              <span class="ph-silver-search-result__email">{{ s.email }}</span>
+              <span class="ph-silver-search-result__meta">
+                <span *ngIf="s.batch" class="ph-batch-tag">{{ s.batch }}</span>
+                <span *ngIf="s.level" class="ph-level-pill">{{ s.level }}</span>
+                <span *ngIf="s.subscription" class="ph-silver-search-result__sub">{{ s.subscription }}</span>
+              </span>
+            </div>
+            <button
+              type="button"
+              class="ph-silver-search-result__add"
+              [disabled]="s.alreadyAdded || addingStudentId === s.studentId"
+              (click)="addIndividualStudent(s)"
+            >
+              <mat-icon>{{ s.alreadyAdded ? 'check_circle' : (addingStudentId === s.studentId ? 'hourglass_empty' : 'add_circle_outline') }}</mat-icon>
+              {{ s.alreadyAdded ? 'Added' : (addingStudentId === s.studentId ? 'Adding…' : 'Add') }}
+            </button>
+          </div>
+        </div>
+
+        <p class="ph-silver-modal__empty" *ngIf="!searchResults.length && studentSearchQuery.length >= 2 && !searchingStudents">
+          No students found for "{{ studentSearchQuery }}".
+        </p>
+
+        <p class="ph-silver-modal__hint ph-silver-modal__hint--muted" *ngIf="studentSearchQuery.length < 2 && !searchResults.length">
+          Type at least 2 characters to search.
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div class="ph-silver-modal__footer">
+        <button
+          type="button"
+          class="ph-silver-modal__cancel"
+          (click)="closeAddModal()"
+          [disabled]="addingFromBatch"
+        >
+          {{ addMode === 'student' ? 'Close' : 'Cancel' }}
+        </button>
+        <button
+          *ngIf="addMode === 'batch'"
+          type="button"
+          class="ph-silver-modal__save"
+          (click)="addFromBatch()"
+          [disabled]="!selectedBatchCount || addingFromBatch"
+        >
+          <mat-icon>{{ addingFromBatch ? 'hourglass_empty' : 'group_add' }}</mat-icon>
+          {{
+            addingFromBatch
+              ? 'Adding…'
+              : selectedBatchCount
+                ? 'Add students from ' + selectedBatchCount + ' batch' + (selectedBatchCount === 1 ? '' : 'es')
+                : 'Add batch students'
+          }}
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <div class="ph-finance-level-filter-backdrop" *ngIf="levelFilterOpen" (click)="closeLevelFilter()"></div>
+  <section class="ph-finance-level-filter-modal" *ngIf="levelFilterOpen" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <div class="ph-finance-level-filter-modal__head">
+      <div>
+        <h3>Filter by Language Level</h3>
+        <p>Select one or more values, then click Apply</p>
+      </div>
+      <button type="button" class="ph-finance-level-filter-modal__close" (click)="closeLevelFilter()" aria-label="Close level filter">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <div class="ph-finance-level-filter-modal__search">
+      <mat-icon>search</mat-icon>
+      <input
+        type="text"
+        [(ngModel)]="levelFilterSearch"
+        placeholder="Search options..."
+        aria-label="Search level options"
+      />
+    </div>
+
+    <div class="ph-finance-level-filter-modal__body">
+      <label
+        class="ph-finance-level-filter-option"
+        *ngFor="let opt of filteredLevelOptions(); trackBy: trackLevelOption"
+        [class.ph-finance-level-filter-option--selected]="isDraftLevelSelected(opt.value)"
+      >
+        <input
+          type="checkbox"
+          [checked]="isDraftLevelSelected(opt.value)"
+          (change)="toggleDraftLevel(opt.value)"
+        />
+        <span class="ph-finance-level-filter-option__label">{{ opt.label }}</span>
+        <span class="ph-finance-level-filter-option__count">{{ opt.total }}</span>
+      </label>
+      <p class="ph-finance-level-filter-empty" *ngIf="!filteredLevelOptions().length">No levels found</p>
+    </div>
+
+    <div class="ph-finance-level-filter-modal__foot">
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="selectAllLevelFilter()">Select all</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="clearLevelFilterDraft()">Clear</button>
+      <span class="ph-finance-level-filter-modal__spacer"></span>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="closeLevelFilter()">Cancel</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--primary" (click)="applyLevelFilter()">Apply filter</button>
+    </div>
+  </section>
+</div>

@@ -28,6 +28,8 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   loading = true;
   loadingVisibleBatches = true;
   loadingBatchOptions = true;
+  loadingSilverPaymentCount = true;
+  silverPaymentCount = 0;
   savingVisibleBatches = false;
   showAddBatchModal = false;
   showManageVisibleBatches = false;
@@ -60,6 +62,7 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     this.loadCounts();
     this.loadVisibleBatches();
     this.loadBatchOptions();
+    this.loadSilverPaymentCount();
   }
 
   formatStudentStatus = formatStudentStatusLabel;
@@ -237,6 +240,24 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
         this.loadingBatchOptions = false;
       },
     });
+  }
+
+  private loadSilverPaymentCount(): void {
+    this.loadingSilverPaymentCount = true;
+    this.http
+      .get<{ success: boolean; count: number }>(
+        `${environment.apiUrl}/new-payments/finance-dashboard/silver-payment/count`,
+        { withCredentials: true },
+      )
+      .subscribe({
+        next: (res) => {
+          this.silverPaymentCount = res.count ?? 0;
+          this.loadingSilverPaymentCount = false;
+        },
+        error: () => {
+          this.loadingSilverPaymentCount = false;
+        },
+      });
   }
 
   private pruneSelectedBatchLevels(): void {
