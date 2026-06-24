@@ -37,6 +37,30 @@
       <span class="progress-sub">{{ data.kpis.resourceDone }} of {{ data.kpis.resourceTotal }} resources completed</span>
     </div>
 
+    <!-- ═══ Overall Journey Progress Bar ═══ -->
+    <div class="overall-progress journey-progress">
+      <div class="progress-header">
+        <span class="progress-label">Overall Journey Progress</span>
+        <span class="progress-value">{{ journeyProgressPct }}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="journeyProgressPct"></div>
+      </div>
+      <span class="progress-sub">{{ currentDay }} / {{ data.student.journeyLength || 200 }} days completed</span>
+    </div>
+
+    <!-- ═══ Learning Progress Bar ═══ -->
+    <div class="overall-progress learning-progress">
+      <div class="progress-header">
+        <span class="progress-label">Learning Progress</span>
+        <span class="progress-value">{{ learningProgressPct }}%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="learningProgressPct"></div>
+      </div>
+      <span class="progress-sub">average score across {{ data.exercises.length }} / {{ data.kpis.exerciseTotal }} exercises</span>
+    </div>
+
     <!-- ═══ Summary Cards ═══ -->
     <section class="cards-grid">
       <div class="summary-card card-day">
