@@ -19,7 +19,7 @@ import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
 import { digitalExercisePlayCommands } from '../../utils/digital-exercise-id.util';
 import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
-import { SprechenExamModuleSummary, SprechenExamSummary, SprechenScores, SprechenSessionSummary } from '../../sprechen-exam/sprechen-exam.types';
+import { SprechenExamAggregate, SprechenExamModuleSummary, SprechenExamSummary, SprechenScores, SprechenSessionSummary } from '../../sprechen-exam/sprechen-exam.types';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { GameSet } from '../../features/glueck-arena/glueck-arena.types';
 import { ClassRecordingsService, ClassRecording } from '../../services/class-recordings.service';
@@ -863,6 +863,75 @@ export class MyCourseComponent implements OnInit {
     return this.gluckExamSummary?.sessions?.some(s => s.moduleId === m._id) ?? false;
   }
 
+  get gluckExamOverallAggregate(): SprechenExamAggregate | null {
+    const exercises = this.gluckExamExercises.filter(ex => ex.weeklyTestEnabled || ex.examEnabled);
+    const dgModules = this.gluckExamDgModules.filter(m => m.weeklyTestEnabled || m.examEnabled);
+    const sprechenModules = this.gluckExamSprechenModules.filter(m => m.weeklyTestEnabled || m.examEnabled);
+
+    const total = exercises.length + dgModules.length + sprechenModules.length;
+    if (!total) return null;
+
+    let completed = 0;
+    let passed = 0;
+    let totalScore = 0;
+    let scoreCount = 0;
+    let bestScore = 0;
+
+    for (const ex of exercises) {
+      if (ex.studentAttempt) {
+        completed++;
+        if (this.isAttemptPassing(ex.studentAttempt)) {
+          passed++;
+        }
+        const s = (ex.studentAttempt.scorePercentage ?? 0) / 100 * 15;
+        totalScore += s;
+        scoreCount++;
+        if (s > bestScore) bestScore = s;
+      }
+    }
+
+    for (const mod of dgModules) {
+      if (mod.studentProgress?.completed) {
+        completed++;
+        passed++;
+      }
+    }
+
+    const sessions = this.gluckExamSummary?.sessions ?? [];
+    const lastSessionByModule = new Map<string, SprechenSessionSummary>();
+    for (const s of sessions) {
+      const existing = lastSessionByModule.get(s.moduleId);
+      if (!existing || s.completedAt > existing.completedAt) {
+        lastSessionByModule.set(s.moduleId, s);
+      }
+    }
+
+    for (const mod of sprechenModules) {
+      const session = lastSessionByModule.get(mod._id);
+      if (session) {
+        completed++;
+        if (session.scores?.passed) passed++;
+        const s = session.scores?.total;
+        if (s != null) {
+          totalScore += s;
+          scoreCount++;
+          if (s > bestScore) bestScore = s;
+        }
+      }
+    }
+
+    const avgTotal = scoreCount > 0 ? Math.round((totalScore / scoreCount) * 10) / 10 : 0;
+
+    return {
+      total,
+      completed,
+      missed: total - completed,
+      passed,
+      avgTotal,
+      bestTotal: Math.round(bestScore * 10) / 10,
+    };
+  }
+
   /** Pending Glück Exam items (not yet completed) — drives tab notification badges. */
   get gluckExamWeeklyPendingCount(): number {
     return (
@@ -911,57 +980,55 @@ export class MyCourseComponent implements OnInit {
   }
 
   get gluckExamLastItem(): GluckExamLastItemData | null {
-    const examSprechenIds = new Set(this.gluckExamExamSprechen.map(m => m._id));
-
-    let lastSprechen: SprechenSessionSummary | null = null;
-    for (const s of this.gluckExamSummary?.sessions ?? []) {
-      if (examSprechenIds.has(s.moduleId)) {
-        if (!lastSprechen || s.completedAt > lastSprechen.completedAt) {
-          lastSprechen = s;
-        }
-      }
-    }
-
-    let lastExercise: DigitalExercise | null = null;
-    for (const ex of this.gluckExamExamExercises) {
-      if (ex.studentAttempt?.completedAt) {
-        if (!lastExercise || ex.studentAttempt.completedAt > lastExercise.studentAttempt!.completedAt!) {
-          lastExercise = ex;
-        }
-      }
-    }
-
     let bestTime = 0;
+    let fallbackItem: GluckExamLastItemData | null = null;
     let result: GluckExamLastItemData | null = null;
 
-    if (lastSprechen) {
-      const t = new Date(lastSprechen.completedAt).getTime();
-      if (t > bestTime) {
-        bestTime = t;
-        result = {
-          type: 'sprechen',
-          title: lastSprechen.moduleTitle,
-          moduleTitle: lastSprechen.moduleTitle,
-          scores: lastSprechen.scores,
-        };
+    const allSprechenIds = new Set(this.gluckExamSprechenModules.map(m => m._id));
+    for (const s of this.gluckExamSummary?.sessions ?? []) {
+      if (allSprechenIds.has(s.moduleId)) {
+        const t = new Date(s.completedAt).getTime();
+        if (!isNaN(t) && t > bestTime) {
+          bestTime = t;
+          result = {
+            type: 'sprechen',
+            title: s.moduleTitle,
+            moduleTitle: s.moduleTitle,
+            scores: s.scores,
+          };
+        }
       }
     }
-    if (lastExercise) {
-      const t = lastExercise.studentAttempt!.completedAt!.getTime();
-      if (t > bestTime) {
-        result = {
-          type: 'exercise',
-          title: lastExercise.title,
-          scorePercentage: lastExercise.studentAttempt!.scorePercentage ?? 0,
-          passed: this.isAttemptPassing(lastExercise.studentAttempt),
-        };
+
+    for (const ex of this.gluckExamExercises) {
+      if (ex.studentAttempt) {
+        const raw = ex.studentAttempt.completedAt;
+        const t = raw ? new Date(raw as any).getTime() : 0;
+        if (t && !isNaN(t) && t > bestTime) {
+          bestTime = t;
+          result = {
+            type: 'exercise',
+            title: ex.title,
+            scorePercentage: ex.studentAttempt.scorePercentage ?? 0,
+            passed: this.isAttemptPassing(ex.studentAttempt),
+          };
+        } else if (!fallbackItem) {
+          fallbackItem = {
+            type: 'exercise',
+            title: ex.title,
+            scorePercentage: ex.studentAttempt.scorePercentage ?? 0,
+            passed: this.isAttemptPassing(ex.studentAttempt),
+          };
+        }
       }
     }
+
     if (!result) {
-      const doneBuddy = this.gluckExamExamDgModules.find(m => m.studentProgress?.completed);
+      const doneBuddy = this.gluckExamDgModules.find(m => m.studentProgress?.completed);
       if (doneBuddy) result = { type: 'gluck-buddy', title: doneBuddy.title };
     }
-    return result;
+
+    return result || fallbackItem;
   }
 
   openSprechenExamModule(m: SprechenExamModuleSummary): void {
