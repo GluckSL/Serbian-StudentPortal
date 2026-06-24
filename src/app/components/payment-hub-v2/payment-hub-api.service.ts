@@ -625,6 +625,8 @@ export class PaymentHubApiService {
       visibleBatches: string[];
       visibleBatchLevelStatuses?: Record<string, string>;
       manualNextPaymentDates?: Record<string, string>;
+      batchRemarks?: Record<string, string>;
+      manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
       updatedAt?: string | null;
     };
   }> {
@@ -634,6 +636,8 @@ export class PaymentHubApiService {
         visibleBatches: string[];
         visibleBatchLevelStatuses?: Record<string, string>;
         manualNextPaymentDates?: Record<string, string>;
+        batchRemarks?: Record<string, string>;
+        manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
         updatedAt?: string | null;
       };
     }>(
@@ -649,6 +653,47 @@ export class PaymentHubApiService {
       success: boolean;
       data: { batch: string; date: string | null; manualNextPaymentDates?: Record<string, string> };
     }>(`${this.base}/finance-dashboard/batch-commencement-date`, { batch, date });
+  }
+
+  updateFinanceBatchRemark(batch: string, remark: string | null): Observable<{
+    success: boolean;
+    data: { batch: string; remark: string | null; batchRemarks?: Record<string, string> };
+  }> {
+    return this.http.put<{
+      success: boolean;
+      data: { batch: string; remark: string | null; batchRemarks?: Record<string, string> };
+    }>(`${this.base}/finance-dashboard/batch-remark`, { batch, remark });
+  }
+
+  updateFinanceBatchCommencementAmount(
+    batch: string,
+    amounts: { lkr?: number | null; inr?: number | null } | null,
+  ): Observable<{
+    success: boolean;
+    data: {
+      batch: string;
+      amounts: { lkr?: number; inr?: number } | null;
+      manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
+    };
+  }> {
+    if (amounts == null) {
+      return this.http.put<{
+        success: boolean;
+        data: {
+          batch: string;
+          amounts: { lkr?: number; inr?: number } | null;
+          manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
+        };
+      }>(`${this.base}/finance-dashboard/batch-commencement-amount`, { batch, clear: true });
+    }
+    return this.http.put<{
+      success: boolean;
+      data: {
+        batch: string;
+        amounts: { lkr?: number; inr?: number } | null;
+        manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
+      };
+    }>(`${this.base}/finance-dashboard/batch-commencement-amount`, { batch, ...amounts });
   }
 
   updateFinanceVisibleBatches(batches: string[], batchLevelStatuses?: Record<string, string>): Observable<{

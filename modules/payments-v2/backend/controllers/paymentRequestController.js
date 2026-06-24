@@ -1138,8 +1138,9 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
     const students = await User.find({
       role: 'STUDENT',
       batch: batchRegex,
+      studentStatus: 'ONGOING',
     })
-      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates subscription')
+      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates subscription studentStatus')
       .sort({ name: 1 })
       .lean();
 

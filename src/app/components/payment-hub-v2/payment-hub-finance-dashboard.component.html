@@ -142,79 +142,159 @@
         </div>
       </div>
 
-      <section class="ph-batch-table-section ph-finance-table-section" id="ph-finance-table">
-        <div class="ph-batch-table-head">
-          <div class="ph-batch-table-head__text">
-            <h2 class="ph-insights-panel-title">Batch breakdown</h2>
-            <p class="ph-panel-caption">
+      <section class="ph-table-section ph-surface ph-finance-table-section" id="ph-finance-table">
+        <div class="ph-table-toolbar">
+          <div class="ph-table-toolbar-left">
+            <h2 class="ph-section-title">Batch breakdown</h2>
+            <span class="ph-insight-filter-chip" *ngIf="batchInsight">
+              <mat-icon>filter_alt</mat-icon>
+              {{ activeInsightLabel() }}
+              <button type="button" class="ph-insight-filter-clear" (click)="applyInsightFilter(batchInsight)" matTooltip="Clear filter">
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
+            <span class="ph-select-meta">
               {{ displayBatchRows.length }} batches
-              <span *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} on dashboard</span>
-              <span *ngIf="levelStatusFilter"> · {{ activeLevelStatusLabel() }}</span>
-              <span *ngIf="batchInsight"> · {{ activeInsightLabel() }}</span>
-            </p>
+              <ng-container *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} on dashboard</ng-container>
+              <ng-container *ngIf="levelStatusFilter"> · {{ activeLevelStatusLabel() }}</ng-container>
+            </span>
           </div>
-          <div class="ph-finance-table-actions">
-            <!-- Payment scope filter pills -->
-            <div class="ph-scope-filter-bar">
-              <button
-                *ngFor="let btn of scopeButtons"
-                type="button"
-                class="ph-scope-btn"
-                [class.ph-scope-btn--active]="paymentScope === btn.value"
-                (click)="setPaymentScope(btn.value)"
-              >{{ btn.label }}</button>
-              <button
-                type="button"
-                class="ph-scope-btn ph-scope-btn--dropdown"
-                [class.ph-scope-btn--active]="isSlotScope"
-                [matMenuTriggerFor]="slotScopeMenu"
-              >
-                {{ isSlotScope ? slotScopeLabel : 'Level / Type' }}
-                <mat-icon>arrow_drop_down</mat-icon>
-              </button>
-              <mat-menu #slotScopeMenu="matMenu">
-                <button mat-menu-item type="button" *ngFor="let opt of slotScopeOptions" (click)="setPaymentScope(opt.value)">
-                  <mat-icon>{{ paymentScope === opt.value ? 'check' : '' }}</mat-icon>
-                  <span>{{ opt.label }}</span>
-                </button>
-              </mat-menu>
-            </div>
+          <div class="ph-scope-filter-bar">
             <button
-              mat-stroked-button
+              *ngFor="let btn of scopeButtons"
               type="button"
-              class="ph-btn-export"
-              [matMenuTriggerFor]="exportMenu"
-              [disabled]="exporting || !rowsInDashboard.length"
+              class="ph-scope-btn"
+              [class.ph-scope-btn--active]="paymentScope === btn.value"
+              (click)="setPaymentScope(btn.value)"
+            >{{ btn.label }}</button>
+            <button
+              type="button"
+              class="ph-scope-btn ph-scope-btn--dropdown"
+              [class.ph-scope-btn--active]="isSlotScope"
+              [matMenuTriggerFor]="slotScopeMenu"
             >
-              <mat-icon>download</mat-icon>
-              {{ exporting ? 'Exporting…' : 'Export' }}
+              {{ isSlotScope ? slotScopeLabel : 'Level / Type' }}
+              <mat-icon>arrow_drop_down</mat-icon>
             </button>
-            <mat-menu #exportMenu="matMenu">
-              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
-                <mat-icon>grid_on</mat-icon>
-                <span>Excel — dashboard batches ({{ rowsInDashboard.length }})</span>
-              </button>
-              <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
-                <mat-icon>description</mat-icon>
-                <span>CSV — dashboard batches</span>
-              </button>
-              <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
-                <mat-icon>filter_list</mat-icon>
-                <span>Excel — table filter ({{ displayBatchRows.length }})</span>
+            <mat-menu #slotScopeMenu="matMenu">
+              <button mat-menu-item type="button" *ngFor="let opt of slotScopeOptions" (click)="setPaymentScope(opt.value)">
+                <mat-icon>{{ paymentScope === opt.value ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
               </button>
             </mat-menu>
-            <div class="ph-finance-search-wrap">
-              <mat-icon class="ph-finance-search-icon" aria-hidden="true">search</mat-icon>
-              <input
-                class="ph-finance-search-input"
-                type="search"
-                [(ngModel)]="tableSearch"
-                placeholder="Search batch or level…"
-                aria-label="Search batch"
-              />
-            </div>
+          </div>
+          <button
+            mat-stroked-button
+            type="button"
+            class="ph-btn-export"
+            [matMenuTriggerFor]="exportMenu"
+            [disabled]="exporting || !rowsInDashboard.length"
+          >
+            <mat-icon>add</mat-icon>
+            {{ exporting ? 'Exporting…' : 'Export' }}
+          </button>
+          <mat-menu #exportMenu="matMenu">
+            <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
+              <mat-icon>grid_on</mat-icon>
+              <span>Excel — dashboard batches ({{ rowsInDashboard.length }})</span>
+            </button>
+            <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
+              <mat-icon>description</mat-icon>
+              <span>CSV — dashboard batches</span>
+            </button>
+            <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
+              <mat-icon>filter_list</mat-icon>
+              <span>Excel — table filter ({{ displayBatchRows.length }})</span>
+            </button>
+          </mat-menu>
+          <div class="ph-batch-stu-search-wrap">
+            <mat-icon class="ph-batch-stu-search-icon" aria-hidden="true">search</mat-icon>
+            <input
+              class="ph-batch-stu-search-input"
+              type="search"
+              [(ngModel)]="tableSearch"
+              placeholder="Search batch or level…"
+              aria-label="Search batch"
+            />
           </div>
         </div>
+
+        <ng-template #commenceAmountBlock let-r="r" let-info="info">
+          <div
+            class="ph-commence-card__amount"
+            [class.ph-commence-card__amount--manual]="info.isManualAmount"
+            *ngIf="info.nextLevel"
+          >
+            <div class="ph-commence-amount-view" *ngIf="editingCommencementAmountBatch !== r.batch">
+              <div class="ph-commence-amount-view__values">
+                <div class="ph-commence-amount-compact">
+                  <span
+                    class="ph-commence-amount-compact__line"
+                    *ngFor="let label of commencementAmountLabels(info)"
+                  >{{ label }}</span>
+                  <span
+                    class="ph-commence-amount-compact__zero"
+                    *ngIf="!commencementAmountLabels(info).length"
+                  >0</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="ph-commence-icon-btn ph-commence-amount-edit-btn"
+                (click)="startEditCommencementAmount(r.batch, info)"
+                [matTooltip]="info.isManualAmount ? 'Edit manual amount' : 'Edit auto-calculated amount'"
+                aria-label="Edit projected amount"
+              ><mat-icon>edit</mat-icon></button>
+            </div>
+            <div class="ph-commence-amount-editor" *ngIf="editingCommencementAmountBatch === r.batch">
+              <label class="ph-commence-amount-field">
+                <span>LKR</span>
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  [(ngModel)]="editingCommencementAmountLkr"
+                  placeholder="0"
+                  (keydown.enter)="saveCommencementAmount(r.batch)"
+                  (keydown.escape)="cancelEditCommencementAmount()"
+                />
+              </label>
+              <label class="ph-commence-amount-field">
+                <span>INR</span>
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  [(ngModel)]="editingCommencementAmountInr"
+                  placeholder="0"
+                  (keydown.enter)="saveCommencementAmount(r.batch)"
+                  (keydown.escape)="cancelEditCommencementAmount()"
+                />
+              </label>
+              <div class="ph-commence-amount-editor__actions">
+                <button
+                  type="button"
+                  class="ph-commence-icon-btn ph-commence-icon-btn--confirm"
+                  (click)="saveCommencementAmount(r.batch)"
+                  [disabled]="savingCommencementAmountBatch === r.batch"
+                  matTooltip="Save amount"
+                ><mat-icon>check</mat-icon></button>
+                <button
+                  type="button"
+                  class="ph-commence-icon-btn"
+                  (click)="cancelEditCommencementAmount()"
+                  matTooltip="Cancel"
+                ><mat-icon>close</mat-icon></button>
+                <button
+                  type="button"
+                  class="ph-commence-icon-btn ph-commence-icon-btn--danger"
+                  *ngIf="hasManualCommencementAmount(r.batch)"
+                  (click)="clearCommencementAmount(r.batch)"
+                  matTooltip="Reset to auto-calculated"
+                ><mat-icon>replay</mat-icon></button>
+              </div>
+            </div>
+            <span class="ph-commence-amount-tag" *ngIf="info.isManualAmount && editingCommencementAmountBatch !== r.batch">Manual</span>
+          </div>
+        </ng-template>
 
         <div class="ph-batch-table-scroll" *ngIf="displayBatchRows.length; else emptyTable">
           <table class="ph-finance-table">
@@ -322,12 +402,34 @@
 
                 <!-- ── Commencement / Next Payment Date ───────────────────── -->
                 <td class="ph-col-commence">
+                  <div class="ph-commence-editor" *ngIf="editingPaymentDateBatch === r.batch">
+                    <input
+                      type="date"
+                      class="ph-commence-date-input"
+                      [(ngModel)]="editingPaymentDateValue"
+                      (keydown.enter)="saveManualPaymentDate(r.batch)"
+                      (keydown.escape)="cancelEditPaymentDate()"
+                    />
+                    <button
+                      type="button"
+                      class="ph-commence-icon-btn ph-commence-icon-btn--confirm"
+                      (click)="saveManualPaymentDate(r.batch)"
+                      [disabled]="!editingPaymentDateValue"
+                      matTooltip="Save date"
+                    ><mat-icon>check</mat-icon></button>
+                    <button
+                      type="button"
+                      class="ph-commence-icon-btn"
+                      (click)="cancelEditPaymentDate()"
+                      matTooltip="Cancel"
+                    ><mat-icon>close</mat-icon></button>
+                  </div>
 
-                  <!-- NEW batch -->
-                  <ng-container *ngIf="r.batchType === 'new'">
-                    <ng-container *ngIf="getNextPaymentInfo(r) as info; else noCommenceNew">
+                  <ng-container *ngIf="editingPaymentDateBatch !== r.batch">
+                    <ng-container *ngIf="getNextPaymentInfo(r) as info; else noCommenceDate">
                       <div
                         class="ph-commence-card"
+                        [class.ph-commence-card--manual]="info.isManualDate"
                         [class.ph-commence-card--near]="info.isNear"
                         [class.ph-commence-card--past]="info.isPast"
                         [matTooltip]="info.tooltip"
@@ -335,123 +437,57 @@
                         <div class="ph-commence-card__date-row">
                           <mat-icon class="ph-commence-card__icon" aria-hidden="true">event</mat-icon>
                           <span class="ph-commence-card__date">{{ info.dateStr }}</span>
+                          <div class="ph-commence-card__actions">
+                            <button
+                              type="button"
+                              class="ph-commence-icon-btn"
+                              (click)="startEditPaymentDate(r.batch, r)"
+                              matTooltip="Edit date"
+                              aria-label="Edit payment date"
+                            ><mat-icon>edit</mat-icon></button>
+                            <button
+                              type="button"
+                              class="ph-commence-icon-btn ph-commence-icon-btn--danger"
+                              *ngIf="hasManualCommencementDate(r.batch)"
+                              (click)="clearManualPaymentDate(r.batch)"
+                              [matTooltip]="r.batchType === 'new' ? 'Reset to auto-calculated date' : 'Remove date'"
+                              aria-label="Remove manual payment date"
+                            ><mat-icon>close</mat-icon></button>
+                          </div>
                         </div>
                         <div class="ph-commence-card__next-level" *ngIf="info.nextLevel">
                           <mat-icon class="ph-commence-card__next-level-icon" aria-hidden="true">arrow_forward</mat-icon>
                           <span class="ph-commence-card__next-level-label">{{ info.nextLevel }}</span>
                         </div>
-                        <div class="ph-commence-card__amount" *ngIf="info.amountLKR > 0 || info.amountINR > 0 || info.amountUSD > 0">
-                          <app-payment-currency-totals
-                            [lkr]="info.amountLKR"
-                            [inr]="info.amountINR"
-                            [usd]="info.amountUSD"
-                            [compact]="true"
-                            [hideZero]="true"
-                          ></app-payment-currency-totals>
-                        </div>
+                        <ng-container *ngTemplateOutlet="commenceAmountBlock; context: { r: r, info: info }"></ng-container>
                       </div>
                     </ng-container>
-                    <ng-template #noCommenceNew><span class="ph-ccy-empty">—</span></ng-template>
-                  </ng-container>
 
-                  <!-- OLD batch -->
-                  <ng-container *ngIf="r.batchType === 'old'">
-                    <div class="ph-commence-editor" *ngIf="editingPaymentDateBatch === r.batch">
-                      <input
-                        type="date"
-                        class="ph-commence-date-input"
-                        [(ngModel)]="editingPaymentDateValue"
-                        (keydown.enter)="saveManualPaymentDate(r.batch)"
-                        (keydown.escape)="cancelEditPaymentDate()"
-                      />
+                    <ng-template #noCommenceDate>
                       <button
                         type="button"
-                        class="ph-commence-icon-btn ph-commence-icon-btn--confirm"
-                        (click)="saveManualPaymentDate(r.batch)"
-                        [disabled]="!editingPaymentDateValue"
-                        matTooltip="Save date"
-                      ><mat-icon>check</mat-icon></button>
-                      <button
-                        type="button"
-                        class="ph-commence-icon-btn"
-                        (click)="cancelEditPaymentDate()"
-                        matTooltip="Cancel"
-                      ><mat-icon>close</mat-icon></button>
-                    </div>
-
-                    <ng-container *ngIf="editingPaymentDateBatch !== r.batch">
-                      <ng-container *ngIf="getNextPaymentInfo(r) as info; else noOldDate">
-                        <div
-                          class="ph-commence-card ph-commence-card--manual"
-                          [class.ph-commence-card--near]="info.isNear"
-                          [class.ph-commence-card--past]="info.isPast"
-                          [matTooltip]="info.tooltip"
-                        >
-                          <div class="ph-commence-card__date-row">
-                            <mat-icon class="ph-commence-card__icon" aria-hidden="true">event</mat-icon>
-                            <span class="ph-commence-card__date">{{ info.dateStr }}</span>
-                            <div class="ph-commence-card__actions">
-                              <button
-                                type="button"
-                                class="ph-commence-icon-btn"
-                                (click)="startEditPaymentDate(r.batch)"
-                                matTooltip="Edit date"
-                                aria-label="Edit payment date"
-                              ><mat-icon>edit</mat-icon></button>
-                              <button
-                                type="button"
-                                class="ph-commence-icon-btn ph-commence-icon-btn--danger"
-                                (click)="clearManualPaymentDate(r.batch)"
-                                matTooltip="Remove date"
-                                aria-label="Remove payment date"
-                              ><mat-icon>close</mat-icon></button>
-                            </div>
-                          </div>
-                          <div class="ph-commence-card__next-level" *ngIf="info.nextLevel">
-                            <mat-icon class="ph-commence-card__next-level-icon" aria-hidden="true">arrow_forward</mat-icon>
-                            <span class="ph-commence-card__next-level-label">{{ info.nextLevel }}</span>
-                          </div>
-                          <div class="ph-commence-card__amount" *ngIf="info.amountLKR > 0 || info.amountINR > 0 || info.amountUSD > 0">
-                            <app-payment-currency-totals
-                              [lkr]="info.amountLKR"
-                              [inr]="info.amountINR"
-                              [usd]="info.amountUSD"
-                              [compact]="true"
-                              [hideZero]="true"
-                            ></app-payment-currency-totals>
-                          </div>
-                        </div>
-                      </ng-container>
-
-                      <ng-template #noOldDate>
-                        <button
-                          type="button"
-                          class="ph-commence-add-btn"
-                          (click)="startEditPaymentDate(r.batch)"
-                          matTooltip="Set next payment date manually"
-                        >
-                          <mat-icon>event_available</mat-icon>
-                          Set date
-                        </button>
-                      </ng-template>
-                    </ng-container>
+                        class="ph-commence-add-btn"
+                        (click)="startEditPaymentDate(r.batch, r)"
+                        matTooltip="Set next payment date manually"
+                      >
+                        <mat-icon>event_available</mat-icon>
+                        Set date
+                      </button>
+                    </ng-template>
                   </ng-container>
                 </td>
 
                 <!-- ── Previous Levels Pending ───────────────────────────── -->
                 <td class="ph-num ph-money-cell ph-col-money">
                   <ng-container *ngIf="rowPrevLevelsPending(r) as prev">
-                    <ng-container *ngIf="prev.lkr + prev.inr + prev.usd > 0; else noPrevPending">
-                      <app-payment-currency-pending-totals
-                        [lkr]="prev.lkr"
-                        [inr]="prev.inr"
-                        [usd]="prev.usd"
-                        [compact]="true"
-                        [hideZero]="true"
-                        [matTooltip]="'Pending balance from levels before ' + (r.level || 'current')"
-                      ></app-payment-currency-pending-totals>
-                    </ng-container>
-                    <ng-template #noPrevPending><span class="ph-ccy-empty">—</span></ng-template>
+                    <app-payment-currency-pending-totals
+                      [lkr]="prev.lkr"
+                      [inr]="prev.inr"
+                      [usd]="prev.usd"
+                      [compact]="true"
+                      [hideZero]="true"
+                      [matTooltip]="prev.lkr + prev.inr + prev.usd > 0 ? ('Pending balance from levels before ' + (r.level || 'current')) : ''"
+                    ></app-payment-currency-pending-totals>
                   </ng-container>
                 </td>
 
@@ -462,29 +498,91 @@
                   >{{ journeyDayRatio(r) }}</span>
                 </td>
                 <td class="ph-col-actions">
-                  <button
-                    mat-stroked-button
-                    color="primary"
-                    type="button"
-                    class="ph-details-btn"
-                    (click)="openBatchStudents(r.batch)"
-                    matTooltip="Open all students in new tab"
-                  >
-                    <mat-icon>open_in_new</mat-icon>
-                    Details
-                  </button>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    class="ph-remove-batch-btn"
-                    color="warn"
-                    (click)="removeVisibleBatch(r.batch)"
-                    [disabled]="savingVisibleBatches"
-                    matTooltip="Remove from dashboard"
-                    aria-label="Remove batch from dashboard"
-                  >
-                    <mat-icon>remove_circle_outline</mat-icon>
-                  </button>
+                  <div class="ph-actions-cell">
+                    <div class="ph-actions-row">
+                      <button
+                        mat-stroked-button
+                        color="primary"
+                        type="button"
+                        class="ph-details-btn ph-action-chip-btn"
+                        (click)="openBatchStudents(r.batch)"
+                        matTooltip="Open all students in new tab"
+                      >
+                        <mat-icon>open_in_new</mat-icon>
+                        Details
+                      </button>
+
+                      <button
+                        *ngIf="remarkEditingBatch !== r.batch && !hasBatchRemark(r.batch)"
+                        mat-stroked-button
+                        type="button"
+                        class="ph-remark-add-btn ph-action-chip-btn"
+                        (click)="startEditBatchRemark(r.batch)"
+                        matTooltip="Add a remark for this batch"
+                      >
+                        <mat-icon>edit_note</mat-icon>
+                        Add remarks
+                      </button>
+
+                      <button
+                        *ngIf="remarkEditingBatch !== r.batch && hasBatchRemark(r.batch)"
+                        type="button"
+                        class="ph-remark-display"
+                        (click)="startEditBatchRemark(r.batch)"
+                        [matTooltip]="getBatchRemarkDisplay(r.batch)"
+                        [attr.aria-label]="'Edit remark for batch ' + r.batch"
+                      >
+                        {{ getBatchRemarkDisplay(r.batch) }}
+                      </button>
+
+                      <button
+                        mat-icon-button
+                        type="button"
+                        class="ph-remove-batch-btn"
+                        color="warn"
+                        (click)="removeVisibleBatch(r.batch)"
+                        [disabled]="savingVisibleBatches"
+                        matTooltip="Remove from dashboard"
+                        aria-label="Remove batch from dashboard"
+                      >
+                        <mat-icon>remove_circle_outline</mat-icon>
+                      </button>
+                    </div>
+
+                    <div class="ph-remark-edit-panel" *ngIf="remarkEditingBatch === r.batch">
+                      <textarea
+                        class="ph-batch-remark-input"
+                        [value]="getBatchRemarkDraft(r.batch)"
+                        (input)="onBatchRemarkInput(r.batch, $any($event.target).value)"
+                        placeholder="Type remark…"
+                        rows="2"
+                        maxlength="500"
+                        [disabled]="savingRemarkBatch === r.batch"
+                        [attr.aria-label]="'Remark for batch ' + r.batch"
+                      ></textarea>
+                      <div class="ph-remark-edit-actions">
+                        <button
+                          mat-stroked-button
+                          color="primary"
+                          type="button"
+                          class="ph-remark-save-btn ph-action-chip-btn"
+                          (click)="saveBatchRemark(r.batch)"
+                          [disabled]="savingRemarkBatch === r.batch"
+                        >
+                          Save
+                        </button>
+                        <button
+                          mat-button
+                          type="button"
+                          class="ph-action-chip-btn ph-action-chip-btn--text"
+                          (click)="cancelEditBatchRemark(r.batch)"
+                          [disabled]="savingRemarkBatch === r.batch"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </td>
               </tr>
             </tbody>

@@ -40,6 +40,8 @@ const {
 } = require('../utils/batchType');
 const {
   computeBatchDay,
+  computeBatchDayFromCalendar,
+  isNewBatchPaused,
   applyJourneyPauseToggle,
   clearJourneyPauseFields,
   journeyPauseFieldsForApi
@@ -49,7 +51,9 @@ const {
   clampStandardJourneyDay,
   clampJourneyDayForBatch,
   journeyDayRangeStart,
-  isValidJourneyDay
+  isValidJourneyDay,
+  utcMidnightMs,
+  MS_PER_DAY
 } = require('../utils/journeyDay');
 
 function clampDay(d, max = 200, trialDayEnabled = false) {
@@ -882,7 +886,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
 });
 
 // ─── POST /api/batch-journey/:batchName/set-day ──────────────────────────────
-// Manually force batchCurrentDay (only when no startDate) + push to all students
+// Push all students to a journey day and align batch config (manual or auto schedule).
 router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const { batchName } = req.params;
@@ -895,10 +899,23 @@ router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       return res.status(400).json({ message: `day (${targetDay}) exceeds journeyLength (${cfg.journeyLength})` });
     }
 
-    if (!cfg.batchStartDate) {
+    if (cfg.batchStartDate) {
+      const calendarDay = computeBatchDayFromCalendar(cfg);
+      const dayShift = calendarDay - targetDay;
+      if (dayShift !== 0) {
+        const startUTC = utcMidnightMs(new Date(cfg.batchStartDate));
+        cfg.batchStartDate = new Date(startUTC + dayShift * MS_PER_DAY);
+      }
       cfg.batchCurrentDay = targetDay;
-      await cfg.save();
+    } else {
+      cfg.batchCurrentDay = targetDay;
     }
+
+    if (isNewBatchPaused(cfg)) {
+      cfg.journeyPausedFrozenDay = targetDay;
+    }
+
+    await cfg.save();
 
     const result = await User.updateMany(
       { role: 'STUDENT', batch: batchName },
@@ -915,10 +932,17 @@ router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       }
     );
 
+    const activeBatchDay = computeBatchDay(cfg);
     res.json({
-      message: `Batch "${batchName}" advanced to day ${targetDay}`,
-      batchCurrentDay: targetDay,
-      studentsUpdated: result.modifiedCount
+      message: `Batch "${batchName}" set to day ${targetDay}`,
+      batchCurrentDay: activeBatchDay,
+      studentsUpdated: result.modifiedCount,
+      config: {
+        batchStartDate: cfg.batchStartDate,
+        batchCurrentDay: activeBatchDay,
+        journeyPausedFrozenDay: cfg.journeyPausedFrozenDay,
+        ...journeyPauseFieldsForApi(cfg)
+      }
     });
   } catch (err) {
     console.error('batch-journey POST /:batch/set-day', err);
