@@ -245,6 +245,19 @@ export class PerformanceHistoryComponent implements OnInit {
     return this.data?.student?.currentCourseDay || 0;
   }
 
+  get journeyProgressPct(): number {
+    const total = this.data?.student?.journeyLength || 200;
+    if (total <= 0) return 0;
+    return Math.round((this.currentDay / total) * 100);
+  }
+
+  get learningProgressPct(): number {
+    const exercises = this.data?.exercises;
+    if (!exercises || exercises.length === 0) return 0;
+    const total = exercises.reduce((sum, e) => sum + (e.scorePercent || 0), 0);
+    return Math.round(total / exercises.length);
+  }
+
   get currentTableEmpty(): boolean {
     if (!this.data) return true;
     if (this.activeTable === 'classes') return !this.endedClasses.length;

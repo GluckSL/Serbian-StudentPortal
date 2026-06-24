@@ -197,6 +197,22 @@
   }
 }
 
+.journey-progress {
+  background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 60%, #40916c 100%) !important;
+
+  .progress-fill {
+    background: linear-gradient(90deg, #52b788, #95d5b2) !important;
+  }
+}
+
+.learning-progress {
+  background: linear-gradient(135deg, #4a1942 0%, #7b2d8e 60%, #9d4edd 100%) !important;
+
+  .progress-fill {
+    background: linear-gradient(90deg, #c77dff, #e0aaff) !important;
+  }
+}
+
 /* ── Summary Cards ── */
 .cards-grid {
   display: grid;
