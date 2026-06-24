@@ -928,8 +928,7 @@
                 <div class="mc-exam-score__ring"
                   [class.mc-exam-score__ring--pass]="last.passed"
                   [class.mc-exam-score__ring--fail]="!last.passed">
-                  <span class="mc-exam-score__total">{{ last.scorePercentage }}</span>
-                  <span class="mc-exam-score__max">%</span>
+                  <span class="mc-exam-score__total">{{ last.scorePercentage }}%</span>
                 </div>
                 <div class="mc-exam-score__info">
                   <span class="mc-exam-score__pass"
@@ -962,7 +961,7 @@
       <!-- Overall analytics card -->
       <div class="mc-side-card mc-side-card--exam-ov">
         <p class="mc-side-card__eyebrow">Overall</p>
-        <ng-container *ngIf="gluckExamSummary?.aggregate as agg; else noExams">
+        <ng-container *ngIf="gluckExamOverallAggregate as agg; else noExams">
           <div class="mc-exam-ov">
             <div class="mc-exam-ov__stat">
               <span class="mc-exam-ov__label">Given</span>
