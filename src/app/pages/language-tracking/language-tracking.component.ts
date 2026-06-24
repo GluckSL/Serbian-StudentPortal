@@ -429,6 +429,11 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.dispatchReminders([student.studentId], student.name);
   }
 
+  sendWeekReminderForStudent(student: LtStudentRow, event: Event): void {
+    event.stopPropagation();
+    this.dispatchWeekReminders([student.studentId], student.name);
+  }
+
   sendBulkReminders(): void {
     if (!this.selectedCount) return;
     this.dispatchReminders([...this.selectedStudentIds]);
@@ -479,7 +484,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.api.sendReminders(studentIds).subscribe({
       next: (res: LtSendRemindersResponse) => {
         this.sendingReminders = false;
-        this.showReminderSummary(res, singleName);
+        this.showReminderSummary(res, singleName, 'day');
         if (res.sent > 0) {
           for (const r of res.results) {
             if (r.ok) this.selectedStudentIds.delete(r.studentId);
@@ -495,16 +500,48 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     });
   }
 
-  private showReminderSummary(res: LtSendRemindersResponse, singleName?: string): void {
+  private dispatchWeekReminders(studentIds: string[], singleName?: string): void {
+    if (this.sendingReminders || !studentIds.length) return;
+    this.sendingReminders = true;
+    this.api.sendWeekReminders(studentIds).subscribe({
+      next: (res: LtSendRemindersResponse) => {
+        this.sendingReminders = false;
+        this.showReminderSummary(res, singleName, 'week');
+        if (res.sent > 0) {
+          for (const r of res.results) {
+            if (r.ok) this.selectedStudentIds.delete(r.studentId);
+          }
+        }
+      },
+      error: () => {
+        this.sendingReminders = false;
+        this.snackBar.open('Failed to send weekly reminder emails. Please try again.', 'Dismiss', {
+          duration: 5000,
+        });
+      },
+    });
+  }
+
+  private showReminderSummary(
+    res: LtSendRemindersResponse,
+    singleName?: string,
+    scope: 'day' | 'week' = 'day',
+  ): void {
     if (singleName) {
       const one = res.results[0];
       if (res.sent) {
-        this.snackBar.open(`Reminder sent to ${singleName}`, 'OK', { duration: 5000 });
+        const detail =
+          scope === 'week'
+            ? `Week ${one?.week ?? ''} (${one?.incompleteCount ?? 0} tasks)`
+            : `Day ${one?.day ?? ''}`;
+        this.snackBar.open(`Reminder sent to ${singleName} — ${detail}`, 'OK', { duration: 5000 });
         return;
       }
       const why =
         one?.reason === 'all_complete'
-          ? 'day already complete'
+          ? scope === 'week'
+            ? 'week already complete'
+            : 'day already complete'
           : one?.reason === 'no_email'
             ? 'no email on file'
             : 'could not send';

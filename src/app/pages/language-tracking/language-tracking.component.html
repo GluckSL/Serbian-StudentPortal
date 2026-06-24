@@ -359,8 +359,16 @@
                   class="lt-remind-btn"
                   (click)="sendReminderForStudent(s, $event)"
                   [disabled]="sendingReminders"
-                  matTooltip="Send reminder email for incomplete day tasks">
+                  matTooltip="Send reminder for incomplete day tasks">
                   <mat-icon>mail</mat-icon>
+                </button>
+                <button
+                  mat-icon-button
+                  class="lt-remind-btn lt-remind-btn--week"
+                  (click)="sendWeekReminderForStudent(s, $event)"
+                  [disabled]="sendingReminders"
+                  matTooltip="Send reminder for incomplete week tasks">
+                  <mat-icon>calendar_view_week</mat-icon>
                 </button>
                 <button mat-icon-button class="lt-detail-btn" (click)="openStudentDetail(s, $event)"
                   matTooltip="View details & journey weeks (new tab)">

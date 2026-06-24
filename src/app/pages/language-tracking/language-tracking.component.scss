@@ -893,6 +893,12 @@
   transition: color 0.13s !important;
 
   &:hover:not([disabled]) { color: #6d28d9 !important; }
+
+  &--week {
+    color: #f59e0b !important;
+
+    &:hover:not([disabled]) { color: #d97706 !important; }
+  }
 }
 
 .lt-detail-btn {
