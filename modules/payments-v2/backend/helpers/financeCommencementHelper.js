@@ -53,30 +53,60 @@ function currentJourneyDayForBatchRow(batchRow) {
   return null;
 }
 
-function projectedNextLevelAmount(batchRow, catalog, nextLevel) {
+function slotExpectedTotals(slot) {
+  if (!slot) return { lkr: 0, inr: 0 };
+  const lkr = slot.expectedLKR || 0;
+  const inr = slot.expectedINR || 0;
+  return {
+    lkr: lkr > 0 ? lkr : (slot.receivedLKR || 0) + (slot.pendingLKR || 0) + (slot.overdueLKR || 0),
+    inr: inr > 0 ? inr : (slot.receivedINR || 0) + (slot.pendingINR || 0) + (slot.overdueINR || 0),
+  };
+}
+
+function projectedNextLevelAmount(batchRow, catalog, nextLevel, currentLevel) {
   const students = batchRow.studentCount || 0;
   if (!nextLevel || students <= 0) {
     return { lkr: 0, inr: 0 };
   }
 
   const levelPriceMap = buildLevelPriceMap(catalog);
-  const fee = levelPriceMap.get(String(nextLevel).toUpperCase()) || { LKR: 0, INR: 0 };
-  const scoped = currentLevelTotalsForBatchRow(batchRow);
-  const hasLkr = (scoped.expectedLKR || 0) + (scoped.receivedLKR || 0) + (scoped.pendingLKR || 0) > 0;
-  const hasInr = (scoped.expectedINR || 0) + (scoped.receivedINR || 0) + (scoped.pendingINR || 0) > 0;
+  const nextFee = levelPriceMap.get(String(nextLevel).toUpperCase()) || { LKR: 0, INR: 0 };
+  const currentLevelKey = String(currentLevel || dominantLevelFromCounts(batchRow.levelCounts) || 'A1')
+    .trim()
+    .toUpperCase();
+  const currentFee = levelPriceMap.get(currentLevelKey) || { LKR: 0, INR: 0 };
+  const currentSlot = batchRow.levelSlots && batchRow.levelSlots[currentLevelKey];
+  const { lkr: currentExpectedLkr, inr: currentExpectedInr } = slotExpectedTotals(currentSlot);
 
-  return {
-    lkr: hasLkr ? (fee.LKR || 0) * students : 0,
-    inr: hasInr ? (fee.INR || 0) * students : 0,
-  };
+  let lkrStudents = 0;
+  let inrStudents = 0;
+  if (currentFee.LKR > 0 && currentExpectedLkr > 0) {
+    lkrStudents = Math.round(currentExpectedLkr / currentFee.LKR);
+  }
+  if (currentFee.INR > 0 && currentExpectedInr > 0) {
+    inrStudents = Math.round(currentExpectedInr / currentFee.INR);
+  }
+
+  let lkr = lkrStudents > 0 ? (nextFee.LKR || 0) * lkrStudents : 0;
+  let inr = inrStudents > 0 ? (nextFee.INR || 0) * inrStudents : 0;
+  if (lkr === 0 && inr === 0 && students > 0) {
+    if (currentExpectedLkr > 0 && nextFee.LKR > 0) {
+      lkr = nextFee.LKR * students;
+    } else if (currentExpectedInr > 0 && nextFee.INR > 0) {
+      inr = nextFee.INR * students;
+    }
+  }
+
+  return { lkr, inr };
 }
 
 /**
  * @param {object} batchRow — row from aggregateBatchPaymentInsights
  * @param {object} catalog — PaymentHub catalog document
  * @param {string|null|undefined} manualDateIso — YYYY-MM-DD for old batches
+ * @param {{ lkr?: number, inr?: number }|null|undefined} manualAmounts — admin override for projected collection
  */
-function computeCommencementForBatch(batchRow, catalog, manualDateIso) {
+function computeCommencementForBatch(batchRow, catalog, manualDateIso, manualAmounts) {
   const batchType = batchRow.batchType === 'old' ? 'old' : 'new';
   const dominantLevel = dominantLevelFromCounts(batchRow.levelCounts);
   const levelEndDay = totalJourneyDaysForLevel(dominantLevel);
@@ -85,17 +115,10 @@ function computeCommencementForBatch(batchRow, catalog, manualDateIso) {
 
   let commenceDate = null;
   let daysUntil = null;
+  const manualIso = String(manualDateIso || '').trim();
 
-  if (batchType === 'new') {
-    if (currentDay == null || !Number.isFinite(levelEndDay)) return null;
-    daysUntil = levelEndDay - currentDay;
-    commenceDate = new Date();
-    commenceDate.setHours(0, 0, 0, 0);
-    commenceDate.setDate(commenceDate.getDate() + daysUntil);
-  } else {
-    const iso = String(manualDateIso || '').trim();
-    if (!iso) return null;
-    commenceDate = new Date(iso);
+  if (manualIso) {
+    commenceDate = new Date(manualIso);
     if (Number.isNaN(commenceDate.getTime())) return null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -106,9 +129,21 @@ function computeCommencementForBatch(batchRow, catalog, manualDateIso) {
     );
     const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
     daysUntil = Math.floor((dUtc - todayUtc) / 86400000);
+  } else if (batchType === 'new') {
+    if (currentDay == null || !Number.isFinite(levelEndDay)) return null;
+    daysUntil = levelEndDay - currentDay;
+    commenceDate = new Date();
+    commenceDate.setHours(0, 0, 0, 0);
+    commenceDate.setDate(commenceDate.getDate() + daysUntil);
+  } else {
+    return null;
   }
 
-  const projected = projectedNextLevelAmount(batchRow, catalog, nextLevel);
+  const projected = projectedNextLevelAmount(batchRow, catalog, nextLevel, dominantLevel);
+  const hasManualLkr = manualAmounts?.lkr != null && Number.isFinite(Number(manualAmounts.lkr));
+  const hasManualInr = manualAmounts?.inr != null && Number.isFinite(Number(manualAmounts.inr));
+  const amountLKR = hasManualLkr ? Math.round(Number(manualAmounts.lkr)) : projected.lkr;
+  const amountINR = hasManualInr ? Math.round(Number(manualAmounts.inr)) : projected.inr;
   const isPast = daysUntil != null && daysUntil < 0;
   const isNear = daysUntil != null && !isPast && daysUntil < 5;
 
@@ -123,8 +158,9 @@ function computeCommencementForBatch(batchRow, catalog, manualDateIso) {
     isPast,
     isNear,
     nextLevel,
-    amountLKR: projected.lkr,
-    amountINR: projected.inr,
+    amountLKR,
+    amountINR,
+    isManualAmount: hasManualLkr || hasManualInr,
     batchType,
     currentLevel: dominantLevel,
   };

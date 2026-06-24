@@ -17,6 +17,8 @@ const getVisibleBatches = async (req, res) => {
         visibleBatches: settings.visibleBatches || [],
         visibleBatchLevelStatuses: toPlainObject(settings.visibleBatchLevelStatuses),
         manualNextPaymentDates: toPlainObject(settings.manualNextPaymentDates),
+        batchRemarks: toPlainObject(settings.batchRemarks),
+        manualCommencementAmounts: toPlainObject(settings.manualCommencementAmounts),
         updatedAt: settings.updatedAt || null,
       },
     });
@@ -39,6 +41,8 @@ const updateVisibleBatches = async (req, res) => {
         visibleBatches: settings.visibleBatches || [],
         visibleBatchLevelStatuses: toPlainObject(settings.visibleBatchLevelStatuses),
         manualNextPaymentDates: toPlainObject(settings.manualNextPaymentDates),
+        batchRemarks: toPlainObject(settings.batchRemarks),
+        manualCommencementAmounts: toPlainObject(settings.manualCommencementAmounts),
         updatedAt: settings.updatedAt || null,
       },
     });
@@ -74,6 +78,63 @@ const updateBatchCommencementDate = async (req, res) => {
   }
 };
 
+const updateBatchRemark = async (req, res) => {
+  try {
+    const batch = String(req.body?.batch || '').trim();
+    if (!batch) {
+      return res.status(400).json({ success: false, message: 'batch is required.' });
+    }
+    const remark = req.body?.remark;
+    const text = remark == null || remark === '' ? null : String(remark).trim();
+    if (text && text.length > 500) {
+      return res.status(400).json({ success: false, message: 'remark must be 500 characters or fewer.' });
+    }
+    const adminId = getAuthUserId(req);
+    const settings = await FinanceDashboardSettings.setBatchRemark(batch, text, adminId);
+    res.json({
+      success: true,
+      data: {
+        batch,
+        remark: text,
+        batchRemarks: toPlainObject(settings.batchRemarks),
+        updatedAt: settings.updatedAt || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+const updateBatchCommencementAmount = async (req, res) => {
+  try {
+    const batch = String(req.body?.batch || '').trim();
+    if (!batch) {
+      return res.status(400).json({ success: false, message: 'batch is required.' });
+    }
+    const clear = req.body?.clear === true;
+    const amounts = clear
+      ? null
+      : {
+          lkr: req.body?.lkr,
+          inr: req.body?.inr,
+        };
+    const adminId = getAuthUserId(req);
+    const settings = await FinanceDashboardSettings.setManualCommencementAmount(batch, amounts, adminId);
+    const saved = toPlainObject(settings.manualCommencementAmounts)[batch] || null;
+    res.json({
+      success: true,
+      data: {
+        batch,
+        amounts: saved,
+        manualCommencementAmounts: toPlainObject(settings.manualCommencementAmounts),
+        updatedAt: settings.updatedAt || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 const triggerReport = async (req, res) => {
   try {
     const type = String(req.params.type || '').toLowerCase();
@@ -98,5 +159,7 @@ module.exports = {
   getVisibleBatches,
   updateVisibleBatches,
   updateBatchCommencementDate,
+  updateBatchRemark,
+  updateBatchCommencementAmount,
   triggerReport,
 };

@@ -20,7 +20,7 @@ import {
 } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
-import { fmtPaymentAmount } from './payment-currency.util';
+import { fmtPaymentAmount, fmtPaymentAmountCompact } from './payment-currency.util';
 import { PaymentCurrencyOverdueTotalsComponent } from './payment-currency-overdue-totals.component';
 import { levelForJourneyDay, totalJourneyDaysForLevel } from './payment-journey-metrics.util';
 import { BatchPaymentRow } from './payment-hub-batch-insights.component';
@@ -172,6 +172,16 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   manualNextPaymentDates = new Map<string, string>();
   editingPaymentDateBatch: string | null = null;
   editingPaymentDateValue = '';
+  /** Admin remarks per batch — shared across finance admins. */
+  batchRemarks: Record<string, string> = {};
+  private batchRemarkDrafts: Record<string, string> = {};
+  savingRemarkBatch: string | null = null;
+  remarkEditingBatch: string | null = null;
+  manualCommencementAmounts: Record<string, { lkr?: number; inr?: number }> = {};
+  editingCommencementAmountBatch: string | null = null;
+  editingCommencementAmountLkr = '';
+  editingCommencementAmountInr = '';
+  savingCommencementAmountBatch: string | null = null;
   /** Catalog per-level fees (LKR/INR) for projected next-level collection. */
   private catalogFeesByLevel = new Map<string, { lkr: number; inr: number }>();
 
@@ -206,6 +216,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
         this.visibleBatches = [...(res.data?.visibleBatches || [])];
         this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || {}) };
         this.applyManualPaymentDatesFromServer(res.data?.manualNextPaymentDates || {});
+        this.applyBatchRemarksFromServer(res.data?.batchRemarks || {});
+        this.manualCommencementAmounts = { ...(res.data?.manualCommencementAmounts || {}) };
         this.fetchBatchSummary();
       },
       error: () => {
@@ -784,6 +796,18 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     return fmtPaymentAmount(n);
   }
 
+  fmtCompact(n: number | null | undefined): string {
+    return fmtPaymentAmountCompact(n);
+  }
+
+  commencementAmountLabels(info: { amountLKR: number; amountINR: number; amountUSD?: number }): string[] {
+    const lines: string[] = [];
+    if (info.amountLKR > 0) lines.push(`${this.fmtCompact(info.amountLKR)} LKR`);
+    if (info.amountINR > 0) lines.push(`${this.fmtCompact(info.amountINR)} INR`);
+    if ((info.amountUSD ?? 0) > 0) lines.push(`${this.fmtCompact(info.amountUSD!)} USD`);
+    return lines;
+  }
+
   rowHasOverdue(r: BatchPaymentRow): boolean {
     const o = this.rowOverdue(r);
     return o.lkr + o.inr + o.usd > 0 || !!r.overdueSince;
@@ -832,7 +856,11 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     });
   }
 
-  /** Projected batch collection for the next level = students × catalog fee. */
+  /**
+   * Projected collection for the next level:
+   * (LKR students at current level × next-level LKR fee) + (INR students × next-level INR fee).
+   * Per-currency student counts come from the CURRENT level slot only — never sum all historical levels.
+   */
   private projectedNextLevelAmount(
     r: BatchPaymentRow,
     nextLevel: string | null,
@@ -840,26 +868,54 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     const students = r.studentCount || 0;
     if (!nextLevel || students <= 0) return { lkr: 0, inr: 0, usd: 0 };
 
-    const fee = this.catalogFeesByLevel.get(nextLevel.toUpperCase());
-    const currencyHint = this.rowExpected(r);
+    const nextFee = this.catalogFeesByLevel.get(nextLevel.toUpperCase());
+    const currentLevel = (r.level ?? levelForJourneyDay(r.currentJourneyDay)) as string | null;
+    const currentFee = currentLevel ? this.catalogFeesByLevel.get(currentLevel.toUpperCase()) : null;
+    const currentSlot = currentLevel
+      ? r.levelSlots?.[currentLevel.toUpperCase() as LanguageLevelSlot]
+      : null;
 
-    if (fee) {
-      return {
-        lkr: currencyHint.lkr > 0 ? fee.lkr * students : 0,
-        inr: currencyHint.inr > 0 ? fee.inr * students : 0,
-        usd: 0,
-      };
+    const currentExpectedLkr = currentSlot
+      ? (currentSlot.expectedLKR ?? 0) ||
+        (currentSlot.receivedLKR ?? 0) + (currentSlot.pendingLKR ?? 0) + (currentSlot.overdueLKR ?? 0)
+      : 0;
+    const currentExpectedInr = currentSlot
+      ? (currentSlot.expectedINR ?? 0) ||
+        (currentSlot.receivedINR ?? 0) + (currentSlot.pendingINR ?? 0) + (currentSlot.overdueINR ?? 0)
+      : 0;
+
+    let lkrStudents = 0;
+    let inrStudents = 0;
+    if (currentFee && currentFee.lkr > 0 && currentExpectedLkr > 0) {
+      lkrStudents = Math.round(currentExpectedLkr / currentFee.lkr);
+    }
+    if (currentFee && currentFee.inr > 0 && currentExpectedInr > 0) {
+      inrStudents = Math.round(currentExpectedInr / currentFee.inr);
     }
 
-    // Fallback when catalog not loaded: scale current-level batch total by student count
-    const currentLevel = (r.level ?? levelForJourneyDay(r.currentJourneyDay)) as LanguageLevelSlot | null;
-    const currentSlot = currentLevel ? r.levelSlots?.[currentLevel] : null;
+    if (nextFee) {
+      let lkr = lkrStudents > 0 ? nextFee.lkr * lkrStudents : 0;
+      let inr = inrStudents > 0 ? nextFee.inr * inrStudents : 0;
+
+      // Last resort when slot/fee data is incomplete but batch clearly uses a currency
+      if (lkr === 0 && inr === 0 && students > 0) {
+        if (currentExpectedLkr > 0 && nextFee.lkr > 0) {
+          lkr = nextFee.lkr * students;
+        } else if (currentExpectedInr > 0 && nextFee.inr > 0) {
+          inr = nextFee.inr * students;
+        }
+      }
+
+      return { lkr, inr, usd: 0 };
+    }
+
+    // Catalog not loaded — scale from current-level slot per-student amounts
     if (currentSlot && students > 0) {
       const perLkr = (currentSlot.expectedLKR || 0) / students;
       const perInr = (currentSlot.expectedINR || 0) / students;
       return {
-        lkr: currencyHint.lkr > 0 ? perLkr * students : 0,
-        inr: currencyHint.inr > 0 ? perInr * students : 0,
+        lkr: currentExpectedLkr > 0 ? perLkr * lkrStudents : 0,
+        inr: currentExpectedInr > 0 ? perInr * inrStudents : 0,
         usd: 0,
       };
     }
@@ -897,9 +953,35 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     }
   }
 
-  startEditPaymentDate(batch: string): void {
+  startEditPaymentDate(batch: string, r?: BatchPaymentRow): void {
     this.editingPaymentDateBatch = batch;
-    this.editingPaymentDateValue = this.manualNextPaymentDates.get(batch) ?? '';
+    const manual = this.manualNextPaymentDates.get(batch);
+    if (manual) {
+      this.editingPaymentDateValue = manual;
+      return;
+    }
+    this.editingPaymentDateValue = r ? (this.autoCommencementDateIso(r) ?? '') : '';
+  }
+
+  hasManualCommencementDate(batch: string): boolean {
+    return this.manualNextPaymentDates.has(batch);
+  }
+
+  private autoCommencementDateIso(r: BatchPaymentRow): string | null {
+    const currentDay = r.currentJourneyDay;
+    const levelEndDay = r.totalJourneyDays;
+    if (
+      currentDay == null || !Number.isFinite(currentDay) || currentDay <= 0 ||
+      levelEndDay == null || !Number.isFinite(levelEndDay)
+    ) {
+      return null;
+    }
+
+    const daysUntil = levelEndDay - currentDay;
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + daysUntil);
+    return d.toISOString().slice(0, 10);
   }
 
   saveManualPaymentDate(batch: string): void {
@@ -920,11 +1002,17 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   clearManualPaymentDate(batch: string): void {
+    const row = this.displayBatchRows.find((r) => r.batch === batch);
+    const isNew = row?.batchType === 'new';
     this.api.updateFinanceBatchCommencementDate(batch, null).subscribe({
       next: (res) => {
         const dates = res.data?.manualNextPaymentDates || {};
         this.manualNextPaymentDates = new Map(Object.entries(dates));
-        this.snack.open('Commencement date removed.', 'OK', { duration: 2500 });
+        this.snack.open(
+          isNew ? 'Commencement date reset to auto-calculated.' : 'Commencement date removed.',
+          'OK',
+          { duration: 2500 },
+        );
       },
       error: (err) => {
         this.snack.open(err?.error?.message || 'Could not remove commencement date.', 'Dismiss', { duration: 4000 });
@@ -937,6 +1025,133 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     this.editingPaymentDateValue = '';
   }
 
+  private applyBatchRemarksFromServer(remarks: Record<string, string>): void {
+    this.batchRemarks = { ...(remarks || {}) };
+    this.batchRemarkDrafts = { ...this.batchRemarks };
+  }
+
+  getBatchRemarkDraft(batch: string): string {
+    return this.batchRemarkDrafts[batch] ?? this.batchRemarks[batch] ?? '';
+  }
+
+  hasBatchRemark(batch: string): boolean {
+    return !!this.getBatchRemarkDisplay(batch);
+  }
+
+  getBatchRemarkDisplay(batch: string): string {
+    return (this.batchRemarks[batch] ?? '').trim();
+  }
+
+  startEditBatchRemark(batch: string): void {
+    if (this.remarkEditingBatch && this.remarkEditingBatch !== batch) {
+      this.batchRemarkDrafts[this.remarkEditingBatch] = this.batchRemarks[this.remarkEditingBatch] ?? '';
+    }
+    this.remarkEditingBatch = batch;
+    this.batchRemarkDrafts[batch] = this.batchRemarks[batch] ?? '';
+  }
+
+  cancelEditBatchRemark(batch: string): void {
+    if (this.remarkEditingBatch !== batch) return;
+    this.remarkEditingBatch = null;
+    this.batchRemarkDrafts[batch] = this.batchRemarks[batch] ?? '';
+  }
+
+  onBatchRemarkInput(batch: string, value: string): void {
+    this.batchRemarkDrafts[batch] = value;
+  }
+
+  saveBatchRemark(batch: string): void {
+    const draft = (this.batchRemarkDrafts[batch] ?? '').trim();
+    const saved = (this.batchRemarks[batch] ?? '').trim();
+    if (draft === saved) {
+      this.remarkEditingBatch = null;
+      return;
+    }
+    if (this.savingRemarkBatch === batch) return;
+
+    this.savingRemarkBatch = batch;
+    this.api.updateFinanceBatchRemark(batch, draft || null).subscribe({
+      next: (res) => {
+        this.batchRemarks = { ...(res.data?.batchRemarks || {}) };
+        this.batchRemarkDrafts = { ...this.batchRemarks };
+        this.savingRemarkBatch = null;
+        this.remarkEditingBatch = null;
+      },
+      error: (err) => {
+        this.savingRemarkBatch = null;
+        this.batchRemarkDrafts[batch] = this.batchRemarks[batch] ?? '';
+        this.snack.open(err?.error?.message || 'Could not save remark.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  startEditCommencementAmount(batch: string, info: { amountLKR: number; amountINR: number }): void {
+    this.editingCommencementAmountBatch = batch;
+    const manual = this.manualCommencementAmounts[batch];
+    this.editingCommencementAmountLkr = manual?.lkr != null ? String(manual.lkr) : String(info.amountLKR || '');
+    this.editingCommencementAmountInr = manual?.inr != null ? String(manual.inr) : String(info.amountINR || '');
+  }
+
+  cancelEditCommencementAmount(): void {
+    this.editingCommencementAmountBatch = null;
+    this.editingCommencementAmountLkr = '';
+    this.editingCommencementAmountInr = '';
+  }
+
+  private parseAmountInput(raw: string): number | null {
+    const cleaned = String(raw || '').replace(/,/g, '').trim();
+    if (!cleaned) return null;
+    const n = Number(cleaned);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.round(n);
+  }
+
+  saveCommencementAmount(batch: string): void {
+    if (this.savingCommencementAmountBatch === batch) return;
+    const lkr = this.parseAmountInput(this.editingCommencementAmountLkr);
+    const inr = this.parseAmountInput(this.editingCommencementAmountInr);
+    if (lkr == null && inr == null) {
+      this.snack.open('Enter at least one amount (LKR or INR).', 'Dismiss', { duration: 3500 });
+      return;
+    }
+
+    this.savingCommencementAmountBatch = batch;
+    this.api.updateFinanceBatchCommencementAmount(batch, { lkr, inr }).subscribe({
+      next: (res) => {
+        this.manualCommencementAmounts = { ...(res.data?.manualCommencementAmounts || {}) };
+        this.cancelEditCommencementAmount();
+        this.savingCommencementAmountBatch = null;
+        this.snack.open('Projected amount saved.', 'OK', { duration: 2500 });
+      },
+      error: (err) => {
+        this.savingCommencementAmountBatch = null;
+        this.snack.open(err?.error?.message || 'Could not save projected amount.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  clearCommencementAmount(batch: string): void {
+    if (this.savingCommencementAmountBatch === batch) return;
+    this.savingCommencementAmountBatch = batch;
+    this.api.updateFinanceBatchCommencementAmount(batch, null).subscribe({
+      next: (res) => {
+        this.manualCommencementAmounts = { ...(res.data?.manualCommencementAmounts || {}) };
+        this.cancelEditCommencementAmount();
+        this.savingCommencementAmountBatch = null;
+        this.snack.open('Reset to auto-calculated amount.', 'OK', { duration: 2500 });
+      },
+      error: (err) => {
+        this.savingCommencementAmountBatch = null;
+        this.snack.open(err?.error?.message || 'Could not reset amount.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  hasManualCommencementAmount(batch: string): boolean {
+    const manual = this.manualCommencementAmounts[batch];
+    return manual?.lkr != null || manual?.inr != null;
+  }
+
   /**
    * Returns the level name that comes after the current level (A1→A2, A2→B1, B1→B2).
    * Returns null if already at B2 or beyond.
@@ -947,12 +1162,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   /**
-   * For new batches: commencement date = today + (levelEndDay − currentJourneyDay).
-   *   e.g. A1 ends at day 42; if batch is on day 39 → 42−39 = 3 days from today.
-   * For old batches: uses the manually-set date.
-   *
-   * Also returns the next level name and the projected collection amount
-   * (studentCount × perStudentFee derived from current level expected totals).
+   * Commencement date: manual override if set; otherwise auto-calculated for new batches
+   * (today + levelEndDay − currentJourneyDay) or manual-only for old batches.
    */
   getNextPaymentInfo(r: BatchPaymentRow): {
     dateStr: string;
@@ -963,27 +1174,23 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     amountLKR: number;
     amountINR: number;
     amountUSD: number;
+    isManualAmount: boolean;
+    isManualDate: boolean;
     tooltip: string;
   } | null {
     let d: Date | null = null;
+    const manualIso = this.manualNextPaymentDates.get(r.batch);
+    const isManualDate = !!manualIso;
 
-    if (r.batchType === 'new') {
-      const currentDay = r.currentJourneyDay;
-      const levelEndDay = r.totalJourneyDays; // e.g. 42 for A1, 84 for A2
-      if (
-        currentDay == null || !Number.isFinite(currentDay) || currentDay <= 0 ||
-        levelEndDay == null || !Number.isFinite(levelEndDay)
-      ) return null;
-
-      const daysUntil = levelEndDay - currentDay; // e.g. 42 − 39 = 3
-      d = new Date();
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() + daysUntil);
-    } else {
-      const iso = this.manualNextPaymentDates.get(r.batch);
-      if (!iso) return null;
-      d = new Date(iso);
+    if (manualIso) {
+      d = new Date(manualIso);
       if (Number.isNaN(d.getTime())) return null;
+    } else if (r.batchType === 'new') {
+      const autoIso = this.autoCommencementDateIso(r);
+      if (!autoIso) return null;
+      d = new Date(autoIso);
+    } else {
+      return null;
     }
 
     const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -998,11 +1205,24 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     const nextLevel = this.nextLevelAfter(currentLevelResolved);
 
     const projected = this.projectedNextLevelAmount(r, nextLevel);
-    const amountLKR = projected.lkr;
-    const amountINR = projected.inr;
+    const manual = this.manualCommencementAmounts[r.batch];
+    const hasManualLkr = manual?.lkr != null;
+    const hasManualInr = manual?.inr != null;
+    const amountLKR = hasManualLkr ? manual!.lkr! : projected.lkr;
+    const amountINR = hasManualInr ? manual!.inr! : projected.inr;
     const amountUSD = projected.usd;
+    const isManualAmount = hasManualLkr || hasManualInr;
+
+    const nextSlot = nextLevel ? r.levelSlots?.[nextLevel.toUpperCase() as LanguageLevelSlot] : null;
+    const preCollectedLkr = nextSlot?.receivedLKR ?? 0;
+    const preCollectedInr = nextSlot?.receivedINR ?? 0;
+    const hasNextLevelRecords = nextSlot &&
+      (preCollectedLkr + preCollectedInr +
+       (nextSlot.pendingLKR ?? 0) + (nextSlot.pendingINR ?? 0) +
+       (nextSlot.overdueLKR ?? 0) + (nextSlot.overdueINR ?? 0)) > 0;
 
     const tooltipParts: string[] = [];
+    if (isManualDate) tooltipParts.push('Manual commencement date');
     if (nextLevel) tooltipParts.push(`Next level: ${nextLevel}`);
     if (isPast) {
       tooltipParts.push(`${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? '' : 's'} ago`);
@@ -1011,20 +1231,43 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     } else {
       tooltipParts.push(`${daysUntil} day${daysUntil === 1 ? '' : 's'} away`);
     }
-    if (r.studentCount) {
-      const fee = nextLevel ? this.catalogFeesByLevel.get(nextLevel.toUpperCase()) : null;
-      if (fee && (fee.lkr > 0 || fee.inr > 0)) {
+    if (isManualAmount) {
+      tooltipParts.push('Manual projected amount');
+      if (!hasManualLkr || !hasManualInr) {
+        const auto = projected;
+        const autoParts: string[] = [];
+        if (!hasManualLkr && auto.lkr > 0) autoParts.push(`LKR ${this.fmtPayment(auto.lkr)} auto`);
+        if (!hasManualInr && auto.inr > 0) autoParts.push(`INR ${this.fmtPayment(auto.inr)} auto`);
+        if (autoParts.length) tooltipParts.push(`Auto: ${autoParts.join(' · ')}`);
+      }
+    } else if (r.studentCount) {
+      if (hasNextLevelRecords) {
+        // Actual records exist — show collected vs total
         const parts: string[] = [];
-        if (fee.lkr > 0 && amountLKR > 0) parts.push(`LKR ${this.fmtPayment(fee.lkr)} each`);
-        if (fee.inr > 0 && amountINR > 0) parts.push(`INR ${this.fmtPayment(fee.inr)} each`);
-        tooltipParts.push(`${r.studentCount} students × ${parts.join(' / ')}`);
+        if (preCollectedLkr > 0 || (nextSlot?.pendingLKR ?? 0) > 0 || (nextSlot?.overdueLKR ?? 0) > 0) {
+          const totalLkr = preCollectedLkr + (nextSlot?.pendingLKR ?? 0) + (nextSlot?.overdueLKR ?? 0);
+          parts.push(`LKR ${this.fmtPayment(preCollectedLkr)} collected of ${this.fmtPayment(totalLkr)}`);
+        }
+        if (preCollectedInr > 0 || (nextSlot?.pendingINR ?? 0) > 0 || (nextSlot?.overdueINR ?? 0) > 0) {
+          const totalInr = preCollectedInr + (nextSlot?.pendingINR ?? 0) + (nextSlot?.overdueINR ?? 0);
+          parts.push(`INR ${this.fmtPayment(preCollectedInr)} collected of ${this.fmtPayment(totalInr)}`);
+        }
+        if (parts.length) tooltipParts.push(parts.join(' · '));
       } else {
-        tooltipParts.push(`${r.studentCount} students`);
+        const fee = nextLevel ? this.catalogFeesByLevel.get(nextLevel.toUpperCase()) : null;
+        if (fee && (fee.lkr > 0 || fee.inr > 0)) {
+          const parts: string[] = [];
+          if (fee.lkr > 0) parts.push(`LKR ${this.fmtPayment(fee.lkr)} each`);
+          if (fee.inr > 0) parts.push(`INR ${this.fmtPayment(fee.inr)} each`);
+          tooltipParts.push(`${r.studentCount} students × ${parts.join(' / ')} (est.)`);
+        } else {
+          tooltipParts.push(`${r.studentCount} students`);
+        }
       }
     }
     const tooltip = tooltipParts.join(' · ');
 
-    return { dateStr, daysUntil, isPast, isNear, nextLevel, amountLKR, amountINR, amountUSD, tooltip };
+    return { dateStr, daysUntil, isPast, isNear, nextLevel, amountLKR, amountINR, amountUSD, isManualAmount, isManualDate, tooltip };
   }
 
   private syncLevelStatusFilterFromState(): void {

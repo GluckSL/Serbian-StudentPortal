@@ -752,12 +752,21 @@ interface TimelineDay {
             <input type="text" [(ngModel)]="editNotes" class="j-input" maxlength="500" placeholder="Optional notes for this batch…">
           </div>
           <div class="j-config-actions">
+            <div class="j-bulk-apply-day" *ngIf="canPickBulkApplyDay()">
+              <label class="j-field-label">Apply to all</label>
+              <input type="number"
+                     class="j-input j-input--compact j-bulk-apply-day-input"
+                     [(ngModel)]="bulkApplyDay"
+                     [min]="editTrialDayEnabled ? 0 : 1"
+                     [max]="editJourneyLength"
+                     title="Set every student to this journey day">
+            </div>
             <button type="button" class="j-btn j-btn-outline j-btn-sm" (click)="saveConfig()" [disabled]="savingConfig">
               <i class="fas fa-save"></i> {{ savingConfig ? 'Saving…' : 'Save' }}
             </button>
-            <button type="button" class="j-btn j-btn-primary j-btn-sm" (click)="applyDayToAllStudents()" [disabled]="applyingDay">
+            <button type="button" class="j-btn j-btn-primary j-btn-sm" (click)="applyDayToAllStudents()" [disabled]="applyingDay || !isBulkApplyDayValid()">
               <i class="fas fa-users"></i>
-              {{ applyingDay ? 'Applying…' : 'Apply Day ' + (editBatchStartDate ? computedDayFromDate() : editBatchDay) + ' to all' }}
+              {{ applyingDay ? 'Applying…' : 'Apply Day ' + bulkApplyDayTarget() + ' to all' }}
             </button>
           </div>
         </div>
@@ -3025,7 +3034,12 @@ interface TimelineDay {
     .j-config-actions {
       display: flex; gap: 10px; flex-wrap: wrap;
       margin-left: auto; flex-shrink: 0;
+      align-items: flex-end;
     }
+    .j-bulk-apply-day {
+      display: flex; flex-direction: column; gap: 4px; min-width: 88px;
+    }
+    .j-bulk-apply-day-input { width: 88px; }
     .j-switch--card { flex-shrink: 0; }
     .j-switch--sm { gap: 0; }
     .j-switch--sm .j-switch-slider {
@@ -4298,6 +4312,8 @@ export class JourneyManagementComponent implements OnInit {
   readonly skPanelRows = Array.from({ length: 10 });
   savingConfig = false;
   applyingDay = false;
+  /** Target day for bulk apply when auto schedule is paused (rollback / catch-up). */
+  bulkApplyDay: number | null = null;
 
   editJourneyLength = 200;
   editBatchDay = 1;
@@ -5402,6 +5418,22 @@ export class JourneyManagementComponent implements OnInit {
     return Number.isFinite(n) && n >= 0 && n <= 200;
   }
 
+  canPickBulkApplyDay(): boolean {
+    return !!this.editBatchStartDate && this.editBatchType === 'new' && this.editJourneyPaused;
+  }
+
+  bulkApplyDayTarget(): number {
+    if (this.canPickBulkApplyDay() && this.bulkApplyDay != null) {
+      return Math.floor(Number(this.bulkApplyDay));
+    }
+    return this.editBatchStartDate ? this.computedDayFromDate() : this.editBatchDay;
+  }
+
+  isBulkApplyDayValid(): boolean {
+    if (!this.canPickBulkApplyDay()) return true;
+    return this.isEditDayValueValid(this.bulkApplyDay);
+  }
+
   pauseHistoryEntries(): JourneyPauseHistoryEntry[] {
     const raw = this.selectedBatch?.journeyPauseHistory;
     if (!Array.isArray(raw) || !raw.length) return [];
@@ -5439,6 +5471,7 @@ export class JourneyManagementComponent implements OnInit {
     this.editAutoRecordingEnabled = !!b.autoRecordingEnabled;
     this.editJourneyPaused = !!(b.journeyPaused && b.batchType !== 'old');
     this.selectedBatch.journeyPauseHistory = b.journeyPauseHistory ?? [];
+    this.bulkApplyDay = b.batchCurrentDay;
     this.activeTab = 'students';
     this.batchStudents = [];
     this.studentsLoadedForBatch = null;
@@ -5555,8 +5588,8 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   applyDayToAllStudents(): void {
-    if (!this.selectedBatch) return;
-    const day = this.editBatchStartDate ? this.computedDayFromDate() : this.editBatchDay;
+    if (!this.selectedBatch || !this.isBulkApplyDayValid()) return;
+    const day = this.bulkApplyDayTarget();
     this.notify.confirm('Apply Day', `Set ALL students in "${this.selectedBatch.batchName}" to Day ${day}?`).subscribe(ok => {
       if (!ok) return;
       this.applyingDay = true;
@@ -5572,7 +5605,15 @@ export class JourneyManagementComponent implements OnInit {
           this.http.post<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch!.batchName)}/set-day`,
             { day }, { withCredentials: true }).subscribe({
             next: r => {
-              this.selectedBatch!.batchCurrentDay = day;
+              this.selectedBatch!.batchCurrentDay = r.batchCurrentDay ?? day;
+              this.bulkApplyDay = this.selectedBatch!.batchCurrentDay;
+              if (r.config) {
+                this.syncSelectedBatchConfig({
+                  ...this.selectedBatch,
+                  ...r.config,
+                  batchName: this.selectedBatch!.batchName
+                });
+              }
               this.notify.success(`${r.message} (${r.studentsUpdated} student(s) updated)`);
               this.applyingDay = false;
               this.loadStudents(this.selectedBatch!.batchName);
