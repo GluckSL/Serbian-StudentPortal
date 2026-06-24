@@ -97,36 +97,32 @@ export class CreateZoomMeetingComponent implements OnInit {
     });
   }
 
+  private readonly istTimeZone = 'Asia/Kolkata';
+
   private formatDateTimeLocal(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.istTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+    const pick = (type: string) => parts.find((p) => p.type === type)?.value || '00';
+    return `${pick('year')}-${pick('month')}-${pick('day')}T${pick('hour')}:${pick('minute')}`;
   }
 
   private getTodayDateString(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return this.formatDateTimeLocal(new Date()).substring(0, 10);
   }
 
   private parseLocalDateTime(value: string | null | undefined): Date | null {
     if (!value) return null;
-    const [datePart, timePart] = value.split('T');
-    if (!datePart || !timePart) return null;
-    const [year, month, day] = datePart.split('-').map(Number);
-    const [hours, minutes] = timePart.split(':').map(Number);
-    if (
-      !Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day) ||
-      !Number.isFinite(hours) || !Number.isFinite(minutes)
-    ) {
-      return null;
-    }
-    return new Date(year, month - 1, day, hours, minutes, 0, 0);
+    const pad = String(value).trim().substring(0, 16);
+    if (pad.length < 16) return null;
+    const d = new Date(`${pad}:00+05:30`);
+    return Number.isNaN(d.getTime()) ? null : d;
   }
 
   private to12HourParts(date: Date): { date: string; hour: string; minute: string; period: 'AM' | 'PM' } {

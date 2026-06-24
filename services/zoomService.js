@@ -2,6 +2,7 @@
 
 const axios = require('axios');
 const zoomConfig = require('../config/zoomConfig');
+const { normalizeZoomStartTime } = require('../utils/zoomDateTime');
 
 /** null = unknown, true = API works, false = OAuth scopes missing — skip further calls. */
 let userSettingsScopeAvailable = null;
@@ -241,7 +242,7 @@ class ZoomService {
       const payload = {
         topic: topic || 'German Language Class',
         type: zoomConfig.meetingTypes.SCHEDULED,
-        start_time: startTime,
+        start_time: normalizeZoomStartTime(startTime, timezone) || startTime,
         duration: duration || 60,
         timezone: timezone,
         agenda: agenda || 'German language learning session',
@@ -253,6 +254,7 @@ class ZoomService {
           waiting_room: false,
           join_before_host: true,
           mute_upon_entry: true,
+          auto_recording: 'cloud',
           breakout_room: { enable: true },
           approval_type: 2, // No registration required
           registrants_email_notification: false,
@@ -265,10 +267,11 @@ class ZoomService {
 
       // Use teacher's Zoom email as the host, fallback to 'me'
       const userId = hostEmail || 'me';
-      console.log(`📅 Creating Zoom meeting on host: ${userId} — ${payload.topic}`);
+      const userPath = encodeURIComponent(String(userId));
+      console.log(`📅 Creating Zoom meeting on host: ${userId} — ${payload.topic} @ ${payload.start_time} (${timezone})`);
 
       const response = await axios.post(
-        `${zoomConfig.apiBaseUrl}/users/${userId}/meetings`,
+        `${zoomConfig.apiBaseUrl}/users/${userPath}/meetings`,
         payload,
         {
           headers: {
@@ -299,7 +302,7 @@ class ZoomService {
           startUrl: meeting.start_url,
           // Zoom sometimes omits `password` but still provides `encrypted_password` / join_url `pwd=`
           password: meeting.password || meeting.encrypted_password || '',
-          hostEmail: meeting.host_email,
+          hostEmail: meeting.host_email || hostEmail || '',
           agenda: meeting.agenda,
           status: meeting.status,
           createdAt: meeting.created_at
@@ -328,8 +331,13 @@ class ZoomService {
   async updateMeeting(meetingId, updateData) {
     const token = await this.getAccessToken();
     if (!updateData.settings) updateData.settings = {};
-    updateData.settings.registrants_email_notification = false;
-    updateData.settings.private_chat = false;
+    updateData.settings = {
+      ...zoomConfig.defaultSettings,
+      ...updateData.settings,
+      auto_recording: updateData.settings.auto_recording || 'cloud',
+      registrants_email_notification: false,
+      private_chat: false,
+    };
 
     try {
       await axios.patch(`${zoomConfig.apiBaseUrl}/meetings/${meetingId}`, updateData, {
@@ -759,7 +767,7 @@ class ZoomService {
     if (from) params.from = from;
     if (to) params.to = to;
 
-    const response = await axios.get(`${zoomConfig.apiBaseUrl}/users/${userEmail}/meetings`, {
+    const response = await axios.get(`${zoomConfig.apiBaseUrl}/users/${encodeURIComponent(userEmail)}/meetings`, {
       headers: { 'Authorization': `Bearer ${token}` },
       params
     });

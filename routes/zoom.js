@@ -22,6 +22,8 @@ const {
   createMeetingLinkFromSlot,
   buildHostAvailability
 } = require('../services/zoomMeetingLifecycle.service');
+const { formatZoomLocalStartTime } = require('../utils/zoomDateTime');
+const zoomConfig = require('../config/zoomConfig');
 
 /**
  * Build an attendance row for a manual override.
@@ -1693,38 +1695,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 
     const prevStartMs = meeting.startTime ? new Date(meeting.startTime).getTime() : null;
 
-    // Prepare update data for Zoom
-    const zoomUpdateData = {};
-    
-    if (topic) zoomUpdateData.topic = topic;
-    if (startTime) {
-      const tz = timezone || meeting.timezone || 'Asia/Kolkata';
-      const localStart = formatZoomLocalStartTime(startTime, tz);
-      if (localStart) {
-        zoomUpdateData.start_time = localStart;
-        zoomUpdateData.timezone = tz;
-      }
-    }
-    if (duration) zoomUpdateData.duration = duration;
-    if (timezone) zoomUpdateData.timezone = timezone;
-    if (agenda) zoomUpdateData.agenda = agenda;
-    if (settings) zoomUpdateData.settings = {
-      ...settings,
-      // Ensure registration settings remain correct
-      approval_type: 0,
-      registration_type: 1,
-      waiting_room: false,
-      registrants_email_notification: false,
-      registrants_confirmation_email: false
-    };
-
-    // Update meeting in Zoom
-    if (Object.keys(zoomUpdateData).length > 0) {
-      console.log('📝 Updating Zoom meeting:', meeting.zoomMeetingId);
-      await syncZoomMeetingFields(meeting, zoomUpdateData);
-    }
-
-    // Update meeting in database
+    // Apply portal fields first so Zoom recreate uses the latest topic/agenda/time.
     if (topic) meeting.topic = topic;
     if (startTime) {
       const nextStartMs = new Date(startTime).getTime();
@@ -1736,13 +1707,48 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
     }
     if (duration) meeting.duration = duration;
     if (timezone) meeting.timezone = timezone;
-    if (agenda) meeting.agenda = agenda;
+    if (agenda !== undefined && agenda !== null) meeting.agenda = agenda;
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDay')) {
       if (courseDay === null || courseDay === '') {
         meeting.courseDay = null;
       } else {
         const n = parseInt(String(courseDay), 10);
         meeting.courseDay = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : null;
+      }
+    }
+
+    const zoomUpdateData = {};
+    if (topic) zoomUpdateData.topic = topic;
+    if (startTime) {
+      const tz = meeting.timezone || timezone || 'Asia/Kolkata';
+      const localStart = formatZoomLocalStartTime(meeting.startTime, tz);
+      if (localStart) {
+        zoomUpdateData.start_time = localStart;
+        zoomUpdateData.timezone = tz;
+      }
+    }
+    if (duration) zoomUpdateData.duration = duration;
+    if (agenda !== undefined && agenda !== null) zoomUpdateData.agenda = agenda;
+    if (settings) zoomUpdateData.settings = {
+      ...settings,
+      approval_type: 0,
+      registration_type: 1,
+      waiting_room: false,
+      registrants_email_notification: false,
+      registrants_confirmation_email: false
+    };
+
+    let zoomWarning = null;
+    if (Object.keys(zoomUpdateData).length > 0) {
+      try {
+        console.log('📝 Updating Zoom meeting:', meeting.zoomMeetingId);
+        await syncZoomMeetingFields(meeting, zoomUpdateData);
+      } catch (zoomErr) {
+        console.error('⚠️ Zoom sync failed (portal changes will still be saved):', zoomErr.message);
+        zoomWarning =
+          zoomErr.message?.includes('host email')
+            ? 'Saved in portal. Zoom could not be updated — assign a host email and use Recreate Zoom.'
+            : `Saved in portal. Zoom link could not be updated: ${zoomErr.message}`;
       }
     }
 
@@ -1838,7 +1844,8 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Meeting updated successfully',
+      message: zoomWarning || 'Meeting updated successfully',
+      warning: zoomWarning || undefined,
       data: meeting
     });
 
@@ -1880,15 +1887,16 @@ function applyClockTimeToMeetingDate(existingStart, clockHHmm) {
   return next.toISOString();
 }
 
-/** Zoom expects local wall-clock time for the meeting timezone (not UTC ISO). */
-function formatZoomLocalStartTime(dateInput, timezone = 'Asia/Kolkata') {
-  const startDate = new Date(dateInput);
-  if (Number.isNaN(startDate.getTime())) return null;
-  const localParts = startDate
-    .toLocaleString('en-CA', { timeZone: timezone, hour12: false })
-    .replace(',', '')
-    .split(' ');
-  return `${localParts[0]}T${(localParts[1] || '00:00:00').slice(0, 5)}`;
+function cloudRecordingZoomSettings(extra = {}) {
+  return {
+    ...zoomConfig.defaultSettings,
+    ...extra,
+    auto_recording: 'cloud',
+    waiting_room: false,
+    join_before_host: true,
+    approval_type: 2,
+    private_chat: false,
+  };
 }
 
 function isZoomNotFoundError(err) {
@@ -1896,8 +1904,12 @@ function isZoomNotFoundError(err) {
   return /status code 404/i.test(String(err?.message || ''));
 }
 
-async function recreateZoomMeetingInPlace(meeting) {
+async function recreateZoomMeetingInPlace(meeting, zoomUpdateData = {}) {
   const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
+
+  if (zoomUpdateData.topic) meeting.topic = zoomUpdateData.topic;
+  if (zoomUpdateData.agenda !== undefined) meeting.agenda = zoomUpdateData.agenda;
+  if (zoomUpdateData.duration) meeting.duration = zoomUpdateData.duration;
 
   if (!meeting.hostEmail) {
     throw new Error('Meeting has no Zoom host email — cannot recreate');
@@ -1946,24 +1958,29 @@ async function recreateZoomMeetingInPlace(meeting) {
   meeting.joinUrl = raw.joinUrl;
   meeting.startUrl = raw.startUrl;
   meeting.link = raw.joinUrl;
+  if (raw.hostEmail) {
+    meeting.hostEmail = raw.hostEmail;
+  }
   for (const attendee of meeting.attendees || []) {
     attendee.joinUrl = raw.joinUrl;
   }
 
-  return { oldZoomId, newZoomId: meeting.zoomMeetingId };
+  return { oldZoomId, newZoomId: meeting.zoomMeetingId, recreated: true };
 }
 
 async function syncZoomMeetingFields(meeting, zoomUpdateData) {
+  zoomUpdateData.settings = cloudRecordingZoomSettings(zoomUpdateData.settings || {});
+
   const zoomId = String(meeting.zoomMeetingId || '').trim();
   if (!zoomId) {
-    return recreateZoomMeetingInPlace(meeting);
+    return recreateZoomMeetingInPlace(meeting, zoomUpdateData);
   }
   try {
     await zoomService.updateMeeting(zoomId, zoomUpdateData);
     return { oldZoomId: zoomId, newZoomId: zoomId, recreated: false };
   } catch (err) {
     if (!isZoomNotFoundError(err)) throw err;
-    return recreateZoomMeetingInPlace(meeting);
+    return recreateZoomMeetingInPlace(meeting, zoomUpdateData);
   }
 }
 
@@ -3446,6 +3463,78 @@ router.post('/enforce-private-chat-off', verifyToken, checkRole(['ADMIN']), asyn
 });
 
 /**
+ * POST /api/zoom/meetings/ensure-recording-ready
+ *
+ * Repairs upcoming portal-scheduled meetings: ensures cloud recording is enabled on Zoom,
+ * recreates meetings missing on Zoom, and optionally enables batch auto-recording ingest.
+ */
+router.post(
+  '/meetings/ensure-recording-ready',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { batch, limit = 50, enableBatchAutoRecording = true } = req.body || {};
+      const cap = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+      const filter = {
+        status: 'scheduled',
+        startTime: { $gte: new Date() },
+      };
+      if (batch) filter.batch = String(batch).trim();
+
+      const meetings = await MeetingLink.find(filter).sort({ startTime: 1 }).limit(cap);
+      const results = [];
+
+      for (const meeting of meetings) {
+        const meetingId = String(meeting._id);
+        try {
+          if (!meeting.hostEmail) {
+            results.push({
+              meetingId,
+              ok: false,
+              message: 'Missing Zoom host email — edit the meeting and assign a Zoom host, then retry.',
+            });
+            continue;
+          }
+
+          const syncResult = await syncZoomMeetingFields(meeting, {
+            settings: cloudRecordingZoomSettings(),
+          });
+          await meeting.save();
+
+          if (enableBatchAutoRecording && meeting.batch) {
+            const BatchConfig = require('../models/BatchConfig');
+            const rx = new RegExp(`^${String(meeting.batch).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+            await BatchConfig.updateOne({ batchName: rx }, { $set: { autoRecordingEnabled: true } });
+          }
+
+          results.push({
+            meetingId,
+            ok: true,
+            zoomMeetingId: meeting.zoomMeetingId,
+            recreated: !!syncResult?.recreated,
+            topic: meeting.topic,
+            startTime: meeting.startTime,
+          });
+        } catch (err) {
+          results.push({ meetingId, ok: false, message: err.message });
+        }
+      }
+
+      const okCount = results.filter((r) => r.ok).length;
+      return res.json({
+        success: true,
+        message: `Repaired ${okCount}/${results.length} upcoming meeting(s).`,
+        results,
+      });
+    } catch (error) {
+      console.error('ensure-recording-ready error:', error.message);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
+/**
  * POST /api/zoom/meeting/:id/recreate-zoom
  *
  * Recreates the Zoom meeting on Zoom's servers for a portal meeting whose
@@ -3492,15 +3581,10 @@ router.post(
       // ── 2. Create a fresh Zoom meeting with the same details ─────────────────
       // Zoom expects start time in "YYYY-MM-DDTHH:mm:ss" local time for the given TZ
       const tz = meeting.timezone || 'Asia/Kolkata';
-      const startDate = new Date(meeting.startTime);
-      const pad = (n) => String(n).padStart(2, '0');
-      // Format as a local datetime string that Zoom accepts
-      const localParts = startDate
-        .toLocaleString('en-CA', { timeZone: tz, hour12: false })
-        .replace(',', '')
-        .split(' ');
-      // en-CA gives "YYYY-MM-DD HH:mm:ss"
-      const slotStartTime = localParts[0] + 'T' + (localParts[1] || '00:00').slice(0, 5); // YYYY-MM-DDTHH:mm
+      const slotStartTime = formatZoomLocalStartTime(meeting.startTime, tz);
+      if (!slotStartTime) {
+        return res.status(422).json({ success: false, message: 'Invalid meeting start time.' });
+      }
 
       const zoomResult = await zoomService.createMeeting(
         {
@@ -3528,10 +3612,7 @@ router.post(
         '';
 
       // ── 3. Persist updated Zoom data to MeetingLink ──────────────────────────
-      const updatedMeeting = await MeetingLink.findByIdAndUpdate(
-        id,
-        {
-          $set: {
+      const updateSet = {
             zoomMeetingId: String(raw.id),
             zoomMeetingUuid: raw.uuid ? String(raw.uuid) : undefined,
             zoomPassword: newPwd,
@@ -3540,8 +3621,14 @@ router.post(
             link: raw.joinUrl,
             // Reset attendee join URLs to the new Zoom URL
             'attendees.$[].joinUrl': raw.joinUrl,
-          },
-        },
+      };
+      if (raw.hostEmail) {
+        updateSet.hostEmail = raw.hostEmail;
+      }
+
+      const updatedMeeting = await MeetingLink.findByIdAndUpdate(
+        id,
+        { $set: updateSet },
         { new: true }
       ).lean();
 

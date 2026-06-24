@@ -28,10 +28,10 @@ function sanitizeRoom(room) {
     status: room.status,
     gameType: room.gameType,
     gameSetId: room.gameSetId,
-    hostId: room.hostId,
+    hostId: String(room.hostId || ''),
     hostName: room.hostName || '',
     players: (room.players || []).map(p => ({
-      studentId: p.studentId,
+      studentId: String(p.studentId || ''),
       name: p.name,
       score: p.score,
       isReady: p.isReady,
@@ -74,13 +74,13 @@ async function createRoom(hostId, hostName, gameSetId, gameType, opts = {}) {
   const room = {
     _id: `bf_${code}`,
     inviteCode: code,
-    hostId,
+    hostId: String(hostId),
     hostName,
     gameSetId,
     gameType: gameType || set.gameType,
     status: 'lobby',
     players: [{
-      studentId: hostId,
+      studentId: String(hostId),
       name: hostName,
       score: 0,
       isReady: false,
@@ -126,7 +126,7 @@ function joinRoom(code, studentId, studentName, socketId) {
   }
 
   room.players.push({
-    studentId,
+    studentId: String(studentId),
     name: studentName,
     score: 0,
     isReady: false,
@@ -168,14 +168,27 @@ function setPlayerReady(code, studentId, ready) {
   return sanitizeRoom(room);
 }
 
+function canStartRoom(room) {
+  if (!room) return false;
+  if (room.status !== 'lobby') return false;
+  if (room.players.length < 2) return false;
+  return room.players.every(p => p.isReady);
+}
+
 function startCountdown(code, hostId) {
   const room = rooms.get(code?.toUpperCase());
   if (!room) return { ok: false, message: 'Room not found' };
   if (String(room.hostId) !== String(hostId)) return { ok: false, message: 'Only host can start' };
-  if (room.status !== 'lobby') return { ok: false, message: 'Cannot start' };
-  if (!room.players.every(p => p.isReady)) return { ok: false, message: 'Not all players ready' };
-  if (room.players.length < 1) return { ok: false, message: 'Need at least one player' };
+  if (!canStartRoom(room)) return { ok: false, message: 'Not all players ready' };
 
+  room.status = 'countdown';
+  room.startedAt = Date.now();
+  return { ok: true, room: sanitizeRoom(room) };
+}
+
+function tryAutoStart(code) {
+  const room = rooms.get(code?.toUpperCase());
+  if (!canStartRoom(room)) return null;
   room.status = 'countdown';
   room.startedAt = Date.now();
   return { ok: true, room: sanitizeRoom(room) };
@@ -715,6 +728,8 @@ module.exports = {
   getRoom,
   setPlayerReady,
   startCountdown,
+  tryAutoStart,
+  canStartRoom,
   beginPlaying,
   submitAnswer,
   finishGame,
