@@ -107,7 +107,21 @@ async function fetchVisibleBatchData() {
   const visibleSet = new Set(visibleBatches.map((b) => String(b).toLowerCase()));
   const rows = batchRows.filter((r) => visibleSet.has(String(r.batch || '').toLowerCase()));
 
-  const PREV_LEVEL_MAP = { A2: 'A1', B1: 'A2', B2: 'B1' };
+  const PREV_LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2'];
+
+  function prevLevelsPendingForBatchRow(row, currentLevel) {
+    const idx = PREV_LEVEL_ORDER.indexOf(String(currentLevel || '').toUpperCase());
+    if (idx <= 0) return { lkr: 0, inr: 0 };
+    let lkr = 0;
+    let inr = 0;
+    for (let i = 0; i < idx; i += 1) {
+      const slot = row.levelSlots?.[PREV_LEVEL_ORDER[i]];
+      if (!slot) continue;
+      lkr += slot.pendingLKR || 0;
+      inr += slot.pendingINR || 0;
+    }
+    return { lkr, inr };
+  }
 
   return rows.map((r) => {
     const scoped = currentLevelTotalsForBatchRow(r);
@@ -115,10 +129,7 @@ async function fetchVisibleBatchData() {
     const scopedPendingTotal = (scoped.pendingLKR || 0) + (scoped.pendingINR || 0) + (scoped.pendingUSD || 0);
     const commencement = computeCommencementForBatch(r, catalog, manualDates[r.batch], manualAmounts[r.batch]);
 
-    const prevLevel = PREV_LEVEL_MAP[scoped.dominantLevel] || null;
-    const prevSlot = prevLevel && r.levelSlots && r.levelSlots[prevLevel];
-    const lastLevelPendingLKR = prevSlot ? (prevSlot.pendingLKR || 0) + (prevSlot.overdueLKR || 0) : 0;
-    const lastLevelPendingINR = prevSlot ? (prevSlot.pendingINR || 0) + (prevSlot.overdueINR || 0) : 0;
+    const prevLevelsPending = prevLevelsPendingForBatchRow(r, scoped.dominantLevel);
 
     return {
       batch: r.batch,
@@ -135,9 +146,8 @@ async function fetchVisibleBatchData() {
       overdueLKR: scoped.overdueLKR,
       overdueINR: scoped.overdueINR,
       overdueSince: scopedOverdueTotal > 0 || scopedPendingTotal > 0 ? (r.overdueSince || null) : null,
-      lastLevelPendingLKR,
-      lastLevelPendingINR,
-      lastLevel: prevLevel,
+      lastLevelPendingLKR: prevLevelsPending.lkr,
+      lastLevelPendingINR: prevLevelsPending.inr,
       commencement,
     };
   });
@@ -294,12 +304,16 @@ function emailWrapper(title, badge, badgeColor, bodyHtml) {
   .amber{color:#d97706;font-weight:700}
   .commence-near{color:#dc2626;font-weight:800}
   .footer-note{font-size:11px;color:#94a3b8;margin-top:20px;text-align:center}
+  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+  @media(max-width:720px){.summary-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:420px){.summary-grid{grid-template-columns:1fr}}
   .summary-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
-  .stat-box{flex:1;min-width:140px;background:#f8fafc;border:1px solid #e2e8f0;
-            border-radius:10px;padding:14px 16px;border-top:3px solid #005b96}
-  .stat-label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
-  .stat-val{font-size:20px;font-weight:800;color:#0f172a;margin-top:4px}
-  .stat-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+  .stat-box{background:#fff;border:1px solid #e8ecf4;border-radius:10px;padding:12px 14px;
+            border-top:3px solid #005b96;min-width:0}
+  .stat-label{font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;line-height:1.3}
+  .stat-val{font-size:18px;font-weight:800;color:#03396c;margin-top:5px;line-height:1.2}
+  .stat-val--sm{font-size:16px}
+  .stat-sub{font-size:10px;color:#94a3b8;margin-top:4px;line-height:1.35}
 </style>
 </head>
 <body>
@@ -333,10 +347,13 @@ async function sendMorningReport() {
     minute: '2-digit',
   });
 
-  const totalPendingLKR = rows.reduce((s, r) => s + r.pendingLKR, 0);
-  const totalPendingINR = rows.reduce((s, r) => s + r.pendingINR, 0);
+  const totalOngoingLKR = rows.reduce((s, r) => s + r.pendingLKR, 0);
+  const totalOngoingINR = rows.reduce((s, r) => s + r.pendingINR, 0);
+  const totalPendingLKR = rows.reduce((s, r) => s + r.pendingLKR + r.overdueLKR, 0);
+  const totalPendingINR = rows.reduce((s, r) => s + r.pendingINR + r.overdueINR, 0);
   const totalOverdueStudents = rows.reduce((s, r) => s + r.overdueStudents, 0);
   const totalBalanceStudents = rows.reduce((s, r) => s + r.balanceStudents, 0);
+  const activeBatchCount = rows.length;
 
   // Last-level pending (previous CEFR level outstanding across all batches)
   const totalLastLevelLKR = rows.reduce((s, r) => s + (r.lastLevelPendingLKR || 0), 0);
@@ -356,27 +373,49 @@ async function sendMorningReport() {
   function amountLines(lkr, inr, color) {
     const parts = [];
     if (lkr > 0) parts.push(`<div class="stat-val" style="color:${color}">LKR ${fmtNum(lkr)}</div>`);
-    if (inr > 0) parts.push(`<div class="stat-val" style="color:${color};font-size:16px">INR ${fmtNum(inr)}</div>`);
+    if (inr > 0) parts.push(`<div class="stat-val stat-val--sm" style="color:${color}">INR ${fmtNum(inr)}</div>`);
     if (!parts.length) parts.push(`<div class="stat-val" style="color:#94a3b8">—</div>`);
     return parts.join('');
   }
 
+  function countStatBox(label, value, sub, accent, valueColor) {
+    return `
+      <div class="stat-box" style="border-top-color:${accent}">
+        <div class="stat-label">${label}</div>
+        <div class="stat-val" style="color:${valueColor || accent}">${value}</div>
+        <div class="stat-sub">${sub}</div>
+      </div>`;
+  }
+
   const summaryBoxes = `
-    <div class="summary-row">
+    <div class="summary-grid">
       <div class="stat-box" style="border-top-color:#d97706">
         <div class="stat-label">Ongoing Pending</div>
-        ${amountLines(totalPendingLKR, totalPendingINR, '#d97706')}
+        ${amountLines(totalOngoingLKR, totalOngoingINR, '#d97706')}
         <div class="stat-sub">current level · all active batches</div>
       </div>
       <div class="stat-box" style="border-top-color:#7c3aed">
-        <div class="stat-label">Last Level Pending</div>
+        <div class="stat-label">Previous Levels Pending</div>
         ${amountLines(totalLastLevelLKR, totalLastLevelINR, '#7c3aed')}
-        <div class="stat-sub">previous level outstanding</div>
+        <div class="stat-sub">pending from earlier levels (matches table)</div>
       </div>
       <div class="stat-box" style="border-top-color:#dc2626">
         <div class="stat-label">Commencement (next 10 days)</div>
         ${amountLines(totalCommence10LKR, totalCommence10INR, '#dc2626')}
         <div class="stat-sub">${nearCommenceRows.length} batch${nearCommenceRows.length !== 1 ? 'es' : ''} commencing by ${cutoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>
+      </div>
+      ${countStatBox('Active Batches', activeBatchCount, 'on this dashboard', '#005b96', '#03396c')}
+      ${countStatBox('Students with Balance', totalBalanceStudents, 'across all batches', '#005b96', '#03396c')}
+      ${countStatBox('Overdue Students', totalOverdueStudents, 'payment past schedule', '#dc2626', '#dc2626')}
+      <div class="stat-box" style="border-top-color:#d97706">
+        <div class="stat-label">Total Pending (LKR)</div>
+        <div class="stat-val" style="color:#d97706">LKR ${fmtNum(totalPendingLKR)}</div>
+        <div class="stat-sub">all active batches</div>
+      </div>
+      <div class="stat-box" style="border-top-color:#d97706">
+        <div class="stat-label">Total Pending (INR)</div>
+        <div class="stat-val" style="color:#d97706">INR ${fmtNum(totalPendingINR)}</div>
+        <div class="stat-sub">all active batches</div>
       </div>
     </div>`;
 
@@ -434,7 +473,7 @@ async function sendMorningReport() {
   });
 
   await sendReport({
-    subject: `🌅 Morning Finance Summary — ${dateStr} | Pending LKR ${fmtNum(totalPendingLKR)}${totalPendingINR > 0 ? ' + INR ' + fmtNum(totalPendingINR) : ''}`,
+    subject: `🌅 Morning Finance Summary — ${dateStr} | Pending LKR ${fmtNum(totalOngoingLKR)}${totalOngoingINR > 0 ? ' + INR ' + fmtNum(totalOngoingINR) : ''}`,
     html: emailWrapper(
       '🌅 Morning Finance Report',
       '10:00 AM Daily Summary',

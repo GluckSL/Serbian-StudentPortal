@@ -1904,6 +1904,120 @@ function isZoomNotFoundError(err) {
   return /status code 404/i.test(String(err?.message || ''));
 }
 
+function normalizeMeetingTimezone(tz) {
+  const t = String(tz || 'Asia/Kolkata').trim();
+  if (t === 'Asia/Colombo' || t === 'Asia/Kolkata') return 'Asia/Kolkata';
+  return t || 'Asia/Kolkata';
+}
+
+function buildZoomUpdateFromMeeting(meeting) {
+  const tz = normalizeMeetingTimezone(meeting.timezone);
+  const localStart = formatZoomLocalStartTime(meeting.startTime, tz);
+  if (!localStart) {
+    throw new Error('Invalid meeting start time for Zoom sync');
+  }
+  return {
+    topic: meeting.topic,
+    agenda: meeting.agenda || `German Language Class - Batch ${meeting.batch}`,
+    duration: meeting.duration || 60,
+    start_time: localStart,
+    timezone: tz,
+    settings: cloudRecordingZoomSettings(),
+  };
+}
+
+function zoomRemoteMatchesPortal(remote, meeting, localStart) {
+  const topicOk = String(remote?.topic || '').trim() === String(meeting.topic || '').trim();
+  const remoteStart = String(remote?.start_time || '').replace(' ', 'T').slice(0, 16);
+  const localNorm = String(localStart || '').slice(0, 16);
+  const timeOk = remoteStart === localNorm;
+  const durationOk = Number(remote?.duration) === Number(meeting.duration || 60);
+  const tzOk = normalizeMeetingTimezone(remote?.timezone) === normalizeMeetingTimezone(meeting.timezone);
+  return topicOk && timeOk && durationOk && tzOk;
+}
+
+/** Mongo filter: scheduled meetings that have not ended yet. */
+function notEndedScheduledMeetingFilter(now = new Date()) {
+  return {
+    status: 'scheduled',
+    $expr: {
+      $gte: [
+        { $add: ['$startTime', { $multiply: [{ $ifNull: ['$duration', 60] }, 60000] }] },
+        now,
+      ],
+    },
+  };
+}
+
+async function linkTimetableZoomSlot(meeting, previousZoomId) {
+  const TimeTable = require('../models/TimeTable');
+  const meetingDate = new Date(meeting.startTime);
+  const dayOfWeek = meetingDate
+    .toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' })
+    .toLowerCase();
+  const newZoomId = String(meeting.zoomMeetingId || '');
+  if (!newZoomId) return;
+
+  const timetable = await TimeTable.findOne({
+    batch: meeting.batch,
+    weekStartDate: { $lte: meetingDate },
+    weekEndDate: { $gte: meetingDate },
+  });
+
+  if (!timetable || !Array.isArray(timetable[dayOfWeek])) return;
+
+  const prevId = previousZoomId ? String(previousZoomId) : null;
+  const slotIndex = timetable[dayOfWeek].findIndex(
+    (s) => String(s.zoomMeetingId || '') === newZoomId || (prevId && String(s.zoomMeetingId || '') === prevId)
+  );
+  if (slotIndex === -1) return;
+
+  timetable[dayOfWeek][slotIndex].zoomMeetingId = newZoomId;
+  timetable[dayOfWeek][slotIndex].zoomJoinUrl = meeting.joinUrl;
+  timetable[dayOfWeek][slotIndex].zoomPassword = meeting.zoomPassword;
+  timetable[dayOfWeek][slotIndex].meetingLinked = true;
+  await timetable.save();
+}
+
+/**
+ * Align one portal MeetingLink with Zoom (topic, IST time, duration, host, cloud recording).
+ * Updates Zoom in place when possible; recreates when missing or unrecoverable.
+ */
+async function syncMeetingLinkToZoom(meeting, { forceRecreate = false } = {}) {
+  if (!meeting.hostEmail) {
+    throw new Error('Missing Zoom host email — assign a Zoom host in the portal first.');
+  }
+
+  const zoomUpdateData = buildZoomUpdateFromMeeting(meeting);
+  meeting.timezone = zoomUpdateData.timezone;
+  const zoomId = String(meeting.zoomMeetingId || '').trim();
+  const oldZoomId = zoomId || null;
+
+  if (forceRecreate || !zoomId) {
+    const result = await recreateZoomMeetingInPlace(meeting, zoomUpdateData);
+    await linkTimetableZoomSlot(meeting, result.oldZoomId);
+    return { ...result, action: 'recreated' };
+  }
+
+  try {
+    const remote = await zoomService.getMeeting(zoomId);
+    const matches = !forceRecreate && zoomRemoteMatchesPortal(remote, meeting, zoomUpdateData.start_time);
+
+    if (!matches) {
+      await zoomService.updateMeeting(zoomId, zoomUpdateData);
+      return { oldZoomId: zoomId, newZoomId: zoomId, recreated: false, action: 'updated' };
+    }
+
+    await zoomService.updateMeeting(zoomId, { settings: zoomUpdateData.settings });
+    return { oldZoomId: zoomId, newZoomId: zoomId, recreated: false, action: 'verified' };
+  } catch (err) {
+    if (!isZoomNotFoundError(err)) throw err;
+    const result = await recreateZoomMeetingInPlace(meeting, zoomUpdateData);
+    await linkTimetableZoomSlot(meeting, result.oldZoomId);
+    return { ...result, action: 'recreated' };
+  }
+}
+
 async function recreateZoomMeetingInPlace(meeting, zoomUpdateData = {}) {
   const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
 
@@ -1925,8 +2039,9 @@ async function recreateZoomMeetingInPlace(meeting, zoomUpdateData = {}) {
     }
   }
 
-  const tz = meeting.timezone || 'Asia/Kolkata';
-  const slotStartTime = formatZoomLocalStartTime(meeting.startTime, tz);
+  const tz = normalizeMeetingTimezone(meeting.timezone);
+  meeting.timezone = tz;
+  const slotStartTime = zoomUpdateData.start_time || formatZoomLocalStartTime(meeting.startTime, tz);
   if (!slotStartTime) {
     throw new Error('Invalid meeting start time for Zoom recreate');
   }
@@ -3463,75 +3578,78 @@ router.post('/enforce-private-chat-off', verifyToken, checkRole(['ADMIN']), asyn
 });
 
 /**
- * POST /api/zoom/meetings/ensure-recording-ready
+ * POST /api/zoom/meetings/sync-scheduled-to-zoom
  *
- * Repairs upcoming portal-scheduled meetings: ensures cloud recording is enabled on Zoom,
- * recreates meetings missing on Zoom, and optionally enables batch auto-recording ingest.
+ * Syncs all upcoming (not-ended) scheduled portal meetings to Zoom with the same
+ * topic, IST time, duration, agenda, and host. Recreates on Zoom when missing.
+ *
+ * Body: { batch?, limit?, forceRecreate?, enableBatchAutoRecording? }
  */
+async function runScheduledMeetingsZoomSync(req, res) {
+  try {
+    const { batch, limit = 500, forceRecreate = false, enableBatchAutoRecording = true } = req.body || {};
+    const cap = Math.min(Math.max(parseInt(limit, 10) || 500, 1), 500);
+    const filter = notEndedScheduledMeetingFilter();
+    if (batch) filter.batch = String(batch).trim();
+
+    const meetings = await MeetingLink.find(filter).sort({ startTime: 1 }).limit(cap);
+    const results = [];
+    const BatchConfig = require('../models/BatchConfig');
+
+    for (const meeting of meetings) {
+      const meetingId = String(meeting._id);
+      try {
+        const syncResult = await syncMeetingLinkToZoom(meeting, { forceRecreate: !!forceRecreate });
+        await meeting.save();
+
+        if (enableBatchAutoRecording && meeting.batch) {
+          const rx = new RegExp(`^${String(meeting.batch).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+          await BatchConfig.updateOne({ batchName: rx }, { $set: { autoRecordingEnabled: true } });
+        }
+
+        results.push({
+          meetingId,
+          ok: true,
+          action: syncResult.action,
+          zoomMeetingId: meeting.zoomMeetingId,
+          recreated: !!syncResult.recreated,
+          topic: meeting.topic,
+          startTime: meeting.startTime,
+          hostEmail: meeting.hostEmail,
+        });
+      } catch (err) {
+        results.push({ meetingId, ok: false, topic: meeting.topic, message: err.message });
+      }
+    }
+
+    const okCount = results.filter((r) => r.ok).length;
+    const recreatedCount = results.filter((r) => r.ok && r.recreated).length;
+    const updatedCount = results.filter((r) => r.ok && r.action === 'updated').length;
+    return res.json({
+      success: true,
+      message: `Synced ${okCount}/${results.length} scheduled class(es) to Zoom (${recreatedCount} recreated, ${updatedCount} updated).`,
+      summary: { total: results.length, ok: okCount, failed: results.length - okCount, recreated: recreatedCount, updated: updatedCount },
+      results,
+    });
+  } catch (error) {
+    console.error('sync-scheduled-to-zoom error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+router.post(
+  '/meetings/sync-scheduled-to-zoom',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  runScheduledMeetingsZoomSync
+);
+
+/** @deprecated Use /meetings/sync-scheduled-to-zoom */
 router.post(
   '/meetings/ensure-recording-ready',
   verifyToken,
   checkRole(['ADMIN', 'TEACHER_ADMIN']),
-  async (req, res) => {
-    try {
-      const { batch, limit = 50, enableBatchAutoRecording = true } = req.body || {};
-      const cap = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
-      const filter = {
-        status: 'scheduled',
-        startTime: { $gte: new Date() },
-      };
-      if (batch) filter.batch = String(batch).trim();
-
-      const meetings = await MeetingLink.find(filter).sort({ startTime: 1 }).limit(cap);
-      const results = [];
-
-      for (const meeting of meetings) {
-        const meetingId = String(meeting._id);
-        try {
-          if (!meeting.hostEmail) {
-            results.push({
-              meetingId,
-              ok: false,
-              message: 'Missing Zoom host email — edit the meeting and assign a Zoom host, then retry.',
-            });
-            continue;
-          }
-
-          const syncResult = await syncZoomMeetingFields(meeting, {
-            settings: cloudRecordingZoomSettings(),
-          });
-          await meeting.save();
-
-          if (enableBatchAutoRecording && meeting.batch) {
-            const BatchConfig = require('../models/BatchConfig');
-            const rx = new RegExp(`^${String(meeting.batch).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
-            await BatchConfig.updateOne({ batchName: rx }, { $set: { autoRecordingEnabled: true } });
-          }
-
-          results.push({
-            meetingId,
-            ok: true,
-            zoomMeetingId: meeting.zoomMeetingId,
-            recreated: !!syncResult?.recreated,
-            topic: meeting.topic,
-            startTime: meeting.startTime,
-          });
-        } catch (err) {
-          results.push({ meetingId, ok: false, message: err.message });
-        }
-      }
-
-      const okCount = results.filter((r) => r.ok).length;
-      return res.json({
-        success: true,
-        message: `Repaired ${okCount}/${results.length} upcoming meeting(s).`,
-        results,
-      });
-    } catch (error) {
-      console.error('ensure-recording-ready error:', error.message);
-      return res.status(500).json({ success: false, message: error.message });
-    }
-  }
+  runScheduledMeetingsZoomSync
 );
 
 /**
@@ -3558,7 +3676,7 @@ router.post(
         return res.status(400).json({ success: false, message: 'Invalid meeting ID.' });
       }
 
-      const meeting = await MeetingLink.findById(id).lean();
+      const meeting = await MeetingLink.findById(id);
       if (!meeting) {
         return res.status(404).json({ success: false, message: 'Meeting not found.' });
       }
@@ -3569,112 +3687,22 @@ router.post(
           .json({ success: false, message: 'Meeting has no Zoom host email — cannot recreate.' });
       }
 
-      // ── 1. Attempt to delete the stale Zoom meeting (best-effort) ────────────
-      if (meeting.zoomMeetingId) {
-        try {
-          await zoomService.deleteMeeting(meeting.zoomMeetingId, meeting.hostEmail);
-        } catch (_ignoreErr) {
-          // Already gone — that's fine
-        }
-      }
+      const forceRecreate = Boolean(req.body?.forceRecreate);
+      const syncResult = await syncMeetingLinkToZoom(meeting, { forceRecreate });
+      await meeting.save();
 
-      // ── 2. Create a fresh Zoom meeting with the same details ─────────────────
-      // Zoom expects start time in "YYYY-MM-DDTHH:mm:ss" local time for the given TZ
-      const tz = meeting.timezone || 'Asia/Kolkata';
-      const slotStartTime = formatZoomLocalStartTime(meeting.startTime, tz);
-      if (!slotStartTime) {
-        return res.status(422).json({ success: false, message: 'Invalid meeting start time.' });
-      }
-
-      const zoomResult = await zoomService.createMeeting(
-        {
-          topic: meeting.topic,
-          startTime: slotStartTime,
-          duration: meeting.duration || 60,
-          timezone: tz,
-          agenda: meeting.agenda || `German Language Class - Batch ${meeting.batch}`,
-        },
-        meeting.hostEmail
-      );
-
-      if (!zoomResult.success) {
-        return res.status(502).json({
-          success: false,
-          message: 'Zoom API failed to create a new meeting. Please try again.',
-        });
-      }
-
-      const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
-      const raw = zoomResult.meeting;
-      const newPwd =
-        String(raw.password || '').trim() ||
-        extractZoomPwdFromJoinUrl(raw.joinUrl) ||
-        '';
-
-      // ── 3. Persist updated Zoom data to MeetingLink ──────────────────────────
-      const updateSet = {
-            zoomMeetingId: String(raw.id),
-            zoomMeetingUuid: raw.uuid ? String(raw.uuid) : undefined,
-            zoomPassword: newPwd,
-            joinUrl: raw.joinUrl,
-            startUrl: raw.startUrl,
-            link: raw.joinUrl,
-            // Reset attendee join URLs to the new Zoom URL
-            'attendees.$[].joinUrl': raw.joinUrl,
-      };
-      if (raw.hostEmail) {
-        updateSet.hostEmail = raw.hostEmail;
-      }
-
-      const updatedMeeting = await MeetingLink.findByIdAndUpdate(
-        id,
-        { $set: updateSet },
-        { new: true }
-      ).lean();
-
-      // ── 4. Re-link the TimeTable slot with the new Zoom data ─────────────────
-      try {
-        const TimeTable = require('../models/TimeTable');
-        const meetingDate = new Date(meeting.startTime);
-        const dayOfWeek = meetingDate
-          .toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' })
-          .toLowerCase();
-
-        const timetable = await TimeTable.findOne({
-          batch: meeting.batch,
-          weekStartDate: { $lte: meetingDate },
-          weekEndDate: { $gte: meetingDate },
-        });
-
-        if (timetable) {
-          const daySlots = timetable[dayOfWeek];
-          if (Array.isArray(daySlots)) {
-            const slotIndex = daySlots.findIndex(
-              (s) => s.zoomMeetingId === meeting.zoomMeetingId
-            );
-            if (slotIndex !== -1) {
-              timetable[dayOfWeek][slotIndex].zoomMeetingId = String(raw.id);
-              timetable[dayOfWeek][slotIndex].zoomJoinUrl = raw.joinUrl;
-              timetable[dayOfWeek][slotIndex].zoomPassword = newPwd;
-              timetable[dayOfWeek][slotIndex].meetingLinked = true;
-              await timetable.save();
-              console.log(`[Recreate Zoom] Timetable slot updated for batch ${meeting.batch} on ${dayOfWeek}`);
-            }
-          }
-        }
-      } catch (ttErr) {
-        console.error('[Recreate Zoom] Timetable update failed (non-critical):', ttErr.message);
-      }
+      const updatedMeeting = meeting.toObject();
 
       console.log(
-        `[Recreate Zoom] Meeting ${id} recreated: old Zoom ID ${meeting.zoomMeetingId} → new ${raw.id}`
+        `[Recreate Zoom] Meeting ${id} synced: action=${syncResult.action} zoomId=${meeting.zoomMeetingId}`
       );
 
       return res.json({
         success: true,
-        message: 'Zoom meeting recreated successfully.',
+        message: 'Zoom meeting synced successfully.',
         meeting: updatedMeeting,
-        newZoomMeetingId: String(raw.id),
+        newZoomMeetingId: String(meeting.zoomMeetingId),
+        action: syncResult.action,
       });
     } catch (error) {
       console.error('[Recreate Zoom] Error:', error);
