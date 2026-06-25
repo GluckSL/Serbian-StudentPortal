@@ -263,20 +263,7 @@
       <div class="kd-prof-chip kd-skeleton" *ngFor="let s of serviceSkeletonRows"></div>
     </div>
 
-    <ng-container *ngIf="sheetSkilledProfessions().length">
-      <p class="kd-prof-subhead">Sheet-wide (all services)</p>
-      <div class="kd-prof-wrap kd-prof-wrap--chips">
-        <button type="button" class="kd-prof-chip kd-prof-chip--sheet"
-          *ngFor="let prof of sheetSkilledProfessions()"
-          (click)="applySheetProfessionFilter(prof.profession)">
-          <span class="kd-prof-chip__name">{{ prof.label }}</span>
-          <span class="kd-prof-chip__count">{{ prof.total }}</span>
-        </button>
-      </div>
-    </ng-container>
-
     <ng-container *ngIf="professionBreakdown.length">
-      <p class="kd-prof-subhead" *ngIf="sheetSkilledProfessions().length">{{ primaryServiceName() }} only</p>
       <div class="kd-prof-wrap kd-prof-wrap--chips" *ngIf="skilledProfessionBreakdown().length">
         <button type="button" class="kd-prof-chip"
           *ngFor="let prof of skilledProfessionBreakdown()"

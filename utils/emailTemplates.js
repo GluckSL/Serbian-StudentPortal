@@ -635,6 +635,86 @@ function buildJourneyDayReminderEmail({
 }
 
 /**
+ * Reminder for incomplete journey-week tasks (language tracking admin).
+ * @param {Array<{ day: number, incompleteTasks: object[] }>} daysWithTasks
+ */
+function buildJourneyWeekReminderEmail({
+  name,
+  week,
+  weekStartDay,
+  weekEndDay,
+  currentCourseDay,
+  daysWithTasks,
+  totalIncomplete,
+  loginUrl,
+}) {
+  const days = Array.isArray(daysWithTasks) ? daysWithTasks : [];
+  const weekNum = Number(week);
+  const studentDay = Number(currentCourseDay);
+
+  const daysHtml = days
+    .map((d) => {
+      const tasks = Array.isArray(d.incompleteTasks) ? d.incompleteTasks : [];
+      const taskRows = tasks
+        .map(
+          (t, i) => `
+        <tr>
+          <td style="padding:8px 12px;border-top:1px solid #e2e8f0;vertical-align:top;width:24px;color:#6c3fc5;font-weight:700;">${i + 1}.</td>
+          <td style="padding:8px 12px;border-top:1px solid #e2e8f0;color:#1e293b;font-size:14px;font-weight:600;">${escapeHtml(t.title || 'Task')}</td>
+        </tr>`,
+        )
+        .join('');
+      return `
+      <tr>
+        <td colspan="2" style="padding:14px 16px 6px;background:#f8fafc;color:#475569;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
+          Day ${d.day}
+        </td>
+      </tr>
+      ${taskRows}`;
+    })
+    .join('');
+
+  const rangeLabel =
+    Number.isFinite(weekStartDay) && Number.isFinite(weekEndDay)
+      ? `Days ${weekStartDay}–${weekEndDay}`
+      : `Week ${weekNum}`;
+
+  return {
+    subject: `Reminder: Complete your Week ${weekNum} pending tasks (${totalIncomplete} remaining)`,
+    html:
+      emailHeader('Weekly Progress Reminder') +
+      `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
+        Hello <strong>${escapeHtml(name)}</strong>,
+      </p>
+      <p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.6;">
+        You are on <strong>Day ${studentDay}</strong> of your course. You still have
+        <strong>${totalIncomplete}</strong> incomplete task${totalIncomplete === 1 ? '' : 's'} from
+        <strong>Week ${weekNum}</strong> (${rangeLabel}) that need your attention:
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+             style="margin:0 0 24px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+        ${daysHtml}
+      </table>
+      <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.6;">
+        Please complete the exercise(s) and module(s) listed above so you stay on track with your batch.
+      </p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        <tr><td align="center" style="padding:8px 0 20px;">
+          <a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
+            Open Student Portal →
+          </a>
+        </td></tr>
+      </table>
+      <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5;">
+        If you have already finished these, you can ignore this email. For help, reply to this message or contact your coordinator.
+      </p>
+    ` +
+      emailFooter(),
+  };
+}
+
+/**
  * Admin-initiated password reset: student must log in and complete OTP + new password.
  */
 function buildForcePasswordResetEmail({ name, regNo, otp, loginUrl, expiresMinutes = 15 }) {
@@ -1105,6 +1185,7 @@ module.exports = {
   buildJobApplicationReceivedAdminEmail,
   buildSignupApprovedWelcomeEmail,
   buildJourneyDayReminderEmail,
+  buildJourneyWeekReminderEmail,
   buildPortalAbsenceReminderEmail,
   buildConsecutiveAbsenceLanguageTeamEmail,
   buildMissedLiveClassMorningReportEmail,

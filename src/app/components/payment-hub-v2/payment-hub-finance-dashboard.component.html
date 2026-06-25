@@ -88,6 +88,91 @@
         </article>
       </div>
 
+      <div class="ph-finance-kpi-grid ph-finance-kpi-grid--outlook" *ngIf="!showPlanPaymentSummary && hasVisibleBatches">
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--ongoing">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Ongoing pending</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownTotals.ongoing.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount ph-finance-kpi-card__amount--ongoing">{{ fmtPayment(pendingBreakdownTotals.ongoing.lkr) }}</span>
+          </div>
+          <p
+            class="ph-finance-kpi-card__secondary ph-finance-kpi-card__secondary--hero"
+            *ngIf="pendingBreakdownTotals.ongoing.lkr <= 0 && pendingBreakdownTotals.ongoing.inr > 0"
+          >
+            INR {{ fmtPayment(pendingBreakdownTotals.ongoing.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="pendingBreakdownTotals.ongoing.lkr > 0 && pendingBreakdownTotals.ongoing.inr > 0">
+            INR {{ fmtPayment(pendingBreakdownTotals.ongoing.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__hint">Current level · all active batches</p>
+        </article>
+
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--last-level">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Previous levels pending</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownTotals.lastLevel.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount ph-finance-kpi-card__amount--last-level">{{ fmtPayment(pendingBreakdownTotals.lastLevel.lkr) }}</span>
+          </div>
+          <p
+            class="ph-finance-kpi-card__secondary ph-finance-kpi-card__secondary--hero"
+            *ngIf="pendingBreakdownTotals.lastLevel.lkr <= 0 && pendingBreakdownTotals.lastLevel.inr > 0"
+          >
+            INR {{ fmtPayment(pendingBreakdownTotals.lastLevel.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="pendingBreakdownTotals.lastLevel.lkr > 0 && pendingBreakdownTotals.lastLevel.inr > 0">
+            INR {{ fmtPayment(pendingBreakdownTotals.lastLevel.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__hint">Pending from earlier levels (matches table)</p>
+        </article>
+
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--commencement">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Commencement (next 10 days)</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownTotals.commencement10.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount ph-finance-kpi-card__amount--commencement">{{ fmtPayment(pendingBreakdownTotals.commencement10.lkr) }}</span>
+          </div>
+          <p
+            class="ph-finance-kpi-card__secondary ph-finance-kpi-card__secondary--hero"
+            *ngIf="pendingBreakdownTotals.commencement10.lkr <= 0 && pendingBreakdownTotals.commencement10.inr > 0"
+          >
+            INR {{ fmtPayment(pendingBreakdownTotals.commencement10.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__secondary" *ngIf="pendingBreakdownTotals.commencement10.lkr > 0 && pendingBreakdownTotals.commencement10.inr > 0">
+            INR {{ fmtPayment(pendingBreakdownTotals.commencement10.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__hint">
+            {{ pendingBreakdownTotals.commencementBatchCount }} batch{{ pendingBreakdownTotals.commencementBatchCount !== 1 ? 'es' : '' }}
+            commencing by {{ pendingBreakdownTotals.commencementCutoffLabel }}
+          </p>
+        </article>
+
+        <article class="ph-finance-kpi-card ph-finance-kpi-card--grand-total">
+          <div class="ph-finance-kpi-card__head">
+            <span class="ph-finance-kpi-card__label">Total amount</span>
+          </div>
+          <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownGrandTotal.lkr > 0">
+            <span class="ph-finance-kpi-card__ccy">LKR</span>
+            <span class="ph-finance-kpi-card__amount ph-finance-kpi-card__amount--grand-total">{{ fmtPayment(pendingBreakdownGrandTotal.lkr) }}</span>
+          </div>
+          <p
+            class="ph-finance-kpi-card__secondary ph-finance-kpi-card__secondary--grand"
+            *ngIf="pendingBreakdownGrandTotal.lkr <= 0 && pendingBreakdownGrandTotal.inr > 0"
+          >
+            INR {{ fmtPayment(pendingBreakdownGrandTotal.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__secondary ph-finance-kpi-card__secondary--grand" *ngIf="pendingBreakdownGrandTotal.lkr > 0 && pendingBreakdownGrandTotal.inr > 0">
+            INR {{ fmtPayment(pendingBreakdownGrandTotal.inr) }}
+          </p>
+          <p class="ph-finance-kpi-card__hint">Ongoing + previous levels + commencement</p>
+        </article>
+      </div>
+
       <div class="ph-health-grid" *ngIf="!showPlanPaymentSummary">
         <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
         <div class="ph-health-cards">

@@ -107,7 +107,21 @@ async function fetchVisibleBatchData() {
   const visibleSet = new Set(visibleBatches.map((b) => String(b).toLowerCase()));
   const rows = batchRows.filter((r) => visibleSet.has(String(r.batch || '').toLowerCase()));
 
-  const PREV_LEVEL_MAP = { A2: 'A1', B1: 'A2', B2: 'B1' };
+  const PREV_LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2'];
+
+  function prevLevelsPendingForBatchRow(row, currentLevel) {
+    const idx = PREV_LEVEL_ORDER.indexOf(String(currentLevel || '').toUpperCase());
+    if (idx <= 0) return { lkr: 0, inr: 0 };
+    let lkr = 0;
+    let inr = 0;
+    for (let i = 0; i < idx; i += 1) {
+      const slot = row.levelSlots?.[PREV_LEVEL_ORDER[i]];
+      if (!slot) continue;
+      lkr += slot.pendingLKR || 0;
+      inr += slot.pendingINR || 0;
+    }
+    return { lkr, inr };
+  }
 
   return rows.map((r) => {
     const scoped = currentLevelTotalsForBatchRow(r);
@@ -115,10 +129,7 @@ async function fetchVisibleBatchData() {
     const scopedPendingTotal = (scoped.pendingLKR || 0) + (scoped.pendingINR || 0) + (scoped.pendingUSD || 0);
     const commencement = computeCommencementForBatch(r, catalog, manualDates[r.batch], manualAmounts[r.batch]);
 
-    const prevLevel = PREV_LEVEL_MAP[scoped.dominantLevel] || null;
-    const prevSlot = prevLevel && r.levelSlots && r.levelSlots[prevLevel];
-    const lastLevelPendingLKR = prevSlot ? (prevSlot.pendingLKR || 0) + (prevSlot.overdueLKR || 0) : 0;
-    const lastLevelPendingINR = prevSlot ? (prevSlot.pendingINR || 0) + (prevSlot.overdueINR || 0) : 0;
+    const prevLevelsPending = prevLevelsPendingForBatchRow(r, scoped.dominantLevel);
 
     return {
       batch: r.batch,
@@ -135,9 +146,8 @@ async function fetchVisibleBatchData() {
       overdueLKR: scoped.overdueLKR,
       overdueINR: scoped.overdueINR,
       overdueSince: scopedOverdueTotal > 0 || scopedPendingTotal > 0 ? (r.overdueSince || null) : null,
-      lastLevelPendingLKR,
-      lastLevelPendingINR,
-      lastLevel: prevLevel,
+      lastLevelPendingLKR: prevLevelsPending.lkr,
+      lastLevelPendingINR: prevLevelsPending.inr,
       commencement,
     };
   });
@@ -271,7 +281,7 @@ function emailWrapper(title, badge, badgeColor, bodyHtml) {
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
   body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;margin:0;padding:0}
-  .wrap{max-width:860px;margin:0 auto;padding:24px 16px}
+  .wrap{max-width:920px;margin:0 auto;padding:24px 16px}
   .card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.07)}
   .header{background:linear-gradient(135deg,#03396c 0%,#005b96 100%);padding:28px 32px}
   .header h1{margin:0 0 6px;color:#fff;font-size:22px;font-weight:800}
@@ -294,12 +304,17 @@ function emailWrapper(title, badge, badgeColor, bodyHtml) {
   .amber{color:#d97706;font-weight:700}
   .commence-near{color:#dc2626;font-weight:800}
   .footer-note{font-size:11px;color:#94a3b8;margin-top:20px;text-align:center}
-  .summary-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
-  .stat-box{flex:1;min-width:140px;background:#f8fafc;border:1px solid #e2e8f0;
-            border-radius:10px;padding:14px 16px;border-top:3px solid #005b96}
-  .stat-label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
-  .stat-val{font-size:20px;font-weight:800;color:#0f172a;margin-top:4px}
-  .stat-sub{font-size:11px;color:#94a3b8;margin-top:2px}
+  .summary-table{width:100%;border-collapse:separate;border-spacing:8px;margin:0 -8px 20px -8px}
+  .summary-cell{vertical-align:top;width:25%;padding:0}
+  .stat-box{background:#fff;border:1px solid #e8ecf4;border-radius:10px;padding:12px 12px 10px;
+            border-top:3px solid #005b96;height:100%;box-sizing:border-box}
+  .stat-box--grand{border-top-color:#03396c;background:linear-gradient(165deg,#f8fafc 0%,#eef4ff 100%);border-color:#c7d7ee}
+  .stat-label{font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;line-height:1.3}
+  .stat-val{font-size:15px;font-weight:700;color:#03396c;margin-top:5px;line-height:1.25}
+  .stat-val--sm{font-size:13px;font-weight:700;margin-top:3px}
+  .stat-box--grand .stat-val{font-size:20px;font-weight:900;color:#03396c}
+  .stat-box--grand .stat-val--sm{font-size:15px;font-weight:800;color:#005b96}
+  .stat-sub{font-size:9px;color:#94a3b8;margin-top:5px;line-height:1.35}
 </style>
 </head>
 <body>
@@ -333,12 +348,9 @@ async function sendMorningReport() {
     minute: '2-digit',
   });
 
-  const totalPendingLKR = rows.reduce((s, r) => s + r.pendingLKR, 0);
-  const totalPendingINR = rows.reduce((s, r) => s + r.pendingINR, 0);
-  const totalOverdueStudents = rows.reduce((s, r) => s + r.overdueStudents, 0);
-  const totalBalanceStudents = rows.reduce((s, r) => s + r.balanceStudents, 0);
+  const totalOngoingLKR = rows.reduce((s, r) => s + r.pendingLKR, 0);
+  const totalOngoingINR = rows.reduce((s, r) => s + r.pendingINR, 0);
 
-  // Last-level pending (previous CEFR level outstanding across all batches)
   const totalLastLevelLKR = rows.reduce((s, r) => s + (r.lastLevelPendingLKR || 0), 0);
   const totalLastLevelINR = rows.reduce((s, r) => s + (r.lastLevelPendingINR || 0), 0);
 
@@ -353,32 +365,62 @@ async function sendMorningReport() {
   const totalCommence10LKR = nearCommenceRows.reduce((s, r) => s + (r.commencement.amountLKR || 0), 0);
   const totalCommence10INR = nearCommenceRows.reduce((s, r) => s + (r.commencement.amountINR || 0), 0);
 
+  const totalGrandLKR = totalOngoingLKR + totalLastLevelLKR + totalCommence10LKR;
+  const totalGrandINR = totalOngoingINR + totalLastLevelINR + totalCommence10INR;
+
   function amountLines(lkr, inr, color) {
     const parts = [];
     if (lkr > 0) parts.push(`<div class="stat-val" style="color:${color}">LKR ${fmtNum(lkr)}</div>`);
-    if (inr > 0) parts.push(`<div class="stat-val" style="color:${color};font-size:16px">INR ${fmtNum(inr)}</div>`);
-    if (!parts.length) parts.push(`<div class="stat-val" style="color:#94a3b8">—</div>`);
+    if (inr > 0) parts.push(`<div class="stat-val stat-val--sm" style="color:${color}">INR ${fmtNum(inr)}</div>`);
+    if (!parts.length) parts.push('<div class="stat-val" style="color:#94a3b8">—</div>');
     return parts.join('');
   }
 
+  function outlookStatBox(label, amountsHtml, sub, accent) {
+    return `
+      <div class="stat-box" style="border-top-color:${accent}">
+        <div class="stat-label">${label}</div>
+        ${amountsHtml}
+        <div class="stat-sub">${sub}</div>
+      </div>`;
+  }
+
   const summaryBoxes = `
-    <div class="summary-row">
-      <div class="stat-box" style="border-top-color:#d97706">
-        <div class="stat-label">Ongoing Pending</div>
-        ${amountLines(totalPendingLKR, totalPendingINR, '#d97706')}
-        <div class="stat-sub">current level · all active batches</div>
-      </div>
-      <div class="stat-box" style="border-top-color:#7c3aed">
-        <div class="stat-label">Last Level Pending</div>
-        ${amountLines(totalLastLevelLKR, totalLastLevelINR, '#7c3aed')}
-        <div class="stat-sub">previous level outstanding</div>
-      </div>
-      <div class="stat-box" style="border-top-color:#dc2626">
-        <div class="stat-label">Commencement (next 10 days)</div>
-        ${amountLines(totalCommence10LKR, totalCommence10INR, '#dc2626')}
-        <div class="stat-sub">${nearCommenceRows.length} batch${nearCommenceRows.length !== 1 ? 'es' : ''} commencing by ${cutoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>
-      </div>
-    </div>`;
+    <table class="summary-table" cellpadding="0" cellspacing="0" role="presentation">
+      <tr>
+        <td class="summary-cell">
+          ${outlookStatBox(
+            'Ongoing Pending',
+            amountLines(totalOngoingLKR, totalOngoingINR, '#d97706'),
+            'current level · all active batches',
+            '#d97706',
+          )}
+        </td>
+        <td class="summary-cell">
+          ${outlookStatBox(
+            'Previous Levels Pending',
+            amountLines(totalLastLevelLKR, totalLastLevelINR, '#7c3aed'),
+            'pending from earlier levels',
+            '#7c3aed',
+          )}
+        </td>
+        <td class="summary-cell">
+          ${outlookStatBox(
+            'Commencement (10 days)',
+            amountLines(totalCommence10LKR, totalCommence10INR, '#dc2626'),
+            `${nearCommenceRows.length} batch${nearCommenceRows.length !== 1 ? 'es' : ''} by ${cutoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+            '#dc2626',
+          )}
+        </td>
+        <td class="summary-cell">
+          <div class="stat-box stat-box--grand">
+            <div class="stat-label" style="color:#03396c">Total Amount</div>
+            ${amountLines(totalGrandLKR, totalGrandINR, '#03396c')}
+            <div class="stat-sub">ongoing + previous + commencement</div>
+          </div>
+        </td>
+      </tr>
+    </table>`;
 
   let tableRows = '';
   for (const r of rows) {
@@ -434,7 +476,7 @@ async function sendMorningReport() {
   });
 
   await sendReport({
-    subject: `🌅 Morning Finance Summary — ${dateStr} | Pending LKR ${fmtNum(totalPendingLKR)}${totalPendingINR > 0 ? ' + INR ' + fmtNum(totalPendingINR) : ''}`,
+    subject: `🌅 Morning Finance Summary — ${dateStr} | Pending LKR ${fmtNum(totalOngoingLKR)}${totalOngoingINR > 0 ? ' + INR ' + fmtNum(totalOngoingINR) : ''}`,
     html: emailWrapper(
       '🌅 Morning Finance Report',
       '10:00 AM Daily Summary',

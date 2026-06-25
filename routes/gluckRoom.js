@@ -91,21 +91,26 @@ router.get('/sessions', verifyToken, async (req, res) => {
     const user = await User.findById(userId).select('role assignedBatches batch');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    const { status, batch, plan, scheduleType, page = 1, limit = 25 } = req.query;
-    const query = {};
+    const { status, batch, plan, scheduleType, search, includeTabCounts, page = 1, limit = 25 } = req.query;
 
+    // Build base access filter (students only see their sessions)
+    const baseAccess = {};
     if (user.role === 'STUDENT') {
-      query.$or = [
+      baseAccess.$or = [
         { accessType: 'open' },
         { allowedBatches: { $in: [user.batch] } },
         { allowedStudents: userId }
       ];
     }
 
+    const query = { ...baseAccess };
     if (status) query.status = status;
     if (batch) query.batch = batch;
     if (plan) query.plan = plan;
     if (scheduleType) query.scheduleType = scheduleType;
+    if (search && search.trim()) {
+      query.sessionName = { $regex: search.trim(), $options: 'i' };
+    }
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
@@ -116,21 +121,36 @@ router.get('/sessions', verifyToken, async (req, res) => {
     else if (status === 'active') sort = { actualStartTime: -1 };
     else if (status === 'ended') sort = { actualEndTime: -1 };
 
-    const [sessions, totalCount] = await Promise.all([
+    // Build filter without status so tab counts span all statuses
+    const baseFilter = { ...baseAccess };
+    if (batch) baseFilter.batch = batch;
+    if (plan) baseFilter.plan = plan;
+    if (search && search.trim()) baseFilter.sessionName = { $regex: search.trim(), $options: 'i' };
+
+    const countPromises = [
       GluckRoomSession.find(query)
         .populate('hostId', 'name email')
-        .populate('allowedStudents', 'name email')
         .sort(sort)
         .skip(skip)
         .limit(pageSize),
-      GluckRoomSession.countDocuments(query)
-    ]);
+      GluckRoomSession.countDocuments(query),
+      GluckRoomSession.distinct('batch', {}),
+    ];
 
-    // Gather available batches from sessions (for filter dropdown)
-    const batchAgg = await GluckRoomSession.distinct('batch', {});
-    const availableBatches = batchAgg.sort();
+    if (includeTabCounts === 'true') {
+      countPromises.push(
+        GluckRoomSession.countDocuments({ ...baseFilter, status: 'scheduled' }),
+        GluckRoomSession.countDocuments({ ...baseFilter, status: 'active' }),
+        GluckRoomSession.countDocuments({ ...baseFilter, status: 'ended' })
+      );
+    }
 
-    res.json({
+    const results = await Promise.all(countPromises);
+    const sessions = results[0];
+    const totalCount = results[1];
+    const availableBatches = (results[2] || []).sort();
+
+    const response = {
       success: true,
       count: sessions.length,
       totalCount,
@@ -140,7 +160,17 @@ router.get('/sessions', verifyToken, async (req, res) => {
       },
       data: sessions,
       availableBatches
-    });
+    };
+
+    if (includeTabCounts === 'true') {
+      response.tabCounts = {
+        scheduled: results[3] || 0,
+        active: results[4] || 0,
+        ended: results[5] || 0
+      };
+    }
+
+    res.json(response);
   } catch (err) {
     console.error('List sessions error:', err);
     res.status(500).json({ success: false, message: err.message });

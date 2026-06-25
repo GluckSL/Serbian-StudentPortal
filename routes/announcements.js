@@ -6,11 +6,19 @@ const sanitizeHtml = require('sanitize-html');
 const Announcement = require('../models/Announcement');
 const User = require('../models/User');
 const { dispatchWebsiteEmailAnnouncement } = require('../services/announcementEmailDispatch');
+const {
+  normalizeBatchKey,
+  isGoStudentsTarget,
+  isGoStudentRecord,
+  normalizeBatchList,
+  batchesIntersectNormalized,
+  getRecipientBatchKeys,
+  findTeachersForTargetBatches
+} = require('../services/announcementRecipients');
 const { verifyToken, checkRole } = require('../middleware/auth');
 
 const router = express.Router();
 const GO_STUDENTS_TARGET_KEY = '__GO_STUDENTS__';
-const GO_STUDENTS_TARGET_NORMALIZED = 'gostudents';
 
 const announcementsUploadDir = path.join(__dirname, '..', 'uploads', 'announcements');
 if (!fs.existsSync(announcementsUploadDir)) {
@@ -135,35 +143,6 @@ function parseTargetBatches(raw) {
   return [];
 }
 
-function normalizeBatchKey(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\bbatch\b/g, '')
-    .replace(/[^a-z0-9]/g, '');
-}
-
-function isGoStudentsTarget(value) {
-  const normalized = normalizeBatchKey(value);
-  return normalized === GO_STUDENTS_TARGET_NORMALIZED;
-}
-
-function isGoStudentRecord(student) {
-  return String(student?.goStatus || '')
-    .trim()
-    .toUpperCase() === 'GO';
-}
-
-function batchesIntersectNormalized(studentBatch, targetBatches) {
-  const studentKey = normalizeBatchKey(studentBatch);
-  if (!studentKey) return false;
-  return (targetBatches || []).some((b) => normalizeBatchKey(b) === studentKey);
-}
-
-function normalizeBatchList(values) {
-  return Array.from(new Set((values || []).map((b) => normalizeBatchKey(b)).filter(Boolean)));
-}
-
 function unlinkIfExists(filePath) {
   if (!filePath) return;
   fs.unlink(filePath, (err) => {
@@ -215,31 +194,25 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
   }
 });
 
-// List announcements for the logged-in student.
+// List announcements for the logged-in student or teacher.
 // We intentionally allow any authenticated user here (no strict role check),
-// and rely on the student record + batch lookup to determine visibility.
+// and rely on the user record + batch lookup to determine visibility.
 router.get('/student', verifyToken, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
-    const student = await User.findById(req.user.id).select('batch goStatus').lean();
-    const batch = String(student?.batch || '').trim();
-    const isGoStudent = isGoStudentRecord(student);
-    if (!batch && !isGoStudent) {
+    const user = await User.findById(req.user.id).select('role batch goStatus assignedBatches').lean();
+    if (!user) {
       return res.json({ success: true, data: [] });
     }
 
-    const normalizedTargets = [];
-    if (isGoStudent) {
-      normalizedTargets.push(GO_STUDENTS_TARGET_NORMALIZED);
-    }
-    if (batch) {
-      normalizedTargets.push(normalizeBatchKey(batch));
+    const role = String(user.role || '').toUpperCase();
+    const normalizedTargets = await getRecipientBatchKeys(user, req.user.id);
+    if (!normalizedTargets.length) {
+      return res.json({ success: true, data: [] });
     }
 
     const query = { channel: 'website', isActive: true };
-    if (normalizedTargets.length) {
-      query.normalizedBatches = { $in: normalizedTargets };
-    }
+    query.normalizedBatches = { $in: normalizedTargets };
 
     const allItems = await Announcement.find(query)
       .sort({ createdAt: -1 })
@@ -248,12 +221,18 @@ router.get('/student', verifyToken, async (req, res) => {
       .populate('createdBy', 'name role')
       .lean();
 
+    const batch = role === 'STUDENT' ? String(user.batch || '').trim() : '';
+    const isGoStudent = role === 'STUDENT' && isGoStudentRecord(user);
+
     const items = allItems.filter((item) => {
       const targets = item.targetBatches || [];
-      const includesGoAudience = targets.some((target) => isGoStudentsTarget(target));
-      if (isGoStudent && includesGoAudience) return true;
-      if (!batch) return false;
-      return batchesIntersectNormalized(batch, targets);
+      if (role === 'STUDENT') {
+        const includesGoAudience = targets.some((target) => isGoStudentsTarget(target));
+        if (isGoStudent && includesGoAudience) return true;
+        if (!batch) return false;
+        return batchesIntersectNormalized(batch, targets);
+      }
+      return (item.normalizedBatches || []).some((key) => normalizedTargets.includes(key));
     });
 
     res.json({ success: true, data: items });
@@ -298,7 +277,15 @@ router.get(
           isTestAccount: !!s.isTestAccount
         }));
 
-      return res.json({ success: true, data: matched, total: matched.length });
+      const teachers = await findTeachersForTargetBatches(targetBatches, targetKeys);
+
+      return res.json({
+        success: true,
+        data: matched,
+        total: matched.length,
+        teachers,
+        teacherTotal: teachers.length
+      });
     } catch (error) {
       console.error('announcements GET /target-students failed', error);
       return res.status(500).json({ success: false, message: 'Failed to load target students.' });

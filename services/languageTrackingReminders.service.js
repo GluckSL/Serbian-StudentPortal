@@ -3,7 +3,8 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const transporter = require('../config/emailConfig');
-const { buildJourneyDayReminderEmail } = require('../utils/emailTemplates');
+const { buildJourneyDayReminderEmail, buildJourneyWeekReminderEmail } = require('../utils/emailTemplates');
+const { journeyWeekFromDay, weekDayRange } = require('../utils/oldBatchDgWeekAccess');
 
 const MAX_PER_REQUEST = 50;
 
@@ -142,7 +143,139 @@ async function sendJourneyReminders(studentIds, dayOverride) {
   return { results, sent, skipped, failed };
 }
 
+async function getIncompleteTasksForWeek(student) {
+  const currentCourseDay = student.currentCourseDay || 1;
+  const week = journeyWeekFromDay(currentCourseDay);
+  const { start, end } = weekDayRange(week);
+
+  const daysWithTasks = [];
+  let totalIncomplete = 0;
+
+  for (let day = start; day <= Math.min(end, currentCourseDay); day += 1) {
+    const dayData = await getIncompleteTasksForStudent(student, day);
+    if (dayData.incompleteTasks.length) {
+      daysWithTasks.push({
+        day,
+        incompleteTasks: dayData.incompleteTasks,
+        doneTasks: dayData.doneTasks,
+        totalTasks: dayData.totalTasks,
+      });
+      totalIncomplete += dayData.incompleteTasks.length;
+    }
+  }
+
+  return {
+    week,
+    weekStartDay: start,
+    weekEndDay: end,
+    daysWithTasks,
+    totalIncomplete,
+  };
+}
+
+/**
+ * Send journey-week reminder emails listing incomplete tasks across the current week.
+ * @param {string[]} studentIds
+ * @returns {Promise<{ results: object[], sent: number, skipped: number, failed: number }>}
+ */
+async function sendJourneyWeekReminders(studentIds) {
+  const ids = [...new Set((studentIds || []).map(String).filter(Boolean))];
+  if (!ids.length) {
+    return { results: [], sent: 0, skipped: 0, failed: 0 };
+  }
+
+  const loginUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const from = process.env.EMAIL_USER;
+  const results = [];
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const rawId of ids) {
+    if (!mongoose.Types.ObjectId.isValid(rawId)) {
+      results.push({ studentId: rawId, ok: false, reason: 'invalid_id' });
+      failed += 1;
+      continue;
+    }
+
+    const student = await User.findById(rawId)
+      .select('_id name email batch level subscription goStatus currentCourseDay')
+      .lean();
+
+    if (!student) {
+      results.push({ studentId: rawId, ok: false, reason: 'not_found' });
+      failed += 1;
+      continue;
+    }
+
+    if (!student.email) {
+      results.push({ studentId: rawId, ok: false, reason: 'no_email', name: student.name });
+      skipped += 1;
+      continue;
+    }
+
+    let weekData;
+    try {
+      weekData = await getIncompleteTasksForWeek(student);
+    } catch (err) {
+      console.error('languageTrackingReminders week completion', rawId, err.message);
+      results.push({ studentId: rawId, ok: false, reason: 'completion_error', name: student.name });
+      failed += 1;
+      continue;
+    }
+
+    const { week, weekStartDay, weekEndDay, daysWithTasks, totalIncomplete } = weekData;
+    if (!daysWithTasks.length) {
+      results.push({
+        studentId: rawId,
+        ok: false,
+        reason: 'all_complete',
+        name: student.name,
+        week,
+      });
+      skipped += 1;
+      continue;
+    }
+
+    const mail = buildJourneyWeekReminderEmail({
+      name: student.name,
+      week,
+      weekStartDay,
+      weekEndDay,
+      currentCourseDay: student.currentCourseDay,
+      daysWithTasks,
+      totalIncomplete,
+      loginUrl,
+    });
+
+    try {
+      await transporter.sendMail({
+        from,
+        to: student.email,
+        subject: mail.subject,
+        html: mail.html,
+      });
+      results.push({
+        studentId: rawId,
+        ok: true,
+        name: student.name,
+        email: student.email,
+        week,
+        incompleteCount: totalIncomplete,
+      });
+      sent += 1;
+    } catch (err) {
+      console.error('languageTrackingReminders week sendMail', rawId, err.message);
+      results.push({ studentId: rawId, ok: false, reason: 'send_failed', name: student.name });
+      failed += 1;
+    }
+  }
+
+  return { results, sent, skipped, failed };
+}
+
 module.exports = {
   sendJourneyReminders,
+  sendJourneyWeekReminders,
   MAX_PER_REQUEST,
 };

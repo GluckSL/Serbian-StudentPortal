@@ -14,6 +14,21 @@ import { Router } from '@angular/router';
 import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 
+interface StudentAttRecord {
+  studentId: string;
+  name: string;
+  email: string;
+  attended: boolean;
+  durationMinutes: number;
+  attendancePercent: number;
+}
+
+interface EnrolledStudent {
+  studentId: string;
+  name: string;
+  email: string;
+}
+
 interface MeetingReport {
   _id: string;
   topic: string;
@@ -26,6 +41,8 @@ interface MeetingReport {
   absent: number;
   attendanceRate: number;
   status: string;
+  attendanceList: StudentAttRecord[];
+  enrolledStudents: EnrolledStudent[];
 }
 
 @Component({
@@ -40,6 +57,8 @@ export class ZoomReportsComponent implements OnInit {
   loading = true;
   loadingPage = false;
   error = '';
+
+  selectedMeetingIds = new Set<string>();
 
   teacherFilter = 'all';
   batchFilter = 'all';
@@ -171,6 +190,7 @@ export class ZoomReportsComponent implements OnInit {
     if (!quiet) {
       this.loadingPage = true;
       this.loading = this.currentPage === 1 && this.meetingsPage.length === 0;
+      this.selectedMeetingIds = new Set();
     }
     this.error = '';
     this.zoomService.getAllMeetings(this.buildMeetingFilters()).subscribe({
@@ -202,12 +222,38 @@ export class ZoomReportsComponent implements OnInit {
     return rows.map(m => {
       const attended = m.attendance?.filter((a: any) => a.attended).length || 0;
       const total = m.attendees?.length || 0;
+      const duration = m.duration || 0;
+
+      const attendanceList: StudentAttRecord[] = (m.attendance || []).map((a: any) => {
+        const rawDurMin = a.durationMinutes != null
+          ? a.durationMinutes
+          : (a.duration ? Math.round(a.duration / 60) : 0);
+        // If absent, force minutes to 0 regardless of stored values
+        const attendedMin = !!a.attended ? (rawDurMin || duration) : 0;
+        // Always derive % from actual minutes so Minute and %Attendance are always consistent
+        const pct = duration > 0 ? Math.min(Math.round((attendedMin / duration) * 100), 100) : (!!a.attended ? 100 : 0);
+        return {
+          studentId: (typeof a.studentId === 'object' ? a.studentId?._id : a.studentId) || '',
+          name: a.name || 'Unknown',
+          email: a.email || '',
+          attended: !!a.attended,
+          durationMinutes: attendedMin,
+          attendancePercent: pct
+        };
+      });
+
+      const enrolledStudents: EnrolledStudent[] = (m.attendees || []).map((s: any) => ({
+        studentId: (typeof s.studentId === 'object' ? s.studentId?._id : s.studentId) || '',
+        name: s.name || (s.studentId as any)?.name || 'Unknown',
+        email: s.email || (s.studentId as any)?.email || ''
+      }));
+
       return {
         _id: m._id,
         topic: m.topic,
         batch: m.batch,
         startTime: new Date(m.startTime),
-        duration: m.duration,
+        duration,
         teacher: {
           name: m.assignedTeacher?.name || m.createdBy?.name || 'Unknown',
           email: m.assignedTeacher?.email || m.createdBy?.email || ''
@@ -216,7 +262,9 @@ export class ZoomReportsComponent implements OnInit {
         attended,
         absent: Math.max(total - attended, 0),
         attendanceRate: total > 0 ? Math.round((attended / total) * 100) : 0,
-        status: 'completed'
+        status: 'completed',
+        attendanceList,
+        enrolledStudents
       };
     });
   }
@@ -356,6 +404,167 @@ export class ZoomReportsComponent implements OnInit {
   formatDuration(minutes: number): string {
     const h = Math.floor(minutes / 60), m = minutes % 60;
     return h > 0 ? `${h}h ${m}m` : `${m} min`;
+  }
+
+  get allPageSelected(): boolean {
+    return this.meetingsPage.length > 0 && this.meetingsPage.every(m => this.selectedMeetingIds.has(m._id));
+  }
+
+  get somePageSelected(): boolean {
+    return this.meetingsPage.some(m => this.selectedMeetingIds.has(m._id));
+  }
+
+  get selectedCount(): number {
+    return this.meetingsPage.filter(m => this.selectedMeetingIds.has(m._id)).length;
+  }
+
+  toggleSelect(id: string): void {
+    if (this.selectedMeetingIds.has(id)) {
+      this.selectedMeetingIds.delete(id);
+    } else {
+      this.selectedMeetingIds.add(id);
+    }
+    this.selectedMeetingIds = new Set(this.selectedMeetingIds);
+  }
+
+  toggleSelectAll(): void {
+    if (this.allPageSelected) {
+      this.meetingsPage.forEach(m => this.selectedMeetingIds.delete(m._id));
+    } else {
+      this.meetingsPage.forEach(m => this.selectedMeetingIds.add(m._id));
+    }
+    this.selectedMeetingIds = new Set(this.selectedMeetingIds);
+  }
+
+  generateAnalytics(): void {
+    const selected = this.meetingsPage.filter(m => this.selectedMeetingIds.has(m._id));
+    if (!selected.length) {
+      this.notify.warning('Please select at least one class to generate analytics.');
+      return;
+    }
+
+    // ── Build per-student map ──────────────────────────────────────────────
+    interface StudentMeetingRow {
+      date: string;
+      topic: string;
+      attendedMin: number;
+      totalMin: number;
+      pct: number;
+      status: string;
+    }
+    interface StudentEntry {
+      name: string;
+      batch: string;
+      rows: StudentMeetingRow[];
+    }
+
+    const studentMap = new Map<string, StudentEntry>();
+    const getKey = (studentId: string, email: string, name: string) =>
+      studentId || email || name || 'unknown';
+
+    for (const meeting of selected) {
+      const date = this.formatDateShort(meeting.startTime);
+      const totalMin = meeting.duration;
+      const batch = meeting.batch;
+
+      // Register all enrolled students first (so absent ones still appear)
+      for (const s of meeting.enrolledStudents) {
+        const key = getKey(s.studentId, s.email, s.name);
+        if (!studentMap.has(key)) {
+          studentMap.set(key, { name: s.name, batch, rows: [] });
+        }
+      }
+
+      // Index attendance records by key
+      const attMap = new Map<string, StudentAttRecord>();
+      for (const a of meeting.attendanceList) {
+        const k = getKey(a.studentId, a.email, a.name);
+        attMap.set(k, a);
+        if (!studentMap.has(k)) {
+          studentMap.set(k, { name: a.name, batch, rows: [] });
+        }
+      }
+
+      // Add one row per student per meeting
+      for (const [key, entry] of studentMap) {
+        const alreadyHasRow = entry.rows.some(r => r.date === date && r.topic === meeting.topic);
+        if (alreadyHasRow) continue;
+
+        const isInMeeting = attMap.has(key) ||
+          meeting.enrolledStudents.some(s => getKey(s.studentId, s.email, s.name) === key);
+        if (!isInMeeting) continue;
+
+        const att = attMap.get(key);
+        const attendedMin = att ? att.durationMinutes : 0;
+        // Always compute % from minutes — never trust stored value
+        const pct = totalMin > 0 ? Math.min(Math.round((attendedMin / totalMin) * 100), 100) : 0;
+        const status = att?.attended ? 'Attended' : 'Absent';
+
+        entry.rows.push({ date, topic: meeting.topic, attendedMin, totalMin, pct, status });
+      }
+    }
+
+    // ── Build CSV ──────────────────────────────────────────────────────────
+    const headers = ['Name', 'Date', 'Class Topic', 'Batch', 'Minutes (Attended/Total)', '%Attendance', 'Status', 'Summary'];
+    const csvRows: string[][] = [];
+
+    let grandAttended = 0;
+    let grandTotal = 0;
+    let grandStudents = 0;
+
+    const sortedStudents = Array.from(studentMap.entries())
+      .filter(([, s]) => s.rows.length > 0)
+      .sort((a, b) => a[1].name.localeCompare(b[1].name));
+
+    for (const [, student] of sortedStudents) {
+      student.rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const stuAttended = student.rows.reduce((s, r) => s + r.attendedMin, 0);
+      const stuTotal = student.rows.reduce((s, r) => s + r.totalMin, 0);
+      const studentOverallPct = stuTotal > 0
+        ? Math.min(Math.round((stuAttended / stuTotal) * 100), 100)
+        : 0;
+
+      for (const [i, r] of student.rows.entries()) {
+        const rowPct = r.totalMin > 0 ? Math.min(Math.round((r.attendedMin / r.totalMin) * 100), 100) : 0;
+        csvRows.push([
+          student.name,
+          r.date,
+          r.topic,
+          student.batch,
+          `${r.attendedMin} / ${r.totalMin}`,
+          `${rowPct}%`,
+          r.status,
+          i === 0 ? `${studentOverallPct}%` : ''
+        ]);
+        grandAttended += r.attendedMin;
+        grandTotal += r.totalMin;
+      }
+      grandStudents++;
+    }
+
+    const grandPct = grandTotal > 0 ? Math.min(Math.round((grandAttended / grandTotal) * 100), 100) : 0;
+    csvRows.push([]);
+    csvRows.push([
+      'OVERALL AVERAGE',
+      '',
+      `${grandStudents} students | ${selected.length} classes`,
+      '',
+      `${grandAttended} / ${grandTotal}`,
+      '',
+      '',
+      `${grandPct}%`
+    ]);
+
+    const csv = [headers, ...csvRows]
+      .map(r => r.map(c => `"${String(c)}"`).join(','))
+      .join('\n');
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `student_analytics_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    this.notify.success(`Analytics exported: ${grandStudents} students across ${selected.length} class${selected.length !== 1 ? 'es' : ''}.`);
   }
 
   exportToCSV(): void {

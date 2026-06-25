@@ -207,6 +207,38 @@
             No batches added yet — use the <strong>+ Add Batch</strong> button above.
           </p>
         </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--silver-payment">
+          <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--silver-payment" aria-hidden="true">
+            <mat-icon>workspace_premium</mat-icon>
+          </div>
+          <div class="ph-finance-overview-card__main">
+            <a
+              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              routerLink="/admin/finance-dashboard/silver-payment"
+            >
+              {{ loadingSilverPaymentCount ? '…' : silverPaymentCount }}
+            </a>
+            <span class="ph-finance-overview-card__label">Silver Payment</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link"
+            routerLink="/admin/finance-dashboard/silver-payment"
+          >
+            <span>Show details</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <p class="ph-finance-overview-card__hint">
+            Custom tracked list — add from GO Tamil, GO Sinhala, batches or individual search.
+          </p>
+          <a
+            class="ph-finance-manage-batches-btn ph-finance-manage-batches-btn--silver"
+            routerLink="/admin/finance-dashboard/silver-payment"
+          >
+            <mat-icon>manage_accounts</mat-icon>
+            <span>Manage students</span>
+          </a>
+        </article>
       </div>
     </ng-container>
 

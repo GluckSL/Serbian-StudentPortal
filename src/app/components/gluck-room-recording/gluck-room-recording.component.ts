@@ -6,7 +6,7 @@ import { GluckRoomService } from '../../services/gluck-room.service';
 import { AuthService, getAuthToken } from '../../services/auth.service';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Hls from 'hls.js';
-import { hlsAuthXhrSetup } from '../../utils/hls-auth-xhr';
+import { hlsAuthXhrSetup, hlsAuthFetchSetup } from '../../utils/hls-auth-xhr';
 
 @Component({
   selector: 'app-gluck-room-recording',
@@ -103,14 +103,8 @@ export class GluckRoomRecordingComponent implements OnInit, AfterViewChecked {
         maxMaxBufferLength: 20,
         startLevel: 0,
         backBufferLength: 5,
-        xhrSetup: (xhr: XMLHttpRequest) => { hlsAuthXhrSetup(xhr); },
-        fetchSetup: (context: any, initParams: any) => {
-          if (context.url.includes('X-Amz-Signature')) return new Request(context.url, initParams);
-          const token = getAuthToken();
-          const headers = new Headers(initParams?.headers || {});
-          if (token) headers.set('Authorization', `Bearer ${token}`);
-          return new Request(context.url, { ...initParams, headers });
-        },
+        xhrSetup: (xhr: XMLHttpRequest, url?: string) => { hlsAuthXhrSetup(xhr, url); },
+        fetchSetup: hlsAuthFetchSetup,
       });
       this.hls.loadSource(url);
       this.hls.attachMedia(video);

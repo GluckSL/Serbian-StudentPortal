@@ -17,6 +17,7 @@ const {
 } = require('../services/languageTrackingAnalytics.service');
 const {
   sendJourneyReminders,
+  sendJourneyWeekReminders,
   MAX_PER_REQUEST,
 } = require('../services/languageTrackingReminders.service');
 
@@ -108,10 +109,12 @@ router.get('/student/:studentId/day/:day', verifyToken, requireLanguageTrackingV
 });
 
 // ── POST /api/language-tracking/send-reminders ───────────────────────────────
-// Body: { studentIds: string[], day?: number } — optional day for historical reminders
+// Body: { studentIds: string[], day?: number, scope?: 'day' | 'week' }
+// scope=week sends reminders for all pending tasks in the student's current journey week
 router.post('/send-reminders', verifyToken, requireLanguageTrackingEdit, async (req, res) => {
   try {
     const studentIds = Array.isArray(req.body?.studentIds) ? req.body.studentIds : [];
+    const scope = req.body?.scope === 'week' ? 'week' : 'day';
     const day = req.body?.day != null ? Number(req.body.day) : undefined;
     if (!studentIds.length) {
       return res.status(400).json({ message: 'studentIds array is required' });
@@ -119,7 +122,10 @@ router.post('/send-reminders', verifyToken, requireLanguageTrackingEdit, async (
     if (studentIds.length > MAX_PER_REQUEST) {
       return res.status(400).json({ message: `Maximum ${MAX_PER_REQUEST} students per request` });
     }
-    const summary = await sendJourneyReminders(studentIds, day);
+    const summary =
+      scope === 'week'
+        ? await sendJourneyWeekReminders(studentIds)
+        : await sendJourneyReminders(studentIds, day);
     res.json(summary);
   } catch (err) {
     console.error('language-tracking POST /send-reminders', err);

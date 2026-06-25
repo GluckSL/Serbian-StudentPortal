@@ -5,6 +5,11 @@
   <div class="header">
     <h1>{{ isAdmin() ? 'All Meetings' : 'My Meetings' }}</h1>
     <div class="header-actions">
+      <button mat-stroked-button color="accent" *ngIf="canSyncAllScheduledToZoom()" (click)="syncAllScheduledToZoom()"
+              [disabled]="isSyncingScheduledToZoom">
+        <mat-icon>sync</mat-icon>
+        {{ isSyncingScheduledToZoom ? 'Syncing to Zoom…' : 'Sync All to Zoom' }}
+      </button>
       <button mat-stroked-button color="primary" *ngIf="canBulkJourneyMeetings()" (click)="bulkJourneyMeetings()">
         <mat-icon>layers</mat-icon>
         Bulk Journey Meetings
@@ -239,10 +244,10 @@
                     class="recreate-action-btn"
                     (click)="recreateMeeting(meeting, $event)"
                     [disabled]="recreatingMeetingId === meeting._id"
-                    matTooltip="Fix broken Zoom link (error 3,001)">
-              <mat-icon>refresh</mat-icon>
-              <span *ngIf="recreatingMeetingId !== meeting._id">Fix Link</span>
-              <span *ngIf="recreatingMeetingId === meeting._id">Fixing…</span>
+                    matTooltip="Create or update this class on Zoom to match the portal">
+              <mat-icon>sync</mat-icon>
+              <span *ngIf="recreatingMeetingId !== meeting._id">Sync Zoom</span>
+              <span *ngIf="recreatingMeetingId === meeting._id">Syncing…</span>
             </button>
             <button mat-icon-button (click)="viewMeeting(meeting._id); $event.stopPropagation()"
                     matTooltip="View details">
@@ -330,9 +335,9 @@
             class="recreate-action-btn"
             (click)="recreateMeeting(meeting, $event)"
             [disabled]="recreatingMeetingId === meeting._id">
-            <mat-icon>refresh</mat-icon>
-            <span *ngIf="recreatingMeetingId !== meeting._id">Fix Link</span>
-            <span *ngIf="recreatingMeetingId === meeting._id">Fixing…</span>
+            <mat-icon>sync</mat-icon>
+            <span *ngIf="recreatingMeetingId !== meeting._id">Sync Zoom</span>
+            <span *ngIf="recreatingMeetingId === meeting._id">Syncing…</span>
           </button>
           <button mat-button (click)="viewMeeting(meeting._id); $event.stopPropagation()">
             <mat-icon>visibility</mat-icon>

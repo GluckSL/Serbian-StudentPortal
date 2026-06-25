@@ -73,6 +73,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
   isSelectingAllBatch = false;
   /** Track which meeting is currently being recreated */
   recreatingMeetingId: string | null = null;
+  isSyncingScheduledToZoom = false;
 
   constructor(
     private router: Router,
@@ -535,13 +536,53 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     return meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown Teacher';
   }
 
-  /** Only show Recreate for admins on non-ended meetings that have a Zoom ID */
+  /** Show sync/fix for admins on scheduled meetings that are not ended */
   canShowRecreateButton(meeting: any): boolean {
     return (
       this.isAdmin() &&
-      !!meeting.zoomMeetingId &&
+      !!meeting.hostEmail &&
       this.effectiveTabStatus(meeting) !== 'ended'
     );
+  }
+
+  canSyncAllScheduledToZoom(): boolean {
+    return this.isAdmin() && this.statusTab === 'scheduled' && !this.isSyncingScheduledToZoom;
+  }
+
+  syncAllScheduledToZoom(): void {
+    if (this.isSyncingScheduledToZoom) return;
+
+    const batchHint = this.batchFilter !== 'all' ? ` for batch "${this.batchFilter}"` : '';
+    const confirmed = window.confirm(
+      `Sync all upcoming scheduled classes${batchHint} to Zoom?\n\n` +
+      `This will ensure every class in the portal appears on Zoom with the same topic, ` +
+      `time (IST), duration, and host. Missing meetings will be created; mismatched ones will be updated.`
+    );
+    if (!confirmed) return;
+
+    this.isSyncingScheduledToZoom = true;
+    const batch = this.batchFilter !== 'all' ? this.batchFilter : undefined;
+    this.zoomService.syncScheduledMeetingsToZoom({ batch, limit: 500 }).subscribe({
+      next: (res: any) => {
+        this.isSyncingScheduledToZoom = false;
+        if (res?.success) {
+          const failed = (res.results || []).filter((r: any) => !r.ok);
+          if (failed.length) {
+            const names = failed.slice(0, 3).map((f: any) => f.topic || f.meetingId).join(', ');
+            this.notify.info(`${res.message} ${failed.length} failed (e.g. ${names}).`);
+          } else {
+            this.notify.success(res.message || 'All scheduled classes synced to Zoom.');
+          }
+          this.loadMeetings();
+        } else {
+          this.notify.error(res?.message || 'Failed to sync meetings to Zoom.');
+        }
+      },
+      error: (err: any) => {
+        this.isSyncingScheduledToZoom = false;
+        this.notify.error(err?.error?.message || 'Failed to sync meetings to Zoom.');
+      }
+    });
   }
 
   recreateMeeting(meeting: any, event: Event): void {
@@ -549,9 +590,8 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
     if (this.recreatingMeetingId) return;
 
     const confirmed = window.confirm(
-      `Recreate the Zoom meeting for "${meeting.topic}"?\n\n` +
-      `The current Zoom link is broken (error 3,001). This will create a fresh Zoom meeting ` +
-      `and update the link for teachers and students.`
+      `Sync "${meeting.topic}" to Zoom?\n\n` +
+      `This will create or update the Zoom meeting so it matches the portal (topic, IST time, host).`
     );
     if (!confirmed) return;
 
@@ -560,7 +600,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
       next: (res: any) => {
         this.recreatingMeetingId = null;
         if (res?.success) {
-          this.notify.success(`Zoom meeting recreated! New ID: ${res.newZoomMeetingId}`);
+          this.notify.success(res?.message || `Zoom synced! Meeting ID: ${res.newZoomMeetingId}`);
           this.loadMeetings();
         } else {
           this.notify.error(res?.message || 'Failed to recreate the Zoom meeting.');

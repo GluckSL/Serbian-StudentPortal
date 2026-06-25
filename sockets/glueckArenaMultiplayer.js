@@ -22,6 +22,34 @@ function emitToRoom(code, event, payload) {
   ioInstance?.to(`room:${code}`).emit(event, payload);
 }
 
+function runBattlefieldCountdown(code) {
+  const upper = code?.toUpperCase();
+  emitToRoom(upper, 'arena:countdown', { seconds: 3 });
+  let sec = 3;
+  const tick = setInterval(() => {
+    emitToRoom(upper, 'arena:countdown_tick', { seconds: sec });
+    sec -= 1;
+    if (sec <= 0) {
+      clearInterval(tick);
+      battlefieldRoomManager.beginPlaying(upper, ioInstance).then((playing) => {
+        if (!playing?.ok) {
+          emitToRoom(upper, 'arena:error', { message: playing?.message || 'Could not start battle' });
+          return;
+        }
+        emitToRoom(upper, 'arena:playing', { room: playing.room });
+      });
+    }
+  }, 1000);
+}
+
+function tryAutoStartBattlefield(code) {
+  const result = battlefieldRoomManager.tryAutoStart(code);
+  if (result?.ok) {
+    emitToRoom(code, 'arena:room', { room: result.room });
+    runBattlefieldCountdown(code);
+  }
+}
+
 function initGlueckArenaSockets(httpServer) {
   if (ioInstance) {
     return ioInstance;
@@ -282,11 +310,15 @@ function initGlueckArenaSockets(httpServer) {
         if (sec <= 0) {
           clearInterval(tick);
           multiplayerService.beginPlaying(room._id, code).then((playing) => {
-            if (playing?.error) {
+            if (!playing?.ok && playing?.error) {
               io.to(`room:${code}`).emit('arena:error', { message: playing.error });
               return;
             }
-            io.to(`room:${code.toUpperCase()}`).emit('arena:playing', { room: playing });
+            if (playing?.message && !playing?.status) {
+              io.to(`room:${code}`).emit('arena:error', { message: playing.message });
+              return;
+            }
+            io.to(`room:${code}`).emit('arena:playing', { room: playing });
           });
         }
       }, 1000);

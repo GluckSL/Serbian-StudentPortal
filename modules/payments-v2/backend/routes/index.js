@@ -7,6 +7,7 @@ const catalogCtrl = require('../controllers/catalogSettingsController');
 const legacyCtrl = require('../controllers/legacyMapController');
 const notificationCtrl = require('../controllers/notificationController');
 const financeDashboardSettingsCtrl = require('../controllers/financeDashboardSettingsController');
+const silverPaymentCtrl = require('../controllers/silverPaymentController');
 const { attachFinanceRole, requireFinanceAdmin } = require('../middlewares/financeRoles');
 const { buildUploadMiddleware } = require('../middlewares/paymentScreenshotUpload');
 const uploadScreenshot = (req, res, next) => buildUploadMiddleware()(req, res, next);
@@ -33,6 +34,15 @@ router.put('/finance-dashboard/batch-commencement-date', requireFinanceAdmin, fi
 router.put('/finance-dashboard/batch-remark', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchRemark);
 router.put('/finance-dashboard/batch-commencement-amount', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchCommencementAmount);
 router.post('/finance-dashboard/trigger-report/:type', requireFinanceAdmin, financeDashboardSettingsCtrl.triggerReport);
+
+// ─── Admin: Silver Payment list ───────────────────────────────────────────────
+router.get('/finance-dashboard/silver-payment/count', silverPaymentCtrl.getCount);
+router.get('/finance-dashboard/silver-payment/students', silverPaymentCtrl.getSilverPaymentStudents);
+router.get('/finance-dashboard/silver-payment/batch-options', silverPaymentCtrl.getBatchOptions);
+router.get('/finance-dashboard/silver-payment/search', silverPaymentCtrl.searchStudents);
+router.post('/finance-dashboard/silver-payment/add-from-batch', requireFinanceAdmin, silverPaymentCtrl.addFromBatch);
+router.post('/finance-dashboard/silver-payment/add-student', requireFinanceAdmin, silverPaymentCtrl.addStudent);
+router.delete('/finance-dashboard/silver-payment/students/:studentId', requireFinanceAdmin, silverPaymentCtrl.removeStudent);
 
 // ─── Admin: Batch students payment breakdown (Payment Hub insights) ─────────
 router.get('/batches/:batch/students', ctrl.getBatchStudentsPaymentDetail);

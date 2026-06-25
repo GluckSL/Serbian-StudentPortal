@@ -100,17 +100,22 @@ import { AuthService } from '../../../../services/auth.service';
                 <span class="bfroom__info-label">Host</span>
                 <span class="bfroom__info-value">{{ hostName }}</span>
               </div>
-              <div class="bfroom__info-row" *ngIf="attempt">
-                <span class="bfroom__info-label">Questions</span>
-                <span class="bfroom__info-value">{{ attempt.totalQuestions }}</span>
+              <div class="bfroom__info-row" *ngIf="phase === 'lobby'">
+                <span class="bfroom__info-label">Players</span>
+                <span class="bfroom__info-value">{{ room.players.length }} / {{ room.maxPlayers }}</span>
+              </div>
+              <div class="bfroom__info-row" *ngIf="phase === 'playing' && currentRound">
+                <span class="bfroom__info-label">Round</span>
+                <span class="bfroom__info-value">{{ currentRound.roundIndex + 1 }} / {{ currentRound.totalRounds }}</span>
+              </div>
               </div>
             </div>
 
-            <div class="bfroom__scoreboard">
+            <div class="bfroom__scoreboard" *ngIf="phase !== 'lobby'">
               <h3><mat-icon>leaderboard</mat-icon> Scores</h3>
               <div class="bfroom__score-row" *ngFor="let p of sortedPlayers; let i = index"
-                [class.bfroom__score-row--me]="p.studentId === userId"
-                [class.bfroom__score-row--host]="p.studentId === room.hostId">
+                [class.bfroom__score-row--me]="sameId(p.studentId, userId)"
+                [class.bfroom__score-row--host]="sameId(p.studentId, room.hostId)">
                 <span class="bfroom__score-rank">#{{ i + 1 }}</span>
                 <span class="bfroom__score-name">{{ p.name }}</span>
                 <span class="bfroom__score-pts">{{ p.score }}</span>
@@ -130,26 +135,56 @@ import { AuthService } from '../../../../services/auth.service';
             <!-- Lobby phase -->
             <div class="bfroom__lobby" *ngIf="phase === 'lobby'">
               <div class="bfroom__lobby-card">
-                <mat-icon class="bfroom__lobby-icon">sports_esports</mat-icon>
-                <h2>Waiting for players…</h2>
-                <p>Share the invite code <strong>{{ room.inviteCode }}</strong> to let others join</p>
+                <div class="bfroom__lobby-hero">
+                  <mat-icon class="bfroom__lobby-icon">sports_esports</mat-icon>
+                  <span class="bfroom__lobby-status-chip" [class.bfroom__lobby-status-chip--ready]="allReady">
+                    {{ allReady ? 'All ready' : 'In lobby' }}
+                  </span>
+                </div>
+                <h2>{{ lobbyTitle }}</h2>
+                <p class="bfroom__lobby-sub">{{ lobbySubtitle }}</p>
+
+                <div class="bfroom__ready-bar" *ngIf="room.players.length > 0">
+                  <div class="bfroom__ready-bar__track">
+                    <div class="bfroom__ready-bar__fill" [style.width.%]="readyPercent"></div>
+                  </div>
+                  <span class="bfroom__ready-bar__label">{{ readyCount }} / {{ room.players.length }} ready</span>
+                </div>
+
                 <div class="bfroom__lobby-players">
-                  <div class="bfroom__lobby-player" *ngFor="let p of room.players">
-                    <div class="bfroom__lobby-avatar">{{ p.name.charAt(0).toUpperCase() }}</div>
-                    <div class="bfroom__lobby-pinfo">
-                      <span class="bfroom__lobby-pname">{{ p.name }}</span>
-                      <span class="bfroom__lobby-pstatus">{{ p.isReady ? 'Ready' : 'Not ready' }}</span>
+                  <div class="bfroom__lobby-player"
+                    *ngFor="let p of room.players"
+                    [class.bfroom__lobby-player--me]="sameId(p.studentId, userId)"
+                    [class.bfroom__lobby-player--ready]="p.isReady">
+                    <div class="bfroom__lobby-avatar" [class.bfroom__lobby-avatar--ready]="p.isReady">
+                      {{ p.name.charAt(0).toUpperCase() }}
                     </div>
-                    <span class="bfroom__lobby-badge" *ngIf="p.studentId === room.hostId">HOST</span>
+                    <div class="bfroom__lobby-pinfo">
+                      <span class="bfroom__lobby-pname">
+                        {{ p.name }}
+                        <span class="bfroom__lobby-you" *ngIf="sameId(p.studentId, userId)">(you)</span>
+                      </span>
+                      <span class="bfroom__lobby-pstatus" [class.bfroom__lobby-pstatus--ok]="p.isReady">
+                        {{ p.isReady ? 'Ready to battle' : 'Getting ready…' }}
+                      </span>
+                    </div>
+                    <span class="bfroom__lobby-badge" *ngIf="sameId(p.studentId, room.hostId)">HOST</span>
                     <mat-icon class="bfroom__lobby-check"
                       [class.bfroom__lobby-check--ok]="p.isReady"
                       [class.bfroom__lobby-check--pending]="!p.isReady">
-                      {{ p.isReady ? 'check_circle' : 'hourglass_empty' }}
+                      {{ p.isReady ? 'check_circle' : 'radio_button_unchecked' }}
                     </mat-icon>
                   </div>
                 </div>
-                <div class="bfroom__lobby-hint" *ngIf="room.players.length < 2">
-                  <mat-icon>info</mat-icon> Need at least 2 players to start
+
+                <div class="bfroom__lobby-hint bfroom__lobby-hint--warn" *ngIf="room.players.length < 2">
+                  <mat-icon>group_add</mat-icon> Need at least 2 players — share code <strong>{{ room.inviteCode }}</strong>
+                </div>
+                <div class="bfroom__lobby-hint bfroom__lobby-hint--ok" *ngIf="allReady && room.players.length >= 2">
+                  <mat-icon>rocket_launch</mat-icon> Everyone's ready — battle starts automatically!
+                </div>
+                <div class="bfroom__lobby-hint" *ngIf="!allReady && room.players.length >= 2">
+                  <mat-icon>hourglass_top</mat-icon> Waiting for all players to tap <strong>I'm Ready</strong>
                 </div>
               </div>
             </div>
@@ -163,13 +198,15 @@ import { AuthService } from '../../../../services/auth.service';
             <!-- Lobby controls -->
             <div class="bfroom__lobby-controls" *ngIf="phase === 'lobby' || phase === 'countdown'">
               <button mat-raised-button
-                [color]="isReady ? 'warn' : 'primary'"
+                class="bfroom__ready-btn"
+                [class.bfroom__ready-btn--active]="isReady"
                 (click)="toggleReady()"
                 [disabled]="phase === 'countdown'">
-                {{ isReady ? 'Not Ready' : 'Ready' }}
+                <mat-icon>{{ isReady ? 'check_circle' : 'front_hand' }}</mat-icon>
+                {{ isReady ? "I'm Ready ✓" : "I'm Ready" }}
               </button>
               <button mat-raised-button color="accent"
-                *ngIf="isHost"
+                *ngIf="isHost && !allReady"
                 (click)="startGame()"
                 [disabled]="phase !== 'lobby' || !allReady">
                 <mat-icon>play_arrow</mat-icon> Start Battle
@@ -380,31 +417,49 @@ import { AuthService } from '../../../../services/auth.service';
     .bfroom__score-empty { display: flex; align-items: center; gap: 6px; padding: 24px 0; color: #94a3b8; font-size: 13px; justify-content: center; }
     .bfroom__score-empty mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
-    .bfroom__lobby-controls { padding: 16px 0; display: flex; flex-direction: row; gap: 12px; justify-content: center; }
+    .bfroom__lobby-controls { padding: 16px 0; display: flex; flex-direction: row; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .bfroom__ready-btn { background: #405980 !important; color: #fff !important; min-width: 160px; }
+    .bfroom__ready-btn--active { background: #16a34a !important; }
+    .bfroom__ready-btn mat-icon { margin-right: 6px; }
 
     /* CENTER */
-    .bfroom__center { display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 24px; flex: 1; }
-    .bfroom__lobby { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .bfroom__center { display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 24px; flex: 1; background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%); }
+    .bfroom__lobby { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
     .bfroom__countdown { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .bfroom__game { flex: 1; display: flex; flex-direction: column; width: 100%; }
     .bfroom__engine-wrapper { flex: 1; display: flex; flex-direction: column; min-height: 0; }
     .bfroom__engine-wrapper > * { flex: 1; min-height: 0; width: 100%; }
     .bfroom__finished { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .bfroom__lobby-card { text-align: center; max-width: 420px; width: 100%; }
-    .bfroom__lobby-icon { font-size: 64px; width: 64px; height: 64px; color: #405980; }
-    .bfroom__lobby-card h2 { margin: 16px 0 8px; font-size: 22px; color: #1e293b; }
-    .bfroom__lobby-card p { color: #64748b; font-size: 14px; }
-    .bfroom__lobby-players { margin: 24px 0; display: flex; flex-direction: column; gap: 8px; }
-    .bfroom__lobby-player { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #f8fafc; border-radius: 12px; }
-    .bfroom__lobby-avatar { width: 40px; height: 40px; border-radius: 50%; background: #405980; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; }
-    .bfroom__lobby-pinfo { flex: 1; text-align: left; }
-    .bfroom__lobby-pname { display: block; font-weight: 700; font-size: 14px; color: #1e293b; }
+    .bfroom__lobby-card { text-align: center; max-width: 520px; width: 100%; background: #fff; border-radius: 20px; padding: 28px 24px; box-shadow: 0 8px 32px rgba(64,89,128,.12); border: 1px solid #e2e8f0; }
+    .bfroom__lobby-hero { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .bfroom__lobby-icon { font-size: 56px; width: 56px; height: 56px; color: #405980; }
+    .bfroom__lobby-status-chip { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; background: #f1f5f9; color: #64748b; }
+    .bfroom__lobby-status-chip--ready { background: #dcfce7; color: #15803d; }
+    .bfroom__lobby-card h2 { margin: 12px 0 6px; font-size: 24px; font-weight: 800; color: #1e293b; }
+    .bfroom__lobby-sub { color: #64748b; font-size: 14px; margin: 0 0 20px; line-height: 1.5; }
+    .bfroom__ready-bar { margin-bottom: 20px; }
+    .bfroom__ready-bar__track { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-bottom: 6px; }
+    .bfroom__ready-bar__fill { height: 100%; background: linear-gradient(90deg, #405980, #22c55e); border-radius: 999px; transition: width 0.3s ease; }
+    .bfroom__ready-bar__label { font-size: 12px; font-weight: 700; color: #64748b; }
+    .bfroom__lobby-players { margin: 0 0 16px; display: flex; flex-direction: column; gap: 10px; }
+    .bfroom__lobby-player { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #f8fafc; border-radius: 14px; border: 2px solid transparent; transition: border-color 0.2s, background 0.2s; }
+    .bfroom__lobby-player--me { border-color: #93c5fd; background: #eff6ff; }
+    .bfroom__lobby-player--ready { border-color: #86efac; }
+    .bfroom__lobby-avatar { width: 44px; height: 44px; border-radius: 50%; background: #94a3b8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; flex-shrink: 0; transition: background 0.2s; }
+    .bfroom__lobby-avatar--ready { background: #405980; }
+    .bfroom__lobby-pinfo { flex: 1; text-align: left; min-width: 0; }
+    .bfroom__lobby-pname { display: block; font-weight: 700; font-size: 14px; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bfroom__lobby-you { font-weight: 600; color: #3b82f6; font-size: 12px; }
     .bfroom__lobby-pstatus { font-size: 12px; color: #94a3b8; }
-    .bfroom__lobby-badge { font-size: 10px; font-weight: 800; color: #ff8f00; background: #fffbeb; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em; }
-    .bfroom__lobby-check { color: #94a3b8; }
+    .bfroom__lobby-pstatus--ok { color: #16a34a; font-weight: 600; }
+    .bfroom__lobby-badge { font-size: 10px; font-weight: 800; color: #ff8f00; background: #fffbeb; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0; }
+    .bfroom__lobby-check { color: #cbd5e1; flex-shrink: 0; }
     .bfroom__lobby-check--ok { color: #22c55e; }
-    .bfroom__lobby-check--pending { color: #f59e0b; }
-    .bfroom__lobby-hint { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #94a3b8; justify-content: center; }
+    .bfroom__lobby-check--pending { color: #cbd5e1; }
+    .bfroom__lobby-hint { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #64748b; padding: 10px 14px; border-radius: 10px; background: #f8fafc; margin-top: 4px; }
+    .bfroom__lobby-hint--warn { background: #fffbeb; color: #b45309; }
+    .bfroom__lobby-hint--ok { background: #f0fdf4; color: #15803d; font-weight: 600; }
+    .bfroom__lobby-hint mat-icon { font-size: 18px; width: 18px; height: 18px; flex-shrink: 0; }
 
     .bfroom__countdown { display: flex; flex-direction: column; align-items: center; gap: 12px; }
     .bfroom__countdown-num { font-size: 96px; font-weight: 900; color: #405980; animation: count-pop 0.5s ease; }
@@ -495,14 +550,46 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
   ) {}
 
   get isHost(): boolean {
-    return this.room?.hostId === this.userId;
+    return this.sameId(this.room?.hostId, this.userId);
   }
 
   get hostName(): string {
-    const host = this.room?.players?.find(p => p.studentId === this.room?.hostId);
-    return host?.name || 'Unknown';
+    const host = this.room?.players?.find(p => this.sameId(p.studentId, this.room?.hostId));
+    return host?.name || this.room?.hostName || 'Unknown';
   }
 
+  get myScore(): number {
+    const me = this.room?.players?.find(p => this.sameId(p.studentId, this.userId));
+    return me?.score || 0;
+  }
+
+  get readyCount(): number {
+    return (this.room?.players || []).filter(p => p.isReady).length;
+  }
+
+  get readyPercent(): number {
+    const total = this.room?.players?.length || 0;
+    return total ? Math.round((this.readyCount / total) * 100) : 0;
+  }
+
+  get lobbyTitle(): string {
+    if ((this.room?.players?.length || 0) < 2) return 'Waiting for players…';
+    if (this.allReady) return 'Everyone\'s ready!';
+    return 'Waiting for everyone to ready up';
+  }
+
+  get lobbySubtitle(): string {
+    if ((this.room?.players?.length || 0) < 2) {
+      return `Share invite code ${this.room?.inviteCode || ''} so a friend can join.`;
+    }
+    if (this.allReady) return 'Battle starts in a moment — get set!';
+    return `${this.readyCount} of ${this.room?.players?.length} players are ready.`;
+  }
+
+  sameId(a?: string | null, b?: string | null): boolean {
+    if (!a || !b) return false;
+    return String(a) === String(b);
+  }
   get sortedPlayers(): any[] {
     return [...(this.room?.players || [])].sort((a, b) => b.score - a.score);
   }
@@ -515,6 +602,9 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    const snap = this.auth.getSnapshotUser();
+    this.userId = String(snap?._id || snap?.id || '');
+
     this.code = this.route.snapshot.paramMap.get('code') || '';
     if (!this.code) {
       this.router.navigate(['/glueck-arena/battlefield']);
@@ -531,6 +621,8 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
       this.room = room;
       if (room) {
         this.phase = room.status;
+        const me = room.players?.find(p => this.sameId(p.studentId, this.userId));
+        if (me) this.isReady = !!me.isReady;
       }
     }));
 
@@ -588,7 +680,7 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
     }));
 
     this.subs.push(this.auth.currentUser$.subscribe(u => {
-      if (u) this.userId = (u as any)._id || '';
+      if (u) this.userId = String((u as any)._id || (u as any).id || '');
     }));
 
     this.socket.joinRoom(this.code);

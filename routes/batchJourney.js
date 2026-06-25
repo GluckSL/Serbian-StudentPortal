@@ -375,7 +375,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         batchStartDate: null,
         strictJourneyRule: false,
         strictJourneyThresholdPercent: 100,
-        autoRecordingEnabled: false,
+        autoRecordingEnabled: true,
         journeyActive: false,
         trialDayEnabled: false
       };

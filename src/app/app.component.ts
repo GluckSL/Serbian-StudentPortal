@@ -27,7 +27,7 @@ export class AppComponent implements OnInit, OnDestroy {
   isLoginRoute = false;
   /** Marketing home includes its own footer — hide global app-footer */
   isHomeRoute = false;
-  /** Gluck Room full-screen: no sidebar, header, or footer */
+  /** Live Gluck Room session only — list/create/edit/recording use normal shell + sidebar */
   isGluckRoom = false;
 
   constructor(
@@ -49,7 +49,15 @@ export class AppComponent implements OnInit, OnDestroy {
     this.showHeader = !isBareRoute;
     this.isLoginRoute = path === '/login' || path === '/register';
     this.isHomeRoute = path === '/home' || path === '/' || path === '';
-    this.isGluckRoom = path.startsWith('/gluck-room') || path.startsWith('/student/gluck-room');
+    this.isGluckRoom = this.isGluckRoomLiveSession(path);
+  }
+
+  /** Full-bleed layout only for /gluck-room/:sessionId (not list, create, edit, or recording). */
+  private isGluckRoomLiveSession(path: string): boolean {
+    const match = path.match(/^\/gluck-room\/([^/]+)$/);
+    if (!match) return false;
+    const segment = decodeURIComponent(match[1]);
+    return segment !== 'create' && segment !== 'recording';
   }
 
   ngOnInit() {

@@ -244,6 +244,19 @@ export class ZoomService {
   }
 
   /**
+   * Sync all upcoming scheduled portal meetings to Zoom (topic, IST time, host, recording).
+   */
+  syncScheduledMeetingsToZoom(payload: {
+    batch?: string;
+    limit?: number;
+    forceRecreate?: boolean;
+  } = {}): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meetings/sync-scheduled-to-zoom`, payload, {
+      withCredentials: true
+    });
+  }
+
+  /**
    * Get meeting participants (for attendance)
    */
   getMeetingParticipants(zoomMeetingId: string): Observable<any> {

@@ -421,7 +421,8 @@ export class EditMeetingComponent implements OnInit {
       this.zoomService.updateMeeting(this.meetingId, updateData).subscribe({
         next: (response: any) => {
           if (response.success) {
-            this.showSuccess('Meeting updated successfully!');
+            const msg = response.warning || 'Meeting updated successfully!';
+            this.showSuccess(msg);
             this.router.navigate(['/teacher/meetings', this.meetingId]);
           } else {
             this.showError(response.message || 'Failed to update meeting');
@@ -430,7 +431,7 @@ export class EditMeetingComponent implements OnInit {
         },
         error: (error: any) => {
           console.error('Error updating meeting:', error);
-          this.showError(error.error?.message || 'Failed to update meeting');
+          this.showError(error.error?.message || error.message || 'Failed to update meeting');
           this.loading = false;
         }
       });

@@ -130,18 +130,28 @@
       </div>
 
       <div class="ann-block ann-targets">
-        <div class="ann-block__title">Visible To Students</div>
+        <div class="ann-block__title">Visible To Recipients</div>
         <div class="ann-targets__count">
-          {{ targetStudents.length }} student{{ targetStudents.length === 1 ? '' : 's' }} selected
+          {{ targetStudents.length }} student{{ targetStudents.length === 1 ? '' : 's' }}
+          <span *ngIf="targetTeachers.length"> · {{ targetTeachers.length }} teacher{{ targetTeachers.length === 1 ? '' : 's' }}</span>
         </div>
         <p class="ann-targets__hint" *ngIf="!selectedBatches.length">
-          Select an audience to preview students who will receive this announcement.
+          Select an audience to preview students and teachers who will receive this announcement.
         </p>
         <p class="ann-targets__hint" *ngIf="selectedBatches.length && loadingTargetStudents">
           Loading students...
         </p>
-        <div class="ann-targets__empty" *ngIf="selectedBatches.length && !loadingTargetStudents && !targetStudents.length">
-          No active students found for selected audience.
+        <div class="ann-targets__empty" *ngIf="selectedBatches.length && !loadingTargetStudents && !targetStudents.length && !targetTeachers.length">
+          No active students or teachers found for selected audience.
+        </div>
+        <div class="ann-targets__list" *ngIf="!loadingTargetStudents && targetTeachers.length">
+          <div class="ann-targets__item" *ngFor="let teacher of targetTeachers | slice:0:4">
+            <div class="ann-targets__name">{{ teacher.name }} <span class="ann-targets__role">Teacher</span></div>
+            <div class="ann-targets__meta">{{ teacher.regNo }} | {{ teacher.email }}</div>
+          </div>
+          <div class="ann-targets__more" *ngIf="targetTeachers.length > 4">
+            +{{ targetTeachers.length - 4 }} more teachers
+          </div>
         </div>
         <div class="ann-targets__list" *ngIf="!loadingTargetStudents && targetStudents.length">
           <div class="ann-targets__item" *ngFor="let student of targetStudents | slice:0:8">

@@ -284,6 +284,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     if (this.filterLevel && this.cohortStatus) {
       return `${this.filterLevel} · ${formatStudentStatusLabel(this.cohortStatus)}`;
     }
+    if (this.cohort === 'all' && this.cohortStatus === 'ONGOING') {
+      return 'Platinum - Ongoing Language payment';
+    }
     const parts = [financeCohortLabel(this.cohort)];
     if (this.cohortStatus) parts.push(formatStudentStatusLabel(this.cohortStatus));
     return parts.join(' · ');
@@ -749,9 +752,95 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     return this.scopeTotalsFromRow(r).overdue;
   }
 
-  /** Sum of pending amounts from all levels that came BEFORE the batch's current level. */
+  private readonly PREV_LEVEL_ORDER: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
+
+  /** Ongoing / last-level / commencement totals — matches 10 AM finance email report. */
+  get pendingBreakdownTotals(): {
+    ongoing: FinanceCurrencyTotals;
+    lastLevel: FinanceCurrencyTotals;
+    commencement10: FinanceCurrencyTotals;
+    commencementBatchCount: number;
+    commencementCutoffLabel: string;
+  } {
+    const rows = this.rowsInDashboard;
+    let ongoingLkr = 0;
+    let ongoingInr = 0;
+    let ongoingUsd = 0;
+    let lastLkr = 0;
+    let lastInr = 0;
+    let lastUsd = 0;
+    let commLkr = 0;
+    let commInr = 0;
+    let commUsd = 0;
+    let commCount = 0;
+
+    for (const r of rows) {
+      const ongoing = this.rowCurrentLevelPending(r);
+      ongoingLkr += ongoing.lkr;
+      ongoingInr += ongoing.inr;
+      ongoingUsd += ongoing.usd;
+
+      const last = this.rowPrevLevelsPending(r);
+      lastLkr += last.lkr;
+      lastInr += last.inr;
+      lastUsd += last.usd;
+
+      const info = this.getNextPaymentInfo(r);
+      if (info && !info.isPast && info.daysUntil >= 0 && info.daysUntil <= 10) {
+        commLkr += info.amountLKR;
+        commInr += info.amountINR;
+        commUsd += info.amountUSD;
+        commCount++;
+      }
+    }
+
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() + 10);
+
+    return {
+      ongoing: { lkr: ongoingLkr, inr: ongoingInr, usd: ongoingUsd },
+      lastLevel: { lkr: lastLkr, inr: lastInr, usd: lastUsd },
+      commencement10: { lkr: commLkr, inr: commInr, usd: commUsd },
+      commencementBatchCount: commCount,
+      commencementCutoffLabel: cutoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+    };
+  }
+
+  /** Sum of ongoing + previous levels + commencement (10-day) outlook cards. */
+  get pendingBreakdownGrandTotal(): FinanceCurrencyTotals {
+    const t = this.pendingBreakdownTotals;
+    return {
+      lkr: t.ongoing.lkr + t.lastLevel.lkr + t.commencement10.lkr,
+      inr: t.ongoing.inr + t.lastLevel.inr + t.commencement10.inr,
+      usd: t.ongoing.usd + t.lastLevel.usd + t.commencement10.usd,
+    };
+  }
+
+  hasPendingBreakdownAmount(totals: FinanceCurrencyTotals): boolean {
+    return totals.lkr > 0 || totals.inr > 0 || totals.usd > 0;
+  }
+
+  private rowCurrentLevelPending(r: BatchPaymentRow): FinanceCurrencyTotals {
+    const level = r.level as LanguageLevelSlot | null;
+    const slot = level ? r.levelSlots?.[level] : null;
+    if (slot) {
+      return {
+        lkr: slot.pendingLKR ?? 0,
+        inr: slot.pendingINR ?? 0,
+        usd: slot.pendingUSD ?? 0,
+      };
+    }
+    return {
+      lkr: r.totalPendingLKR ?? 0,
+      inr: r.totalPendingINR ?? 0,
+      usd: r.totalPendingUSD ?? 0,
+    };
+  }
+
+  /** Pending from all levels before the batch's current (dominant) level — matches table column. */
   rowPrevLevelsPending(r: BatchPaymentRow): FinanceCurrencyTotals {
-    const levelOrder: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
+    const levelOrder = this.PREV_LEVEL_ORDER;
     const currentLevel = (r.level ?? '') as LanguageLevelSlot;
     const currentIdx = levelOrder.indexOf(currentLevel);
     if (currentIdx <= 0) return this.emptyCurrencyTotals();

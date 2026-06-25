@@ -137,6 +137,7 @@ export interface LtReminderResult {
   name?: string;
   email?: string;
   day?: number;
+  week?: number;
   incompleteCount?: number;
 }
 
@@ -267,11 +268,19 @@ export class LanguageTrackingApiService {
   }
 
   sendReminders(studentIds: string[], day?: number): Observable<LtSendRemindersResponse> {
-    const body: { studentIds: string[]; day?: number } = { studentIds };
+    const body: { studentIds: string[]; day?: number; scope?: 'day' } = { studentIds, scope: 'day' };
     if (day != null && day >= 1) body.day = day;
     return this.http.post<LtSendRemindersResponse>(
       `${this.base}/send-reminders`,
       body,
+      { withCredentials: true },
+    );
+  }
+
+  sendWeekReminders(studentIds: string[]): Observable<LtSendRemindersResponse> {
+    return this.http.post<LtSendRemindersResponse>(
+      `${this.base}/send-reminders`,
+      { studentIds, scope: 'week' },
       { withCredentials: true },
     );
   }

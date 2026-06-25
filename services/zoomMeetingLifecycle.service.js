@@ -7,6 +7,7 @@ const MeetingLink = require('../models/MeetingLink');
 const zoomService = require('./zoomService');
 const { scheduleDispatchEvent, sanitizeMeetingLink } = require('./studentPortalCrmWebhook');
 const { extractZoomPwdFromJoinUrl } = require('../utils/zoomJoinUrls');
+const { normalizeZoomStartTime, parseIstSlotStartTime } = require('../utils/zoomDateTime');
 
 /**
  * Find a non-cancelled meeting on the same Zoom host that overlaps [meetingStart, meetingEnd).
@@ -259,7 +260,7 @@ async function createMeetingLinkFromSlot(opts) {
     journeyBulkMeta
   } = opts;
 
-  const meetingStart = new Date(`${slotStartTime}:00+05:30`);
+  const meetingStart = parseIstSlotStartTime(slotStartTime) || new Date(`${String(slotStartTime).substring(0, 16)}:00+05:30`);
   const meetingEnd = new Date(meetingStart.getTime() + (duration || 60) * 60000);
 
   const overlap = await findZoomHostOverlap(zoomHostEmail, meetingStart, meetingEnd);
@@ -278,9 +279,19 @@ async function createMeetingLinkFromSlot(opts) {
     };
   }
 
+  const zoomStartTime = normalizeZoomStartTime(slotStartTime, timezone || 'Asia/Kolkata');
+  if (!zoomStartTime) {
+    return {
+      ok: false,
+      code: 'zoom_api_failed',
+      startTime: slotStartTime,
+      message: 'Invalid meeting start time for Zoom scheduling'
+    };
+  }
+
   const zoomResult = await zoomService.createMeeting({
     topic,
-    startTime: slotStartTime,
+    startTime: zoomStartTime,
     duration: duration || 60,
     timezone: timezone || 'Asia/Kolkata',
     agenda: agenda || `German Language Class - Batch ${batch}`
@@ -315,7 +326,7 @@ async function createMeetingLinkFromSlot(opts) {
     zoomMeetingId: String(meeting.id),
     zoomMeetingUuid: meeting.uuid ? String(meeting.uuid) : undefined,
     zoomPassword: zoomPwd,
-    hostEmail: meeting.hostEmail,
+    hostEmail: String(meeting.hostEmail || zoomHostEmail || '').trim() || undefined,
     startUrl: meeting.startUrl,
     joinUrl: meeting.joinUrl,
     createdBy: createdByUserId,

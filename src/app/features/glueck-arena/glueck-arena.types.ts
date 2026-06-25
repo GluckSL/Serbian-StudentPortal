@@ -554,6 +554,7 @@ export interface ArenaRoomState {
   gameType: string;
   gameSetId: string;
   hostId?: string;
+  hostName?: string;
   players: {
     studentId: string;
     name: string;
