@@ -72,6 +72,43 @@
   }
 }
 
+// ── Crucial Students button ───────────────────────────────────────────────────
+.lt-crucial-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: #dc2626 !important;
+  color: #fff !important;
+  border: none !important;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  transition: all 0.15s;
+
+  &:hover {
+    background: #b91c1c !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #fff;
+    animation: lt-crucial-pulse 1.8s infinite;
+  }
+}
+
+@keyframes lt-crucial-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+
 .lt-export-btn {
   height: 36px !important;
   border-radius: 999px !important;

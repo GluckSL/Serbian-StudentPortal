@@ -1,0 +1,272 @@
+<div class="cs-root">
+
+  <!-- ── Header card ─────────────────────────────────────────────────────── -->
+  <section class="cs-header-card">
+    <div class="cs-header-card__main">
+      <div class="cs-header-card__icon-wrap">
+        <mat-icon>priority_high</mat-icon>
+      </div>
+      <div class="cs-header-card__text">
+        <span class="cs-header-card__eyebrow">Language Tracking</span>
+        <h1 class="cs-header-card__title">Crucial Students</h1>
+        <p class="cs-header-card__sub">
+          Platinum <em>new</em> batch students with under <strong>1 hour</strong> engagement
+          on their <strong>current-week exercise days</strong> (positions 2, 4, 5)
+        </p>
+      </div>
+    </div>
+    <div class="cs-header-card__actions">
+      <button class="cs-action cs-action--primary" type="button"
+              (click)="sendEmail()" [disabled]="sending || loading">
+        <mat-icon>{{ sending ? 'hourglass_top' : 'mail' }}</mat-icon>
+        {{ sending ? 'Sending…' : 'Send Email Report' }}
+      </button>
+      <button class="cs-action cs-action--soft" type="button"
+              (click)="load()" [disabled]="loading">
+        <mat-icon [class.cs-spin]="loading">refresh</mat-icon>
+        Refresh
+      </button>
+    </div>
+  </section>
+
+  <!-- ── Stats cards ───────────────────────────────────────────────────────── -->
+  <div class="cs-stats">
+    <article class="cs-stat cs-stat--rose">
+      <div class="cs-stat__icon"><mat-icon>groups</mat-icon></div>
+      <ng-container *ngIf="!loading && summary; else statSkel1">
+        <div class="cs-stat__value">{{ summary.total }}</div>
+        <div class="cs-stat__label">Crucial Students</div>
+        <div class="cs-stat__hint">Platinum · New batch</div>
+      </ng-container>
+      <ng-template #statSkel1>
+        <div class="cs-skel cs-skel--value"></div>
+        <div class="cs-skel cs-skel--label"></div>
+      </ng-template>
+    </article>
+
+    <article class="cs-stat cs-stat--amber">
+      <div class="cs-stat__icon"><mat-icon>schedule</mat-icon></div>
+      <ng-container *ngIf="!loading && summary; else statSkel2">
+        <div class="cs-stat__value">{{ summary.avgMinutes }}<span class="cs-stat__unit">min</span></div>
+        <div class="cs-stat__label">Avg. Engagement</div>
+        <div class="cs-stat__hint">Exercise days this week</div>
+      </ng-container>
+      <ng-template #statSkel2>
+        <div class="cs-skel cs-skel--value"></div>
+        <div class="cs-skel cs-skel--label"></div>
+      </ng-template>
+    </article>
+
+    <article class="cs-stat cs-stat--violet">
+      <div class="cs-stat__icon"><mat-icon>timer_off</mat-icon></div>
+      <div class="cs-stat__value cs-stat__value--sm">&lt; 1 hr</div>
+      <div class="cs-stat__label">Threshold</div>
+      <div class="cs-stat__hint">Per exercise-day window</div>
+    </article>
+
+    <article class="cs-stat cs-stat--teal">
+      <div class="cs-stat__icon"><mat-icon>event_repeat</mat-icon></div>
+      <div class="cs-stat__value cs-stat__value--sm">Pos 2, 4, 5</div>
+      <div class="cs-stat__label">Exercise Days</div>
+      <div class="cs-stat__hint">Per-student current week</div>
+    </article>
+
+    <article class="cs-stat cs-stat--slate" *ngIf="summary?.generatedAt">
+      <div class="cs-stat__icon"><mat-icon>update</mat-icon></div>
+      <div class="cs-stat__value cs-stat__value--xs">{{ summary?.generatedAt }}</div>
+      <div class="cs-stat__label">Last Updated</div>
+      <div class="cs-stat__hint">IST · Live data</div>
+    </article>
+  </div>
+
+  <!-- ── Table card ────────────────────────────────────────────────────────── -->
+  <section class="cs-panel">
+    <div class="cs-panel__toolbar">
+      <div class="cs-search">
+        <mat-icon class="cs-search__icon">search</mat-icon>
+        <input type="text" class="cs-search__input"
+               placeholder="Search name, batch or email…"
+               [(ngModel)]="searchRaw"
+               (ngModelChange)="onSearchChange()" />
+        <button *ngIf="searchRaw" class="cs-search__clear" type="button"
+                (click)="clearSearch()" aria-label="Clear search">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <div class="cs-filters">
+        <mat-form-field class="cs-filter-field cs-filter-field--batch" appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Batch</mat-label>
+          <mat-select [(ngModel)]="filterBatches" multiple (selectionChange)="onFilterChange()">
+            <mat-select-trigger>{{ batchFilterLabel }}</mat-select-trigger>
+            <mat-option *ngFor="let b of availableBatches" [value]="b">{{ b }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field class="cs-filter-field" appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Sort by time</mat-label>
+          <mat-select [(ngModel)]="sortBy" (selectionChange)="onFilterChange()">
+            <mat-option *ngFor="let opt of sortOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field class="cs-filter-field" appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Live classes (last 2)</mat-label>
+          <mat-select [(ngModel)]="filterLiveClasses" (selectionChange)="onFilterChange()">
+            <mat-option [value]="">All</mat-option>
+            <mat-option *ngFor="let n of availableLiveClassCounts" [value]="n">
+              {{ liveAttendedLabel(n) }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <button *ngIf="hasActiveFilters" class="cs-clear-filters" type="button" (click)="clearFilters()">
+          <mat-icon>filter_alt_off</mat-icon>
+          Clear
+        </button>
+      </div>
+
+      <div class="cs-panel__meta" *ngIf="!loading">
+        <span class="cs-pill">{{ total }} students</span>
+        <button class="cs-export-btn" type="button"
+                (click)="exportReport()"
+                [disabled]="exporting || total === 0"
+                matTooltip="Export all filtered students to Excel">
+          <mat-icon>{{ exporting ? 'hourglass_top' : 'download' }}</mat-icon>
+          {{ exporting ? 'Exporting…' : 'Export' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div class="cs-alert cs-alert--error" *ngIf="error && !loading">
+      <mat-icon>error_outline</mat-icon>
+      <div>
+        <strong>Could not load data</strong>
+        <p>{{ error }}</p>
+        <button class="cs-action cs-action--soft" type="button" (click)="load()">Try again</button>
+      </div>
+    </div>
+
+    <!-- Empty -->
+    <div class="cs-alert cs-alert--success" *ngIf="!loading && !error && total === 0">
+      <mat-icon>celebration</mat-icon>
+      <div>
+        <strong>All clear!</strong>
+        <p>{{ searchRaw ? 'No students match your search.' : 'Every Platinum student is above the engagement threshold for their current-week exercise days.' }}</p>
+        <button *ngIf="searchRaw" class="cs-action cs-action--soft" type="button" (click)="clearSearch()">Clear search</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="cs-table-scroll" *ngIf="!error && (loading || total > 0)">
+      <table class="cs-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Student</th>
+            <th>Batch</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th class="cs-th-center">Total Time <span>exercise days</span></th>
+            <th class="cs-th-center">Breakdown</th>
+            <th class="cs-th-center">Exercise Days <span>last 3</span></th>
+            <th class="cs-th-center">Live Classes <span>last 2</span></th>
+            <th class="cs-th-center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngIf="loading">
+            <tr class="cs-row--skel" *ngFor="let _ of skeletonRows">
+              <td><div class="cs-skel cs-skel--cell"></div></td>
+              <td><div class="cs-skel cs-skel--name"></div></td>
+              <td><div class="cs-skel cs-skel--chip"></div></td>
+              <td><div class="cs-skel cs-skel--cell"></div></td>
+              <td><div class="cs-skel cs-skel--email"></div></td>
+              <td><div class="cs-skel cs-skel--chip"></div></td>
+              <td><div class="cs-skel cs-skel--break"></div></td>
+              <td><div class="cs-skel cs-skel--cell"></div></td>
+              <td><div class="cs-skel cs-skel--dot"></div></td>
+              <td><div class="cs-skel cs-skel--chip"></div></td>
+            </tr>
+          </ng-container>
+
+          <ng-container *ngIf="!loading">
+            <tr *ngFor="let s of students; let i = index"
+                [class.cs-row--alert]="s.totalSeconds === 0">
+              <td class="cs-td-num">{{ (page - 1) * limit + i + 1 }}</td>
+              <td>
+                <div class="cs-name">{{ s.name }}</div>
+                <div class="cs-meta">Day {{ s.currentCourseDay }} · Wk {{ s.weekNum }} · {{ s.level }}</div>
+              </td>
+              <td><span class="cs-chip cs-chip--batch">{{ s.batch }}</span></td>
+              <td class="cs-td-muted">{{ s.phone }}</td>
+              <td><a class="cs-link" [href]="'mailto:' + s.email">{{ s.email }}</a></td>
+              <td class="cs-td-center">
+                <span class="cs-time"
+                      [class.cs-time--zero]="s.totalSeconds === 0"
+                      [class.cs-time--low]="s.totalSeconds > 0 && s.totalSeconds < 1800"
+                      [class.cs-time--mid]="s.totalSeconds >= 1800">
+                  {{ formatDuration(s.totalSeconds) }}
+                </span>
+              </td>
+              <td class="cs-td-center">
+                <div class="cs-tags">
+                  <span class="cs-tag cs-tag--ex"  title="Exercises">Ex {{ formatDuration(s.exercisesSeconds) }}</span>
+                  <span class="cs-tag cs-tag--dg"  title="DG Bot">DG {{ formatDuration(s.digibotSeconds) }}</span>
+                  <span class="cs-tag cs-tag--ar"  title="Arena">Ar {{ formatDuration(s.arenaSeconds) }}</span>
+                </div>
+              </td>
+              <td class="cs-td-center">
+                <span class="cs-days-chip" [matTooltip]="'Journey days: ' + (s.exerciseDays || []).join(', ')">
+                  {{ exerciseDaysLabel(s.exerciseDays) }}
+                </span>
+              </td>
+              <td class="cs-td-center">
+                <span class="cs-live-ratio"
+                      [class.cs-live--zero]="s.liveClassesAttended === 0"
+                      [class.cs-live--partial]="s.liveClassesAttended === 1"
+                      [class.cs-live--ok]="s.liveClassesAttended >= 2"
+                      [matTooltip]="'Attended ' + s.liveClassesAttended + ' of last ' + s.liveClassesTotal + ' classes'">
+                  {{ s.liveClassesAttended }}/{{ s.liveClassesTotal }}
+                </span>
+              </td>
+              <td class="cs-td-center">
+                <span class="cs-status"
+                      [class.cs-status--zero]="s.totalSeconds === 0"
+                      [class.cs-status--warn]="s.totalSeconds > 0 && s.totalSeconds < 1800"
+                      [class.cs-status--caution]="s.totalSeconds >= 1800">
+                  {{ getEngagementLabel(s.totalSeconds) }}
+                </span>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <footer class="cs-panel__footer" *ngIf="!loading && totalPages > 1">
+      <div class="cs-pagination">
+        <button class="cs-page" type="button" (click)="goToPage(page - 1)" [disabled]="page === 1">
+          <mat-icon>chevron_left</mat-icon>
+        </button>
+        <button *ngFor="let p of pageNumbers" class="cs-page" type="button"
+                [class.cs-page--active]="p === page" (click)="goToPage(p)">
+          {{ p }}
+        </button>
+        <button class="cs-page" type="button" (click)="goToPage(page + 1)" [disabled]="page === totalPages">
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+      </div>
+      <span class="cs-panel__page-info">Page {{ page }} of {{ totalPages }} · {{ total }} students</span>
+    </footer>
+  </section>
+
+  <p class="cs-footnote" *ngIf="!loading && !error">
+    Platinum students in <strong>new</strong> batches only.
+    Time = Exercises + DG Bot + GlückArena on each student's last 3 exercise days (positions 2, 4, 5 per week, rolling back across weeks).
+    Live classes = last 2 scheduled meetings for the batch where the student's journey day has been reached.
+  </p>
+
+</div>

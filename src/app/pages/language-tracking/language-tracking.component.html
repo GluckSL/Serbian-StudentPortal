@@ -11,6 +11,14 @@
     </div>
     <div class="lt-hero__actions">
       <button
+        class="lt-crucial-btn"
+        type="button"
+        (click)="openCrucialStudents()"
+        matTooltip="View Platinum students with less than 1 hour engagement in the last 5 days">
+        <span class="lt-crucial-btn__dot"></span>
+        ⚠️ Crucial Students
+      </button>
+      <button
         mat-stroked-button
         class="lt-export-btn"
         type="button"

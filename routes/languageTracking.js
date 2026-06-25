@@ -20,6 +20,9 @@ const {
   sendJourneyWeekReminders,
   MAX_PER_REQUEST,
 } = require('../services/languageTrackingReminders.service');
+const { getCrucialStudents, sortCrucialStudents } = require('../services/crucialStudentsService');
+const { sendCrucialStudentsReport } = require('../services/crucialStudentsEmailService');
+const { parseBatchList } = require('../utils/analyticsFilters');
 
 const LANGUAGE_TRACKING_TAB = 'language-tracking';
 const requireLanguageTrackingView = requireAdminOrSubAdminTab(LANGUAGE_TRACKING_TAB, 'view');
@@ -130,6 +133,90 @@ router.post('/send-reminders', verifyToken, requireLanguageTrackingEdit, async (
   } catch (err) {
     console.error('language-tracking POST /send-reminders', err);
     res.status(500).json({ message: 'Failed to send reminder emails' });
+  }
+});
+
+// ── GET /api/language-tracking/crucial-students ───────────────────────────────
+// Query: page, limit, search, batch, sort
+router.get('/crucial-students', verifyToken, requireLanguageTrackingView, async (req, res) => {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
+    const search = (req.query.search || '').trim().toLowerCase();
+    const selectedBatches = parseBatchList(req.query.batch);
+    const sort   = ['lowest', 'highest', 'nearest_hour'].includes(req.query.sort)
+      ? req.query.sort : 'lowest';
+
+    // Live-class filter: 0 = missed both, 1 = attended 1, 2 = attended both
+    let liveClassesFilter = null;
+    if (req.query.liveClasses !== undefined && req.query.liveClasses !== '') {
+      const n = parseInt(req.query.liveClasses, 10);
+      if (!Number.isNaN(n) && n >= 0) liveClassesFilter = n;
+    }
+
+    const data = await getCrucialStudents();
+    let filtered = data.students;
+
+    const availableLiveClassCounts = [
+      ...new Set(data.students.map(s => s.liveClassesAttended ?? 0)),
+    ].sort((a, b) => a - b);
+
+    if (selectedBatches.length) {
+      const batchSet = new Set(selectedBatches.map((b) => String(b).trim()));
+      filtered = filtered.filter((s) => batchSet.has(String(s.batch)));
+    }
+    if (search) {
+      filtered = filtered.filter(s =>
+        s.name.toLowerCase().includes(search) ||
+        s.email.toLowerCase().includes(search) ||
+        String(s.batch).toLowerCase().includes(search),
+      );
+    }
+    if (liveClassesFilter !== null) {
+      filtered = filtered.filter(s => (s.liveClassesAttended ?? 0) === liveClassesFilter);
+    }
+
+    filtered = sortCrucialStudents(filtered, sort);
+
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const paged = filtered.slice(start, start + limit);
+
+    res.json({
+      students: paged,
+      total,
+      page,
+      limit,
+      availableBatches: data.availableBatches,
+      availableLiveClassCounts,
+      summary: {
+        ...data.summary,
+        total,
+        avgMinutes: filtered.length
+          ? Math.round(filtered.reduce((s, r) => s + r.totalMinutes, 0) / filtered.length)
+          : 0,
+      },
+      filters: { batches: selectedBatches, sort, liveClasses: liveClassesFilter },
+    });
+  } catch (err) {
+    console.error('language-tracking GET /crucial-students', err);
+    res.status(500).json({ message: 'Failed to load crucial students' });
+  }
+});
+
+// ── POST /api/language-tracking/crucial-students/send-email ──────────────────
+// Manually trigger the crucial students PDF email
+router.post('/crucial-students/send-email', verifyToken, requireLanguageTrackingEdit, async (req, res) => {
+  try {
+    const result = await sendCrucialStudentsReport();
+    res.json({
+      ok: true,
+      message: `Email sent with ${result.summary.total} crucial student(s)`,
+      summary: result.summary,
+    });
+  } catch (err) {
+    console.error('language-tracking POST /crucial-students/send-email', err);
+    res.status(500).json({ message: 'Failed to send crucial students email' });
   }
 });
 

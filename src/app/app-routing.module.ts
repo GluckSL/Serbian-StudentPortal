@@ -318,6 +318,7 @@ export const routes: Routes = [
   { path: 'admin/performance/student/:studentId', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/language-tracking', loadComponent: () => import('./pages/language-tracking/language-tracking.component').then(m => m.LanguageTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/language-tracking/student/:studentId', loadComponent: () => import('./pages/language-tracking/language-tracking-student-detail.component').then(m => m.LanguageTrackingStudentDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/language-tracking/crucial-students', loadComponent: () => import('./pages/language-tracking/crucial-students.component').then(m => m.CrucialStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Enrollment Overview — Sales CRM (isolated from Language Team students)
   {

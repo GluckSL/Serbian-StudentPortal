@@ -148,6 +148,59 @@ export interface LtSendRemindersResponse {
   failed: number;
 }
 
+// ── Crucial Students ──────────────────────────────────────────────────────────
+
+export interface CrucialStudent {
+  studentId: string;
+  name: string;
+  email: string;
+  phone: string;
+  batch: string;
+  level: string;
+  currentCourseDay: number;
+  totalSeconds: number;
+  totalMinutes: number;
+  exercisesSeconds: number;
+  digibotSeconds: number;
+  arenaSeconds: number;
+  weekNum: number;
+  exerciseDays: number[];
+  liveClassesAttended: number;
+  liveClassesTotal: number;
+}
+
+export type CrucialStudentsSort = 'lowest' | 'highest' | 'nearest_hour';
+
+export interface CrucialStudentsSummary {
+  total: number;
+  avgMinutes: number;
+  generatedAt: string;
+  windowLabel?: string;
+}
+
+export interface CrucialStudentsFilters {
+  batches?: string[];
+  sort?: CrucialStudentsSort;
+  liveClasses?: number | null;
+}
+
+export interface CrucialStudentsResponse {
+  students: CrucialStudent[];
+  total: number;
+  page: number;
+  limit: number;
+  availableBatches: string[];
+  availableLiveClassCounts: number[];
+  summary: CrucialStudentsSummary;
+  filters: CrucialStudentsFilters;
+}
+
+export interface CrucialStudentsSendEmailResponse {
+  ok: boolean;
+  message: string;
+  summary: CrucialStudentsSummary;
+}
+
 export interface LtWeekDaySummary {
   day: number;
   isFuture: boolean;
@@ -295,6 +348,37 @@ export class LanguageTrackingApiService {
   getDayDetail(studentId: string, day: number): Observable<LtDayDetailResponse> {
     return this.http.get<LtDayDetailResponse>(
       `${this.base}/student/${studentId}/day/${day}`,
+      { withCredentials: true },
+    );
+  }
+
+  getCrucialStudents(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    batches?: string[];
+    sort?: CrucialStudentsSort;
+    liveClasses?: number;
+  } = {}): Observable<CrucialStudentsResponse> {
+    let httpParams = new HttpParams();
+    if (params.page)   httpParams = httpParams.set('page',   String(params.page));
+    if (params.limit)  httpParams = httpParams.set('limit',  String(params.limit));
+    if (params.search) httpParams = httpParams.set('search', params.search);
+    if (params.batches?.length) httpParams = httpParams.set('batch', params.batches.join(','));
+    if (params.sort)   httpParams = httpParams.set('sort',   params.sort);
+    if (params.liveClasses !== undefined && params.liveClasses !== null) {
+      httpParams = httpParams.set('liveClasses', String(params.liveClasses));
+    }
+    return this.http.get<CrucialStudentsResponse>(`${this.base}/crucial-students`, {
+      params: httpParams,
+      withCredentials: true,
+    });
+  }
+
+  sendCrucialStudentsEmail(): Observable<CrucialStudentsSendEmailResponse> {
+    return this.http.post<CrucialStudentsSendEmailResponse>(
+      `${this.base}/crucial-students/send-email`,
+      {},
       { withCredentials: true },
     );
   }

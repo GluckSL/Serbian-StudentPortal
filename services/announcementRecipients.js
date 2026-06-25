@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const TimeTable = require('../models/TimeTable');
 
 const GO_STUDENTS_TARGET_NORMALIZED = 'gostudents';
 
@@ -50,12 +51,12 @@ async function getRecipientBatchKeys(user, userId) {
       if (key) keys.push(key);
     }
 
-    const fromStudents = await User.distinct('batch', {
-      role: 'STUDENT',
-      assignedTeacher: userId,
+    const fromTimetables = await TimeTable.distinct('batch', {
+      assignedTeacher: String(userId),
       batch: { $nin: [null, ''] }
     });
-    for (const batch of fromStudents) {
+
+    for (const batch of fromTimetables) {
       const key = normalizeBatchKey(batch);
       if (key) keys.push(key);
     }
@@ -65,8 +66,22 @@ async function getRecipientBatchKeys(user, userId) {
   return [];
 }
 
+function addTeacherMatch(matched, teacher) {
+  const email = String(teacher.email || '').trim().toLowerCase();
+  if (!email || matched.has(email)) return;
+  matched.set(email, {
+    _id: teacher._id,
+    name: String(teacher.name || '').trim(),
+    regNo: String(teacher.regNo || '').trim(),
+    email,
+    role: 'TEACHER'
+  });
+}
+
 /**
  * Teachers who should receive announcements for the given target batches.
+ * Uses teacher assignedBatches and the latest timetable per batch — not
+ * per-student assignedTeacher, which can point at a former tutor.
  */
 async function findTeachersForTargetBatches(targetBatches, targetKeys) {
   const keys = targetKeys || normalizeBatchList(targetBatches);
@@ -85,35 +100,27 @@ async function findTeachersForTargetBatches(targetBatches, targetKeys) {
   for (const teacher of teachers) {
     const assigned = (teacher.assignedBatches || []).map(normalizeBatchKey).filter(Boolean);
     if (!assigned.some((batchKey) => keys.includes(batchKey))) continue;
-    const email = String(teacher.email || '').trim().toLowerCase();
-    if (!email) continue;
-    matched.set(email, {
-      _id: teacher._id,
-      name: String(teacher.name || '').trim(),
-      regNo: String(teacher.regNo || '').trim(),
-      email,
-      role: 'TEACHER'
-    });
+    addTeacherMatch(matched, teacher);
   }
 
-  const students = await User.find({
-    role: 'STUDENT',
-    isActive: true,
-    assignedTeacher: { $exists: true, $ne: null },
-    batch: { $nin: [null, ''] }
-  })
-    .select('batch assignedTeacher')
+  const timetables = await TimeTable.find({ batch: { $nin: [null, ''] } })
+    .select('batch assignedTeacher weekStartDate')
+    .sort({ weekStartDate: -1 })
     .lean();
 
-  const teacherIds = new Set();
-  for (const student of students) {
-    if (!keys.includes(normalizeBatchKey(student.batch))) continue;
-    teacherIds.add(String(student.assignedTeacher));
+  const timetableTeacherIds = new Set();
+  const seenBatchKeys = new Set();
+  for (const tt of timetables) {
+    const batchKey = normalizeBatchKey(tt.batch);
+    if (!keys.includes(batchKey) || seenBatchKeys.has(batchKey)) continue;
+    seenBatchKeys.add(batchKey);
+    const teacherId = String(tt.assignedTeacher || '').trim();
+    if (teacherId) timetableTeacherIds.add(teacherId);
   }
 
-  if (teacherIds.size) {
-    const linkedTeachers = await User.find({
-      _id: { $in: [...teacherIds] },
+  if (timetableTeacherIds.size) {
+    const timetableTeachers = await User.find({
+      _id: { $in: [...timetableTeacherIds] },
       role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
       isActive: true,
       email: { $nin: [null, ''] }
@@ -121,16 +128,8 @@ async function findTeachersForTargetBatches(targetBatches, targetKeys) {
       .select('name email regNo')
       .lean();
 
-    for (const teacher of linkedTeachers) {
-      const email = String(teacher.email || '').trim().toLowerCase();
-      if (!email || matched.has(email)) continue;
-      matched.set(email, {
-        _id: teacher._id,
-        name: String(teacher.name || '').trim(),
-        regNo: String(teacher.regNo || '').trim(),
-        email,
-        role: 'TEACHER'
-      });
+    for (const teacher of timetableTeachers) {
+      addTeacherMatch(matched, teacher);
     }
   }
 

@@ -439,6 +439,13 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     this.dispatchReminders([...this.selectedStudentIds]);
   }
 
+  openCrucialStudents(): void {
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/admin/language-tracking/crucial-students']),
+    );
+    window.open(url, '_blank');
+  }
+
   exportReport(): void {
     if (this.exporting) return;
 
