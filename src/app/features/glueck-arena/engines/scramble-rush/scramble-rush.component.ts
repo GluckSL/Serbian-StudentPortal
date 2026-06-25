@@ -1399,6 +1399,10 @@ const DEADLINE_Y = 88;
 
       .sr__arena { min-height: 260px; }
 
+      .sr__tile { padding: 6px 10px 5px; min-width: 60px; }
+
+      .sr__tile__letters { font-size: clamp(13px, 2.8vw, 17px); letter-spacing: 2px; }
+
       .sr__overlay-stats { gap: 16px; }
 
       .sr__overlay-stat-val { font-size: 22px; }
@@ -1726,7 +1730,7 @@ export class ScrambleRushComponent implements OnInit, OnDestroy {
     const fw: FallingWord = {
       id: ++this.wordIdCounter,
       question: q,
-      x: xMin + Math.random() * (xMax - xMin),
+      x: 50,
       y: 0,
       speed: 0,
       display: this.formatScrambledLetters(letters),
