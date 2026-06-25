@@ -823,10 +823,12 @@ function sanitizeQuestionForClient(q, gameType, index) {
   }
   if (gameType === 'flapjugation') {
     return {
+      _id: String(q._id),
       questionId: String(q._id),
-      index,
-      infinitive: q.word || '',
-      forms: q.tokens || [],
+      gameType: 'flapjugation',
+      order: index,
+      word: q.word || '',
+      tokens: q.tokens || [],
       translation: q.translation || '',
     };
   }

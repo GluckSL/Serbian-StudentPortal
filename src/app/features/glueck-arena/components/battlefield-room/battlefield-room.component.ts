@@ -676,7 +676,7 @@ export class BattlefieldRoomComponent implements OnInit, OnDestroy {
       return;
     }
     this.playerCompleted = true;
-    this.socket.notifyPlayerDone();
+    this.socket.notifyPlayerDone(result?.score || 0);
   }
 
   toggleReady() {

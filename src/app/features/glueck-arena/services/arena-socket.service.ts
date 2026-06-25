@@ -410,9 +410,9 @@ export class ArenaSocketService implements OnDestroy {
 
   }
 
-  notifyPlayerDone(): void {
+  notifyPlayerDone(score?: number): void {
     if (!this.roomCode) return;
-    this.socket?.emit('arena:battle_player_done', { code: this.roomCode });
+    this.socket?.emit('arena:battle_player_done', { code: this.roomCode, score });
   }
 
 

@@ -395,7 +395,7 @@ function initGlueckArenaSockets(httpServer) {
     });
 
     /** Player notifies server they've completed their game (all pairs answered or out of lives) */
-    socket.on('arena:battle_player_done', ({ code }) => {
+    socket.on('arena:battle_player_done', ({ code, score }) => {
       const bfRoom = battlefieldRoomManager.getRawRoom(code);
       if (!bfRoom || !bfRoom.battle) return;
       const progress = bfRoom.battle.playerProgress[String(socket.userId)];
@@ -403,6 +403,11 @@ function initGlueckArenaSockets(httpServer) {
       if (progress.completed) return;
       progress.completed = true;
       console.log(`[battlefield] player_done: ${socket.userId} marked completed`);
+      // Update player score if provided (for engines that don't submit individual answers)
+      if (score != null) {
+        const player = bfRoom.players.find(p => String(p.studentId) === String(socket.userId));
+        if (player && player.score < score) player.score = score;
+      }
       // Check if all connected players are done
       const allDone = bfRoom.players
         .filter(p => p.isConnected !== false)
