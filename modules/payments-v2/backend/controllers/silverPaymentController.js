@@ -34,6 +34,24 @@ const {
 } = require('../../../../utils/goSilverTrack');
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+const PREV_LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2'];
+
+function prevLevelsPendingForStudentRow(row) {
+  const currentLevel = String(row.level || '').toUpperCase().trim();
+  const currentIdx = PREV_LEVEL_ORDER.indexOf(currentLevel);
+  if (currentIdx <= 0) return { lkr: 0, inr: 0, usd: 0 };
+  let lkr = 0;
+  let inr = 0;
+  let usd = 0;
+  for (const lvl of PREV_LEVEL_ORDER.slice(0, currentIdx)) {
+    const slot = row.levelSlots?.[lvl];
+    if (!slot) continue;
+    lkr += slot.pendingLKR || 0;
+    inr += slot.pendingINR || 0;
+    usd += slot.pendingUSD || 0;
+  }
+  return { lkr, inr, usd };
+}
 
 function detectLevel(req) {
   const hay = [req.customType, req.remarks, req.paymentType]
@@ -256,6 +274,10 @@ const getSilverPaymentStudents = async (req, res) => {
           totalPendingLKR: 0,
           totalPendingINR: 0,
           totalPendingUSD: 0,
+          totalLastLevelPendingLKR: 0,
+          totalLastLevelPendingINR: 0,
+          totalLastLevelPendingUSD: 0,
+          lastLevelPendingStudentCount: 0,
         },
       });
     }
@@ -406,6 +428,18 @@ const getSilverPaymentStudents = async (req, res) => {
     const totalOverdueINR = levelFilteredRows.reduce((s, r) => s + (r.langOverdueINR || 0), 0);
     const totalOverdueUSD = levelFilteredRows.reduce((s, r) => s + (r.langOverdueUSD || 0), 0);
 
+    let totalLastLevelPendingLKR = 0;
+    let totalLastLevelPendingINR = 0;
+    let totalLastLevelPendingUSD = 0;
+    let lastLevelPendingStudentCount = 0;
+    for (const r of levelFilteredRows) {
+      const prev = prevLevelsPendingForStudentRow(r);
+      totalLastLevelPendingLKR += prev.lkr;
+      totalLastLevelPendingINR += prev.inr;
+      totalLastLevelPendingUSD += prev.usd;
+      if (prev.lkr + prev.inr + prev.usd > 0) lastLevelPendingStudentCount += 1;
+    }
+
     return res.json({
       success: true,
       data: {
@@ -425,6 +459,10 @@ const getSilverPaymentStudents = async (req, res) => {
         totalOverdueLKR,
         totalOverdueINR,
         totalOverdueUSD,
+        totalLastLevelPendingLKR,
+        totalLastLevelPendingINR,
+        totalLastLevelPendingUSD,
+        lastLevelPendingStudentCount,
       },
     });
   } catch (e) {

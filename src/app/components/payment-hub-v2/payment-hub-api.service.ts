@@ -627,6 +627,7 @@ export class PaymentHubApiService {
       manualNextPaymentDates?: Record<string, string>;
       batchRemarks?: Record<string, string>;
       manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
+      languageBatches?: string[];
       updatedAt?: string | null;
     };
   }> {
@@ -638,10 +639,21 @@ export class PaymentHubApiService {
         manualNextPaymentDates?: Record<string, string>;
         batchRemarks?: Record<string, string>;
         manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
+        languageBatches?: string[];
         updatedAt?: string | null;
       };
     }>(
       `${this.base}/finance-dashboard/visible-batches`,
+    );
+  }
+
+  updateFinanceLanguageBatches(batches: string[]): Observable<{
+    success: boolean;
+    data: { languageBatches: string[]; updatedAt?: string | null };
+  }> {
+    return this.http.put<{ success: boolean; data: { languageBatches: string[]; updatedAt?: string | null } }>(
+      `${this.base}/finance-dashboard/language-batches`,
+      { batches },
     );
   }
 

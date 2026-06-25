@@ -137,6 +137,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "go-students",
   "go-students-sinhala",
   "manage-classes",
+  "gluck-room",
   "attendance",
   "import-meeting",
   "class-recordings",

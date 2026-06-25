@@ -14,6 +14,7 @@ import { debounceTime, distinctUntilChanged, takeUntil } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   BatchStudentPaymentRow,
+  LanguageLevelSlot,
   PaymentHubApiService,
 } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
@@ -124,6 +125,12 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
   totalPendingLKR = 0;
   totalPendingINR = 0;
   totalPendingUSD = 0;
+  totalLastLevelPendingLKR = 0;
+  totalLastLevelPendingINR = 0;
+  totalLastLevelPendingUSD = 0;
+  lastLevelPendingStudentCount = 0;
+
+  private readonly PREV_LEVEL_ORDER: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
 
   readonly pageSizeOptions = [25, 50, 100, 200];
 
@@ -333,6 +340,27 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
 
   rowPending(r: BatchStudentPaymentRow): StudentCurrencyTotals {
     return { lkr: r.langPendingLKR ?? 0, inr: r.langPendingINR ?? 0, usd: r.langPendingUSD ?? 0 };
+  }
+
+  rowPrevLevelsPending(r: BatchStudentPaymentRow): StudentCurrencyTotals {
+    const currentLevel = String(r.level || '').toUpperCase().trim() as LanguageLevelSlot;
+    const currentIdx = this.PREV_LEVEL_ORDER.indexOf(currentLevel);
+    if (currentIdx <= 0) return { lkr: 0, inr: 0, usd: 0 };
+    let lkr = 0;
+    let inr = 0;
+    let usd = 0;
+    for (const lvl of this.PREV_LEVEL_ORDER.slice(0, currentIdx)) {
+      const slot = r.levelSlots?.[lvl];
+      if (!slot) continue;
+      lkr += slot.pendingLKR ?? 0;
+      inr += slot.pendingINR ?? 0;
+      usd += slot.pendingUSD ?? 0;
+    }
+    return { lkr, inr, usd };
+  }
+
+  hasLastLevelPendingTotals(): boolean {
+    return this.totalLastLevelPendingLKR > 0 || this.totalLastLevelPendingINR > 0 || this.totalLastLevelPendingUSD > 0;
   }
 
   private pendingTotal(row: BatchStudentPaymentRow): number {
@@ -561,6 +589,10 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
           totalPendingLKR: number;
           totalPendingINR: number;
           totalPendingUSD: number;
+          totalLastLevelPendingLKR?: number;
+          totalLastLevelPendingINR?: number;
+          totalLastLevelPendingUSD?: number;
+          lastLevelPendingStudentCount?: number;
         };
       }>(`${this.base}/students`, { params, withCredentials: true })
       .subscribe({
@@ -583,6 +615,10 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
           this.totalPendingLKR = d.totalPendingLKR;
           this.totalPendingINR = d.totalPendingINR;
           this.totalPendingUSD = d.totalPendingUSD;
+          this.totalLastLevelPendingLKR = d.totalLastLevelPendingLKR ?? 0;
+          this.totalLastLevelPendingINR = d.totalLastLevelPendingINR ?? 0;
+          this.totalLastLevelPendingUSD = d.totalLastLevelPendingUSD ?? 0;
+          this.lastLevelPendingStudentCount = d.lastLevelPendingStudentCount ?? 0;
           this.loading = false;
         },
         error: () => {

@@ -125,6 +125,26 @@
             </div>
             <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
           </button>
+
+          <article class="ph-silver-kpi-card ph-silver-kpi-card--last-level">
+            <div class="ph-silver-kpi-card__head">
+              <mat-icon class="ph-silver-kpi-card__icon">history</mat-icon>
+              <span class="ph-silver-kpi-card__label">Last level pending</span>
+            </div>
+            <span class="ph-silver-kpi-card__count">{{ lastLevelPendingStudentCount }}</span>
+            <div class="ph-silver-kpi-card__amount" *ngIf="hasLastLevelPendingTotals()">
+              <app-payment-currency-pending-totals
+                [lkr]="totalLastLevelPendingLKR"
+                [inr]="totalLastLevelPendingINR"
+                [usd]="totalLastLevelPendingUSD"
+                [compact]="true"
+                [hideZero]="true"
+              ></app-payment-currency-pending-totals>
+            </div>
+            <p class="ph-silver-kpi-card__hint">
+              Pending from earlier levels · matches ongoing batches table
+            </p>
+          </article>
         </div>
       </div>
 
@@ -220,6 +240,7 @@
                     <mat-icon>filter_list</mat-icon>
                   </button>
                 </th>
+                <th class="ph-num">Last level pending</th>
                 <th>Language fee</th>
                 <th>Status</th>
                 <th class="ph-col-actions">Actions</th>
@@ -257,6 +278,18 @@
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-pending-totals>
+                </td>
+                <td class="ph-num ph-val-amber ph-paid-cell">
+                  <ng-container *ngIf="rowPrevLevelsPending(r) as prev">
+                    <app-payment-currency-pending-totals
+                      [lkr]="prev.lkr"
+                      [inr]="prev.inr"
+                      [usd]="prev.usd"
+                      [compact]="true"
+                      [hideZero]="true"
+                      [matTooltip]="prev.lkr + prev.inr + prev.usd > 0 ? ('Pending from levels before ' + (r.level || 'current')) : ''"
+                    ></app-payment-currency-pending-totals>
+                  </ng-container>
                 </td>
                 <td>
                   <span class="ph-pill" [ngClass]="languageFeePillClass(r)">{{ languageFeeStatusLabel(r) }}</span>
@@ -328,7 +361,7 @@
           <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3]"></div>
         </div>
         <div class="ph-health-cards ph-batch-stu-skeleton-cards">
-          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3]"></div>
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3,4]"></div>
         </div>
         <div class="ph-skeleton-table"></div>
       </div>
