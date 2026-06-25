@@ -30,6 +30,7 @@ router.get('/batches/summary', ctrl.getBatchPaymentSummary);
 router.get('/finance-dashboard/students', ctrl.getCohortStudentsPaymentDetail);
 router.get('/finance-dashboard/visible-batches', financeDashboardSettingsCtrl.getVisibleBatches);
 router.put('/finance-dashboard/visible-batches', requireFinanceAdmin, financeDashboardSettingsCtrl.updateVisibleBatches);
+router.put('/finance-dashboard/language-batches', requireFinanceAdmin, financeDashboardSettingsCtrl.updateLanguageBatches);
 router.put('/finance-dashboard/batch-commencement-date', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchCommencementDate);
 router.put('/finance-dashboard/batch-remark', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchRemark);
 router.put('/finance-dashboard/batch-commencement-amount', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchCommencementAmount);

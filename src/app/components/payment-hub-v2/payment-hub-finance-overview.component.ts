@@ -36,6 +36,13 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   visibleBatches: string[] = [];
   visibleBatchLevelStatuses: Record<string, string> = {};
   batchRows: BatchPaymentSummaryRow[] = [];
+
+  readonly featuredLanguageBatches = ['GO Tamil', 'GO Sinhala'];
+  languageBatches: string[] = [];
+  savingLanguageBatches = false;
+  showManageLanguageBatches = false;
+  showAddLanguageBatchModal = false;
+  selectedLanguageBatchNames = new Set<string>();
   selectedBatchLevelByName: Record<string, BatchLevelStatus> = {};
   selectedBatches = new Set<string>();
   counts: PortalStudentCounts = {
@@ -217,14 +224,131 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
       next: (res) => {
         this.visibleBatches = [...(res.data?.visibleBatches || [])];
         this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || {}) };
+        this.languageBatches = [...(res.data?.languageBatches || [])];
         this.loadingVisibleBatches = false;
       },
       error: () => {
         this.visibleBatches = [];
         this.visibleBatchLevelStatuses = {};
+        this.languageBatches = [];
         this.loadingVisibleBatches = false;
       },
     });
+  }
+
+  get availableLanguageBatchesToAdd(): string[] {
+    const added = new Set(this.languageBatches);
+    return this.batchOptions.filter((b) => !added.has(b));
+  }
+
+  get selectedLanguageModalCount(): number {
+    return [...this.selectedLanguageBatchNames].filter((b) => this.availableLanguageBatchesToAdd.includes(b)).length;
+  }
+
+  get otherAddedLanguageBatches(): string[] {
+    const featured = new Set(this.featuredLanguageBatches);
+    return this.languageBatches.filter((b) => !featured.has(b));
+  }
+
+  get otherAvailableLanguageBatches(): string[] {
+    const featured = new Set(this.featuredLanguageBatches);
+    return this.availableLanguageBatchesToAdd.filter((b) => !featured.has(b));
+  }
+
+  get featuredAvailableLanguageBatches(): string[] {
+    const available = new Set(this.availableLanguageBatchesToAdd);
+    return this.featuredLanguageBatches.filter((b) => available.has(b));
+  }
+
+  isLanguageBatchAdded(batch: string): boolean {
+    return this.languageBatches.includes(batch);
+  }
+
+  isLanguageBatchModalSelected(batch: string): boolean {
+    return this.selectedLanguageBatchNames.has(batch);
+  }
+
+  toggleLanguageBatchModalSelection(batch: string): void {
+    if (this.selectedLanguageBatchNames.has(batch)) {
+      this.selectedLanguageBatchNames.delete(batch);
+    } else {
+      this.selectedLanguageBatchNames.add(batch);
+    }
+  }
+
+  openAddLanguageBatchModal(): void {
+    this.selectedLanguageBatchNames = new Set();
+    this.showAddLanguageBatchModal = true;
+  }
+
+  closeAddLanguageBatchModal(): void {
+    if (this.savingLanguageBatches) return;
+    this.showAddLanguageBatchModal = false;
+  }
+
+  addSelectedLanguageBatches(): void {
+    if (!this.selectedLanguageModalCount || this.savingLanguageBatches) return;
+    const selected = [...this.selectedLanguageBatchNames].filter((b) => this.availableLanguageBatchesToAdd.includes(b));
+    const next = [...new Set([...this.languageBatches, ...selected])];
+    this.savingLanguageBatches = true;
+    this.api.updateFinanceLanguageBatches(next).subscribe({
+      next: (res) => {
+        this.languageBatches = [...(res.data?.languageBatches || next)];
+        this.savingLanguageBatches = false;
+        this.showAddLanguageBatchModal = false;
+        this.selectedLanguageBatchNames = new Set();
+        this.snack.open(`Added ${selected.length} batch(es) to Language Payment.`, 'OK', { duration: 3000 });
+      },
+      error: (err) => {
+        this.savingLanguageBatches = false;
+        this.snack.open(err?.error?.message || 'Could not update language batches.', 'Dismiss', { duration: 4500 });
+      },
+    });
+  }
+
+  toggleLanguageBatch(batch: string): void {
+    if (this.savingLanguageBatches) return;
+    const willAdd = !this.languageBatches.includes(batch);
+    const next = willAdd
+      ? [...this.languageBatches, batch]
+      : this.languageBatches.filter((b) => b !== batch);
+    this.savingLanguageBatches = true;
+    this.api.updateFinanceLanguageBatches(next).subscribe({
+      next: (res) => {
+        this.languageBatches = [...(res.data?.languageBatches || next)];
+        this.savingLanguageBatches = false;
+        this.snack.open(
+          willAdd ? `"${batch}" added to Language Payment.` : `"${batch}" removed from Language Payment.`,
+          'OK',
+          { duration: 3000 },
+        );
+      },
+      error: (err) => {
+        this.savingLanguageBatches = false;
+        this.snack.open(err?.error?.message || 'Could not update language batches.', 'Dismiss', { duration: 4500 });
+      },
+    });
+  }
+
+  removeLanguageBatch(batch: string): void {
+    if (this.savingLanguageBatches) return;
+    const next = this.languageBatches.filter((b) => b !== batch);
+    this.savingLanguageBatches = true;
+    this.api.updateFinanceLanguageBatches(next).subscribe({
+      next: (res) => {
+        this.languageBatches = [...(res.data?.languageBatches || next)];
+        this.savingLanguageBatches = false;
+        this.snack.open(`"${batch}" removed from Language Payment.`, 'OK', { duration: 3000 });
+      },
+      error: (err) => {
+        this.savingLanguageBatches = false;
+        this.snack.open(err?.error?.message || 'Could not update language batches.', 'Dismiss', { duration: 4500 });
+      },
+    });
+  }
+
+  toggleManageLanguageBatches(): void {
+    this.showManageLanguageBatches = !this.showManageLanguageBatches;
   }
 
   private loadBatchOptions(): void {

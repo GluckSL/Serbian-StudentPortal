@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const LANGUAGE_BATCH_OPTIONS = ['GO Tamil', 'GO Sinhala'];
+
 const schema = new mongoose.Schema({
   _id: { type: String, default: 'global' },
   visibleBatches: {
@@ -10,6 +12,11 @@ const schema = new mongoose.Schema({
     type: Map,
     of: String,
     default: {},
+  },
+  /** Language batches shown on the finance dashboard (subset of GO Tamil, GO Sinhala). */
+  languageBatches: {
+    type: [String],
+    default: [],
   },
   /** Manual next payment dates for old batches (batch name → YYYY-MM-DD). */
   manualNextPaymentDates: {
@@ -216,4 +223,20 @@ schema.statics.setManualCommencementAmount = async function setManualCommencemen
   ).lean();
 };
 
+schema.statics.setLanguageBatches = async function setLanguageBatches(batches, updatedBy) {
+  const languageBatches = normalizeBatchList(batches);
+  return this.findByIdAndUpdate(
+    'global',
+    {
+      $set: {
+        languageBatches,
+        updatedAt: new Date(),
+        updatedBy: updatedBy || undefined,
+      },
+    },
+    { new: true, upsert: true },
+  ).lean();
+};
+
 module.exports = mongoose.model('FinanceDashboardSettings', schema, 'finance_dashboard_settings');
+module.exports.LANGUAGE_BATCH_OPTIONS = LANGUAGE_BATCH_OPTIONS;

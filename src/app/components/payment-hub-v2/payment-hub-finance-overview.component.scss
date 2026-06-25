@@ -53,7 +53,7 @@
 
 .ph-finance-overview-secondary-row {
   display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(260px, 360px);
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 16px;
   margin-top: 18px;
   align-items: stretch;
@@ -100,6 +100,12 @@
     min-height: 220px;
     justify-content: center;
   }
+
+  &--language-payment {
+    border-top-color: #f59e0b;
+    min-height: 220px;
+    justify-content: center;
+  }
 }
 
 .ph-finance-overview-card__icon {
@@ -127,6 +133,11 @@
 .ph-finance-overview-card__icon--silver-payment {
   background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
   color: #4338ca;
+}
+
+.ph-finance-overview-card__icon--language-payment {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #b45309;
 }
 
 .ph-finance-overview-card__top,
@@ -627,6 +638,67 @@
       cursor: not-allowed;
     }
   }
+
+  &__toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    &:hover:not(:disabled) {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+
+  &--language {
+    background: #fffbeb;
+    border-color: #fde68a;
+
+    .ph-finance-batch-chip__icon {
+      color: #f59e0b;
+    }
+  }
+
+  &--inactive {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+
+    .ph-finance-batch-chip__name {
+      color: #64748b;
+    }
+
+    .ph-finance-batch-chip__icon {
+      color: #cbd5e1;
+    }
+
+    .ph-finance-batch-chip__toggle {
+      &:hover:not(:disabled) {
+        background: #dcfce7;
+        color: #16a34a;
+      }
+    }
+  }
 }
 
 .ph-finance-batch-chips-empty {
@@ -637,7 +709,116 @@
   border-top: 1px solid #f1f5f9;
 
   strong {
-    color: #15803d;
+    color: #374151;
+  }
+}
+
+// ── Language Payment manage section ──────────────────────────────────────────
+
+.ph-finance-lang-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding-top: 4px;
+  border-top: 1px solid #fef3c7;
+}
+
+.ph-finance-lang-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ph-finance-lang-section-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #92400e;
+  padding: 0 2px;
+
+  mat-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+    color: #f59e0b;
+  }
+}
+
+.ph-finance-add-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1.5px dashed #fcd34d;
+  background: transparent;
+  color: #b45309;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  align-self: flex-start;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover:not(:disabled) {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+// ── Modal: section label + featured row ──────────────────────────────────────
+
+.ph-finance-add-batch-modal__section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #64748b;
+  padding: 8px 14px 4px;
+
+  mat-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+    color: #f59e0b;
+  }
+}
+
+.ph-finance-add-batch-row--featured {
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+
+  &.ph-finance-add-batch-row--selected {
+    background: #fef3c7;
+  }
+
+  .ph-finance-add-batch-row__batch mat-icon {
+    color: #f59e0b;
+  }
+}
+
+.ph-finance-add-batch-modal--lang {
+  .ph-finance-add-batch-modal__body {
+    padding-top: 0;
   }
 }
 
@@ -671,6 +852,10 @@
 
   .ph-finance-overview-secondary-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .ph-finance-overview-card--language-payment {
+    grid-column: 1 / -1;
   }
 }
 

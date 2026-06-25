@@ -19,6 +19,7 @@ const getVisibleBatches = async (req, res) => {
         manualNextPaymentDates: toPlainObject(settings.manualNextPaymentDates),
         batchRemarks: toPlainObject(settings.batchRemarks),
         manualCommencementAmounts: toPlainObject(settings.manualCommencementAmounts),
+        languageBatches: settings.languageBatches || [],
         updatedAt: settings.updatedAt || null,
       },
     });
@@ -155,6 +156,26 @@ const triggerReport = async (req, res) => {
   }
 };
 
+const updateLanguageBatches = async (req, res) => {
+  try {
+    const { batches } = req.body || {};
+    if (!Array.isArray(batches)) {
+      return res.status(400).json({ success: false, message: 'batches must be an array.' });
+    }
+    const adminId = getAuthUserId(req);
+    const settings = await FinanceDashboardSettings.setLanguageBatches(batches, adminId);
+    res.json({
+      success: true,
+      data: {
+        languageBatches: settings.languageBatches || [],
+        updatedAt: settings.updatedAt || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 module.exports = {
   getVisibleBatches,
   updateVisibleBatches,
@@ -162,4 +183,5 @@ module.exports = {
   updateBatchRemark,
   updateBatchCommencementAmount,
   triggerReport,
+  updateLanguageBatches,
 };

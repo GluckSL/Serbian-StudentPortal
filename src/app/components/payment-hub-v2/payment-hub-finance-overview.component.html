@@ -169,7 +169,7 @@
             <mat-icon>arrow_forward</mat-icon>
           </a>
           <p class="ph-finance-overview-card__hint">
-            Batches are saved to the database and visible to all admins until removed.
+            Pinned batches visible to all admins on the finance dashboard — remove anytime.
           </p>
 
           <button
@@ -205,6 +205,108 @@
 
           <p class="ph-finance-batch-chips-empty" *ngIf="!loadingVisibleBatches && !visibleBatches.length">
             No batches added yet — use the <strong>+ Add Batch</strong> button above.
+          </p>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--language-payment">
+          <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--language-payment" aria-hidden="true">
+            <mat-icon>translate</mat-icon>
+          </div>
+          <div class="ph-finance-overview-card__main">
+            <span class="ph-finance-overview-card__value">
+              {{ loadingVisibleBatches ? '...' : languageBatches.length }}
+            </span>
+            <span class="ph-finance-overview-card__label">Language Payment</span>
+          </div>
+          <a
+            class="ph-finance-overview-ongoing-link"
+            [routerLink]="batchesRoute('all')"
+            [queryParams]="batchesQuery('all')"
+          >
+            <span>Show details</span>
+            <mat-icon>arrow_forward</mat-icon>
+          </a>
+          <p class="ph-finance-overview-card__hint">
+            Track GO Tamil, GO Sinhala and other language batches for dedicated payment monitoring.
+          </p>
+
+          <button
+            type="button"
+            class="ph-finance-manage-batches-btn"
+            (click)="toggleManageLanguageBatches()"
+            [attr.aria-expanded]="showManageLanguageBatches"
+          >
+            <mat-icon>{{ showManageLanguageBatches ? 'expand_less' : 'tune' }}</mat-icon>
+            <span>{{ showManageLanguageBatches ? 'Hide manage' : 'Manage batches' }}</span>
+          </button>
+
+          <div class="ph-finance-lang-manage" *ngIf="!loadingVisibleBatches && showManageLanguageBatches">
+
+            <!-- Featured: GO Tamil & GO Sinhala — always shown with toggle -->
+            <div class="ph-finance-lang-section">
+              <span class="ph-finance-lang-section-label">
+                <mat-icon>star</mat-icon>
+                Featured language batches
+              </span>
+              <div
+                class="ph-finance-batch-chip ph-finance-batch-chip--language"
+                [class.ph-finance-batch-chip--inactive]="!isLanguageBatchAdded(b)"
+                *ngFor="let b of featuredLanguageBatches"
+              >
+                <mat-icon class="ph-finance-batch-chip__icon">
+                  {{ isLanguageBatchAdded(b) ? 'check_circle' : 'radio_button_unchecked' }}
+                </mat-icon>
+                <span class="ph-finance-batch-chip__name">{{ b }}</span>
+                <span class="ph-finance-batch-chip__level" *ngIf="isLanguageBatchAdded(b)">Added</span>
+                <button
+                  type="button"
+                  class="ph-finance-batch-chip__toggle"
+                  (click)="toggleLanguageBatch(b)"
+                  [disabled]="savingLanguageBatches"
+                  [attr.aria-label]="(isLanguageBatchAdded(b) ? 'Remove ' : 'Add ') + b"
+                  [matTooltip]="isLanguageBatchAdded(b) ? 'Remove from Language Payment' : 'Add to Language Payment'"
+                >
+                  <mat-icon>{{ isLanguageBatchAdded(b) ? 'close' : 'add' }}</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <!-- Other added batches -->
+            <div class="ph-finance-lang-section" *ngIf="otherAddedLanguageBatches.length">
+              <span class="ph-finance-lang-section-label">
+                <mat-icon>label</mat-icon>
+                Other added batches
+              </span>
+              <div class="ph-finance-batch-chip" *ngFor="let b of otherAddedLanguageBatches">
+                <mat-icon class="ph-finance-batch-chip__icon">label</mat-icon>
+                <span class="ph-finance-batch-chip__name">{{ b }}</span>
+                <button
+                  type="button"
+                  class="ph-finance-batch-chip__remove"
+                  (click)="removeLanguageBatch(b)"
+                  [disabled]="savingLanguageBatches"
+                  matTooltip="Remove from Language Payment"
+                  [attr.aria-label]="'Remove ' + b"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <!-- Add more batches button -->
+            <button
+              type="button"
+              class="ph-finance-add-lang-btn"
+              (click)="openAddLanguageBatchModal()"
+              [disabled]="loadingBatchOptions || !availableLanguageBatchesToAdd.length"
+            >
+              <mat-icon>add</mat-icon>
+              <span>Add more batches</span>
+            </button>
+          </div>
+
+          <p class="ph-finance-batch-chips-empty" *ngIf="!loadingVisibleBatches && !languageBatches.length && !showManageLanguageBatches">
+            No batches added yet — click <strong>Manage batches</strong> below.
           </p>
         </article>
 
@@ -341,6 +443,119 @@
         >
           <mat-icon>add</mat-icon>
           {{ savingVisibleBatches ? 'Adding...' : 'Add selected batches' }}
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── Add Language Batch Modal ───────────────────────────────────────── -->
+  <div
+    class="ph-finance-add-batch-modal-backdrop"
+    *ngIf="showAddLanguageBatchModal"
+    role="presentation"
+    (click)="closeAddLanguageBatchModal()"
+  >
+    <section
+      class="ph-finance-add-batch-modal ph-finance-add-batch-modal--lang"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ph-add-lang-batch-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="ph-finance-add-batch-modal__head">
+        <div>
+          <h2 id="ph-add-lang-batch-title">Add Language Batch</h2>
+          <p>GO Tamil &amp; GO Sinhala are featured at the top. Select any batch to add to Language Payment.</p>
+        </div>
+        <button
+          type="button"
+          class="ph-finance-add-batch-modal__close"
+          (click)="closeAddLanguageBatchModal()"
+          [disabled]="savingLanguageBatches"
+          aria-label="Close modal"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <div class="ph-finance-add-batch-modal__body">
+        <div class="ph-finance-add-batch-modal__state" *ngIf="loadingBatchOptions">
+          Loading batches…
+        </div>
+        <div class="ph-finance-add-batch-modal__state" *ngIf="!loadingBatchOptions && !availableLanguageBatchesToAdd.length">
+          All available batches are already in Language Payment.
+        </div>
+
+        <ng-container *ngIf="!loadingBatchOptions && availableLanguageBatchesToAdd.length">
+          <!-- Featured batches (GO Tamil / GO Sinhala) that are still available -->
+          <ng-container *ngIf="featuredAvailableLanguageBatches.length">
+            <div class="ph-finance-add-batch-modal__section-label">
+              <mat-icon>star</mat-icon>
+              Featured
+            </div>
+            <label
+              class="ph-finance-add-batch-row ph-finance-add-batch-row--featured"
+              [class.ph-finance-add-batch-row--selected]="isLanguageBatchModalSelected(b)"
+              *ngFor="let b of featuredAvailableLanguageBatches"
+              [attr.aria-label]="'Select batch ' + b"
+            >
+              <input
+                type="checkbox"
+                class="ph-finance-add-batch-row__check"
+                [checked]="isLanguageBatchModalSelected(b)"
+                (change)="toggleLanguageBatchModalSelection(b)"
+                [disabled]="savingLanguageBatches"
+              />
+              <div class="ph-finance-add-batch-row__batch">
+                <mat-icon>translate</mat-icon>
+                <span>{{ b }}</span>
+              </div>
+            </label>
+          </ng-container>
+
+          <!-- Other batches -->
+          <div class="ph-finance-add-batch-modal__section-label" *ngIf="otherAvailableLanguageBatches.length">
+            <mat-icon>label</mat-icon>
+            All batches
+          </div>
+          <label
+            class="ph-finance-add-batch-row"
+            [class.ph-finance-add-batch-row--selected]="isLanguageBatchModalSelected(batch)"
+            *ngFor="let batch of otherAvailableLanguageBatches"
+            [attr.aria-label]="'Select batch ' + batch"
+          >
+            <input
+              type="checkbox"
+              class="ph-finance-add-batch-row__check"
+              [checked]="isLanguageBatchModalSelected(batch)"
+              (change)="toggleLanguageBatchModalSelection(batch)"
+              [disabled]="savingLanguageBatches"
+            />
+            <div class="ph-finance-add-batch-row__batch">
+              <mat-icon>label</mat-icon>
+              <span>{{ batch }}</span>
+            </div>
+          </label>
+        </ng-container>
+      </div>
+
+      <div class="ph-finance-add-batch-modal__footer">
+        <button
+          type="button"
+          class="ph-finance-add-batch-modal__cancel"
+          (click)="closeAddLanguageBatchModal()"
+          [disabled]="savingLanguageBatches"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="ph-finance-add-batch-modal__save"
+          (click)="addSelectedLanguageBatches()"
+          [disabled]="savingLanguageBatches || !selectedLanguageModalCount"
+        >
+          <mat-icon>add</mat-icon>
+          {{ savingLanguageBatches ? 'Adding...' : 'Add ' + (selectedLanguageModalCount ? selectedLanguageModalCount + ' batch(es)' : 'selected') }}
         </button>
       </div>
     </section>
