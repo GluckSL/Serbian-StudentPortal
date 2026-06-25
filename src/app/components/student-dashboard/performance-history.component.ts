@@ -60,35 +60,40 @@ export class PerformanceHistoryComponent implements OnInit {
 
   detailPage = 0;
   readonly detailPageSize = 10;
+  private overallData: SummaryResponse | null = null;
 
-  lineChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
-  lineChartOptions: ChartConfiguration['options'] = {
+  barChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
+  barChartOptions: ChartConfiguration['options'] = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'top' }
+      legend: { display: false }
     },
     scales: {
       y: {
         beginAtZero: true,
-        max: 100,
-        title: { display: true, text: 'Score %' }
+        title: { display: true, text: 'Minutes' }
+      },
+      x: {
+        title: { display: true, text: 'Day' }
       }
     }
   };
 
-  radarChartData: ChartConfiguration['data'] = { labels: [], datasets: [] };
-  radarChartOptions: ChartConfiguration['options'] = {
+  timeSpentData: ChartConfiguration['data'] = { labels: [], datasets: [] };
+  timeSpentOptions: ChartConfiguration['options'] = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'top' }
+      legend: { display: false }
     },
     scales: {
-      r: {
+      y: {
         beginAtZero: true,
-        max: 100,
-        ticks: { display: false }
+        title: { display: true, text: 'Minutes' }
+      },
+      x: {
+        title: { display: true, text: 'Day' }
       }
     }
   };
@@ -97,8 +102,22 @@ export class PerformanceHistoryComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadSummary();
+    this.fetchOverallForBarChart();
     this.loginStreakService.getLoginStreak().subscribe({
       next: (res) => { this.loginStreakData = res?.data ?? null; },
+      error: () => {}
+    });
+  }
+
+  private fetchOverallForBarChart(): void {
+    this.http.get<SummaryResponse>(`${environment.apiUrl}/student-progress/performance-summary?range=overall`, {
+      withCredentials: true
+    }).subscribe({
+      next: (res) => {
+        this.overallData = res;
+        this.buildBarChart();
+        this.buildTimeSpentChart();
+      },
       error: () => {}
     });
   }
@@ -127,106 +146,168 @@ export class PerformanceHistoryComponent implements OnInit {
 
   private buildCharts(): void {
     if (!this.data) return;
-    this.buildLineChart();
-    this.buildRadarChart();
   }
 
-  private buildLineChart(): void {
-    const raw = this.data!.dayBreakdown;
+  private buildBarChart(): void {
+    const src = this.overallData;
+    if (!src) return;
+    const now = new Date();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const labels: string[] = [];
+    const exercisesData: number[] = [];
+    const classesData: number[] = [];
+    const dgData: number[] = [];
 
-    const bucketSize = this.rangeMode === 'overall' ? Math.max(1, Math.floor(raw.length / 25)) : 1;
-    const bucketed: DayRow[] = [];
-    if (bucketSize > 1) {
-      for (let i = 0; i < raw.length; i += bucketSize) {
-        const slice = raw.slice(i, i + bucketSize);
-        let totalScore = 0, scoreCount = 0, totalExercises = 0;
-        for (const d of slice) {
-          if (d.avgScore > 0) { totalScore += d.avgScore; scoreCount++; }
-          totalExercises += d.exercisesDone;
-        }
-        bucketed.push({
-          day: slice[0].day,
-          exercisesDone: totalExercises,
-          classesAttended: 0, classesTotal: 0,
-          avgScore: scoreCount ? Math.round(totalScore / scoreCount) : 0,
-          sessions: 0, studyMinutes: 0
-        });
-      }
+    const currentDay = src.student?.currentCourseDay || 0;
+    const dgByDay = new Map<number, number>();
+    for (const m of src.dgBotModules || []) {
+      if (m.completed) dgByDay.set(m.courseDay, (dgByDay.get(m.courseDay) || 0) + 1);
     }
 
-    const breakdown = bucketSize > 1 ? bucketed : raw;
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const next = new Date(d);
+      next.setDate(next.getDate() + 1);
+      const dayStart = d.getTime();
+      const dayEnd = next.getTime();
 
-    this.lineChartData = {
-      labels: breakdown.map(d => String(d.day)),
+      labels.push(dayNames[d.getDay()]);
+
+      let exCount = 0;
+      for (const e of src.exercises) {
+        const t = new Date(e.completedAt).getTime();
+        if (t >= dayStart && t < dayEnd) exCount++;
+      }
+
+      let classCount = 0;
+      for (const c of src.liveClasses) {
+        if (!c.attended) continue;
+        const t = new Date(c.startTime).getTime();
+        if (t >= dayStart && t < dayEnd) classCount++;
+      }
+
+      const approxCourseDay = currentDay - i;
+      const dgCount = dgByDay.get(approxCourseDay) || 0;
+
+      exercisesData.push(exCount);
+      classesData.push(classCount);
+      dgData.push(dgCount);
+    }
+
+    this.barChartData = {
+      labels,
       datasets: [
         {
-          label: 'Avg Score',
-          data: breakdown.map(d => d.avgScore),
+          label: 'Exercises',
+          data: exercisesData,
+          backgroundColor: 'rgba(79, 70, 229, 0.75)',
           borderColor: '#4f46e5',
-          backgroundColor: 'rgba(79, 70, 229, 0.1)',
-          fill: true,
-          tension: 0.4,
-          pointRadius: 2,
-          pointHitRadius: 5
+          borderWidth: 1,
+          borderRadius: 4,
         },
         {
-          label: 'Exercises Done',
-          data: breakdown.map(d => d.exercisesDone),
+          label: 'Classes',
+          data: classesData,
+          backgroundColor: 'rgba(16, 185, 129, 0.75)',
           borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          fill: true,
-          tension: 0.4,
-          pointRadius: 2,
-          pointHitRadius: 5,
-          yAxisID: 'y1'
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: 'DG Modules',
+          data: dgData,
+          backgroundColor: 'rgba(245, 158, 11, 0.75)',
+          borderColor: '#f59e0b',
+          borderWidth: 1,
+          borderRadius: 4,
         }
       ]
     };
-    this.lineChartOptions = {
+    this.barChartOptions = {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
         legend: { display: true, position: 'top' }
       },
       scales: {
-        x: {
-          title: { display: true, text: 'Days' },
-          ticks: {
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 20
-          }
-        },
         y: {
           beginAtZero: true,
-          max: 100,
-          title: { display: true, text: 'Score %' },
-          position: 'left'
+          title: { display: true, text: 'Items Completed' },
+          ticks: { stepSize: 1 }
         },
-        y1: {
-          beginAtZero: true,
-          title: { display: true, text: 'Count' },
-          position: 'right',
-          grid: { drawOnChartArea: false }
+        x: {
+          title: { display: true, text: 'Day' }
         }
       }
     };
   }
 
-  private buildRadarChart(): void {
-    const cats = this.data!.categoryPerformance;
-    this.radarChartData = {
-      labels: cats.map(c => c.category),
-      datasets: [
-        {
-          label: 'Avg Score by Category',
-          data: cats.map(c => c.avgScore),
-          borderColor: '#8b5cf6',
-          backgroundColor: 'rgba(139, 92, 246, 0.2)',
-          pointBackgroundColor: '#8b5cf6',
-          pointRadius: 4
+  private buildTimeSpentChart(): void {
+    const src = this.overallData;
+    if (!src) return;
+    const now = new Date();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const labels: string[] = [];
+    const data: number[] = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const next = new Date(d);
+      next.setDate(next.getDate() + 1);
+      const dayStart = d.getTime();
+      const dayEnd = next.getTime();
+
+      labels.push(dayNames[d.getDay()]);
+
+      let minutes = 0;
+
+      for (const s of src.sessions) {
+        const t = new Date(s.createdAt).getTime();
+        if (t >= dayStart && t < dayEnd) minutes += s.durationMinutes || 0;
+      }
+      for (const e of src.exercises) {
+        const t = new Date(e.completedAt).getTime();
+        if (t >= dayStart && t < dayEnd) minutes += Math.round((e.timeSpentSeconds || 0) / 60);
+      }
+      for (const c of src.liveClasses) {
+        if (!c.hasEnded) continue;
+        const t = new Date(c.startTime).getTime();
+        if (t >= dayStart && t < dayEnd) minutes += c.duration || 0;
+      }
+
+      data.push(minutes);
+    }
+
+    this.timeSpentData = {
+      labels,
+      datasets: [{
+        label: 'Time Spent (min)',
+        data,
+        backgroundColor: 'rgba(37, 99, 235, 0.7)',
+        borderColor: '#2563eb',
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    };
+    this.timeSpentOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Minutes' }
+        },
+        x: {
+          title: { display: true, text: 'Day' }
         }
-      ]
+      }
     };
   }
 

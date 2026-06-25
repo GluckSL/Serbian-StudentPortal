@@ -25,40 +25,67 @@
   </div>
 
   <ng-container *ngIf="data && !isLoading">
-    <!-- ═══ Overall Completion Progress Bar ═══ -->
-    <div class="overall-progress">
-      <div class="progress-header">
-        <span class="progress-label">Overall Completion</span>
-        <span class="progress-value">{{ data.kpis.resourceCompletionPct }}%</span>
+    <!-- ═══ Circular Progress Row ═══ -->
+    <div class="circular-progress-row">
+      <!-- Overall Completion -->
+      <div class="circular-progress-item">
+        <div class="circular-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill ring-fill--completion" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.73"
+                    [style.stroke-dashoffset]="326.73 * (1 - data.kpis.resourceCompletionPct / 100)" />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-value">{{ data.kpis.resourceCompletionPct }}%</span>
+            <span class="ring-sub">{{ data.kpis.resourceDone }}/{{ data.kpis.resourceTotal }}</span>
+          </div>
+        </div>
+        <div class="circular-text">
+          <span class="circular-label">Overall Completion</span>
+          <span class="circular-desc">resources completed</span>
+        </div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" [style.width.%]="data.kpis.resourceCompletionPct"></div>
-      </div>
-      <span class="progress-sub">{{ data.kpis.resourceDone }} of {{ data.kpis.resourceTotal }} resources completed</span>
-    </div>
 
-    <!-- ═══ Overall Journey Progress Bar ═══ -->
-    <div class="overall-progress journey-progress">
-      <div class="progress-header">
-        <span class="progress-label">Overall Journey Progress</span>
-        <span class="progress-value">{{ journeyProgressPct }}%</span>
+      <!-- Overall Journey Progress -->
+      <div class="circular-progress-item">
+        <div class="circular-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill ring-fill--journey" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.73"
+                    [style.stroke-dashoffset]="326.73 * (1 - journeyProgressPct / 100)" />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-value">{{ journeyProgressPct }}%</span>
+            <span class="ring-sub">{{ currentDay }}/{{ data.student.journeyLength || 200 }} days</span>
+          </div>
+        </div>
+        <div class="circular-text">
+          <span class="circular-label">Journey Progress</span>
+          <span class="circular-desc">days completed</span>
+        </div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" [style.width.%]="journeyProgressPct"></div>
-      </div>
-      <span class="progress-sub">{{ currentDay }} / {{ data.student.journeyLength || 200 }} days completed</span>
-    </div>
 
-    <!-- ═══ Learning Progress Bar ═══ -->
-    <div class="overall-progress learning-progress">
-      <div class="progress-header">
-        <span class="progress-label">Learning Progress</span>
-        <span class="progress-value">{{ learningProgressPct }}%</span>
+      <!-- Learning Progress -->
+      <div class="circular-progress-item">
+        <div class="circular-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill ring-fill--learning" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.73"
+                    [style.stroke-dashoffset]="326.73 * (1 - learningProgressPct / 100)" />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-value">{{ learningProgressPct }}%</span>
+            <span class="ring-sub">{{ data.exercises.length }}/{{ data.kpis.exerciseTotal }}</span>
+          </div>
+        </div>
+        <div class="circular-text">
+          <span class="circular-label">Learning Progress</span>
+          <span class="circular-desc">avg score across exercises</span>
+        </div>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" [style.width.%]="learningProgressPct"></div>
-      </div>
-      <span class="progress-sub">average score across {{ data.exercises.length }} / {{ data.kpis.exerciseTotal }} exercises</span>
     </div>
 
     <!-- ═══ Summary Cards ═══ -->
@@ -115,22 +142,22 @@
     <!-- ═══ Charts Row ═══ -->
     <section class="charts-row">
       <div class="chart-card">
-        <h3>Journey Progress</h3>
+        <h3>Activity (Last 7 Days)</h3>
         <div class="chart-wrapper">
           <canvas baseChart
-            [data]="lineChartData"
-            [options]="lineChartOptions"
-            type="line">
+            [data]="barChartData"
+            [options]="barChartOptions"
+            type="bar">
           </canvas>
         </div>
       </div>
       <div class="chart-card">
-        <h3>Category Performance</h3>
+        <h3>Time Spent (Last 7 Days)</h3>
         <div class="chart-wrapper">
           <canvas baseChart
-            [data]="radarChartData"
-            [options]="radarChartOptions"
-            type="radar">
+            [data]="timeSpentData"
+            [options]="timeSpentOptions"
+            type="bar">
           </canvas>
         </div>
       </div>
