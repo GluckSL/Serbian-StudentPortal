@@ -141,6 +141,7 @@ async function listTeamBattles(filters = {}) {
   const battles = await BattlefieldTeamBattle.find(query)
     .sort({ createdAt: -1 })
     .populate('createdBy', 'name username')
+    .populate('gameSetId', 'title')
     .lean();
   return battles;
 }
@@ -148,6 +149,7 @@ async function listTeamBattles(filters = {}) {
 async function getScorecard(battleId) {
   const battle = await BattlefieldTeamBattle.findById(battleId)
     .populate('createdBy', 'name username')
+    .populate('gameSetId', 'title')
     .lean();
   if (!battle) return null;
 

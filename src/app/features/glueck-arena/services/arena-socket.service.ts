@@ -71,6 +71,10 @@ export class ArenaSocketService implements OnDestroy {
   readonly chatMessage$ = new Subject<ChatMessage>();
   readonly chatHistory$ = new Subject<ChatMessage[]>();
 
+  readonly adminCancelAck$ = new Subject<{ ok: boolean; battleId: string }>();
+
+  readonly adminLeaderboardUpdate$ = new Subject<{ code: string }>();
+
 
 
   private lastPongAt = Date.now();
@@ -320,6 +324,14 @@ export class ArenaSocketService implements OnDestroy {
       this.battleRound$.next(null);
     });
 
+    this.socket.on('arena:admin_cancel_ack', (p: { ok: boolean; battleId: string }) => {
+      this.adminCancelAck$.next(p);
+    });
+
+    this.socket.on('arena:admin_leaderboard_update', (p: { code: string }) => {
+      this.adminLeaderboardUpdate$.next(p);
+    });
+
     this.socket.on('arena:pong', () => {
 
       const latency = Date.now() - this.lastPongAt;
@@ -442,6 +454,10 @@ export class ArenaSocketService implements OnDestroy {
   cancelRoom(): void {
     if (!this.roomCode) return;
     this.socket?.emit('arena:cancel', { code: this.roomCode });
+  }
+
+  adminCancelBattle(battleId: string): void {
+    this.socket?.emit('arena:admin_cancel', { battleId });
   }
 
   requestRematch(): void {

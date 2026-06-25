@@ -9,6 +9,7 @@ import { InteractiveGameService } from '../../services/interactive-game.service'
 import { TeamBattleDto } from '../../glueck-arena.types';
 import { environment } from '../../../../../environments/environment';
 import { Subscription } from 'rxjs';
+import { ArenaSocketService } from '../../services/arena-socket.service';
 
 interface BatchSummary { batchName: string; }
 interface StudentSearchResult { _id: string; name: string; regNo: string; email: string; }
@@ -48,22 +49,23 @@ type TeamKey = 'teamA' | 'teamB';
 
       <!-- List -->
       <div class="atb__list" *ngIf="!loading">
-        <div class="atb__card" *ngFor="let b of battles">
+        <div class="atb__card" *ngFor="let b of battles" [class.atb__card--live]="b.status === 'active' && b.roomCode">
           <div class="atb__card-top">
             <span class="atb__card-status" [class]="'atb__card-status--' + b.status">{{ b.status | titlecase }}</span>
-            <span class="atb__card-game">{{ b.gameType }}</span>
+            <span class="atb__card-live-dot" *ngIf="b.status === 'active' && b.roomCode"></span>
           </div>
           <div class="atb__card-title">{{ b.title }}</div>
+          <div class="atb__card-game" *ngIf="b.gameSetId">{{ getGameSetName(b) }} — {{ formatGameType(b.gameType) }}</div>
           <div class="atb__card-teams">
             <div class="atb__card-team" [class.atb__card-team--winner]="b.winner === 'teamA'">
               <strong>{{ b.teamA.name }}</strong>
-              <span>{{ b.teamA.score }} pts</span>
+              <span class="atb__card-score">{{ getScore(b, 'teamA') }} pts</span>
               <span class="atb__card-members">{{ b.teamA.members.length || 0 }} players</span>
             </div>
             <span class="atb__card-vs">VS</span>
             <div class="atb__card-team" [class.atb__card-team--winner]="b.winner === 'teamB'">
               <strong>{{ b.teamB.name }}</strong>
-              <span>{{ b.teamB.score }} pts</span>
+              <span class="atb__card-score">{{ getScore(b, 'teamB') }} pts</span>
               <span class="atb__card-members">{{ b.teamB.members.length || 0 }} players</span>
             </div>
           </div>
@@ -80,7 +82,7 @@ type TeamKey = 'teamA' | 'teamB';
               <mat-spinner *ngIf="loadingScorecard === b._id" diameter="16"></mat-spinner>
               {{ scorecardId === b._id ? 'Hide Scorecard' : 'Scorecard' }}
             </button>
-            <button mat-stroked-button color="warn" (click)="cancelBattle(b._id)" *ngIf="b.status === 'pending' || b.status === 'active'">
+            <button mat-stroked-button color="warn" (click)="cancelBattle(b)" *ngIf="b.status === 'pending' || b.status === 'active'">
               <mat-icon>cancel</mat-icon> {{ b.status === 'active' ? 'Cancel Room' : 'Cancel' }}
             </button>
             <button mat-stroked-button color="warn" (click)="deleteBattle(b._id, b.title)" *ngIf="b.status !== 'active'">
@@ -325,8 +327,13 @@ type TeamKey = 'teamA' | 'teamB';
     .atb__card-status { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; background: #f1f5f9; color: #64748b; }
     .atb__card-status--active { background: #dcfce7; color: #15803d; }
     .atb__card-status--finished { background: #f1f5f9; color: #475569; }
-    .atb__card-game { font-size: 12px; color: #94a3b8; }
-    .atb__card-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 12px; }
+    .atb__card-status--cancelled { background: #fef2f2; color: #dc2626; }
+    .atb__card-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse-live 1.5s ease-in-out infinite; flex-shrink: 0; }
+    .atb__card--live { border-color: #86efac; box-shadow: 0 0 0 1px #22c55e20, 0 2px 8px rgba(34,197,94,.08); }
+    .atb__card-score { font-weight: 800; color: #1e293b; }
+    @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .atb__card-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+    .atb__card-game { display: inline-block; font-size: 12px; font-weight: 600; color: #405980; background: #eef2ff; padding: 3px 10px; border-radius: 6px; margin-bottom: 12px; }
     .atb__card-teams { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
     .atb__card-team { flex: 1; padding: 12px; background: #f8fafc; border-radius: 10px; text-align: center; }
     .atb__card-team--winner { background: #f0fdf4; border: 1px solid #22c55e; }
@@ -407,6 +414,7 @@ type TeamKey = 'teamA' | 'teamB';
 })
 export class AdminTeamBattleComponent implements OnInit, OnDestroy {
   battles: TeamBattleDto[] = [];
+  liveScores: Record<string, { teamA: { score: number; members: { id: string; name: string; score: number }[] }; teamB: { score: number; members: { id: string; name: string; score: number }[] } }> = {};
   loading = true;
   statusFilter = '';
   showCreate = false;
@@ -448,9 +456,20 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
   constructor(
     private svc: InteractiveGameService,
     private http: HttpClient,
+    private socket: ArenaSocketService,
   ) {}
 
-  ngOnInit() { this.load(); this.loadSets(); this.loadBatches(); }
+  ngOnInit() {
+    this.load();
+    this.loadSets();
+    this.loadBatches();
+    this.socket.connect();
+    this.subs.push(this.socket.adminLeaderboardUpdate$.subscribe(({ code }) => this.onLiveUpdate(code)));
+    this.subs.push(this.socket.adminCancelAck$.subscribe(({ battleId }) => {
+      const b = this.battles.find(x => x._id === battleId);
+      if (b) b.status = 'cancelled';
+    }));
+  }
   ngOnDestroy() {
     this.subs.forEach(s => s.unsubscribe());
     clearTimeout(this.searchTimers.teamA);
@@ -493,10 +512,12 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
     }));
   }
 
-  cancelBattle(id: string) {
-    this.subs.push(this.svc.cancelTeamBattle(id).subscribe({
-      next: () => this.load(),
-      error: () => {},
+  cancelBattle(b: TeamBattleDto) {
+    b.status = 'cancelled';
+    this.socket.adminCancelBattle(b._id);
+    this.subs.push(this.svc.cancelTeamBattle(b._id).subscribe({
+      next: () => {},
+      error: () => this.load(),
     }));
   }
 
@@ -508,6 +529,32 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
     }));
   }
 
+  getScore(b: TeamBattleDto, team: 'teamA' | 'teamB'): number {
+    const live = this.liveScores[b._id];
+    if (live) return live[team].score;
+    return b[team].score;
+  }
+
+  private onLiveUpdate(code: string) {
+    const battle = this.battles.find(b => b.roomCode === code);
+    if (!battle || battle.status !== 'active') return;
+    this.subs.push(this.svc.getTeamBattleScorecard(battle._id).subscribe({
+      next: (res) => {
+        if (!res?.battle) return;
+        this.liveScores[battle._id] = {
+          teamA: { score: res.battle.teamA.score, members: res.battle.teamA.members },
+          teamB: { score: res.battle.teamB.score, members: res.battle.teamB.members },
+        };
+        battle.currentRound = res.battle.currentRound;
+        battle.winner = res.battle.winner;
+        if (res.battle.status !== 'active') {
+          battle.status = res.battle.status;
+        }
+      },
+      error: () => {},
+    }));
+  }
+
   onGameSetChange() {
     const set = this.availableSets.find(s => s._id === this.form.gameSetId);
     if (set) this.form.gameType = set.gameType;
@@ -515,6 +562,14 @@ export class AdminTeamBattleComponent implements OnInit, OnDestroy {
 
   formatGameType(gt: string): string {
     return gt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  getGameSetName(b: TeamBattleDto): string {
+    const gs = b.gameSetId;
+    if (gs && typeof gs === 'object' && 'title' in gs) return gs.title;
+    const gsId = typeof gs === 'string' ? gs : '';
+    const set = this.availableSets.find(s => s._id === gsId);
+    return set?.title || this.formatGameType(b.gameType);
   }
 
   openCreate() {

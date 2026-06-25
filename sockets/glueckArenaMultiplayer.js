@@ -17,6 +17,7 @@ const config = require('../config/glueckArena');
 let ioInstance = null;
 const socketToUser = new Map();
 const autoStartTimers = new Map();
+const adminSockets = new Set();
 
 function emitToRoom(code, event, payload) {
   ioInstance?.to(`room:${code}`).emit(event, payload);
@@ -87,6 +88,16 @@ function initGlueckArenaSockets(httpServer) {
   io.on('connection', (socket) => {
     socketToUser.set(socket.id, socket.userId);
     socket.emit('arena:connected', { userId: socket.userId });
+
+    // Track admin sockets for real-time leaderboard broadcasts
+    try {
+      const decoded = jwt.verify(socket.handshake.auth?.token || socket.handshake.query?.token, process.env.JWT_SECRET);
+      const role = decoded.role || decoded.userRole;
+      if (['ADMIN', 'TEACHER_ADMIN'].includes(role)) {
+        adminSockets.add(socket.id);
+        socket.join('admins');
+      }
+    } catch {}
 
     socket.on('arena:ping', async ({ code }) => {
       const t0 = Date.now();
@@ -341,6 +352,43 @@ function initGlueckArenaSockets(httpServer) {
       }
     });
 
+    /** Admin cancel — ends room for all players in real-time */
+    socket.on('arena:admin_cancel', async ({ battleId }) => {
+      try {
+        const decoded = jwt.verify(socket.handshake.auth?.token || socket.handshake.query?.token, process.env.JWT_SECRET);
+        const role = decoded.role || decoded.userRole;
+        if (!['ADMIN', 'TEACHER_ADMIN'].includes(role)) {
+          return socket.emit('arena:error', { message: 'Unauthorized' });
+        }
+
+        const BattlefieldTeamBattle = require('../models/BattlefieldTeamBattle');
+        const battle = await BattlefieldTeamBattle.findById(battleId);
+        if (!battle) return socket.emit('arena:error', { message: 'Battle not found' });
+
+        // Cancel in-memory room if it exists
+        if (battle.roomCode) {
+          battlefieldRoomManager.cancelRoom(battle.roomCode, socket.userId);
+          io.to(`room:${battle.roomCode}`).emit('arena:room_cancelled', { room: { status: 'cancelled' } });
+        }
+
+        // Cancel the ArenaRoom DB record
+        if (battle.roomCode) {
+          await ArenaRoom.findOneAndUpdate(
+            { inviteCode: battle.roomCode },
+            { $set: { status: 'cancelled' } }
+          );
+        }
+
+        battle.status = 'cancelled';
+        await battle.save();
+
+        socket.emit('arena:admin_cancel_ack', { ok: true, battleId });
+      } catch (err) {
+        console.error('[battlefield] admin_cancel error:', err.message);
+        socket.emit('arena:error', { message: 'Failed to cancel battle' });
+      }
+    });
+
     /** Legacy generic answer — kept for backward compatibility */
     socket.on('arena:answer', async (payload) => {
       const { code, questionIndex, isCorrect, points, responseTimeMs } = payload || {};
@@ -357,6 +405,7 @@ function initGlueckArenaSockets(httpServer) {
       });
       if (!result.ok) return socket.emit('arena:error', { message: result.message });
       io.to(`room:${code}`).emit('arena:leaderboard', { players: result.leaderboard });
+      io.to('admins').emit('arena:admin_leaderboard_update', { code });
     });
 
     /** Realtime battle answer — server validates all game types */
@@ -387,6 +436,7 @@ function initGlueckArenaSockets(httpServer) {
           result: result.result,
         });
         io.to(`room:${code}`).emit('arena:leaderboard', { players: result.leaderboard });
+        io.to('admins').emit('arena:admin_leaderboard_update', { code });
         socket.emit('arena:battle_answer_ack', {
           roundIndex,
           result: result.result,
@@ -450,6 +500,7 @@ function initGlueckArenaSockets(httpServer) {
       if (allDone) {
         console.log('[battlefield] ALL PLAYERS DONE via player_done — finishing game');
         battlefieldRoomManager.finishGame(code, io);
+        io.to('admins').emit('arena:admin_leaderboard_update', { code });
       }
     });
 
@@ -459,6 +510,7 @@ function initGlueckArenaSockets(httpServer) {
         const result = battlefieldRoomManager.finishGame(code, io);
         if (result) {
           io.to(`room:${code}`).emit('arena:finished', { room: result.room, results: result.results });
+          io.to('admins').emit('arena:admin_leaderboard_update', { code });
         }
         return;
       }
@@ -469,6 +521,7 @@ function initGlueckArenaSockets(httpServer) {
       if (result.ok) {
         battleEngine.unregisterRoomEmitter(room._id);
         io.to(`room:${code}`).emit('arena:finished', { room: result.room, results: result.results });
+        io.to('admins').emit('arena:admin_leaderboard_update', { code });
       }
     });
 
@@ -544,6 +597,7 @@ function initGlueckArenaSockets(httpServer) {
 
     socket.on('disconnect', async () => {
       socketToUser.delete(socket.id);
+      adminSockets.delete(socket.id);
       const wasSpectator = socket.data.isSpectator;
       const wasRoomCode = socket.data.roomCode;
 

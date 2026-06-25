@@ -729,9 +729,9 @@ export interface BattlefieldLeaderboardEntry {
 export interface TeamBattleDto {
   _id: string;
   title: string;
-  gameSetId: string;
+  gameSetId: string | { _id: string; title: string };
   gameType: GameType;
-  status: 'pending' | 'active' | 'finished';
+  status: 'pending' | 'active' | 'finished' | 'cancelled';
   teamA: {
     name: string;
     type: 'classroom' | 'manual';

@@ -104,10 +104,9 @@ import { AuthService } from '../../../../services/auth.service';
                 <span class="bfroom__info-label">Players</span>
                 <span class="bfroom__info-value">{{ room.players.length }} / {{ room.maxPlayers }}</span>
               </div>
-              <div class="bfroom__info-row" *ngIf="phase === 'playing' && currentRound">
+              <div class="bfroom__info-row" *ngIf="phase === 'playing' && room.battle">
                 <span class="bfroom__info-label">Round</span>
-                <span class="bfroom__info-value">{{ currentRound.roundIndex + 1 }} / {{ currentRound.totalRounds }}</span>
-              </div>
+                <span class="bfroom__info-value">{{ room.battle.currentRound + 1 }} / {{ room.battle.totalRounds }}</span>
               </div>
             </div>
 

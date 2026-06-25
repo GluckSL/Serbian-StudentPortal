@@ -286,14 +286,6 @@ function startCountdown(code, hostId) {
   return { ok: true, room: sanitizeRoom(room) };
 }
 
-function tryAutoStart(code) {
-  const room = rooms.get(code?.toUpperCase());
-  if (!canStartRoom(room)) return null;
-  room.status = 'countdown';
-  room.startedAt = Date.now();
-  return { ok: true, room: sanitizeRoom(room) };
-}
-
 async function beginPlaying(code, io) {
   const room = rooms.get(code?.toUpperCase());
   if (!room) return { ok: false, message: 'Room not found' };
@@ -937,7 +929,6 @@ module.exports = {
   cancelAutoStart,
   isAutoStarting,
   startCountdown,
-  tryAutoStart,
   canStartRoom,
   beginPlaying,
   submitAnswer,
