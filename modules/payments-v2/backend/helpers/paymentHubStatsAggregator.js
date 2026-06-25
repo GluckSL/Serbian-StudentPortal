@@ -10,6 +10,7 @@ const {
   emptyCurrencyBucket,
   addToCurrencyBucket,
 } = require('../utils/currencyBreakdownHelper');
+const { GO_BATCH_TAMIL, GO_BATCH_SINHALA, goStudentQuery } = require('../../../../utils/goSilverTrack');
 const {
   LANGUAGE_LEVELS,
   computeTotalsForLevelSlot,
@@ -865,7 +866,22 @@ async function expectedThisMonthForScope(studentIds) {
   return expected;
 }
 
-function batchLabelForStudent(student) {
+function batchLabelForStudent(student, opts = {}) {
+  // If the caller is showing GO virtual batches, re-label GO students accordingly
+  if (opts.goTamilRequested || opts.goSinhalaRequested) {
+    const isGo =
+      String(student?.goStatus || '').toUpperCase() === 'GO' &&
+      String(student?.subscription || '').toUpperCase() === 'SILVER';
+    if (isGo) {
+      const explicit = String(student?.goLanguage || '').trim();
+      const medium = Array.isArray(student?.medium) ? student.medium : [];
+      const isSinhala =
+        explicit === 'Sinhala' ||
+        (!explicit && medium.some((m) => String(m).toLowerCase() === 'sinhala'));
+      if (isSinhala && opts.goSinhalaRequested) return GO_BATCH_SINHALA;
+      if (!isSinhala && opts.goTamilRequested) return GO_BATCH_TAMIL;
+    }
+  }
   const b = String(student?.batch || '').trim();
   return b || '—';
 }
@@ -1023,13 +1039,36 @@ async function aggregateBatchPaymentInsights(filters = {}) {
     userQuery.batch = String(filters.batch).trim();
   }
   if (Array.isArray(filters.batches) && filters.batches.length) {
-    userQuery.batch = { $in: filters.batches };
+    // Expand virtual GO batch labels into proper Mongo conditions
+    const regularBatches = filters.batches.filter(
+      (b) => b !== GO_BATCH_TAMIL && b !== GO_BATCH_SINHALA,
+    );
+    const hasGoTamil = filters.batches.includes(GO_BATCH_TAMIL);
+    const hasGoSinhala = filters.batches.includes(GO_BATCH_SINHALA);
+
+    if (hasGoTamil || hasGoSinhala) {
+      const orClauses = [];
+      if (regularBatches.length) orClauses.push({ batch: { $in: regularBatches } });
+      if (hasGoTamil) orClauses.push(goStudentQuery('tamil'));
+      if (hasGoSinhala) orClauses.push(goStudentQuery('sinhala'));
+      if (orClauses.length === 1) {
+        Object.assign(userQuery, orClauses[0]);
+      } else {
+        userQuery.$or = orClauses;
+      }
+    } else {
+      userQuery.batch = { $in: regularBatches };
+    }
   }
+
+  // Track which virtual GO batches are requested so we can label students correctly
+  const goTamilRequested = Array.isArray(filters.batches) && filters.batches.includes(GO_BATCH_TAMIL);
+  const goSinhalaRequested = Array.isArray(filters.batches) && filters.batches.includes(GO_BATCH_SINHALA);
 
   const namesQuery = buildUserQueryBase(filters);
   const [students, catalog, allBatchNamesRaw] = await Promise.all([
     User.find(userQuery)
-      .select('_id batch level phoneNumber currentCourseDay batchStartedOn courseStartDates subscription')
+      .select('_id batch level phoneNumber currentCourseDay batchStartedOn courseStartDates subscription goStatus goLanguage medium')
       .lean(),
     PaymentHubCatalog.getOrCreate(),
     User.distinct('batch', { ...namesQuery, batch: { $nin: [null, ''] } }),
@@ -1072,9 +1111,10 @@ async function aggregateBatchPaymentInsights(filters = {}) {
   const approvedByStudent = groupDocsByStudentId(approvedSubs);
   const pendingByStudent = groupDocsByStudentId(pendingSubs);
 
+  const goOpts = { goTamilRequested, goSinhalaRequested };
   for (const student of students) {
     const sid = String(student._id);
-    const batch = batchLabelForStudent(student);
+    const batch = batchLabelForStudent(student, goOpts);
     if (!batchMap.has(batch)) batchMap.set(batch, emptyBatchAccumulator());
     const acc = batchMap.get(batch);
     const levelPriceMapForStudent = getPriceMapForStudent(student.subscription);

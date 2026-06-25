@@ -678,7 +678,7 @@
           <p class="ph-empty-note">
             {{
               !hasVisibleBatches
-                ? 'No batches added to this dashboard yet. Use Add batches above.'
+                ? (isLanguageMode ? 'No language batches added yet. Go back and add batches from the Language Payment card.' : 'No batches added to this dashboard yet. Use Add batches above.')
                 : tableSearch || batchInsight
                   ? 'No batches match your filter.'
                   : 'No batch data found for the added batches.'

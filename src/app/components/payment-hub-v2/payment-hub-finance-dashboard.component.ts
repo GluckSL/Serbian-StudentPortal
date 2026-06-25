@@ -133,6 +133,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   /** Shared across all admins — only these batches appear on the finance dashboard. */
   visibleBatches: string[] = [];
   visibleBatchLevelStatuses: Record<string, string> = {};
+  /** Language Payment batches (GO Tamil, GO Sinhala and other added language batches). */
+  languageBatches: string[] = [];
+  /** When true the page shows only languageBatches instead of visibleBatches. */
+  isLanguageMode = false;
   /** All batch names for cohort filters (from API — used by add-batch dropdown). */
   allBatchNames: string[] = [];
   batchesToAdd: string[] = [];
@@ -195,6 +199,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   ngOnInit(): void {
     this.loadCatalogFees();
     this.route.queryParamMap.subscribe((params) => {
+      this.isLanguageMode = params.get('mode') === 'language';
       const parsed = parseFinanceCohortQuery({
         cohort: params.get('cohort') ?? undefined,
         status: params.get('status') ?? undefined,
@@ -215,6 +220,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       next: (res) => {
         this.visibleBatches = [...(res.data?.visibleBatches || [])];
         this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || {}) };
+        this.languageBatches = [...(res.data?.languageBatches || [])];
         this.applyManualPaymentDatesFromServer(res.data?.manualNextPaymentDates || {});
         this.applyBatchRemarksFromServer(res.data?.batchRemarks || {});
         this.manualCommencementAmounts = { ...(res.data?.manualCommencementAmounts || {}) };
@@ -223,10 +229,15 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       error: () => {
         this.visibleBatches = [];
         this.visibleBatchLevelStatuses = {};
+        this.languageBatches = [];
         this.loadManualPaymentDatesFromLocalStorage();
         this.fetchBatchSummary();
       },
     });
+  }
+
+  private get activeBatches(): string[] {
+    return this.isLanguageMode ? this.languageBatches : this.visibleBatches;
   }
 
   private fetchBatchSummary(): void {
@@ -234,8 +245,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     if (this.filterLevel) params['level'] = this.filterLevel;
     if (this.cohort !== 'all') params['cohort'] = this.cohort;
     if (this.cohortStatus) params['studentStatus'] = this.cohortStatus;
-    if (this.visibleBatches.length) {
-      params['batches'] = this.visibleBatches.join(',');
+    if (this.activeBatches.length) {
+      params['batches'] = this.activeBatches.join(',');
     }
 
     this.api.getBatchPaymentSummary(params).subscribe({
@@ -280,12 +291,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   get pageTitle(): string {
+    if (this.isLanguageMode) return 'Language Payment';
     if (!this.hasCohortFilter && !this.filterLevel) return 'Finance Dashboard';
     if (this.filterLevel && this.cohortStatus) {
       return `${this.filterLevel} · ${formatStudentStatusLabel(this.cohortStatus)}`;
-    }
-    if (this.cohort === 'all' && this.cohortStatus === 'ONGOING') {
-      return 'Platinum - Ongoing Language payment';
     }
     const parts = [financeCohortLabel(this.cohort)];
     if (this.cohortStatus) parts.push(formatStudentStatusLabel(this.cohortStatus));
@@ -293,6 +302,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   get pageSubtitle(): string {
+    if (this.isLanguageMode) {
+      return `Payment breakdown for ${this.cardTotals.studentCount} student(s) across ${this.languageBatches.length} language batch(es).`;
+    }
     if (!this.hasCohortFilter) {
       return 'Add batches to control what appears here for all admins and sub-admins. Payment totals and the table only include batches you add.';
     }
@@ -431,7 +443,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   get hasVisibleBatches(): boolean {
-    return this.visibleBatches.length > 0;
+    return this.activeBatches.length > 0;
   }
 
   get availableBatchesToAdd(): string[] {
@@ -440,9 +452,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   get rowsInDashboard(): BatchPaymentRow[] {
-    if (!this.visibleBatches.length) return [];
-    const visible = new Set(this.visibleBatches);
-    return this.batchRows.filter((r) => visible.has(r.batch));
+    if (!this.activeBatches.length) return [];
+    const active = new Set(this.activeBatches);
+    return this.batchRows.filter((r) => active.has(r.batch));
   }
 
   get displayBatchRows(): BatchPaymentRow[] {
@@ -1397,6 +1409,23 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
 
   removeVisibleBatch(batch: string): void {
     if (this.savingVisibleBatches) return;
+    if (this.isLanguageMode) {
+      const next = this.languageBatches.filter((b) => b !== batch);
+      this.savingVisibleBatches = true;
+      this.api.updateFinanceLanguageBatches(next).subscribe({
+        next: (res) => {
+          this.languageBatches = [...(res.data?.languageBatches || next)];
+          this.savingVisibleBatches = false;
+          this.batchRows = this.batchRows.filter((r) => r.batch !== batch);
+          this.snack.open(`Removed "${batch}" from Language Payment.`, 'OK', { duration: 3500 });
+        },
+        error: (err) => {
+          this.savingVisibleBatches = false;
+          this.snack.open(err?.error?.message || 'Could not update language batches.', 'Dismiss', { duration: 4500 });
+        },
+      });
+      return;
+    }
     const next = this.visibleBatches.filter((b) => b !== batch);
     this.persistVisibleBatches(next, `Removed "${batch}" from the dashboard.`);
   }

@@ -213,15 +213,19 @@
             <mat-icon>translate</mat-icon>
           </div>
           <div class="ph-finance-overview-card__main">
-            <span class="ph-finance-overview-card__value">
+            <a
+              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              routerLink="/admin/finance-dashboard/language-payment"
+              [queryParams]="{ mode: 'language' }"
+            >
               {{ loadingVisibleBatches ? '...' : languageBatches.length }}
-            </span>
+            </a>
             <span class="ph-finance-overview-card__label">Language Payment</span>
           </div>
           <a
             class="ph-finance-overview-ongoing-link"
-            [routerLink]="batchesRoute('all')"
-            [queryParams]="batchesQuery('all')"
+            routerLink="/admin/finance-dashboard/language-payment"
+            [queryParams]="{ mode: 'language' }"
           >
             <span>Show details</span>
             <mat-icon>arrow_forward</mat-icon>
@@ -256,14 +260,14 @@
                 <mat-icon class="ph-finance-batch-chip__icon">
                   {{ isLanguageBatchAdded(b) ? 'check_circle' : 'radio_button_unchecked' }}
                 </mat-icon>
-                <span class="ph-finance-batch-chip__name">{{ b }}</span>
+                <span class="ph-finance-batch-chip__name">{{ featuredLanguageBatchLabel(b) }}</span>
                 <span class="ph-finance-batch-chip__level" *ngIf="isLanguageBatchAdded(b)">Added</span>
                 <button
                   type="button"
                   class="ph-finance-batch-chip__toggle"
                   (click)="toggleLanguageBatch(b)"
                   [disabled]="savingLanguageBatches"
-                  [attr.aria-label]="(isLanguageBatchAdded(b) ? 'Remove ' : 'Add ') + b"
+                  [attr.aria-label]="(isLanguageBatchAdded(b) ? 'Remove ' : 'Add ') + featuredLanguageBatchLabel(b)"
                   [matTooltip]="isLanguageBatchAdded(b) ? 'Remove from Language Payment' : 'Add to Language Payment'"
                 >
                   <mat-icon>{{ isLanguageBatchAdded(b) ? 'close' : 'add' }}</mat-icon>
@@ -497,7 +501,7 @@
               class="ph-finance-add-batch-row ph-finance-add-batch-row--featured"
               [class.ph-finance-add-batch-row--selected]="isLanguageBatchModalSelected(b)"
               *ngFor="let b of featuredAvailableLanguageBatches"
-              [attr.aria-label]="'Select batch ' + b"
+              [attr.aria-label]="'Select batch ' + featuredLanguageBatchLabel(b)"
             >
               <input
                 type="checkbox"
@@ -508,7 +512,7 @@
               />
               <div class="ph-finance-add-batch-row__batch">
                 <mat-icon>translate</mat-icon>
-                <span>{{ b }}</span>
+                <span>{{ featuredLanguageBatchLabel(b) }}</span>
               </div>
             </label>
           </ng-container>

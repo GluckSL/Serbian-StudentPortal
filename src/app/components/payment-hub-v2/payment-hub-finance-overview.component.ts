@@ -37,7 +37,18 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   visibleBatchLevelStatuses: Record<string, string> = {};
   batchRows: BatchPaymentSummaryRow[] = [];
 
-  readonly featuredLanguageBatches = ['GO Tamil', 'GO Sinhala'];
+  /** Actual batch names stored in MongoDB for GO Tamil / GO Sinhala students. */
+  readonly featuredLanguageBatches = ['GO-SILVER', 'GO-SINHALA'];
+
+  /** Human-friendly label for featured batch names. */
+  readonly featuredLanguageBatchLabels: Record<string, string> = {
+    'GO-SILVER': 'GO Tamil',
+    'GO-SINHALA': 'GO Sinhala',
+  };
+
+  featuredLanguageBatchLabel(batch: string): string {
+    return this.featuredLanguageBatchLabels[batch] ?? batch;
+  }
   languageBatches: string[] = [];
   savingLanguageBatches = false;
   showManageLanguageBatches = false;
@@ -218,13 +229,29 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
       });
   }
 
+  /** Migrate any old friendly names to real batch names silently on load. */
+  private readonly legacyLanguageBatchMap: Record<string, string> = {
+    'GO Tamil': 'GO-SILVER',
+    'GO Sinhala': 'GO-SINHALA',
+  };
+
+  private normalizeLegacyLanguageBatches(batches: string[]): string[] {
+    return batches.map((b) => this.legacyLanguageBatchMap[b] ?? b);
+  }
+
   private loadVisibleBatches(): void {
     this.loadingVisibleBatches = true;
     this.api.getFinanceVisibleBatches().subscribe({
       next: (res) => {
         this.visibleBatches = [...(res.data?.visibleBatches || [])];
         this.visibleBatchLevelStatuses = { ...(res.data?.visibleBatchLevelStatuses || {}) };
-        this.languageBatches = [...(res.data?.languageBatches || [])];
+        const raw = res.data?.languageBatches || [];
+        const normalized = this.normalizeLegacyLanguageBatches(raw);
+        this.languageBatches = normalized;
+        // If any old names were found, silently persist the corrected list
+        if (normalized.join(',') !== raw.join(',')) {
+          this.api.updateFinanceLanguageBatches(normalized).subscribe();
+        }
         this.loadingVisibleBatches = false;
       },
       error: () => {
