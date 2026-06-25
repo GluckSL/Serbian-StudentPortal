@@ -11,6 +11,10 @@
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const FinanceDashboardSettings = require('../models/FinanceDashboardSettings');
+const {
+  generateMorningReportPdf,
+  generateEveningReportPdf,
+} = require('./financeReportPdfService');
 
 // ─── Recipients ───────────────────────────────────────────────────────────────
 const TO_ADDRESS = 'lawson@gluckglobal.com';
@@ -33,7 +37,7 @@ function getTransporter() {
   return _transporter;
 }
 
-async function sendReport({ subject, html }) {
+async function sendReport({ subject, html, attachments }) {
   const t = getTransporter();
   const from = process.env.EMAIL_FROM || '"Gluck Global Finance" <no-reply@gluckglobal.com>';
   if (!t) {
@@ -41,7 +45,14 @@ async function sendReport({ subject, html }) {
     console.log('[FinanceReport] HTML preview (first 400 chars):', html.slice(0, 400));
     return;
   }
-  await t.sendMail({ from, to: TO_ADDRESS, bcc: BCC_ADDRESSES, subject, html });
+  await t.sendMail({
+    from,
+    to: TO_ADDRESS,
+    bcc: BCC_ADDRESSES,
+    subject,
+    html,
+    attachments: attachments || [],
+  });
   console.log(`[FinanceReport] ✅ Sent: ${subject}`);
 }
 
@@ -191,7 +202,8 @@ function commencementSummaryHtml(rows) {
   }
 
   return `
-    <h2>📅 Upcoming Level Commencements${nearCount ? ` <span style="color:#dc2626;font-size:13px">(${nearCount} within 5 days)</span>` : ''}</h2>
+    <h2>📅 Upcoming Level Commencements${nearCount ? ` <span style="color:#dc2626;font-size:12px">(${nearCount} within 5 days)</span>` : ''}</h2>
+    <div class="table-wrap">
     <table>
       <thead>
         <tr>
@@ -204,7 +216,8 @@ function commencementSummaryHtml(rows) {
         </tr>
       </thead>
       <tbody>${listRows}</tbody>
-    </table>`;
+    </table>
+    </div>`;
 }
 
 // ─── Approved today: per-batch breakdown (current-level language fees only) ───
@@ -273,48 +286,92 @@ async function fetchTodayReceivedByBatch() {
 }
 
 // ─── Shared email chrome ──────────────────────────────────────────────────────
+function pdfAttachmentBanner() {
+  return `
+    <div style="background:#eef4ff;border:1px solid #c7d7ee;border-radius:10px;padding:14px 16px;margin:0 0 20px;
+                display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:22px;line-height:1">📎</span>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#03396c;margin-bottom:4px">Full report attached as PDF</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.45">
+          Open the PDF attachment for the complete formatted report with all batch details and tables.
+          The summary below is a quick preview for your phone.
+        </div>
+      </div>
+    </div>`;
+}
+
 function emailWrapper(title, badge, badgeColor, bodyHtml) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="color-scheme" content="light"/>
+<meta name="supported-color-schemes" content="light"/>
 <style>
-  body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;margin:0;padding:0}
-  .wrap{max-width:920px;margin:0 auto;padding:24px 16px}
-  .card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.07)}
-  .header{background:linear-gradient(135deg,#03396c 0%,#005b96 100%);padding:28px 32px}
-  .header h1{margin:0 0 6px;color:#fff;font-size:22px;font-weight:800}
-  .header p{margin:0;color:rgba(255,255,255,.78);font-size:13px}
-  .badge{display:inline-block;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:800;
+  :root{color-scheme:light;supported-color-schemes:light}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9 !important;margin:0;padding:0;-webkit-text-size-adjust:100%}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 12px}
+  .card{background:#ffffff !important;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.07)}
+  .header{background:linear-gradient(135deg,#03396c 0%,#005b96 100%);padding:24px 20px}
+  .header h1{margin:0 0 6px;color:#fff;font-size:20px;font-weight:800;line-height:1.25}
+  .header p{margin:0;color:rgba(255,255,255,.78);font-size:12px;line-height:1.4}
+  .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:10px;font-weight:800;
          text-transform:uppercase;letter-spacing:.06em;background:${badgeColor};color:#fff;margin-top:10px}
-  .body{padding:28px 32px}
-  h2{margin:0 0 14px;font-size:15px;font-weight:700;color:#03396c;border-left:4px solid #005b96;padding-left:12px}
-  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:28px}
-  th{background:#03396c;color:#fff;padding:10px 12px;text-align:left;font-size:11px;
-     text-transform:uppercase;letter-spacing:.05em;font-weight:700}
-  td{padding:10px 12px;border-bottom:1px solid #f0f4f8;vertical-align:middle}
+  .body{padding:20px 16px;background:#ffffff !important}
+  h2{margin:0 0 12px;font-size:14px;font-weight:700;color:#03396c;border-left:4px solid #005b96;padding-left:10px;line-height:1.35}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:20px;border-radius:8px;border:1px solid #e8ecf4}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:0;min-width:520px}
+  th{background:#03396c;color:#fff;padding:9px 10px;text-align:left;font-size:10px;
+     text-transform:uppercase;letter-spacing:.05em;font-weight:700;white-space:nowrap}
+  td{padding:9px 10px;border-bottom:1px solid #f0f4f8;vertical-align:middle}
   tr:last-child td{border-bottom:none}
   tr:nth-child(even) td{background:#f8fafc}
-  .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
   .batch-name{font-weight:700;color:#03396c}
   .overdue-hot{color:#dc2626;font-weight:700}
   .overdue-ok{color:#64748b}
   .green{color:#16a34a;font-weight:700}
   .amber{color:#d97706;font-weight:700}
   .commence-near{color:#dc2626;font-weight:800}
-  .footer-note{font-size:11px;color:#94a3b8;margin-top:20px;text-align:center}
-  .summary-table{width:100%;border-collapse:separate;border-spacing:8px;margin:0 -8px 20px -8px}
-  .summary-cell{vertical-align:top;width:25%;padding:0}
-  .stat-box{background:#fff;border:1px solid #e8ecf4;border-radius:10px;padding:12px 12px 10px;
-            border-top:3px solid #005b96;height:100%;box-sizing:border-box}
+  .footer-note{font-size:11px;color:#94a3b8;margin-top:16px;text-align:center;line-height:1.45}
+  .summary-stack{margin-bottom:16px}
+  .stat-box{background:#ffffff !important;border:1px solid #e8ecf4;border-radius:10px;padding:14px 14px 12px;
+            border-top:3px solid #005b96;margin-bottom:10px;box-sizing:border-box}
   .stat-box--grand{border-top-color:#03396c;background:linear-gradient(165deg,#f8fafc 0%,#eef4ff 100%);border-color:#c7d7ee}
-  .stat-label{font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;line-height:1.3}
-  .stat-val{font-size:15px;font-weight:700;color:#03396c;margin-top:5px;line-height:1.25}
-  .stat-val--sm{font-size:13px;font-weight:700;margin-top:3px}
-  .stat-box--grand .stat-val{font-size:20px;font-weight:900;color:#03396c}
-  .stat-box--grand .stat-val--sm{font-size:15px;font-weight:800;color:#005b96}
-  .stat-sub{font-size:9px;color:#94a3b8;margin-top:5px;line-height:1.35}
+  .stat-label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;line-height:1.3}
+  .stat-val{font-size:18px;font-weight:700;color:#03396c;margin-top:6px;line-height:1.25}
+  .stat-val--sm{font-size:15px;font-weight:700;margin-top:4px}
+  .stat-box--grand .stat-val{font-size:22px;font-weight:900;color:#03396c}
+  .stat-box--grand .stat-val--sm{font-size:17px;font-weight:800;color:#005b96}
+  .stat-sub{font-size:10px;color:#94a3b8;margin-top:6px;line-height:1.35}
+  .summary-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+  .summary-row .stat-box{flex:1 1 calc(50% - 10px);min-width:140px;margin-bottom:0}
+  .mobile-hide{display:none}
+  @media only screen and (min-width:560px){
+    .wrap{max-width:920px;padding:24px 16px}
+    .header{padding:28px 32px}
+    .header h1{font-size:22px}
+    .body{padding:28px 32px}
+    h2{font-size:15px}
+    table{font-size:13px;min-width:0}
+    th{font-size:11px;padding:10px 12px}
+    td{padding:10px 12px}
+    .summary-stack{display:none}
+    .mobile-hide{display:block}
+    .summary-table{width:100%;border-collapse:separate;border-spacing:8px;margin:0 -8px 20px -8px}
+    .summary-cell{vertical-align:top;width:25%;padding:0}
+    .summary-table .stat-box{margin-bottom:0;height:100%}
+    .summary-table .stat-label{font-size:9px}
+    .summary-table .stat-val{font-size:15px;margin-top:5px}
+    .summary-table .stat-val--sm{font-size:13px}
+    .summary-table .stat-box--grand .stat-val{font-size:20px}
+    .summary-table .stat-box--grand .stat-val--sm{font-size:15px}
+    .summary-table .stat-sub{font-size:9px;margin-top:5px}
+    .table-wrap{border:none;margin-bottom:28px}
+    table{margin-bottom:0}
+  }
 </style>
 </head>
 <body>
@@ -326,6 +383,7 @@ function emailWrapper(title, badge, badgeColor, bodyHtml) {
       <span class="badge">${badge}</span>
     </div>
     <div class="body">
+      ${pdfAttachmentBanner()}
       ${bodyHtml}
     </div>
   </div>
@@ -386,6 +444,17 @@ async function sendMorningReport() {
   }
 
   const summaryBoxes = `
+    <div class="summary-stack">
+      ${outlookStatBox('Ongoing Pending', amountLines(totalOngoingLKR, totalOngoingINR, '#d97706'), 'current level · all active batches', '#d97706')}
+      ${outlookStatBox('Previous Levels Pending', amountLines(totalLastLevelLKR, totalLastLevelINR, '#7c3aed'), 'pending from earlier levels', '#7c3aed')}
+      ${outlookStatBox('Commencement (10 days)', amountLines(totalCommence10LKR, totalCommence10INR, '#dc2626'), `${nearCommenceRows.length} batch${nearCommenceRows.length !== 1 ? 'es' : ''} by ${cutoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, '#dc2626')}
+      <div class="stat-box stat-box--grand">
+        <div class="stat-label" style="color:#03396c">Total Amount</div>
+        ${amountLines(totalGrandLKR, totalGrandINR, '#03396c')}
+        <div class="stat-sub">ongoing + previous + commencement</div>
+      </div>
+    </div>
+    <div class="mobile-hide">
     <table class="summary-table" cellpadding="0" cellspacing="0" role="presentation">
       <tr>
         <td class="summary-cell">
@@ -420,7 +489,8 @@ async function sendMorningReport() {
           </div>
         </td>
       </tr>
-    </table>`;
+    </table>
+    </div>`;
 
   let tableRows = '';
   for (const r of rows) {
@@ -439,7 +509,7 @@ async function sendMorningReport() {
   }
 
   const tableHtml = rows.length
-    ? `<table>
+    ? `<div class="table-wrap"><table>
         <thead>
           <tr>
             <th>Batch</th>
@@ -452,7 +522,7 @@ async function sendMorningReport() {
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
-      </table>`
+      </table></div>`
     : `<p style="color:#64748b;font-size:13px;">No batches configured on the Finance Dashboard.</p>`;
 
   const bodyHtml = `
@@ -475,6 +545,21 @@ async function sendMorningReport() {
     year: 'numeric',
   });
 
+  const pdfBuffer = generateMorningReportPdf({
+    rows,
+    now,
+    totalOngoingLKR,
+    totalOngoingINR,
+    totalLastLevelLKR,
+    totalLastLevelINR,
+    totalCommence10LKR,
+    totalCommence10INR,
+    totalGrandLKR,
+    totalGrandINR,
+    nearCommenceRows,
+    cutoffDateStr: cutoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+  });
+
   await sendReport({
     subject: `🌅 Morning Finance Summary — ${dateStr} | Pending LKR ${fmtNum(totalOngoingLKR)}${totalOngoingINR > 0 ? ' + INR ' + fmtNum(totalOngoingINR) : ''}`,
     html: emailWrapper(
@@ -483,6 +568,11 @@ async function sendMorningReport() {
       '#0369a1',
       bodyHtml,
     ),
+    attachments: [{
+      filename: `Morning-Finance-Report-${dateStr.replace(/\s/g, '-')}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    }],
   });
 }
 
@@ -568,7 +658,7 @@ async function sendEveningReport() {
     receivedRows = `<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px">No payments were approved today.</td></tr>`;
   }
 
-  const table1Html = `<table>
+  const table1Html = `<div class="table-wrap"><table>
     <thead>
       <tr>
         <th>Batch</th>
@@ -579,7 +669,7 @@ async function sendEveningReport() {
       </tr>
     </thead>
     <tbody>${receivedRows}</tbody>
-  </table>`;
+  </table></div>`;
 
   // Table 2: Remaining balance per batch
   let balanceRows = '';
@@ -600,7 +690,7 @@ async function sendEveningReport() {
   }
 
   const table2Html = rows.length
-    ? `<table>
+    ? `<div class="table-wrap"><table>
         <thead>
           <tr>
             <th>Batch</th>
@@ -613,7 +703,7 @@ async function sendEveningReport() {
           </tr>
         </thead>
         <tbody>${balanceRows}</tbody>
-      </table>`
+      </table></div>`
     : `<p style="color:#64748b;font-size:13px;">No batches on the Finance Dashboard.</p>`;
 
   const dateStr = new Date().toLocaleDateString('en-IN', {
@@ -637,6 +727,17 @@ async function sendEveningReport() {
       <strong>Commencement</strong> shows the next level payment date and projected batch collection; within 5 days is red.
     </p>`;
 
+  const pdfBuffer = generateEveningReportPdf({
+    rows,
+    todayReceived,
+    now,
+    totalTodayLKR,
+    totalTodayINR,
+    totalTodayCount,
+    totalPendingLKR,
+    totalPendingINR,
+  });
+
   await sendReport({
     subject: `🌆 Evening Finance Summary — ${dateStr} | Received LKR ${fmtNum(totalTodayLKR)}${totalTodayINR > 0 ? ' + INR ' + fmtNum(totalTodayINR) : ''} today`,
     html: emailWrapper(
@@ -645,6 +746,11 @@ async function sendEveningReport() {
       '#16a34a',
       bodyHtml,
     ),
+    attachments: [{
+      filename: `Evening-Finance-Report-${dateStr.replace(/\s/g, '-')}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    }],
   });
 }
 
