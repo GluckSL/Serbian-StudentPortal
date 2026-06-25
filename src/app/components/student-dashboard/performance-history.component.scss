@@ -143,74 +143,94 @@
   .sk-row:last-child { margin-bottom: 0; }
 }
 
-/* ── Overall Progress Bar ── */
-.overall-progress {
-  background:
-    radial-gradient(ellipse at top right, rgba(255,255,255,0.08) 0%, transparent 60%),
-    linear-gradient(135deg, #1a237e 0%, #1565c0 60%, #1976d2 100%);
-  border: none;
-  border-radius: 16px;
-  padding: 18px 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+/* ── Circular Progress Row ── */
+.circular-progress-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 40px;
+  margin-bottom: 24px;
   animation: fadeInUp 0.4s ease-out both;
+}
 
-  .progress-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
+.circular-progress-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
 
-  .progress-label {
-    font-size: 14px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: rgba(255,255,255,0.75);
-  }
+.circular-ring {
+  position: relative;
+  width: 140px;
+  height: 140px;
 
-  .progress-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #fff;
-  }
-
-  .progress-track {
-    height: 10px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 99px;
-    overflow: hidden;
-    margin-bottom: 6px;
-  }
-
-  .progress-fill {
+  svg {
+    width: 100%;
     height: 100%;
-    border-radius: 99px;
-    background: linear-gradient(90deg, #fbbf24, #f59e0b);
-    transition: width 0.4s ease;
+    transform: rotate(-90deg);
   }
 
-  .progress-sub {
-    font-size: 14px;
-    color: rgba(255,255,255,0.65);
+  .ring-bg {
+    fill: none;
+    stroke: #e2e8f0;
+    stroke-width: 8;
+  }
+
+  .ring-fill {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 326.73;
+    transition: stroke-dashoffset 0.6s ease;
+  }
+
+  .ring-fill--completion { stroke: #f59e0b; }
+  .ring-fill--journey     { stroke: #52b788; }
+  .ring-fill--learning    { stroke: #9d4edd; }
+
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ring-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.1;
+  }
+
+  .ring-sub {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 2px;
   }
 }
 
-.journey-progress {
-  background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 60%, #40916c 100%) !important;
-
-  .progress-fill {
-    background: linear-gradient(90deg, #52b788, #95d5b2) !important;
-  }
+.circular-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
-.learning-progress {
-  background: linear-gradient(135deg, #4a1942 0%, #7b2d8e 60%, #9d4edd 100%) !important;
+.circular-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  text-align: center;
+}
 
-  .progress-fill {
-    background: linear-gradient(90deg, #c77dff, #e0aaff) !important;
-  }
+.circular-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
 }
 
 /* ── Summary Cards ── */
@@ -579,17 +599,22 @@
     }
   }
 
-  // Compact progress bar
-  .overall-progress {
-    padding: 12px 14px;
-    margin-bottom: 12px;
-    border-radius: 12px;
-
-    .progress-header { margin-bottom: 6px; }
-    .progress-label { font-size: 12px; }
-    .progress-value { font-size: 22px; }
-    .progress-sub { font-size: 12px; }
+  // Compact circular progress
+  .circular-progress-row {
+    gap: 16px;
+    margin-bottom: 16px;
   }
+
+  .circular-ring {
+    width: 105px;
+    height: 105px;
+
+    .ring-value { font-size: 20px; }
+    .ring-sub { font-size: 10px; }
+  }
+
+  .circular-label { font-size: 11px; }
+  .circular-desc { font-size: 10px; }
 
   // 3-column KPI grid — 2 rows instead of 3
   .cards-grid {
