@@ -10,6 +10,7 @@ const SignupApplication = require('../models/StudentSignupApplication');
 const MeetingLink = require('../models/MeetingLink');
 const Course = require('../models/Course');
 const CourseProgress = require('../models/CourseProgress');
+const BatchConfig = require('../models/BatchConfig');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
 const { readRecoverablePassword } = require('../utils/passwordRecoverable');
@@ -84,9 +85,10 @@ async function loadStudentFilterOptions() {
     };
   }
 
-  const [batches, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, signupAppUserIds, countAgg, planStatusAgg] =
+  const [batches, configBatchNames, servicesOpted, qualifications, languageLevelOpted, leadSource, stream, signupAppUserIds, countAgg, planStatusAgg] =
     await Promise.all([
       User.distinct('batch', base),
+      BatchConfig.distinct('batchName', { batchName: { $ne: null } }),
       User.distinct('servicesOpted', base),
       User.distinct('qualifications', base),
       User.distinct('languageLevelOpted', base),
@@ -166,7 +168,7 @@ async function loadStudentFilterOptions() {
   }
   const payload = {
     success: true,
-    batches: mergePortalBatchNames(clean(batches)),
+    batches: mergePortalBatchNames(clean([...batches, ...configBatchNames])),
     servicesOpted: clean(servicesOpted),
     qualifications: clean(qualifications),
     languageLevelOpted: clean(languageLevelOpted),
