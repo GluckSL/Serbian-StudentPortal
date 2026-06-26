@@ -183,6 +183,16 @@
             <button type="button" class="btn btn-action btn-action--ghost" routerLink="/student-logs">
               <i class="fas fa-history"></i> Logs
             </button>
+            <button
+              type="button"
+              class="btn btn-action btn-action--changes-report"
+              (click)="sendChangesReport()"
+              [disabled]="sendingChangesReport"
+              title="Email a report of all student detail changes in the last 24 hours"
+            >
+              <i class="fas" [class.fa-paper-plane]="!sendingChangesReport" [class.fa-spinner]="sendingChangesReport" [class.fa-spin]="sendingChangesReport"></i>
+              {{ sendingChangesReport ? 'Sending…' : 'Send Update Report' }}
+            </button>
           </div>
         </div>
 

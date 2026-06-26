@@ -1734,6 +1734,21 @@ router.post('/batch-correct-details', verifyToken, isAdmin, async (req, res) => 
   }
 });
 
+// ── Manual trigger: Student Detail Changes Report (last 24 hours) ──────────────
+router.post('/send-changes-report', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { sendStudentDetailChangesReport } = require('../jobs/studentDetailChangesReport');
+    const from = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+    // Run async — don't await so the API responds immediately
+    sendStudentDetailChangesReport({ from, rangeLabel: 'Last 24 Hours' })
+      .catch((err) => console.error('[send-changes-report] background error:', err.message));
+    return res.json({ success: true, message: 'Changes report is being generated and will be emailed shortly.' });
+  } catch (err) {
+    console.error('[POST /admin/send-changes-report]', err);
+    return res.status(500).json({ success: false, message: 'Failed to trigger changes report.' });
+  }
+});
+
 module.exports = router;
 
 

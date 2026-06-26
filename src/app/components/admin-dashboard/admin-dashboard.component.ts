@@ -184,6 +184,7 @@ export class AdminDashboardComponent implements OnInit {
   /** Tracks which student rows have their password revealed */
   loading = true;
   exportingAll = false;
+  sendingChangesReport = false;
   readonly skeletonActionPills = [0, 1, 2];
   readonly skeletonFilterFields = [0, 1, 2, 3, 4, 5];
   readonly skeletonTableRows = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -1332,6 +1333,21 @@ export class AdminDashboardComponent implements OnInit {
       error: (err) => {
         this.inviteSending = false;
         this.inviteError = err?.error?.msg || err?.error?.message || 'Failed to send invite. Please try again.';
+      },
+    });
+  }
+
+  sendChangesReport(): void {
+    if (this.sendingChangesReport) return;
+    this.sendingChangesReport = true;
+    this.http.post<any>('/api/admin/send-changes-report', {}).subscribe({
+      next: () => {
+        this.sendingChangesReport = false;
+        this.notify.success('Changes report sent! Check admissions@gluckglobal.com shortly.');
+      },
+      error: (err) => {
+        this.sendingChangesReport = false;
+        this.notify.error(err?.error?.message || 'Failed to send changes report. Please try again.');
       },
     });
   }
