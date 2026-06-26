@@ -681,7 +681,7 @@ exports.cancelTeamBattle = async (req, res) => {
   try {
     const battle = await require('../models/BattlefieldTeamBattle').findById(req.params.id);
     if (!battle) return res.status(404).json({ success: false, message: 'Not found' });
-    if (String(battle.createdBy) !== String(req.user.id) && !['ADMIN'].includes(req.user.role)) {
+    if (String(battle.createdBy) !== String(req.user.id) && !['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 

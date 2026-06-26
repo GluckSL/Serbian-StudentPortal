@@ -680,19 +680,19 @@ export const routes: Routes = [
     path: 'admin/glueck-arena/tournaments',
     loadComponent: () => import('./features/glueck-arena/components/admin/admin-tournament-manager/admin-tournament-manager.component').then(m => m.AdminTournamentManagerComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] }
   },
   {
     path: 'admin/glueck-arena/battlefield/team-battles/standings',
     loadComponent: () => import('./features/glueck-arena/components/admin-team-battle-standings/admin-team-battle-standings.component').then(m => m.TeamBattleStandingsComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] }
   },
   {
     path: 'admin/glueck-arena/battlefield/team-battles',
     loadComponent: () => import('./features/glueck-arena/components/admin-team-battle/admin-team-battle.component').then(m => m.AdminTeamBattleComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] }
   },
   // ── GlückArena — Admin routes ─────────────────────────────────────────────
   {

@@ -49,7 +49,7 @@ router.post('/ocr/test', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), tes
   }
 });
 
-router.get('/students/search', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+router.get('/students/search', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);

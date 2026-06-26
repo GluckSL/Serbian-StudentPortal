@@ -69,10 +69,9 @@ router.get('/tournaments', verifyToken, gaExt.listTournaments);
 router.get('/tournaments/history', verifyToken, gaExt.getTournamentHistory);
 router.get('/tournaments/:id', verifyToken, gaExt.getTournament);
 router.get('/tournaments/:id/leaderboard', verifyToken, gaExt.getTournamentLeaderboard);
-router.post('/tournaments', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.createTournament);
-router.patch('/tournaments/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.updateTournament);
-router.post('/tournaments/:id/register', verifyToken, checkRole(['STUDENT']), gaExt.registerTournament);
-router.post('/tournaments/:id/start', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.startTournament);
+router.post('/tournaments', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.createTournament);
+router.patch('/tournaments/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.updateTournament);
+router.post('/tournaments/:id/start', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.startTournament);
 
 router.get('/replays', verifyToken, gaExt.listReplays);
 router.get('/replays/:idOrToken', verifyToken, gaExt.getReplay);
@@ -88,13 +87,13 @@ router.post('/battlefield/rooms/:code/cancel', verifyToken, gaExt.cancelBattlefi
 router.get('/battlefield/leaderboard', verifyToken, gaExt.getBattlefieldLeaderboard);
 router.get('/battlefield/stats', verifyToken, gaExt.getBattlefieldStats);
 
-router.get('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.listTeamBattles);
-router.post('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.createTeamBattle);
-router.get('/admin/battlefield/team-battles/standings', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.getTeamBattleStandings);
-router.get('/admin/battlefield/team-battles/:id/scorecard', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.getTeamBattleScorecard);
-router.post('/admin/battlefield/team-battles/:id/start', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.startTeamBattle);
-router.post('/admin/battlefield/team-battles/:id/cancel', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.cancelTeamBattle);
-router.delete('/admin/battlefield/team-battles/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), gaExt.deleteTeamBattle);
+router.get('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.listTeamBattles);
+router.post('/admin/battlefield/team-battles', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.createTeamBattle);
+router.get('/admin/battlefield/team-battles/standings', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.getTeamBattleStandings);
+router.get('/admin/battlefield/team-battles/:id/scorecard', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.getTeamBattleScorecard);
+router.post('/admin/battlefield/team-battles/:id/start', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.startTeamBattle);
+router.post('/admin/battlefield/team-battles/:id/cancel', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.cancelTeamBattle);
+router.delete('/admin/battlefield/team-battles/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), gaExt.deleteTeamBattle);
 
 router.post('/matchmaking/join', verifyToken, checkRole(['STUDENT']), gaExt.joinMatchmaking);
 router.post('/matchmaking/leave', verifyToken, checkRole(['STUDENT']), gaExt.leaveMatchmaking);
