@@ -11,11 +11,11 @@ async function autoStartSessions() {
     { $set: { autoStartLockedAt: null } }
   );
 
-  const windowEnd = new Date(now.getTime() + 11 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + 5 * 60 * 1000);
 
   const candidates = await GluckRoomSession.find({
     status: 'scheduled',
-    scheduledStartTime: { $gte: now, $lte: windowEnd },
+    scheduledStartTime: { $gte: new Date(now.getTime() - 2 * 60 * 1000), $lte: windowEnd },
     autoStartLockedAt: null
   }).limit(20);
 
@@ -55,6 +55,7 @@ async function autoEndEmptySessions() {
 
   for (const session of activeSessions) {
     try {
+      if (now < new Date(session.scheduledStartTime.getTime() + 10 * 60 * 1000)) continue;
       let isEmpty = false;
       let roomGone = false;
       try {
@@ -83,6 +84,7 @@ async function autoEndEmptySessions() {
           const emptyDuration = now.getTime() - session.emptiedAt.getTime();
           if (emptyDuration >= 5 * 60 * 1000) {
             console.log(`Auto-ending empty GluckRoom session: "${session.sessionName}" (${session._id})`);
+            await gluckRoomService.deleteRoom(session.livekitRoomName);
             session.status = 'ended';
             session.actualEndTime = new Date();
             session.emptiedAt = null;

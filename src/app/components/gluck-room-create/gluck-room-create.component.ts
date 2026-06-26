@@ -61,7 +61,10 @@ export class GluckRoomCreateComponent implements OnInit {
     const m = match[2];
     if (match[3].toUpperCase() === 'PM' && h !== 12) h += 12;
     if (match[3].toUpperCase() === 'AM' && h === 12) h = 0;
-    return `${this.scheduleDate.toISOString().slice(0, 10)}T${String(h).padStart(2, '0')}:${m}`;
+    const y = this.scheduleDate.getFullYear();
+    const mo = String(this.scheduleDate.getMonth() + 1).padStart(2, '0');
+    const d = String(this.scheduleDate.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${d}T${String(h).padStart(2, '0')}:${m}`;
   }
   maxDurationMinutes = 180;
   courseDay: number | null = null;
@@ -309,7 +312,7 @@ export class GluckRoomCreateComponent implements OnInit {
     const payload: any = {
       sessionName: this.sessionName.trim(),
       batch: this.batch,
-      scheduledStartTime: new Date(this.scheduledStartTime).toISOString(),
+      scheduledStartTime: this.scheduledStartTime,
       maxDurationMinutes: this.maxDurationMinutes,
       accessType: this.accessType,
       courseDay: this.courseDay,

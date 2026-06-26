@@ -26,6 +26,13 @@ async function getHostName(userId) {
   return user?.name || 'Unknown';
 }
 
+function parseScheduledTime(input, tz = 'Asia/Kolkata') {
+  if (!input) return null;
+  if (input instanceof Date) return input;
+  if (/Z|[+-]\d{2}:\d{2}$/.test(input)) return new Date(input);
+  return new Date(`${input}+05:30`);
+}
+
 // ── Session Management ──
 
 // POST /api/gluckroom/sessions — Create a new session
@@ -57,7 +64,7 @@ router.post('/sessions', verifyToken, checkRole(['TEACHER', 'SUB_ADMIN', 'ADMIN'
     const session = new GluckRoomSession({
       sessionName,
       hostId: userId,
-      scheduledStartTime: new Date(scheduledStartTime),
+      scheduledStartTime: parseScheduledTime(scheduledStartTime, timezone),
       maxDurationMinutes: maxDurationMinutes || 180,
       batch,
       courseDay: courseDay || null,
@@ -250,10 +257,13 @@ router.put('/sessions/:id', verifyToken, async (req, res) => {
     if (!isHostOrAdmin(req, session)) return res.status(403).json({ success: false, message: 'Only the host can update this session' });
     if (session.status !== 'scheduled') return res.status(400).json({ success: false, message: 'Can only update scheduled sessions' });
 
-    const allowed = ['sessionName', 'scheduledStartTime', 'maxDurationMinutes', 'courseDay', 'targetJourneyDay', 'level', 'plan', 'agenda', 'timezone', 'scheduleType', 'journeySettings', 'accessType', 'maxParticipants', 'batch', 'allowedBatches', 'allowedStudents'];
+    const allowed = ['sessionName', 'maxDurationMinutes', 'courseDay', 'targetJourneyDay', 'level', 'plan', 'agenda', 'timezone', 'scheduleType', 'journeySettings', 'accessType', 'maxParticipants', 'batch', 'allowedBatches', 'allowedStudents'];
     allowed.forEach(field => {
       if (req.body[field] !== undefined) session[field] = req.body[field];
     });
+    if (req.body.scheduledStartTime !== undefined) {
+      session.scheduledStartTime = parseScheduledTime(req.body.scheduledStartTime, req.body.timezone || session.timezone);
+    }
 
     await session.save();
     res.json({ success: true, data: session });
