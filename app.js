@@ -83,7 +83,6 @@ const aiModuleGeneratorRoutes = require('./routes/aiModuleGenerator');
 const sessionRecordsRoutes = require('./routes/sessionRecords');
 const translationRoutes = require('./routes/translation');
 const moduleTrashRoutes = require('./routes/moduleTrash');
-const adminAnalyticsRoutes = require('./routes/adminAnalytics');
 const zoomRoutes = require('./routes/zoom');
 const zoomWebhookRoutes = require('./routes/zoomWebhook');
 const joinClassRoutes = require('./routes/joinClass');
@@ -111,7 +110,6 @@ const supportTicketRoutes = require('./routes/supportTickets');
 const ollyRoutes = require('./routes/olly');
 const announcementRoutes = require('./routes/announcements');
 const jobOpeningsRoutes = require('./routes/jobOpenings');
-const reminderRoutes = require('./routes/reminders');
 const crmPortalRoutes = require('./routes/crmPortal');
 const testAccountRoutes = require('./routes/testAccounts');
 const gluckRoomRoutes = require('./routes/gluckRoom');
@@ -141,7 +139,12 @@ const { schedulePublishScheduledAnnouncements } = require('./jobs/publishSchedul
 const { scheduleGluckRoomAutoStart } = require('./jobs/gluckRoomAutoStart');
 const { scheduleDailyStudentStatusReport } = require('./jobs/dailyStudentStatusReport');
 const { scheduleStudentDetailChangesReport } = require('./jobs/studentDetailChangesReport');
+const { scheduleNeverLoggedInReport } = require('./jobs/neverLoggedInReport');
 const { scheduleCrucialStudentsReport } = require('./services/crucialStudentsEmailService');
+const { scheduleBatchDay1Reminders } = require('./jobs/batchDay1Reminder');
+const { scheduleMilestoneAbsenceAlerts, scheduleWeeklyAbsenceSummary } = require('./jobs/absenceNotifications');
+const { scheduleWeeklyMilestoneChecks } = require('./jobs/weeklyMilestoneChecks');
+const { scheduleLateJoinEarlyExitAlerts } = require('./jobs/lateJoinEarlyExitAlert');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 
 // Multer setup for file uploads
@@ -357,7 +360,6 @@ app.use('/api/ai', aiModuleGeneratorRoutes);
 app.use('/api/session-records', sessionRecordsRoutes);
 app.use('/api/translate', translationRoutes);
 app.use('/api/module-trash', moduleTrashRoutes);
-app.use('/api/admin-analytics', adminAnalyticsRoutes);
 app.use('/api/zoom', zoomRoutes);
 app.use('/api', joinClassRoutes);
 app.use('/api/upgrade-requests', upgradeRequestsRoutes);
@@ -385,9 +387,6 @@ app.use('/api/support', supportTicketRoutes);
 app.use('/api/olly', ollyRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/job-openings', jobOpeningsRoutes);
-app.use('/api/reminders', reminderRoutes);
-const allRemindersRoutes = require('./routes/allReminders');
-app.use('/api/allreminders', allRemindersRoutes);
 app.use('/api/crm', crmPortalRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/gluckroom', gluckRoomRoutes);
@@ -395,6 +394,9 @@ app.use('/api/correction', correctionRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
+
+const batchLeaderboardRoutes = require('./routes/batchLeaderboard');
+app.use('/api/batch-leaderboard', batchLeaderboardRoutes);
 
 const aiStagePhase1Routes = require('./routes/aiStagePhase1');
 const aiStagePhase2Routes = require('./routes/aiStagePhase2');
@@ -626,6 +628,12 @@ connectMongoDb()
       scheduleDailyStudentStatusReport();
       scheduleStudentDetailChangesReport();
       scheduleCrucialStudentsReport();
+      scheduleNeverLoggedInReport();
+      scheduleBatchDay1Reminders();
+      scheduleMilestoneAbsenceAlerts();
+      scheduleWeeklyAbsenceSummary();
+      scheduleWeeklyMilestoneChecks();
+      scheduleLateJoinEarlyExitAlerts();
 
       const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
       const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');

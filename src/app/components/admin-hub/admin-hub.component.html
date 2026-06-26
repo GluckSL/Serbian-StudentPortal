@@ -1,0 +1,99 @@
+<!-- Admin Hub Dashboard -->
+<div class="hub">
+
+  <!-- ── Skeleton ── -->
+  <div class="hub-skeleton" *ngIf="loading">
+    <div class="hub-skeleton__header">
+      <div class="sk-line sk-line--h1"></div>
+      <div class="sk-line sk-line--sub"></div>
+    </div>
+    <div class="hub-skeleton__cards">
+      <div class="sk-card" *ngFor="let _ of skeletonCards"></div>
+    </div>
+  </div>
+
+  <!-- ── Main UI ── -->
+  <ng-container *ngIf="!loading">
+
+    <!-- Page header -->
+    <div class="hub-header">
+      <div class="hub-header__icon">
+        <span class="material-icons">grid_view</span>
+      </div>
+      <div>
+        <h1 class="hub-header__title">Admin Dashboard</h1>
+        <p class="hub-header__sub">Select a section below to manage it — content loads right here</p>
+      </div>
+    </div>
+
+    <!-- Group cards -->
+    <div class="hub-cards">
+      <button
+        *ngFor="let card of cards"
+        class="hub-card"
+        [class.hub-card--active]="selectedCard?.group === card.group"
+        [style.--card-gradient]="card.gradient"
+        [style.--card-accent]="card.accentColor"
+        (click)="selectCard(card)"
+        [attr.aria-expanded]="selectedCard?.group === card.group"
+      >
+        <div class="hub-card__glow"></div>
+        <span class="hub-card__icon material-icons">{{ card.icon }}</span>
+        <span class="hub-card__name">{{ card.group }}</span>
+        <span class="hub-card__count">{{ card.items.length }}</span>
+      </button>
+    </div>
+
+    <!-- Sub-nav + inline content panel -->
+    <div class="hub-panel" *ngIf="selectedCard" [style.--panel-accent]="selectedCard.accentColor">
+
+      <!-- Panel header bar -->
+      <div class="hub-panel__header" [style.background]="selectedCard.gradient">
+        <span class="material-icons hub-panel__hicon">{{ selectedCard.icon }}</span>
+        <div class="hub-panel__htitle">{{ selectedCard.group }}</div>
+
+        <!-- Tab bar inside header -->
+        <div class="hub-tabs">
+          <button
+            *ngFor="let item of selectedCard.items"
+            class="hub-tab"
+            [class.hub-tab--active]="isItemActive(item)"
+            (click)="selectItem(item)"
+          >
+            <span class="material-icons hub-tab__icon" *ngIf="isMaterialIcon(item.icon)">{{ item.icon }}</span>
+            <span class="hub-tab__icon" *ngIf="!isMaterialIcon(item.icon)">{{ item.icon }}</span>
+            <span class="hub-tab__label">{{ item.label }}</span>
+          </button>
+        </div>
+
+        <button class="hub-panel__close material-icons" (click)="selectedCard = null; activeItem = null; inlineComponent = null">close</button>
+      </div>
+
+      <!-- Component loading skeleton -->
+      <div class="hub-comp-skeleton" *ngIf="componentLoading">
+        <div class="sk-comp-header"></div>
+        <div class="sk-comp-rows">
+          <div class="sk-comp-row" *ngFor="let _ of [1,2,3,4,5]"></div>
+        </div>
+      </div>
+
+      <!-- Inline component area -->
+      <div class="hub-inline" *ngIf="inlineComponent && !componentLoading">
+        <ng-container *ngComponentOutlet="inlineComponent"></ng-container>
+      </div>
+
+      <!-- Prompt when no tab chosen -->
+      <div class="hub-hint" *ngIf="!activeItem && !componentLoading">
+        <span class="material-icons">touch_app</span>
+        <span>Pick a tab above to load it here</span>
+      </div>
+
+    </div>
+
+    <!-- Default view: portal analytics overview (new-batch only) -->
+    <div class="hub-overview-wrap" *ngIf="!selectedCard">
+      <app-admin-hub-overview></app-admin-hub-overview>
+    </div>
+
+  </ng-container>
+</div>

@@ -1,6 +1,6 @@
 // src/app/components/admin-dashboard/zoom-reports.component.ts
 
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -59,9 +59,12 @@ export class ZoomReportsComponent implements OnInit {
   error = '';
 
   selectedMeetingIds = new Set<string>();
+  private selectedMeetingsCache = new Map<string, MeetingReport>();
 
   teacherFilter = 'all';
-  batchFilter = 'all';
+  allBatchesSelected = true;
+  selectedBatches: string[] = [];
+  batchDropdownOpen = false;
   dateFilter = 'all';
   customDateFrom = '';
   customDateTo = '';
@@ -168,7 +171,9 @@ export class ZoomReportsComponent implements OnInit {
     const q = this.searchQuery.trim();
     if (q) filters.search = q;
 
-    if (this.batchFilter !== 'all') filters.batch = this.batchFilter;
+    if (!this.allBatchesSelected && this.selectedBatches.length) {
+      filters.batch = this.selectedBatches.join(',');
+    }
 
     if (!this.isTeacherRole && this.teacherFilter !== 'all') {
       filters.teacherName = this.teacherFilter;
@@ -191,6 +196,7 @@ export class ZoomReportsComponent implements OnInit {
       this.loadingPage = true;
       this.loading = this.currentPage === 1 && this.meetingsPage.length === 0;
       this.selectedMeetingIds = new Set();
+      this.selectedMeetingsCache.clear();
     }
     this.error = '';
     this.zoomService.getAllMeetings(this.buildMeetingFilters()).subscribe({
@@ -199,6 +205,7 @@ export class ZoomReportsComponent implements OnInit {
           this.totalItems = response?.pagination?.totalItems ?? response.totalCount ?? 0;
           this.totalPages = Math.max(response?.pagination?.totalPages || 1, 1);
           this.meetingsPage = this.mapMeetingsToReports(response.data || []);
+          this.cacheSelectedMeetingsFromPage();
           this.applySummaryFromResponse(response.summary);
         } else {
           this.error = response.message || 'Failed to load meetings';
@@ -325,10 +332,64 @@ export class ZoomReportsComponent implements OnInit {
 
   onFilterChange(): void { this.applyFilters(); }
 
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.batchDropdownOpen = false;
+  }
+
+  get batchFilterLabel(): string {
+    if (this.allBatchesSelected) return 'All Batches';
+    if (this.selectedBatches.length === 1) return this.selectedBatches[0];
+    if (!this.selectedBatches.length) return 'Select batches…';
+    return `${this.selectedBatches.length} batches`;
+  }
+
+  toggleBatchDropdown(event: Event): void {
+    event.stopPropagation();
+    this.batchDropdownOpen = !this.batchDropdownOpen;
+  }
+
+  selectAllBatches(event: Event): void {
+    event.stopPropagation();
+    this.allBatchesSelected = true;
+    this.selectedBatches = [];
+    this.onFilterChange();
+  }
+
+  toggleBatchSelection(batch: string, event: Event): void {
+    event.stopPropagation();
+    if (this.allBatchesSelected) {
+      this.allBatchesSelected = false;
+      this.selectedBatches = [batch];
+    } else {
+      const idx = this.selectedBatches.indexOf(batch);
+      if (idx >= 0) {
+        this.selectedBatches = this.selectedBatches.filter(b => b !== batch);
+        if (!this.selectedBatches.length) this.allBatchesSelected = true;
+      } else {
+        this.selectedBatches = [...this.selectedBatches, batch].sort((a, b) => {
+          const na = parseInt(a, 10);
+          const nb = parseInt(b, 10);
+          if (!isNaN(na) && !isNaN(nb)) return na - nb;
+          return a.localeCompare(b);
+        });
+      }
+    }
+    this.onFilterChange();
+  }
+
+  isBatchChecked(batch: string): boolean {
+    return this.allBatchesSelected || this.selectedBatches.includes(batch);
+  }
+
   clearFilters(): void {
     this.searchQuery = '';
     this.teacherFilter = 'all';
-    this.batchFilter = 'all';
+    this.allBatchesSelected = true;
+    this.selectedBatches = [];
+    this.batchDropdownOpen = false;
+    this.selectedMeetingIds = new Set();
+    this.selectedMeetingsCache.clear();
     this.dateFilter = 'all';
     this.customDateFrom = '';
     this.customDateTo = '';
@@ -415,29 +476,72 @@ export class ZoomReportsComponent implements OnInit {
   }
 
   get selectedCount(): number {
-    return this.meetingsPage.filter(m => this.selectedMeetingIds.has(m._id)).length;
+    return this.selectedMeetingIds.size;
+  }
+
+  get canSelectAllFiltered(): boolean {
+    return this.totalItems > 0 && this.selectedMeetingIds.size < this.totalItems;
+  }
+
+  selectAllFiltered(): void {
+    if (!this.totalItems) return;
+    const limit = Math.min(this.totalItems, 150);
+    const filters = { ...this.buildMeetingFilters(), page: 1, limit };
+    this.zoomService.getAllMeetings(filters).subscribe({
+      next: (response) => {
+        if (!response.success) return;
+        const reports = this.mapMeetingsToReports(response.data || []);
+        for (const m of reports) {
+          this.selectedMeetingIds.add(m._id);
+          this.selectedMeetingsCache.set(m._id, m);
+        }
+        this.selectedMeetingIds = new Set(this.selectedMeetingIds);
+        this.notify.success(`Selected ${this.selectedMeetingIds.size} class${this.selectedMeetingIds.size !== 1 ? 'es' : ''} for analytics.`);
+      },
+      error: () => this.notify.error('Failed to select all filtered classes.')
+    });
+  }
+
+  private cacheSelectedMeetingsFromPage(): void {
+    for (const m of this.meetingsPage) {
+      if (this.selectedMeetingIds.has(m._id)) {
+        this.selectedMeetingsCache.set(m._id, m);
+      }
+    }
   }
 
   toggleSelect(id: string): void {
     if (this.selectedMeetingIds.has(id)) {
       this.selectedMeetingIds.delete(id);
+      this.selectedMeetingsCache.delete(id);
     } else {
       this.selectedMeetingIds.add(id);
+      const meeting = this.meetingsPage.find(m => m._id === id);
+      if (meeting) this.selectedMeetingsCache.set(id, meeting);
     }
     this.selectedMeetingIds = new Set(this.selectedMeetingIds);
   }
 
   toggleSelectAll(): void {
     if (this.allPageSelected) {
-      this.meetingsPage.forEach(m => this.selectedMeetingIds.delete(m._id));
+      this.meetingsPage.forEach(m => {
+        this.selectedMeetingIds.delete(m._id);
+        this.selectedMeetingsCache.delete(m._id);
+      });
     } else {
-      this.meetingsPage.forEach(m => this.selectedMeetingIds.add(m._id));
+      this.meetingsPage.forEach(m => {
+        this.selectedMeetingIds.add(m._id);
+        this.selectedMeetingsCache.set(m._id, m);
+      });
     }
     this.selectedMeetingIds = new Set(this.selectedMeetingIds);
   }
 
   generateAnalytics(): void {
-    const selected = this.meetingsPage.filter(m => this.selectedMeetingIds.has(m._id));
+    const selected = [...this.selectedMeetingIds]
+      .map(id => this.selectedMeetingsCache.get(id))
+      .filter((m): m is MeetingReport => !!m)
+      .sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
     if (!selected.length) {
       this.notify.warning('Please select at least one class to generate analytics.');
       return;

@@ -52,26 +52,6 @@ async function runSyncKind(kind) {
     return summary;
   }
 
-  if (kind === 'reminders') {
-    const docs = await MeetingLink.find({}).lean();
-    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
-      const batch = docs.slice(i, i + CHUNK_SIZE);
-      for (const raw of batch) {
-        const entity = sanitizeMeetingLink(raw);
-        entity.type = 'MeetingLink';
-        const r = await dispatchEvent({
-          event: 'REMINDER_CREATED',
-          entity,
-          metaOverrides: META_BULK
-        });
-        if (r.skipped) summary.skipped++;
-        else if (r.ok) summary.sent++;
-        else summary.errors++;
-      }
-    }
-    return summary;
-  }
-
   if (kind === 'feedback') {
     const docs = await Feedback.find({}).lean();
     for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
@@ -96,7 +76,7 @@ async function runSyncKind(kind) {
 }
 
 async function runFullSync() {
-  const kinds = ['students', 'teachers', 'reminders', 'feedback'];
+  const kinds = ['students', 'teachers', 'feedback'];
   const byKind = {};
   for (const k of kinds) {
     byKind[k] = await runSyncKind(k);

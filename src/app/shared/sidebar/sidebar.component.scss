@@ -189,23 +189,31 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px 6px;
-  margin: 0 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.35);
+  padding: 9px 12px;
+  margin: 4px 8px 2px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.55);
   text-transform: uppercase;
   cursor: pointer;
   user-select: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  margin-top: 4px;
-  padding-top: 12px;
+  border-radius: 8px;
   transition: color 0.15s;
-  &:hover { color: rgba(255, 255, 255, 0.55); }
+
+  &:hover {
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  &.expanded {
+    color: #fff;
+  }
+
+  .chevron {
+    color: inherit;
+  }
 }
 .nav-group:first-child .group-header {
-  border-top: none;
   margin-top: 0;
 }
 .chevron {
@@ -248,7 +256,7 @@
     color: rgba(255, 255, 255, 0.95);
   }
   &.active {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
     font-weight: 600;
 
@@ -303,7 +311,7 @@
 }
 
 .nav-item--pending.active {
-  box-shadow: inset 3px 0 0 #ef5350;
+  background: rgba(229, 57, 53, 0.18);
 }
 
 /* ── Footer ── */

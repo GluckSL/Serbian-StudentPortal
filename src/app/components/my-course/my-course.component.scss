@@ -89,6 +89,57 @@
   justify-content: center;
 }
 
+.mc-hero__weekly-rank {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 88px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  font: inherit;
+  text-align: center;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.2);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+  }
+}
+
+.mc-hero__weekly-rank-icon {
+  font-size: 22px;
+  opacity: 0.95;
+}
+
+.mc-hero__weekly-rank-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(224, 240, 255, 0.9);
+}
+
+.mc-hero__weekly-rank-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
 .mc-hero__kicker {
   margin: 0 0 6px;
   font-size: 11px;
@@ -376,6 +427,20 @@
     justify-content: center;
     overflow: hidden;
     margin-bottom: 16px;
+    position: relative;
+  }
+
+  .mc-hero__weekly-rank {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    align-self: auto;
+    min-width: 72px;
+    padding: 8px 10px;
+  }
+
+  .mc-hero__weekly-rank-num {
+    font-size: 1.15rem;
   }
 
   .mc-hero__content {
@@ -480,6 +545,7 @@
     align-items: center;
     direction: ltr;
     text-align: center;
+    position: relative;
     padding: 14px;
     box-sizing: border-box;
     justify-content: center;
@@ -818,6 +884,25 @@
   }
 }
 
+/* ── Leaderboard tab special style ────────────────────────────────────── */
+.mc-tab--leaderboard {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mc-tab-lb-icon {
+  font-size: 16px;
+  vertical-align: middle;
+}
+
+/* ── Leaderboard panel wrapper ─────────────────────────────────────────── */
+.mc-lb-panel {
+  padding: 8px 0 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 
 .mc-tab-profile {
   display: flex;
@@ -877,8 +962,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  flex: 1 1 auto;
   min-width: 0;
-  width: 100%;
 }
 
 .mc-tab-profile__name {
@@ -964,6 +1049,7 @@
     padding: 14px;
     overflow: hidden;
     text-align: center;
+    position: relative;
   }
 
   .mc-tab-profile__main {

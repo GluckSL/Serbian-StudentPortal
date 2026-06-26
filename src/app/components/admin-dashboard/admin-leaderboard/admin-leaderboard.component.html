@@ -1,0 +1,331 @@
+<div class="alb">
+
+  <!-- ── Page Header ───────────────────────────────────────────────────── -->
+  <div class="alb-page-header">
+    <div class="alb-page-header__left">
+      <div class="alb-page-header__icon">
+        <span class="material-icons">leaderboard</span>
+      </div>
+      <div>
+        <h1 class="alb-page-header__title">Batch Leaderboard</h1>
+        <p class="alb-page-header__sub">Track student activity and rankings across all batches</p>
+      </div>
+    </div>
+    <button class="alb-refresh-btn" (click)="loadLeaderboard()" [disabled]="loading || !canLoad" title="Refresh data">
+      <span class="material-icons" [class.spinning]="loading">refresh</span>
+      Refresh
+    </button>
+  </div>
+
+  <!-- ── Filters Row ───────────────────────────────────────────────────── -->
+  <div class="alb-filters">
+    <!-- Batch multi-select -->
+    <div class="alb-filter-group">
+      <label class="alb-filter-label">
+        <span class="material-icons">groups</span> Batch
+      </label>
+      <div class="alb-select-wrap alb-multi-select" (click)="$event.stopPropagation()">
+        <button
+          type="button"
+          class="alb-multi-select__trigger"
+          (click)="toggleBatchDropdown($event)"
+          [disabled]="batchesLoading || !batches.length"
+        >
+          <span>{{ batchLabel }}</span>
+          <span class="material-icons alb-select-arrow">expand_more</span>
+        </button>
+        <div class="alb-multi-select__panel" *ngIf="batchDropdownOpen">
+          <label class="alb-multi-select__item alb-multi-select__item--all">
+            <input
+              type="checkbox"
+              [checked]="allBatchesSelected"
+              (change)="selectAllBatches($event)"
+            />
+            <span>All batches</span>
+          </label>
+          <div class="alb-multi-select__divider"></div>
+          <label class="alb-multi-select__item" *ngFor="let b of batches">
+            <input
+              type="checkbox"
+              [checked]="isBatchChecked(b)"
+              (change)="toggleBatchSelection(b, $event)"
+            />
+            <span>Batch {{ b }}</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Period pills -->
+    <div class="alb-filter-group">
+      <label class="alb-filter-label">
+        <span class="material-icons">schedule</span> Period
+      </label>
+      <div class="alb-period-pills">
+        <button
+          *ngFor="let p of periods"
+          type="button"
+          class="alb-pill"
+          [class.alb-pill--on]="selectedPeriod === p.value"
+          (click)="onPeriodChange(p.value)"
+          [disabled]="loading"
+        >
+          <span class="material-icons">{{ p.icon }}</span>
+          {{ p.label }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="alb-filter-group alb-filter-group--search">
+      <label class="alb-filter-label">
+        <span class="material-icons">search</span> Search
+      </label>
+      <div class="alb-search-wrap">
+        <span class="material-icons alb-search-ico">search</span>
+        <input class="alb-search" type="text" [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Filter by student name…" />
+        <button *ngIf="searchQuery" class="alb-search-clear" (click)="clearSearch()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Summary Cards ─────────────────────────────────────────────────── -->
+  <div class="alb-summary" *ngIf="data && !loading">
+    <div class="alb-stat-card alb-stat-card--total">
+      <span class="alb-stat-card__icon material-icons">group</span>
+      <div class="alb-stat-card__body">
+        <span class="alb-stat-card__val">{{ batchmates }}</span>
+        <span class="alb-stat-card__lbl">Students</span>
+      </div>
+    </div>
+    <div class="alb-stat-card alb-stat-card--active">
+      <span class="alb-stat-card__icon material-icons">bolt</span>
+      <div class="alb-stat-card__body">
+        <span class="alb-stat-card__val">{{ activeCount }}</span>
+        <span class="alb-stat-card__lbl">Active</span>
+      </div>
+    </div>
+    <div class="alb-stat-card alb-stat-card--login">
+      <span class="alb-stat-card__icon material-icons">login</span>
+      <div class="alb-stat-card__body">
+        <span class="alb-stat-card__val">{{ loggedTodayCount }}</span>
+        <span class="alb-stat-card__lbl">Logged Today</span>
+      </div>
+    </div>
+    <div class="alb-stat-card alb-stat-card--rate">
+      <span class="alb-stat-card__icon material-icons">percent</span>
+      <div class="alb-stat-card__body">
+        <span class="alb-stat-card__val">{{ activeRate }}%</span>
+        <span class="alb-stat-card__lbl">Active Rate</span>
+      </div>
+      <!-- mini progress bar -->
+      <div class="alb-stat-card__bar-bg">
+        <div class="alb-stat-card__bar-fill" [style.width.%]="activeRate"></div>
+      </div>
+    </div>
+
+    <!-- Distribution bar -->
+    <div class="alb-distribution">
+      <p class="alb-distribution__title">Activity Distribution</p>
+      <div class="alb-dist-bar">
+        <div
+          *ngFor="let seg of distributionBars"
+          class="alb-dist-seg"
+          [ngClass]="seg.cls"
+          [style.width.%]="seg.pct"
+          [title]="seg.label + ': ' + seg.count"
+        ></div>
+      </div>
+      <div class="alb-dist-legend">
+        <div class="alb-dist-item" *ngFor="let seg of distributionBars">
+          <span class="alb-dist-dot" [ngClass]="seg.cls"></span>
+          <span class="alb-dist-lbl">{{ seg.label }}</span>
+          <span class="alb-dist-cnt">{{ seg.count }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── No batch selected ─────────────────────────────────────────────── -->
+  <div class="alb-empty" *ngIf="!canLoad && !batchesLoading && batches.length">
+    <span class="material-icons alb-empty__icon">groups</span>
+    <p class="alb-empty__msg">Select one or more batches, or choose “All batches”, to view the leaderboard.</p>
+  </div>
+
+  <!-- ── Error ─────────────────────────────────────────────────────────── -->
+  <div class="alb-empty" *ngIf="error && !loading">
+    <span class="material-icons alb-empty__icon">error_outline</span>
+    <p class="alb-empty__msg">{{ error }}</p>
+    <button class="alb-btn alb-btn--primary" (click)="loadLeaderboard()">Retry</button>
+  </div>
+
+  <!-- ── Skeleton ──────────────────────────────────────────────────────── -->
+  <div class="alb-table-card" *ngIf="loading">
+    <div class="alb-skeleton">
+      <div class="alb-sk-header">
+        <div class="alb-sk-line alb-sk-line--title"></div>
+      </div>
+      <div class="alb-sk-row" *ngFor="let _ of skeletonRows">
+        <div class="alb-sk-cell alb-sk-cell--rank"></div>
+        <div class="alb-sk-cell alb-sk-cell--name"></div>
+        <div class="alb-sk-cell alb-sk-cell--num"></div>
+        <div class="alb-sk-cell alb-sk-cell--num"></div>
+        <div class="alb-sk-cell alb-sk-cell--num"></div>
+        <div class="alb-sk-cell alb-sk-cell--num"></div>
+        <div class="alb-sk-cell alb-sk-cell--bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Table ─────────────────────────────────────────────────────────── -->
+  <div class="alb-table-card" *ngIf="!loading && data && sortedRows.length">
+    <div class="alb-table-header">
+      <h2 class="alb-table-title">
+        {{ batchLabel }} Rankings
+        <span class="alb-table-count">{{ totalStudents }} students</span>
+      </h2>
+    </div>
+
+    <div class="alb-table-wrap">
+      <table class="alb-table" role="grid">
+        <thead>
+          <tr>
+            <th class="alb-th alb-th--rank" (click)="setSort('rank')">
+              Rank <span class="material-icons alb-sort-icon">{{ getSortIcon('rank') }}</span>
+            </th>
+            <th class="alb-th alb-th--name">Student</th>
+            <th class="alb-th alb-th--batch" *ngIf="showBatchColumn">Batch</th>
+            <th class="alb-th alb-th--num" (click)="setSort('exercisesCompleted')">
+              Exercises <span class="material-icons alb-sort-icon">{{ getSortIcon('exercisesCompleted') }}</span>
+            </th>
+            <th class="alb-th alb-th--num" (click)="setSort('dgSessionsCompleted')">
+              Buddy <span class="material-icons alb-sort-icon">{{ getSortIcon('dgSessionsCompleted') }}</span>
+            </th>
+            <th class="alb-th alb-th--num" (click)="setSort('averageScore')">
+              Avg Score <span class="material-icons alb-sort-icon">{{ getSortIcon('averageScore') }}</span>
+            </th>
+            <th class="alb-th alb-th--num" (click)="setSort('currentStreak')">
+              Streak <span class="material-icons alb-sort-icon">{{ getSortIcon('currentStreak') }}</span>
+            </th>
+            <th class="alb-th alb-th--num" (click)="setSort('currentCourseDay')">
+              Day <span class="material-icons alb-sort-icon">{{ getSortIcon('currentCourseDay') }}</span>
+            </th>
+            <th class="alb-th alb-th--pts" (click)="setSort('totalPoints')">
+              Points <span class="material-icons alb-sort-icon">{{ getSortIcon('totalPoints') }}</span>
+            </th>
+            <th class="alb-th alb-th--num" (click)="setSort('engagementMinutes')">
+              Engagement <span class="material-icons alb-sort-icon">{{ getSortIcon('engagementMinutes') }}</span>
+            </th>
+            <th class="alb-th alb-th--status">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            class="alb-tr"
+            *ngFor="let entry of sortedRows"
+            [class.alb-tr--top1]="entry.rank === 1"
+            [class.alb-tr--top3]="entry.rank <= 3 && entry.rank > 1"
+            [class.alb-tr--inactive]="entry.totalPoints === 0 && !entry.loggedToday"
+          >
+            <td class="alb-td alb-td--rank">
+              <span class="alb-rank-medal" *ngIf="entry.rank <= 3">{{ getRankMedal(entry.rank) }}</span>
+              <span class="alb-rank-num" *ngIf="entry.rank > 3">#{{ entry.rank }}</span>
+            </td>
+            <td class="alb-td alb-td--name">
+              <div class="alb-student">
+                <div class="alb-student__avatar">
+                  <img *ngIf="entry.profilePic" [src]="entry.profilePic" [alt]="entry.name"
+                    class="alb-student__img"
+                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                  <span class="alb-student__fallback" [style.display]="entry.profilePic ? 'none' : 'flex'">
+                    {{ entry.name.charAt(0).toUpperCase() }}
+                  </span>
+                </div>
+                <div class="alb-student__info">
+                  <span class="alb-student__name">{{ entry.name }}</span>
+                  <span class="alb-student__day">Day {{ entry.currentCourseDay }}</span>
+                </div>
+              </div>
+            </td>
+            <td class="alb-td alb-td--batch" *ngIf="showBatchColumn">
+              <span class="alb-batch-chip">Batch {{ entry.batch }}</span>
+            </td>
+            <td class="alb-td alb-td--num">
+              <span class="alb-num-chip alb-num-chip--blue" *ngIf="entry.exercisesTotal > 0">
+                {{ formatExerciseRatio(entry) }}
+              </span>
+              <span class="alb-zero" *ngIf="!entry.exercisesTotal">—</span>
+            </td>
+            <td class="alb-td alb-td--num">
+              <span class="alb-num-chip alb-num-chip--purple" *ngIf="entry.dgSessionsCompleted > 0">
+                {{ entry.dgSessionsCompleted }}
+              </span>
+              <span class="alb-zero" *ngIf="entry.dgSessionsCompleted === 0">—</span>
+            </td>
+            <td class="alb-td alb-td--num">
+              <span class="alb-num-chip alb-num-chip--green" *ngIf="entry.averageScore != null && entry.averageScore > 0">
+                {{ formatAverageScore(entry) }}
+              </span>
+              <span class="alb-zero" *ngIf="entry.averageScore == null || entry.averageScore === 0">—</span>
+            </td>
+            <td class="alb-td alb-td--num">
+              <span class="alb-streak" *ngIf="entry.currentStreak > 0">
+                🔥 {{ entry.currentStreak }}
+              </span>
+              <span class="alb-zero" *ngIf="entry.currentStreak === 0">—</span>
+            </td>
+            <td class="alb-td alb-td--num">
+              <span class="alb-day">{{ entry.currentCourseDay }}</span>
+            </td>
+            <td class="alb-td alb-td--pts">
+              <span class="alb-pts">{{ entry.totalPoints }}</span>
+            </td>
+            <td class="alb-td alb-td--num">
+              <span class="alb-engagement" *ngIf="entry.engagementMinutes > 0">
+                {{ formatEngagementMinutes(entry) }}
+              </span>
+              <span class="alb-zero" *ngIf="!entry.engagementMinutes">—</span>
+            </td>
+            <td class="alb-td alb-td--status">
+              <span class="alb-status alb-status--active" *ngIf="entry.totalPoints > 0">Active</span>
+              <span class="alb-status alb-status--logged" *ngIf="entry.totalPoints === 0 && entry.loggedToday">Logged in</span>
+              <span class="alb-status alb-status--inactive" *ngIf="entry.totalPoints === 0 && !entry.loggedToday">Inactive</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="alb-pagination" *ngIf="totalPages > 1">
+      <span class="alb-pagination__info">
+        Page {{ page }} of {{ totalPages }} · showing {{ sortedRows.length }} of {{ totalStudents }}
+      </span>
+      <div class="alb-pagination__controls">
+        <button type="button" class="alb-page-btn" (click)="goToPage(page - 1)" [disabled]="page <= 1">
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <button
+          type="button"
+          class="alb-page-btn"
+          *ngFor="let p of pageNumbers"
+          [class.alb-page-btn--on]="p === page"
+          (click)="goToPage(p)"
+        >{{ p }}</button>
+        <button type="button" class="alb-page-btn" (click)="goToPage(page + 1)" [disabled]="page >= totalPages">
+          <span class="material-icons">chevron_right</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Empty results ─────────────────────────────────────────────────── -->
+  <div class="alb-empty" *ngIf="!loading && data && sortedRows.length === 0 && searchQuery">
+    <span class="material-icons alb-empty__icon">search_off</span>
+    <p class="alb-empty__msg">No students match "{{ searchQuery }}"</p>
+    <button class="alb-btn alb-btn--ghost" (click)="clearSearch()">Clear search</button>
+  </div>
+
+</div>

@@ -1,4 +1,18 @@
 <div class="mc" *ngIf="!loading; else mcLoading">
+  <ng-template #weeklyRankBadge>
+    <button
+      type="button"
+      class="mc-hero__weekly-rank"
+      *ngIf="weeklyRank != null"
+      (click)="openWeeklyLeaderboard()"
+      [attr.aria-label]="'Weekly rank ' + weeklyRank + '. Open leaderboard for this week.'"
+    >
+      <span class="material-icons mc-hero__weekly-rank-icon" aria-hidden="true">leaderboard</span>
+      <span class="mc-hero__weekly-rank-label">Weekly rank</span>
+      <strong class="mc-hero__weekly-rank-num">#{{ weeklyRank }}</strong>
+    </button>
+  </ng-template>
+
   <header class="mc-hero" *ngIf="activeTab === 'classes'" aria-label="Course overview">
     <div class="mc-hero__content">
       <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }}!</h1>
@@ -45,6 +59,7 @@
         </span>
       </div>
     </div>
+    <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
   </header>
 
   <!-- Same vertical position as My class hero: full-width strip above tabs -->
@@ -70,6 +85,7 @@
           </span>
         </div>
       </div>
+      <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
     </div>
   </section>
 
@@ -97,6 +113,11 @@
         (click)="setTab('gluck-exam')">
         Glück Exam
         <span class="mc-tab-pending-badge" *ngIf="gluckExamAnyPending" aria-label="Pending exam items">1</span>
+      </button>
+      <button type="button" role="tab" class="mc-tab mc-tab--leaderboard" [class.mc-tab--on]="activeTab === 'leaderboard'"
+        (click)="setTab('leaderboard')">
+        <span class="material-icons mc-tab-lb-icon">leaderboard</span>
+        Leaderboard
       </button>
     </div>
   </div>
@@ -1015,6 +1036,14 @@
         </div>
       </ng-container>
     </aside>
+  </div>
+
+  <!-- ── Leaderboard tab ────────────────────────────────────────────────── -->
+  <div class="mc-lb-panel" *ngIf="tabVisited.has('leaderboard')" [hidden]="activeTab !== 'leaderboard'" role="tabpanel">
+    <app-batch-leaderboard
+      [active]="activeTab === 'leaderboard'"
+      [requestedPeriod]="leaderboardRequestedPeriod">
+    </app-batch-leaderboard>
   </div>
 </div>
 

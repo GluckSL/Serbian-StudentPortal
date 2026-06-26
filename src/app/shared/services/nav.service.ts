@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+﻿import { Injectable } from '@angular/core';
 
 export interface NavItem {
   id: string;
@@ -79,132 +79,122 @@ export class NavService {
     'teacher-resources': ['/teacher/resources']
   };
 
-  // ── ADMIN ──────────────────────────────────────────────────────────────
+  // ── ADMIN ──────────────────────────────────────────────
   private readonly ADMIN_NAV: NavGroup[] = [
+
+    // ── Overview ──────────────────────────────────────
     {
-      group: 'Dashboard',
+      group: 'Overview',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', route: '/admin-dashboard', subGroup: null }
+        { id: 'dashboard',  label: 'Dashboard', icon: 'dashboard', route: '/admin-dashboard', subGroup: null },
+        { id: 'students',   label: 'Students',  icon: 'school',    route: '/admin/students',  subGroup: 'Student Management' },
+        { id: 'teachers',   label: 'Teachers',  icon: 'group',     route: '/teachers',        subGroup: 'Teacher Management' },
+        { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null }
       ]
     },
-    {
-      group: 'People',
-      items: [
-        { id: 'students',     label: 'Students',     icon: 'school', route: '/admin-dashboard',  subGroup: 'Student Management' },
-        { id: 'portal-analytics', label: 'Portal Analytics', icon: 'analytics', route: '/portal-analytics', subGroup: 'Student Management' },
-        { id: 'teachers',     label: 'Teachers',     icon: 'group', route: '/teachers',        subGroup: 'Teacher Management' },
-        { id: 'user-roles',   label: 'User Roles',   icon: 'key', route: '/user-roles',       subGroup: null }
-      ]
-    },
-    {
-      group: 'Learning',
-      items: [
-        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',          subGroup: 'Module Management' },
-        { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises', icon: 'fitness_center', route: '/admin/digital-exercises',   subGroup: null },
-        { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
-        { id: 'glueck-arena-analytics', label: 'Arena Analytics', icon: 'insights', route: '/admin/glueck-arena/analytics', subGroup: null },
-        { id: 'glueck-arena-command', label: 'Arena Command Center', icon: 'dashboard', route: '/admin/glueck-arena/command-center', subGroup: null },
-        { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null },
-        { id: 'bf-team-battles', label: 'Team Battles', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null },
-        { id: 'teacher-resources', label: 'Teacher Resources', icon: 'folder_shared', route: '/admin/teacher-resources', subGroup: null },
-        { id: 'journey',           label: 'Journey',            icon: 'map', route: '/admin/journey',             subGroup: null },
-        { id: 'go-students',       label: 'GO Students',        icon: 'rocket_launch', route: '/admin/go-students',         subGroup: null },
-        { id: 'correction',        label: 'Correction',         icon: 'build_circle', route: '/admin/correction',           subGroup: null }
-      ]
-    },
+
+    // ── Classes & Attendance ─────────────────────────
+    // Timetable → live sessions → attendance → recordings — full class lifecycle
     {
       group: 'Classes & Attendance',
       items: [
-        { id: 'manage-classes', label: 'Manage Classes', icon: 'videocam', route: '/teacher/meetings',    subGroup: null },
-        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/gluck-room', subGroup: null },
-        { id: 'attendance',     label: 'Attendance',     icon: 'bar_chart', route: '/admin/zoom-reports',   subGroup: null },
-        { id: 'import-meeting', label: 'Import Meeting', icon: 'link', route: '/admin/external-meetings', subGroup: null },
-        { id: 'class-recordings', label: 'Class Recordings', icon: 'videocam', route: '/class-recordings', subGroup: null }
+        { id: 'timetable',        label: 'Timetable',        icon: 'calendar_today', route: '/time-table-view-admin',  subGroup: null },
+        { id: 'manage-classes',   label: 'Manage Classes',   icon: 'videocam',       route: '/teacher/meetings',       subGroup: null },
+        { id: 'gluck-room',       label: 'Gluck Room',       icon: 'meeting_room',   route: '/gluck-room',             subGroup: null },
+        { id: 'attendance',       label: 'Attendance',       icon: 'bar_chart',      route: '/admin/zoom-reports',     subGroup: null },
+        { id: 'class-recordings', label: 'Class Recordings', icon: 'play_circle',    route: '/class-recordings',       subGroup: null }
       ]
     },
+
+    // ── Learning Content ─────────────────────────────────
+    // Modules, exercises, and resources teachers use in lessons
     {
-      group: 'AI Bot Report',
+      group: 'Learning Content',
       items: [
-        { id: 'ai-bot-report', label: 'AI Bot Report', icon: 'insights', route: '/admin-analytics', subGroup: null }
+        { id: 'dg-bot',            label: 'DG Bot Modules',   icon: 'pets',             route: '/admin/dg-modules',        subGroup: 'Module Management' },
+        { id: 'sprechen-exam',     label: 'Sprechen Exam',    icon: 'record_voice_over', route: '/admin/sprechen-exam',    subGroup: 'Module Management' },
+        { id: 'exercises',         label: 'Online Exercises', icon: 'fitness_center',   route: '/admin/digital-exercises', subGroup: null },
+        { id: 'teacher-resources', label: 'Teacher Resources', icon: 'folder_shared',  route: '/admin/teacher-resources', subGroup: null },
+        { id: 'correction',        label: 'Correction',       icon: 'build_circle',     route: '/admin/correction',        subGroup: null }
       ]
     },
+
+    // ── GlückArena ───────────────────────────────────────────
+    // All arena game, analytics, and command tools in one place
     {
-      group: 'Documents',
+      group: 'GlückArena',
       items: [
-        { id: 'documents', label: 'Documents', icon: 'description', route: '/admin/document-verification', subGroup: null },
-        { id: 'google-sheet-sync', label: 'Sheet Sync', icon: 'table_chart', route: '/admin/google-sheet-sync', subGroup: null }
+        { id: 'glueck-arena',           label: 'Arena',             icon: 'sports_esports', route: '/admin/glueck-arena',                          subGroup: null },
+        { id: 'glueck-arena-command',   label: 'Command Center',    icon: 'tune',           route: '/admin/glueck-arena/command-center',           subGroup: null },
+        { id: 'glueck-arena-analytics', label: 'Arena Analytics',   icon: 'insights',       route: '/admin/glueck-arena/analytics',                subGroup: null },
+        { id: 'glueck-arena-teacher',   label: 'Teacher Insights',  icon: 'school',         route: '/admin/glueck-arena/teacher-analytics',        subGroup: null },
+        { id: 'bf-team-battles',        label: 'Team Battles',      icon: 'groups',         route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
       ]
     },
+
+    // ── Progress & Analytics ───────────────────────────
+    // All reporting and tracking dashboards for student progress
     {
-      group: 'Visa Tracking',
+      group: 'Progress & Analytics',
       items: [
-        { id: 'visa-tracking', label: 'Visa Tracking', icon: 'flight', route: '/admin/visa-tracking', subGroup: null }
+        { id: 'portal-analytics',  label: 'Portal Analytics',  icon: 'analytics',   route: '/portal-analytics',       subGroup: 'Student Management' },
+        { id: 'student-progress',  label: 'Student Progress',  icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
+        { id: 'admin-performance', label: 'Performance',       icon: 'speed',       route: '/admin/performance',      subGroup: null },
+        { id: 'language-tracking', label: 'Language Tracking', icon: 'translate',   route: '/admin/language-tracking', subGroup: null },
+        { id: 'batch-leaderboard', label: 'Batch Leaderboard', icon: 'leaderboard', route: '/admin/leaderboard',      subGroup: null },
+        { id: 'journey',           label: 'Journey',           icon: 'map',         route: '/admin/journey',          subGroup: null },
+        { id: 'go-students',       label: 'GO Students',       icon: 'rocket_launch', route: '/admin/go-students',    subGroup: null }
       ]
     },
+
+    // ── Sales & Finance ────────────────────────────────────────
     {
-      group: 'Student Progress',
+      group: 'Sales & Finance',
       items: [
-        { id: 'student-progress', label: 'Student Progress', icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
-        { id: 'admin-performance', label: 'Performance', icon: 'speed', route: '/admin/performance', subGroup: null },
-        { id: 'language-tracking', label: 'Language Tracking', icon: 'translate', route: '/admin/language-tracking', subGroup: null }
-      ]
-    },
-    {
-      group: 'Sales',
-      items: [
-        { id: 'enrollment-overview', label: 'Enrollment Overview', icon: 'storefront', route: '/admin/enrollment-overview', subGroup: null }
-      ]
-    },
-    {
-      group: 'Payments',
-      items: [
-        { id: 'finance-dashboard', label: 'Finance Dashboard', icon: 'account_balance_wallet', route: '/admin/finance-dashboard', subGroup: null },
-        { id: 'payment-hub', label: 'Payment Hub (New)', icon: 'credit_card', route: '/admin/payment-hub', subGroup: null },
-        { id: 'payment-request', label: 'Req Payment', icon: 'send', route: '/admin/payment-request', subGroup: null },
-        // Legacy payment tabs hidden — use Payment Hub (New) instead
+        { id: 'enrollment-overview', label: 'Enrollment Overview', icon: 'storefront',             route: '/admin/enrollment-overview', subGroup: null },
+        { id: 'finance-dashboard',   label: 'Finance Dashboard',   icon: 'account_balance_wallet', route: '/admin/finance-dashboard',   subGroup: null },
+        { id: 'payment-hub',         label: 'Payment Hub',         icon: 'credit_card',            route: '/admin/payment-hub',         subGroup: null },
+        { id: 'payment-request',     label: 'Request Payment',     icon: 'send',                   route: '/admin/payment-request',     subGroup: null }
+        // Legacy payment tabs hidden — use Payment Hub instead
         // { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
         // { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
         // { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
       ]
     },
+
+    // ── Documents & Data ──────────────────────────────────────
     {
-      group: 'Timetable',
+      group: 'Documents & Data',
       items: [
-        { id: 'timetable', label: 'Timetable', icon: 'calendar_today', route: '/time-table-view-admin', subGroup: null }
+        { id: 'documents',         label: 'Documents',          icon: 'description', route: '/admin/document-verification', subGroup: null },
+        { id: 'google-sheet-sync', label: 'Sheet Sync',         icon: 'table_chart', route: '/admin/google-sheet-sync',     subGroup: null },
+        // { id: 'monday-sync',       label: 'Monday.com Preview', icon: 'sync',        route: '/admin/monday-sync-preview',   subGroup: null },
+        { id: 'visa-tracking',     label: 'Visa Tracking',      icon: 'flight',      route: '/admin/visa-tracking',         subGroup: null }
       ]
     },
+
+    // ── Support & Comms ────────────────────────────────────────
     {
-      group: 'CRM Sync',
+      group: 'Support & Comms',
       items: [
-        { id: 'monday-sync', label: 'Monday.com Preview', icon: 'sync', route: '/admin/monday-sync-preview', subGroup: null }
+        { id: 'announcements',   label: 'Announcements',    icon: 'campaign',            route: '/admin/announcements',   subGroup: null },
+        { id: 'job-openings',    label: 'Job Openings',     icon: 'work',                route: '/admin/job-openings',    subGroup: null },
+        { id: 'support-tickets', label: 'Support Tickets',  icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
+        { id: 'olly-chat',       label: 'Olly Live Chat 🦊', icon: 'forum',             route: '/admin/olly-chat',       subGroup: null },
+        { id: 'help',            label: 'Help & Support',   icon: 'help',                route: '/help',                  subGroup: null }
       ]
     },
-    {
-      group: 'Support',
-      items: [
-        { id: 'reminders', label: 'Reminders', icon: 'alarm', route: '/admin/reminders', subGroup: null },
-        { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
-        { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/admin/job-openings', subGroup: null },
-        { id: 'support-tickets', label: 'Support Tickets', icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
-        { id: 'olly-chat', label: 'Olly Live Chat 🦊', icon: 'forum', route: '/admin/olly-chat', subGroup: null },
-        { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
-      ]
-    },
+
+    // ── System & Account ──────────────────────────────────────
     {
       group: 'System',
       items: [
-        { id: 'test-accounts', label: 'Test Accounts', icon: 'science', route: '/admin/test-accounts', subGroup: null }
-      ]
-    },
-    {
-      group: 'Profile',
-      items: [
-        { id: 'profile', label: 'Profile', icon: 'person', route: '/profile', subGroup: null }
+        { id: 'test-accounts', label: 'Test Accounts', icon: 'science', route: '/admin/test-accounts', subGroup: null },
+        { id: 'profile',       label: 'Profile',       icon: 'person',  route: '/profile',             subGroup: null }
       ]
     }
-  ];
 
+  ];
   // ── TEACHER ────────────────────────────────────────────────────────────
   // No Dashboard for teacher — redirects to students
   private readonly TEACHER_NAV: NavGroup[] = [
@@ -222,15 +212,8 @@ export class NavService {
         { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
         { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
-        { id: 'glueck-arena-teacher', label: 'Arena Teacher Insights', icon: 'school', route: '/admin/glueck-arena/teacher-analytics', subGroup: null },
         { id: 'bf-team-battles', label: 'Team Battles', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
 
-      ]
-    },
-    {
-      group: 'AI Bot Report',
-      items: [
-        { id: 'ai-bot-report', label: 'AI Bot Report', icon: 'insights', route: '/admin-analytics', subGroup: null }
       ]
     },
     {

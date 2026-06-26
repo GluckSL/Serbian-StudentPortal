@@ -47,7 +47,7 @@
 
       <!-- Multi-item group: collapsible with group header -->
       <ng-container *ngIf="group.items.length > 1">
-        <div class="group-header" (click)="toggle(group.group)">
+        <div class="group-header" [class.expanded]="!collapsed[group.group]" (click)="toggle(group.group)">
           <span>{{ group.group }}</span>
           <span class="chevron material-icons" [class.collapsed]="collapsed[group.group]">expand_more</span>
         </div>

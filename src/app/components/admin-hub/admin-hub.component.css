@@ -1,0 +1,373 @@
+/* ── Host — full width, no margin ── */
+:host {
+  display: block;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f1f5f9;
+  min-height: 100vh;
+}
+
+.hub {
+  padding: 20px 20px 40px;
+}
+
+/* ── Page header ── */
+.hub-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.hub-header__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 6px 20px rgba(29, 78, 216, 0.35);
+  color: #fff;
+  .material-icons { font-size: 24px; }
+}
+
+.hub-header__title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.hub-header__sub {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 3px 0 0;
+}
+
+/* ── Cards grid — full width ── */
+.hub-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* ── Single card ── */
+.hub-card {
+  --card-gradient: linear-gradient(135deg, #1e293b, #334155);
+  --card-accent: #334155;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 18px 10px 14px;
+  border-radius: 16px;
+  border: 2px solid transparent;
+  background: var(--card-gradient);
+  color: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease,
+              border-color 0.15s ease;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.12);
+  text-align: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hub-card:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.2);
+}
+
+.hub-card--active {
+  border-color: rgba(255,255,255,0.7);
+  transform: translateY(-2px) scale(1.025);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.hub-card__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.2) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.hub-card__icon {
+  font-size: 26px;
+  opacity: 0.95;
+}
+
+.hub-card__name {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  opacity: 0.92;
+}
+
+.hub-card__count {
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: rgba(255,255,255,0.2);
+  padding: 1px 7px;
+  border-radius: 999px;
+  opacity: 0.85;
+}
+
+/* ── Panel ── */
+.hub-panel {
+  --panel-accent: #1d4ed8;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 28px rgba(15,23,42,0.1);
+  overflow: hidden;
+  animation: panelIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Panel header (gradient strip with tabs inside) ── */
+.hub-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #fff;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.hub-panel__hicon {
+  font-size: 24px;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.hub-panel__htitle {
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Tabs (inside the gradient header) ── */
+.hub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+
+.hub-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.88);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.55);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+}
+
+.hub-tab--active {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--panel-accent) !important;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+  transform: none !important;
+}
+
+.hub-tab__icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.hub-tab__label { line-height: 1.2; }
+
+/* Close button */
+.hub-panel__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  border-radius: 7px;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 17px;
+  padding: 0;
+  transition: background 0.15s;
+  &:hover { background: rgba(255,255,255,0.35); }
+}
+
+/* ── Inline component area — full width ── */
+.hub-inline {
+  width: 100%;
+  background: #f8fafc;
+
+  /* Reset any host-padding so the embedded component fills edge-to-edge */
+  ::ng-deep > * {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+/* ── Component skeleton ── */
+.hub-comp-skeleton {
+  padding: 20px;
+  animation: sk-fade-in 0.15s;
+}
+@keyframes sk-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.sk-comp-header {
+  height: 80px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.2s linear infinite;
+}
+
+.sk-comp-rows { display: flex; flex-direction: column; gap: 10px; }
+
+.sk-comp-row {
+  height: 44px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.2s linear infinite;
+}
+
+.sk-comp-row:nth-child(2) { opacity: 0.8; }
+.sk-comp-row:nth-child(3) { opacity: 0.65; }
+.sk-comp-row:nth-child(4) { opacity: 0.5; }
+.sk-comp-row:nth-child(5) { opacity: 0.35; }
+
+/* ── Hint / empty ── */
+.hub-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 20px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  font-style: italic;
+  .material-icons { font-size: 20px; opacity: 0.45; }
+}
+
+.hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 20px;
+  color: #94a3b8;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.hub-empty__icon {
+  font-size: 52px;
+  opacity: 0.2;
+}
+
+/* ── Skeleton (page load) ── */
+.hub-skeleton { animation: sk-fade-in 0.15s ease; }
+
+.hub-skeleton__header {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hub-skeleton__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.sk-card {
+  height: 108px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.2s linear infinite;
+}
+
+.sk-line {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.2s linear infinite;
+}
+.sk-line--h1  { height: 26px; width: 240px; max-width: 60%; }
+.sk-line--sub { height: 13px; width: 340px; max-width: 80%; }
+
+@keyframes sk-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Overview wrapper — no extra padding ── */
+.hub-overview-wrap {
+  background: #f1f5f9;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(15,23,42,0.06);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .hub { padding: 12px 10px 32px; }
+  .hub-header__title { font-size: 1.2rem; }
+  .hub-cards { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+  .hub-card { padding: 14px 8px 12px; border-radius: 12px; }
+  .hub-card__icon { font-size: 22px; }
+  .hub-panel { border-radius: 12px; }
+  .hub-panel__header { padding: 10px 12px; gap: 8px; }
+  .hub-tabs { gap: 5px; }
+  .hub-tab { padding: 6px 10px; font-size: 0.74rem; }
+}
+
+@media (max-width: 480px) {
+  .hub-cards { grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .hub-card { padding: 12px 5px 10px; }
+  .hub-card__name { font-size: 0.58rem; }
+  .hub-card__count { display: none; }
+  .hub-panel__htitle { display: none; }
+}

@@ -1,0 +1,182 @@
+<div class="lb">
+
+  <!-- ── Sub-tabs ─────────────────────────────────────────────────────── -->
+  <div class="lb-subtabs" role="tablist">
+    <button
+      *ngFor="let tab of subTabs"
+      type="button" role="tab"
+      class="lb-subtab"
+      [class.lb-subtab--on]="subTab === tab"
+      (click)="setSubTab(tab)"
+    >
+      <span class="lb-subtab__live" *ngIf="tab === 'today'"></span>
+      {{ getSubTabLabel(tab) }}
+    </button>
+    <button class="lb-reload-btn" (click)="reload()" [disabled]="loading" title="Refresh">
+      <span class="material-icons" [class.spinning]="loading">refresh</span>
+    </button>
+  </div>
+
+  <!-- ── Skeleton ──────────────────────────────────────────────────────── -->
+  <div class="lb-skeleton" *ngIf="loading">
+    <div class="lb-skeleton__left">
+      <div class="lb-skeleton__row" *ngFor="let i of [0,1,2,3,4,5]">
+        <div class="lb-skeleton__avatar"></div>
+        <div class="lb-skeleton__lines">
+          <div class="lb-skeleton__line lb-skeleton__line--name"></div>
+          <div class="lb-skeleton__line lb-skeleton__line--sub"></div>
+        </div>
+        <div class="lb-skeleton__badge"></div>
+      </div>
+    </div>
+    <div class="lb-skeleton__right">
+      <div class="lb-skeleton__card"></div>
+      <div class="lb-skeleton__card"></div>
+      <div class="lb-skeleton__card lb-skeleton__card--wide"></div>
+    </div>
+  </div>
+
+  <!-- ── Main 2-column layout ─────────────────────────────────────────── -->
+  <div class="lb-body" *ngIf="!loading && !error">
+
+    <!-- LEFT 60% — batch activity list -->
+    <div class="lb-left">
+      <div class="lb-section-label">
+        <span class="material-icons">bolt</span>
+        Batch Activity {{ subTab === 'today' ? 'Today' : subTab === 'weekly' ? 'This Week' : 'Overall' }}
+      </div>
+
+      <!-- No batch fallback -->
+      <div class="lb-empty" *ngIf="!batch">
+        <span class="material-icons lb-empty__icon">group_off</span>
+        <p class="lb-empty__msg">No batch assigned to your account.</p>
+      </div>
+
+      <!-- Empty activity -->
+      <div class="lb-empty lb-empty--sm" *ngIf="batch && visibleLeaderboard.length === 0">
+        <span class="material-icons lb-empty__icon">emoji_events</span>
+        <p class="lb-empty__msg">Be the first to score today!<br>Complete an exercise or Buddy session.</p>
+      </div>
+
+      <!-- Activity rows -->
+      <div class="lb-list" *ngIf="visibleLeaderboard.length">
+        <div
+          class="lb-row"
+          *ngFor="let entry of visibleLeaderboard; trackBy: trackByStudentId"
+          [class.lb-row--me]="entry.studentId === myStats?.studentId"
+          [class.lb-row--top1]="entry.rank === 1"
+          [class.lb-row--top3]="entry.rank <= 3 && entry.rank > 1"
+        >
+          <div class="lb-row__rank">
+            <span class="lb-row__medal" *ngIf="entry.rank <= 3">{{ getRankMedal(entry.rank) }}</span>
+            <span class="lb-row__rank-num" *ngIf="entry.rank > 3">#{{ entry.rank }}</span>
+          </div>
+
+          <div class="lb-row__avatar-wrap">
+            <img *ngIf="entry.profilePic" [src]="entry.profilePic" [alt]="entry.name"
+              class="lb-row__avatar"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+            <span class="lb-row__avatar-fallback" [style.display]="entry.profilePic ? 'none' : 'flex'">
+              <span class="material-icons">person</span>
+            </span>
+          </div>
+
+          <div class="lb-row__body">
+            <p class="lb-row__name">
+              {{ entry.name }}
+              <span class="lb-row__you-tag" *ngIf="entry.studentId === myStats?.studentId">You</span>
+            </p>
+            <p class="lb-row__activity">{{ getActivityLabel(entry) }}</p>
+          </div>
+
+          <div class="lb-row__badge-wrap" *ngIf="getStatusBadge(entry) as badge">
+            <span class="lb-row__badge" [ngClass]="badge.cls">{{ badge.label }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT 40% — Your Position card -->
+    <div class="lb-right" *ngIf="myStats">
+      <div class="lb-pos-title">
+        <span class="material-icons">bolt</span> Your Position
+        <span class="material-icons">bolt</span>
+      </div>
+
+      <!-- Top row: Rank + Day -->
+      <div class="lb-pos-grid lb-pos-grid--2">
+        <div class="lb-pos-cell lb-pos-cell--rank">
+          <span class="lb-pos-cell__label">Rank</span>
+          <span class="lb-pos-cell__rank">#{{ myRank }}</span>
+        </div>
+        <div class="lb-pos-cell">
+          <span class="lb-pos-cell__label">Day</span>
+          <span class="lb-pos-cell__val lb-pos-cell__val--dark">{{ todayTasks?.courseDay ?? myStats.currentCourseDay }}</span>
+        </div>
+      </div>
+
+      <!-- 4 task cards: Live / Exercises / Glück Buddy / Arena -->
+      <p class="lb-pos-tasks-label">{{ taskSectionLabel }}</p>
+      <div class="lb-pos-grid lb-pos-grid--2 lb-pos-grid--tasks">
+        <div
+          class="lb-pos-cell lb-pos-cell--task"
+          *ngFor="let card of taskCards"
+          [class.lb-pos-cell--done]="isTaskComplete(card)"
+          [class.lb-pos-cell--tone-blue]="card.tone === 'blue'"
+          [class.lb-pos-cell--tone-green]="card.tone === 'green'"
+          [class.lb-pos-cell--tone-purple]="card.tone === 'purple'"
+          [class.lb-pos-cell--tone-amber]="card.tone === 'amber'"
+        >
+          <span class="lb-pos-cell__label">{{ card.label }} {{ card.icon }}</span>
+          <span class="lb-pos-cell__ratio">{{ formatTaskRatio(card) }}</span>
+        </div>
+      </div>
+
+      <!-- Rank-up progress -->
+      <div class="lb-pos-rankup" *ngIf="myRank && myRank > 1 && pointsToRankUp !== null">
+        <div class="lb-pos-rankup__bar-wrap">
+          <div class="lb-pos-rankup__bar">
+            <div class="lb-pos-rankup__fill" [style.width.%]="rankUpProgress"></div>
+          </div>
+          <span class="lb-pos-rankup__pct">{{ rankUpProgress }}%</span>
+        </div>
+        <p class="lb-pos-rankup__hint">
+          <strong>+{{ pointsToRankUp }} pts</strong> to reach <strong>#{{ myRank ? myRank - 1 : 1 }}</strong>
+        </p>
+      </div>
+
+      <!-- Batchmates moved today -->
+      <div class="lb-pos-moved">
+        <span class="lb-pos-moved__clock">⏰</span>
+        <div class="lb-pos-moved__text">
+          <strong>{{ activeMatesCount }} batchmate{{ activeMatesCount === 1 ? '' : 's' }} moved today</strong>
+          <span>Don't stay still</span>
+        </div>
+      </div>
+
+      <!-- #1 card -->
+      <div class="lb-pos-top1" *ngIf="myRank === 1">
+        <span class="lb-pos-top1__trophy">🏆</span>
+        <strong>You're leading!</strong>
+        <span>Keep it up</span>
+      </div>
+    </div>
+
+    <!-- Right placeholder when no stats -->
+    <div class="lb-right lb-right--empty" *ngIf="!myStats && batch">
+      <div class="lb-pos-title">
+        <span class="material-icons">bolt</span> Your Position
+        <span class="material-icons">bolt</span>
+      </div>
+      <p class="lb-right-empty-msg">Complete a task today to get ranked!</p>
+    </div>
+  </div>
+
+  <!-- ── Error ─────────────────────────────────────────────────────────── -->
+  <div class="lb-empty" *ngIf="error && !loading">
+    <span class="material-icons lb-empty__icon">error_outline</span>
+    <p class="lb-empty__msg">{{ error }}</p>
+    <button class="lb-retry-btn" (click)="reload()">Retry</button>
+  </div>
+
+</div>

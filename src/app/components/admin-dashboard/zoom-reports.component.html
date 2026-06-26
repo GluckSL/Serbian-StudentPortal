@@ -60,10 +60,30 @@
         <option *ngFor="let t of teacherOptions" [value]="t">{{ t }}</option>
       </select>
 
-      <select class="zr-select" [(ngModel)]="batchFilter" (ngModelChange)="onFilterChange()">
-        <option value="all">All Batches</option>
-        <option *ngFor="let b of journeyBatchNames" [value]="b">{{ b }}</option>
-      </select>
+      <div class="zr-multi-select" (click)="$event.stopPropagation()">
+        <button type="button"
+                class="zr-multi-select__trigger zr-select"
+                (click)="toggleBatchDropdown($event)"
+                [disabled]="!journeyBatchNames.length">
+          <span>{{ batchFilterLabel }}</span>
+          <i class="fa fa-chevron-down zr-multi-select__arrow"></i>
+        </button>
+        <div class="zr-multi-select__panel" *ngIf="batchDropdownOpen">
+          <label class="zr-multi-select__item zr-multi-select__item--all">
+            <input type="checkbox"
+                   [checked]="allBatchesSelected"
+                   (change)="selectAllBatches($event)">
+            <span>All Batches</span>
+          </label>
+          <div class="zr-multi-select__divider"></div>
+          <label class="zr-multi-select__item" *ngFor="let b of journeyBatchNames">
+            <input type="checkbox"
+                   [checked]="isBatchChecked(b)"
+                   (change)="toggleBatchSelection(b, $event)">
+            <span>{{ b }}</span>
+          </label>
+        </div>
+      </div>
 
       <select class="zr-select" [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()">
         <option value="all">All Time</option>
@@ -225,6 +245,12 @@
       <div class="zr-footer__left">
         Showing <strong>{{ pageStartIndex }}</strong>-<strong>{{ pageEndIndex }}</strong>
         of <strong>{{ totalItems }}</strong> class{{ totalItems !== 1 ? 'es' : '' }}
+        <button type="button"
+                class="zr-link-btn"
+                *ngIf="canSelectAllFiltered"
+                (click)="selectAllFiltered()">
+          Select all {{ totalItems }} for analytics
+        </button>
       </div>
       <div class="zr-pagination">
         <label class="zr-pagination__label" for="zr-page-size">Rows</label>

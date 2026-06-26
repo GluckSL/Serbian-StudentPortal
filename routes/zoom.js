@@ -24,6 +24,7 @@ const {
 } = require('../services/zoomMeetingLifecycle.service');
 const { formatZoomLocalStartTime } = require('../utils/zoomDateTime');
 const zoomConfig = require('../config/zoomConfig');
+const { parseBatchList } = require('../utils/analyticsFilters');
 
 /**
  * Build an attendance row for a manual override.
@@ -698,18 +699,20 @@ router.get('/meetings', verifyToken, async (req, res) => {
 
     if (status) andClauses.push({ status });
 
-    // Batch: match string or number (legacy / CRM data sometimes stores numeric batch)
-    if (batch !== undefined && batch !== null && String(batch).trim() !== '') {
-      const b = String(batch).trim();
-      const asNum = Number(b);
-      const topicBatchClause = {
-        topic: new RegExp(`\\bbatch\\s*[-#:]*\\s*${escapeRegex(b)}\\b`, 'i')
-      };
-      if (Number.isFinite(asNum) && String(asNum) === b) {
-        andClauses.push({ $or: [{ batch: b }, { batch: asNum }, topicBatchClause] });
-      } else {
-        andClauses.push({ $or: [{ batch: b }, topicBatchClause] });
-      }
+    // Batch: single or comma-separated (e.g. "20,38,39") — interleaved by startTime in results
+    const batchList = parseBatchList(batch);
+    if (batchList.length) {
+      const batchClauses = batchList.map((b) => {
+        const asNum = Number(b);
+        const topicBatchClause = {
+          topic: new RegExp(`\\bbatch\\s*[-#:]*\\s*${escapeRegex(b)}\\b`, 'i')
+        };
+        if (Number.isFinite(asNum) && String(asNum) === b) {
+          return { $or: [{ batch: b }, { batch: asNum }, topicBatchClause] };
+        }
+        return { $or: [{ batch: b }, topicBatchClause] };
+      });
+      andClauses.push(batchClauses.length === 1 ? batchClauses[0] : { $or: batchClauses });
     }
 
     if (req.query.plan) andClauses.push({ plan: req.query.plan });

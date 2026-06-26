@@ -14,6 +14,11 @@ import { StudentMeetingsComponent } from '../meeting-link/student-meetings.compo
 import { StudentRecordingsComponent } from '../class-recordings/student-recordings/student-recordings.component';
 import { DigitalExercisesComponent } from '../digital-exercises/digital-exercises.component';
 import { GluckBuddyHubComponent } from '../../sprechen-exam/gluck-buddy-hub/gluck-buddy-hub.component';
+import { BatchLeaderboardComponent } from './batch-leaderboard/batch-leaderboard.component';
+import {
+  BatchLeaderboardService,
+  LeaderboardPeriod,
+} from '../../services/batch-leaderboard.service';
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
 import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
@@ -46,7 +51,7 @@ import {
   TRIAL_JOURNEY_DAY
 } from '../../utils/journey-day.util';
 
-type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey' | 'gluck-exam';
+type MyCourseTab = 'classes' | 'exercises' | 'talk-buddy' | 'journey' | 'gluck-exam' | 'leaderboard';
 type JourneyFilter = 'all' | 'completed' | 'pending';
 type ProgressRange = 'weekly' | 'overall';
 type GluckExamSubTab = 'weekly-test' | 'exams';
@@ -69,7 +74,8 @@ interface GluckExamLastItemData {
     StudentMeetingsComponent,
     StudentRecordingsComponent,
     DigitalExercisesComponent,
-    GluckBuddyHubComponent
+    GluckBuddyHubComponent,
+    BatchLeaderboardComponent,
   ],
   templateUrl: './my-course.component.html',
   styleUrls: ['./my-course.component.scss']
@@ -199,6 +205,10 @@ export class MyCourseComponent implements OnInit {
   /** Shown on Exercises / Modules / Journey tab row; new random line on each page load. */
   tabHeaderQuote = '';
 
+  /** Weekly batch rank — shown in hero; click opens Leaderboard → This Week. */
+  weeklyRank: number | null = null;
+  leaderboardRequestedPeriod: LeaderboardPeriod | null = null;
+
   private readonly tabHeaderQuotes = [
     "You're doing great — keep showing up!",
     'Every bit of practice moves you forward. Stay with it!',
@@ -291,6 +301,7 @@ export class MyCourseComponent implements OnInit {
     private paymentHubApi: PaymentHubApiService,
     private sprechenApi: SprechenApiService,
     private loginStreakService: LoginStreakService,
+    private batchLeaderboardService: BatchLeaderboardService,
   ) {}
 
   ngOnInit(): void {
@@ -384,6 +395,8 @@ export class MyCourseComponent implements OnInit {
     // Defer the payment-hub request so it doesn't compete with journey / meetings on initial load.
     setTimeout(() => { if (!this.destroyed) this.loadLanguageFeeDue(); }, 1500);
 
+    this.loadWeeklyRank();
+
     // Defer the meetings preview by 800 ms so the journey and profile requests
     // have priority. The "next meeting" card is non-blocking — it appears once data arrives.
     setTimeout(() => {
@@ -443,6 +456,15 @@ export class MyCourseComponent implements OnInit {
         this.activeTab = t;
         this.tabVisited.add(t);
         this.loadGluckExamData();
+      } else if (t === 'leaderboard') {
+        const lb = q.get('lb');
+        if (lb === 'weekly' || lb === 'today' || lb === 'overall') {
+          this.leaderboardRequestedPeriod = lb;
+        } else {
+          this.leaderboardRequestedPeriod = null;
+        }
+        this.activeTab = t;
+        this.tabVisited.add(t);
       }
     });
   }
@@ -723,7 +745,7 @@ export class MyCourseComponent implements OnInit {
     return 'Go to exercises';
   }
 
-  setTab(tab: MyCourseTab): void {
+  setTab(tab: MyCourseTab, opts?: { lbPeriod?: LeaderboardPeriod }): void {
     if (tab === 'exercises' && !this.showExercisesTab) {
       tab = 'classes';
     }
@@ -732,9 +754,20 @@ export class MyCourseComponent implements OnInit {
     }
     this.tabVisited.add(tab);
     this.activeTab = tab;
+    if (tab === 'leaderboard') {
+      this.leaderboardRequestedPeriod = opts?.lbPeriod ?? null;
+    } else {
+      this.leaderboardRequestedPeriod = null;
+    }
+    const queryParams: Record<string, string | null> = { tab };
+    if (tab === 'leaderboard' && opts?.lbPeriod) {
+      queryParams['lb'] = opts.lbPeriod;
+    } else {
+      queryParams['lb'] = null;
+    }
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { tab },
+      queryParams,
       queryParamsHandling: 'merge',
       replaceUrl: true
     });
@@ -748,6 +781,23 @@ export class MyCourseComponent implements OnInit {
     if (tab === 'classes') {
       this.refreshJourneyForPendingCelebration();
     }
+  }
+
+  openWeeklyLeaderboard(): void {
+    this.setTab('leaderboard', { lbPeriod: 'weekly' });
+  }
+
+  private loadWeeklyRank(): void {
+    this.batchLeaderboardService
+      .getLeaderboard('weekly')
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError(() => of(null)),
+      )
+      .subscribe((res) => {
+        if (this.destroyed) return;
+        this.weeklyRank = res?.myRank ?? null;
+      });
   }
 
   /** After journey profile loads, move off tabs the student no longer has access to. */

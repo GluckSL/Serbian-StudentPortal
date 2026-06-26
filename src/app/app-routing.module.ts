@@ -11,7 +11,6 @@ import { RoleGuard } from './guards/role.guard';
 import { VisaDocsOnlyGuard } from './guards/visa-docs-only.guard';
 import { ProfileComponent } from './components/profile/profile.component';
 import { CreateCourseComponent } from './components/courses/course-create.component';
-import { RemindersComponent } from './components/admin-dashboard/reminders/reminders.component';
 
 export const routes: Routes = [
   // Default route
@@ -69,13 +68,21 @@ export const routes: Routes = [
     pathMatch: 'full'
   },
 
-  // Admin dashboard route with RoleGuard
+  // Admin hub — landing page with group cards
   {
     path: 'admin-dashboard',
+    loadComponent: () => import('./components/admin-hub/admin-hub.component')
+      .then(m => m.AdminHubComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
+  },
+  // Student management (moved from /admin-dashboard)
+  {
+    path: 'admin/students',
     loadComponent: () => import('./components/admin-dashboard/admin-dashboard.component')
       .then(m => m.AdminDashboardComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
   },
   {
     path: 'admin/students/:studentId',
@@ -94,14 +101,6 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
-  // Admin analytics route
-  {
-    path: 'admin-analytics',
-    loadComponent: () => import('./components/admin-dashboard/admin-analytics/admin-analytics.component')
-      .then(m => m.AdminAnalyticsComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] }
-  },
 
   // ✅ NEW: AI Usage Analytics route
   {
@@ -224,8 +223,6 @@ export const routes: Routes = [
   // Admin Zoom Reports
   { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
-  // Import External Zoom Meetings
-  { path: 'admin/external-meetings', loadComponent: () => import('./components/admin-dashboard/external-meetings/external-meetings.component').then(m => m.ExternalMeetingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Class Recordings — Teacher/Admin manage
   { path: 'class-recordings', loadComponent: () => import('./components/class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
@@ -276,6 +273,9 @@ export const routes: Routes = [
 
   // Admin Visa Tracking route
   { path: 'admin/visa-tracking', loadComponent: () => import('./components/admin-dashboard/visa-tracking/visa-tracking.component').then(m => m.VisaTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+
+  // Admin Batch Leaderboard
+  { path: 'admin/leaderboard', loadComponent: () => import('./components/admin-dashboard/admin-leaderboard/admin-leaderboard.component').then(m => m.AdminLeaderboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
   // Student Visa Status page
   { path: 'visa-status', loadComponent: () => import('./components/visa-status/visa-status.component').then(m => m.VisaStatusComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
@@ -333,14 +333,6 @@ export const routes: Routes = [
   { path: 'admin/krish-dashboard', redirectTo: 'admin/enrollment-overview', pathMatch: 'full' },
   { path: 'admin/enrollment-overdue', redirectTo: 'admin/enrollment-overview', pathMatch: 'full' },
 
-  // Monday.com Sync Preview
-  { path: 'admin/monday-sync-preview', loadComponent: () => import('./components/admin-dashboard/monday-sync-preview/monday-sync-preview.component').then(m => m.MondaySyncPreviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  {
-    path: 'admin/reminders',
-    component: RemindersComponent,
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
-  },
   { path: 'admin/announcements', loadComponent: () => import('./components/admin-dashboard/admin-announcements.component').then(m => m.AdminAnnouncementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
   { path: 'admin/job-openings', loadComponent: () => import('./components/job-openings/admin-job-openings.component').then(m => m.AdminJobOpeningsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
@@ -725,13 +717,6 @@ export const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
-  {
-    path: 'admin/glueck-arena/teacher-analytics',
-    loadComponent: () => import('./features/glueck-arena/components/admin/teacher-analytics-dashboard/teacher-analytics-dashboard.component').then(m => m.TeacherAnalyticsDashboardComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
-  },
-
   // Zoom-recorded class session player
   // Accessible by any authenticated user; the backend enforces enrollment checks.
   {

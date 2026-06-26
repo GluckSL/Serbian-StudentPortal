@@ -5,6 +5,7 @@ import { RouterModule } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MaterialModule } from '../../../../../shared/material.module';
 import { InteractiveGameService } from '../../../services/interactive-game.service';
 import { GlueckArenaChartComponent } from '../../../shared/glueck-arena-chart/glueck-arena-chart.component';
@@ -23,16 +24,17 @@ interface BatchSummary { batchName: string; }
     MaterialModule,
     MatTableModule,
     MatSortModule,
+    MatPaginatorModule,
     GlueckArenaChartComponent,
   ],
   template: `
     <div class="ga-page" data-ga-theme>
       <header class="ga-hero">
         <div class="ga-hero__copy">
-          <button mat-icon-button class="ga-hero__back" routerLink="/admin/glueck-arena" aria-label="Back">
+          <button mat-mini-fab class="ga-hero__back" routerLink="/admin/glueck-arena" aria-label="Back">
             <mat-icon>arrow_back</mat-icon>
           </button>
-          <div class="ga-hero__badge"><mat-icon>insights</mat-icon> GlückArena</div>
+          <div class="ga-hero__badge"><mat-icon>sports_esports</mat-icon> GlückArena</div>
           <h1>Analytics</h1>
           <p>Track student time, scores, and XP. Filter by batch to see every student in a cohort.</p>
         </div>
@@ -42,26 +44,26 @@ interface BatchSummary { batchName: string; }
         <div class="ga-toolbar__search">
           <mat-icon>search</mat-icon>
           <input type="search" [(ngModel)]="studentSearch" (ngModelChange)="applyStudentFilter()"
-            placeholder="Search students…" aria-label="Search students">
+            placeholder="Search students…" aria-label="Search students" [disabled]="loading">
         </div>
         <mat-form-field appearance="outline" class="ga-toolbar__field">
           <mat-label>Batch</mat-label>
-          <mat-select [(ngModel)]="batch" (ngModelChange)="load()">
+          <mat-select [(ngModel)]="batch" (ngModelChange)="load()" [disabled]="loading">
             <mat-option value="">All batches</mat-option>
             <mat-option *ngFor="let b of batches" [value]="b.batchName">{{ b.batchName }}</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline" class="ga-toolbar__field ga-toolbar__field--date">
           <mat-label>From</mat-label>
-          <input matInput type="date" [(ngModel)]="dateFrom" (ngModelChange)="load()">
+          <input matInput type="date" [(ngModel)]="dateFrom" (ngModelChange)="load()" [disabled]="loading">
         </mat-form-field>
         <mat-form-field appearance="outline" class="ga-toolbar__field ga-toolbar__field--date">
           <mat-label>To</mat-label>
-          <input matInput type="date" [(ngModel)]="dateTo" (ngModelChange)="load()">
+          <input matInput type="date" [(ngModel)]="dateTo" (ngModelChange)="load()" [disabled]="loading">
         </mat-form-field>
         <mat-form-field appearance="outline" class="ga-toolbar__field">
           <mat-label>Game type</mat-label>
-          <mat-select [(ngModel)]="gameType" (ngModelChange)="load()">
+          <mat-select [(ngModel)]="gameType" (ngModelChange)="load()" [disabled]="loading">
             <mat-option value="">All types</mat-option>
             <mat-option value="scramble_rush">Scramble Rush</mat-option>
             <mat-option value="sentence_builder">Sentence Builder</mat-option>
@@ -76,10 +78,38 @@ interface BatchSummary { batchName: string; }
         </mat-form-field>
       </div>
 
-      <div *ngIf="loading" class="ga-loading">
-        <mat-spinner diameter="44"></mat-spinner>
-        <span>Loading analytics…</span>
-      </div>
+      <!-- Skeleton loading -->
+      <ng-container *ngIf="loading">
+        <div class="ga-stats" aria-busy="true" aria-label="Loading analytics">
+          <div class="ga-stat ga-stat--skeleton" *ngFor="let _ of skeletonStatCards">
+            <div class="ga-skeleton ga-skeleton--icon"></div>
+            <div class="ga-skeleton ga-skeleton--value"></div>
+            <div class="ga-skeleton ga-skeleton--label"></div>
+          </div>
+        </div>
+        <section class="ga-section">
+          <div class="ga-section__head">
+            <div class="ga-skeleton ga-skeleton--title"></div>
+          </div>
+          <div class="ga-table-card">
+            <div class="ga-skeleton-table">
+              <div class="ga-skeleton-table__head">
+                <div class="ga-skeleton ga-skeleton--th" *ngFor="let _ of skeletonColumns"></div>
+              </div>
+              <div class="ga-skeleton-table__row" *ngFor="let _ of skeletonRows">
+                <div class="ga-skeleton ga-skeleton--cell ga-skeleton--cell-name"></div>
+                <div class="ga-skeleton ga-skeleton--cell" *ngFor="let __ of skeletonColumns.slice(1)"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div class="ga-charts-row">
+          <div class="ga-chart-card ga-chart-card--skeleton" *ngFor="let _ of [0, 1]">
+            <div class="ga-skeleton ga-skeleton--chart-title"></div>
+            <div class="ga-skeleton ga-skeleton--chart"></div>
+          </div>
+        </div>
+      </ng-container>
 
       <ng-container *ngIf="data && !loading">
         <div class="ga-stats">
@@ -101,6 +131,7 @@ interface BatchSummary { batchName: string; }
             </span>
           </div>
           <div class="ga-table-card">
+            <div class="ga-table-scroll">
             <table mat-table [dataSource]="studentDataSource" matSort class="ga-table">
               <ng-container matColumnDef="name">
                 <th mat-header-cell *matHeaderCellDef mat-sort-header>Student</th>
@@ -149,6 +180,14 @@ interface BatchSummary { batchName: string; }
                 <td [attr.colspan]="studentColumns.length">No students match your search.</td>
               </tr>
             </table>
+            </div>
+            <mat-paginator
+              class="ga-paginator"
+              [pageSizeOptions]="pageSizeOptions"
+              [pageSize]="pageSize"
+              showFirstLastButtons
+              aria-label="Student table pagination">
+            </mat-paginator>
           </div>
         </section>
 
@@ -203,82 +242,166 @@ interface BatchSummary { batchName: string; }
     </div>
   `,
   styles: [`
-    .ga-page { padding: 24px 28px 48px; max-width: 1400px; margin: 0 auto; }
+    .ga-page {
+      padding: 24px 28px 48px; max-width: 1400px; margin: 0 auto;
+      background: linear-gradient(180deg, #faf5ff 0%, #f8fafc 120px, #f8fafc 100%);
+      min-height: 100%;
+    }
     .ga-hero {
       display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap;
-      padding: 28px 32px; border-radius: 20px; margin-bottom: 24px;
-      background: linear-gradient(135deg, #1e3a5f 0%, #405980 55%, #5b7fb8 100%);
-      color: #fff; box-shadow: 0 12px 40px rgba(30, 58, 95, 0.25);
-      position: relative;
+      padding: 28px 32px 28px 88px; border-radius: 24px; margin-bottom: 24px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 45%, #c084fc 100%);
+      color: #fff; box-shadow: 0 16px 48px rgba(99, 102, 241, 0.28);
+      position: relative; overflow: hidden;
     }
-    .ga-hero__back { position: absolute; top: 16px; left: 16px; color: #fff !important; }
-    .ga-hero__copy { padding-left: 48px; }
+    .ga-hero::before {
+      content: ''; position: absolute; top: -40%; right: -8%; width: 280px; height: 280px;
+      background: radial-gradient(circle, rgba(251, 191, 36, 0.35) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .ga-hero__back {
+      position: absolute; top: 20px; left: 20px;
+      background: rgba(255, 255, 255, 0.2) !important;
+      color: #fff !important; box-shadow: none !important;
+      border-radius: 50% !important;
+      backdrop-filter: blur(8px);
+      transition: background 0.2s, transform 0.15s;
+    }
+    .ga-hero__back:hover { background: rgba(255, 255, 255, 0.32) !important; transform: scale(1.05); }
+    .ga-hero__copy { position: relative; z-index: 1; }
     .ga-hero h1 { margin: 8px 0 6px; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
-    .ga-hero p { margin: 0; opacity: 0.9; max-width: 560px; line-height: 1.5; font-size: 14px; }
+    .ga-hero p { margin: 0; opacity: 0.92; max-width: 560px; line-height: 1.5; font-size: 14px; }
     .ga-hero__badge {
       display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      background: rgba(255, 255, 255, 0.18); padding: 6px 14px; border-radius: 999px;
     }
+    .ga-hero__badge mat-icon { font-size: 16px; width: 16px; height: 16px; color: #fde68a; }
     .ga-toolbar {
       display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 20px;
-      background: #fff; padding: 14px 16px; border-radius: 14px; border: 1px solid #e8ecf4;
+      background: #fff; padding: 14px 18px; border-radius: 20px;
+      border: 1px solid #ede9fe; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
     }
     .ga-toolbar__search {
       flex: 1; min-width: 180px; display: flex; align-items: center; gap: 10px;
-      padding: 0 14px; height: 48px; border-radius: 12px; background: #f8fafc; border: 1px solid #e8ecf4;
+      padding: 0 18px; height: 48px; border-radius: 999px;
+      background: #f5f3ff; border: 1.5px solid #e9d5ff;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .ga-toolbar__search mat-icon { color: #94a3b8; }
+    .ga-toolbar__search:focus-within {
+      border-color: #a78bfa; box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+    }
+    .ga-toolbar__search mat-icon { color: #a78bfa; }
     .ga-toolbar__search input { flex: 1; border: none; background: transparent; outline: none; font-size: 14px; color: #334155; }
     .ga-toolbar__field { margin: 0; min-width: 140px; }
     .ga-toolbar__field--date { min-width: 150px; }
-    .ga-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 48px; color: #64748b; }
+    :host ::ng-deep .ga-toolbar__field .mat-mdc-text-field-wrapper { border-radius: 16px !important; }
+    :host ::ng-deep .ga-toolbar__field .mdc-notched-outline__leading { border-radius: 16px 0 0 16px !important; }
+    :host ::ng-deep .ga-toolbar__field .mdc-notched-outline__trailing { border-radius: 0 16px 16px 0 !important; }
     .ga-stats {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
       gap: 14px; margin-bottom: 28px;
     }
     .ga-stat {
-      background: #fff; border-radius: 14px; padding: 16px 18px; border: 1px solid #e8ecf4;
-      box-shadow: 0 2px 8px rgba(64, 89, 128, 0.06); position: relative; padding-top: 36px;
+      background: #fff; border-radius: 20px; padding: 16px 18px; border: 1px solid #ede9fe;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.07); position: relative; padding-top: 36px;
+      transition: transform 0.15s, box-shadow 0.15s;
     }
-    .ga-stat__icon { position: absolute; top: 12px; left: 14px; font-size: 20px; width: 20px; height: 20px; color: #405980; opacity: 0.7; }
-    .ga-stat__value { display: block; font-size: 24px; font-weight: 800; color: #1e3a5f; line-height: 1.1; }
+    .ga-stat:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12); }
+    .ga-stat__icon { position: absolute; top: 12px; left: 14px; font-size: 20px; width: 20px; height: 20px; color: #8b5cf6; opacity: 0.85; }
+    .ga-stat__value { display: block; font-size: 24px; font-weight: 800; color: #4338ca; line-height: 1.1; }
     .ga-stat__label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
     .ga-section { margin-bottom: 28px; }
     .ga-section__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
     .ga-section__head h2 {
-      margin: 0; font-size: 18px; font-weight: 700; color: #1e3a5f;
+      margin: 0; font-size: 18px; font-weight: 700; color: #4338ca;
       display: flex; align-items: center; gap: 8px;
     }
+    .ga-section__head h2 mat-icon { color: #f59e0b; }
     .ga-section__meta { font-size: 13px; color: #64748b; margin-left: auto; }
     .ga-table-card {
-      background: #fff; border-radius: 16px; border: 1px solid #e8ecf4;
-      overflow: auto; box-shadow: 0 4px 20px rgba(64, 89, 128, 0.08);
+      background: #fff; border-radius: 20px; border: 1px solid #ede9fe;
+      overflow: hidden; box-shadow: 0 4px 24px rgba(99, 102, 241, 0.08);
     }
+    .ga-table-scroll { overflow-x: auto; }
     .ga-table { width: 100%; }
-    .ga-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; font-weight: 600; }
-    .ga-table__row:hover { background: #f8fafc; }
+    .ga-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; font-weight: 600; background: #faf5ff; }
+    .ga-table__row:hover { background: #f5f3ff; }
     .ga-table__empty td { text-align: center; padding: 32px; color: #94a3b8; }
     .ga-student-cell__name { font-weight: 600; color: #1e293b; }
     .ga-student-cell__batch { display: block; font-size: 12px; color: #94a3b8; }
-    .ga-score { font-weight: 700; color: #405980; }
+    .ga-score { font-weight: 700; color: #6366f1; }
     .ga-xp { color: #d97706; font-weight: 700; }
     .ga-acc { font-weight: 600; }
-    .ga-acc--high { color: #166534; }
-    .ga-acc--low { color: #b91c1c; }
+    .ga-acc--high { color: #16a34a; }
+    .ga-acc--low { color: #dc2626; }
+    .ga-paginator {
+      border-top: 1px solid #ede9fe; background: #faf5ff;
+      border-radius: 0 0 20px 20px;
+    }
+    :host ::ng-deep .ga-paginator .mat-mdc-icon-button { border-radius: 50% !important; }
+    :host ::ng-deep .ga-paginator .mat-mdc-select-trigger { border-radius: 999px; }
     .ga-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-    .ga-chart-card { padding: 16px; border-radius: 16px; border: 1px solid #e8ecf4; }
+    .ga-chart-card {
+      padding: 20px; border-radius: 20px; border: 1px solid #ede9fe;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.06);
+    }
+    :host ::ng-deep .ga-chart-card .mat-mdc-card-title { color: #4338ca; font-weight: 700; }
     .ga-insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .ga-insight-card { padding: 16px; border-radius: 16px; border: 1px solid #e8ecf4; }
+    .ga-insight-card {
+      padding: 20px; border-radius: 20px; border: 1px solid #ede9fe;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.06);
+    }
+    :host ::ng-deep .ga-insight-card .mat-mdc-card-title { color: #4338ca; font-weight: 700; }
     .ga-table--compact td, .ga-table--compact th { padding: 10px 12px !important; }
+
+    /* Skeleton loading */
+    @keyframes ga-shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .ga-skeleton {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e9d5ff 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: ga-shimmer 1.5s ease infinite;
+      border-radius: 12px;
+    }
+    .ga-stat--skeleton { padding-top: 16px; pointer-events: none; }
+    .ga-skeleton--icon { width: 24px; height: 24px; border-radius: 8px; margin-bottom: 10px; }
+    .ga-skeleton--value { height: 28px; width: 70%; margin-bottom: 8px; border-radius: 10px; }
+    .ga-skeleton--label { height: 12px; width: 55%; border-radius: 6px; }
+    .ga-skeleton--title { height: 22px; width: 200px; border-radius: 10px; }
+    .ga-skeleton-table { padding: 0; }
+    .ga-skeleton-table__head {
+      display: grid; grid-template-columns: 1.4fr repeat(7, 1fr);
+      gap: 12px; padding: 14px 20px; background: #faf5ff; border-bottom: 1px solid #ede9fe;
+    }
+    .ga-skeleton--th { height: 14px; border-radius: 6px; }
+    .ga-skeleton-table__row {
+      display: grid; grid-template-columns: 1.4fr repeat(7, 1fr);
+      gap: 12px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9;
+    }
+    .ga-skeleton--cell { height: 16px; border-radius: 8px; }
+    .ga-skeleton--cell-name { height: 32px; }
+    .ga-chart-card--skeleton { background: #fff; }
+    .ga-skeleton--chart-title { height: 20px; width: 160px; margin-bottom: 16px; border-radius: 8px; }
+    .ga-skeleton--chart { height: 220px; border-radius: 16px; }
+
     @media (max-width: 900px) {
       .ga-page { padding: 16px; }
+      .ga-hero { padding-left: 32px; padding-top: 72px; }
+      .ga-hero__back { top: 16px; left: 16px; }
       .ga-charts-row, .ga-insights-grid { grid-template-columns: 1fr; }
       .ga-toolbar__field { min-width: 100%; flex: 1 1 100%; }
+      .ga-skeleton-table__head, .ga-skeleton-table__row {
+        grid-template-columns: 1fr 1fr;
+      }
     }
   `]
 })
 export class AdminAnalyticsDashboardComponent implements OnInit, AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
 
   loading = false;
   data: AdminAnalyticsResponse | null = null;
@@ -288,6 +411,12 @@ export class AdminAnalyticsDashboardComponent implements OnInit, AfterViewInit {
   batch = '';
   batches: BatchSummary[] = [];
   studentSearch = '';
+
+  pageSize = 10;
+  readonly pageSizeOptions = [10, 25, 50, 100];
+  readonly skeletonStatCards = [0, 1, 2, 3, 4, 5, 6];
+  readonly skeletonRows = [0, 1, 2, 3, 4, 5, 6, 7];
+  readonly skeletonColumns = [0, 1, 2, 3, 4, 5, 6, 7];
 
   kpiCards: { icon: string; label: string; value: string | number }[] = [];
   trendLabels: string[] = [];
@@ -316,6 +445,7 @@ export class AdminAnalyticsDashboardComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit() {
     this.studentDataSource.sort = this.sort;
+    this.studentDataSource.paginator = this.paginator;
     this.studentDataSource.sortingDataAccessor = (row, col) => {
       switch (col) {
         case 'name': return row.name;
@@ -359,6 +489,7 @@ export class AdminAnalyticsDashboardComponent implements OnInit, AfterViewInit {
         this.loading = false;
         setTimeout(() => {
           if (this.sort) this.studentDataSource.sort = this.sort;
+          if (this.paginator) this.studentDataSource.paginator = this.paginator;
         });
       },
       error: () => { this.loading = false; },
@@ -372,6 +503,7 @@ export class AdminAnalyticsDashboardComponent implements OnInit, AfterViewInit {
           s.name?.toLowerCase().includes(q) || s.batch?.toLowerCase().includes(q))
       : [...this.allStudents];
     this.studentDataSource.data = this.filteredStudents;
+    this.studentDataSource.paginator?.firstPage();
   }
 
   buildKpis(r: AdminAnalyticsResponse) {

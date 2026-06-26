@@ -10,13 +10,13 @@ const MeetingLink = require('../models/MeetingLink');
 const ClassRecording = require('../models/ClassRecording');
 const ZoomRecording = require('../models/ZoomRecording');
 const TimeTable = require('../models/TimeTable');
-const Reminder = require('../models/Reminder');
 const Announcement = require('../models/Announcement');
 const TeacherResource = require('../models/TeacherResource');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const GameSet = require('../models/GameSet');
+const GameAttempt = require('../models/GameAttempt');
 const SprechenExamModule = require('../models/SprechenExamModule');
 const {
   computeJourneyDayCompletion,
@@ -187,10 +187,9 @@ async function renameBatchAcrossSystem(oldName, newName) {
     }
   }
 
-  const [meetings, timetables, reminders, resources] = await Promise.all([
+  const [meetings, timetables, resources] = await Promise.all([
     MeetingLink.updateMany({ batch: oldRx }, { $set: { batch: newBn } }),
     TimeTable.updateMany({ batch: oldRx }, { $set: { batch: newBn } }),
-    Reminder.updateMany({ targetBatch: oldRx }, { $set: { targetBatch: newBn } }),
     TeacherResource.updateMany({ batch: oldRx }, { $set: { batch: newBn } })
   ]);
 
@@ -238,7 +237,6 @@ async function renameBatchAcrossSystem(oldName, newName) {
     teachersUpdated,
     meetingsUpdated: meetings.modifiedCount,
     timetablesUpdated: timetables.modifiedCount,
-    remindersUpdated: reminders.modifiedCount,
     resourcesUpdated: resources.modifiedCount,
     recordingsUpdated,
     announcementsUpdated,
@@ -1414,7 +1412,7 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     // ── Fast path: overall + per-student rows only (no populate, no per-attempt documents) ──
     if (!includeDaily) {
-      const [attemptAgg, meetingsLean] = await Promise.all([
+      const [attemptAgg, meetingsLean, dgCount, arenaCount] = await Promise.all([
         ExerciseAttempt.aggregate([
           { $match: { studentId: { $in: studentIds }, status: 'completed' } },
           {
@@ -1436,7 +1434,9 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         ]),
         MeetingLink.find({ batch: batchRegex, status: { $ne: 'cancelled' } })
           .select('attendance')
-          .lean()
+          .lean(),
+        DGSession.countDocuments({ studentId: { $in: studentIds }, completed: true }),
+        GameAttempt.countDocuments({ studentId: { $in: studentIds }, status: 'completed' })
       ]);
 
       const studentExerciseMap = {};
@@ -1487,7 +1487,9 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
           avgScorePercent,
           totalExercisesCompleted,
           totalClassesAttended,
-          avgDayReached
+          avgDayReached,
+          totalDgBotCompleted: dgCount || 0,
+          totalArenaCompleted: arenaCount || 0
         },
         students: studentSummaries,
         daily: [],
