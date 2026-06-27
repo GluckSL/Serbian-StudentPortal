@@ -1,16 +1,34 @@
-:host { display: block; }
+:host {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
 
 /* ── Wrapper ─────────────────────────────────────────────────────────── */
 .lb {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 0 10% 40px;
   box-sizing: border-box;
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   color: #0f172a;
+  overflow-x: clip;
 }
 
-@media (max-width: 900px) { .lb { padding-inline: 5%; } }
-@media (max-width: 520px) { .lb { padding-inline: 3%; } }
+@media (max-width: 900px) {
+  .lb {
+    padding-inline: 0;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 520px) {
+  .lb {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+}
 
 /* ── Sub-tabs row ────────────────────────────────────────────────────── */
 .lb-subtabs {
@@ -65,25 +83,6 @@
   50%       { opacity: 0.6; transform: scale(0.85); }
 }
 
-.lb-reload-btn {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  color: #64748b;
-  cursor: pointer;
-  padding: 7px 9px;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  transition: background 0.16s;
-
-  &:hover:not(:disabled) { background: #e2e8f0; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  .spinning { animation: spin 0.85s linear infinite; }
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
 /* ── 2-column body ───────────────────────────────────────────────────── */
 .lb-body {
   display: grid;
@@ -95,8 +94,22 @@
 @media (max-width: 720px) {
   .lb-body {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
-  .lb-right { order: -1; }
+
+  .lb-right {
+    order: -1;
+    position: static;
+    top: auto;
+  }
+
+  .lb-skeleton {
+    grid-template-columns: 1fr;
+  }
+
+  .lb-skeleton__right {
+    order: -1;
+  }
 }
 
 /* ── LEFT — section label ────────────────────────────────────────────── */
@@ -177,6 +190,48 @@
 .lb-row__activity {
   margin: 0; font-size: 12px; color: #64748b;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.lb-row__tasks {
+  display: none;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.lb-row__task-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #475569;
+}
+
+.lb-row__task-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.lb-row__task-val {
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-row__task-chip--tone-blue .lb-row__task-val { color: #1d4ed8; }
+.lb-row__task-chip--tone-green .lb-row__task-val { color: #16a34a; }
+.lb-row__task-chip--tone-purple .lb-row__task-val { color: #7c3aed; }
+.lb-row__task-chip--tone-amber .lb-row__task-val { color: #d97706; }
+
+.lb-row__task-chip--done {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+
+  .lb-row__task-val { color: #15803d; }
 }
 
 .lb-row__badge-wrap { flex-shrink: 0; }
@@ -267,6 +322,10 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
+}
+
+.lb-pos-cell__label-short {
+  display: none;
 }
 
 .lb-pos-cell__rank {
@@ -484,4 +543,270 @@
   border-radius: 8px; padding: 8px 20px;
   font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
   &:hover { background: #4f46e5; }
+}
+
+/* ── Mobile / narrow viewports ───────────────────────────────────────── */
+@media (max-width: 640px) {
+  .lb-subtabs {
+    gap: 3px;
+    margin-bottom: 10px;
+    padding: 3px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+
+  .lb-subtab {
+    flex: 1;
+    min-width: 0;
+    min-height: 32px;
+    padding: 6px 4px;
+    font-size: 11px;
+    gap: 4px;
+    border-radius: 9px;
+  }
+
+  .lb-subtab__live {
+    width: 6px;
+    height: 6px;
+  }
+
+  .lb-subtab--on {
+    box-shadow: 0 1px 6px rgba(99, 102, 241, 0.28);
+  }
+
+  .lb-body {
+    gap: 14px;
+  }
+
+  .lb-right {
+    gap: 8px;
+  }
+
+  .lb-section-label {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+
+  .lb-row {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+    border-radius: 12px;
+
+    &:hover {
+      transform: none;
+    }
+  }
+
+  .lb-row__rank {
+    width: 28px;
+  }
+
+  .lb-row__medal {
+    font-size: 20px;
+  }
+
+  .lb-row__avatar,
+  .lb-row__avatar-fallback {
+    width: 36px;
+    height: 36px;
+  }
+
+  .lb-row__body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .lb-row__name {
+    font-size: 13px;
+    white-space: normal;
+    flex-wrap: wrap;
+  }
+
+  .lb-row__activity {
+    font-size: 11px;
+    white-space: normal;
+    line-height: 1.35;
+  }
+
+  .lb-row__tasks {
+    display: flex;
+    width: 100%;
+  }
+
+  /* This Week: task cards live in Your Position — skip duplicate chips in list rows */
+  .lb--period-weekly .lb-row__tasks {
+    display: none;
+  }
+
+  .lb-row__badge-wrap {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    padding-left: 0;
+    margin-top: 2px;
+  }
+
+  .lb-row__badge {
+    font-size: 10.5px;
+    padding: 3px 9px;
+  }
+
+  .lb-pos-title {
+    font-size: 10px;
+    gap: 4px;
+    margin-bottom: 0;
+
+    .material-icons {
+      font-size: 13px;
+    }
+  }
+
+  .lb-pos-grid--2 {
+    gap: 6px;
+  }
+
+  .lb-pos-cell {
+    padding: 8px 6px;
+    border-radius: 10px;
+    gap: 2px;
+    border-width: 1px;
+    box-shadow: none;
+
+    &:hover {
+      box-shadow: none;
+    }
+  }
+
+  .lb-pos-cell__label {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+  }
+
+  .lb-pos-cell__rank {
+    font-size: 22px;
+  }
+
+  .lb-pos-cell__val {
+    font-size: 20px;
+  }
+
+  .lb-pos-tasks-label {
+    font-size: 9px;
+    margin: 0;
+  }
+
+  .lb-pos-grid.lb-pos-grid--tasks {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .lb-pos-cell--task {
+    min-height: 0;
+    padding: 8px 3px;
+    border-radius: 10px;
+    gap: 3px;
+  }
+
+  .lb-pos-cell__label-full {
+    display: none;
+  }
+
+  .lb-pos-cell__label-short {
+    display: block;
+    font-size: 14px;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .lb-pos-cell__ratio {
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .lb-pos-rankup {
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  .lb-pos-rankup__bar {
+    height: 6px;
+  }
+
+  .lb-pos-rankup__pct {
+    font-size: 10px;
+    min-width: 28px;
+  }
+
+  .lb-pos-rankup__hint {
+    font-size: 11px;
+  }
+
+  .lb-pos-moved {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 12px;
+    gap: 8px;
+  }
+
+  .lb-pos-moved__clock {
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .lb-pos-moved__text {
+    align-items: flex-start;
+
+    strong {
+      font-size: 12px;
+    }
+
+    span {
+      font-size: 11px;
+    }
+  }
+
+  .lb-pos-top1 {
+    padding: 12px;
+    border-radius: 12px;
+
+    .lb-pos-top1__trophy {
+      font-size: 26px;
+    }
+
+    strong {
+      font-size: 13px;
+    }
+  }
+
+  .lb-empty {
+    padding: 28px 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .lb-subtab {
+    font-size: 10px;
+    padding-inline: 2px;
+    min-height: 30px;
+  }
+
+  .lb-pos-cell__rank {
+    font-size: 20px;
+  }
+
+  .lb-pos-cell__val {
+    font-size: 18px;
+  }
+
+  .lb-pos-cell__ratio {
+    font-size: 14px;
+  }
+
+  .lb-row__badge-wrap {
+    padding-left: 0;
+  }
 }

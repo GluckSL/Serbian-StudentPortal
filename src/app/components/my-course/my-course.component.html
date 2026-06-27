@@ -2,14 +2,13 @@
   <ng-template #weeklyRankBadge>
     <button
       type="button"
-      class="mc-hero__weekly-rank"
+      class="mc-hero__pill mc-hero__pill--rank"
       *ngIf="weeklyRank != null"
       (click)="openWeeklyLeaderboard()"
       [attr.aria-label]="'Weekly rank ' + weeklyRank + '. Open leaderboard for this week.'"
     >
-      <span class="material-icons mc-hero__weekly-rank-icon" aria-hidden="true">leaderboard</span>
-      <span class="mc-hero__weekly-rank-label">Weekly rank</span>
-      <strong class="mc-hero__weekly-rank-num">#{{ weeklyRank }}</strong>
+      <span class="material-icons mc-hero__pill-icon" aria-hidden="true">leaderboard</span>
+      Weekly rank <strong>#{{ weeklyRank }}</strong>
     </button>
   </ng-template>
 
@@ -47,6 +46,7 @@
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">groups</span>
           Batch <strong>{{ studentBatchLabel }}</strong>
         </span>
+        <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
         <span *ngIf="showLanguageFeeDueCard" class="mc-hero__fee-card"
           [class.mc-hero__fee-card--green]="languageFeeBannerTone === 'green'"
           [class.mc-hero__fee-card--yellow]="languageFeeBannerTone === 'yellow'"
@@ -59,7 +59,6 @@
         </span>
       </div>
     </div>
-    <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
   </header>
 
   <!-- Same vertical position as My class hero: full-width strip above tabs -->
@@ -83,15 +82,19 @@
             <span class="material-icons mc-hero__pill-icon" aria-hidden="true">groups</span>
             Batch <strong>{{ studentBatchLabel }}</strong>
           </span>
+          <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
         </div>
       </div>
-      <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
     </div>
   </section>
 
   <!-- Tabs -->
   <div class="mc-tabs-wrap">
     <div class="mc-tabs" role="tablist">
+      <button type="button" role="tab" class="mc-tab" [class.mc-tab--on]="activeTab === 'leaderboard'"
+        (click)="setTab('leaderboard')">
+        Leaderboard
+      </button>
       <button type="button" role="tab" class="mc-tab"
         [class.mc-tab--on]="activeTab === 'classes'" (click)="setTab('classes')">
         <span class="mc-tab-text mc-tab-text--desktop">My class</span>
@@ -113,11 +116,6 @@
         (click)="setTab('gluck-exam')">
         Glück Exam
         <span class="mc-tab-pending-badge" *ngIf="gluckExamAnyPending" aria-label="Pending exam items">1</span>
-      </button>
-      <button type="button" role="tab" class="mc-tab mc-tab--leaderboard" [class.mc-tab--on]="activeTab === 'leaderboard'"
-        (click)="setTab('leaderboard')">
-        <span class="material-icons mc-tab-lb-icon">leaderboard</span>
-        Leaderboard
       </button>
     </div>
   </div>

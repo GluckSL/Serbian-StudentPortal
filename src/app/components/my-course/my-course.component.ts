@@ -92,7 +92,7 @@ export class MyCourseComponent implements OnInit {
    * the user first navigates to a tab (lazy mounting via *ngIf + [hidden]).
    * 'classes' is pre-seeded because it is the default landing tab.
    */
-  readonly tabVisited = new Set<MyCourseTab>(['classes']);
+  readonly tabVisited = new Set<MyCourseTab>(['leaderboard']);
 
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
@@ -102,7 +102,7 @@ export class MyCourseComponent implements OnInit {
   journey: any = null;
   loading = true;
   private _tourChecked = false;
-  activeTab: MyCourseTab = 'classes';
+  activeTab: MyCourseTab = 'leaderboard';
   gluckExamSubTab: GluckExamSubTab = 'weekly-test';
   journeyFilter: JourneyFilter = 'all';
   journeyFilterOpen = false;
@@ -207,7 +207,7 @@ export class MyCourseComponent implements OnInit {
 
   /** Weekly batch rank — shown in hero; click opens Leaderboard → This Week. */
   weeklyRank: number | null = null;
-  leaderboardRequestedPeriod: LeaderboardPeriod | null = null;
+  leaderboardRequestedPeriod: LeaderboardPeriod | null = 'weekly';
 
   private readonly tabHeaderQuotes = [
     "You're doing great — keep showing up!",
@@ -461,10 +461,20 @@ export class MyCourseComponent implements OnInit {
         if (lb === 'weekly' || lb === 'today' || lb === 'overall') {
           this.leaderboardRequestedPeriod = lb;
         } else {
-          this.leaderboardRequestedPeriod = null;
+          this.leaderboardRequestedPeriod = 'weekly';
         }
         this.activeTab = t;
         this.tabVisited.add(t);
+      } else if (!t) {
+        this.activeTab = 'leaderboard';
+        this.leaderboardRequestedPeriod = 'weekly';
+        this.tabVisited.add('leaderboard');
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { tab: 'leaderboard', lb: 'weekly' },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
       }
     });
   }
@@ -755,13 +765,13 @@ export class MyCourseComponent implements OnInit {
     this.tabVisited.add(tab);
     this.activeTab = tab;
     if (tab === 'leaderboard') {
-      this.leaderboardRequestedPeriod = opts?.lbPeriod ?? null;
+      this.leaderboardRequestedPeriod = opts?.lbPeriod ?? 'weekly';
     } else {
       this.leaderboardRequestedPeriod = null;
     }
     const queryParams: Record<string, string | null> = { tab };
-    if (tab === 'leaderboard' && opts?.lbPeriod) {
-      queryParams['lb'] = opts.lbPeriod;
+    if (tab === 'leaderboard') {
+      queryParams['lb'] = opts?.lbPeriod ?? 'weekly';
     } else {
       queryParams['lb'] = null;
     }

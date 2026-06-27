@@ -431,6 +431,27 @@ export class NavService {
     return Array.from(new Set([...fromLegacyList, ...fromAccessLevels]));
   }
 
+  /** Whether the user may see finance dashboard data (overview KPIs, payment columns, etc.). */
+  canViewFinanceDashboard(
+    role: string,
+    sidebarPermissions: string[] = [],
+    sidebarAccessLevels: Record<string, AccessLevel> = {},
+    teacherTabPermissions: string[] = [],
+    teacherTabAccessLevels: Record<string, AccessLevel> = {}
+  ): boolean {
+    const tabId = 'finance-dashboard';
+    if (role === 'ADMIN' || role === 'TEACHER_ADMIN') return true;
+    if (role === 'SUB_ADMIN') {
+      const level = this.getTabAccessLevel(tabId, sidebarAccessLevels, sidebarPermissions);
+      return this.canAccessLevel(level || undefined, 'view');
+    }
+    if (role === 'TEACHER') {
+      const level = this.getTabAccessLevel(tabId, teacherTabAccessLevels, teacherTabPermissions);
+      return this.canAccessLevel(level || undefined, 'view');
+    }
+    return false;
+  }
+
   canTeacherAccessAdminRoute(
     route: string,
     teacherTabPermissions: string[] = [],

@@ -89,55 +89,21 @@
   justify-content: center;
 }
 
-.mc-hero__weekly-rank {
-  flex: 0 0 auto;
-  align-self: flex-start;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 88px;
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(8px);
-  color: #fff;
+.mc-hero__pill--rank {
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
   font: inherit;
-  text-align: center;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.2);
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.2);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
   }
 
   &:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.85);
     outline-offset: 2px;
   }
-}
-
-.mc-hero__weekly-rank-icon {
-  font-size: 22px;
-  opacity: 0.95;
-}
-
-.mc-hero__weekly-rank-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(224, 240, 255, 0.9);
-}
-
-.mc-hero__weekly-rank-num {
-  font-size: 1.35rem;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
 }
 
 .mc-hero__kicker {
@@ -420,27 +386,15 @@
     align-items: center;
     text-align: center;
     box-sizing: border-box;
-    height: var(--mc-mobile-upper-card-height);
-    min-height: var(--mc-mobile-upper-card-height);
-    max-height: var(--mc-mobile-upper-card-height);
+    height: auto;
+    min-height: unset;
+    max-height: none;
     padding: 14px;
     justify-content: center;
-    overflow: hidden;
+    overflow: visible;
     margin-bottom: 16px;
     position: relative;
-  }
-
-  .mc-hero__weekly-rank {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    align-self: auto;
-    min-width: 72px;
-    padding: 8px 10px;
-  }
-
-  .mc-hero__weekly-rank-num {
-    font-size: 1.15rem;
+    gap: 10px;
   }
 
   .mc-hero__content {
@@ -491,9 +445,10 @@
     font-size: 0.75rem;
     flex-shrink: 1;
     min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    max-width: 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 
   .mc-hero__pill-icon {
@@ -539,7 +494,7 @@
     font-size: 1.45rem;
   }
 
-  /* Exercises / Modules / Journey — same compact dimensions as My class. */
+  /* Exercises / Modules / Journey / Leaderboard — compact profile strip */
   .mc-tab-profile {
     flex-direction: column;
     align-items: center;
@@ -549,13 +504,13 @@
     padding: 14px;
     box-sizing: border-box;
     justify-content: center;
-    overflow: hidden;
-    height: var(--mc-mobile-upper-card-height);
-    min-height: var(--mc-mobile-upper-card-height);
-    max-height: var(--mc-mobile-upper-card-height);
+    overflow: visible;
+    height: auto;
+    min-height: unset;
+    max-height: none;
     max-width: 100%;
     min-width: 0;
-    gap: 6px;
+    gap: 10px;
   }
 
   .mc-tab-profile__photo {
@@ -574,6 +529,8 @@
     justify-content: center;
     text-align: center;
     gap: 5px;
+    padding-right: 0;
+    box-sizing: border-box;
   }
 
   .mc-tab-profile__name,
@@ -592,7 +549,7 @@
     line-height: 1.25;
     font-weight: 800;
     display: -webkit-box;
-    -webkit-line-clamp: 1;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     white-space: normal;
@@ -617,6 +574,16 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
+    gap: 6px;
+  }
+
+  .mc-tab-profile__row .mc-hero__pill {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+    max-width: 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 
   .mc-tab-profile__level {
@@ -764,9 +731,12 @@
     display: none;
   }
 
-  .mc-hero,
+  .mc-hero {
+    min-height: unset;
+  }
+
   .mc-tab-profile {
-    min-height: var(--mc-mobile-upper-card-height);
+    min-height: unset;
   }
 
   .mc-tab-profile-strip {
@@ -780,10 +750,10 @@
 
   .mc-tabs {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow: visible;
-    gap: 6px;
-    padding: 6px;
+    gap: 8px;
+    padding: 8px;
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.86);
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
@@ -794,17 +764,17 @@
   }
 
   .mc-tab {
-    grid-column: span 2;
+    grid-column: auto;
     width: 100%;
     min-width: 0;
     max-width: 100%;
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
-    padding: 0 8px;
+    padding: 0 10px;
     height: 44px;
     min-height: 44px;
-    font-size: 10.5px;
+    font-size: 11px;
     line-height: 1.15 !important;
     display: inline-flex;
     align-items: center;
@@ -820,20 +790,32 @@
     color: #fff;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2), 0 6px 16px rgba(21, 101, 192, 0.28);
   }
-
-  .mc-tab:nth-child(4) {
-    grid-column: span 3;
-  }
-
-  .mc-tab:nth-child(5) {
-    grid-column: span 3;
-  }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 380px) {
   .mc-tab {
     font-size: 10px;
     padding-inline: 6px;
+    min-height: 42px;
+    height: 42px;
+  }
+
+  .mc-tab-profile {
+    padding: 12px;
+  }
+
+  .mc-tab-profile__name {
+    font-size: 1rem;
+  }
+
+  .mc-tab-profile__quote {
+    font-size: 0.75rem;
+    -webkit-line-clamp: 2;
+  }
+
+  .mc-tab-profile__row .mc-hero__pill {
+    font-size: 0.68rem;
+    padding: 3px 7px;
   }
 }
 
@@ -884,23 +866,24 @@
   }
 }
 
-/* ── Leaderboard tab special style ────────────────────────────────────── */
-.mc-tab--leaderboard {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.mc-tab-lb-icon {
-  font-size: 16px;
-  vertical-align: middle;
-}
-
 /* ── Leaderboard panel wrapper ─────────────────────────────────────────── */
 .mc-lb-panel {
   padding: 8px 0 0;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
+  overflow-x: clip;
+}
+
+@media (max-width: 900px) {
+  .mc-lb-panel {
+    padding-top: 4px;
+  }
+
+  .mc {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 
@@ -1042,12 +1025,12 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0;
-    height: var(--mc-mobile-upper-card-height);
-    min-height: var(--mc-mobile-upper-card-height);
-    max-height: var(--mc-mobile-upper-card-height);
+    gap: 10px;
+    height: auto;
+    min-height: unset;
+    max-height: none;
     padding: 14px;
-    overflow: hidden;
+    overflow: visible;
     text-align: center;
     position: relative;
   }
@@ -1056,35 +1039,51 @@
     align-items: center;
     justify-content: center;
     text-align: center;
+    width: 100%;
+    padding-right: 0;
+    box-sizing: border-box;
   }
 
   .mc-tab-profile__name {
     margin: 0 0 5px;
-    font-size: 1.6rem;
-    line-height: 1.22;
-    display: block;
+    font-size: 1.05rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
     max-width: 100%;
     white-space: normal;
-    overflow: visible;
     overflow-wrap: anywhere;
     word-break: normal;
   }
 
   .mc-tab-profile__quote {
-    max-width: 32rem;
+    max-width: 100%;
     margin: 0 0 9px;
     font-size: 0.8rem;
     line-height: 1.35;
     display: -webkit-box;
     overflow: hidden;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
   }
 
   .mc-tab-profile__row {
     justify-content: center;
     gap: 6px;
     width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .mc-tab-profile__row .mc-hero__pill {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+    max-width: 100%;
+    white-space: normal;
+    text-overflow: unset;
+    overflow: visible;
   }
 }
 
@@ -1110,7 +1109,8 @@
 
 .mc-panel[hidden],
 .mc-classes-layout[hidden],
-.mc-journey[hidden] {
+.mc-journey[hidden],
+.mc-lb-panel[hidden] {
   display: none !important;
 }
 
@@ -1121,7 +1121,8 @@
 
   .mc-panel[hidden],
   .mc-classes-layout[hidden],
-  .mc-journey[hidden] {
+  .mc-journey[hidden],
+  .mc-lb-panel[hidden] {
     display: none !important;
   }
 }

@@ -1,10 +1,12 @@
-import { Component, HostListener, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { forkJoin, of } from 'rxjs';
+import { forkJoin, of, Subscription } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { fmtPaymentAmount } from '../payment-hub-v2/payment-currency.util';
+import { AuthService } from '../../services/auth.service';
+import { NavService } from '../../shared/services/nav.service';
 
 // ── Minimum batch number to include (35 → shows 35,36,…46,47 automatically) ──
 const MIN_BATCH_NUMBER = 35;
@@ -134,14 +136,14 @@ interface PaymentBatchRow {
           <span class="ov-kpi__lbl">On Track</span>
         </div>
       </div>
-      <div class="ov-kpi ov-kpi--purple">
+      <div class="ov-kpi ov-kpi--purple" *ngIf="canViewFinance">
         <span class="ov-kpi__icon material-icons">paid</span>
         <div class="ov-kpi__body">
           <span class="ov-kpi__val">{{ fmtTotal(displayKpi.totalPaidLKR, displayKpi.totalPaidINR) }}</span>
           <span class="ov-kpi__lbl">Collected</span>
         </div>
       </div>
-      <div class="ov-kpi ov-kpi--orange">
+      <div class="ov-kpi ov-kpi--orange" *ngIf="canViewFinance">
         <span class="ov-kpi__icon material-icons">pending_actions</span>
         <div class="ov-kpi__body">
           <span class="ov-kpi__val">{{ fmtTotal(displayKpi.totalPendingLKR, displayKpi.totalPendingINR) }}</span>
@@ -207,7 +209,7 @@ interface PaymentBatchRow {
               <th class="ov-th-pct" title="Distinct DG modules completed vs expected">DG %</th>
               <th class="ov-th-pct" title="Arena plays vs expected">Arena %</th>
               <th class="ov-th-pct" title="Avg weekly language time (Ex+DG+Arena) vs 6h target">Engagement %</th>
-              <th class="ov-th-pay">Received / Pending</th>
+              <th class="ov-th-pay" *ngIf="canViewFinance">Received / Pending</th>
               <th class="ov-th-health">Health</th>
             </tr>
           </thead>
@@ -268,7 +270,7 @@ interface PaymentBatchRow {
                 </ng-container>
               </td>
 
-              <td class="ov-td-pay">
+              <td class="ov-td-pay" *ngIf="canViewFinance">
                 <ng-container *ngIf="hasPaymentData(b); else payEmpty">
                   <div class="ov-pay-row" *ngFor="let line of payLines(b)">
                     <span class="ov-pay-received">{{ line.received }}</span>
@@ -654,10 +656,14 @@ interface PaymentBatchRow {
 }
   `]
 })
-export class AdminHubOverviewComponent implements OnInit {
+export class AdminHubOverviewComponent implements OnInit, OnDestroy {
   loading = true;
   error = '';
+  canViewFinance = false;
   batches: BatchRow[] = [];
+  private userSub?: Subscription;
+  private dataLoaded = false;
+  private profileRefreshRequested = false;
   readonly minBatch = MIN_BATCH_NUMBER;
   readonly levelOptions = ['A1', 'A2', 'B1', 'B2'];
   selectedLevels = new Set<string>();
@@ -796,19 +802,110 @@ export class AdminHubOverviewComponent implements OnInit {
   }
 
   private readonly api = environment.apiUrl;
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private authService: AuthService,
+    private navService: NavService,
+  ) {}
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.userSub = this.authService.currentUser$.subscribe(user => this.applyFinanceAccess(user));
+  }
+
+  ngOnDestroy(): void {
+    this.userSub?.unsubscribe();
+  }
+
+  private applyFinanceAccess(user: any | null): void {
+    if (!user?.role) {
+      this.canViewFinance = false;
+      return;
+    }
+
+    if (!this.isPermissionProfileReady(user)) {
+      if (!this.profileRefreshRequested) {
+        this.profileRefreshRequested = true;
+        this.authService.refreshUserProfile().subscribe({ error: () => {} });
+      }
+      return;
+    }
+
+    const prevCanView = this.canViewFinance;
+    this.canViewFinance = this.navService.canViewFinanceDashboard(
+      user.role,
+      user.sidebarPermissions || [],
+      user.sidebarAccessLevels || {},
+      user.teacherTabPermissions || [],
+      user.teacherTabAccessLevels || {},
+    );
+
+    if (!this.dataLoaded) {
+      this.dataLoaded = true;
+      this.load();
+      return;
+    }
+
+    if (this.canViewFinance && !prevCanView) {
+      this.enrichWithPaymentData();
+    }
+  }
+
+  private isPermissionProfileReady(user: any): boolean {
+    if (user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN') return true;
+    if (user.role === 'SUB_ADMIN') {
+      return Array.isArray(user.sidebarPermissions)
+        || Object.keys(user.sidebarAccessLevels || {}).length > 0;
+    }
+    if (user.role === 'TEACHER') {
+      return Array.isArray(user.teacherTabPermissions)
+        || Object.keys(user.teacherTabAccessLevels || {}).length > 0;
+    }
+    return true;
+  }
+
+  private enrichWithPaymentData(): void {
+    this.http.get<{ success?: boolean; data?: { batches?: PaymentBatchRow[] } }>(
+      `${this.api}/new-payments/batches/summary`, { withCredentials: true }
+    ).pipe(catchError(() => of(null))).subscribe(payment => {
+      const payMap = this.buildPaymentMap(payment);
+      this.batches = this.batches.map(row => this.applyPaymentToRow(row, payMap));
+    });
+  }
+
+  private buildPaymentMap(payment: { data?: { batches?: PaymentBatchRow[] } } | null): Map<string, PaymentBatchRow> {
+    const payMap = new Map<string, PaymentBatchRow>();
+    (payment?.data?.batches || []).forEach((p: PaymentBatchRow & { batch?: string }) =>
+      payMap.set(this.normKey(p.batch ?? ''), p)
+    );
+    return payMap;
+  }
+
+  private applyPaymentToRow(row: BatchRow, payMap: Map<string, PaymentBatchRow>): BatchRow {
+    const pay = this.resolvePayRow(payMap, row.batchName);
+    return {
+      ...row,
+      paidLKR: pay.langPaidLKR ?? pay.totalPaidLKR ?? 0,
+      paidINR: pay.langPaidINR ?? pay.totalPaidINR ?? 0,
+      paidUSD: pay.langPaidUSD ?? pay.totalPaidUSD ?? 0,
+      remainingLKR: pay.totalPendingLKR ?? 0,
+      remainingINR: pay.totalPendingINR ?? 0,
+      remainingUSD: pay.totalPendingUSD ?? 0,
+      overdueLKR: pay.totalOverdueLKR ?? 0,
+    };
+  }
 
   private load(): void {
-    forkJoin({
-      journey: this.http.get<{ batches: any[]; upcomingBatches?: any[] }>(
-        `${this.api}/batch-journey`, { withCredentials: true }
-      ).pipe(catchError(() => of({ batches: [], upcomingBatches: [] }))),
-      payment: this.http.get<{ success?: boolean; data?: { batches?: PaymentBatchRow[] } }>(
-        `${this.api}/new-payments/batches/summary`, { withCredentials: true }
-      ).pipe(catchError(() => of(null)))
-    }).subscribe(({ journey, payment }) => {
+    const journey$ = this.http.get<{ batches: any[]; upcomingBatches?: any[] }>(
+      `${this.api}/batch-journey`, { withCredentials: true }
+    ).pipe(catchError(() => of({ batches: [], upcomingBatches: [] })));
+
+    const payment$ = this.canViewFinance
+      ? this.http.get<{ success?: boolean; data?: { batches?: PaymentBatchRow[] } }>(
+          `${this.api}/new-payments/batches/summary`, { withCredentials: true }
+        ).pipe(catchError(() => of(null)))
+      : of(null);
+
+    forkJoin({ journey: journey$, payment: payment$ }).subscribe(({ journey, payment }) => {
 
       const all = [...(journey.batches || []), ...(journey.upcomingBatches || [])];
 
@@ -819,13 +916,10 @@ export class AdminHubOverviewComponent implements OnInit {
       filtered.sort((a, b) => (this.extractBatchNumber(a.batchName) ?? 0) - (this.extractBatchNumber(b.batchName) ?? 0));
 
       // Payment lookup (batch labels may be "35" vs "Batch 35")
-      const payMap = new Map<string, PaymentBatchRow>();
-      (payment?.data?.batches || []).forEach((p: PaymentBatchRow & { batch?: string }) =>
-        payMap.set(this.normKey(p.batch ?? ''), p)
-      );
+      const payMap = this.canViewFinance ? this.buildPaymentMap(payment ?? null) : new Map<string, PaymentBatchRow>();
 
       this.batches = filtered.map(b => {
-        const pay = this.resolvePayRow(payMap, b.batchName);
+        const pay = this.canViewFinance ? this.resolvePayRow(payMap, b.batchName) : {};
         const paidLKR = pay.langPaidLKR ?? pay.totalPaidLKR ?? 0;
         const paidINR = pay.langPaidINR ?? pay.totalPaidINR ?? 0;
         const paidUSD = pay.langPaidUSD ?? pay.totalPaidUSD ?? 0;
@@ -1014,7 +1108,7 @@ export class AdminHubOverviewComponent implements OnInit {
     const headers = [
       'Batch', 'Teacher', 'Journey', 'Students',
       'Classes %', 'Exercises %', 'DG %', 'Arena %', 'Engagement %', 'Engagement min/wk',
-      'Received LKR', 'Pending LKR', 'Received INR', 'Pending INR',
+      ...(this.canViewFinance ? ['Received LKR', 'Pending LKR', 'Received INR', 'Pending INR'] : []),
       'Health %', 'Health Status'
     ];
 
@@ -1029,10 +1123,7 @@ export class AdminHubOverviewComponent implements OnInit {
       b.progressLoaded ? b.arenaEngagementPct : '',
       b.progressLoaded ? b.engagementPct : '',
       b.progressLoaded ? b.avgWeeklyMinutesPerStudent : '',
-      b.paidLKR || '',
-      b.remainingLKR || '',
-      b.paidINR || '',
-      b.remainingINR || '',
+      ...(this.canViewFinance ? [b.paidLKR || '', b.remainingLKR || '', b.paidINR || '', b.remainingINR || ''] : []),
       b.progressLoaded ? b.health : '',
       b.progressLoaded ? b.healthLabel : '',
     ]);

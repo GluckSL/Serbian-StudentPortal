@@ -22,7 +22,7 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
   @Input() active = false;
   @Input() requestedPeriod: LeaderboardPeriod | null = null;
 
-  subTab: SubTab = 'today';
+  subTab: SubTab = 'weekly';
   loading = false;
   error = '';
   data: BatchLeaderboardResponse | null = null;
@@ -120,6 +120,66 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
 
   formatTaskRatio(card: { done: number; total: number }): string {
     return `${card.done}/${card.total}`;
+  }
+
+  /** Compact task chips for leaderboard rows (mobile). Full breakdown for current user. */
+  getEntryTaskChips(entry: LeaderboardEntry): {
+    key: string;
+    icon: string;
+    text: string;
+    tone: string;
+    done: boolean;
+  }[] {
+    const isMe = entry.studentId === this.myStats?.studentId;
+    if (isMe && this.todayTasks) {
+      return this.taskCards.map((card) => ({
+        key: card.key,
+        icon: card.icon,
+        text: this.formatTaskRatio(card),
+        tone: card.tone,
+        done: this.isTaskComplete(card),
+      }));
+    }
+
+    const chips: {
+      key: string;
+      icon: string;
+      text: string;
+      tone: string;
+      done: boolean;
+    }[] = [];
+
+    if (entry.exercisesTotal > 0 || entry.exercisesCompleted > 0) {
+      chips.push({
+        key: 'exercises',
+        icon: '📚',
+        text: `${entry.exercisesCompleted}/${entry.exercisesTotal}`,
+        tone: 'green',
+        done: entry.exercisesTotal > 0 && entry.exercisesCompleted >= entry.exercisesTotal,
+      });
+    }
+
+    if (entry.dgSessionsCompleted > 0) {
+      chips.push({
+        key: 'buddy',
+        icon: '🎙️',
+        text: `${entry.dgSessionsCompleted}`,
+        tone: 'purple',
+        done: false,
+      });
+    }
+
+    if (entry.arenaXp > 0) {
+      chips.push({
+        key: 'arena',
+        icon: '⚡',
+        text: `${Math.floor(entry.arenaXp / 10)}`,
+        tone: 'amber',
+        done: false,
+      });
+    }
+
+    return chips;
   }
 
   get taskSectionLabel(): string {

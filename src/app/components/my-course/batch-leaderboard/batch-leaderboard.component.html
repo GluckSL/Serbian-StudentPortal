@@ -1,4 +1,4 @@
-<div class="lb">
+<div class="lb" [class.lb--period-weekly]="subTab === 'weekly'">
 
   <!-- ── Sub-tabs ─────────────────────────────────────────────────────── -->
   <div class="lb-subtabs" role="tablist">
@@ -11,9 +11,6 @@
     >
       <span class="lb-subtab__live" *ngIf="tab === 'today'"></span>
       {{ getSubTabLabel(tab) }}
-    </button>
-    <button class="lb-reload-btn" (click)="reload()" [disabled]="loading" title="Refresh">
-      <span class="material-icons" [class.spinning]="loading">refresh</span>
     </button>
   </div>
 
@@ -87,6 +84,20 @@
               <span class="lb-row__you-tag" *ngIf="entry.studentId === myStats?.studentId">You</span>
             </p>
             <p class="lb-row__activity">{{ getActivityLabel(entry) }}</p>
+            <div class="lb-row__tasks" *ngIf="getEntryTaskChips(entry) as chips">
+              <span
+                class="lb-row__task-chip"
+                *ngFor="let chip of chips"
+                [class.lb-row__task-chip--done]="chip.done"
+                [class.lb-row__task-chip--tone-blue]="chip.tone === 'blue'"
+                [class.lb-row__task-chip--tone-green]="chip.tone === 'green'"
+                [class.lb-row__task-chip--tone-purple]="chip.tone === 'purple'"
+                [class.lb-row__task-chip--tone-amber]="chip.tone === 'amber'"
+              >
+                <span class="lb-row__task-icon" aria-hidden="true">{{ chip.icon }}</span>
+                <span class="lb-row__task-val">{{ chip.text }}</span>
+              </span>
+            </div>
           </div>
 
           <div class="lb-row__badge-wrap" *ngIf="getStatusBadge(entry) as badge">
@@ -127,13 +138,16 @@
           [class.lb-pos-cell--tone-purple]="card.tone === 'purple'"
           [class.lb-pos-cell--tone-amber]="card.tone === 'amber'"
         >
-          <span class="lb-pos-cell__label">{{ card.label }} {{ card.icon }}</span>
+          <span class="lb-pos-cell__label">
+            <span class="lb-pos-cell__label-full">{{ card.label }} {{ card.icon }}</span>
+            <span class="lb-pos-cell__label-short" aria-hidden="true">{{ card.icon }}</span>
+          </span>
           <span class="lb-pos-cell__ratio">{{ formatTaskRatio(card) }}</span>
         </div>
       </div>
 
-      <!-- Rank-up progress -->
-      <div class="lb-pos-rankup" *ngIf="myRank && myRank > 1 && pointsToRankUp !== null">
+      <!-- Rank-up progress (hidden on This Week — task cards shown instead) -->
+      <div class="lb-pos-rankup" *ngIf="subTab !== 'weekly' && myRank && myRank > 1 && pointsToRankUp !== null">
         <div class="lb-pos-rankup__bar-wrap">
           <div class="lb-pos-rankup__bar">
             <div class="lb-pos-rankup__fill" [style.width.%]="rankUpProgress"></div>
@@ -145,8 +159,8 @@
         </p>
       </div>
 
-      <!-- Batchmates moved today -->
-      <div class="lb-pos-moved">
+      <!-- Batchmates moved today (hidden on This Week) -->
+      <div class="lb-pos-moved" *ngIf="subTab !== 'weekly'">
         <span class="lb-pos-moved__clock">⏰</span>
         <div class="lb-pos-moved__text">
           <strong>{{ activeMatesCount }} batchmate{{ activeMatesCount === 1 ? '' : 's' }} moved today</strong>
