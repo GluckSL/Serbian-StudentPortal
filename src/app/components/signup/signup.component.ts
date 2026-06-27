@@ -1,9 +1,9 @@
 //src/app/component/signup/signup.component.ts
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, ActivatedRoute } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgForm } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { CoursesService } from '../../services/courses.service';
@@ -128,6 +128,24 @@ export class SignupComponent implements OnInit {
 
   isEditMode = false; // ✅ flag to track update mode
   studentId: string | null = null;
+  validationErrors: string[] = [];
+
+  @ViewChild('signupForm') signupFormRef?: NgForm;
+
+  private readonly fieldLabels: Record<string, string> = {
+    role: 'Role',
+    name: 'Full Name',
+    email: 'Email',
+    servicesOptedCustom: 'Services Opted',
+    languageLevelOpted: 'Language Level Opted',
+    medium: 'Medium',
+    subscription: 'Subscription Plan',
+    batch: 'Batch',
+    level: 'CEFR Level',
+    studentStatus: 'Status',
+    assignedTeacher: 'Assign Teacher',
+    assignedBatches: 'Assigned Batches',
+  };
 
 
   constructor(
@@ -305,34 +323,9 @@ export class SignupComponent implements OnInit {
   }
 
   onSubmit() {
-
-    if (this.role === 'STUDENT') {
-      const mediumOk = Array.isArray(this.medium) ? this.medium.length > 0 : !!String(this.medium || '').trim();
-      const batchRequired = !this.isSilverStudent;
-      const batchOk = !batchRequired || !!String(this.batch || '').trim();
-      if (!mediumOk || !this.subscription || !batchOk) {
-        this.notify.warning(
-          this.isSilverStudent
-            ? 'Medium and Subscription are required for students.'
-            : 'Batch, Medium, and Subscription are required for students.'
-        );
-        return;
-      }
-      if (!this.assignedTeacher) {
-        this.notify.warning('You must select a teacher for the student!');
-        return;
-      }
+    if (this.showValidationFeedback()) {
+      return;
     }
-
-    if (this.role === 'TEACHER' || this.role === 'TEACHER_ADMIN') {
-      if (!this.medium || (Array.isArray(this.medium) && this.medium.length === 0) 
-          || this.assignedCourses.length === 0 
-          || !this.assignedBatches.length) {
-        this.notify.warning('Medium, and at least one course are required for teachers!');
-        return;
-      }
-    }
-
 
     const user: any = {
       name: this.name,
@@ -423,6 +416,53 @@ export class SignupComponent implements OnInit {
 
   onAssignedBatchesChange(value: string) {
     this.assignedBatches = value.split(',').map(batch => batch.trim());
+  }
+
+  private showValidationFeedback(): boolean {
+    this.signupFormRef?.form.markAllAsTouched();
+
+    const errors = this.collectValidationErrors();
+    this.validationErrors = errors;
+
+    if (!errors.length) {
+      return false;
+    }
+
+    const message =
+      errors.length === 1
+        ? `Please complete: ${errors[0]}`
+        : `Please complete the following fields: ${errors.join(', ')}`;
+    this.notify.warning(message);
+    this.scrollToFirstInvalid();
+    return true;
+  }
+
+  private collectValidationErrors(): string[] {
+    const errors: string[] = [];
+    const form = this.signupFormRef?.form;
+
+    if (form) {
+      for (const [key, control] of Object.entries(form.controls)) {
+        if (control.invalid) {
+          errors.push(this.fieldLabels[key] || key);
+        }
+      }
+    }
+
+    if (this.role === 'TEACHER' || this.role === 'TEACHER_ADMIN') {
+      if (this.assignedCourses.length === 0) {
+        errors.push('Assign Courses');
+      }
+    }
+
+    return [...new Set(errors)];
+  }
+
+  private scrollToFirstInvalid(): void {
+    setTimeout(() => {
+      const invalid = document.querySelector('.signup-card .ng-invalid');
+      invalid?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
   }
 
 }

@@ -457,11 +457,19 @@
         />
       </div>
 
+      <!-- Validation summary (shown after clicking Update/Register with missing fields) -->
+      <div *ngIf="validationErrors.length" class="validation-alert" role="alert">
+        <strong>Please fix the following before {{ isEditMode ? 'updating' : 'registering' }}:</strong>
+        <ul>
+          <li *ngFor="let err of validationErrors">{{ err }}</li>
+        </ul>
+      </div>
+
       <!-- Submit Button -->
       <button
         type="submit"
-        [disabled]="!signupForm.form.valid"
         class="btn-submit"
+        [class.btn-submit--attention]="validationErrors.length"
       >
         {{ isEditMode ? 'Update' : 'Register' }}
       </button>
