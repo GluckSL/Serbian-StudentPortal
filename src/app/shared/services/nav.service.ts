@@ -17,7 +17,7 @@ export type AccessLevel = 'view' | 'edit' | 'full';
 
 @Injectable({ providedIn: 'root' })
 export class NavService {
-  private readonly SUB_ADMIN_DEFAULT_PERMISSIONS: string[] = ['dashboard', 'profile'];
+  private readonly SUB_ADMIN_DEFAULT_PERMISSIONS: string[] = ['profile'];
   private readonly SUB_ADMIN_ROUTE_ALIASES: Record<string, string[]> = {
     modules: [
       '/learning-modules',
@@ -322,11 +322,26 @@ export class NavService {
     const map: Record<string, string> = {
       ADMIN: '/admin-dashboard',
       TEACHER_ADMIN: '/admin-dashboard',
-      SUB_ADMIN: '/admin-dashboard',
       TEACHER: '/teacher-dashboard',
       STUDENT: '/student-progress'
     };
     return map[role] || '/home';
+  }
+
+  /** First allowed sidebar route for SUB_ADMIN; profile when nothing else is granted. */
+  getSubAdminDefaultRoute(
+    sidebarPermissions: string[] = [],
+    sidebarAccessLevels: Record<string, AccessLevel> = {}
+  ): string {
+    const nav = this.getNavForRole('SUB_ADMIN', sidebarPermissions, [], sidebarAccessLevels, {});
+    for (const group of nav) {
+      for (const item of group.items) {
+        if (item.route) {
+          return item.route;
+        }
+      }
+    }
+    return '/profile';
   }
 
   getAllAdminNavItems(): NavItem[] {

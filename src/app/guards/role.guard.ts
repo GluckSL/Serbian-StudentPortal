@@ -64,7 +64,7 @@ export class RoleGuard implements CanActivate {
         return true;
       }
 
-      this.router.navigate(['/admin-dashboard']);
+      this.router.navigate([this.subAdminHomeRoute(user)]);
       return false;
     }
 
@@ -80,7 +80,7 @@ export class RoleGuard implements CanActivate {
       )) {
         return true;
       }
-      this.router.navigate(['/admin-dashboard']);
+      this.router.navigate([this.subAdminHomeRoute(user)]);
       return false;
     }
 
@@ -110,10 +110,17 @@ export class RoleGuard implements CanActivate {
     } else if (user?.role === 'ADMIN') {
       this.router.navigate(['/admin-dashboard']);
     } else if (user?.role === 'SUB_ADMIN') {
-      this.router.navigate(['/admin-dashboard']);
+      this.router.navigate([this.subAdminHomeRoute(user)]);
     } else {
       this.router.navigate(['/login']);
     }
     return false;
+  }
+
+  private subAdminHomeRoute(user: any): string {
+    return this.navService.getSubAdminDefaultRoute(
+      user?.sidebarPermissions || [],
+      user?.sidebarAccessLevels || {}
+    );
   }
 }

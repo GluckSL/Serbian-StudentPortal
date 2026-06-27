@@ -8,6 +8,7 @@ import { jwtDecode } from 'jwt-decode';
 import { environment } from '../../environments/environment';
 import { isCoursePlan } from '../utils/student-subscription-plans.util';
 import { WelcomeBackService } from './welcome-back.service';
+import { NavService } from '../shared/services/nav.service';
 
 /** JWT key in localStorage (Bearer sent by authTokenInterceptor). */
 export const AUTH_STORAGE_KEY = 'authToken';
@@ -98,6 +99,7 @@ export class AuthService {
   constructor(
     private http: HttpClient,
     private welcomeBack: WelcomeBackService,
+    private navService: NavService,
   ) {
     // New tabs boot a fresh Angular app — hydrate a minimal user from the stored JWT
     // so route guards don't treat an active session as logged-out.
@@ -340,13 +342,24 @@ export class AuthService {
   }
 
   /** Dashboard path after login or when a valid token session is already present. */
-  getPostLoginPath(user: { role?: string; subscription?: string } | null | undefined): string | null {
+  getPostLoginPath(user: {
+    role?: string;
+    subscription?: string;
+    sidebarPermissions?: string[];
+    sidebarAccessLevels?: Record<string, 'view' | 'edit' | 'full'>;
+  } | null | undefined): string | null {
     const role = user?.role || this.getRoleFromToken();
     if (!role) {
       return null;
     }
-    if (role === 'ADMIN' || role === 'SUB_ADMIN') {
+    if (role === 'ADMIN') {
       return '/admin-dashboard';
+    }
+    if (role === 'SUB_ADMIN') {
+      return this.navService.getSubAdminDefaultRoute(
+        user?.sidebarPermissions || [],
+        user?.sidebarAccessLevels || {}
+      );
     }
     if (role === 'TEACHER' || role === 'TEACHER_ADMIN') {
       return '/teacher-dashboard';

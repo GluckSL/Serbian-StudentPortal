@@ -120,7 +120,7 @@ function batchAtUpdateForLog(batch, emptyFallback = "N/A") {
   return s || emptyFallback;
 }
 
-const SUB_ADMIN_DEFAULT_PERMISSIONS = ["dashboard", "profile"];
+const SUB_ADMIN_DEFAULT_PERMISSIONS = ["profile"];
 const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "dashboard",
   "analytic-dash",
@@ -186,7 +186,6 @@ function normalizeSidebarPermissions(sidebarPermissions) {
     )
   );
 
-  if (!uniqueValid.includes("dashboard")) uniqueValid.unshift("dashboard");
   if (!uniqueValid.includes("profile")) uniqueValid.push("profile");
 
   return uniqueValid;
@@ -2338,9 +2337,6 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
         normalizedSidebarPermissions
       );
 
-      if (!normalizedSidebarAccessLevels.dashboard) {
-        normalizedSidebarAccessLevels.dashboard = "view";
-      }
       if (!normalizedSidebarAccessLevels.profile) {
         normalizedSidebarAccessLevels.profile = "view";
       }

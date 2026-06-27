@@ -970,7 +970,7 @@ interface PwModal {
   `]
 })
 export class UserRolesComponent implements OnInit {
-  private readonly requiredSubAdminPermissions = ['dashboard', 'profile'];
+  private readonly requiredSubAdminPermissions = ['profile'];
   expandedSubAdminRows = new Set<string>();
   expandedTeacherTabRows = new Set<string>();
   allTeachersAndAdmins: ManagedUser[] = [];

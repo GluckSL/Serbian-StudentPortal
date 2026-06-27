@@ -26,6 +26,7 @@ export class SidebarComponent implements OnInit {
   userName: string = '';
   userEmail: string = '';
   sidebarPermissions: string[] = [];
+  sidebarAccessLevels: Record<string, 'view' | 'edit' | 'full'> = {};
   paymentRequestPendingCount = 0;
   paymentDueNotificationCount = 0;
 
@@ -49,6 +50,7 @@ export class SidebarComponent implements OnInit {
         this.userName = user.name || '';
         this.userEmail = user.email || '';
         this.sidebarPermissions = user.sidebarPermissions || [];
+        this.sidebarAccessLevels = user.sidebarAccessLevels || {};
         let groups = this.navService.getNavForRole(
           this.userRole,
           this.sidebarPermissions,
@@ -123,6 +125,9 @@ export class SidebarComponent implements OnInit {
 
   getRoute(item: any): string {
     if (item.route === '__dashboard__') {
+      if (this.userRole === 'SUB_ADMIN') {
+        return this.navService.getSubAdminDefaultRoute(this.sidebarPermissions, this.sidebarAccessLevels);
+      }
       return this.navService.getDashboardRoute(this.userRole);
     }
     return item.route;
