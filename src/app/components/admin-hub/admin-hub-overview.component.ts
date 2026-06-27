@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { fmtPaymentAmount } from '../payment-hub-v2/payment-currency.util';
 
 // ── Minimum batch number to include (35 → shows 35,36,…46,47 automatically) ──
 const MIN_BATCH_NUMBER = 35;
@@ -17,7 +18,8 @@ const EXCLUDED_BATCH_KEYS = new Set([
 
 interface BatchRow {
   batchName: string;
-  batchNum: number;           // extracted number from name
+  batchNum: number;
+  batchLevel: string;
   batchCurrentDay: number;
   journeyLength: number;
   studentCount: number;
@@ -27,19 +29,48 @@ interface BatchRow {
   // payment
   paidLKR: number;
   paidINR: number;
+  paidUSD: number;
+  remainingLKR: number;
+  remainingINR: number;
+  remainingUSD: number;
   expectedLKR: number;
   expectedINR: number;
   overdueLKR: number;
-  // progress (loaded lazily)
+  // progress rates (loaded lazily)
+  classAttendancePct: number;    // avg per-class attendance (Zoom Reports formula)
+  exerciseCompletionPct: number; // % of expected exercises completed
+  dgBotCompletionPct: number;    // % of expected DG modules completed
+  arenaEngagementPct: number;    // % of expected arena plays
+  // raw totals (for tooltip / detail)
   totalClassesAttended: number;
   totalExercisesCompleted: number;
   totalDgBotCompleted: number;
   totalArenaCompleted: number;
+  // weekly engagement
+  engagementPct: number;         // avg weekly minutes / 360 * 100
+  avgWeeklyMinutesPerStudent: number;
+  studentsOnTarget: number;
   progressLoaded: boolean;
-  // computed
+  // health
   health: number;
   healthLabel: string;
   healthColor: string;
+}
+
+interface PaymentBatchRow {
+  batch?: string;
+  langPaidLKR?: number;
+  langPaidINR?: number;
+  langPaidUSD?: number;
+  totalPaidLKR?: number;
+  totalPaidINR?: number;
+  totalPaidUSD?: number;
+  totalPendingLKR?: number;
+  totalPendingINR?: number;
+  totalPendingUSD?: number;
+  totalOverdueLKR?: number;
+  totalOverdueINR?: number;
+  totalOverdueUSD?: number;
 }
 
 @Component({
@@ -54,8 +85,11 @@ interface BatchRow {
     <div class="ov-kpi-row">
       <div class="ov-kpi sk" *ngFor="let _ of [1,2,3,4,5]"></div>
     </div>
-    <div class="ov-list">
-      <div class="ov-row sk" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></div>
+    <div class="ov-table-wrap">
+      <div class="ov-table-sk">
+        <div class="ov-table-sk__head sk"></div>
+        <div class="ov-table-sk__row sk" *ngFor="let _ of [1,2,3,4,5,6,7,8]"></div>
+      </div>
     </div>
   </ng-container>
 
@@ -75,9 +109,6 @@ interface BatchRow {
         <span class="ov-header__title">Live Batch Overview</span>
         <span class="ov-header__sub">New-batch students · Batch {{ minBatch }}+</span>
       </div>
-      <div class="ov-header__right">
-        <span class="ov-header__count">{{ batches.length }} active batches</span>
-      </div>
     </div>
 
     <!-- KPI strip -->
@@ -85,18 +116,18 @@ interface BatchRow {
       <div class="ov-kpi ov-kpi--blue">
         <span class="ov-kpi__icon material-icons">groups</span>
         <div class="ov-kpi__body">
-          <span class="ov-kpi__val">{{ kpi.totalStudents }}</span>
+          <span class="ov-kpi__val">{{ displayKpi.totalStudents }}</span>
           <span class="ov-kpi__lbl">Total Students</span>
         </div>
       </div>
-      <div class="ov-kpi ov-kpi--red" *ngIf="kpi.totalBehind > 0">
+      <div class="ov-kpi ov-kpi--red" *ngIf="displayKpi.totalBehind > 0">
         <span class="ov-kpi__icon material-icons">trending_down</span>
         <div class="ov-kpi__body">
-          <span class="ov-kpi__val">{{ kpi.totalBehind }}</span>
+          <span class="ov-kpi__val">{{ displayKpi.totalBehind }}</span>
           <span class="ov-kpi__lbl">Behind Journey</span>
         </div>
       </div>
-      <div class="ov-kpi ov-kpi--green" *ngIf="kpi.totalBehind === 0">
+      <div class="ov-kpi ov-kpi--green" *ngIf="displayKpi.totalBehind === 0">
         <span class="ov-kpi__icon material-icons">check_circle</span>
         <div class="ov-kpi__body">
           <span class="ov-kpi__val">All</span>
@@ -106,149 +137,169 @@ interface BatchRow {
       <div class="ov-kpi ov-kpi--purple">
         <span class="ov-kpi__icon material-icons">paid</span>
         <div class="ov-kpi__body">
-          <span class="ov-kpi__val">{{ fmtTotal(kpi.totalPaidLKR, kpi.totalPaidINR) }}</span>
+          <span class="ov-kpi__val">{{ fmtTotal(displayKpi.totalPaidLKR, displayKpi.totalPaidINR) }}</span>
           <span class="ov-kpi__lbl">Collected</span>
         </div>
       </div>
-      <div class="ov-kpi ov-kpi--orange" *ngIf="kpi.totalOverdueLKR > 0">
-        <span class="ov-kpi__icon material-icons">schedule</span>
+      <div class="ov-kpi ov-kpi--orange">
+        <span class="ov-kpi__icon material-icons">pending_actions</span>
         <div class="ov-kpi__body">
-          <span class="ov-kpi__val">{{ formatLKR(kpi.totalOverdueLKR) }}</span>
-          <span class="ov-kpi__lbl">Overdue (LKR)</span>
+          <span class="ov-kpi__val">{{ fmtTotal(displayKpi.totalPendingLKR, displayKpi.totalPendingINR) }}</span>
+          <span class="ov-kpi__lbl">Total Pending</span>
         </div>
       </div>
-      <div class="ov-kpi ov-kpi--teal">
-        <span class="ov-kpi__icon material-icons">favorite</span>
-        <div class="ov-kpi__body">
-          <span class="ov-kpi__val">{{ avgHealth }}%</span>
-          <span class="ov-kpi__lbl">Avg Batch Health</span>
+      <div class="ov-kpi-slot">
+        <div class="ov-kpi-actions" *ngIf="batches.length > 0">
+          <div class="ov-action-wrap">
+            <button type="button" class="ov-action-btn" (click)="toggleLevelDropdown($event)">
+              Level
+              <span class="material-icons">expand_more</span>
+            </button>
+            <div class="ov-level-dropdown" *ngIf="levelDropdownOpen" (click)="$event.stopPropagation()">
+              <label class="ov-level-check ov-level-check--all">
+                <input type="checkbox" [checked]="metricsScopeAll" (change)="toggleAllMetrics()">
+                <span>All</span>
+              </label>
+              <div class="ov-level-dropdown__divider"></div>
+              <label class="ov-level-check" *ngFor="let lv of levelOptions">
+                <input type="checkbox" [checked]="isLevelSelected(lv)" [disabled]="metricsScopeAll" (change)="toggleLevelCheck(lv)">
+                <span>{{ lv }}</span>
+              </label>
+            </div>
+          </div>
+          <button type="button" class="ov-action-btn ov-action-btn--export" (click)="exportCsv()" [disabled]="!visibleBatches.length">
+            Export
+          </button>
+        </div>
+        <div class="ov-kpi ov-kpi--teal">
+          <span class="ov-kpi__icon material-icons">favorite</span>
+          <div class="ov-kpi__body">
+            <span class="ov-kpi__val">{{ avgHealth }}%</span>
+            <span class="ov-kpi__lbl">Avg Batch Health</span>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- View tabs removed: one unified table -->
 
     <!-- Empty -->
     <div class="ov-empty" *ngIf="batches.length === 0">
       <span class="material-icons">inbox</span>
       <p>No active batches found for Batch {{ minBatch }}+</p>
     </div>
+    <div class="ov-empty" *ngIf="batches.length > 0 && visibleBatches.length === 0">
+      <span class="material-icons">filter_alt</span>
+      <p>No batches match the selected level filters.</p>
+    </div>
 
-    <!-- Batch list — one full-width row per batch -->
-    <div class="ov-list" *ngIf="batches.length > 0">
-      <div
-        class="ov-row"
-        *ngFor="let b of batches"
-        [class.ov-row--healthy]="b.progressLoaded && b.health >= 70"
-        [class.ov-row--warning]="b.progressLoaded && b.health >= 40 && b.health < 70"
-        [class.ov-row--critical]="b.progressLoaded && b.health < 40"
-      >
-        <!-- Left: batch identity + journey -->
-        <div class="ov-row__identity">
-          <div class="ov-row__batch-badge">Batch {{ b.batchName }}</div>
-          <div class="ov-row__teacher" *ngIf="b.teacherName">
-            <span class="material-icons">person</span>{{ b.teacherName }}
-          </div>
-          <div class="ov-row__journey-meta">
-            <span class="ov-row__day-pill">
-              <span class="material-icons">route</span>
-              Day {{ b.batchCurrentDay }} / {{ b.journeyLength }}
-            </span>
-            <span class="ov-row__journey-pct">{{ journeyPct(b) | number:'1.0-0' }}% journey done</span>
-          </div>
-          <div class="ov-row__prog">
-            <div class="ov-row__prog-fill" [style.width]="journeyPct(b) + '%'"></div>
-          </div>
-        </div>
+    <!-- ─── OVERVIEW TABLE ─── -->
+    <div class="ov-table-wrap" *ngIf="visibleBatches.length > 0">
+      <div class="ov-table-scroll">
+        <table class="ov-table">
+          <thead>
+            <tr>
+              <th class="ov-th-batch">Batch</th>
+              <th class="ov-th-journey">Journey</th>
+              <th class="ov-th-num">Students</th>
+              <th class="ov-th-pct" title="Avg attendance per completed class (same as Zoom Reports)">Classes %</th>
+              <th class="ov-th-pct" title="Distinct exercises completed vs total available up to student day">Exercises %</th>
+              <th class="ov-th-pct" title="Distinct DG modules completed vs expected">DG %</th>
+              <th class="ov-th-pct" title="Arena plays vs expected">Arena %</th>
+              <th class="ov-th-pct" title="Avg weekly language time (Ex+DG+Arena) vs 6h target">Engagement %</th>
+              <th class="ov-th-pay">Received / Pending</th>
+              <th class="ov-th-health">Health</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of visibleBatches">
+              <td class="ov-td-batch">
+                <div class="ov-batch-name">Batch {{ b.batchName }}</div>
+                <div class="ov-batch-teacher" *ngIf="b.teacherName">
+                  <span class="material-icons">person</span>{{ b.teacherName }}
+                </div>
+                <div class="ov-batch-teacher ov-batch-teacher--empty" *ngIf="!b.teacherName">No teacher assigned</div>
+              </td>
 
-        <!-- Middle: engagement metrics -->
-        <div class="ov-row__metrics">
-          <div class="ov-metric">
-            <span class="material-icons ov-metric__ico ov-metric__ico--blue">people</span>
-            <div class="ov-metric__body">
-              <span class="ov-metric__val">{{ b.studentCount }}</span>
-              <span class="ov-metric__lbl">Students</span>
-            </div>
-          </div>
+              <td class="ov-td-journey">
+                <div class="ov-journey-badges">
+                  <span class="ov-journey-badge ov-journey-badge--day">{{ b.batchCurrentDay }}</span>
+                  <span class="ov-journey-badge ov-journey-badge--level">{{ (b.batchLevel || '—') | lowercase }}</span>
+                </div>
+              </td>
 
-          <div class="ov-metric" [class.ov-metric--alert]="b.studentsBehindCount > 0">
-            <span class="material-icons ov-metric__ico" [class.ov-metric__ico--red]="b.studentsBehindCount > 0" [class.ov-metric__ico--green]="b.studentsBehindCount === 0">
-              {{ b.studentsBehindCount > 0 ? 'person_off' : 'how_to_reg' }}
-            </span>
-            <div class="ov-metric__body">
-              <span class="ov-metric__val">{{ b.studentsBehindCount }}</span>
-              <span class="ov-metric__lbl">Behind</span>
-            </div>
-          </div>
+              <td class="ov-td-num">
+                <span class="ov-num">{{ b.studentCount }}</span>
+              </td>
 
-          <div class="ov-metric" [class.ov-metric--loading]="!b.progressLoaded">
-            <span class="material-icons ov-metric__ico ov-metric__ico--indigo">video_call</span>
-            <div class="ov-metric__body">
-              <span class="ov-metric__val" *ngIf="b.progressLoaded">{{ b.totalClassesAttended }}</span>
-              <span class="ov-metric__sub" *ngIf="b.progressLoaded && b.studentCount">{{ perStudent(b.totalClassesAttended, b.studentCount) }}/stu</span>
-              <span class="ov-metric__sk" *ngIf="!b.progressLoaded"></span>
-              <span class="ov-metric__lbl">Classes</span>
-            </div>
-          </div>
+              <!-- Classes % -->
+              <td class="ov-td-pct">
+                <ng-container *ngIf="b.progressLoaded; else metricSk">
+                  <span class="ov-pct-only" [class.ov-pct-num--low]="b.classAttendancePct < 40">{{ b.classAttendancePct }}%</span>
+                </ng-container>
+              </td>
 
-          <div class="ov-metric" [class.ov-metric--loading]="!b.progressLoaded">
-            <span class="material-icons ov-metric__ico ov-metric__ico--teal">assignment_turned_in</span>
-            <div class="ov-metric__body">
-              <span class="ov-metric__val" *ngIf="b.progressLoaded">{{ b.totalExercisesCompleted }}</span>
-              <span class="ov-metric__sub" *ngIf="b.progressLoaded && b.studentCount">{{ perStudent(b.totalExercisesCompleted, b.studentCount) }}/stu</span>
-              <span class="ov-metric__sk" *ngIf="!b.progressLoaded"></span>
-              <span class="ov-metric__lbl">Exercises</span>
-            </div>
-          </div>
+              <!-- Exercises % -->
+              <td class="ov-td-pct">
+                <ng-container *ngIf="b.progressLoaded; else metricSk">
+                  <span class="ov-pct-only" [class.ov-pct-num--low]="b.exerciseCompletionPct < 40">{{ b.exerciseCompletionPct }}%</span>
+                </ng-container>
+              </td>
 
-          <div class="ov-metric" [class.ov-metric--loading]="!b.progressLoaded">
-            <span class="material-icons ov-metric__ico ov-metric__ico--amber">smart_toy</span>
-            <div class="ov-metric__body">
-              <span class="ov-metric__val" *ngIf="b.progressLoaded">{{ b.totalDgBotCompleted }}</span>
-              <span class="ov-metric__sub" *ngIf="b.progressLoaded && b.studentCount">{{ perStudent(b.totalDgBotCompleted, b.studentCount) }}/stu</span>
-              <span class="ov-metric__sk" *ngIf="!b.progressLoaded"></span>
-              <span class="ov-metric__lbl">DG Modules</span>
-            </div>
-          </div>
+              <!-- DG Modules % -->
+              <td class="ov-td-pct">
+                <ng-container *ngIf="b.progressLoaded; else metricSk">
+                  <span class="ov-pct-only" [class.ov-pct-num--low]="b.dgBotCompletionPct < 40">{{ b.dgBotCompletionPct }}%</span>
+                </ng-container>
+              </td>
 
-          <div class="ov-metric" [class.ov-metric--loading]="!b.progressLoaded">
-            <span class="material-icons ov-metric__ico ov-metric__ico--purple">sports_esports</span>
-            <div class="ov-metric__body">
-              <span class="ov-metric__val" *ngIf="b.progressLoaded">{{ b.totalArenaCompleted }}</span>
-              <span class="ov-metric__sub" *ngIf="b.progressLoaded && b.studentCount">{{ perStudent(b.totalArenaCompleted, b.studentCount) }}/stu</span>
-              <span class="ov-metric__sk" *ngIf="!b.progressLoaded"></span>
-              <span class="ov-metric__lbl">Arena</span>
-            </div>
-          </div>
+              <!-- Arena % -->
+              <td class="ov-td-pct">
+                <ng-container *ngIf="b.progressLoaded; else metricSk">
+                  <span class="ov-pct-only" [class.ov-pct-num--low]="b.arenaEngagementPct < 40">{{ b.arenaEngagementPct }}%</span>
+                </ng-container>
+              </td>
 
-          <div class="ov-metric ov-metric--pay" *ngIf="b.expectedLKR > 0 || b.expectedINR > 0">
-            <span class="material-icons ov-metric__ico ov-metric__ico--green">paid</span>
-            <div class="ov-metric__body">
-              <span class="ov-metric__val ov-metric__val--sm">{{ formatPayDisplay(b) }}</span>
-              <span class="ov-metric__sub ov-metric__sub--good">{{ payPct(b) | number:'1.0-0' }}% collected</span>
-              <span class="ov-metric__lbl">Payments</span>
-            </div>
-          </div>
-        </div>
+              <!-- Engagement % -->
+              <td class="ov-td-pct">
+                <ng-container *ngIf="b.progressLoaded; else metricSk">
+                  <span class="ov-pct-only" [style.color]="engColor(b.engagementPct)" [class.ov-pct-num--low]="b.engagementPct < 40">{{ b.engagementPct }}%</span>
+                  <span class="ov-pct-sub">{{ fmtMinutes(b.avgWeeklyMinutesPerStudent) }}/wk</span>
+                </ng-container>
+              </td>
 
-        <!-- Right: health -->
-        <div class="ov-row__health">
-          <div class="ov-health ov-health--lg" [class.ov-health--good]="b.health >= 70" [class.ov-health--warn]="b.health >= 40 && b.health < 70" [class.ov-health--bad]="b.health < 40" *ngIf="b.progressLoaded">
-            <svg viewBox="0 0 36 36" class="ov-health__ring">
-              <circle class="ov-health__bg" cx="18" cy="18" r="15.9" fill="none" stroke-width="3"/>
-              <circle class="ov-health__arc" cx="18" cy="18" r="15.9" fill="none" stroke-width="3"
-                [attr.stroke-dasharray]="b.health + ', 100'" stroke-linecap="round" transform="rotate(-90 18 18)"/>
-            </svg>
-            <div class="ov-health__pct">{{ b.health | number:'1.0-0' }}<span class="ov-health__sym">%</span></div>
-          </div>
-          <div class="ov-health ov-health--loading" *ngIf="!b.progressLoaded">
-            <div class="sk-ring sk-ring--lg"></div>
-          </div>
-          <span class="ov-row__health-badge" *ngIf="b.progressLoaded" [style.background]="b.healthColor + '18'" [style.color]="b.healthColor">
-            {{ b.healthLabel }}
-          </span>
-          <span class="ov-row__health-hint" *ngIf="b.progressLoaded">Health score</span>
-        </div>
+              <td class="ov-td-pay">
+                <ng-container *ngIf="hasPaymentData(b); else payEmpty">
+                  <div class="ov-pay-row" *ngFor="let line of payLines(b)">
+                    <span class="ov-pay-received">{{ line.received }}</span>
+                    <span class="ov-pay-slash">/</span>
+                    <span class="ov-pay-remaining" [class.ov-pay-remaining--due]="line.hasDue">{{ line.remaining }}</span>
+                  </div>
+                </ng-container>
+                <ng-template #payEmpty><span class="ov-pay-empty">—</span></ng-template>
+              </td>
+
+              <td class="ov-td-health">
+                <ng-container *ngIf="b.progressLoaded; else healthSk">
+                  <span class="ov-health-pct" [style.color]="b.healthColor">{{ b.health }}%</span>
+                  <span class="ov-health-badge" [style.background]="b.healthColor + '18'" [style.color]="b.healthColor">
+                    {{ b.healthLabel }}
+                  </span>
+                </ng-container>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
+
+    <ng-template #metricSk>
+      <span class="ov-metric-sk"></span>
+    </ng-template>
+
+    <ng-template #healthSk>
+      <span class="ov-metric-sk ov-metric-sk--wide"></span>
+    </ng-template>
   </ng-container>
 </div>
   `,
@@ -286,15 +337,6 @@ interface BatchRow {
   border-radius: 999px;
   font-weight: 600;
 }
-.ov-header__count {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #475569;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  padding: 4px 10px;
-  border-radius: 999px;
-}
 
 /* ── KPI strip ── */
 .ov-kpi-row {
@@ -302,6 +344,55 @@ interface BatchRow {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 18px;
+  align-items: flex-end;
+}
+.ov-kpi-slot {
+  flex: 1;
+  min-width: 130px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ov-kpi-slot .ov-kpi {
+  flex: none;
+  width: 100%;
+  min-height: 56px;
+  box-sizing: border-box;
+}
+.ov-kpi-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: 22px;
+  flex-shrink: 0;
+}
+.ov-action-wrap { position: relative; }
+.ov-action-btn {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 4px 10px; border: 1px solid #cbd5e1; border-radius: 999px;
+  background: #fff; color: #475569; font-size: 0.65rem; font-weight: 700;
+  font-family: inherit; cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.ov-action-btn .material-icons { font-size: 14px; }
+.ov-action-btn:hover:not(:disabled) { border-color: #005b96; color: #005b96; background: #f8fafc; }
+.ov-action-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ov-level-dropdown {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
+  min-width: 110px; padding: 6px 0;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(15,23,42,.12);
+}
+.ov-level-check {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; cursor: pointer; font-size: 0.72rem; font-weight: 600; color: #334155;
+}
+.ov-level-check:hover { background: #f8fafc; }
+.ov-level-check input { accent-color: #005b96; cursor: pointer; }
+.ov-level-check--all { font-weight: 800; color: #0f172a; }
+.ov-level-check input:disabled { opacity: 0.45; cursor: not-allowed; }
+.ov-level-dropdown__divider {
+  height: 1px; background: #e2e8f0; margin: 4px 0;
 }
 .ov-kpi {
   flex: 1;
@@ -326,236 +417,221 @@ interface BatchRow {
 .ov-kpi__val { font-size: 1.15rem; font-weight: 800; color: #0f172a; letter-spacing: -0.04em; line-height: 1.1; }
 .ov-kpi__lbl { font-size: 0.63rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
 
-/* ── Batch list (one row per batch) ── */
-.ov-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ov-row {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
+/* ── Batch table ── */
+.ov-table-wrap {
   background: #fff;
   border-radius: 14px;
   box-shadow: 0 1px 8px rgba(15,23,42,0.07);
+  border: 1px solid #e2e8f0;
   overflow: hidden;
-  border-left: 4px solid #e2e8f0;
-  transition: box-shadow 0.15s;
-
-  &:hover { box-shadow: 0 4px 16px rgba(15,23,42,0.11); }
-  &.ov-row--healthy { border-left-color: #22c55e; }
-  &.ov-row--warning { border-left-color: #f59e0b; }
-  &.ov-row--critical { border-left-color: #ef4444; }
 }
-
-/* Left column — identity */
-.ov-row__identity {
-  flex: 0 0 200px;
-  min-width: 180px;
-  padding: 14px 16px;
-  background: linear-gradient(135deg, #f8fafc 0%, #fff 100%);
-  border-right: 1px solid #f1f5f9;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  justify-content: center;
+.ov-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
-.ov-row__batch-badge {
-  font-size: 1.05rem;
-  font-weight: 900;
-  color: #0f172a;
-  letter-spacing: -0.03em;
+.ov-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  min-width: 1080px;
 }
-.ov-row__teacher {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.68rem;
-  color: #64748b;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  .material-icons { font-size: 13px; opacity: 0.7; }
-}
-.ov-row__journey-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 2px;
-}
-.ov-row__day-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: #1e3a8a;
+.ov-table thead th {
+  background: #03396c;
   color: #fff;
-  font-size: 0.62rem;
-  font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 999px;
-  .material-icons { font-size: 11px; opacity: 0.75; }
-}
-.ov-row__journey-pct {
-  font-size: 0.62rem;
-  color: #94a3b8;
-  font-weight: 600;
-}
-.ov-row__prog {
-  height: 5px;
-  background: #e2e8f0;
-  border-radius: 999px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-.ov-row__prog-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  border-radius: 999px;
-  transition: width 0.6s ease;
-}
-
-/* Middle — metrics strip */
-.ov-row__metrics {
-  flex: 1;
-  display: flex;
-  align-items: stretch;
-  flex-wrap: wrap;
-  padding: 10px 8px;
-  gap: 0;
-  min-width: 0;
-}
-.ov-metric {
-  flex: 1;
-  min-width: 72px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-right: 1px solid #f1f5f9;
-
-  &:last-child { border-right: none; }
-  &.ov-metric--alert { background: #fff7ed; }
-  &.ov-metric--loading { min-height: 56px; }
-  &.ov-metric--pay { background: #f0fdf4; }
-}
-.ov-metric__ico {
-  font-size: 20px;
-  flex-shrink: 0;
-  opacity: 0.85;
-  &.ov-metric__ico--blue   { color: #3b82f6; }
-  &.ov-metric__ico--red    { color: #ef4444; }
-  &.ov-metric__ico--green  { color: #22c55e; }
-  &.ov-metric__ico--indigo { color: #6366f1; }
-  &.ov-metric__ico--teal   { color: #14b8a6; }
-  &.ov-metric__ico--amber  { color: #f59e0b; }
-  &.ov-metric__ico--purple { color: #8b5cf6; }
-}
-.ov-metric__body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.ov-metric__val {
-  font-size: 1rem;
-  font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.04em;
-  line-height: 1.1;
-  &.ov-metric__val--sm { font-size: 0.78rem; }
-}
-.ov-metric__sub {
-  font-size: 0.58rem;
-  color: #94a3b8;
-  font-weight: 600;
-  &.ov-metric__sub--good { color: #16a34a; }
-}
-.ov-metric__lbl {
-  font-size: 0.58rem;
-  color: #94a3b8;
+  padding: 10px 12px;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-top: 2px;
+  text-align: left;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
-.ov-metric__sk {
-  width: 36px; height: 14px; border-radius: 4px;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.2s linear infinite;
+.ov-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
 }
+.ov-table tbody tr:last-child td { border-bottom: none; }
+.ov-table tbody tr:hover { background: #f8fafc; }
 
-/* Right — health */
-.ov-row__health {
-  flex: 0 0 100px;
-  display: flex;
-  flex-direction: column;
+.ov-th-num, .ov-td-num { text-align: center; width: 72px; }
+.ov-th-pct, .ov-td-pct { min-width: 110px; }
+.ov-th-metric, .ov-td-metric { min-width: 88px; }
+.ov-th-pay, .ov-td-pay { min-width: 130px; }
+.ov-th-health, .ov-td-health { min-width: 120px; }
+.ov-th-batch { min-width: 160px; }
+.ov-th-journey { min-width: 130px; }
+.ov-th-engpct { min-width: 200px; }
+
+.ov-td-batch { min-width: 160px; max-width: 220px; }
+.ov-batch-name {
+  font-size: 0.9rem; font-weight: 800; color: #0f172a;
+  letter-spacing: -0.02em; line-height: 1.2;
+}
+.ov-batch-teacher {
+  display: flex; align-items: center; gap: 4px; margin-top: 4px;
+  font-size: 0.68rem; color: #64748b; font-weight: 600; line-height: 1.3;
+  word-break: break-word;
+}
+.ov-batch-teacher .material-icons { font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+.ov-batch-teacher--empty { color: #cbd5e1; font-style: italic; font-weight: 500; }
+
+/* Journey cell — just pill + % (no bar) */
+.ov-td-journey {
+  white-space: nowrap;
+  min-width: 88px;
+}
+.ov-journey-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ov-journey-badge {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 12px 14px;
-  background: #fafbfc;
-  border-left: 1px solid #f1f5f9;
-}
-.ov-row__health-badge {
-  font-size: 0.6rem;
-  font-weight: 800;
+  min-width: 28px;
   padding: 3px 8px;
   border-radius: 999px;
-  text-align: center;
-  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
-.ov-row__health-hint {
-  font-size: 0.55rem;
-  color: #94a3b8;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.ov-journey-badge--day {
+  background: #1e3a8a;
+  color: #fff;
+}
+.ov-journey-badge--level {
+  background: #ede9fe;
+  color: #6d28d9;
+  text-transform: lowercase;
 }
 
-/* Health ring */
-.ov-health {
-  position: relative;
+/* Numeric cells */
+.ov-num {
+  font-size: 0.95rem; font-weight: 800; color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.ov-num--danger  { color: #dc2626; }
+.ov-num--success { color: #16a34a; }
+.ov-td-num--alert { background: #fff7ed; }
+
+/* ── % rate cells ── */
+.ov-td-pct, .ov-td-engpct { vertical-align: middle; }
+.ov-pct-only {
+  font-size: 0.88rem; font-weight: 800; color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.ov-pct-num--low { color: #dc2626; }
+.ov-pct-sub {
+  display: block; font-size: 0.58rem; color: #94a3b8;
+  font-weight: 600; margin-top: 2px;
+}
+
+/* ── Engagement bar ── */
+.ov-th-engpct { min-width: 200px; }
+.ov-td-engpct { min-width: 200px; }
+.ov-eng-bar-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.ov-eng-bar {
+  position: relative; flex: 1; height: 10px;
+  background: #e2e8f0; border-radius: 999px; overflow: visible;
+  min-width: 80px; max-width: 160px;
+}
+.ov-eng-bar__fill {
+  height: 100%; border-radius: 999px;
+  transition: width .5s ease;
+}
+.ov-eng-bar__target {
+  position: absolute; top: -3px; right: 0;
+  width: 2px; height: 16px; background: #64748b;
+  border-radius: 2px; opacity: .4;
+}
+.ov-eng-pct {
+  font-size: 0.88rem; font-weight: 800;
+  font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 38px;
+}
+.ov-eng-sub {
+  display: block; font-size: 0.6rem; color: #94a3b8; font-weight: 600; margin-top: 3px;
+}
+.ov-metric-sk {
+  display: inline-block;
   width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  &.ov-health--lg { width: 56px; height: 56px; }
-}
-.ov-health--lg .ov-health__ring { width: 56px; height: 56px; }
-.ov-health__ring { width: 48px; height: 48px; }
-.ov-health__bg { stroke: #e2e8f0; }
-.ov-health__arc { stroke: #22c55e; transition: stroke-dasharray 0.8s; }
-.ov-health--good .ov-health__arc { stroke: #22c55e; }
-.ov-health--warn .ov-health__arc { stroke: #f59e0b; }
-.ov-health--bad  .ov-health__arc { stroke: #ef4444; }
-.ov-health__pct {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 900;
-  color: #0f172a;
-  letter-spacing: -0.04em;
-}
-.ov-health__sym { font-size: 0.52rem; opacity: 0.6; }
-.ov-health--loading { display: flex; align-items: center; justify-content: center; }
-.sk-ring {
-  width: 40px; height: 40px; border-radius: 50%;
+  height: 14px;
+  border-radius: 4px;
   background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.2s linear infinite;
-  &.sk-ring--lg { width: 48px; height: 48px; }
 }
+.ov-metric-sk--wide { width: 72px; }
+
+.ov-pay-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+  line-height: 1.35;
+}
+.ov-pay-row + .ov-pay-row { margin-top: 3px; }
+.ov-pay-received {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #16a34a;
+  font-variant-numeric: tabular-nums;
+}
+.ov-pay-slash {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+.ov-pay-remaining {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+.ov-pay-remaining--due { color: #dc2626; }
+.ov-pay-empty { color: #cbd5e1; font-size: 0.85rem; }
+
+.ov-td-health {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.ov-health-pct {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 3px;
+}
+.ov-health-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Table skeleton */
+.ov-table-sk { padding: 0; }
+.ov-table-sk__head {
+  height: 40px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.ov-table-sk__row {
+  height: 52px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.ov-table-sk__row:last-child { border-bottom: none; }
 
 /* ── Skeleton ── */
 .ov-kpi.sk { min-height: 56px; border-radius: 12px; }
-.ov-row.sk { min-height: 88px; border-radius: 14px; }
 .sk {
   background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
   background-size: 200% 100%;
@@ -571,25 +647,10 @@ interface BatchRow {
 }
 
 /* ── Responsive ── */
-@media (max-width: 1100px) {
-  .ov-row { flex-wrap: wrap; }
-  .ov-row__identity { flex: 1 1 100%; border-right: none; border-bottom: 1px solid #f1f5f9; }
-  .ov-row__metrics { flex: 1 1 100%; }
-  .ov-row__health {
-    flex: 1 1 100%;
-    flex-direction: row;
-    justify-content: flex-start;
-    border-left: none;
-    border-top: 1px solid #f1f5f9;
-    gap: 12px;
-  }
-}
-
 @media (max-width: 640px) {
   .ov { padding: 12px 10px 28px; }
   .ov-kpi-row { gap: 6px; }
   .ov-kpi { min-width: 110px; padding: 10px 12px; }
-  .ov-metric { min-width: 50%; border-right: none; border-bottom: 1px solid #f1f5f9; }
 }
   `]
 })
@@ -598,13 +659,140 @@ export class AdminHubOverviewComponent implements OnInit {
   error = '';
   batches: BatchRow[] = [];
   readonly minBatch = MIN_BATCH_NUMBER;
+  readonly levelOptions = ['A1', 'A2', 'B1', 'B2'];
+  selectedLevels = new Set<string>();
+  levelDropdownOpen = false;
+  levelsInitialized = false;
+  metricsScopeAll = false;
 
-  kpi = { totalStudents: 0, totalBehind: 0, totalPaidLKR: 0, totalPaidINR: 0, totalOverdueLKR: 0 };
+  get visibleBatches(): BatchRow[] {
+    if (!this.levelsInitialized) return this.batches;
+    return this.batches.filter(b => !b.batchLevel || this.selectedLevels.has(b.batchLevel));
+  }
 
   get avgHealth(): number {
-    const loaded = this.batches.filter(b => b.progressLoaded);
+    const loaded = this.visibleBatches.filter(b => b.progressLoaded);
     if (!loaded.length) return 0;
     return Math.round(loaded.reduce((s, b) => s + b.health, 0) / loaded.length);
+  }
+
+  get displayKpi() {
+    const rows = this.visibleBatches;
+    return {
+      totalStudents: rows.reduce((s, b) => s + b.studentCount, 0),
+      totalBehind: rows.reduce((s, b) => s + b.studentsBehindCount, 0),
+      totalPaidLKR: rows.reduce((s, b) => s + b.paidLKR, 0),
+      totalPaidINR: rows.reduce((s, b) => s + b.paidINR, 0),
+      totalPendingLKR: rows.reduce((s, b) => s + b.remainingLKR, 0),
+      totalPendingINR: rows.reduce((s, b) => s + b.remainingINR, 0),
+    };
+  }
+
+  isLevelSelected(lv: string): boolean {
+    return this.selectedLevels.has(lv);
+  }
+
+  toggleLevelDropdown(event: Event): void {
+    event.stopPropagation();
+    this.levelDropdownOpen = !this.levelDropdownOpen;
+  }
+
+  toggleLevelCheck(lv: string): void {
+    if (this.metricsScopeAll) return;
+    const next = new Set(this.selectedLevels);
+    if (next.has(lv)) next.delete(lv);
+    else next.add(lv);
+    this.selectedLevels = next;
+  }
+
+  toggleAllMetrics(): void {
+    this.metricsScopeAll = !this.metricsScopeAll;
+    if (this.metricsScopeAll) {
+      this.selectedLevels = new Set(this.levelOptions);
+    } else {
+      this.initLevelFilterFromBatches();
+    }
+    this.reloadAllProgress();
+  }
+
+  @HostListener('document:click')
+  closeLevelDropdown(): void {
+    this.levelDropdownOpen = false;
+  }
+
+  private initLevelFilterFromBatches(): void {
+    const active = new Set(
+      this.batches.map(b => b.batchLevel).filter(lv => lv && this.levelOptions.includes(lv))
+    );
+    this.selectedLevels = active.size ? active : new Set(this.levelOptions);
+    this.levelsInitialized = true;
+  }
+
+  private reloadAllProgress(): void {
+    this.batches.forEach((b, idx) => {
+      this.batches[idx] = {
+        ...this.batches[idx],
+        progressLoaded: false,
+        classAttendancePct: 0,
+        exerciseCompletionPct: 0,
+        dgBotCompletionPct: 0,
+        arenaEngagementPct: 0,
+        engagementPct: 0,
+        avgWeeklyMinutesPerStudent: 0,
+      };
+      this.loadBatchProgress(idx);
+    });
+  }
+
+  private loadBatchProgress(idx: number): void {
+    const b = this.batches[idx];
+    if (!b) return;
+    const name = encodeURIComponent(b.batchName);
+    const scope = this.metricsScopeAll ? 'all' : 'current';
+    this.http.get<{ overall?: any }>(
+      `${this.api}/batch-journey/${name}/progress?sections=overall&metricsScope=${scope}`,
+      { withCredentials: true }
+    ).pipe(catchError(() => of(null))).subscribe(res => {
+      this.applyProgressRow(idx, res?.overall ?? {}, b.studentCount || 1, b.studentsBehindCount);
+    });
+  }
+
+  private applyProgressRow(idx: number, ov: any, sc: number, studentsBehindCount: number): void {
+    const regularity = ((sc - studentsBehindCount) / sc) * 100;
+    const classRate = ov.classAttendancePct ?? 0;
+    const exRate = ov.exerciseCompletionPct ?? 0;
+    const dgRate = ov.dgBotCompletionPct ?? 0;
+    const arenaRate = ov.arenaEngagementPct ?? 0;
+
+    const health = Math.round(
+      regularity * 0.35 +
+      classRate  * 0.30 +
+      exRate     * 0.20 +
+      dgRate     * 0.10 +
+      arenaRate  * 0.05
+    );
+    const healthLabel = health >= 70 ? 'Healthy' : health >= 40 ? 'Needs Attention' : 'Critical';
+    const healthColor = health >= 70 ? '#22c55e' : health >= 40 ? '#f59e0b' : '#ef4444';
+
+    this.batches[idx] = {
+      ...this.batches[idx],
+      batchLevel: ov.batchLevel ?? this.batches[idx].batchLevel,
+      totalClassesAttended: ov.totalClassesAttended ?? 0,
+      totalExercisesCompleted: ov.totalExercisesCompleted ?? 0,
+      totalDgBotCompleted: ov.totalDgBotCompleted ?? 0,
+      totalArenaCompleted: ov.totalArenaCompleted ?? 0,
+      classAttendancePct: classRate,
+      exerciseCompletionPct: exRate,
+      dgBotCompletionPct: dgRate,
+      arenaEngagementPct: arenaRate,
+      engagementPct: ov.engagementPct ?? 0,
+      avgWeeklyMinutesPerStudent: ov.avgWeeklyMinutesPerStudent ?? 0,
+      studentsOnTarget: ov.studentsOnTarget ?? 0,
+      progressLoaded: true,
+      health,
+      healthLabel,
+      healthColor
+    };
   }
 
   private readonly api = environment.apiUrl;
@@ -617,8 +805,8 @@ export class AdminHubOverviewComponent implements OnInit {
       journey: this.http.get<{ batches: any[]; upcomingBatches?: any[] }>(
         `${this.api}/batch-journey`, { withCredentials: true }
       ).pipe(catchError(() => of({ batches: [], upcomingBatches: [] }))),
-      payment: this.http.get<{ data: { batches: any[] } }>(
-        `${this.api}/payment-hub/batches/summary`, { withCredentials: true }
+      payment: this.http.get<{ success?: boolean; data?: { batches?: PaymentBatchRow[] } }>(
+        `${this.api}/new-payments/batches/summary`, { withCredentials: true }
       ).pipe(catchError(() => of(null)))
     }).subscribe(({ journey, payment }) => {
 
@@ -630,31 +818,50 @@ export class AdminHubOverviewComponent implements OnInit {
       // Sort by batch number ascending
       filtered.sort((a, b) => (this.extractBatchNumber(a.batchName) ?? 0) - (this.extractBatchNumber(b.batchName) ?? 0));
 
-      // Payment lookup
-      const payMap = new Map<string, any>();
-      (payment?.data?.batches || []).forEach((p: any) => payMap.set(this.normKey(p.batch), p));
+      // Payment lookup (batch labels may be "35" vs "Batch 35")
+      const payMap = new Map<string, PaymentBatchRow>();
+      (payment?.data?.batches || []).forEach((p: PaymentBatchRow & { batch?: string }) =>
+        payMap.set(this.normKey(p.batch ?? ''), p)
+      );
 
       this.batches = filtered.map(b => {
-        const pk = this.normKey(b.batchName);
-        const pay = payMap.get(pk) ?? {};
+        const pay = this.resolvePayRow(payMap, b.batchName);
+        const paidLKR = pay.langPaidLKR ?? pay.totalPaidLKR ?? 0;
+        const paidINR = pay.langPaidINR ?? pay.totalPaidINR ?? 0;
+        const paidUSD = pay.langPaidUSD ?? pay.totalPaidUSD ?? 0;
+        const remainingLKR = pay.totalPendingLKR ?? 0;
+        const remainingINR = pay.totalPendingINR ?? 0;
+        const remainingUSD = pay.totalPendingUSD ?? 0;
         const row: BatchRow = {
           batchName: b.batchName,
           batchNum: this.extractBatchNumber(b.batchName) ?? 0,
+          batchLevel: b.batchLevel ?? '',
           batchCurrentDay: b.batchCurrentDay ?? 1,
           journeyLength: b.journeyLength ?? 200,
           studentCount: b.studentCount ?? 0,
           studentsBehindCount: b.studentsBehindCount ?? 0,
           teacherName: b.teacherName ?? null,
           journeyActive: !!b.journeyActive,
-          paidLKR: pay.totalPaidLKR ?? 0,
-          paidINR: pay.totalPaidINR ?? 0,
-          expectedLKR: pay.totalExpectedLKR ?? pay.fullExpectedLKR ?? 0,
-          expectedINR: pay.totalExpectedINR ?? pay.fullExpectedINR ?? 0,
+          paidLKR,
+          paidINR,
+          paidUSD,
+          remainingLKR,
+          remainingINR,
+          remainingUSD,
+          expectedLKR: 0,
+          expectedINR: 0,
           overdueLKR: pay.totalOverdueLKR ?? 0,
           totalClassesAttended: 0,
           totalExercisesCompleted: 0,
           totalDgBotCompleted: 0,
           totalArenaCompleted: 0,
+          classAttendancePct: 0,
+          exerciseCompletionPct: 0,
+          dgBotCompletionPct: 0,
+          arenaEngagementPct: 0,
+          engagementPct: 0,
+          avgWeeklyMinutesPerStudent: 0,
+          studentsOnTarget: 0,
           progressLoaded: false,
           health: 0,
           healthLabel: '',
@@ -663,80 +870,11 @@ export class AdminHubOverviewComponent implements OnInit {
         return row;
       });
 
-      // KPIs
-      this.kpi = {
-        totalStudents: this.batches.reduce((s, b) => s + b.studentCount, 0),
-        totalBehind: this.batches.reduce((s, b) => s + b.studentsBehindCount, 0),
-        totalPaidLKR: this.batches.reduce((s, b) => s + b.paidLKR, 0),
-        totalPaidINR: this.batches.reduce((s, b) => s + b.paidINR, 0),
-        totalOverdueLKR: this.batches.reduce((s, b) => s + b.overdueLKR, 0)
-      };
-
+      this.initLevelFilterFromBatches();
       this.loading = false;
 
       // Lazy-load progress for each batch individually (UI fills in as each responds)
-      this.batches.forEach((b, idx) => {
-        const name = encodeURIComponent(b.batchName);
-        this.http.get<{ overall?: any }>(
-          `${this.api}/batch-journey/${name}/progress?sections=overall`,
-          { withCredentials: true }
-        ).pipe(catchError(() => of(null))).subscribe(res => {
-          const ov = res?.overall ?? {};
-          const sc = b.studentCount || 1;
-          const day = b.batchCurrentDay || 1;
-
-          // ── Health score ─────────────────────────────────────────────────────
-          // 35% regularity  (% students on track with journey)
-          // 30% class attendance rate vs expected
-          // 20% exercise completion rate vs expected
-          // 10% DG Bot module completion rate vs expected
-          // 5%  Arena engagement rate vs expected
-
-          const regularity = ((sc - b.studentsBehindCount) / sc) * 100;
-
-          // Expected classes per student ≈ 1 class every 2 journey days
-          const expectedClassesPerStudent = Math.max(1, day / 2);
-          const avgClassesPerStudent = (ov.totalClassesAttended ?? 0) / sc;
-          const classRate = Math.min(100, (avgClassesPerStudent / expectedClassesPerStudent) * 100);
-
-          // Expected exercises per student ≈ 1 per journey day
-          const expectedExPerStudent = Math.max(1, day);
-          const avgExPerStudent = (ov.totalExercisesCompleted ?? 0) / sc;
-          const exRate = Math.min(100, (avgExPerStudent / expectedExPerStudent) * 100);
-
-          // Expected DG Bot modules ≈ 1 per 2 journey days
-          const expectedDgPerStudent = Math.max(1, day / 2);
-          const avgDgPerStudent = (ov.totalDgBotCompleted ?? 0) / sc;
-          const dgRate = Math.min(100, (avgDgPerStudent / expectedDgPerStudent) * 100);
-
-          // Expected Arena plays ≈ 1 per 5 journey days (optional engagement)
-          const expectedArenaPerStudent = Math.max(1, day / 5);
-          const avgArenaPerStudent = (ov.totalArenaCompleted ?? 0) / sc;
-          const arenaRate = Math.min(100, (avgArenaPerStudent / expectedArenaPerStudent) * 100);
-
-          const health = Math.round(
-            regularity * 0.35 +
-            classRate  * 0.30 +
-            exRate     * 0.20 +
-            dgRate     * 0.10 +
-            arenaRate  * 0.05
-          );
-          const healthLabel = health >= 70 ? 'Healthy' : health >= 40 ? 'Needs Attention' : 'Critical';
-          const healthColor = health >= 70 ? '#22c55e' : health >= 40 ? '#f59e0b' : '#ef4444';
-
-          this.batches[idx] = {
-            ...this.batches[idx],
-            totalClassesAttended: ov.totalClassesAttended ?? 0,
-            totalExercisesCompleted: ov.totalExercisesCompleted ?? 0,
-            totalDgBotCompleted: ov.totalDgBotCompleted ?? 0,
-            totalArenaCompleted: ov.totalArenaCompleted ?? 0,
-            progressLoaded: true,
-            health,
-            healthLabel,
-            healthColor
-          };
-        });
-      });
+      this.batches.forEach((_, idx) => this.loadBatchProgress(idx));
     });
   }
 
@@ -767,9 +905,73 @@ export class AdminHubOverviewComponent implements OnInit {
     return String(name || '').trim().toLowerCase();
   }
 
-  journeyPct(b: BatchRow): number {
-    if (!b.journeyLength) return 0;
-    return Math.min(100, Math.round((b.batchCurrentDay / b.journeyLength) * 100));
+  /** Match payment row when journey batch is "35" but students use "Batch 35", etc. */
+  private resolvePayRow(payMap: Map<string, PaymentBatchRow>, batchName: string): PaymentBatchRow {
+    const directKeys = [
+      this.normKey(batchName),
+      this.normKey(`batch ${batchName}`),
+    ];
+    for (const key of directKeys) {
+      const row = payMap.get(key);
+      if (row) return row;
+    }
+
+    const num = this.extractBatchNumber(batchName);
+    if (num != null) {
+      for (const [key, row] of payMap.entries()) {
+        if (this.extractBatchNumber(key) === num) return row;
+      }
+    }
+    return {};
+  }
+
+  hasPaymentData(b: BatchRow): boolean {
+    return (
+      b.paidLKR > 0 || b.paidINR > 0 || b.paidUSD > 0 ||
+      b.remainingLKR > 0 || b.remainingINR > 0 || b.remainingUSD > 0
+    );
+  }
+
+  payLines(b: BatchRow): { received: string; remaining: string; hasDue: boolean }[] {
+    const lines: { received: string; remaining: string; hasDue: boolean }[] = [];
+    const add = (paid: number, remaining: number, prefix: string) => {
+      if (paid <= 0 && remaining <= 0) return;
+      lines.push({
+        received: this.payAmt(paid, prefix),
+        remaining: this.payAmt(remaining, prefix),
+        hasDue: remaining > 0,
+      });
+    };
+    add(b.paidLKR, b.remainingLKR, 'LKR');
+    add(b.paidINR, b.remainingINR, 'INR');
+    add(b.paidUSD, b.remainingUSD, 'EURO');
+    return lines;
+  }
+
+  private payAmt(n: number, prefix: string): string {
+    if (!n) return '—';
+    return `${prefix} ${fmtPaymentAmount(n)}`;
+  }
+
+  private shortOrDash(n: number, prefix: string): string {
+    if (!n) return '—';
+    return this.short(n, prefix);
+  }
+
+  engColor(pct: number): string {
+    if (pct >= 70) return '#22c55e';
+    if (pct >= 40) return '#f59e0b';
+    return '#ef4444';
+  }
+
+  fmtMinutes(m: number): string {
+    if (!m) return '0 min';
+    if (m >= 60) {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      return min ? `${h}h ${min}m` : `${h}h`;
+    }
+    return `${m}m`;
   }
 
   perStudent(total: number, students: number): string {
@@ -805,9 +1007,55 @@ export class AdminHubOverviewComponent implements OnInit {
     return `${p} ${n}`;
   }
 
-  formatPayDisplay(b: BatchRow): string {
-    if (b.paidLKR > 0) return this.short(b.paidLKR, 'LKR');
-    if (b.paidINR > 0) return this.short(b.paidINR, '₹');
-    return 'No data';
+  exportCsv(): void {
+    const rows = this.visibleBatches;
+    if (!rows.length) return;
+
+    const headers = [
+      'Batch', 'Teacher', 'Journey', 'Students',
+      'Classes %', 'Exercises %', 'DG %', 'Arena %', 'Engagement %', 'Engagement min/wk',
+      'Received LKR', 'Pending LKR', 'Received INR', 'Pending INR',
+      'Health %', 'Health Status'
+    ];
+
+    const csvRows = rows.map(b => [
+      b.batchName,
+      b.teacherName || '',
+      `${b.batchCurrentDay} ${(b.batchLevel || '').toLowerCase()}`,
+      b.studentCount,
+      b.progressLoaded ? b.classAttendancePct : '',
+      b.progressLoaded ? b.exerciseCompletionPct : '',
+      b.progressLoaded ? b.dgBotCompletionPct : '',
+      b.progressLoaded ? b.arenaEngagementPct : '',
+      b.progressLoaded ? b.engagementPct : '',
+      b.progressLoaded ? b.avgWeeklyMinutesPerStudent : '',
+      b.paidLKR || '',
+      b.remainingLKR || '',
+      b.paidINR || '',
+      b.remainingINR || '',
+      b.progressLoaded ? b.health : '',
+      b.progressLoaded ? b.healthLabel : '',
+    ]);
+
+    const csv = [headers, ...csvRows]
+      .map(row => row.map(col => this.csvValue(col)).join(','))
+      .join('\n');
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `live-batch-overview-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
+
+  private csvValue(v: string | number): string {
+    const s = String(v ?? '');
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
 }

@@ -28,7 +28,8 @@ const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const {
   withJourneyLevelInSet,
-  syncJourneyLevelsForBatch
+  syncJourneyLevelsForBatch,
+  levelForJourneyDay
 } = require('../services/journeyLevelSync.service');
 const {
   BATCH_TYPE_NEW,
@@ -69,6 +70,33 @@ function resolveCourseDay(raw, trialDayEnabled = false) {
 
 function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function levelRegex(level) {
+  return new RegExp(`^${escapeRegExp(String(level || 'A1').trim())}$`, 'i');
+}
+
+/** Average per-class attendance rate — matches Zoom Meeting Reports (avg of each class rate). */
+function avgZoomClassAttendancePct(meetings) {
+  if (!Array.isArray(meetings) || !meetings.length) return 0;
+  const now = Date.now();
+  let sumRates = 0;
+  let meetingCount = 0;
+  for (const m of meetings) {
+    const startMs = m.startTime ? new Date(m.startTime).getTime() : NaN;
+    const durationMin = Number(m.duration) || 0;
+    if (!Number.isFinite(startMs)) continue;
+    const endMs = startMs + durationMin * 60000;
+    if (endMs >= now) continue;
+
+    const totalStudents = (m.attendees || []).length;
+    const attendedCount = (m.attendance || []).filter((a) => a && a.attended === true).length;
+    const rate = totalStudents > 0 ? (attendedCount / totalStudents) * 100 : 0;
+    sumRates += rate;
+    meetingCount += 1;
+  }
+  if (!meetingCount) return 0;
+  return Math.min(100, Math.round(sumRates / meetingCount));
 }
 
 /** Batches a TEACHER/TEACHER_ADMIN may view: assignedBatches + batches of students assigned to them */
@@ -381,6 +409,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
       return {
         batchName: name,
         hasSavedConfig: !!savedCfg,
+        batchLevel: levelForJourneyDay(activeBatchDay),
         journeyLength: cfg.journeyLength,
         batchCurrentDay: activeBatchDay,
         batchStartDate: cfg.batchStartDate || null,
@@ -1397,8 +1426,15 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
-    const batchCfg = await BatchConfig.findOne({ batchName: batchRegex }).select('trialDayEnabled').lean();
+    const batchCfg = await BatchConfig.findOne({ batchName: batchRegex })
+      .select('trialDayEnabled batchCurrentDay batchStartDate journeyLength')
+      .lean();
     const trial = !!batchCfg?.trialDayEnabled;
+    const activeBatchDay = computeBatchDay(batchCfg || {});
+    const batchLevel = levelForJourneyDay(activeBatchDay);
+    const lvRx = levelRegex(batchLevel);
+    const metricsScope = String(req.query.metricsScope || 'current').trim().toLowerCase();
+    const scopeAll = metricsScope === 'all';
 
     // All students in batch (test accounts excluded from analytics)
     const students = await User.find({ batch: batchRegex, role: 'STUDENT', ...EXCLUDE_TEST })
@@ -1412,41 +1448,122 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     // ── Fast path: overall + per-student rows only (no populate, no per-attempt documents) ──
     if (!includeDaily) {
-      const [attemptAgg, meetingsLean, dgCount, arenaCount] = await Promise.all([
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+
+      const DigitalExercise = require('../models/DigitalExercise');
+      const { totalSessionMinutes } = require('../utils/dgSessionMetrics');
+      const MAX_ATTEMPT_SECONDS = 900; // cap per attempt (15 min) – mirrors language tracking
+
+      // Compute avg student day FIRST so we can query exercise counts correctly
+      const avgStudentDay = Math.round(
+        students.reduce((sum, s) => sum + resolveCourseDay(s.currentCourseDay, trial), 0) / students.length
+      ) || 1;
+
+      const exMetaFilter = scopeAll ? { isDeleted: { $ne: true } } : { level: lvRx, isDeleted: { $ne: true } };
+      const modMetaFilter = scopeAll ? {} : { level: lvRx };
+      const gsMetaFilter = scopeAll ? {} : { level: lvRx };
+      const exAvailableFilter = {
+        isDeleted: { $ne: true },
+        visibleToStudents: true,
+        isActive: true,
+        courseDay: { $gte: 1, $lte: avgStudentDay },
+        ...(scopeAll ? {} : { level: lvRx }),
+      };
+
+      const [levelExerciseIds, levelModuleIds, levelGameSetIds] = await Promise.all([
+        DigitalExercise.find(exMetaFilter).distinct('_id'),
+        DGModule.find(modMetaFilter).distinct('_id'),
+        GameSet.find(gsMetaFilter).distinct('_id'),
+      ]);
+
+      const exAttemptMatch = scopeAll
+        ? { studentId: { $in: studentIds }, status: 'completed' }
+        : { studentId: { $in: studentIds }, status: 'completed', exerciseId: { $in: levelExerciseIds } };
+      const dgSessionMatch = scopeAll
+        ? { studentId: { $in: studentIds }, completed: true }
+        : { studentId: { $in: studentIds }, completed: true, moduleId: { $in: levelModuleIds } };
+      const dgWeekMatch = scopeAll
+        ? { studentId: { $in: studentIds }, createdAt: { $gte: weekAgo } }
+        : { studentId: { $in: studentIds }, createdAt: { $gte: weekAgo }, moduleId: { $in: levelModuleIds } };
+      const arenaMatch = scopeAll
+        ? { studentId: { $in: studentIds }, status: 'completed' }
+        : { studentId: { $in: studentIds }, status: 'completed', gameSetId: { $in: levelGameSetIds } };
+      const exTimeMatch = scopeAll
+        ? { studentId: { $in: studentIds }, status: 'completed', startedAt: { $gte: weekAgo } }
+        : { studentId: { $in: studentIds }, status: 'completed', startedAt: { $gte: weekAgo }, exerciseId: { $in: levelExerciseIds } };
+      const arenaTimeMatch = scopeAll
+        ? { studentId: { $in: studentIds }, startedAt: { $gte: weekAgo } }
+        : { studentId: { $in: studentIds }, startedAt: { $gte: weekAgo }, gameSetId: { $in: levelGameSetIds } };
+
+      const [
+        distinctExAgg,
+        scoreAgg,
+        totalExAvailable,
+        meetingsLean,
+        distinctDgAgg,
+        dgWeekSessions,
+        arenaAgg,
+        exTimeAgg,
+        arenaTimeAgg,
+      ] = await Promise.all([
         ExerciseAttempt.aggregate([
-          { $match: { studentId: { $in: studentIds }, status: 'completed' } },
+          { $match: exAttemptMatch },
+          { $group: { _id: { studentId: '$studentId', exerciseId: '$exerciseId' } } },
+          { $group: { _id: '$_id.studentId', count: { $sum: 1 } } }
+        ]),
+        ExerciseAttempt.aggregate([
+          { $match: exAttemptMatch },
           {
             $group: {
               _id: '$studentId',
-              count: { $sum: 1 },
-              totalScore: {
-                $sum: {
-                  $cond: [{ $ne: ['$scorePercentage', null] }, '$scorePercentage', 0]
-                }
-              },
-              scoreCount: {
-                $sum: {
-                  $cond: [{ $ne: ['$scorePercentage', null] }, 1, 0]
-                }
-              }
+              totalScore: { $sum: { $cond: [{ $ne: ['$scorePercentage', null] }, '$scorePercentage', 0] } },
+              scoreCount: { $sum: { $cond: [{ $ne: ['$scorePercentage', null] }, 1, 0] } }
             }
           }
         ]),
+        DigitalExercise.countDocuments(exAvailableFilter),
         MeetingLink.find({ batch: batchRegex, status: { $ne: 'cancelled' } })
-          .select('attendance')
+          .select('attendance attendees startTime duration')
           .lean(),
-        DGSession.countDocuments({ studentId: { $in: studentIds }, completed: true }),
-        GameAttempt.countDocuments({ studentId: { $in: studentIds }, status: 'completed' })
+        DGSession.aggregate([
+          { $match: dgSessionMatch },
+          { $group: { _id: { studentId: '$studentId', moduleId: '$moduleId' } } },
+          { $group: { _id: '$_id.studentId', count: { $sum: 1 } } }
+        ]),
+        DGSession.find(dgWeekMatch).select('studentId timePerSceneMs logs completed').lean(),
+        GameAttempt.aggregate([
+          { $match: arenaMatch },
+          { $group: { _id: '$studentId', count: { $sum: 1 } } }
+        ]),
+        ExerciseAttempt.aggregate([
+          { $match: exTimeMatch },
+          {
+            $group: {
+              _id: '$studentId',
+              seconds: { $sum: { $min: ['$timeSpentSeconds', MAX_ATTEMPT_SECONDS] } }
+            }
+          }
+        ]),
+        GameAttempt.aggregate([
+          { $match: arenaTimeMatch },
+          { $group: { _id: '$studentId', seconds: { $sum: '$timeSpentSeconds' } } }
+        ]),
       ]);
 
-      const studentExerciseMap = {};
-      students.forEach(s => { studentExerciseMap[String(s._id)] = { count: 0, totalScore: 0, scoreCount: 0 }; });
-      for (const row of attemptAgg) {
+      // Build per-student lookup maps
+      const studentExMap = {};
+      students.forEach(s => { studentExMap[String(s._id)] = { count: 0, totalScore: 0, scoreCount: 0 }; });
+      for (const row of (distinctExAgg || [])) {
         const sid = String(row._id);
-        if (!studentExerciseMap[sid]) continue;
-        studentExerciseMap[sid].count = row.count;
-        studentExerciseMap[sid].totalScore = row.totalScore;
-        studentExerciseMap[sid].scoreCount = row.scoreCount;
+        if (studentExMap[sid]) studentExMap[sid].count = row.count || 0;
+      }
+      for (const row of (scoreAgg || [])) {
+        const sid = String(row._id);
+        if (studentExMap[sid]) {
+          studentExMap[sid].totalScore = row.totalScore || 0;
+          studentExMap[sid].scoreCount = row.scoreCount || 0;
+        }
       }
 
       const studentAttendanceMap = {};
@@ -1454,15 +1571,51 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       meetingsLean.forEach(m => {
         (m.attendance || []).forEach(a => {
           const sid = String(a.studentId || a.userId || '');
-          if (studentAttendanceMap[sid] !== undefined && a.attended) {
-            studentAttendanceMap[sid] += 1;
-          }
+          if (studentAttendanceMap[sid] !== undefined && a.attended) studentAttendanceMap[sid] += 1;
         });
       });
 
+      const studentDgMap = {};
+      students.forEach(s => { studentDgMap[String(s._id)] = 0; });
+      for (const row of (distinctDgAgg || [])) {
+        const sid = String(row._id);
+        if (studentDgMap[sid] !== undefined) studentDgMap[sid] = row.count || 0;
+      }
+
+      const studentArenaMap = {};
+      students.forEach(s => { studentArenaMap[String(s._id)] = 0; });
+      for (const row of (arenaAgg || [])) {
+        const sid = String(row._id);
+        if (studentArenaMap[sid] !== undefined) studentArenaMap[sid] = row.count || 0;
+      }
+
+      // ── Weekly engagement time (Exercises + DG Bot + Arena) ───────────────────
+      const exTimeMap = {};
+      for (const row of (exTimeAgg || [])) exTimeMap[String(row._id)] = row.seconds || 0;
+      const arTimeMap = {};
+      for (const row of (arenaTimeAgg || [])) arTimeMap[String(row._id)] = row.seconds || 0;
+      const dgTimeMap = {};
+      for (const s of (dgWeekSessions || [])) {
+        const sid = String(s.studentId);
+        const secs = totalSessionMinutes(s) * 60;
+        dgTimeMap[sid] = (dgTimeMap[sid] || 0) + secs;
+      }
+      const TARGET_WEEKLY_SECONDS = 360 * 60; // 6 hours
+      let totalEngagementSeconds = 0;
+      let studentsOnTarget = 0;
+      for (const s of students) {
+        const sid = String(s._id);
+        const secs = (exTimeMap[sid] || 0) + (dgTimeMap[sid] || 0) + (arTimeMap[sid] || 0);
+        totalEngagementSeconds += secs;
+        if (secs >= TARGET_WEEKLY_SECONDS) studentsOnTarget++;
+      }
+      const avgWeeklyMinutesPerStudent = students.length
+        ? Math.round(totalEngagementSeconds / students.length / 60) : 0;
+      const engagementPct = Math.min(100, Math.round((totalEngagementSeconds / students.length / TARGET_WEEKLY_SECONDS) * 100)) || 0;
+
       const studentSummaries = students.map(s => {
         const sid = String(s._id);
-        const ex = studentExerciseMap[sid];
+        const ex = studentExMap[sid];
         return {
           _id: s._id,
           name: s.name,
@@ -1471,12 +1624,49 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
           currentDay: resolveCourseDay(s.currentCourseDay, trial),
           avgScore: ex.scoreCount ? Math.round(ex.totalScore / ex.scoreCount) : 0,
           exercisesDone: ex.count,
-          classesAttended: studentAttendanceMap[sid] || 0
+          classesAttended: studentAttendanceMap[sid] || 0,
+          dgBotDone: studentDgMap[sid] || 0,
+          arenaDone: studentArenaMap[sid] || 0
         };
       });
 
       const totalExercisesCompleted = studentSummaries.reduce((a, s) => a + s.exercisesDone, 0);
-      const totalClassesAttended = studentSummaries.reduce((a, s) => a + s.classesAttended, 0);
+      const totalClassesAttended  = studentSummaries.reduce((a, s) => a + s.classesAttended, 0);
+      const totalDgBotCompleted   = studentSummaries.reduce((a, s) => a + s.dgBotDone, 0);
+      const totalArenaCompleted   = studentSummaries.reduce((a, s) => a + s.arenaDone, 0);
+
+      // ── Accurate completion rates ──────────────────────────────────────────────
+      // Exercises: distinct completed / (totalExAvailable × students)
+      const exExpected = (totalExAvailable || 0) * students.length;
+      const exerciseCompletionPct = exExpected > 0
+        ? Math.min(100, Math.round((totalExercisesCompleted / exExpected) * 100))
+        : 0;
+
+      // DG: distinct modules per student / expected (1 module per 2 journey days each)
+      const dgRatePct = (() => {
+        let done = 0, expected = 0;
+        for (const s of studentSummaries) {
+          const day = Math.max(1, s.currentDay);
+          done += s.dgBotDone;
+          expected += Math.max(1, Math.ceil(day / 2));
+        }
+        return expected > 0 ? Math.min(100, Math.round((done / expected) * 100)) : 0;
+      })();
+
+      // Arena: plays / expected (1 per 5 days each)
+      const arenaRatePct = (() => {
+        let done = 0, expected = 0;
+        for (const s of studentSummaries) {
+          const day = Math.max(1, s.currentDay);
+          done += s.arenaDone;
+          expected += Math.max(1, Math.ceil(day / 5));
+        }
+        return expected > 0 ? Math.min(100, Math.round((done / expected) * 100)) : 0;
+      })();
+
+      // Classes %: avg per-class attendance rate (same as Zoom Meeting Reports)
+      const classAttendancePct = avgZoomClassAttendancePct(meetingsLean);
+
       const scoredStudents = studentSummaries.filter(s => s.avgScore > 0);
       const avgScorePercent = scoredStudents.length ? Math.round(scoredStudents.reduce((a, s) => a + s.avgScore, 0) / scoredStudents.length) : 0;
       const avgDayReached = studentSummaries.length ? Math.round(studentSummaries.reduce((a, s) => a + s.currentDay, 0) / studentSummaries.length) : 0;
@@ -1484,12 +1674,22 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       return res.json({
         overall: {
           totalStudents: students.length,
+          batchLevel,
+          batchCurrentDay: activeBatchDay,
+          metricsScope: scopeAll ? 'all' : 'current',
           avgScorePercent,
           totalExercisesCompleted,
           totalClassesAttended,
           avgDayReached,
-          totalDgBotCompleted: dgCount || 0,
-          totalArenaCompleted: arenaCount || 0
+          totalDgBotCompleted,
+          totalArenaCompleted,
+          classAttendancePct,
+          exerciseCompletionPct,
+          dgBotCompletionPct: dgRatePct,
+          arenaEngagementPct: arenaRatePct,
+          avgWeeklyMinutesPerStudent,
+          engagementPct,
+          studentsOnTarget
         },
         students: studentSummaries,
         daily: [],

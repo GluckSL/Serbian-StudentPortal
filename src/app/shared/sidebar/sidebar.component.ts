@@ -1,8 +1,7 @@
 import { Component, DestroyRef, OnInit, Output, EventEmitter, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { RouterModule, Router, NavigationEnd } from '@angular/router';
-import { filter } from 'rxjs/operators';
+import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { NavService, NavGroup } from '../services/nav.service';
 import { TourService } from '../../services/tour.service';
@@ -44,11 +43,6 @@ export class SidebarComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.router.events.pipe(
-      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(() => this.expandGroupForCurrentRoute());
-
     this.authService.currentUser$.subscribe(user => {
       if (user) {
         this.userRole = user.role || '';
@@ -97,33 +91,8 @@ export class SidebarComponent implements OnInit {
 
   private setNavGroups(groups: NavGroup[]): void {
     this.navGroups = groups;
-    this.initCollapsedState();
     this.bindPaymentRequestNavBadge();
     this.bindPaymentDueNotificationBadge();
-  }
-
-  /** Multi-item groups start collapsed; the group for the current route stays open. */
-  private initCollapsedState(): void {
-    for (const group of this.navGroups) {
-      if (group.items.length > 1 && this.collapsed[group.group] === undefined) {
-        this.collapsed[group.group] = true;
-      }
-    }
-    this.expandGroupForCurrentRoute();
-  }
-
-  private expandGroupForCurrentRoute(): void {
-    const url = this.router.url.split('?')[0].split('#')[0];
-    for (const group of this.navGroups) {
-      if (group.items.length <= 1) continue;
-      const hasActive = group.items.some(item => {
-        const route = this.getRoute(item);
-        return url === route || url.startsWith(`${route}/`);
-      });
-      if (hasActive) {
-        this.collapsed[group.group] = false;
-      }
-    }
   }
 
   get showPaymentDueNotifications(): boolean {
