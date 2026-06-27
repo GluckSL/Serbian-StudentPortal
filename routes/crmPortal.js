@@ -1,44 +1,19 @@
 /**
  * Read-only CRM endpoints for WordPress / external pollers.
  * Auth: header X-CRM-Token must equal process.env.REMINDERS_CRM_TOKEN
- * (same secret as GET /api/reminders/crm/pending).
  *
- * These mirror data shown on admin Teachers / Students / Reminders views (JSON API),
+ * These mirror data shown on admin Teachers / Students views (JSON API),
  * not the SPA URLs https://gluckstudentsportal.com/teachers (frontend).
  */
 
 const express = require('express');
 const mongoose = require('mongoose');
 const User = require('../models/User');
-const Reminder = require('../models/Reminder');
-const MeetingLink = require('../models/MeetingLink');
 const { crmTokenAuth } = require('../middleware/crmTokenAuth');
 const { toStudentDto } = require('../services/crmStudentExport');
 const { upsertStudentFromCrm } = require('../services/crmStudentUpsert');
 const { applyStudentNameFilter } = require('../utils/studentSearchQuery');
 const { applyStudentCountryFilters } = require('../utils/studentCountry');
-
-async function batchParticipantsAndSchedules(batchName) {
-  const name = String(batchName || '').trim();
-  if (!name) return { participants: [], classSchedules: [] };
-  const batchEsc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const [participants, classSchedules] = await Promise.all([
-    User.find({ role: 'STUDENT', batch: name })
-      .select('-password')
-      .sort({ name: 1 })
-      .lean(),
-    MeetingLink.find({
-      batch: new RegExp(`^${batchEsc}$`, 'i'),
-      status: { $in: ['scheduled', 'started'] }
-    })
-      .sort({ startTime: 1 })
-      .limit(100)
-      .populate('assignedTeacher', 'name email regNo role medium assignedBatches')
-      .populate('createdBy', 'name email role regNo')
-      .lean()
-  ]);
-  return { participants, classSchedules };
-}
 
 const router = express.Router();
 
@@ -489,147 +464,6 @@ router.post('/students/bulk-upsert', async (req, res) => {
   } catch (err) {
     console.error('[crm] POST /students/bulk-upsert', err);
     res.status(500).json({ success: false, message: 'Bulk upsert failed', error: err.message });
-  }
-});
-
-// ─── GET /api/crm/reminders — list + recipients + schedule context
-router.get('/reminders', async (req, res) => {
-  try {
-    res.set('Cache-Control', 'no-store');
-    const page = toPositiveInt(req.query.page, 1);
-    const limit = Math.min(toPositiveInt(req.query.limit, 100), 500);
-    const skip = (page - 1) * limit;
-
-    const total = await Reminder.countDocuments({});
-    const reminders = await Reminder.find({})
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('createdBy', 'name role')
-      .populate('templateId', 'title')
-      .lean();
-
-    const recipientStudentIds = [
-      ...new Set(
-        reminders
-          .flatMap((r) => (r.recipients || []).map((rc) => rc?.studentId).filter(Boolean))
-          .map((id) => String(id))
-      )
-    ];
-    const recipientStudents = recipientStudentIds.length
-      ? await User.find({ _id: { $in: recipientStudentIds } })
-        .select('-password')
-        .lean()
-      : [];
-    const recipientStudentMap = new Map(recipientStudents.map((s) => [String(s._id), s]));
-
-    const uniqueBatches = [...new Set(reminders.map((r) => String(r.targetBatch || '').trim()).filter(Boolean))];
-    const batchCtx = new Map();
-    await Promise.all(
-      uniqueBatches.map(async (batchName) => {
-        const ctx = await batchParticipantsAndSchedules(batchName);
-        batchCtx.set(batchName, ctx);
-      })
-    );
-
-    const mapped = reminders.map((reminder) => {
-      const { classSchedules, participants } = batchCtx.get(reminder.targetBatch) || { classSchedules: [], participants: [] };
-      const nextUpcomingClass = classSchedules[0] || null;
-      const scheduleTimeKind =
-        reminder.scheduleTimeKind ||
-        (reminder.deliveryMode !== 'scheduled'
-          ? 'instant'
-          : reminder.minutesBeforeClass != null && Number.isFinite(Number(reminder.minutesBeforeClass))
-            ? 'minutes_before_class'
-            : 'fixed_datetime');
-
-      const recipientsDetailed = (reminder.recipients || []).map((rc) => {
-        const student = recipientStudentMap.get(String(rc.studentId || '')) || null;
-        return {
-          ...rc,
-          student,
-          batch: student?.batch || reminder.targetBatch || null,
-          regNo: student?.regNo || null
-        };
-      });
-
-      return {
-        ...reminder,
-        recipients: reminder.recipients || [],
-        scheduleTimeKind,
-        recipientsDetailed,
-        participants,
-        classSchedules,
-        nextUpcomingClass,
-        scheduleSummary:
-          scheduleTimeKind === 'minutes_before_class' &&
-          reminder.minutesBeforeClass != null &&
-          nextUpcomingClass?.startTime
-            ? `Send ${reminder.minutesBeforeClass} min before class at ${nextUpcomingClass.startTime}`
-            : reminder.scheduledFor
-              ? `Send at ${reminder.scheduledFor}`
-              : null
-      };
-    });
-
-    const pages = Math.max(1, Math.ceil(total / limit));
-    res.json({
-      success: true,
-      data: mapped,
-      pagination: { total, page, limit, pages }
-    });
-  } catch (err) {
-    console.error('[crm] GET /reminders', err);
-    res.status(500).json({ success: false, message: 'Failed to fetch reminders', error: err.message });
-  }
-});
-
-// ─── GET /api/crm/reminders/:id — one reminder + recipients + batch participants & classes
-router.get('/reminders/:id', async (req, res) => {
-  try {
-    res.set('Cache-Control', 'no-store');
-    const id = String(req.params.id || '').trim();
-    const reminder = await Reminder.findById(id)
-      .populate('createdBy', 'name role email regNo')
-      .populate('templateId', 'title body isActive')
-      .lean();
-
-    if (!reminder) {
-      return res.status(404).json({ success: false, message: 'Reminder not found.' });
-    }
-
-    const { participants, classSchedules } = await batchParticipantsAndSchedules(reminder.targetBatch);
-    const nextUpcomingClass = classSchedules[0] || null;
-
-    const scheduleTimeKind =
-      reminder.scheduleTimeKind ||
-      (reminder.deliveryMode !== 'scheduled'
-        ? 'instant'
-        : reminder.minutesBeforeClass != null && Number.isFinite(Number(reminder.minutesBeforeClass))
-          ? 'minutes_before_class'
-          : 'fixed_datetime');
-
-    res.json({
-      success: true,
-      data: {
-        ...reminder,
-        scheduleTimeKind,
-        participants,
-        classSchedules,
-        nextUpcomingClass,
-        scheduleSummary:
-          scheduleTimeKind === 'minutes_before_class' &&
-          reminder.minutesBeforeClass != null &&
-          nextUpcomingClass?.startTime
-            ? `Send ${reminder.minutesBeforeClass} min before class at ${nextUpcomingClass.startTime}`
-            : reminder.scheduledFor
-              ? `Send at ${reminder.scheduledFor}`
-              : null
-      }
-    });
-  } catch (err) {
-    console.error('[crm] GET /reminders/:id', err);
-    res.status(500).json({ success: false, message: 'Failed to fetch reminder', error: err.message });
   }
 });
 
