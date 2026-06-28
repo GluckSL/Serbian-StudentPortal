@@ -124,7 +124,12 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
             this.otpSubStep = 'info';
           }
           this.selectedSubscription = d.subscription || this.selectedSubscription;
-          if (d.status === 'documents_done' || d.status === 'payment_pending') {
+          if (d.status === 'proof_submitted') {
+            this.currentStep = 2;
+            this.paymentSubStep = 'proof-done';
+            this.computedAmount = d.amount || 0;
+            this.paymentFinalized = true;
+          } else if (d.status === 'documents_done' || d.status === 'payment_pending') {
             this.currentStep = 2;
             this.computedAmount = d.amount || 0;
             this.paymentFinalized = !!d.amount;

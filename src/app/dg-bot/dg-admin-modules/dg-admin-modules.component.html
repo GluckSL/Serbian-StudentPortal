@@ -219,13 +219,18 @@
                       <td>
                         <div class="module-info">
                           <div class="module-title">{{ m.title }}</div>
+                          <span class="badge dg-mm-badge-beginner mt-1" *ngIf="isBeginnerMode(m)">
+                            <i class="fas fa-seedling me-1"></i> Beginner mode
+                          </span>
                         </div>
                       </td>
                       <td>
                         <div class="level-category">
                           <span class="badge bg-primary me-1">{{ m.level || '—' }}</span>
                           <br />
-                          <small class="text-muted">Guided speaking</small>
+                          <small class="text-muted" [class.dg-mm-cat-beginner]="isBeginnerMode(m)">
+                            {{ moduleCategoryLabel(m) }}
+                          </small>
                         </div>
                       </td>
                       <td>
@@ -235,9 +240,22 @@
                         </div>
                       </td>
                       <td>
-                        <span class="badge bg-light text-dark border" title="Visible to all batches with active journey + GO Students">
+                        <span
+                          class="badge bg-light text-dark border"
+                          *ngIf="showsAllBatches(m)"
+                          title="Visible to all batches with active journey + GO Students"
+                        >
                           All active batches
                         </span>
+                        <div class="dg-mm-batch-list" *ngIf="!showsAllBatches(m)">
+                          <span
+                            *ngFor="let b of targetBatchLabels(m)"
+                            class="badge bg-primary dg-mm-batch-pill"
+                            [title]="'Visible to batch ' + b"
+                          >
+                            {{ b }}
+                          </span>
+                        </div>
                       </td>
                       <td>
                         <span class="text-muted small">{{ m.language || 'German' }}</span>

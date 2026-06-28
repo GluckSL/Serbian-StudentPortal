@@ -60,12 +60,21 @@ function startConversation(sessionId, moduleData) {
   const scenario = moduleData.rolePlayScenario || {};
   const timing = _resolvePracticeWindow(moduleData);
 
+  // ── Beginner mode ─────────────────────────────────────────────────────────
+  const bm = moduleData.beginnerMode || {};
+  const isBeginnerMode = !!(bm.enabled && Array.isArray(bm.questions) && bm.questions.length);
+  const beginnerQuestions = isBeginnerMode
+    ? [...bm.questions]
+        .filter(q => q && (q.questionText || '').trim())
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : [];
+
   const state = {
     sessionId,
     moduleId: String(moduleData._id || ''),
     conversationStarted: false,
     turnCount: 0,
-    maxTurns: Math.max(8, vocabList.length + 3),
+    maxTurns: isBeginnerMode ? beginnerQuestions.length * 3 + 2 : Math.max(8, vocabList.length + 3),
 
     // ── Vocab (split + union) ─────────────────────────────────────────────────
     vocabStudent,           // words student must produce
@@ -104,6 +113,13 @@ function startConversation(sessionId, moduleData) {
 
     // ── Farewell guard ────────────────────────────────────────────────────────
     closingExchangeCount: 0,
+
+    // ── Beginner mode ─────────────────────────────────────────────────────────
+    isBeginnerMode,
+    beginnerQuestions,
+    beginnerQuestionIndex: 0,
+    /** True when a language hint was shown; next student turn should advance the question. */
+    beginnerAwaitingRepeat: false,
 
     createdAt: Date.now(),
   };
@@ -206,6 +222,12 @@ function isConversationComplete(state) {
 async function generateOpeningMessage(state) {
   const ctx = state.moduleContext;
 
+  // Beginner mode: ask the first configured question directly
+  if (state.isBeginnerMode && state.beginnerQuestions.length > 0) {
+    const firstQ = state.beginnerQuestions[0];
+    return (firstQ.questionText || '').trim();
+  }
+
   if (ctx.aiOpeningLines && ctx.aiOpeningLines.length > 0) {
     return ctx.aiOpeningLines[Math.floor(Math.random() * ctx.aiOpeningLines.length)];
   }
@@ -237,6 +259,113 @@ async function generateOpeningMessage(state) {
 }
 
 /**
+ * Handle one student turn in beginner mode.
+ * Asks questions one-by-one; advances on correct answer or after a language-hint repeat.
+ * Returns the same shape as processStudentTurn.
+ */
+async function _processBeginnerTurn(sessionId, state, transcript, pronunciationScore) {
+  const ctx = state.moduleContext;
+  const questions = state.beginnerQuestions;
+  const currentIdx = state.beginnerQuestionIndex;
+  const currentQ = questions[currentIdx] || null;
+  const newTurnCount = state.turnCount + 1;
+
+  const historyWithStudent = [
+    ...state.history,
+    { speaker: 'student', text: transcript, score: pronunciationScore },
+  ];
+
+  let nextIdx = currentIdx;
+  let aiText = '';
+  let isComplete = false;
+
+  const FEEDBACKS = ['Super!', 'Sehr gut!', 'Prima!', 'Bravo!', 'Wunderbar!'];
+  const randFeedback = () => FEEDBACKS[Math.floor(Math.random() * FEEDBACKS.length)];
+
+  if (state.beginnerAwaitingRepeat) {
+    // Student just repeated the German phrase after a hint — accept and advance
+    nextIdx = currentIdx + 1;
+    if (nextIdx >= questions.length) {
+      isComplete = true;
+      aiText = ctx.language === 'German'
+        ? 'Super! Du hast alle Fragen beantwortet! Sehr gut!'
+        : 'Great! You answered all the questions! Well done!';
+    } else {
+      const nextQ = questions[nextIdx];
+      aiText = `${randFeedback()} ${(nextQ.questionText || '').trim()}`;
+    }
+  } else {
+    // Evaluate student's answer against the expected answer (if provided)
+    let isCorrect = false;
+    if (currentQ?.targetAnswer?.trim()) {
+      const expected = currentQ.targetAnswer.toLowerCase().trim();
+      const said = transcript.toLowerCase().trim();
+      isCorrect = said.includes(expected) || expected.includes(said) || pronunciationScore >= 70;
+    } else {
+      // No expected answer: accept any non-empty spoken response
+      isCorrect = transcript.trim().length > 0 && pronunciationScore >= 30;
+    }
+
+    if (isCorrect) {
+      nextIdx = currentIdx + 1;
+      if (nextIdx >= questions.length) {
+        isComplete = true;
+        aiText = ctx.language === 'German'
+          ? 'Super! Du hast alle Fragen beantwortet! Sehr gut!'
+          : 'Great! You answered all the questions! Well done!';
+      } else {
+        const nextQ = questions[nextIdx];
+        aiText = `${randFeedback()} ${(nextQ.questionText || '').trim()}`;
+      }
+    } else {
+      // Wrong answer — give hint and stay on same question
+      if (currentQ?.targetAnswer?.trim()) {
+        aiText = ctx.language === 'German'
+          ? `Sag: "${currentQ.targetAnswer}"`
+          : `Say: "${currentQ.targetAnswer}"`;
+      } else if (currentQ?.hint?.trim()) {
+        aiText = currentQ.hint.trim();
+      } else {
+        aiText = (currentQ?.questionText || '').trim()
+          || (ctx.language === 'German' ? 'Versuche es noch einmal.' : 'Try again.');
+      }
+    }
+  }
+
+  const finalHistory = [...historyWithStudent, { speaker: 'ai', text: aiText }];
+  setState(sessionId, {
+    turnCount: newTurnCount,
+    history: finalHistory,
+    beginnerQuestionIndex: nextIdx,
+    beginnerAwaitingRepeat: false,
+  });
+
+  const progressPct = questions.length > 0
+    ? Math.round((nextIdx / questions.length) * 100)
+    : 100;
+
+  const elapsedSec = Math.floor((Date.now() - (state.createdAt || Date.now())) / 1000);
+  const minSec = Math.max(60, (ctx.minPracticeMinutes || 10) * 60);
+
+  return {
+    aiText,
+    turnCount: newTurnCount,
+    complete: isComplete,
+    completionReason: isComplete ? 'all_questions_done' : null,
+    vocabCoverage: progressPct,
+    usedVocab: [],
+    phase: isComplete ? 'complete' : 'active',
+    studentVocabCoverage: 100,
+    aiVocabCoverage: 100,
+    elapsedSeconds: elapsedSec,
+    minRequiredSeconds: minSec,
+    maxAllowedSeconds: null,
+    shouldWrapUp: false,
+    beginnerQuestionIndex: nextIdx,
+  };
+}
+
+/**
  * Process one student turn:
  *  1. Record student message + track student-side vocab
  *  2. Compute core-complete + conversation phase
@@ -248,6 +377,11 @@ async function generateOpeningMessage(state) {
 async function processStudentTurn(sessionId, transcript, pronunciationScore) {
   const state = getState(sessionId);
   if (!state) throw new Error('Conversation session not found — call /conversation/start first');
+
+  // Route beginner mode to its dedicated handler
+  if (state.isBeginnerMode) {
+    return _processBeginnerTurn(sessionId, state, transcript, pronunciationScore);
+  }
 
   const ctx = state.moduleContext;
   const newTurnCount = state.turnCount + 1;

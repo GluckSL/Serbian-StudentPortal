@@ -432,6 +432,12 @@
         <label>Description</label>
         <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Optional description" [disabled]="uploadInProgress"></textarea>
       </div>
+      <div class="cr-field">
+        <label>Meeting ID <span class="cr-hint-inline">(optional)</span></label>
+        <input class="cr-input" type="text" [(ngModel)]="form.zoomMeetingId"
+               placeholder="e.g. 87197015828" [disabled]="uploadInProgress">
+        <p class="cr-hint">Zoom meeting ID for this class, if known. Shown in the recordings table.</p>
+      </div>
       <div class="cr-field-row">
         <div class="cr-field">
           <label>Level *</label>

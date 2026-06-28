@@ -146,10 +146,16 @@
               <span class="material-icons">replay</span>
               Re-attempt
             </button>
+            <button
+              class="btn-go-back"
+              type="button"
+              (click)="backToExercises()"
+              [disabled]="submitting"
+            >
+              <span class="material-icons">arrow_back</span>
+              Go back
+            </button>
           </div>
-          <button class="result-back-link" (click)="backToExercises()">
-            <span class="material-icons">list</span> Back to all exercises
-          </button>
         </div>
       </div>
     </div>
@@ -2353,7 +2359,7 @@
                           blankIndex: pi,
                         })
                       "
-                      [placeholder]="'blank ' + (pi + 1)"
+                      [attr.aria-label]="'Blank ' + (pi + 1)"
                       [class.correct]="
                         hasCurrentSubmitted &&
                         isFillCorrect(currentQuestion, pi)
@@ -3995,7 +4001,7 @@
                               [ngModel]="getSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi)"
                               (ngModelChange)="setSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi, $event)"
                               [disabled]="hasCurrentSubmitted"
-                              [placeholder]="'blank ' + (pi + 1)"
+                              [attr.aria-label]="'Blank ' + (pi + 1)"
                               [class.correct]="hasCurrentSubmitted && isSubFillCorrect(currentQuestion, sqIndex, pi)"
                               [class.wrong]="hasCurrentSubmitted && !isSubFillCorrect(currentQuestion, sqIndex, pi)" />
                             <span class="blank-correct-val"

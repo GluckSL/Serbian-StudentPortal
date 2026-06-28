@@ -28,6 +28,8 @@ export interface ClassRecording {
   watchedSeconds?: number | null;
   /** Journey day tag (GO / batch journey); used to group recordings per day. */
   courseDay?: number | null;
+  /** Optional Zoom meeting ID for manual uploads. */
+  zoomMeetingId?: string | null;
 }
 
 export interface AdminClassRecording extends ClassRecording {
@@ -315,6 +317,7 @@ export class ClassRecordingsService {
     plan: string;
     batches: string[];
     courseDay: number | null;
+    zoomMeetingId?: string | null;
     filename: string;
     contentType: string;
   }): Observable<{ success: boolean; recordingId: string; uploadUrl: string; r2RawKey: string }> {

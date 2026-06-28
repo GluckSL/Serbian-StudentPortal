@@ -338,10 +338,26 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return n || 'Lumo';
   }
 
+  /** True when this module runs structured beginner questions (not free conversation). */
+  get isBeginnerModeActive(): boolean {
+    return !!(
+      this.payload?.module?.beginnerMode?.enabled &&
+      this.beginnerQuestions.length > 0
+    );
+  }
+
   /** Beginner mode or scene: show image/text panel above Olly. */
   get showBeginnerContextPanel(): boolean {
+    if (this.isBeginnerModeActive) {
+      // Hide during intro + "say Ready" — show only once the first question has started
+      if (!this.conversationStarted) return false;
+      const q = this.currentBeginnerQuestion;
+      return !!(q && (q.imageUrl?.trim() || q.questionText?.trim()));
+    }
+
     const sceneImg = this.scene?.imageUrl?.trim();
     if (sceneImg && !this.conversationMode) return true;
+
     if (!this.payload?.module?.beginnerMode?.enabled) return false;
     const q = this.currentBeginnerQuestion;
     return !!(q && (q.imageUrl || q.questionText));
@@ -373,6 +389,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   get beginnerContextImageUrl(): string {
+    if (this.isBeginnerModeActive && !this.conversationStarted) return '';
     const sceneImg = this.scene?.imageUrl?.trim();
     if (sceneImg && !this.conversationMode) return sceneImg;
     return this.currentBeginnerQuestion?.imageUrl ?? '';
@@ -384,10 +401,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   get beginnerContextStepLabel(): string {
     const qs = this.beginnerQuestions;
+    if (this.isBeginnerModeActive && this.conversationStarted && qs.length > 0) {
+      return qs.length > 1
+        ? `Question ${Math.min(this.beginnerQuestionIndex + 1, qs.length)} of ${qs.length}`
+        : 'Question 1';
+    }
     if (this.conversationMode && qs.length > 1) {
       return `Question ${Math.min(this.beginnerQuestionIndex + 1, qs.length)} of ${qs.length}`;
     }
-    if (!this.conversationMode && this.scene?.type) {
+    if (!this.conversationMode && this.scene?.type && !this.isBeginnerModeActive) {
       const label = this.scene.type.charAt(0).toUpperCase() + this.scene.type.slice(1);
       return `Step: ${label}`;
     }
@@ -977,9 +999,19 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       const needsPeriod = /[.!?]$/.test(t) ? '' : '.';
       return `${t}${needsPeriod} ${startCue}`;
     };
-    const readyMsgBase = this.waitingForStartText ||
-      (this.payload?.module.rolePlayScenario?.studentGuidance?.trim()) ||
-      '';
+
+    const isBeginnerMode = !!(this.payload?.module?.beginnerMode?.enabled && this.beginnerQuestions.length > 0);
+    let readyMsgBase: string;
+    if (isBeginnerMode) {
+      // Beginner mode: greet with bot name ("I am Ooly") and the session intro if set
+      const sessionIntro = (this.waitingForStartText || '').trim();
+      readyMsgBase = sessionIntro
+        || `Hi! I am ${this.botDisplayName}. I will ask you some questions.`;
+    } else {
+      readyMsgBase = this.waitingForStartText ||
+        (this.payload?.module.rolePlayScenario?.studentGuidance?.trim()) ||
+        '';
+    }
     const readyMsg = withStartCue(readyMsgBase || 'Say "Bereit!" or "Ready!" to start the conversation.');
     const readyMsgEnglish = readyMsg;
 
@@ -1147,7 +1179,11 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       // German-only: student used English — show hint, do not advance server dialogue
       if (response.languageHint && response.hintDe) {
         this.conversationTurn = response.turnCount ?? response.turnNumber ?? this.conversationTurn;
-        this.syncBeginnerQuestionIndex();
+        if (response.beginnerQuestionIndex != null) {
+          this.beginnerQuestionIndex = response.beginnerQuestionIndex;
+        } else {
+          this.syncBeginnerQuestionIndex();
+        }
         if (this.sessionId) {
           firstValueFrom(
             this.dgApi.updateSession({
@@ -1187,7 +1223,12 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.awaitingGermanRepeat = false;
       this.pendingGermanHint = '';
       this.conversationTurn = response.turnNumber ?? (this.conversationTurn + 1);
-      this.syncBeginnerQuestionIndex();
+      // Beginner mode: use the question index returned by the server; fall back to formula
+      if (response.beginnerQuestionIndex != null) {
+        this.beginnerQuestionIndex = response.beginnerQuestionIndex;
+      } else {
+        this.syncBeginnerQuestionIndex();
+      }
 
       this.conversationHistory = [
         ...this.conversationHistory,

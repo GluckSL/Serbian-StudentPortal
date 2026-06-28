@@ -1492,6 +1492,12 @@ router.post("/login", loginLimiter, async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
+    if (user.role === 'STUDENT' && user.isActive === false) {
+      return res.status(403).json({
+        msg: 'Your account is not active yet. Please wait for payment approval — you will receive an email with your login details once approved.',
+      });
+    }
+
     // Keep ADMIN directory password column in sync when recoverable copy is missing.
     if (user.role === 'STUDENT' && password) {
       const { readRecoverablePassword, storeRecoverablePassword } = require('../utils/passwordRecoverable');

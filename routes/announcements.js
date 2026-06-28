@@ -217,7 +217,7 @@ router.get('/student', verifyToken, async (req, res) => {
     const allItems = await Announcement.find(query)
       .sort({ createdAt: -1 })
       .limit(100)
-      .select('_id title content targetBatches normalizedBatches isActive createdAt createdBy')
+      .select('_id title body deliveryType attachments targetBatches normalizedBatches isActive createdAt createdBy')
       .populate('createdBy', 'name role')
       .lean();
 

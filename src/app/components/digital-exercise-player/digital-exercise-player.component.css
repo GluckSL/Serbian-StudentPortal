@@ -1570,13 +1570,13 @@
 }
 
 .sub-q-fill-blank .sentence-container {
-  padding: 14px 0 6px;
-  gap: 20px 16px;
+  padding: 10px 0 4px;
+  gap: 2px 0;
 }
 
 .sub-q-fill-blank .blank-wrap {
-  flex: 0 1 220px;
-  min-width: 190px;
+  min-width: 4ch;
+  margin: 0 4px;
 }
 
 .ipm-body {
@@ -2388,72 +2388,84 @@
   color: #f44336;
 }
 
-/* Fill in the Blanks */
+/* Fill in the Blanks — inline underline style */
 .sentence-container,
 .fill-blank-body .sentence-container {
   width: 100%;
-  font-size: 1.08rem;
-  line-height: 1.9;
+  font-size: 1.12rem;
+  line-height: 2.4;
   font-weight: 650;
   color: #0f172a;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 22px 18px;
-  padding: 16px 0 10px;
+  align-items: baseline;
+  gap: 2px 0;
+  padding: 12px 0 8px;
 }
 
 .sentence-part {
   white-space: pre-wrap;
-  display: inline-flex;
-  align-items: center;
-  min-height: 52px;
+  display: inline;
 }
 
 .blank-wrap {
   display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  vertical-align: baseline;
   position: relative;
-  flex: 0 1 240px;
-  min-width: 210px;
-  margin: 8px 16px;
-  padding: 8px;
-  border: 1px dashed #c7d2fe;
-  border-radius: 16px;
-  background: #f8faff;
+  min-width: 5ch;
+  max-width: 100%;
+  margin: 0 6px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .blank-input {
-  min-width: 0;
-  width: 100%;
+  field-sizing: content;
+  min-width: 5ch;
   max-width: 100%;
-  min-height: 58px;
-  padding: 14px 16px;
-  border: 1.5px solid #c7d2fe;
-  border-radius: 10px;
-  font-size: 1rem;
+  width: auto;
+  min-height: unset;
+  padding: 0 4px 2px;
+  border: none;
+  border-bottom: 2px solid #818cf8;
+  border-radius: 0;
+  font-size: inherit;
+  font-weight: 700;
+  line-height: 1.5;
   outline: none;
-  text-align: left;
-  background: #ffffff;
-  color: #1a1a2e;
+  text-align: center;
+  background: transparent;
+  color: #4338ca;
   font-family: inherit;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, color 0.2s;
+}
+.blank-input::placeholder {
+  color: #c7d2fe;
+  font-weight: 500;
+  font-size: 0.9em;
 }
 .blank-input:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+  border-bottom-color: #6366f1;
+  color: #312e81;
+  box-shadow: none;
 }
 .blank-input.correct {
-  border-color: #22c55e;
-  background: #f0fdf4;
+  border-bottom-color: #22c55e;
+  background: transparent;
+  color: #15803d;
 }
 .blank-input.wrong {
-  border-color: #f44336;
-  background: #fff5f5;
+  border-bottom-color: #ef4444;
+  background: transparent;
+  color: #b91c1c;
 }
 .blank-input:disabled {
   cursor: not-allowed;
+  opacity: 0.85;
 }
 
 .sp-box-input {
@@ -2499,9 +2511,12 @@
 }
 
 .blank-correct-val {
-  font-size: 0.8rem;
-  color: #22c55e;
+  font-size: 0.72rem;
+  color: #16a34a;
   font-weight: 600;
+  margin-top: 2px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .word-bank-fill-body {
@@ -2622,6 +2637,29 @@
 .word-bank-answer-input {
   min-width: 140px;
   flex: 1;
+  field-sizing: unset;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1.5px solid #c7d2fe;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1a1a2e;
+  font-weight: 500;
+  text-align: left;
+}
+.word-bank-answer-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+.word-bank-answer-input.correct {
+  border-color: #22c55e;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.word-bank-answer-input.wrong {
+  border-color: #f44336;
+  background: #fff5f5;
+  color: #c62828;
 }
 
 .review-word-bank-line {
@@ -3957,7 +3995,8 @@
 }
 
 .btn-review,
-.btn-reattempt {
+.btn-reattempt,
+.btn-go-back {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3972,12 +4011,14 @@
   border: none;
 }
 .btn-review .material-icons,
-.btn-reattempt .material-icons {
+.btn-reattempt .material-icons,
+.btn-go-back .material-icons {
   font-size: 22px;
 }
 
 .btn-review:disabled,
-.btn-reattempt:disabled {
+.btn-reattempt:disabled,
+.btn-go-back:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;
@@ -4002,6 +4043,18 @@
 .btn-reattempt:hover {
   background: #eef2ff;
   border-color: #6366f1;
+}
+
+.btn-go-back {
+  background: white;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+  font-weight: 600;
+}
+.btn-go-back:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 
 .result-back-link {
@@ -4443,20 +4496,19 @@
 }
 .question-card .sentence-container,
 .fill-blank-body .sentence-container {
-  gap: 24px 16px;
-  padding: 18px 0 12px;
-  font-size: 1.12rem;
-  line-height: 1.9;
+  gap: 2px 0;
+  padding: 14px 0 10px;
+  font-size: 1.14rem;
+  line-height: 2.4;
 }
 .question-card .blank-wrap {
-  flex: 1 1 100%;
-  min-width: 0;
-  margin: 10px 0;
-  padding: 10px;
+  min-width: 5ch;
+  margin: 0 6px;
+  padding: 0;
 }
 .question-card .blank-input {
-  width: 100%;
-  min-width: 0;
+  width: auto;
+  min-width: 5ch;
 }
 .question-card .q-text,
 .qa-prompt {
@@ -4471,8 +4523,7 @@
 .mcq-option,
 .match-item,
 .tf-btn,
-.sp-box-input,
-.blank-input {
+.sp-box-input {
   min-height: 62px;
 }
 .mcq-option {
@@ -7776,29 +7827,35 @@
 .batch-sentence {
   font-size: 15.5px;
   font-weight: 650;
-  line-height: 1.9;
+  line-height: 2.2;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
+  align-items: baseline;
+  gap: 2px 0;
 }
 
 .batch-blank-input {
-  width: 150px;
-  min-height: 46px;
-  padding: 10px 12px;
-  border: 1.5px solid #c7d2fe;
-  border-radius: 10px;
-  font-size: 14px;
-  text-align: left;
+  field-sizing: content;
+  min-width: 5ch;
+  width: auto;
+  min-height: unset;
+  padding: 0 4px 2px;
+  border: none;
+  border-bottom: 2px solid #818cf8;
+  border-radius: 0;
+  font-size: inherit;
+  font-weight: 700;
+  text-align: center;
   display: inline-block;
-  background: #ffffff;
+  background: transparent;
+  color: #4338ca;
+  margin: 0 4px;
 }
 
 .batch-blank-input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  border-bottom-color: #6366f1;
+  box-shadow: none;
 }
 
 .batch-hint {

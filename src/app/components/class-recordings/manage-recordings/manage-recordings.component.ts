@@ -86,6 +86,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     title: '',
     description: '',
     videoUrl: '',
+    zoomMeetingId: '',
     batches: [] as string[],
     level: 'A1',
     plan: 'ALL',
@@ -356,10 +357,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   getMeetingIdDisplay(r: AdminClassRecording): string {
-    if (this.isZoomRecording(r)) {
-      return r.zoomMeetingId ? String(r.zoomMeetingId) : '—';
-    }
-    return '—';
+    return r.zoomMeetingId ? String(r.zoomMeetingId) : '—';
   }
 
   get recordingsWithMediaCount(): number {
@@ -429,6 +427,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         title: recording.title,
         description: recording.description,
         videoUrl: recording.videoUrl,
+        zoomMeetingId: recording.zoomMeetingId ? String(recording.zoomMeetingId) : '',
         batches: [...recording.batches],
         level: recording.level,
         plan: recording.plan,
@@ -440,6 +439,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
         title: '',
         description: '',
         videoUrl: '',
+        zoomMeetingId: '',
         batches: [],
         level: 'A1',
         plan: 'ALL',
@@ -544,6 +544,8 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       fd.append('batches', this.form.batches.join(','));
       const uploadCourseDay = this.normalizeCourseDay(this.form.courseDay);
       if (uploadCourseDay != null) fd.append('courseDay', String(uploadCourseDay));
+      const meetingId = (this.form.zoomMeetingId || '').trim();
+      if (meetingId) fd.append('zoomMeetingId', meetingId);
       fd.append('video', this.selectedVideoFile);
 
       this.beginFileUpload(fd, this.selectedVideoFile);
@@ -556,8 +558,16 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
     }
 
     const obs = this.editing
-      ? this.service.update(this.editing._id, { ...this.form, courseDay: this.normalizeCourseDay(this.form.courseDay) })
-      : this.service.create({ ...this.form, courseDay: this.normalizeCourseDay(this.form.courseDay) });
+      ? this.service.update(this.editing._id, {
+          ...this.form,
+          courseDay: this.normalizeCourseDay(this.form.courseDay),
+          zoomMeetingId: (this.form.zoomMeetingId || '').trim() || null,
+        })
+      : this.service.create({
+          ...this.form,
+          courseDay: this.normalizeCourseDay(this.form.courseDay),
+          zoomMeetingId: (this.form.zoomMeetingId || '').trim() || null,
+        });
 
     this.saving = true;
     obs.subscribe({
@@ -601,6 +611,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
       plan: (fd.get('plan') as string) || 'ALL',
       batches: ((fd.get('batches') as string) || '').split(',').map((b) => b.trim()).filter(Boolean),
       courseDay: fd.has('courseDay') ? Number(fd.get('courseDay')) || null : null,
+      zoomMeetingId: fd.has('zoomMeetingId') ? String(fd.get('zoomMeetingId')).trim() || null : null,
       filename: file.name,
       contentType: file.type || 'video/mp4',
     };

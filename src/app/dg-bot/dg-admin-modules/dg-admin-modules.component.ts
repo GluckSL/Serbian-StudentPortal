@@ -81,6 +81,23 @@ export class DgAdminModulesComponent implements OnInit {
     return m._id || m.title || '';
   }
 
+  isBeginnerMode(m: DgModuleSummary): boolean {
+    return !!m.beginnerMode?.enabled;
+  }
+
+  moduleCategoryLabel(m: DgModuleSummary): string {
+    return this.isBeginnerMode(m) ? 'Beginner mode' : 'Guided speaking';
+  }
+
+  targetBatchLabels(m: DgModuleSummary): string[] {
+    const batches = Array.isArray(m.targetBatches) ? m.targetBatches.filter(Boolean) : [];
+    return batches;
+  }
+
+  showsAllBatches(m: DgModuleSummary): boolean {
+    return this.targetBatchLabels(m).length === 0;
+  }
+
   constructor(
     private dgApi: DgApiService,
     private router: Router,

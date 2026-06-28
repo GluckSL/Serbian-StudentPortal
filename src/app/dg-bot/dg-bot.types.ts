@@ -252,6 +252,8 @@ export interface DgConversationResponse {
   languageHint?: boolean;
   hintDe?: string;
   hintEn?: string;
+  /** Beginner mode only: the question index after this turn (0-based). */
+  beginnerQuestionIndex?: number;
 }
 
 /** One entry in the chat history shown on screen. */

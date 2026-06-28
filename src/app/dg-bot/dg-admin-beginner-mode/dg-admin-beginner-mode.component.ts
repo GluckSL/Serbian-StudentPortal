@@ -9,6 +9,10 @@ import { DgApiService } from '../dg-api.service';
 import { environment } from '../../../environments/environment';
 import type { DgBeginnerMode, DgBeginnerQuestion, DgModuleSummary } from '../dg-bot.types';
 
+interface BatchSummary {
+  batchName: string;
+}
+
 function emptyQuestion(order = 0): DgBeginnerQuestion {
   return {
     imageUrl: '',
@@ -55,6 +59,9 @@ export class DgAdminBeginnerModeComponent implements OnInit {
   sessionIntro = '';
   questions: DgBeginnerQuestion[] = [];
   uploadingIndex: number | null = null;
+  batches: BatchSummary[] = [];
+  batchToAdd = '';
+  targetBatches: string[] = [];
 
   constructor(
     private dgApi: DgApiService,
@@ -73,6 +80,7 @@ export class DgAdminBeginnerModeComponent implements OnInit {
     }
     try {
       const mod = await firstValueFrom(this.dgApi.getAdminModule(this.moduleId));
+      await this.loadBatches();
       this.hydrate(mod);
     } catch (e: any) {
       this.messageType = 'error';
@@ -84,6 +92,7 @@ export class DgAdminBeginnerModeComponent implements OnInit {
 
   private hydrate(mod: DgModuleSummary): void {
     this.moduleTitle = mod.title || 'DG Module';
+    this.targetBatches = Array.isArray(mod.targetBatches) ? [...mod.targetBatches] : [];
     const bm = mod.beginnerMode;
     this.sessionIntro =
       bm?.sessionIntro ||
@@ -98,6 +107,37 @@ export class DgAdminBeginnerModeComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/admin/dg-modules', this.moduleId, 'edit']);
+  }
+
+  private async loadBatches(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.http.get<{ batches: BatchSummary[] }>(`${environment.apiUrl}/batch-journey`, {
+          withCredentials: true,
+        }),
+      );
+      this.batches = (res?.batches || []).sort((a, b) => a.batchName.localeCompare(b.batchName));
+    } catch {
+      this.batches = [];
+    }
+  }
+
+  removeBatch(name: string): void {
+    const v = String(name || '').trim();
+    if (!v) return;
+    this.targetBatches = this.targetBatches.filter((b) => b !== v);
+  }
+
+  clearBatches(): void {
+    this.targetBatches = [];
+  }
+
+  onBatchDropdownChange(): void {
+    const v = String(this.batchToAdd || '').trim();
+    if (v && !this.targetBatches.includes(v)) {
+      this.targetBatches = [...this.targetBatches, v];
+    }
+    this.batchToAdd = '';
   }
 
   addQuestion(): void {
@@ -194,7 +234,10 @@ export class DgAdminBeginnerModeComponent implements OnInit {
         })),
       };
       await firstValueFrom(
-        this.dgApi.updateModule(this.moduleId, { beginnerMode } as Partial<DgModuleSummary>),
+        this.dgApi.updateModule(this.moduleId, {
+          beginnerMode,
+          targetBatches: this.targetBatches,
+        } as Partial<DgModuleSummary>),
       );
       this.questions = validQuestions;
       this.renumber();

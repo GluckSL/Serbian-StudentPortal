@@ -904,7 +904,7 @@ function mapManualRecordingToAdminItem(m) {
     classDate: m.createdAt,
     classDuration: null,
     meetingLinkId: null,
-    zoomMeetingId: null,
+    zoomMeetingId: m.zoomMeetingId || null,
     r2Key: null,
     sourceType: m.sourceType || 'URL',
     hlsKey: m.hlsKey || null,
@@ -929,6 +929,12 @@ function matchesAdminBatchFilter(batchFilter, batchLabels) {
 
 function normalizeZoomMeetingIdForSearch(value) {
   return String(value || '').replace(/\D/g, '');
+}
+
+function normalizeZoomMeetingIdInput(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const trimmed = String(value).trim();
+  return trimmed || null;
 }
 
 function buildLooseZoomMeetingIdSearchRegex(zoomMeetingId) {
@@ -1035,11 +1041,13 @@ async function buildAdminRecordingRefs(filters = {}) {
   const manualQuery = { ...adminReadyManualQuery() };
   if (level && level !== 'ALL') manualQuery.level = level;
   if (searchRe) {
+    const zoomIdOr = buildZoomMeetingIdSearchOr(String(search));
     manualQuery.$and = manualQuery.$and || [];
     manualQuery.$and.push({
       $or: [
         { title: searchRe },
         { description: searchRe },
+        ...(zoomIdOr.length ? zoomIdOr : []),
       ],
     });
   }
@@ -1104,7 +1112,7 @@ async function buildAdminRecordingRefs(filters = {}) {
       sortAt: m.createdAt,
       title: m.title || '',
       description: m.description || '',
-      zoomMeetingId: '',
+      zoomMeetingId: m.zoomMeetingId || '',
     });
   });
 
@@ -1338,7 +1346,7 @@ router.get('/analytics/summary', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN
 // POST /api/class-recordings — Create recording (Teacher/Admin)
 router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    const { title, description, videoUrl, batches, level, plan, courseDay } = req.body;
+    const { title, description, videoUrl, batches, level, plan, courseDay, zoomMeetingId } = req.body;
     if (!title || !videoUrl || !level || !batches || batches.length === 0) {
       return res.status(400).json({ success: false, message: 'Title, video URL, level, and at least one batch are required' });
     }
@@ -1354,6 +1362,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), 
       title, description, videoUrl, batches, level,
       plan: plan || 'ALL',
       courseDay: normalizedCourseDay,
+      zoomMeetingId: normalizeZoomMeetingIdInput(zoomMeetingId),
       sourceType: 'URL',
       status: 'ready',
       uploadedBy: req.user.id
@@ -1382,7 +1391,7 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
         });
       }
 
-      const { title, description = '', level, plan = 'ALL', courseDay } = req.body || {};
+      const { title, description = '', level, plan = 'ALL', courseDay, zoomMeetingId } = req.body || {};
       const rawBatches = req.body?.batches;
       const batches = Array.isArray(rawBatches)
         ? rawBatches
@@ -1418,6 +1427,7 @@ router.post('/upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHE
         sourceType: 'HLS_UPLOAD',
         status: 'processing',
         courseDay: normalizedCourseDay,
+        zoomMeetingId: normalizeZoomMeetingIdInput(zoomMeetingId),
         hlsKey: null,
         errorMessage: null,
         uploadedBy: req.user.id,
@@ -1479,7 +1489,7 @@ router.post('/upload/prepare', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
       });
     }
 
-    const { title, description = '', level, plan = 'ALL', courseDay, filename, contentType } = req.body || {};
+    const { title, description = '', level, plan = 'ALL', courseDay, filename, contentType, zoomMeetingId } = req.body || {};
     const rawBatches = req.body?.batches;
     const batches = Array.isArray(rawBatches)
       ? rawBatches
@@ -1508,6 +1518,7 @@ router.post('/upload/prepare', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
       sourceType: 'HLS_UPLOAD',
       status: 'processing',
       courseDay: normalizedCourseDay,
+      zoomMeetingId: normalizeZoomMeetingIdInput(zoomMeetingId),
       hlsKey: null,
       errorMessage: null,
       uploadedBy: req.user.id,
@@ -1629,7 +1640,7 @@ router.post('/manual/publish', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN',
 // PUT /api/class-recordings/:id — Update recording (Teacher/Admin)
 router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
-    const { title, description, videoUrl, batches, level, plan, courseDay, addBatch, isPublished } = req.body || {};
+    const { title, description, videoUrl, batches, level, plan, courseDay, addBatch, isPublished, zoomMeetingId } = req.body || {};
     const existing = await ClassRecording.findById(req.params.id).lean();
     if (!existing) return res.status(404).json({ success: false, message: 'Recording not found' });
 
@@ -1659,6 +1670,9 @@ router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER'])
       const pub = Boolean(isPublished);
       updatePayload.isPublished = pub;
       updatePayload.publishedAt = pub ? (existing.publishedAt || new Date()) : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'zoomMeetingId')) {
+      updatePayload.zoomMeetingId = normalizeZoomMeetingIdInput(zoomMeetingId);
     }
 
     const recording = await ClassRecording.findByIdAndUpdate(

@@ -27,6 +27,7 @@ const {
   backfillPhoneCountries,
   STUDENT_COUNTRY_FILTER_OPTIONS,
 } = require('../utils/studentCountry');
+const { approvePublicSignupApplication } = require('../utils/signupActivation');
 
 const FILTER_OPTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
 let filterOptionsCache = { at: 0, payload: null };
@@ -1746,6 +1747,61 @@ router.post('/send-changes-report', verifyToken, isAdmin, async (req, res) => {
   } catch (err) {
     console.error('[POST /admin/send-changes-report]', err);
     return res.status(500).json({ success: false, message: 'Failed to trigger changes report.' });
+  }
+});
+
+// ── Public signup: pending proof submissions (no portal account until approved) ─
+router.get('/signup-applications/pending', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const list = await SignupApplication.find({ status: 'proof_submitted' })
+      .sort({ proofSubmittedAt: -1, updatedAt: -1 })
+      .select(
+        'applicationToken name email phoneNumber whatsappNumber level subscription currency amount proofPaidAmount proofPaymentDateTime proofAccountHolderName proofScreenshotKey proofSubmittedAt paymentMethod status createdAt'
+      )
+      .lean();
+    return noStoreJson(res, { success: true, data: list, total: list.length });
+  } catch (err) {
+    console.error('[GET /admin/signup-applications/pending]', err);
+    return res.status(500).json({ success: false, message: 'Failed to load pending signup applications.' });
+  }
+});
+
+router.post('/signup-applications/:applicationToken/approve', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const applicationToken = String(req.params.applicationToken || '').trim();
+    if (!applicationToken) {
+      return res.status(400).json({ success: false, message: 'Application token is required.' });
+    }
+    const batch = req.body?.batch ? String(req.body.batch).trim() : undefined;
+    const skipEmail = req.body?.skipEmail === true;
+
+    const result = await approvePublicSignupApplication(applicationToken, { batch, skipEmail });
+    if (!result.ok) {
+      const status = result.reason === 'application_not_found' ? 404 : 400;
+      return res.status(status).json({
+        success: false,
+        message:
+          result.reason === 'invalid_status'
+            ? `Cannot approve application in status "${result.status}".`
+            : 'Could not approve signup application.',
+        reason: result.reason,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: result.alreadyApproved
+        ? 'Application was already approved.'
+        : skipEmail
+          ? 'Account created and activated.'
+          : 'Account created. Welcome email with Web App ID and password sent to the student.',
+      regNo: result.regNo,
+      userId: result.userId,
+      alreadyApproved: !!result.alreadyApproved,
+    });
+  } catch (err) {
+    console.error('[POST /admin/signup-applications/:token/approve]', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to approve signup.' });
   }
 });
 

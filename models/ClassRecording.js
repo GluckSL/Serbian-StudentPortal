@@ -31,7 +31,9 @@ const classRecordingSchema = new mongoose.Schema({
     type: Number,
     default: null,
     min: 0
-  }
+  },
+  /** Optional Zoom meeting ID for manual uploads (display / search parity with auto-recordings). */
+  zoomMeetingId: { type: String, default: null, trim: true },
 }, { timestamps: true });
 
 classRecordingSchema.index({ active: 1, level: 1, batches: 1 });

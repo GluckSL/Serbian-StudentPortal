@@ -9,9 +9,11 @@
 
 const cron = require('node-cron');
 const ExcelJS = require('exceljs');
+const mongoose = require('mongoose');
 const StudentChangeHistory = require('../models/StudentChangeHistory');
 const User = require('../models/User');
 const transporter = require('../config/emailConfig');
+const { formatSubscriptionLabel } = require('../utils/studentSubscriptionPlans');
 
 const TZ = 'Asia/Kolkata';
 
@@ -56,17 +58,133 @@ const FIELD_LABELS = {
   currentCourseDay: 'Current Course Day',
   documentationPaymentStatus: 'Documentation Payment Status',
   candidateStatus: 'Candidate Status',
+  courseStartDates: 'Course Start Dates',
+  courseCompletionDates: 'Course Completion Dates',
+};
+
+const STATUS_LABELS = {
+  ONGOING: 'Ongoing',
+  UNCERTAIN: 'Uncertain',
+  COMPLETED: 'Completed',
+  DROPPED: 'Dropped',
+  WITHDRAWN: 'Withdrawn',
 };
 
 function fieldLabel(field) {
   return FIELD_LABELS[field] || field;
 }
 
-function formatValue(value) {
-  if (value === null || value === undefined) return '—';
-  if (Array.isArray(value)) return value.join(', ') || '—';
+function isLikelyObjectId(value) {
+  return typeof value === 'string' && mongoose.Types.ObjectId.isValid(value) && /^[a-f0-9]{24}$/i.test(value);
+}
+
+function formatDateOnly(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString('en-IN', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  });
+}
+
+function prettifyDateFieldKey(key) {
+  return String(key || '')
+    .replace(/CompletionDate$/, ' Completion')
+    .replace(/StartDate$/, ' Start')
+    .trim();
+}
+
+function formatObjectValue(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+  const entries = Object.entries(value).filter(([, v]) => v != null && v !== '');
+  if (!entries.length) return '—';
+
+  const isCourseDates = field === 'courseStartDates' || field === 'courseCompletionDates';
+
+  return entries
+    .map(([key, val]) => {
+      const label = isCourseDates ? prettifyDateFieldKey(key) : key;
+      if (val instanceof Date || (typeof val === 'string' && !Number.isNaN(Date.parse(val)))) {
+        return `${label}: ${formatDateOnly(val)}`;
+      }
+      if (typeof val === 'object') {
+        return `${label}: ${formatObjectValue(val, field) || '—'}`;
+      }
+      return `${label}: ${val}`;
+    })
+    .join('; ');
+}
+
+function formatValue(value, field, { teacherMap = {} } = {}) {
+  if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+
+  if (Array.isArray(value)) {
+    return value.map((item) => formatValue(item, field, { teacherMap })).join(', ') || '—';
+  }
+
+  if (field === 'assignedTeacher') {
+    const id = String(value);
+    if (teacherMap[id]) return teacherMap[id];
+    if (isLikelyObjectId(id)) return 'Unassigned';
+    return id;
+  }
+
+  if (field === 'subscription') {
+    return formatSubscriptionLabel(value) || String(value);
+  }
+
+  if (field === 'studentStatus' || field === 'candidateStatus' || field === 'goStatus') {
+    const key = String(value || '').toUpperCase();
+    return STATUS_LABELS[key] || String(value);
+  }
+
+  if (field === 'enrollmentDate' || field === 'examPassedDate' || field === 'dateWithdrew' ||
+      field === 'batchStartedOn' || field === 'goJoiningDate') {
+    return formatDateOnly(value);
+  }
+
+  if (typeof value === 'object') {
+    return formatObjectValue(value, field) || '—';
+  }
+
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return formatDateOnly(value);
+  }
+
+  if (isLikelyObjectId(String(value)) && teacherMap[String(value)]) {
+    return teacherMap[String(value)];
+  }
+
   return String(value);
+}
+
+function collectTeacherIds(records) {
+  const ids = new Set();
+  records.forEach((rec) => {
+    (rec.changedFields || []).forEach((cf) => {
+      if (cf.field !== 'assignedTeacher') return;
+      [cf.oldValue, cf.newValue].forEach((value) => {
+        const id = String(value || '').trim();
+        if (isLikelyObjectId(id)) ids.add(id);
+      });
+    });
+  });
+  return [...ids];
+}
+
+async function loadTeacherNameMap(records) {
+  const teacherIds = collectTeacherIds(records);
+  if (!teacherIds.length) return {};
+
+  const teachers = await User.find({ _id: { $in: teacherIds } }, { name: 1 }).lean();
+  return Object.fromEntries(
+    teachers.map((teacher) => [String(teacher._id), teacher.name || 'Unknown teacher'])
+  );
 }
 
 function formatDateTime(date) {
@@ -108,6 +226,8 @@ async function fetchChanges(fromOverride) {
 
   if (!records.length) return [];
 
+  const teacherMap = await loadTeacherNameMap(records);
+
   // Fetch student info for all unique studentIds
   const studentIds = [...new Set(records.map((r) => String(r.studentId)))];
   const students = await User.find(
@@ -130,8 +250,8 @@ async function fetchChanges(fromOverride) {
         currentBatch: student.batch || '—',
         currentStatus: student.studentStatus || '—',
         fieldChanged: fieldLabel(cf.field),
-        oldValue: formatValue(cf.oldValue),
-        newValue: formatValue(cf.newValue),
+        oldValue: formatValue(cf.oldValue, cf.field, { teacherMap }),
+        newValue: formatValue(cf.newValue, cf.field, { teacherMap }),
         changedBy: rec.changedByName || '—',
         changedByRole: rec.changedByRole || '—',
         source: rec.source || '—',

@@ -337,6 +337,31 @@
   font-size: 12px;
 }
 
+.dg-admin-mm .dg-mm-badge-beginner {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.dg-admin-mm .dg-mm-cat-beginner {
+  color: #047857 !important;
+  font-weight: 600;
+}
+
+.dg-admin-mm .dg-mm-batch-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 180px;
+}
+
+.dg-admin-mm .dg-mm-batch-pill {
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .dg-admin-mm .module-info .module-desc {
   color: #94a3b8;
   font-size: 10px;

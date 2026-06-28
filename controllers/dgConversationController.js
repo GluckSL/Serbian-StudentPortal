@@ -128,11 +128,19 @@ exports.start = async (req, res) => {
     const state = startConversation(sessionId, modData);
 
     const scenario = modData.rolePlayScenario || {};
-    const roleMessage =
-      scenario.studentGuidance?.trim() ||
-      (scenario.studentRole
-        ? `Your role: ${scenario.studentRole}. The ${scenario.aiRole || 'AI'} will guide you.`
-        : 'Get ready for the conversation!');
+    const bm = modData.beginnerMode || {};
+    const isBeginnerMode = !!(bm.enabled && Array.isArray(bm.questions) && bm.questions.length);
+
+    // For beginner mode: use the sessionIntro if set, otherwise empty (frontend fills in "I am Ooly")
+    // For normal mode: use studentGuidance or role description
+    const roleMessage = isBeginnerMode
+      ? (bm.sessionIntro || '').trim()
+      : (
+        scenario.studentGuidance?.trim() ||
+        (scenario.studentRole
+          ? `Your role: ${scenario.studentRole}. The ${scenario.aiRole || 'AI'} will guide you.`
+          : 'Get ready for the conversation!')
+      );
 
     res.json({
       ok: true,
@@ -322,9 +330,24 @@ exports.respond = async (req, res) => {
 
     // ── German-only: hint instead of advancing when student used English ───────
     if (shouldRequestGermanHint(userText, targetLang)) {
-      const lastAi = _lastAiTextFromHistory(state.history);
-      const hintDe = await suggestGermanLine(lastAi, userText);
-      const hintEn = 'Say this in German to continue.';
+      let hintDe;
+      if (state.isBeginnerMode) {
+        // Beginner mode: use the expected answer as the hint if available
+        const currentQ = state.beginnerQuestions[state.beginnerQuestionIndex];
+        if (currentQ?.targetAnswer?.trim()) {
+          hintDe = currentQ.targetAnswer.trim();
+        } else {
+          const lastAi = _lastAiTextFromHistory(state.history);
+          hintDe = await suggestGermanLine(lastAi, userText);
+        }
+        // Mark that student was shown a hint; next turn they should repeat
+        setState(sessionId, { beginnerAwaitingRepeat: true });
+      } else {
+        const lastAi = _lastAiTextFromHistory(state.history);
+        hintDe = await suggestGermanLine(lastAi, userText);
+      }
+
+      const hintEn = 'Say this to continue.';
       const s = snap();
       const [translatedTamil, translatedEnglish] = await Promise.all([
         translateToTamil(hintDe, targetLang).catch(() => ''),
@@ -352,6 +375,7 @@ exports.respond = async (req, res) => {
         shouldWrapUp: s.shouldWrapUp,
         turnNumber: s.turnCount,
         sceneComplete: false,
+        beginnerQuestionIndex: state.isBeginnerMode ? state.beginnerQuestionIndex : undefined,
       });
     }
 
@@ -367,27 +391,29 @@ exports.respond = async (req, res) => {
       translateText(result.aiText, targetLang, 'English').catch(() => ''),
     ]);
     res.json({
-      text:                 result.aiText,
+      text:                   result.aiText,
       translatedEnglish,
       translatedTamil,
-      turnCount:            result.turnCount,
-      conversationStarted:  true,
-      complete:             result.complete,
-      vocabCoverage:        result.vocabCoverage,
-      usedVocab:            result.usedVocab,
+      turnCount:              result.turnCount,
+      conversationStarted:    true,
+      complete:               result.complete,
+      vocabCoverage:          result.vocabCoverage,
+      usedVocab:              result.usedVocab,
       // Phased vocab coverage (per-bucket)
-      phase:                result.complete ? 'complete' : (result.phase || 'active'),
-      studentVocabCoverage: result.studentVocabCoverage ?? null,
-      aiVocabCoverage:      result.aiVocabCoverage ?? null,
-      completionReason:     result.completionReason || null,
-      elapsedSeconds:       result.elapsedSeconds,
-      minRequiredSeconds:   result.minRequiredSeconds,
-      maxAllowedSeconds:    result.maxAllowedSeconds ?? null,
-      shouldWrapUp:         !!result.shouldWrapUp,
-      languageHint:         false,
+      phase:                  result.complete ? 'complete' : (result.phase || 'active'),
+      studentVocabCoverage:   result.studentVocabCoverage ?? null,
+      aiVocabCoverage:        result.aiVocabCoverage ?? null,
+      completionReason:       result.completionReason || null,
+      elapsedSeconds:         result.elapsedSeconds,
+      minRequiredSeconds:     result.minRequiredSeconds,
+      maxAllowedSeconds:      result.maxAllowedSeconds ?? null,
+      shouldWrapUp:           !!result.shouldWrapUp,
+      languageHint:           false,
+      // Beginner mode: current question index after this turn
+      beginnerQuestionIndex:  result.beginnerQuestionIndex ?? undefined,
       // legacy fields kept for backward compat
-      turnNumber:           result.turnCount,
-      sceneComplete:        result.complete,
+      turnNumber:             result.turnCount,
+      sceneComplete:          result.complete,
     });
   } catch (err) {
     console.error('[dgConversationController.respond]', err);

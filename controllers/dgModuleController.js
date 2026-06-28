@@ -204,7 +204,7 @@ exports.getAdminById = async (req, res) => {
 
 /** Fields for admin grid only — full module (scenes, vocab, role-play, description) loads on GET /modules/:id or /play. */
 const ADMIN_MODULE_LIST_SELECT =
-  'title level language courseDay visibleToStudents weeklyTestEnabled examEnabled characterId targetBatchKeys updatedAt';
+  'title level language courseDay visibleToStudents weeklyTestEnabled examEnabled characterId targetBatchKeys beginnerMode.enabled updatedAt';
 
 exports.listAdmin = async (req, res) => {
   try {
@@ -220,6 +220,7 @@ exports.listAdmin = async (req, res) => {
       modules: (modules || []).map((m) => ({
         ...m,
         targetBatches: Array.isArray(m.targetBatchKeys) ? m.targetBatchKeys : [],
+        beginnerMode: { enabled: !!m.beginnerMode?.enabled },
       })),
     });
   } catch (e) {

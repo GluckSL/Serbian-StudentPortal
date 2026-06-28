@@ -8,10 +8,10 @@
  *         POST /verify-email   – verify OTP, save password hash
  * Step 2: POST /documents      – optional file uploads
  *         GET  /catalog        – CEFR + plan pricing
- * Step 3: POST /finalize       – save level/plan/currency, provision pending user
+ * Step 3: POST /finalize       – save level/plan/currency (no User until payment verified)
  *         POST /razorpay/create-order
- *         POST /razorpay/verify
- *         POST /payment-proof  – screenshot → Req Payment queue
+ *         POST /razorpay/verify – creates User + welcome email
+ *         POST /payment-proof  – stores proof; User created when admin approves
  * Utils:  GET  /:token         – resume state
  */
 
@@ -29,8 +29,6 @@ const SignupApplication = require('../models/StudentSignupApplication');
 const SignupEmailOtp = require('../models/SignupEmailOtp');
 const User = require('../models/User');
 const transporter = require('../config/emailConfig');
-const { generateRegNo } = require('../utils/userRegistration');
-const { setUserPassword } = require('../utils/setUserPassword');
 const {
   buildSignupEmailOtpEmail,
   buildSignupProofReceivedAdminEmail,
@@ -40,7 +38,7 @@ const {
   parseAdminNotifyEmails,
 } = require('../utils/signupProofNotify');
 const { storeRecoverablePassword } = require('../utils/passwordRecoverable');
-const { activatePublicSignupStudent } = require('../utils/signupActivation');
+const { activatePublicSignupAfterRazorpay } = require('../utils/signupActivation');
 const {
   isAllowedStudentPlan,
   isServicePlan,
@@ -52,11 +50,8 @@ const {
   PROOF_MAX_BYTES,
 } = require('../utils/paymentProofFileFilter');
 
-// Payment v2 services (require lazily to avoid circular init issues)
-const getPaymentService = () => require('../modules/payments-v2/backend/services/paymentService');
 const proofR2 = require('../modules/payments-v2/backend/services/paymentProofR2Service');
 const PaymentHubCatalog = require('../modules/payments-v2/backend/models/PaymentHubCatalog');
-const PaymentRequest = require('../modules/payments-v2/backend/models/PaymentRequest');
 
 // ─── Razorpay ────────────────────────────────────────────────────────────────
 const razorpay = new Razorpay({
@@ -164,7 +159,7 @@ function blocksPublicSignupStart(user) {
   return user.isActive !== false;
 }
 
-const RESUMABLE_APP_STATUSES = ['draft', 'email_verified', 'documents_done', 'payment_pending'];
+const RESUMABLE_APP_STATUSES = ['draft', 'email_verified', 'documents_done', 'payment_pending', 'proof_submitted'];
 
 /** Infer INR vs LKR from phone / WhatsApp on the application. */
 function detectCurrencyFromPhone(phone, whatsapp) {
@@ -191,13 +186,6 @@ async function findApp(token) {
 
 /** Finance / admin inbox for manual payment proof (override via SIGNUP_ADMIN_NOTIFY_EMAILS) */
 const ADMIN_NOTIFY_EMAILS = parseAdminNotifyEmails();
-
-/** Get (or resolve) the system admin ID used as paymentRequest.requestedBy */
-async function getSystemAdminId() {
-  if (process.env.SIGNUP_SYSTEM_ADMIN_ID) return process.env.SIGNUP_SYSTEM_ADMIN_ID;
-  const admin = await User.findOne({ role: 'ADMIN' }).select('_id').lean();
-  return admin?._id || null;
-}
 
 /** Compute amount for level + subscription from catalog */
 async function getCatalogAmount(level, subscription, currency) {
@@ -299,11 +287,6 @@ router.post('/start', startLimiter, async (req, res) => {
     }
     if (!app) {
       app = new SignupApplication({ email });
-    }
-
-    // Link pending portal user from an earlier payment step (inactive until approved)
-    if (!app.userId && existingUser?.role === 'STUDENT' && existingUser.isActive === false) {
-      app.userId = existingUser._id;
     }
 
     const previousEmail = app.email;
@@ -471,7 +454,7 @@ router.post('/documents', (req, res, next) => docsUpload(req, res, next), async 
   }
 });
 
-// ─── POST /finalize — step 3a: save level/plan + provision pending user ───────
+// ─── POST /finalize — step 3a: save level/plan (portal account created after payment) ─
 
 router.post('/finalize', finalizeLimiter, async (req, res) => {
   try {
@@ -485,6 +468,19 @@ router.post('/finalize', finalizeLimiter, async (req, res) => {
     if (!app.emailVerifiedAt) return res.status(400).json({ msg: 'Please complete email verification first.' });
     if (!app.passwordHash) return res.status(400).json({ msg: 'Password not set. Please go back and verify your email.' });
     if (app.status === 'approved') return res.status(400).json({ msg: 'This application is already approved.' });
+    if (app.status === 'proof_submitted') {
+      return res.status(400).json({ msg: 'Payment proof already submitted. Please wait for admin approval.' });
+    }
+
+    const exists = await findUserByEmail(app.email);
+    if (exists && blocksPublicSignupStart(exists)) {
+      if (exists.role !== 'STUDENT') {
+        return res.status(400).json({
+          msg: 'This email is already registered with a staff account. Please use a different email.',
+        });
+      }
+      return res.status(400).json({ msg: 'An active account with this email already exists. Please log in.' });
+    }
 
     const curr = (currency || detectCurrencyFromPhone(app.phoneNumber, app.whatsappNumber) || 'INR').toUpperCase();
     const amount = await getCatalogAmount(level, subscription, curr);
@@ -494,56 +490,6 @@ router.post('/finalize', finalizeLimiter, async (req, res) => {
     app.subscription = subscription;
     app.currency = curr;
     app.amount = amount;
-
-    // Provision User if not yet created
-    if (!app.userId) {
-      const exists = await findUserByEmail(app.email);
-      if (exists && blocksPublicSignupStart(exists)) {
-        if (exists.role !== 'STUDENT') {
-          return res.status(400).json({
-            msg: 'This email is already registered with a staff account. Please use a different email.',
-          });
-        }
-        return res.status(400).json({ msg: 'An active account with this email already exists.' });
-      }
-
-      const regNo = await generateRegNo('STUDENT');
-      const user = new User({
-        name: app.name,
-        email: app.email,
-        regNo,
-        role: 'STUDENT',
-        studentStatus: 'ONGOING',
-        subscription: app.subscription,
-        level: app.level,
-        batch: process.env.SIGNUP_DEFAULT_BATCH || 'Unassigned',
-        medium: app.medium?.length ? app.medium : ['English'],
-        phoneNumber: app.phoneNumber || '',
-        whatsappNumber: app.whatsappNumber || '',
-        address: app.address || '',
-        age: app.age || null,
-        nationality: app.nationality || '',
-        otherLanguageKnown: app.otherLanguageKnown || '',
-        languageLevelOpted: app.languageLevelOpted || '',
-        qualifications: app.qualifications || '',
-        leadSource: app.leadSource || '',
-        signupSource: 'public_signup',
-        isActive: false, // activated after payment
-        mustChangePassword: false,
-      });
-
-      user.password = app.passwordHash;
-      if (app.passwordRecoverable) user.passwordRecoverable = app.passwordRecoverable;
-      await user.save();
-      app.userId = user._id;
-    } else if (app.passwordRecoverable) {
-      const existing = await User.findById(app.userId);
-      if (existing && !existing.passwordRecoverable) {
-        existing.passwordRecoverable = app.passwordRecoverable;
-        await existing.save();
-      }
-    }
-
     app.status = 'payment_pending';
     await app.save();
 
@@ -620,27 +566,23 @@ router.post('/razorpay/verify', rzpLimiter, async (req, res) => {
     }
 
     const app = await SignupApplication.findOne({ applicationToken }).select('+passwordHash +passwordRecoverable');
-    if (!app || !app.userId) return res.status(400).json({ msg: 'Application not found.' });
-
-    const user = await User.findById(app.userId);
-    if (!user) return res.status(400).json({ msg: 'Student account not found.' });
-
-    user.isActive = true;
-    user.studentStatus = 'ONGOING';
-    await user.save();
+    if (!app) return res.status(400).json({ msg: 'Application not found.' });
+    if (app.status !== 'payment_pending') return res.status(400).json({ msg: 'Please complete previous steps first.' });
 
     app.razorpayPaymentId = razorpayPaymentId;
     app.paymentMethod = 'razorpay';
     app.status = 'approved';
     await app.save();
 
-    activatePublicSignupStudent(user._id, { paymentRequestId: app.paymentRequestId }).catch((e) =>
-      console.error('[signup/razorpay/verify] welcome email failed:', e?.message)
-    );
+    const result = await activatePublicSignupAfterRazorpay(applicationToken);
+    if (!result.ok) {
+      console.error('[signup/razorpay/verify] activation failed:', result.reason);
+      return res.status(500).json({ msg: 'Payment received but account setup failed. Please contact support.' });
+    }
 
     return res.json({
       success: true,
-      msg: 'Payment successful! Your account has been created. Check your email for login details.',
+      msg: 'Payment successful! Your account has been created. Check your email for your Web App ID and login details.',
     });
   } catch (err) {
     console.error('[POST /public-signup/razorpay/verify]', err);
@@ -656,14 +598,18 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
     if (!req.file) return res.status(400).json({ msg: 'Please upload a payment screenshot or PDF.' });
 
     const app = await SignupApplication.findOne({ applicationToken });
-    if (!app || !app.userId) return res.status(400).json({ msg: 'Application not found. Please restart signup.' });
+    if (!app) return res.status(400).json({ msg: 'Application not found. Please restart signup.' });
     if (app.status === 'approved') return res.status(400).json({ msg: 'This application is already approved.' });
+    if (app.status === 'proof_submitted') {
+      return res.status(400).json({ msg: 'Payment proof already submitted. Please wait for admin approval.' });
+    }
     if (app.status !== 'payment_pending') return res.status(400).json({ msg: 'Please complete previous steps first.' });
 
-    const user = await User.findById(app.userId).lean();
-    if (!user) return res.status(400).json({ msg: 'Student account not found.' });
+    const exists = await findUserByEmail(app.email);
+    if (exists && blocksPublicSignupStart(exists)) {
+      return res.status(400).json({ msg: 'An active account with this email already exists. Please log in.' });
+    }
 
-    // Upload screenshot
     let screenshotKey;
     const f = req.file;
     if (proofR2.isPaymentR2Configured() && f.buffer) {
@@ -675,22 +621,6 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
       screenshotKey = `signup-proofs/${f.filename}`;
     }
 
-    // Create a PaymentRequest for this student (system-generated)
-    const adminId = await getSystemAdminId();
-    const dueDate = new Date();
-    const pr = await PaymentRequest.create({
-      studentId: app.userId,
-      requestedBy: adminId,
-      amount: app.amount,
-      currency: app.currency || 'INR',
-      paymentType: 'LANGUAGE_FEE',
-      dueDate,
-      remarks: `Public signup — ${app.name} (${app.email})`,
-      amountRemaining: app.amount,
-      source: 'PUBLIC_SIGNUP',
-      status: 'REQUESTED',
-    });
-
     const parsedPaid = parseFloat(paidAmount);
     const paid =
       Number.isFinite(parsedPaid) && parsedPaid > 0 ? parsedPaid : app.amount;
@@ -698,34 +628,24 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
     const payDtValid = !Number.isNaN(payDt.getTime()) ? payDt : new Date();
     const holder = String(accountHolderName || '').trim();
 
-    // Submit the proof
-    const paymentSvc = getPaymentService();
-    const submission = await paymentSvc.submitPayment({
-      paymentRequestId: pr._id,
-      studentId: app.userId,
-      paidAmount: paid,
-      currency: app.currency || 'INR',
-      screenshotKey,
-      screenshotOriginalName: f.originalname,
-      screenshotMimeType: f.mimetype,
-      screenshotSize: f.size,
-      paymentMethod: 'Bank Transfer',
-      paymentDateTime: payDtValid,
-      accountHolderName: holder || app.name,
-    });
-
-    app.paymentRequestId = pr._id;
-    app.submissionId = submission._id;
+    app.proofScreenshotKey = screenshotKey;
+    app.proofScreenshotOriginalName = f.originalname || '';
+    app.proofScreenshotMimeType = f.mimetype || '';
+    app.proofScreenshotSize = f.size || null;
+    app.proofPaidAmount = paid;
+    app.proofPaymentDateTime = payDtValid;
+    app.proofAccountHolderName = holder || app.name;
+    app.proofSubmittedAt = new Date();
     app.paymentMethod = 'proof';
+    app.status = 'proof_submitted';
     await app.save();
 
-    // Notify finance team (screenshot attached)
     const adminUrl = `${process.env.FRONTEND_URL || 'https://gluckstudentsportal.com'}/admin/payment-request`;
     const attachments = await buildSignupProofAttachments(f, screenshotKey);
     const notifyMail = buildSignupProofReceivedAdminEmail({
       studentName: app.name,
       studentEmail: app.email,
-      regNo: user.regNo,
+      regNo: 'Pending approval',
       phoneNumber: app.phoneNumber,
       whatsappNumber: app.whatsappNumber,
       nationality: app.nationality,
@@ -733,12 +653,12 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
       learnFromLanguage: app.otherLanguageKnown,
       level: app.level,
       subscription: app.subscription,
-      amount: app.amount,
+      amount: paid ?? app.amount,
       currency: app.currency || 'INR',
       paymentMethod: 'Bank transfer (manual proof)',
       proofFileName: f.originalname,
       proofNote: attachments.length
-        ? 'Payment screenshot is attached to this email.'
+        ? 'Payment screenshot is attached. Approve this signup in Admin → Pending signups after verifying payment.'
         : 'Screenshot could not be attached — open the admin panel to view the proof.',
       adminUrl,
     });
@@ -754,7 +674,7 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
 
     return res.json({
       success: true,
-      msg: 'Your payment proof has been submitted. Our team will review it and activate your account within 24 hours. You will receive an email with your login details.',
+      msg: 'Your payment proof has been submitted. Our team will verify it and email your Web App ID and login details once approved. You cannot log in until then.',
     });
   } catch (err) {
     console.error('[POST /public-signup/payment-proof]', err);

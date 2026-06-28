@@ -68,6 +68,16 @@ const SignupApplicationSchema = new mongoose.Schema({
   razorpayOrderId:   { type: String, default: null },
   razorpayPaymentId: { type: String, default: null },
 
+  // Bank transfer proof (stored on application until admin approves — no User until then)
+  proofScreenshotKey:          { type: String, default: null },
+  proofScreenshotOriginalName: { type: String, default: null },
+  proofScreenshotMimeType:     { type: String, default: null },
+  proofScreenshotSize:         { type: Number, default: null },
+  proofPaidAmount:             { type: Number, default: null },
+  proofPaymentDateTime:        { type: Date, default: null },
+  proofAccountHolderName:      { type: String, default: null },
+  proofSubmittedAt:            { type: Date, default: null },
+
   // ── links to created resources ───────────────────────────────────────────────
   userId:           { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   paymentRequestId: { type: mongoose.Schema.Types.ObjectId, default: null },
@@ -76,7 +86,7 @@ const SignupApplicationSchema = new mongoose.Schema({
   // ── lifecycle status ─────────────────────────────────────────────────────────
   status: {
     type: String,
-    enum: ['draft', 'email_verified', 'documents_done', 'payment_pending', 'approved', 'rejected'],
+    enum: ['draft', 'email_verified', 'documents_done', 'payment_pending', 'proof_submitted', 'approved', 'rejected'],
     default: 'draft',
     index: true,
   },
