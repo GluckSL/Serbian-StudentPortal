@@ -1,4 +1,4 @@
-import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild, HostListener } from '@angular/core';
+import { Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild, HostListener, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -67,6 +67,7 @@ export interface DgSceneFlowItem {
 })
 export class DgBotPlayerComponent implements OnInit, OnDestroy {
   @ViewChild('chatScroll') private chatScrollRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('contextFs') private contextFsRef?: ElementRef<HTMLElement>;
 
   // ── Loading / error ─────────────────────────────────────────────────────────
   loading = true;
@@ -168,6 +169,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   constructor(
     private ngZone: NgZone,
+    private renderer: Renderer2,
     private route: ActivatedRoute,
     private router: Router,
     private dgApi: DgApiService,
@@ -417,10 +419,19 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   openContextImageFullscreen(): void {
     if (!this.beginnerContextImageUrl) return;
     this.contextImageFullscreenOpen = true;
+    document.body.classList.add('dg-context-fs-open');
+    setTimeout(() => this.attachContextFsToBody(), 0);
   }
 
   closeContextImageFullscreen(): void {
     this.contextImageFullscreenOpen = false;
+    document.body.classList.remove('dg-context-fs-open');
+  }
+
+  private attachContextFsToBody(): void {
+    const el = this.contextFsRef?.nativeElement;
+    if (!el || el.parentElement === document.body) return;
+    this.renderer.appendChild(document.body, el);
   }
 
   @HostListener('document:keydown.escape')
@@ -657,6 +668,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyAborted = true;
+    this.closeContextImageFullscreen();
     this.stopConversationPracticeTimer();
     this.clearPendingAdvance();
     if (this.confettiOff) { clearTimeout(this.confettiOff); this.confettiOff = null; }

@@ -51,6 +51,7 @@
         class="dg-conv__char"
         [class.dg-conv__char--has-header]="isMobile"
         [class.dg-conv__char--with-context]="showBeginnerContextPanel"
+        [class.dg-conv__char--student-turn]="isMobile && showStudentTurnUi && showBeginnerContextPanel"
       >
         <!-- Mobile: mic area in char header (big screens: hidden) -->
         <div class="dg-conv__char-header" *ngIf="isMobile">
@@ -124,6 +125,7 @@
         class="dg-conv__char"
         [class.dg-conv__char--has-header]="isMobile"
         [class.dg-conv__char--with-context]="showBeginnerContextPanel"
+        [class.dg-conv__char--student-turn]="isMobile && showStudentTurnUi && showBeginnerContextPanel"
       >
         <!-- Context image / beginner panel -->
         <ng-container *ngTemplateOutlet="contextPanel"></ng-container>
@@ -553,6 +555,7 @@
 
   <!-- Full-screen image viewer -->
   <div
+    #contextFs
     class="dg-context-fs"
     *ngIf="contextImageFullscreenOpen && beginnerContextImageUrl"
     (click)="closeContextImageFullscreen()"
@@ -560,20 +563,24 @@
     aria-modal="true"
     aria-label="Full screen image"
   >
-    <button
-      type="button"
-      class="dg-context-fs__close"
-      (click)="closeContextImageFullscreen(); $event.stopPropagation()"
-      aria-label="Close full screen"
-    >
-      <mat-icon>close</mat-icon>
-    </button>
-    <img
-      [src]="beginnerContextImageUrl"
-      alt="Full screen view"
-      class="dg-context-fs__img"
-      (click)="$event.stopPropagation()"
-    />
-    <p class="dg-context-fs__footer-hint">Tap outside or ✕ to close</p>
+    <div class="dg-context-fs__toolbar" (click)="$event.stopPropagation()">
+      <button
+        type="button"
+        class="dg-context-fs__close"
+        (click)="closeContextImageFullscreen()"
+        aria-label="Close full screen"
+      >
+        <span class="dg-context-fs__close-glyph" aria-hidden="true">✕</span>
+        <span class="dg-context-fs__close-label">Close</span>
+      </button>
+    </div>
+    <div class="dg-context-fs__frame" (click)="$event.stopPropagation()">
+      <img
+        [src]="beginnerContextImageUrl"
+        alt="Full screen view"
+        class="dg-context-fs__img"
+      />
+    </div>
+    <p class="dg-context-fs__footer-hint">Tap outside or Close to exit</p>
   </div>
 </div><!-- /dg-player -->

@@ -138,6 +138,23 @@ button,
     transform 0.1s ease;
 }
 
+button.dg-context-fs__close,
+button.dg-context-fs__close:hover,
+button.dg-context-fs__close:active {
+  background-color: #fff !important;
+  color: #0f172a !important;
+  border: 2px solid #fff !important;
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.45),
+    0 0 0 3px rgba(15, 23, 42, 0.35) !important;
+  transform: none;
+}
+
+button.dg-context-fs__close:hover {
+  background-color: #f8fafc !important;
+  transform: scale(1.04) !important;
+}
+
 button:hover,
 .btn-primary:hover,
 .mat-raised-button.mat-primary:hover {
@@ -455,7 +472,7 @@ button:disabled,
 
 /* Minimum 44px touch targets for interactive elements */
 @media (max-width: 768px) {
-  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play):not(.sr-rec-card__res):not(.sr-rec-card__pending):not(.sr-icon-btn):not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
+  button:not(.cd-btn):not(.mobile-menu-btn):not(.sr-rec-card__play):not(.sr-rec-card__res):not(.sr-rec-card__pending):not(.sr-icon-btn):not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn):not(.dg-context-fs__close),
   .btn,
   a[role="button"]:not(.mc-tab):not(.dg-conv__action-btn):not(.tab-btn),
   [mat-button],
@@ -658,4 +675,8 @@ body.mobile-sidebar-open {
 }
 .arena-filters__select-panel .mdc-list-item__primary-text {
   display: flex !important; align-items: center !important; gap: 6px !important;
+}
+
+body.dg-context-fs-open {
+  overflow: hidden;
 }

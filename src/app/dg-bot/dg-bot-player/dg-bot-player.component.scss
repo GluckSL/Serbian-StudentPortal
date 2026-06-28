@@ -127,8 +127,8 @@
   }
 
   .dg-conv__context-img {
-    max-height: min(52vw, 280px);
-    min-height: 160px;
+    max-height: min(62vw, 340px);
+    min-height: 200px;
     width: 100%;
     object-fit: contain;
   }
@@ -630,61 +630,195 @@
   }
 }
 
+@media (max-width: 899px) {
+  .dg-conv__char--student-turn {
+    .dg-conv__mascot {
+      display: none;
+    }
+
+    .dg-conv__context-panel {
+      flex: 1;
+      min-height: 0;
+      margin-bottom: 0.35rem;
+    }
+
+    .dg-conv__context-img-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .dg-conv__context-img {
+      flex: 1;
+      max-height: min(calc(100dvh - 240px), 520px);
+      min-height: min(52vh, 380px);
+      width: 100%;
+      object-fit: contain;
+    }
+  }
+}
+
 // ── Full-screen context image viewer ──
 .dg-context-fs {
   position: fixed;
   inset: 0;
-  z-index: 10000;
-  background: rgba(15, 23, 42, 0.92);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
+  z-index: 100000;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background: rgba(15, 23, 42, 0.94);
   animation: dg-overlay-in 200ms ease;
 }
 
-.dg-context-fs__close {
+.dg-context-fs__toolbar {
   position: absolute;
-  top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
-  right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
   display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding:
+    max(0.55rem, env(safe-area-inset-top, 0.55rem))
+    max(0.75rem, env(safe-area-inset-right, 0.75rem))
+    0.55rem
+    max(0.75rem, env(safe-area-inset-left, 0.75rem));
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.98) 0%,
+    rgba(15, 23, 42, 0.88) 72%,
+    rgba(15, 23, 42, 0) 100%
+  );
+  pointer-events: none;
+}
+
+.dg-context-fs__close {
+  position: relative;
+  pointer-events: auto;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.4rem;
+  min-width: 48px;
+  height: 44px;
+  padding: 0 14px 0 12px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background-color: #fff !important;
+  color: #0f172a !important;
   cursor: pointer;
-  z-index: 2;
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.45),
+    0 0 0 3px rgba(15, 23, 42, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  font: inherit;
+  line-height: 1;
 
-  mat-icon {
-    font-size: 24px;
-    width: 24px;
-    height: 24px;
+  &:hover,
+  &:focus-visible {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+    transform: scale(1.04);
+    box-shadow:
+      0 6px 22px rgba(0, 0, 0, 0.5),
+      0 0 0 4px rgba(255, 255, 255, 0.45);
+    outline: none;
+  }
+
+  &:active {
+    transform: scale(0.97);
+    background-color: #e2e8f0 !important;
   }
 }
 
+.dg-context-fs__close-glyph {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.dg-context-fs__close-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #0f172a;
+}
+
+@media (min-width: 769px) {
+  .dg-context-fs__close {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .dg-context-fs__close-label {
+    display: none;
+  }
+
+  .dg-context-fs__close-glyph {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .dg-context-fs__close {
+    min-width: 96px;
+    height: 48px;
+    padding: 0 16px 0 14px;
+  }
+
+  .dg-context-fs__close-glyph {
+    font-size: 1.2rem;
+  }
+
+  .dg-context-fs__close-label {
+    font-size: 0.92rem;
+  }
+}
+
+.dg-context-fs__frame {
+  position: absolute;
+  inset: max(3.75rem, calc(env(safe-area-inset-top, 0px) + 3.25rem))
+    max(0.75rem, env(safe-area-inset-right, 0.75rem))
+    max(3.25rem, calc(env(safe-area-inset-bottom, 0px) + 2.75rem))
+    max(0.75rem, env(safe-area-inset-left, 0.75rem));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
 .dg-context-fs__img {
+  display: block;
+  width: 100%;
+  height: 100%;
   max-width: 100%;
-  max-height: calc(100vh - 120px);
-  max-height: calc(100dvh - 120px);
+  max-height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+  border: none;
+  border-radius: 6px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
 }
 
 .dg-context-fs__footer-hint {
   position: absolute;
-  bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+  bottom: max(0.85rem, env(safe-area-inset-bottom, 0.85rem));
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.78);
   font-size: 0.8rem;
   white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .dg-conv__mascot {
@@ -1276,8 +1410,13 @@
 
 @media (max-width: 420px) {
   .dg-conv__context-img {
-    max-height: min(58vw, 260px);
-    min-height: 140px;
+    max-height: min(64vw, 300px);
+    min-height: 180px;
+  }
+
+  .dg-conv__char--student-turn .dg-conv__context-img {
+    max-height: min(calc(100dvh - 220px), 480px);
+    min-height: min(50vh, 340px);
   }
 
   .dg-conv__char--with-context .dg-conv__mascot {
