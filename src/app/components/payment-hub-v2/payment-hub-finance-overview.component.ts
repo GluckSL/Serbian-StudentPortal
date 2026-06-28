@@ -12,6 +12,7 @@ import { BatchPaymentSummaryRow, PaymentHubApiService } from './payment-hub-api.
 import {
   FinanceCohort,
   formatStudentStatusLabel,
+  PlanStatusBreakdownEntry,
   PortalStudentCounts,
 } from './payment-hub-finance-cohort.util';
 
@@ -29,7 +30,13 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   loadingVisibleBatches = true;
   loadingBatchOptions = true;
   loadingSilverPaymentCount = true;
+  loadingDocsPaymentCounts = true;
   silverPaymentCount = 0;
+  docsPaymentCounts = {
+    total: 0,
+    ongoing: 0,
+    statusBreakdown: [] as PlanStatusBreakdownEntry[],
+  };
   savingVisibleBatches = false;
   showAddBatchModal = false;
   showManageVisibleBatches = false;
@@ -81,6 +88,7 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     this.loadVisibleBatches();
     this.loadBatchOptions();
     this.loadSilverPaymentCount();
+    this.loadDocsPaymentCounts();
   }
 
   formatStudentStatus = formatStudentStatusLabel;
@@ -151,7 +159,6 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   }
 
   toggleManageVisibleBatches(): void {
-    if (!this.visibleBatches.length) return;
     this.showManageVisibleBatches = !this.showManageVisibleBatches;
   }
 
@@ -407,6 +414,31 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
         },
         error: () => {
           this.loadingSilverPaymentCount = false;
+        },
+      });
+  }
+
+  private loadDocsPaymentCounts(): void {
+    this.loadingDocsPaymentCounts = true;
+    this.http
+      .get<{
+        success: boolean;
+        data?: { total: number; ongoing: number; statusBreakdown: PlanStatusBreakdownEntry[] };
+      }>(`${environment.apiUrl}/new-payments/finance-dashboard/docs-payment/overview`, {
+        withCredentials: true,
+      })
+      .subscribe({
+        next: (res) => {
+          this.docsPaymentCounts = {
+            total: res.data?.total ?? 0,
+            ongoing: res.data?.ongoing ?? 0,
+            statusBreakdown: res.data?.statusBreakdown ?? [],
+          };
+          this.loadingDocsPaymentCounts = false;
+        },
+        error: () => {
+          this.docsPaymentCounts = { total: 0, ongoing: 0, statusBreakdown: [] };
+          this.loadingDocsPaymentCounts = false;
         },
       });
   }

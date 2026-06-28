@@ -5,7 +5,7 @@
  * A4 portrait PDF with:
  *  - Header with branding
  *  - Summary cards: total crucial students, average engagement time
- *  - Table: Name | Batch | Phone | Email | Exercise Days (last 3) | Total Time | Live Classes (last 2)
+ *  - Table: Name | Batch | Phone | Journey Day | Exercise Days (last 3) | Total Time | Live Classes (last 2)
  */
 
 const { jsPDF } = require('jspdf');
@@ -207,7 +207,7 @@ function generateCrucialStudentsPdf({ students, summary }) {
     s.name,
     s.batch,
     s.phone,
-    s.email,
+    s.currentCourseDay ? String(s.currentCourseDay) : '—',
     exerciseDaysLabel(s.exerciseDays),
     fmtDuration(s.totalSeconds),
     `${s.liveClassesAttended ?? 0}/${s.liveClassesTotal ?? 0}`,
@@ -221,7 +221,7 @@ function generateCrucialStudentsPdf({ students, summary }) {
       'Student Name',
       'Batch',
       'Phone',
-      'Email',
+      'Journey Day',
       'Exercise Days\n(last 3)',
       'Total Time',
       'Live Classes\n(last 2)',
@@ -232,7 +232,7 @@ function generateCrucialStudentsPdf({ students, summary }) {
       1: { cellWidth: 30, fontStyle: 'bold' },
       2: { cellWidth: 20 },
       3: { cellWidth: 24 },
-      4: { cellWidth: 36 },
+      4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
       5: { cellWidth: 26, halign: 'center' },
       6: { cellWidth: 20, halign: 'center', fontStyle: 'bold', textColor: RED },
       7: { cellWidth: 14, halign: 'center' },

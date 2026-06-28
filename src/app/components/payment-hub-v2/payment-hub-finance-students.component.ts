@@ -13,6 +13,7 @@ import {
   CohortStudentsPaymentDetail,
   CurrencyBucket,
   CurrencyPaidTotals,
+  InsightCurrencyTotals,
   LanguageLevelSlot,
   PaymentHubApiService,
 } from './payment-hub-api.service';
@@ -33,6 +34,7 @@ import {
   formatStudentStatusLabel,
   parseFinanceCohortQuery,
 } from './payment-hub-finance-cohort.util';
+import { isDocsFullPaidByReceived } from './payment-hub-docs-full-paid.util';
 
 interface StudentCurrencyTotals {
   lkr: number;
@@ -40,14 +42,27 @@ interface StudentCurrencyTotals {
   usd: number;
 }
 
-interface LevelFilterOption {
+interface TableFilterOption {
   value: string;
   label: string;
   total: number;
 }
 
+type TableColumnFilter = 'level' | 'batch' | 'status';
+
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue';
+type DocsInsightAmountKind = 'expected' | 'received' | 'pending';
 type FinanceStudentPaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
+
+interface FinanceStudentInsightOption {
+  value: StudentInsightFilter;
+  key: string;
+  label: string;
+  icon: string;
+  color: string;
+  hint: string;
+  amountKind?: DocsInsightAmountKind;
+}
 
 @Component({
   selector: 'app-payment-hub-finance-students',
@@ -86,11 +101,17 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   studentInsight: StudentInsightFilter = '';
   paymentScope: FinanceStudentPaymentScope = 'current_level';
-  levelFilterOpen = false;
+  tableFilterOpen: TableColumnFilter | null = null;
+  tableFilterSearch = '';
   selectedLevels: string[] = [];
+  selectedBatches: string[] = [];
+  selectedStatuses: string[] = [];
   draftSelectedLevels: string[] = [];
-  levelFilterSearch = '';
-  levelOptions: LevelFilterOption[] = [];
+  draftSelectedBatches: string[] = [];
+  draftSelectedStatuses: string[] = [];
+  levelOptions: TableFilterOption[] = [];
+  batchOptions: TableFilterOption[] = [];
+  statusOptions: TableFilterOption[] = [];
 
   readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -120,12 +141,12 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
     this.paymentScope = scope;
   }
 
-  readonly studentInsightOptions = [
-    { value: '' as StudentInsightFilter, key: 'all', label: 'Total students', icon: 'groups', color: 'slate', hint: 'Show all students' },
-    { value: 'paid_full' as StudentInsightFilter, key: 'paid_full', label: 'Paid full', icon: 'check_circle', color: 'green', hint: 'Language fee fully paid' },
-    { value: 'have_balance' as StudentInsightFilter, key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', color: 'amber', hint: 'Outstanding balance' },
-    { value: 'overdue' as StudentInsightFilter, key: 'overdue', label: 'Overdue', icon: 'warning_amber', color: 'red', hint: 'Past due payments' },
-  ] as const;
+  readonly studentInsightOptions: FinanceStudentInsightOption[] = [
+    { value: '', key: 'all', label: 'Total students', icon: 'groups', color: 'slate', hint: 'Show all students' },
+    { value: 'paid_full', key: 'paid_full', label: 'Paid full', icon: 'check_circle', color: 'green', hint: 'Language fee fully paid' },
+    { value: 'have_balance', key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', color: 'amber', hint: 'Outstanding balance' },
+    { value: 'overdue', key: 'overdue', label: 'Overdue', icon: 'warning_amber', color: 'red', hint: 'Past due payments' },
+  ];
 
   formatStudentStatus = formatStudentStatusLabel;
 
@@ -142,10 +163,15 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
       });
       this.cohort = parsed.cohort;
       this.cohortStatus = parsed.status;
+      this.paymentScope = this.cohort === 'docs_payment' ? 'DOCS' : 'current_level';
       this.page = 1;
       this.studentInsight = '';
       this.selectedLevels = [];
+      this.selectedBatches = [];
+      this.selectedStatuses = [];
       this.draftSelectedLevels = [];
+      this.draftSelectedBatches = [];
+      this.draftSelectedStatuses = [];
       this.load();
     });
   }
@@ -163,6 +189,20 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
     return formatStudentStatusLabel(this.cohortStatus);
   }
 
+  get isDocsPaymentCohort(): boolean {
+    return this.cohort === 'docs_payment';
+  }
+
+  readonly docsInsightOptions: FinanceStudentInsightOption[] = [
+    { value: '', key: 'all', label: 'Total students', icon: 'groups', color: 'slate', hint: 'Show all students', amountKind: 'expected' },
+    { value: 'paid_full', key: 'paid_full', label: 'Payment clear', icon: 'check_circle', color: 'green', hint: 'Paid LKR 3,00,000 or 3,54,000 (INR 1,06,200)', amountKind: 'received' },
+    { value: 'have_balance', key: 'have_balance', label: 'Remaining', icon: 'pending_actions', color: 'amber', hint: 'Outstanding documentation balance', amountKind: 'pending' },
+  ];
+
+  get activeInsightOptions(): FinanceStudentInsightOption[] {
+    return this.isDocsPaymentCohort ? [...this.docsInsightOptions] : [...this.studentInsightOptions];
+  }
+
   load(): void {
     this.loading = true;
     this.api.getCohortStudentsPaymentDetail(this.cohort, this.cohortStatus || undefined, {
@@ -170,12 +210,19 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
       limit: this.pageSize,
       search: this.searchQuery.trim(),
       levels: this.selectedLevels.join(','),
+      batches: this.selectedBatches.join(','),
+      studentStatuses: this.selectedStatuses.join(','),
       insight: this.studentInsight,
     }).subscribe({
       next: (res) => {
         const data = res.data;
         this.rows = data?.students || [];
         this.levelOptions = data?.levelOptions || [];
+        this.batchOptions = data?.batchOptions || [];
+        this.statusOptions = (data?.statusOptions || []).map((opt) => ({
+          ...opt,
+          label: formatStudentStatusLabel(opt.label),
+        }));
         const { students: _s, ...rest } = data || { students: [], cohort: this.cohort, status: this.cohortStatus, totalStudents: 0, page: 1, limit: this.pageSize, totalPages: 1, levelOptions: [], insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 }, levelSummaries: [], totalPaidLKR: 0, totalPaidINR: 0, totalPaidUSD: 0, totalPendingLKR: 0, totalPendingINR: 0, totalPendingUSD: 0 };
         this.summary = rest;
         this.page = rest.page || this.page;
@@ -184,6 +231,8 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
       error: () => {
         this.rows = [];
         this.levelOptions = [];
+        this.batchOptions = [];
+        this.statusOptions = [];
         this.summary = { cohort: this.cohort, status: this.cohortStatus, totalStudents: 0, page: 1, limit: this.pageSize, totalPages: 1, levelOptions: [], insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 }, levelSummaries: [], totalPaidLKR: 0, totalPaidINR: 0, totalPaidUSD: 0, totalPendingLKR: 0, totalPendingINR: 0, totalPendingUSD: 0 };
         this.loading = false;
       },
@@ -258,6 +307,93 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
     return counts?.[key as keyof NonNullable<CohortStudentsPaymentDetail['insightCounts']>] ?? 0;
   }
 
+  studentPct(count: number, total: number): string {
+    if (!total) return '0%';
+    return `${Math.round((count / total) * 100)}%`;
+  }
+
+  private hasMoney(totals: InsightCurrencyTotals | undefined): boolean {
+    if (!totals) return false;
+    return totals.lkr > 0 || totals.inr > 0 || totals.usd > 0;
+  }
+
+  hasInsightMoney(totals: InsightCurrencyTotals): boolean {
+    return this.hasMoney(totals);
+  }
+
+  summaryExpectedTotals(): InsightCurrencyTotals {
+    const s = this.summary;
+    if (!s) return { lkr: 0, inr: 0, usd: 0 };
+    const fromApi = this.summary?.insightAmounts?.all?.expected;
+    if (this.hasMoney(fromApi)) return fromApi!;
+    return {
+      lkr: (s.totalExpectedLKR || 0) || ((s.totalPaidLKR || 0) + (s.totalPendingLKR || 0)),
+      inr: (s.totalExpectedINR || 0) || ((s.totalPaidINR || 0) + (s.totalPendingINR || 0)),
+      usd: (s.totalExpectedUSD || 0) || ((s.totalPaidUSD || 0) + (s.totalPendingUSD || 0)),
+    };
+  }
+
+  summaryReceivedTotals(): InsightCurrencyTotals {
+    const s = this.summary;
+    return { lkr: s?.totalPaidLKR || 0, inr: s?.totalPaidINR || 0, usd: s?.totalPaidUSD || 0 };
+  }
+
+  summaryPendingTotals(): InsightCurrencyTotals {
+    const s = this.summary;
+    return { lkr: s?.totalPendingLKR || 0, inr: s?.totalPendingINR || 0, usd: s?.totalPendingUSD || 0 };
+  }
+
+  hasInsightAmount(key: string): boolean {
+    if (!this.isDocsPaymentCohort) return false;
+    return this.hasMoney(this.docsInsightAmountsFor(key));
+  }
+
+  private docsInsightAmountsFor(key: string): InsightCurrencyTotals {
+    if (key === 'all') return this.insightAllExpected();
+    if (key === 'paid_full') return this.insightReceivedFor('paid_full');
+    if (key === 'have_balance') return this.insightPendingFor('have_balance');
+    return { lkr: 0, inr: 0, usd: 0 };
+  }
+
+  insightExpectedFor(key: string): InsightCurrencyTotals {
+    if (key === 'all') return this.insightAllExpected();
+    return this.summary?.insightAmounts?.[key as 'paid_full' | 'have_balance']?.expected ?? { lkr: 0, inr: 0, usd: 0 };
+  }
+
+  insightReceivedFor(key: string): InsightCurrencyTotals {
+    if (key === 'all') return this.insightAllReceived();
+    return this.summary?.insightAmounts?.[key as 'paid_full' | 'have_balance']?.received ?? { lkr: 0, inr: 0, usd: 0 };
+  }
+
+  insightPendingFor(key: string): InsightCurrencyTotals {
+    if (key === 'all') return this.insightAllPending();
+    return this.summary?.insightAmounts?.[key as 'paid_full' | 'have_balance']?.pending ?? { lkr: 0, inr: 0, usd: 0 };
+  }
+
+  insightAllExpected(): InsightCurrencyTotals {
+    return this.summary?.insightAmounts?.all?.expected ?? this.summaryExpectedTotals();
+  }
+
+  insightAllReceived(): InsightCurrencyTotals {
+    return this.summary?.insightAmounts?.all?.received ?? this.summaryReceivedTotals();
+  }
+
+  insightAllPending(): InsightCurrencyTotals {
+    return this.summary?.insightAmounts?.all?.pending ?? this.summaryPendingTotals();
+  }
+
+  insightAmountLkr(key: string): number {
+    return this.docsInsightAmountsFor(key).lkr;
+  }
+
+  insightAmountInr(key: string): number {
+    return this.docsInsightAmountsFor(key).inr;
+  }
+
+  insightAmountUsd(key: string): number {
+    return this.docsInsightAmountsFor(key).usd;
+  }
+
   applyInsightFilter(insight: StudentInsightFilter): void {
     this.studentInsight = this.studentInsight === insight ? '' : insight;
     this.page = 1;
@@ -269,67 +405,169 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
   }
 
   activeInsightLabel(): string {
-    return this.studentInsightOptions.find((o) => o.value === this.studentInsight)?.label || '';
+    return this.activeInsightOptions.find((o) => o.value === this.studentInsight)?.label || '';
   }
 
-  openLevelFilter(): void {
-    this.draftSelectedLevels = [...this.selectedLevels];
-    this.levelFilterSearch = '';
-    this.levelFilterOpen = true;
+  openTableFilter(kind: TableColumnFilter): void {
+    this.tableFilterOpen = kind;
+    this.tableFilterSearch = '';
+    if (kind === 'level') this.draftSelectedLevels = [...this.selectedLevels];
+    if (kind === 'batch') this.draftSelectedBatches = [...this.selectedBatches];
+    if (kind === 'status') this.draftSelectedStatuses = [...this.selectedStatuses];
   }
 
-  closeLevelFilter(): void {
-    this.levelFilterOpen = false;
+  closeTableFilter(): void {
+    this.tableFilterOpen = null;
   }
 
-  filteredLevelOptions(): LevelFilterOption[] {
-    const q = this.levelFilterSearch.trim().toLowerCase();
-    if (!q) return this.levelOptions;
-    return this.levelOptions.filter((opt) => opt.label.toLowerCase().includes(q));
+  activeTableFilterOptions(): TableFilterOption[] {
+    if (this.tableFilterOpen === 'batch') return this.batchOptions;
+    if (this.tableFilterOpen === 'status') return this.statusOptions;
+    return this.levelOptions;
   }
 
-  isDraftLevelSelected(value: string): boolean {
+  filteredTableFilterOptions(): TableFilterOption[] {
+    const q = this.tableFilterSearch.trim().toLowerCase();
+    const options = this.activeTableFilterOptions();
+    if (!q) return options;
+    return options.filter((opt) => opt.label.toLowerCase().includes(q));
+  }
+
+  isDraftTableFilterSelected(value: string): boolean {
+    if (this.tableFilterOpen === 'batch') return this.draftSelectedBatches.includes(value);
+    if (this.tableFilterOpen === 'status') return this.draftSelectedStatuses.includes(value);
     return this.draftSelectedLevels.includes(value);
   }
 
-  toggleDraftLevel(value: string): void {
-    this.draftSelectedLevels = this.isDraftLevelSelected(value)
+  toggleDraftTableFilter(value: string): void {
+    if (this.tableFilterOpen === 'batch') {
+      this.draftSelectedBatches = this.isDraftTableFilterSelected(value)
+        ? this.draftSelectedBatches.filter((v) => v !== value)
+        : [...this.draftSelectedBatches, value];
+      return;
+    }
+    if (this.tableFilterOpen === 'status') {
+      this.draftSelectedStatuses = this.isDraftTableFilterSelected(value)
+        ? this.draftSelectedStatuses.filter((v) => v !== value)
+        : [...this.draftSelectedStatuses, value];
+      return;
+    }
+    this.draftSelectedLevels = this.isDraftTableFilterSelected(value)
       ? this.draftSelectedLevels.filter((v) => v !== value)
       : [...this.draftSelectedLevels, value];
   }
 
+  selectAllTableFilter(): void {
+    const values = this.activeTableFilterOptions().map((opt) => opt.value);
+    if (this.tableFilterOpen === 'batch') this.draftSelectedBatches = [...values];
+    else if (this.tableFilterOpen === 'status') this.draftSelectedStatuses = [...values];
+    else this.draftSelectedLevels = [...values];
+  }
+
+  clearTableFilterDraft(): void {
+    if (this.tableFilterOpen === 'batch') this.draftSelectedBatches = [];
+    else if (this.tableFilterOpen === 'status') this.draftSelectedStatuses = [];
+    else this.draftSelectedLevels = [];
+  }
+
+  applyTableFilter(): void {
+    if (this.tableFilterOpen === 'batch') this.selectedBatches = [...this.draftSelectedBatches];
+    else if (this.tableFilterOpen === 'status') this.selectedStatuses = [...this.draftSelectedStatuses];
+    else this.selectedLevels = [...this.draftSelectedLevels];
+    this.page = 1;
+    this.studentInsight = '';
+    this.tableFilterOpen = null;
+    this.load();
+  }
+
+  clearAppliedTableFilter(kind: TableColumnFilter): void {
+    if (kind === 'batch') {
+      this.selectedBatches = [];
+      this.draftSelectedBatches = [];
+    } else if (kind === 'status') {
+      this.selectedStatuses = [];
+      this.draftSelectedStatuses = [];
+    } else {
+      this.selectedLevels = [];
+      this.draftSelectedLevels = [];
+    }
+    this.page = 1;
+    this.studentInsight = '';
+    this.load();
+  }
+
+  tableFilterLabel(kind: TableColumnFilter): string {
+    const selected = kind === 'batch'
+      ? this.selectedBatches
+      : kind === 'status'
+        ? this.selectedStatuses
+        : this.selectedLevels;
+    if (!selected.length) return '';
+    const options = kind === 'batch'
+      ? this.batchOptions
+      : kind === 'status'
+        ? this.statusOptions
+        : this.levelOptions;
+    const byValue = new Map(options.map((opt) => [opt.value, opt.label]));
+    if (selected.length === 1) return byValue.get(selected[0]) || selected[0];
+    return `${selected.length} selected`;
+  }
+
+  tableFilterTitle(): string {
+    if (this.tableFilterOpen === 'batch') return 'Filter by Batch';
+    if (this.tableFilterOpen === 'status') return 'Filter by Status';
+    return 'Filter by Language Level';
+  }
+
+  tableFilterSubtitle(): string {
+    return 'Select one or more values, then click Apply';
+  }
+
+  openLevelFilter(): void {
+    this.openTableFilter('level');
+  }
+
+  closeLevelFilter(): void {
+    this.closeTableFilter();
+  }
+
+  filteredLevelOptions(): TableFilterOption[] {
+    return this.filteredTableFilterOptions();
+  }
+
+  isDraftLevelSelected(value: string): boolean {
+    return this.isDraftTableFilterSelected(value);
+  }
+
+  toggleDraftLevel(value: string): void {
+    this.toggleDraftTableFilter(value);
+  }
+
   selectAllLevelFilter(): void {
-    this.draftSelectedLevels = this.levelOptions.map((opt) => opt.value);
+    this.selectAllTableFilter();
   }
 
   clearLevelFilterDraft(): void {
-    this.draftSelectedLevels = [];
+    this.clearTableFilterDraft();
   }
 
   applyLevelFilter(): void {
-    this.selectedLevels = [...this.draftSelectedLevels];
-    this.page = 1;
-    this.studentInsight = '';
-    this.levelFilterOpen = false;
-    this.load();
+    this.applyTableFilter();
   }
 
   clearAppliedLevelFilter(): void {
-    this.selectedLevels = [];
-    this.draftSelectedLevels = [];
-    this.page = 1;
-    this.studentInsight = '';
-    this.load();
+    this.clearAppliedTableFilter('level');
   }
 
   levelFilterLabel(): string {
-    if (!this.selectedLevels.length) return '';
-    const byValue = new Map(this.levelOptions.map((opt) => [opt.value, opt.label]));
-    if (this.selectedLevels.length === 1) return byValue.get(this.selectedLevels[0]) || this.selectedLevels[0];
-    return `${this.selectedLevels.length} levels`;
+    return this.tableFilterLabel('level');
   }
 
-  trackLevelOption(_index: number, opt: LevelFilterOption): string {
+  trackLevelOption(_index: number, opt: TableFilterOption): string {
+    return opt.value;
+  }
+
+  trackTableFilterOption(_index: number, opt: TableFilterOption): string {
     return opt.value;
   }
 
@@ -433,11 +671,30 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
         };
       case 'DOCS': {
         const docs = r.docsPaidByCurrency;
+        const pending = {
+          lkr: r.docsPendingLKR ?? 0,
+          inr: r.docsPendingINR ?? 0,
+          usd: r.docsPendingUSD ?? 0,
+        };
+        const overdue = {
+          lkr: r.docsOverdueLKR ?? 0,
+          inr: r.docsOverdueINR ?? 0,
+          usd: r.docsOverdueUSD ?? 0,
+        };
+        const balance = {
+          lkr: r.docsBalanceLKR ?? 0,
+          inr: r.docsBalanceINR ?? 0,
+          usd: r.docsBalanceUSD ?? 0,
+        };
         return {
           expected: z,
           received: { lkr: docs?.LKR ?? 0, inr: docs?.INR ?? 0, usd: docs?.USD ?? 0 },
-          pending: z,
-          overdue: z,
+          pending: {
+            lkr: pending.lkr + balance.lkr,
+            inr: pending.inr + balance.inr,
+            usd: pending.usd + balance.usd,
+          },
+          overdue,
         };
       }
       default: {
@@ -470,6 +727,15 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
   }
 
   private rowLanguageFeeStatus(row: BatchStudentPaymentRow): LanguageFeeStatus {
+    if (this.isDocsPaymentCohort) {
+      if (isDocsFullPaidByReceived(row)) return 'FULL_PAID';
+      const remaining =
+        (row.docsBalanceLKR ?? 0) + (row.docsBalanceINR ?? 0) + (row.docsBalanceUSD ?? 0)
+        + (row.docsOverdueLKR ?? 0) + (row.docsOverdueINR ?? 0) + (row.docsOverdueUSD ?? 0);
+      if ((row.docsOverdueLKR ?? 0) + (row.docsOverdueINR ?? 0) + (row.docsOverdueUSD ?? 0) > 0) return 'DUE';
+      if (remaining > 0) return 'BALANCE';
+      return 'BALANCE';
+    }
     const pending = this.pendingTotal(row);
     const overdue = this.overdueTotal(row);
     if (pending <= 0 && overdue <= 0 && ['FULLY_PAID', 'GOOD_STANDING'].includes(row.overallStatus)) {
@@ -480,6 +746,22 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
 
   private rowMatchesInsight(row: BatchStudentPaymentRow, insight: StudentInsightFilter): boolean {
     if (!insight) return true;
+    if (this.isDocsPaymentCohort) {
+      const remaining =
+        (row.docsBalanceLKR ?? 0) + (row.docsBalanceINR ?? 0) + (row.docsBalanceUSD ?? 0)
+        + (row.docsOverdueLKR ?? 0) + (row.docsOverdueINR ?? 0) + (row.docsOverdueUSD ?? 0);
+      const overdue = (row.docsOverdueLKR ?? 0) + (row.docsOverdueINR ?? 0) + (row.docsOverdueUSD ?? 0);
+      switch (insight) {
+        case 'paid_full':
+          return isDocsFullPaidByReceived(row);
+        case 'have_balance':
+          return !isDocsFullPaidByReceived(row);
+        case 'overdue':
+          return overdue > 0;
+        default:
+          return true;
+      }
+    }
     const status = this.rowLanguageFeeStatus(row);
     switch (insight) {
       case 'paid_full': return status === 'FULL_PAID';
@@ -487,6 +769,21 @@ export class PaymentHubFinanceStudentsComponent implements OnInit, OnDestroy {
       case 'overdue': return status === 'DUE' || this.overdueTotal(row) > 0 || row.overallStatus === 'OVERDUE';
       default: return true;
     }
+  }
+
+  feeStatusColumnLabel(): string {
+    return this.isDocsPaymentCohort ? 'Document fee' : 'Language fee';
+  }
+
+  feeStatusLabel(row: BatchStudentPaymentRow): string {
+    if (this.isDocsPaymentCohort) {
+      const status = this.rowLanguageFeeStatus(row);
+      if (status === 'FULL_PAID') return 'Full paid';
+      if (status === 'DUE') return 'Overdue';
+      if (status === 'BALANCE') return 'Balance';
+      return LANGUAGE_FEE_STATUS_LABELS[status] || status;
+    }
+    return this.languageFeeStatusLabel(row);
   }
 
   languageFeeStatusLabel(row: BatchStudentPaymentRow): string {

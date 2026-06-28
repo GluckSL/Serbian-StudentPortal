@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -29,6 +29,7 @@ import {
 import { formatStudentStatusLabel } from './payment-hub-finance-cohort.util';
 
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance';
+type GoTrackFilter = '' | 'tamil' | 'sinhala';
 
 interface SilverBatchOption {
   id: string;
@@ -107,6 +108,7 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
   totalPages = 1;
   searchQuery = '';
   studentInsight: StudentInsightFilter = '';
+  goTrackFilter: GoTrackFilter = '';
   levelFilterOpen = false;
   selectedLevels: string[] = [];
   draftSelectedLevels: string[] = [];
@@ -165,6 +167,7 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
     private readonly http: HttpClient,
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
+    private readonly route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
@@ -175,6 +178,11 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
         this.page = 1;
         this.loadStudents();
       });
+    this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
+      if (params.get('openAdd') === 'batch') {
+        this.openAddModal();
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -308,6 +316,28 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
     const byValue = new Map(this.levelOptions.map((opt) => [opt.value, opt.label]));
     if (this.selectedLevels.length === 1) return byValue.get(this.selectedLevels[0]) || this.selectedLevels[0];
     return `${this.selectedLevels.length} levels`;
+  }
+
+  goTrackFilterLabel(): string {
+    if (this.goTrackFilter === 'tamil') return 'GO Tamil only';
+    if (this.goTrackFilter === 'sinhala') return 'GO Sinhala only';
+    return '';
+  }
+
+  onGoTrackFilterChange(value: string): void {
+    this.goTrackFilter = value === 'tamil' || value === 'sinhala' ? value : '';
+    this.page = 1;
+    this.loadStudents();
+  }
+
+  clearGoTrackFilter(): void {
+    this.goTrackFilter = '';
+    this.page = 1;
+    this.loadStudents();
+  }
+
+  goTrackDisplay(r: BatchStudentPaymentRow): string {
+    return r.goTrackLabel || (r.goTrack === 'sinhala' ? 'GO Sinhala' : 'GO Tamil');
   }
 
   trackLevelOption(_index: number, opt: LevelFilterOption): string {
@@ -570,6 +600,7 @@ export class PaymentHubSilverPaymentComponent implements OnInit, OnDestroy {
       .set('limit', String(this.pageSize));
     if (this.searchQuery) params = params.set('search', this.searchQuery);
     if (this.studentInsight) params = params.set('insight', this.studentInsight);
+    if (this.goTrackFilter) params = params.set('goTrack', this.goTrackFilter);
     if (this.selectedLevels.length) params = params.set('levels', this.selectedLevels.join(','));
 
     this.http

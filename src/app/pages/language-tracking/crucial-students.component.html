@@ -85,7 +85,7 @@
       <div class="cs-search">
         <mat-icon class="cs-search__icon">search</mat-icon>
         <input type="text" class="cs-search__input"
-               placeholder="Search name, batch or email…"
+               placeholder="Search name or batch…"
                [(ngModel)]="searchRaw"
                (ngModelChange)="onSearchChange()" />
         <button *ngIf="searchRaw" class="cs-search__clear" type="button"
@@ -167,7 +167,7 @@
             <th>Student</th>
             <th>Batch</th>
             <th>Phone</th>
-            <th>Email</th>
+            <th class="cs-th-center">Journey Day</th>
             <th class="cs-th-center">Total Time <span>exercise days</span></th>
             <th class="cs-th-center">Breakdown</th>
             <th class="cs-th-center">Exercise Days <span>last 3</span></th>
@@ -182,7 +182,7 @@
               <td><div class="cs-skel cs-skel--name"></div></td>
               <td><div class="cs-skel cs-skel--chip"></div></td>
               <td><div class="cs-skel cs-skel--cell"></div></td>
-              <td><div class="cs-skel cs-skel--email"></div></td>
+              <td><div class="cs-skel cs-skel--chip"></div></td>
               <td><div class="cs-skel cs-skel--chip"></div></td>
               <td><div class="cs-skel cs-skel--break"></div></td>
               <td><div class="cs-skel cs-skel--cell"></div></td>
@@ -197,11 +197,15 @@
               <td class="cs-td-num">{{ (page - 1) * limit + i + 1 }}</td>
               <td>
                 <div class="cs-name">{{ s.name }}</div>
-                <div class="cs-meta">Day {{ s.currentCourseDay }} · Wk {{ s.weekNum }} · {{ s.level }}</div>
+                <div class="cs-meta">Wk {{ s.weekNum }} · {{ s.level }}</div>
               </td>
               <td><span class="cs-chip cs-chip--batch">{{ s.batch }}</span></td>
               <td class="cs-td-muted">{{ s.phone }}</td>
-              <td><a class="cs-link" [href]="'mailto:' + s.email">{{ s.email }}</a></td>
+              <td class="cs-td-center">
+                <span class="cs-days-chip" [matTooltip]="'Week ' + s.weekNum + ' · ' + s.level">
+                  Day {{ s.currentCourseDay || '—' }}
+                </span>
+              </td>
               <td class="cs-td-center">
                 <span class="cs-time"
                       [class.cs-time--zero]="s.totalSeconds === 0"

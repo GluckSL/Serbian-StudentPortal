@@ -151,37 +151,43 @@
 
       <div class="ph-finance-overview-secondary-row">
         <article class="ph-finance-overview-card ph-finance-overview-card--ongoing-batches">
-          <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--batches" aria-hidden="true">
-            <mat-icon>view_module</mat-icon>
+          <div class="ph-finance-overview-card__header">
+            <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--batches" aria-hidden="true">
+              <mat-icon>view_module</mat-icon>
+            </div>
+            <h2 class="ph-finance-overview-card__title">ALL payment (Language)</h2>
           </div>
-          <div class="ph-finance-overview-card__main">
-            <span class="ph-finance-overview-card__value">
-              {{ loadingVisibleBatches ? '...' : visibleBatches.length }}
-            </span>
-            <span class="ph-finance-overview-card__label">Ongoing batches</span>
+          <div class="ph-finance-overview-card__middle">
+            <div class="ph-finance-overview-card__main ph-finance-overview-card__main--value-only">
+              <span class="ph-finance-overview-card__value">
+                {{ loadingVisibleBatches ? '...' : visibleBatches.length }}
+              </span>
+            </div>
+            <p class="ph-finance-overview-card__hint">
+              Pinned batches visible to all admins on the finance dashboard — remove anytime.
+            </p>
           </div>
-          <a
-            class="ph-finance-overview-ongoing-link"
-            [routerLink]="batchesRoute('all')"
-            [queryParams]="batchesQuery('all')"
-          >
-            <span>Show details</span>
-            <mat-icon>arrow_forward</mat-icon>
-          </a>
-          <p class="ph-finance-overview-card__hint">
-            Pinned batches visible to all admins on the finance dashboard — remove anytime.
-          </p>
 
-          <button
-            type="button"
-            class="ph-finance-manage-batches-btn"
-            *ngIf="!loadingVisibleBatches && visibleBatches.length"
-            (click)="toggleManageVisibleBatches()"
-            [attr.aria-expanded]="showManageVisibleBatches"
-          >
-            <mat-icon>{{ showManageVisibleBatches ? 'expand_less' : 'tune' }}</mat-icon>
-            <span>{{ showManageVisibleBatches ? 'Hide manage' : 'Manage batches' }}</span>
-          </button>
+          <div class="ph-finance-card-actions">
+            <a
+              class="ph-finance-overview-ongoing-link ph-finance-card-actions__show"
+              [routerLink]="batchesRoute('all')"
+              [queryParams]="batchesQuery('all')"
+            >
+              <span>Show details</span>
+              <mat-icon>arrow_forward</mat-icon>
+            </a>
+            <button
+              type="button"
+              class="ph-finance-manage-batches-btn"
+              *ngIf="!loadingVisibleBatches"
+              (click)="toggleManageVisibleBatches()"
+              [attr.aria-expanded]="showManageVisibleBatches"
+            >
+              <mat-icon>{{ showManageVisibleBatches ? 'expand_less' : 'tune' }}</mat-icon>
+              <span>{{ showManageVisibleBatches ? 'Hide manage' : 'Manage batches' }}</span>
+            </button>
+          </div>
 
           <div class="ph-finance-batch-chips" *ngIf="!loadingVisibleBatches && showManageVisibleBatches && visibleBatches.length">
             <div class="ph-finance-batch-chip" *ngFor="let b of visibleBatches">
@@ -209,40 +215,46 @@
         </article>
 
         <article class="ph-finance-overview-card ph-finance-overview-card--language-payment">
-          <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--language-payment" aria-hidden="true">
-            <mat-icon>translate</mat-icon>
+          <div class="ph-finance-overview-card__header">
+            <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--language-payment" aria-hidden="true">
+              <mat-icon>translate</mat-icon>
+            </div>
+            <h2 class="ph-finance-overview-card__title">Platinum ongoing payment</h2>
           </div>
-          <div class="ph-finance-overview-card__main">
+          <div class="ph-finance-overview-card__middle">
+            <div class="ph-finance-overview-card__main ph-finance-overview-card__main--value-only">
+              <a
+                class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+                routerLink="/admin/finance-dashboard/language-payment"
+                [queryParams]="{ mode: 'language' }"
+              >
+                {{ loadingVisibleBatches ? '...' : languageBatches.length }}
+              </a>
+            </div>
+            <p class="ph-finance-overview-card__hint">
+              Track GO Tamil, GO Sinhala and other language batches for dedicated payment monitoring.
+            </p>
+          </div>
+
+          <div class="ph-finance-card-actions">
             <a
-              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              class="ph-finance-overview-ongoing-link ph-finance-card-actions__show"
               routerLink="/admin/finance-dashboard/language-payment"
               [queryParams]="{ mode: 'language' }"
             >
-              {{ loadingVisibleBatches ? '...' : languageBatches.length }}
+              <span>Show details</span>
+              <mat-icon>arrow_forward</mat-icon>
             </a>
-            <span class="ph-finance-overview-card__label">Language Payment</span>
+            <button
+              type="button"
+              class="ph-finance-manage-batches-btn"
+              (click)="toggleManageLanguageBatches()"
+              [attr.aria-expanded]="showManageLanguageBatches"
+            >
+              <mat-icon>{{ showManageLanguageBatches ? 'expand_less' : 'tune' }}</mat-icon>
+              <span>{{ showManageLanguageBatches ? 'Hide manage' : 'Manage batches' }}</span>
+            </button>
           </div>
-          <a
-            class="ph-finance-overview-ongoing-link"
-            routerLink="/admin/finance-dashboard/language-payment"
-            [queryParams]="{ mode: 'language' }"
-          >
-            <span>Show details</span>
-            <mat-icon>arrow_forward</mat-icon>
-          </a>
-          <p class="ph-finance-overview-card__hint">
-            Track GO Tamil, GO Sinhala and other language batches for dedicated payment monitoring.
-          </p>
-
-          <button
-            type="button"
-            class="ph-finance-manage-batches-btn"
-            (click)="toggleManageLanguageBatches()"
-            [attr.aria-expanded]="showManageLanguageBatches"
-          >
-            <mat-icon>{{ showManageLanguageBatches ? 'expand_less' : 'tune' }}</mat-icon>
-            <span>{{ showManageLanguageBatches ? 'Hide manage' : 'Manage batches' }}</span>
-          </button>
 
           <div class="ph-finance-lang-manage" *ngIf="!loadingVisibleBatches && showManageLanguageBatches">
 
@@ -315,35 +327,76 @@
         </article>
 
         <article class="ph-finance-overview-card ph-finance-overview-card--silver-payment">
-          <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--silver-payment" aria-hidden="true">
-            <mat-icon>workspace_premium</mat-icon>
+          <div class="ph-finance-overview-card__header">
+            <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--silver-payment" aria-hidden="true">
+              <mat-icon>workspace_premium</mat-icon>
+            </div>
+            <h2 class="ph-finance-overview-card__title">Silver payment</h2>
           </div>
-          <div class="ph-finance-overview-card__main">
+          <div class="ph-finance-overview-card__middle">
+            <div class="ph-finance-overview-card__main ph-finance-overview-card__main--value-only">
+              <a
+                class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+                routerLink="/admin/finance-dashboard/silver-payment"
+              >
+                {{ loadingSilverPaymentCount ? '…' : silverPaymentCount }}
+              </a>
+            </div>
+            <p class="ph-finance-overview-card__hint">
+              Custom tracked list — add from GO Tamil, GO Sinhala, batches or individual search.
+            </p>
+          </div>
+          <div class="ph-finance-card-actions">
             <a
-              class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+              class="ph-finance-overview-ongoing-link ph-finance-card-actions__show"
               routerLink="/admin/finance-dashboard/silver-payment"
             >
-              {{ loadingSilverPaymentCount ? '…' : silverPaymentCount }}
+              <span>Show details</span>
+              <mat-icon>arrow_forward</mat-icon>
             </a>
-            <span class="ph-finance-overview-card__label">Silver Payment</span>
+            <a
+              class="ph-finance-manage-batches-btn ph-finance-manage-batches-btn--silver"
+              routerLink="/admin/finance-dashboard/silver-payment"
+              [queryParams]="{ openAdd: 'batch' }"
+            >
+              <mat-icon>tune</mat-icon>
+              <span>Manage batches</span>
+            </a>
           </div>
-          <a
-            class="ph-finance-overview-ongoing-link"
-            routerLink="/admin/finance-dashboard/silver-payment"
-          >
-            <span>Show details</span>
-            <mat-icon>arrow_forward</mat-icon>
-          </a>
-          <p class="ph-finance-overview-card__hint">
-            Custom tracked list — add from GO Tamil, GO Sinhala, batches or individual search.
-          </p>
-          <a
-            class="ph-finance-manage-batches-btn ph-finance-manage-batches-btn--silver"
-            routerLink="/admin/finance-dashboard/silver-payment"
-          >
-            <mat-icon>manage_accounts</mat-icon>
-            <span>Manage students</span>
-          </a>
+        </article>
+
+        <!-- ── Document Payment card ── -->
+        <article class="ph-finance-overview-card ph-finance-overview-card--docs-payment">
+          <div class="ph-finance-overview-card__header">
+            <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--docs-payment" aria-hidden="true">
+              <mat-icon>description</mat-icon>
+            </div>
+            <h2 class="ph-finance-overview-card__title">Document payment</h2>
+          </div>
+          <div class="ph-finance-overview-card__middle">
+            <div class="ph-finance-overview-card__main ph-finance-overview-card__main--value-only">
+              <a
+                class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
+                routerLink="/admin/finance-dashboard/students"
+                [queryParams]="{ cohort: 'docs_payment' }"
+              >
+                {{ loadingDocsPaymentCounts ? '…' : docsPaymentCounts.total }}
+              </a>
+            </div>
+            <p class="ph-finance-overview-card__hint">
+              Visa &amp; docs packages plus Silver/Platinum students who paid documentation fees.
+            </p>
+          </div>
+          <div class="ph-finance-card-actions ph-finance-card-actions--single">
+            <a
+              class="ph-finance-manage-batches-btn ph-finance-manage-batches-btn--docs"
+              routerLink="/admin/finance-dashboard/students"
+              [queryParams]="{ cohort: 'docs_payment' }"
+            >
+              <mat-icon>payments</mat-icon>
+              <span>View payment details</span>
+            </a>
+          </div>
         </article>
       </div>
     </ng-container>

@@ -5,9 +5,9 @@
  *
  * Logic:
  *   1. Fetch all active ONGOING students.
- *   2. For each student, scan recorded ended live classes for their batch/plan.
+ *   2. For each student, scan recorded ended live classes for their batch/plan (last 10 days only).
  *   3. Count fully missed classes (0% attendance) and collect the dates.
- *   4. Include students with MORE than 2 missed classes (3+).
+ *   4. Include students with 2 or more missed classes in that window.
  *   5. Send one HTML digest to languageschool@gluckglobal.com and sourav@gluckglobal.com.
  */
 
@@ -20,8 +20,11 @@ const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentB
 const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { isMeetingMissed } = require('../utils/missedClassReminder');
 
-/** Students must have missed MORE than this many live classes to be included. */
-const MISSED_MORE_THAN = 2;
+/** Only count live classes that started within this many days (inclusive). */
+const LOOKBACK_DAYS = 10;
+
+/** Students must have missed at least this many live classes in the lookback window. */
+const MIN_MISSED_CLASSES = 2;
 
 const REPORT_RECIPIENTS = [
   process.env.LANGUAGE_SCHOOL_EMAIL || 'languageschool@gluckglobal.com',
@@ -35,7 +38,14 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-async function collectMissedClassesForStudent(student) {
+function lookbackStartDate() {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
+  cutoff.setHours(0, 0, 0, 0);
+  return cutoff;
+}
+
+async function collectMissedClassesForStudent(student, since) {
   const batchKeys = allStudentBatchStringsForContent(student);
   if (!batchKeys.length) return [];
 
@@ -49,6 +59,7 @@ async function collectMissedClassesForStudent(student) {
       { $or: batchOr },
       { attendanceRecorded: true },
       { status: { $ne: 'cancelled' } },
+      { startTime: { $gte: since } },
     ],
   })
     .sort({ startTime: -1 })
@@ -81,12 +92,13 @@ async function processConsecutiveAbsenceEmailReport() {
     return;
   }
 
+  const since = lookbackStartDate();
   const flaggedStudents = [];
 
   for (const student of students) {
     try {
-      const missedDates = await collectMissedClassesForStudent(student);
-      if (missedDates.length <= MISSED_MORE_THAN) continue;
+      const missedDates = await collectMissedClassesForStudent(student, since);
+      if (missedDates.length < MIN_MISSED_CLASSES) continue;
 
       flaggedStudents.push({
         name: student.name,
@@ -104,7 +116,7 @@ async function processConsecutiveAbsenceEmailReport() {
 
   if (!flaggedStudents.length) {
     console.log(
-      '[MissedClassMorningReport] ✅ No students with more than 2 missed live classes — email not sent.'
+      `[MissedClassMorningReport] ✅ No students with ${MIN_MISSED_CLASSES}+ missed live classes in the last ${LOOKBACK_DAYS} days — email not sent.`
     );
     return;
   }
@@ -124,6 +136,7 @@ async function processConsecutiveAbsenceEmailReport() {
   const { subject, html } = buildMissedLiveClassMorningReportEmail({
     flaggedStudents,
     reportDate,
+    lookbackDays: LOOKBACK_DAYS,
   });
 
   await transporter.sendMail({
@@ -149,7 +162,7 @@ function scheduleConsecutiveAbsenceEmailReport() {
     { timezone: 'Asia/Colombo' }
   );
   console.log(
-    '📅 [MissedClassMorningReport] Scheduled — daily 10:00 AM IST; digest for students with 3+ missed live classes'
+    `📅 [MissedClassMorningReport] Scheduled — daily 10:00 AM IST; digest for students with ${MIN_MISSED_CLASSES}+ missed live classes in the last ${LOOKBACK_DAYS} days`
   );
 }
 

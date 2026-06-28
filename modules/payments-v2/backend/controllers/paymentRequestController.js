@@ -32,8 +32,17 @@ const {
   computeTotalsForStudentLevel,
   computeTotalsForAllPayments,
   computePaidSlotBadges,
+  computeTotalsForLevelSlot,
+  isSlotSettledPaid,
+  filterRequestsForSlot,
 } = require('../utils/levelSlotHelper');
 const { JOURNEY_DUE_FROM_DAY, computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
+const {
+  getDocsPaymentStudentIds,
+  getDocsPaymentOverview: buildDocsPaymentOverview,
+  isDocsFullPaidByReceived,
+  docsFullQuotationForRow,
+} = require('../helpers/docsPaymentCohortHelper');
 const {
   getFilteredStudentIds,
   parseHubFilters,
@@ -1423,6 +1432,14 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       .split(',')
       .map((level) => level.trim())
       .filter(Boolean);
+    const selectedBatches = String(req.query.batches || '')
+      .split(',')
+      .map((batch) => batch.trim())
+      .filter(Boolean);
+    const selectedStudentStatuses = String(req.query.studentStatuses || '')
+      .split(',')
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
 
     const User = mongoose.model('User');
     const PaymentFlowSubmission = require('../models/PaymentSubmission');
@@ -1435,10 +1452,38 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       userQuery.subscription = 'SILVER';
     } else if (cohort === 'visa_docs' || cohort === 'visa-docs') {
       userQuery.subscription = { $in: VISA_DOC_SUBSCRIPTIONS_FD };
-    }
-
-    if (status) {
-      userQuery.studentStatus = status;
+    } else if (cohort === 'docs_payment' || cohort === 'docs-payment') {
+      const docsStudentIds = await getDocsPaymentStudentIds(
+        User,
+        PaymentRequest,
+        PaymentFlowSubmission,
+      );
+      if (!docsStudentIds.length) {
+        return res.json({
+          success: true,
+          data: {
+            students: [],
+            cohort,
+            status,
+            totalStudents: 0,
+            page: 1,
+            limit,
+            totalPages: 1,
+            levelOptions: [],
+            batchOptions: [],
+            statusOptions: [],
+            insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 },
+            levelSummaries: [],
+            totalPaidLKR: 0,
+            totalPaidINR: 0,
+            totalPaidUSD: 0,
+            totalPendingLKR: 0,
+            totalPendingINR: 0,
+            totalPendingUSD: 0,
+          },
+        });
+      }
+      userQuery._id = { $in: docsStudentIds };
     }
 
     if (search) {
@@ -1469,6 +1514,84 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       label: row._id,
       total: row.total,
     }));
+
+    const batchOptionsRaw = await User.aggregate([
+      { $match: levelOptionsQuery },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$batch', ''] } } } }, 0] },
+              { $trim: { input: '$batch' } },
+              'Unassigned',
+            ],
+          },
+          total: { $sum: 1 },
+        },
+      },
+      { $sort: { total: -1, _id: 1 } },
+    ]);
+    const batchOptions = batchOptionsRaw.map((row) => ({
+      value: row._id === 'Unassigned' ? '__EMPTY__' : row._id,
+      label: row._id,
+      total: row.total,
+    }));
+
+    const statusOptionsRaw = await User.aggregate([
+      { $match: levelOptionsQuery },
+      {
+        $group: {
+          _id: {
+            $toUpper: { $trim: { input: { $ifNull: ['$studentStatus', 'UNCERTAIN'] } } },
+          },
+          total: { $sum: 1 },
+        },
+      },
+      { $sort: { total: -1, _id: 1 } },
+    ]);
+    const statusOptions = statusOptionsRaw.map((row) => ({
+      value: row._id,
+      label: row._id,
+      total: row.total,
+    }));
+
+    if (selectedBatches.length) {
+      const exactBatches = selectedBatches.filter((batch) => batch !== '__EMPTY__');
+      const includeEmptyBatch = selectedBatches.includes('__EMPTY__');
+      if (includeEmptyBatch && exactBatches.length) {
+        userQuery.$and = [
+          ...(userQuery.$and || []),
+          {
+            $or: [
+              { batch: { $in: exactBatches } },
+              { batch: { $exists: false } },
+              { batch: null },
+              { batch: '' },
+            ],
+          },
+        ];
+      } else if (includeEmptyBatch) {
+        userQuery.$and = [
+          ...(userQuery.$and || []),
+          { $or: [{ batch: { $exists: false } }, { batch: null }, { batch: '' }] },
+        ];
+      } else {
+        userQuery.batch = { $in: exactBatches };
+      }
+    }
+
+    if (selectedStudentStatuses.length) {
+      const statuses = status
+        ? selectedStudentStatuses.filter((value) => value === status)
+        : selectedStudentStatuses;
+      if (!statuses.length) {
+        userQuery._id = { $in: [] };
+      } else {
+        userQuery.studentStatus = statuses.length === 1 ? statuses[0] : { $in: statuses };
+      }
+    } else if (status) {
+      userQuery.studentStatus = status;
+    }
 
     if (selectedLevels.length) {
       const exactLevels = selectedLevels.filter((level) => level !== '__EMPTY__');
@@ -1515,6 +1638,8 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       totalPendingINR: 0,
       totalPendingUSD: 0,
       levelOptions,
+      batchOptions,
+      statusOptions,
       insightCounts: { all: 0, paid_full: 0, have_balance: 0, overdue: 0 },
       levelSummaries: [],
     };
@@ -1611,6 +1736,26 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
         USD: langLive.overdueAmountUSD || 0,
       });
       const { levelSlots, allLanguageFees } = buildStudentLevelSlotTotals(student, studentRequests, studentSubs, studentPendingSubs, levelPriceMap);
+      const docsSlot = computeTotalsForLevelSlot(studentRequests, studentSubs, studentPendingSubs, 'DOCS', student.level);
+      const docsLive = docsSlot.live || {};
+      const docsBalance = docsSlot.balanceDue || {};
+      const docsRequests = filterRequestsForSlot(studentRequests, 'DOCS', student.level);
+      const docsQuotedByCurrency = emptyCurrencyBucket();
+      for (const req of docsRequests) {
+        addToCurrencyBucket(docsQuotedByCurrency, req.currency, Math.max(0, Number(req.amount) || 0));
+      }
+      const docsExpectedLKR = Math.max(
+        docsQuotedByCurrency.LKR || 0,
+        (docsPaidByCurrency.LKR || 0) + (docsBalance.pendingApprovalAmountLKR || 0) + (docsLive.overdueAmountLKR || 0),
+      );
+      const docsExpectedINR = Math.max(
+        docsQuotedByCurrency.INR || 0,
+        (docsPaidByCurrency.INR || 0) + (docsBalance.pendingApprovalAmountINR || 0) + (docsLive.overdueAmountINR || 0),
+      );
+      const docsExpectedUSD = Math.max(
+        docsQuotedByCurrency.USD || 0,
+        (docsPaidByCurrency.USD || 0) + (docsBalance.pendingApprovalAmountUSD || 0) + (docsLive.overdueAmountUSD || 0),
+      );
 
       return {
         studentId: sid,
@@ -1634,6 +1779,22 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
         langOverdueLKR: langOverdueStudent.LKR || 0,
         langOverdueINR: langOverdueStudent.INR || 0,
         langOverdueUSD: langOverdueStudent.USD || 0,
+        docsPaidLKR: docsPaidByCurrency.LKR || 0,
+        docsPaidINR: docsPaidByCurrency.INR || 0,
+        docsPaidUSD: docsPaidByCurrency.USD || 0,
+        docsPendingLKR: docsLive.pendingApprovalAmountLKR || 0,
+        docsPendingINR: docsLive.pendingApprovalAmountINR || 0,
+        docsPendingUSD: docsLive.pendingApprovalAmountUSD || 0,
+        docsOverdueLKR: docsLive.overdueAmountLKR || 0,
+        docsOverdueINR: docsLive.overdueAmountINR || 0,
+        docsOverdueUSD: docsLive.overdueAmountUSD || 0,
+        docsBalanceLKR: docsBalance.pendingApprovalAmountLKR || 0,
+        docsBalanceINR: docsBalance.pendingApprovalAmountINR || 0,
+        docsBalanceUSD: docsBalance.pendingApprovalAmountUSD || 0,
+        docsExpectedLKR,
+        docsExpectedINR,
+        docsExpectedUSD,
+        docsPaidFull: isSlotSettledPaid(studentRequests, studentSubs, 'DOCS', student.level),
         pendingApprovalAmount: profile?.pendingApprovalAmount ?? 0,
         overdueAmount: profile?.overdueAmount ?? 0,
         overdueSince,
@@ -1652,8 +1813,18 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       };
     });
 
-    const pendingTotalForRow = (r) => (r.langPendingLKR || 0) + (r.langPendingINR || 0) + (r.langPendingUSD || 0);
-    const overdueTotalForRow = (r) => (r.langOverdueLKR || 0) + (r.langOverdueINR || 0) + (r.langOverdueUSD || 0);
+    const isDocsCohort = cohort === 'docs_payment' || cohort === 'docs-payment';
+    const docsPaidTotalForRow = (r) => (r.docsPaidLKR || 0) + (r.docsPaidINR || 0) + (r.docsPaidUSD || 0);
+    const docsRemainingTotalForRow = (r) =>
+      (r.docsBalanceLKR || 0) + (r.docsBalanceINR || 0) + (r.docsBalanceUSD || 0)
+      + (r.docsOverdueLKR || 0) + (r.docsOverdueINR || 0) + (r.docsOverdueUSD || 0);
+    const docsOverdueTotalForRow = (r) => (r.docsOverdueLKR || 0) + (r.docsOverdueINR || 0) + (r.docsOverdueUSD || 0);
+    const pendingTotalForRow = (r) => isDocsCohort
+      ? (r.docsBalanceLKR || 0) + (r.docsBalanceINR || 0) + (r.docsBalanceUSD || 0)
+      : (r.langPendingLKR || 0) + (r.langPendingINR || 0) + (r.langPendingUSD || 0);
+    const overdueTotalForRow = (r) => isDocsCohort
+      ? docsOverdueTotalForRow(r)
+      : (r.langOverdueLKR || 0) + (r.langOverdueINR || 0) + (r.langOverdueUSD || 0);
     const remainingTotalForRow = (r) => pendingTotalForRow(r) + overdueTotalForRow(r);
     const rowCurrentLevelSlot = (r) => r.levelSlots?.[String(r.level || '').toUpperCase().trim()] || null;
     const rowCurrentLevelIsPaidFull = (r) => {
@@ -1678,6 +1849,20 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
     };
     const rowMatchesInsight = (r, key) => {
       if (!key) return true;
+      if (isDocsCohort) {
+        const remaining = docsRemainingTotalForRow(r);
+        const overdue = docsOverdueTotalForRow(r);
+        switch (key) {
+          case 'paid_full':
+            return isDocsFullPaidByReceived(r);
+          case 'have_balance':
+            return !isDocsFullPaidByReceived(r);
+          case 'overdue':
+            return docsOverdueTotalForRow(r) > 0;
+          default:
+            return true;
+        }
+      }
       const pending = pendingTotalForRow(r);
       const overdue = overdueTotalForRow(r);
       const remaining = pending + overdue;
@@ -1693,6 +1878,18 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
           return true;
       }
     };
+    const rowMatchesSelectedBatch = (r) => {
+      if (!selectedBatches.length) return true;
+      const exactBatches = selectedBatches.filter((batch) => batch !== '__EMPTY__');
+      const includeEmpty = selectedBatches.includes('__EMPTY__');
+      const rowBatch = String(r.batch || '').trim();
+      return exactBatches.includes(rowBatch) || (includeEmpty && !rowBatch);
+    };
+    const rowMatchesSelectedStudentStatus = (r) => {
+      if (!selectedStudentStatuses.length) return true;
+      const rowStatus = String(r.studentStatus || 'UNCERTAIN').trim().toUpperCase();
+      return selectedStudentStatuses.includes(rowStatus);
+    };
     const rowMatchesSelectedLevel = (r) => {
       if (!selectedLevels.length) return true;
       const exactLevels = selectedLevels.filter((level) => level !== '__EMPTY__');
@@ -1700,7 +1897,7 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       const rowLevel = String(r.level || '').trim();
       return exactLevels.includes(rowLevel) || (includeEmpty && (!rowLevel || rowLevel === '—'));
     };
-    const levelSummaries = levelOptions.map((opt) => {
+    const levelSummaries = isDocsCohort ? [] : levelOptions.map((opt) => {
       const levelRows = rows.filter((r) => {
         const rowLevel = String(r.level || '').trim();
         return opt.value === '__EMPTY__' ? (!rowLevel || rowLevel === '—') : rowLevel === opt.value;
@@ -1732,14 +1929,59 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       });
     }).filter((row) => row.totalStudents > 0);
 
-    const levelFilteredRows = rows.filter(rowMatchesSelectedLevel);
+    const tableFilteredRows = rows
+      .filter(rowMatchesSelectedLevel)
+      .filter(rowMatchesSelectedBatch)
+      .filter(rowMatchesSelectedStudentStatus);
     const insightCounts = {
-      all: levelFilteredRows.length,
-      paid_full: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'paid_full')).length,
-      have_balance: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'have_balance')).length,
-      overdue: levelFilteredRows.filter((r) => rowMatchesInsight(r, 'overdue')).length,
+      all: tableFilteredRows.length,
+      paid_full: tableFilteredRows.filter((r) => rowMatchesInsight(r, 'paid_full')).length,
+      have_balance: tableFilteredRows.filter((r) => rowMatchesInsight(r, 'have_balance')).length,
+      overdue: tableFilteredRows.filter((r) => rowMatchesInsight(r, 'overdue')).length,
     };
-    const filteredRows = levelFilteredRows.filter((r) => rowMatchesInsight(r, insight));
+
+    const addMoney = (a, b) => ({ lkr: a.lkr + b.lkr, inr: a.inr + b.inr, usd: a.usd + b.usd });
+    const emptyMoney = () => ({ lkr: 0, inr: 0, usd: 0 });
+    const rowDocsAmounts = (r) => {
+      const received = { lkr: r.docsPaidLKR || 0, inr: r.docsPaidINR || 0, usd: r.docsPaidUSD || 0 };
+      const pending = {
+        lkr: (r.docsBalanceLKR || 0) + (r.docsPendingLKR || 0) + (r.docsOverdueLKR || 0),
+        inr: (r.docsBalanceINR || 0) + (r.docsPendingINR || 0) + (r.docsOverdueINR || 0),
+        usd: (r.docsBalanceUSD || 0) + (r.docsPendingUSD || 0) + (r.docsOverdueUSD || 0),
+      };
+      const overdue = { lkr: r.docsOverdueLKR || 0, inr: r.docsOverdueINR || 0, usd: r.docsOverdueUSD || 0 };
+      const expected = docsFullQuotationForRow(r);
+      return { expected, received, pending, overdue };
+    };
+    const sumDocsInsightAmounts = (key, sourceRows) => {
+      const matched = key === 'all' ? sourceRows : sourceRows.filter((r) => rowMatchesInsight(r, key));
+      return matched.reduce((acc, r) => {
+        const { expected, received, pending, overdue } = rowDocsAmounts(r);
+        if (key === 'overdue') {
+          return {
+            expected: addMoney(acc.expected, expected),
+            received: addMoney(acc.received, received),
+            pending: addMoney(acc.pending, pending),
+            overdue: addMoney(acc.overdue, overdue),
+          };
+        }
+        return {
+          expected: addMoney(acc.expected, expected),
+          received: addMoney(acc.received, received),
+          pending: addMoney(acc.pending, pending),
+        };
+      }, key === 'overdue'
+        ? { expected: emptyMoney(), received: emptyMoney(), pending: emptyMoney(), overdue: emptyMoney() }
+        : { expected: emptyMoney(), received: emptyMoney(), pending: emptyMoney() });
+    };
+    const insightAmounts = isDocsCohort ? {
+      all: sumDocsInsightAmounts('all', tableFilteredRows),
+      paid_full: sumDocsInsightAmounts('paid_full', tableFilteredRows),
+      have_balance: sumDocsInsightAmounts('have_balance', tableFilteredRows),
+      overdue: sumDocsInsightAmounts('overdue', tableFilteredRows),
+    } : undefined;
+
+    const filteredRows = tableFilteredRows.filter((r) => rowMatchesInsight(r, insight));
     const totalStudents = filteredRows.length;
     const totalPages = Math.max(1, Math.ceil(totalStudents / limit));
     const safePage = Math.min(page, totalPages);
@@ -1747,13 +1989,27 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
 
     let totalPaidLKR = 0, totalPaidINR = 0, totalPaidUSD = 0;
     let totalPendingLKR = 0, totalPendingINR = 0, totalPendingUSD = 0;
+    let totalExpectedLKR = 0, totalExpectedINR = 0, totalExpectedUSD = 0;
     for (const r of filteredRows) {
-      totalPaidLKR += r.totalPaidLKR || 0;
-      totalPaidINR += r.totalPaidINR || 0;
-      totalPaidUSD += r.totalPaidUSD || 0;
-      totalPendingLKR += (r.langPendingLKR || 0) + (r.langOverdueLKR || 0);
-      totalPendingINR += (r.langPendingINR || 0) + (r.langOverdueINR || 0);
-      totalPendingUSD += (r.langPendingUSD || 0) + (r.langOverdueUSD || 0);
+      if (isDocsCohort) {
+        const docsAmounts = rowDocsAmounts(r);
+        totalPaidLKR += docsAmounts.received.lkr;
+        totalPaidINR += docsAmounts.received.inr;
+        totalPaidUSD += docsAmounts.received.usd;
+        totalPendingLKR += docsAmounts.pending.lkr;
+        totalPendingINR += docsAmounts.pending.inr;
+        totalPendingUSD += docsAmounts.pending.usd;
+        totalExpectedLKR += docsAmounts.expected.lkr;
+        totalExpectedINR += docsAmounts.expected.inr;
+        totalExpectedUSD += docsAmounts.expected.usd;
+      } else {
+        totalPaidLKR += r.totalPaidLKR || 0;
+        totalPaidINR += r.totalPaidINR || 0;
+        totalPaidUSD += r.totalPaidUSD || 0;
+        totalPendingLKR += (r.langPendingLKR || 0) + (r.langOverdueLKR || 0);
+        totalPendingINR += (r.langPendingINR || 0) + (r.langOverdueINR || 0);
+        totalPendingUSD += (r.langPendingUSD || 0) + (r.langOverdueUSD || 0);
+      }
     }
 
     res.json({
@@ -1772,13 +2028,30 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
         totalPendingLKR,
         totalPendingINR,
         totalPendingUSD,
+        totalExpectedLKR: isDocsCohort ? totalExpectedLKR : undefined,
+        totalExpectedINR: isDocsCohort ? totalExpectedINR : undefined,
+        totalExpectedUSD: isDocsCohort ? totalExpectedUSD : undefined,
         levelOptions,
+        batchOptions,
+        statusOptions,
         insightCounts,
+        insightAmounts,
         levelSummaries,
       },
     });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+const getDocsPaymentOverview = async (req, res) => {
+  try {
+    const User = mongoose.model('User');
+    const PaymentFlowSubmission = require('../models/PaymentSubmission');
+    const data = await buildDocsPaymentOverview(User, PaymentRequest, PaymentFlowSubmission);
+    return res.json({ success: true, data });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
   }
 };
 
@@ -1791,6 +2064,7 @@ module.exports = {
   getBatchPaymentSummary,
   getBatchStudentsPaymentDetail,
   getCohortStudentsPaymentDetail,
+  getDocsPaymentOverview,
   getStudentPaymentHistory,
   getRequestTimeline,
   addInternalNote,

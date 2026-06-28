@@ -1,4 +1,4 @@
-export type FinanceCohort = 'all' | 'platinum' | 'silver' | 'visa_docs';
+export type FinanceCohort = 'all' | 'platinum' | 'silver' | 'visa_docs' | 'docs_payment';
 
 export interface FinanceCohortQuery {
   cohort: FinanceCohort;
@@ -8,7 +8,9 @@ export interface FinanceCohortQuery {
 export function parseFinanceCohortQuery(params: Record<string, string | undefined>): FinanceCohortQuery {
   const rawCohort = String(params['cohort'] || 'all').toLowerCase();
   const cohort: FinanceCohort =
-    rawCohort === 'platinum' || rawCohort === 'silver' || rawCohort === 'visa_docs' ? rawCohort : 'all';
+    rawCohort === 'platinum' || rawCohort === 'silver' || rawCohort === 'visa_docs' || rawCohort === 'docs_payment'
+      ? rawCohort
+      : 'all';
   const status = String(params['status'] || '').trim().toUpperCase();
   return { cohort, status };
 }
@@ -21,6 +23,8 @@ export function financeCohortLabel(cohort: FinanceCohort): string {
       return 'Silver';
     case 'visa_docs':
       return 'Visa & docs';
+    case 'docs_payment':
+      return 'Document payment';
     default:
       return 'All students';
   }

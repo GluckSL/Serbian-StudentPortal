@@ -193,4 +193,5 @@ module.exports = {
   computeTotalsForStudentLevel,
   computeTotalsForAllPayments,
   computePaidSlotBadges,
+  isSlotSettledPaid,
 };

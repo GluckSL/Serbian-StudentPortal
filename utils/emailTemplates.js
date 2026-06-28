@@ -1053,18 +1053,19 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
 }
 
 /**
- * Morning digest for Language Team — students who missed live classes more than 2 times.
+ * Morning digest for Language Team — students who missed 2+ live classes in the last 10 days.
  * @param {object} params
  * @param {Array<{ name: string, batch: string, missedCount: number, missedDates: Date[] }>} params.flaggedStudents
  * @param {string} params.reportDate
+ * @param {number} [params.lookbackDays=10]
  */
-function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDate }) {
+function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDate, lookbackDays = 10 }) {
   const dateLabel = escapeHtml(reportDate || new Date().toDateString());
 
   const tableRows = flaggedStudents
     .map((s, idx) => {
       const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8f5ff';
-      const countColor = s.missedCount >= 5 ? '#dc2626' : s.missedCount >= 4 ? '#d97706' : '#6c3fc5';
+      const countColor = s.missedCount >= 5 ? '#dc2626' : s.missedCount >= 3 ? '#d97706' : '#6c3fc5';
 
       return `
       <tr style="background:${rowBg};">
@@ -1086,7 +1087,7 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
   const totalCount = flaggedStudents.length;
 
   return {
-    subject: `[Morning Report] ${totalCount} Student${totalCount !== 1 ? 's' : ''} with 3+ Missed Live Classes — ${dateLabel}`,
+    subject: `[Morning Report] ${totalCount} Student${totalCount !== 1 ? 's' : ''} with 2+ Missed Live Classes (Last ${lookbackDays} Days) — ${dateLabel}`,
     html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -1119,7 +1120,7 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
                 ${totalCount} student${totalCount !== 1 ? 's' : ''} flagged
               </span>
               <p style="margin:12px 0 0;color:#6c3fc5;font-size:13px;line-height:1.5;">
-                Students listed below have missed <strong>more than 2 live classes</strong> (fully absent, 0% attendance).<br/>
+                Students listed below have missed <strong>2 or more live classes</strong> in the <strong>last ${lookbackDays} days</strong> (fully absent, 0% attendance).<br/>
                 Please follow up with them at the earliest.
               </p>
             </td>
@@ -1140,7 +1141,7 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
                   ${tableRows || `
                   <tr>
                     <td colspan="3" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
-                      No students with more than 2 missed live classes today. 🎉
+                      No students with 2+ missed live classes in the last ${lookbackDays} days today. 🎉
                     </td>
                   </tr>`}
                 </tbody>
@@ -1152,7 +1153,7 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
             <td style="padding:0 32px 28px;">
               <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:16px;">
                 This report is auto-generated every morning at 10:00 AM IST by the Glück Global Student Portal.<br/>
-                A class counts as missed when attendance was recorded and the student was fully absent (0% participation).
+                Only live classes from the last ${lookbackDays} days are counted. A class counts as missed when attendance was recorded and the student was fully absent (0% participation).
               </p>
             </td>
           </tr>

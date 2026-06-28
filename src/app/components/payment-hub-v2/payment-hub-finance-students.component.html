@@ -10,7 +10,14 @@
         <span class="ph-finance-students-status-chip" *ngIf="statusLabel">{{ statusLabel }}</span>
         — Student Payments
       </h1>
-      <p class="ph-insights-sub">Student-level payment breakdown. Click a row to open the student's full payment history.</p>
+      <p class="ph-insights-sub">
+        <ng-container *ngIf="isDocsPaymentCohort; else defaultSub">
+          Documentation payment breakdown only — language fees are excluded. Click a row to open the student's full payment history.
+        </ng-container>
+        <ng-template #defaultSub>
+          Student-level payment breakdown. Click a row to open the student's full payment history.
+        </ng-template>
+      </p>
     </div>
   </div>
 
@@ -38,6 +45,39 @@
         <div class="ph-finance-students-kpi ph-finance-students-kpi--paid">
           <mat-icon>payments</mat-icon>
           <div class="ph-finance-students-kpi__body">
+            <span class="ph-finance-students-kpi__label">{{ isDocsPaymentCohort ? 'Total quotation (full)' : 'Total received' }}</span>
+            <div class="ph-finance-students-kpi__amounts">
+              <ng-container *ngIf="isDocsPaymentCohort; else defaultReceivedKpi">
+                <span *ngIf="summaryExpectedTotals().lkr > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--lkr">
+                  LKR {{ summaryExpectedTotals().lkr | number:'1.0-0' }}
+                </span>
+                <span *ngIf="summaryExpectedTotals().inr > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--inr">
+                  ₹{{ summaryExpectedTotals().inr | number:'1.0-0' }}
+                </span>
+                <span *ngIf="summaryExpectedTotals().usd > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--usd">
+                  EURO {{ summaryExpectedTotals().usd | number:'1.0-2' }}
+                </span>
+                <span *ngIf="!hasInsightMoney(summaryExpectedTotals())" class="ph-finance-students-kpi__nil">—</span>
+              </ng-container>
+              <ng-template #defaultReceivedKpi>
+                <span *ngIf="summary.totalPaidLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--lkr">
+                  LKR {{ summary.totalPaidLKR | number:'1.0-0' }}
+                </span>
+                <span *ngIf="summary.totalPaidINR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--inr">
+                  ₹{{ summary.totalPaidINR | number:'1.0-0' }}
+                </span>
+                <span *ngIf="summary.totalPaidUSD > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--usd">
+                  EURO {{ summary.totalPaidUSD | number:'1.0-2' }}
+                </span>
+                <span *ngIf="summary.totalPaidLKR === 0 && summary.totalPaidINR === 0 && summary.totalPaidUSD === 0" class="ph-finance-students-kpi__nil">—</span>
+              </ng-template>
+            </div>
+          </div>
+        </div>
+
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--paid" *ngIf="isDocsPaymentCohort">
+          <mat-icon>account_balance</mat-icon>
+          <div class="ph-finance-students-kpi__body">
             <span class="ph-finance-students-kpi__label">Total received</span>
             <div class="ph-finance-students-kpi__amounts">
               <span *ngIf="summary.totalPaidLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--lkr">
@@ -57,7 +97,7 @@
         <div class="ph-finance-students-kpi ph-finance-students-kpi--pending">
           <mat-icon>pending_actions</mat-icon>
           <div class="ph-finance-students-kpi__body">
-            <span class="ph-finance-students-kpi__label">Total remaining (language)</span>
+            <span class="ph-finance-students-kpi__label">{{ isDocsPaymentCohort ? 'Total remaining (document)' : 'Total remaining (language)' }}</span>
             <div class="ph-finance-students-kpi__amounts">
               <span *ngIf="summary.totalPendingLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
                 LKR {{ summary.totalPendingLKR | number:'1.0-0' }}
@@ -73,7 +113,7 @@
           </div>
         </div>
 
-        <div class="ph-finance-students-kpi ph-finance-students-kpi--level ph-finance-students-kpi--level-received" *ngIf="levelSummaryRows().length">
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--level ph-finance-students-kpi--level-received" *ngIf="!isDocsPaymentCohort && levelSummaryRows().length">
           <mat-icon>stacked_bar_chart</mat-icon>
           <div class="ph-finance-students-kpi__body">
             <span class="ph-finance-students-kpi__label">Level wise received</span>
@@ -97,7 +137,7 @@
           </div>
         </div>
 
-        <div class="ph-finance-students-kpi ph-finance-students-kpi--level ph-finance-students-kpi--level-remaining" *ngIf="levelSummaryRows().length">
+        <div class="ph-finance-students-kpi ph-finance-students-kpi--level ph-finance-students-kpi--level-remaining" *ngIf="!isDocsPaymentCohort && levelSummaryRows().length">
           <mat-icon>account_balance_wallet</mat-icon>
           <div class="ph-finance-students-kpi__body">
             <span class="ph-finance-students-kpi__label">Level wise remaining</span>
@@ -124,13 +164,13 @@
       </div>
 
       <!-- ── Insight filter cards ── -->
-      <div class="ph-health-grid" *ngIf="rows.length">
+      <div class="ph-health-grid" *ngIf="rows.length || insightCount('all')">
         <p class="ph-health-grid-heading">Payment breakdown · click to filter table</p>
         <div class="ph-health-cards">
           <button
             type="button"
             class="ph-health-card ph-health-card--{{ opt.color }}"
-            *ngFor="let opt of studentInsightOptions"
+            *ngFor="let opt of activeInsightOptions"
             [class.ph-health-card--active]="isInsightActive(opt.value)"
             [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
             (click)="applyInsightFilter(opt.value)"
@@ -140,6 +180,31 @@
             <div class="ph-health-card-body">
               <span class="ph-health-card-label">{{ opt.label }}</span>
               <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
+
+              <ng-container *ngIf="isDocsPaymentCohort && opt.amountKind">
+                <div class="ph-health-card-amount" *ngIf="hasInsightAmount(opt.key)">
+                  <app-payment-currency-totals
+                    *ngIf="opt.amountKind === 'expected' || opt.amountKind === 'received'"
+                    [lkr]="insightAmountLkr(opt.key)"
+                    [inr]="insightAmountInr(opt.key)"
+                    [usd]="insightAmountUsd(opt.key)"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                  <app-payment-currency-pending-totals
+                    *ngIf="opt.amountKind === 'pending'"
+                    [lkr]="insightAmountLkr(opt.key)"
+                    [inr]="insightAmountInr(opt.key)"
+                    [usd]="insightAmountUsd(opt.key)"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-pending-totals>
+                </div>
+                <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In current view</span>
+                <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
+                  {{ studentPct(insightCount(opt.key), insightCount('all')) }} of students
+                </span>
+              </ng-container>
             </div>
             <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
           </button>
@@ -174,6 +239,18 @@
                 </option>
               </select>
             </label>
+            <span class="ph-select-meta ph-select-meta--filter" *ngIf="selectedBatches.length">
+              Batch: {{ tableFilterLabel('batch') }}
+              <button type="button" class="ph-finance-level-filter-chip-clear" (click)="clearAppliedTableFilter('batch')" matTooltip="Clear batch filter">
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
+            <span class="ph-select-meta ph-select-meta--filter" *ngIf="selectedStatuses.length">
+              Status: {{ tableFilterLabel('status') }}
+              <button type="button" class="ph-finance-level-filter-chip-clear" (click)="clearAppliedTableFilter('status')" matTooltip="Clear status filter">
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
             <span class="ph-select-meta ph-select-meta--filter" *ngIf="selectedLevels.length">
               Level: {{ levelFilterLabel() }}
               <button type="button" class="ph-finance-level-filter-chip-clear" (click)="clearAppliedLevelFilter()" matTooltip="Clear level filter">
@@ -181,7 +258,7 @@
               </button>
             </span>
           </div>
-          <div class="ph-scope-filter-bar">
+          <div class="ph-scope-filter-bar" *ngIf="!isDocsPaymentCohort">
             <button
               *ngFor="let btn of scopeButtons"
               type="button"
@@ -224,7 +301,17 @@
               <tr>
                 <th>#</th>
                 <th>Student</th>
-                <th>Batch</th>
+                <th>
+                  <button
+                    type="button"
+                    class="ph-finance-students-th-filter"
+                    [class.ph-finance-students-th-filter--active]="selectedBatches.length"
+                    (click)="openTableFilter('batch')"
+                  >
+                    <span>Batch</span>
+                    <mat-icon>filter_list</mat-icon>
+                  </button>
+                </th>
                 <th>
                   <button
                     type="button"
@@ -240,8 +327,18 @@
                 <th class="ph-num">Total received</th>
                 <th class="ph-num">Pending</th>
                 <th class="ph-num">Overdue</th>
-                <th>Language fee</th>
-                <th>Status</th>
+                <th>{{ feeStatusColumnLabel() }}</th>
+                <th>
+                  <button
+                    type="button"
+                    class="ph-finance-students-th-filter"
+                    [class.ph-finance-students-th-filter--active]="selectedStatuses.length"
+                    (click)="openTableFilter('status')"
+                  >
+                    <span>Status</span>
+                    <mat-icon>filter_list</mat-icon>
+                  </button>
+                </th>
                 <th class="ph-col-actions">Actions</th>
               </tr>
             </thead>
@@ -289,7 +386,7 @@
                   ></app-payment-currency-overdue-totals>
                 </td>
                 <td>
-                  <span class="ph-pill" [ngClass]="languageFeePillClass(r)">{{ languageFeeStatusLabel(r) }}</span>
+                  <span class="ph-pill" [ngClass]="languageFeePillClass(r)">{{ feeStatusLabel(r) }}</span>
                 </td>
                 <td>
                   <span class="ph-status-chip" *ngIf="r.studentStatus">{{ formatStudentStatus(r.studentStatus) }}</span>
@@ -307,7 +404,7 @@
 
         <ng-template #empty>
           <p class="ph-empty-note">
-            {{ searchQuery || studentInsight || selectedLevels.length ? 'No students match your filter.' : 'No students found for this plan/status.' }}
+            {{ searchQuery || studentInsight || selectedLevels.length || selectedBatches.length || selectedStatuses.length ? 'No students match your filter.' : 'No students found for this plan/status.' }}
           </p>
         </ng-template>
 
@@ -331,24 +428,24 @@
     <ng-template #skeleton>
       <div class="ph-skeleton-layout" aria-busy="true" aria-label="Loading students">
         <div class="ph-finance-students-kpi-grid ph-finance-students-kpi-grid--skeleton">
-          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3,4]"></div>
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3]"></div>
         </div>
         <div class="ph-health-cards ph-batch-stu-skeleton-cards">
-          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3,4]"></div>
+          <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3]"></div>
         </div>
         <div class="ph-skeleton-table"></div>
       </div>
     </ng-template>
   </div>
 
-  <div class="ph-finance-level-filter-backdrop" *ngIf="levelFilterOpen" (click)="closeLevelFilter()"></div>
-  <section class="ph-finance-level-filter-modal" *ngIf="levelFilterOpen" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+  <div class="ph-finance-level-filter-backdrop" *ngIf="tableFilterOpen" (click)="closeTableFilter()"></div>
+  <section class="ph-finance-level-filter-modal" *ngIf="tableFilterOpen" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
     <div class="ph-finance-level-filter-modal__head">
       <div>
-        <h3>Filter by Language Level</h3>
-        <p>Select one or more values, then click Apply</p>
+        <h3>{{ tableFilterTitle() }}</h3>
+        <p>{{ tableFilterSubtitle() }}</p>
       </div>
-      <button type="button" class="ph-finance-level-filter-modal__close" (click)="closeLevelFilter()" aria-label="Close level filter">
+      <button type="button" class="ph-finance-level-filter-modal__close" (click)="closeTableFilter()" aria-label="Close filter">
         <mat-icon>close</mat-icon>
       </button>
     </div>
@@ -357,35 +454,35 @@
       <mat-icon>search</mat-icon>
       <input
         type="text"
-        [(ngModel)]="levelFilterSearch"
+        [(ngModel)]="tableFilterSearch"
         placeholder="Search options..."
-        aria-label="Search level options"
+        aria-label="Search filter options"
       />
     </div>
 
     <div class="ph-finance-level-filter-modal__body">
       <label
         class="ph-finance-level-filter-option"
-        *ngFor="let opt of filteredLevelOptions(); trackBy: trackLevelOption"
-        [class.ph-finance-level-filter-option--selected]="isDraftLevelSelected(opt.value)"
+        *ngFor="let opt of filteredTableFilterOptions(); trackBy: trackTableFilterOption"
+        [class.ph-finance-level-filter-option--selected]="isDraftTableFilterSelected(opt.value)"
       >
         <input
           type="checkbox"
-          [checked]="isDraftLevelSelected(opt.value)"
-          (change)="toggleDraftLevel(opt.value)"
+          [checked]="isDraftTableFilterSelected(opt.value)"
+          (change)="toggleDraftTableFilter(opt.value)"
         />
         <span class="ph-finance-level-filter-option__label">{{ opt.label }}</span>
         <span class="ph-finance-level-filter-option__count">{{ opt.total }}</span>
       </label>
-      <p class="ph-finance-level-filter-empty" *ngIf="!filteredLevelOptions().length">No levels found</p>
+      <p class="ph-finance-level-filter-empty" *ngIf="!filteredTableFilterOptions().length">No options found</p>
     </div>
 
     <div class="ph-finance-level-filter-modal__foot">
-      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="selectAllLevelFilter()">Select all</button>
-      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="clearLevelFilterDraft()">Clear</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="selectAllTableFilter()">Select all</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="clearTableFilterDraft()">Clear</button>
       <span class="ph-finance-level-filter-modal__spacer"></span>
-      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="closeLevelFilter()">Cancel</button>
-      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--primary" (click)="applyLevelFilter()">Apply filter</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--ghost" (click)="closeTableFilter()">Cancel</button>
+      <button type="button" class="ph-finance-level-filter-btn ph-finance-level-filter-btn--primary" (click)="applyTableFilter()">Apply filter</button>
     </div>
   </section>
 </div>

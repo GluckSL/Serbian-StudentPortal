@@ -366,6 +366,9 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   name: string;
   email: string;
   batch?: string;
+  goLanguage?: string;
+  goTrack?: 'tamil' | 'sinhala';
+  goTrackLabel?: string;
   level: string;
   studentStatus?: string;
   subscription?: string;
@@ -395,6 +398,22 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   langOverdueLKR?: number;
   langOverdueINR?: number;
   langOverdueUSD?: number;
+  docsPaidLKR?: number;
+  docsPaidINR?: number;
+  docsPaidUSD?: number;
+  docsPendingLKR?: number;
+  docsPendingINR?: number;
+  docsPendingUSD?: number;
+  docsOverdueLKR?: number;
+  docsOverdueINR?: number;
+  docsOverdueUSD?: number;
+  docsBalanceLKR?: number;
+  docsBalanceINR?: number;
+  docsBalanceUSD?: number;
+  docsExpectedLKR?: number;
+  docsExpectedINR?: number;
+  docsExpectedUSD?: number;
+  docsPaidFull?: boolean;
   levelSlots?: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
   allLanguageFees?: BatchLevelSlotTotals;
 }
@@ -402,6 +421,36 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];
+}
+
+export interface InsightCurrencyTotals {
+  lkr: number;
+  inr: number;
+  usd: number;
+}
+
+export interface CohortInsightAmounts {
+  all?: {
+    expected: InsightCurrencyTotals;
+    received: InsightCurrencyTotals;
+    pending: InsightCurrencyTotals;
+  };
+  paid_full?: {
+    expected: InsightCurrencyTotals;
+    received: InsightCurrencyTotals;
+    pending: InsightCurrencyTotals;
+  };
+  have_balance?: {
+    expected: InsightCurrencyTotals;
+    received: InsightCurrencyTotals;
+    pending: InsightCurrencyTotals;
+  };
+  overdue?: {
+    expected?: InsightCurrencyTotals;
+    received?: InsightCurrencyTotals;
+    pending?: InsightCurrencyTotals;
+    overdue: InsightCurrencyTotals;
+  };
 }
 
 export interface CohortStudentsPaymentDetail {
@@ -413,7 +462,10 @@ export interface CohortStudentsPaymentDetail {
   limit?: number;
   totalPages?: number;
   levelOptions?: Array<{ value: string; label: string; total: number }>;
+  batchOptions?: Array<{ value: string; label: string; total: number }>;
+  statusOptions?: Array<{ value: string; label: string; total: number }>;
   insightCounts?: { all: number; paid_full: number; have_balance: number; overdue: number };
+  insightAmounts?: CohortInsightAmounts;
   levelSummaries?: Array<{
     level: string;
     label: string;
@@ -432,6 +484,9 @@ export interface CohortStudentsPaymentDetail {
   totalPendingLKR: number;
   totalPendingINR: number;
   totalPendingUSD: number;
+  totalExpectedLKR?: number;
+  totalExpectedINR?: number;
+  totalExpectedUSD?: number;
 }
 
 export type LanguageLevelSlot = 'A1' | 'A2' | 'B1' | 'B2';

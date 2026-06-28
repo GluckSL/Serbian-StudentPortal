@@ -60,7 +60,7 @@ function buildEmailHtml({ students, summary }) {
       <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-weight:700;color:#03396c;font-size:12px">${s.name}</td>
       <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-size:12px">${s.batch}</td>
       <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-size:12px">${s.phone}</td>
-      <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-size:12px">${s.email}</td>
+      <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-size:12px;text-align:center;font-weight:700;color:#03396c">${s.currentCourseDay || '—'}</td>
       <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-size:12px;text-align:center">${exerciseDaysLabel(s.exerciseDays)}</td>
       <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-weight:700;color:#dc2626;font-size:12px;text-align:right">${fmtDuration(s.totalSeconds)}</td>
       <td style="padding:9px 10px;border-bottom:1px solid #f0f4f8;font-size:12px;text-align:center;color:${(s.liveClassesAttended ?? 0) === 0 ? '#d97706' : '#16a34a'};font-weight:600">${s.liveClassesAttended ?? 0}/${s.liveClassesTotal ?? 0}</td>
@@ -168,7 +168,7 @@ function buildEmailHtml({ students, summary }) {
             <th>Student Name</th>
             <th>Batch</th>
             <th>Phone</th>
-            <th>Email</th>
+            <th style="text-align:center">Journey Day</th>
             <th style="text-align:center">Exercise Days<br/><span style="font-weight:400;font-size:9px">(last 3)</span></th>
             <th style="text-align:right">Total Time<br/><span style="font-weight:400;font-size:9px">(exercise days)</span></th>
             <th style="text-align:center">Live Classes<br/><span style="font-weight:400;font-size:9px">(last 2)</span></th>

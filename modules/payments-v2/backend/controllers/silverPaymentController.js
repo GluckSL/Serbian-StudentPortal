@@ -29,9 +29,7 @@ const {
 } = require('../helpers/paymentHubStatsAggregator');
 const { inferCurrencyFromPhone } = require('../utils/currencyHelper');
 const { computeLanguageFeeStatus } = require('../helpers/languageFeeStatus');
-const {
-  goStudentQuery,
-} = require('../../../../utils/goSilverTrack');
+const { goStudentQuery, goLanguageForStudent } = require('../../../../utils/goSilverTrack');
 
 const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const PREV_LEVEL_ORDER = ['A1', 'A2', 'B1', 'B2'];
@@ -180,12 +178,16 @@ async function buildPaymentRows(students) {
       levelPriceMap,
     );
 
+    const language = goLanguageForStudent(student);
+
     return {
       studentId: sid,
       name: student.name,
       email: student.email,
       batch: student.batch,
-      goLanguage: student.goLanguage || null,
+      goLanguage: language,
+      goTrack: language === 'Sinhala' ? 'sinhala' : 'tamil',
+      goTrackLabel: language === 'Sinhala' ? 'GO Sinhala' : 'GO Tamil',
       level: student.level || '—',
       studentStatus: student.studentStatus,
       subscription: student.subscription,
@@ -240,6 +242,7 @@ const getSilverPaymentStudents = async (req, res) => {
     const User = mongoose.model('User');
     const search = String(req.query.search || '').trim();
     const insight = String(req.query.insight || '').trim().toLowerCase();
+    const goTrack = String(req.query.goTrack || '').trim().toLowerCase();
     const selectedLevels = String(req.query.levels || '')
       .split(',')
       .map((level) => level.trim())
@@ -293,36 +296,35 @@ const getSilverPaymentStudents = async (req, res) => {
       levelOptionsQuery.$or = [{ name: rx }, { email: rx }, { batch: rx }];
     }
 
-    const levelOptionsRaw = await User.aggregate([
-      { $match: levelOptionsQuery },
-      {
-        $group: {
-          _id: {
-            $cond: [
-              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ['$level', ''] } } } }, 0] },
-              { $trim: { input: '$level' } },
-              'Unspecified',
-            ],
-          },
-          total: { $sum: 1 },
-        },
-      },
-      { $sort: { total: -1, _id: 1 } },
-    ]);
-    const levelOptions = levelOptionsRaw.map((row) => ({
-      value: row._id === 'Unspecified' ? '__EMPTY__' : row._id,
-      label: row._id,
-      total: row.total,
-    }));
-
     const students = await User.find(levelOptionsQuery)
       .select(
-        'name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates studentStatus subscription goLanguage goStatus',
+        'name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates studentStatus subscription goLanguage goStatus medium',
       )
       .sort({ name: 1 })
       .lean();
 
     const rows = await buildPaymentRows(students);
+
+    const rowMatchesGoTrack = (r) => {
+      if (!goTrack || goTrack === 'both') return true;
+      return String(r.goTrack || '').toLowerCase() === goTrack;
+    };
+
+    const goFilteredRows = rows.filter(rowMatchesGoTrack);
+
+    const levelCounts = new Map();
+    for (const r of goFilteredRows) {
+      const raw = String(r.level || '').trim();
+      const key = raw && raw !== '—' ? raw : 'Unspecified';
+      levelCounts.set(key, (levelCounts.get(key) || 0) + 1);
+    }
+    const levelOptions = [...levelCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([level, total]) => ({
+        value: level === 'Unspecified' ? '__EMPTY__' : level,
+        label: level,
+        total,
+      }));
 
     const rowAmounts = (r) => ({
       received: { lkr: r.langPaidLKR || 0, inr: r.langPaidINR || 0, usd: r.langPaidUSD || 0 },
@@ -372,7 +374,7 @@ const getSilverPaymentStudents = async (req, res) => {
       return exactLevels.includes(rowLevel) || (includeEmpty && (!rowLevel || rowLevel === '—'));
     };
 
-    const levelFilteredRows = rows.filter(rowMatchesSelectedLevel);
+    const levelFilteredRows = goFilteredRows.filter(rowMatchesSelectedLevel);
 
     const sumInsightAmounts = (key, sourceRows) => {
       const empty = { lkr: 0, inr: 0, usd: 0 };
