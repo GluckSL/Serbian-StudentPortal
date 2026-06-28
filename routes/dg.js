@@ -8,6 +8,7 @@ const dgSessionController = require('../controllers/dgSessionController');
 const dgTtsController = require('../controllers/dgTtsController');
 const dgConversationController = require('../controllers/dgConversationController');
 const dgVocabImportController = require('../controllers/dgVocabImportController');
+const dgContextImageController = require('../controllers/dgContextImageController');
 
 const staffRoles = ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'];
 
@@ -42,6 +43,17 @@ router.post(
         return res.status(400).json({ message: err.message || 'Upload failed' });
       }
       dgVocabImportController.importFromDocument(req, res).catch(next);
+    });
+  },
+);
+router.post(
+  '/modules/upload-context-image',
+  verifyToken,
+  checkRole(staffRoles),
+  (req, res, next) => {
+    dgContextImageController.uploadMiddleware(req, res, (err) => {
+      if (err) return res.status(400).json({ message: err.message || 'Upload failed' });
+      dgContextImageController.uploadContextImage(req, res).catch(next);
     });
   },
 );

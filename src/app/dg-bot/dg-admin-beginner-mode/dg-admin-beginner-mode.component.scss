@@ -1,0 +1,237 @@
+:host {
+  display: block;
+  min-height: calc(100vh - 80px);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.dg-bm-page {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.dg-bm-card {
+  border: 1px solid #e8ecf4;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.07);
+  overflow: hidden;
+}
+
+.dg-bm-card__header {
+  background: linear-gradient(135deg, #e8f4fc 0%, #dbeafe 100%);
+  border-bottom: 1px solid #bfdbfe;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dg-bm-card__header h4 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0c4a6e;
+}
+
+.dg-bm-card__lead {
+  font-size: 0.85rem;
+  color: #475569;
+  margin-top: 0.5rem;
+  max-width: 520px;
+  line-height: 1.45;
+}
+
+.dg-bm-section {
+  margin-bottom: 1.75rem;
+}
+
+.dg-bm-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.dg-bm-section__head h5 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dg-bm-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.dg-bm-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  border: 2px dashed #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.dg-bm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dg-bm-q {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dg-bm-q__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dg-bm-q__num {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #0369a1;
+  cursor: grab;
+  user-select: none;
+}
+
+.dg-bm-q__tools {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.dg-bm-q__body {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.dg-bm-q__image-drop {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  overflow: hidden;
+
+  &--has-img {
+    border-style: solid;
+    border-color: #93c5fd;
+    background: #fff;
+  }
+}
+
+.dg-bm-q__preview {
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  padding: 0.35rem;
+}
+
+.dg-bm-q__image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  text-align: center;
+}
+
+.dg-bm-q__image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.dg-bm-tips ul {
+  padding-left: 1.1rem;
+}
+
+.dg-bm-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dg-bm-footer__primary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.cdk-drag-preview {
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.15);
+  border-radius: 12px;
+}
+
+.cdk-drag-animating {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+@media (max-width: 767px) {
+  .dg-bm-page .container-fluid {
+    padding-left: 0.65rem !important;
+    padding-right: 0.65rem !important;
+  }
+
+  .dg-bm-card__header-actions,
+  .dg-bm-add-btn {
+    width: 100%;
+  }
+
+  .dg-bm-card__header-actions .btn {
+    width: 100%;
+  }
+
+  .dg-bm-section__head .dg-bm-add-btn {
+    width: 100%;
+  }
+
+  .dg-bm-q__body {
+    grid-template-columns: 1fr;
+  }
+
+  .dg-bm-q__image-actions .btn {
+    flex: 1 1 auto;
+    min-width: calc(50% - 0.2rem);
+  }
+
+  .dg-bm-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dg-bm-footer__primary {
+    margin-left: 0;
+    flex-direction: column;
+
+    .btn {
+      width: 100%;
+    }
+  }
+
+  .dg-bm-footer > .btn {
+    width: 100%;
+  }
+}

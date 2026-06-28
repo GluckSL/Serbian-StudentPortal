@@ -8,6 +8,8 @@ const DGSceneSchema = new mongoose.Schema(
       required: true,
     },
     text: { type: String, default: '' },
+    /** Optional picture shown above the character during this scene. */
+    imageUrl: { type: String, default: '' },
     /** Pre-generated narration MP3 (or other audio) URL; player prefers this over runtime TTS. */
     audioUrl: { type: String, default: '' },
     expectedAnswer: { type: String, default: '' },
@@ -63,6 +65,44 @@ const DgRolePlayScenarioSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const DgBeginnerDialoguePromptSchema = new mongoose.Schema(
+  {
+    promptText: { type: String, default: '' },
+    targetAnswer: { type: String, default: '' },
+    hint: { type: String, default: '' },
+  },
+  { _id: true }
+);
+
+/** One beginner-mode step: Olly asks a question; optional image shown above the character. */
+const DgBeginnerQuestionSchema = new mongoose.Schema(
+  {
+    imageUrl: { type: String, default: '' },
+    questionText: { type: String, default: '' },
+    targetAnswer: { type: String, default: '' },
+    hint: { type: String, default: '' },
+    order: { type: Number, default: 0 },
+  },
+  { _id: true }
+);
+
+const DgBeginnerModeSchema = new mongoose.Schema(
+  {
+    enabled: { type: Boolean, default: false },
+    /** Optional greeting note for the session (shown to Olly in the AI prompt). */
+    sessionIntro: { type: String, default: '' },
+    /** Ordered questions — each may have its own image. */
+    questions: { type: [DgBeginnerQuestionSchema], default: [] },
+    /** @deprecated Legacy single context image — use questions[].imageUrl */
+    contextImageUrl: { type: String, default: '' },
+    /** @deprecated Legacy caption — use questions[].questionText */
+    contextText: { type: String, default: '' },
+    /** @deprecated Legacy prompts — migrated to questions on read */
+    dialoguePrompts: { type: [DgBeginnerDialoguePromptSchema], default: [] },
+  },
+  { _id: false }
+);
+
 const DGModuleSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -109,6 +149,8 @@ const DGModuleSchema = new mongoose.Schema(
     aiTutorVocabulary: { type: [DgVocabEntrySchema], default: [] },
     allowedGrammar: { type: [DgGrammarEntrySchema], default: [] },
     conversationFlow: { type: [DgFlowEntrySchema], default: [] },
+    /** Beginner mode: teacher attaches an image/text context and configures dialogue prompts for Olly. */
+    beginnerMode: { type: DgBeginnerModeSchema, default: () => ({}) },
   },
   { timestamps: true }
 );

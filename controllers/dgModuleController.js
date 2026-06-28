@@ -157,12 +157,14 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const bucketFlags = normalizeExamBucketFlags(req.body || {});
     const body = normalizePracticeWindow({ ...req.body });
     if (Array.isArray(body.scenes)) body.scenes = sortScenes(body.scenes);
     delete body.createdBy;
-    body.weeklyTestEnabled = bucketFlags.weeklyTestEnabled;
-    body.examEnabled = bucketFlags.examEnabled;
+    if ('weeklyTestEnabled' in (req.body || {}) || 'examEnabled' in (req.body || {})) {
+      const bucketFlags = normalizeExamBucketFlags(req.body || {});
+      body.weeklyTestEnabled = bucketFlags.weeklyTestEnabled;
+      body.examEnabled = bucketFlags.examEnabled;
+    }
     if (Array.isArray(req.body?.targetBatches)) {
       body.targetBatchKeys = normalizeBatchKeys(req.body.targetBatches);
     }
@@ -423,7 +425,7 @@ exports.getPlay = async (req, res) => {
     // Plain objects so JSON always includes optional audioUrl (pre-generated audio) per scene.
     let scenes = mod.getSortedScenes().map((s) => {
       const plain = typeof s.toObject === 'function' ? s.toObject() : { ...s };
-      return { ...plain, audioUrl: plain.audioUrl || '' };
+      return { ...plain, audioUrl: plain.audioUrl || '', imageUrl: plain.imageUrl || '' };
     });
 
     // ── Auto-generate scenes from vocabulary when the module has only the
@@ -508,6 +510,7 @@ exports.getPlay = async (req, res) => {
         aiTutorVocabulary: mod.aiTutorVocabulary,
         allowedGrammar: mod.allowedGrammar,
         conversationFlow: mod.conversationFlow,
+        beginnerMode: mod.beginnerMode,
       },
       character,
     });

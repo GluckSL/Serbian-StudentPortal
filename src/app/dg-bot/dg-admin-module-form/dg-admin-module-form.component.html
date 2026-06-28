@@ -46,9 +46,21 @@
           <h4 class="mb-0">🎭 {{ isCreateMode ? 'Create' : 'Edit' }} Role-Play Module</h4>
           <small class="text-muted mt-1 d-block">DG Bot — same inputs as Learning Modules role-play creator</small>
         </div>
-        <button type="button" class="btn btn-secondary dg-form-back" (click)="goBack()">
-          <i class="fas fa-arrow-left"></i> Back
-        </button>
+        <div class="d-flex flex-wrap gap-2 align-items-center dg-form-header-actions">
+          <button
+            type="button"
+            class="btn btn-outline-primary btn-sm dg-beginner-mode-btn"
+            (click)="openBeginnerMode()"
+            [disabled]="saving"
+            title="Build short speaking steps with pictures — no role-play setup needed"
+          >
+            <i class="fas fa-seedling me-1"></i> Beginner Mode
+            <span *ngIf="beginnerQuestionCount > 0" class="badge bg-primary ms-1">{{ beginnerQuestionCount }}</span>
+          </button>
+          <button type="button" class="btn btn-secondary dg-form-back" (click)="goBack()">
+            <i class="fas fa-arrow-left"></i> Back
+          </button>
+        </div>
       </div>
           <div class="card-body">
             <div class="row mb-4">
@@ -871,6 +883,49 @@
                       <div class="col-12">
                         <label class="form-label">Text / line</label>
                         <textarea class="form-control" rows="2" [(ngModel)]="s.text" [name]="'text' + i"></textarea>
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label">Scene picture <span class="text-muted fw-normal">(optional)</span></label>
+                        <div class="dg-scene-image-row">
+                          <div class="dg-scene-image-preview" *ngIf="s.imageUrl">
+                            <img [src]="s.imageUrl" alt="Scene preview" />
+                          </div>
+                          <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <input
+                              type="url"
+                              class="form-control form-control-sm flex-grow-1"
+                              [(ngModel)]="s.imageUrl"
+                              [name]="'sceneImg' + i"
+                              placeholder="Paste image URL or upload"
+                            />
+                            <input
+                              #sceneImgFile
+                              type="file"
+                              class="d-none"
+                              accept="image/*"
+                              (change)="onSceneImageSelected($event, i)"
+                            />
+                            <button
+                              type="button"
+                              class="btn btn-outline-primary btn-sm"
+                              (click)="triggerSceneImagePicker(sceneImgFile, i)"
+                              [disabled]="sceneImageUploadingIndex === i"
+                            >
+                              <span *ngIf="sceneImageUploadingIndex === i" class="spinner-border spinner-border-sm me-1"></span>
+                              <i class="fas fa-upload me-1" *ngIf="sceneImageUploadingIndex !== i"></i>
+                              Upload
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn-outline-secondary btn-sm"
+                              *ngIf="s.imageUrl"
+                              (click)="clearSceneImage(i)"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                          <small class="text-muted">Shown above Olly during this scene — e.g. alphabet chart, number picture.</small>
+                        </div>
                       </div>
                       <div class="col-md-4">
                         <label class="form-label">Expected answer</label>

@@ -11,6 +11,7 @@ import { DgCharacterComponent } from '../dg-character/dg-character.component';
 import type { DgDialogueVariant } from '../dg-dialogue/dg-dialogue.component';
 import { DgPracticeComponent, type DgPracticePhase } from '../dg-practice/dg-practice.component';
 import type {
+  DgBeginnerQuestion,
   DgChatMessage,
   DgConversationMessage,
   DgGoalStep,
@@ -159,6 +160,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   private sceneBehaviorPlan: DgSceneBehaviorPlan | null = null;
   private conversationHistory: DgConversationMessage[] = [];
   private conversationTurn = 0;
+  /** Which beginner-mode question image to show (0-based). */
+  beginnerQuestionIndex = 0;
   private maxConversationTurns = 8;
   private usedVocab = new Set<string>();
   private moduleStartedAt = 0;
@@ -333,6 +336,100 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return n || 'Lumo';
   }
 
+  /** Beginner mode or scene: show image/text panel above Olly. */
+  get showBeginnerContextPanel(): boolean {
+    const sceneImg = this.scene?.imageUrl?.trim();
+    if (sceneImg && !this.conversationMode) return true;
+    if (!this.payload?.module?.beginnerMode?.enabled) return false;
+    const q = this.currentBeginnerQuestion;
+    return !!(q && (q.imageUrl || q.questionText));
+  }
+
+  get beginnerQuestions(): DgBeginnerQuestion[] {
+    const bm = this.payload?.module?.beginnerMode;
+    if (!bm?.enabled) return [];
+    if (Array.isArray(bm.questions) && bm.questions.length) {
+      return [...bm.questions]
+        .filter((q) => q.questionText?.trim())
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+    const legacy = bm.dialoguePrompts || [];
+    return legacy.map((p, i) => ({
+      imageUrl: i === 0 ? bm.contextImageUrl || '' : '',
+      questionText: p.promptText || '',
+      targetAnswer: p.targetAnswer,
+      hint: p.hint,
+      order: i,
+    }));
+  }
+
+  get currentBeginnerQuestion(): DgBeginnerQuestion | null {
+    const qs = this.beginnerQuestions;
+    if (!qs.length) return null;
+    const idx = Math.min(Math.max(0, this.beginnerQuestionIndex), qs.length - 1);
+    return qs[idx] ?? null;
+  }
+
+  get beginnerContextImageUrl(): string {
+    const sceneImg = this.scene?.imageUrl?.trim();
+    if (sceneImg && !this.conversationMode) return sceneImg;
+    return this.currentBeginnerQuestion?.imageUrl ?? '';
+  }
+
+  get beginnerContextText(): string {
+    return this.currentBeginnerQuestion?.questionText ?? '';
+  }
+
+  get beginnerContextStepLabel(): string {
+    const qs = this.beginnerQuestions;
+    if (this.conversationMode && qs.length > 1) {
+      return `Question ${Math.min(this.beginnerQuestionIndex + 1, qs.length)} of ${qs.length}`;
+    }
+    if (!this.conversationMode && this.scene?.type) {
+      const label = this.scene.type.charAt(0).toUpperCase() + this.scene.type.slice(1);
+      return `Step: ${label}`;
+    }
+    return '';
+  }
+
+  get beginnerContextCaption(): string {
+    const sceneImg = this.scene?.imageUrl?.trim();
+    if (sceneImg && !this.conversationMode) {
+      return this.scene?.text?.trim() || this.beginnerContextStepLabel;
+    }
+    const q = this.currentBeginnerQuestion;
+    if (!q) return '';
+    if (q.imageUrl) return this.beginnerContextStepLabel;
+    return q.questionText || '';
+  }
+
+  /** Caption shown under the image (excludes step label duplicated above). */
+  get beginnerContextCaptionBelow(): string {
+    if (!this.beginnerContextImageUrl) return this.beginnerContextCaption;
+    const cap = this.beginnerContextCaption;
+    const step = this.beginnerContextStepLabel;
+    if (cap && cap !== step) return cap;
+    return '';
+  }
+
+  contextImageFullscreenOpen = false;
+
+  openContextImageFullscreen(): void {
+    if (!this.beginnerContextImageUrl) return;
+    this.contextImageFullscreenOpen = true;
+  }
+
+  closeContextImageFullscreen(): void {
+    this.contextImageFullscreenOpen = false;
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    if (this.contextImageFullscreenOpen) {
+      this.closeContextImageFullscreen();
+    }
+  }
+
   highlightStartCue(text: string): string {
     const raw = String(text || '');
     const escaped = raw
@@ -345,15 +442,26 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     );
   }
 
-  /** True when the module has conversation content (vocab / role-play scenario). */
+  /** True when the module has conversation content (vocab / role-play / beginner mode). */
   private get hasConversationContent(): boolean {
     const mod = this.payload?.module;
     if (!mod) return false;
+    if (mod.beginnerMode?.enabled && this.beginnerQuestions.length > 0) return true;
     return (
       (mod.allowedVocabulary?.length ?? 0) > 0 ||
       (mod.aiTutorVocabulary?.length ?? 0) > 0 ||
       !!(mod.rolePlayScenario?.aiRole)
     );
+  }
+
+  private syncBeginnerQuestionIndex(): void {
+    const qs = this.beginnerQuestions;
+    if (!qs.length) {
+      this.beginnerQuestionIndex = 0;
+      return;
+    }
+    const idx = Math.floor(Math.max(0, this.conversationTurn - 1) / 2);
+    this.beginnerQuestionIndex = Math.min(idx, qs.length - 1);
   }
 
   private vocabListForConversation(): string[] {
@@ -843,6 +951,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.aiVocabCoverage = 0;
     this.usedVocab.clear();
     this.conversationTurn = 0;
+    this.beginnerQuestionIndex = 0;
     this.convRetryTick = 0;
     this.canNext = false;
     this.isAiThinking = false;
@@ -1026,6 +1135,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       // German-only: student used English — show hint, do not advance server dialogue
       if (response.languageHint && response.hintDe) {
         this.conversationTurn = response.turnCount ?? response.turnNumber ?? this.conversationTurn;
+        this.syncBeginnerQuestionIndex();
         if (this.sessionId) {
           firstValueFrom(
             this.dgApi.updateSession({
@@ -1065,6 +1175,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.awaitingGermanRepeat = false;
       this.pendingGermanHint = '';
       this.conversationTurn = response.turnNumber ?? (this.conversationTurn + 1);
+      this.syncBeginnerQuestionIndex();
 
       this.conversationHistory = [
         ...this.conversationHistory,

@@ -111,6 +111,11 @@ export class DgAdminModuleFormComponent implements OnInit {
   /** True while PDF/DOCX → AI vocabulary import is running */
   aiVocabDocImporting = false;
 
+  /** Count of beginner-mode questions (for header badge). */
+  beginnerQuestionCount = 0;
+  /** Index of scene row currently uploading an image. */
+  sceneImageUploadingIndex: number | null = null;
+
   sceneTypes: DgSceneType[] = ['intro', 'teach', 'practice', 'feedback'];
 
   get isCreateMode(): boolean {
@@ -272,6 +277,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       this.addScene();
     }
     this.loadTeachingFromModule(row);
+    this.syncBeginnerQuestionCount(row);
   }
 
   private initNewModule(): void {
@@ -300,6 +306,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       },
     ];
     this.loadTeachingFromModule(null);
+    this.beginnerQuestionCount = 0;
   }
 
   private loadTeachingFromModule(row: DgModuleSummary | null): void {
@@ -322,6 +329,117 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.aiTutorVocabulary = JSON.parse(JSON.stringify(row.aiTutorVocabulary || []));
     this.allowedGrammar = JSON.parse(JSON.stringify(row.allowedGrammar || []));
     this.conversationFlow = JSON.parse(JSON.stringify(row.conversationFlow || []));
+  }
+
+  private syncBeginnerQuestionCount(row: DgModuleSummary | null): void {
+    const bm = row?.beginnerMode;
+    if (!bm?.enabled) {
+      this.beginnerQuestionCount = 0;
+      return;
+    }
+    if (Array.isArray(bm.questions) && bm.questions.length) {
+      this.beginnerQuestionCount = bm.questions.filter((q) => q.questionText?.trim()).length;
+      return;
+    }
+    this.beginnerQuestionCount = (bm.dialoguePrompts || []).filter((p) => p.promptText?.trim()).length;
+  }
+
+  private applyBeginnerModeDefaults(): void {
+    if (!this.editLevel?.trim()) this.editLevel = 'A1';
+    if (!this.editRolePlay.situation?.trim()) {
+      this.editRolePlay.situation = 'Beginner speaking practice';
+    }
+    if (!this.editRolePlay.studentRole?.trim()) {
+      this.editRolePlay.studentRole = 'Learner';
+    }
+    if (!this.editRolePlay.aiRole?.trim()) {
+      this.editRolePlay.aiRole = 'Study buddy';
+    }
+    if (!this.editRolePlay.aiPersonality?.trim()) {
+      this.editRolePlay.aiPersonality = 'Friendly fellow beginner — short messages, encouraging, patient';
+    }
+    if (!this.editRolePlay.objective?.trim()) {
+      this.editRolePlay.objective = 'Practice speaking German with confidence through short steps and picture activities.';
+    }
+  }
+
+  /** Minimal save so teachers can open Beginner Mode without filling role-play fields first. */
+  private async saveForBeginnerMode(): Promise<boolean> {
+    this.applyBeginnerModeDefaults();
+    this.message = null;
+    this.missingFields = new Set<string>();
+    this.missingFieldLabels = [];
+
+    const fail = (key: string, label: string) => {
+      this.missingFields.add(key);
+      this.missingFieldLabels.push(label);
+    };
+
+    if (!this.editTitle?.trim()) fail('title', 'Module title');
+    if (!this.editDescription?.trim()) fail('description', 'Description');
+    if (!this.editCharacterId) fail('char', 'Character');
+
+    if (this.missingFieldLabels.length) {
+      this.messageType = 'error';
+      this.message =
+        'Before Beginner Mode, please fill: ' + this.missingFieldLabels.join(', ') + '.';
+      this.scrollToFirstMissingField();
+      return false;
+    }
+
+    return this.save(false);
+  }
+
+  async openBeginnerMode(): Promise<void> {
+    if (!this.selected?._id) {
+      const saved = await this.saveForBeginnerMode();
+      if (!saved || !this.selected?._id) return;
+    }
+    this.router.navigate(['/admin/dg-modules', this.selected._id, 'beginner-mode']);
+  }
+
+  triggerSceneImagePicker(input: HTMLInputElement, index: number): void {
+    if (this.sceneImageUploadingIndex !== null) return;
+    input.click();
+  }
+
+  async onSceneImageSelected(event: Event, index: number): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !this.editScenes[index]) return;
+
+    if (!file.type.startsWith('image/')) {
+      this.messageType = 'error';
+      this.message = 'Please choose an image file (JPG, PNG, GIF, WebP).';
+      return;
+    }
+
+    this.sceneImageUploadingIndex = index;
+    this.message = null;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await firstValueFrom(
+        this.http.post<{ url: string }>(`${environment.apiUrl}/dg/modules/upload-context-image`, formData, {
+          withCredentials: true,
+        }),
+      );
+      this.editScenes[index].imageUrl = res.url || '';
+      this.messageType = 'success';
+      this.message = 'Scene image uploaded.';
+    } catch (e: any) {
+      this.messageType = 'error';
+      this.message = e?.error?.message || 'Image upload failed';
+    } finally {
+      this.sceneImageUploadingIndex = null;
+    }
+  }
+
+  clearSceneImage(index: number): void {
+    if (this.editScenes[index]) {
+      this.editScenes[index].imageUrl = '';
+    }
   }
 
   addVocabulary(): void {
@@ -495,6 +613,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editScenes.push({
       type: 'teach',
       text: '',
+      imageUrl: '',
       expectedAnswer: '',
       translation: '',
       hint: '',
@@ -614,6 +733,7 @@ export class DgAdminModuleFormComponent implements OnInit {
         _id: s._id,
         type: s.type,
         text: s.text,
+        imageUrl: s.imageUrl || '',
         audioUrl: s.audioUrl || '',
         expectedAnswer: s.expectedAnswer || '',
         translation: s.translation || '',

@@ -47,7 +47,11 @@
 
     <!-- ── INTRO / BRIEFING SCENES ── -->
     <div class="dg-conv dg-conv--intro" *ngIf="!conversationMode">
-      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
+      <aside
+        class="dg-conv__char"
+        [class.dg-conv__char--has-header]="isMobile"
+        [class.dg-conv__char--with-context]="showBeginnerContextPanel"
+      >
         <!-- Mobile: mic area in char header (big screens: hidden) -->
         <div class="dg-conv__char-header" *ngIf="isMobile">
           <div class="dg-conv__mic-area dg-conv__mic-area--intro">
@@ -55,6 +59,8 @@
           </div>
           <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
         </div>
+        <!-- Context image / beginner panel -->
+        <ng-container *ngTemplateOutlet="contextPanel"></ng-container>
         <div class="dg-conv__mascot">
           <div class="dg-conv__mascot-bubble" *ngIf="mascotSpeechText">
             <p>{{ mascotSpeechText }}</p>
@@ -114,7 +120,13 @@
     <div class="dg-conv" *ngIf="conversationMode">
 
       <!-- Character column -->
-      <aside class="dg-conv__char" [class.dg-conv__char--has-header]="isMobile">
+      <aside
+        class="dg-conv__char"
+        [class.dg-conv__char--has-header]="isMobile"
+        [class.dg-conv__char--with-context]="showBeginnerContextPanel"
+      >
+        <!-- Context image / beginner panel -->
+        <ng-container *ngTemplateOutlet="contextPanel"></ng-container>
         <!-- Mobile: mic/practice area in char header (big screens: hidden) -->
         <div class="dg-conv__char-header" *ngIf="isMobile">
           <div class="dg-conv__mic-area">
@@ -508,4 +520,60 @@
   </div>
 
   </div><!-- /stage-wrap -->
+
+  <!-- Shared context panel (image above Olly) -->
+  <ng-template #contextPanel>
+    <div class="dg-conv__context-panel" *ngIf="showBeginnerContextPanel">
+      <p *ngIf="beginnerContextStepLabel" class="dg-conv__context-step">{{ beginnerContextStepLabel }}</p>
+      <button
+        *ngIf="beginnerContextImageUrl"
+        type="button"
+        class="dg-conv__context-img-btn"
+        (click)="openContextImageFullscreen()"
+        aria-label="Tap to view image full screen"
+      >
+        <img
+          [src]="beginnerContextImageUrl"
+          alt="Session context"
+          class="dg-conv__context-img"
+        />
+        <span class="dg-conv__context-tap-hint">
+          <mat-icon aria-hidden="true">zoom_out_map</mat-icon>
+          Tap image to view full screen
+        </span>
+      </button>
+      <p *ngIf="!beginnerContextImageUrl && beginnerContextCaption" class="dg-conv__context-caption">
+        {{ beginnerContextCaption }}
+      </p>
+      <p *ngIf="beginnerContextImageUrl && beginnerContextCaptionBelow" class="dg-conv__context-caption">
+        {{ beginnerContextCaptionBelow }}
+      </p>
+    </div>
+  </ng-template>
+
+  <!-- Full-screen image viewer -->
+  <div
+    class="dg-context-fs"
+    *ngIf="contextImageFullscreenOpen && beginnerContextImageUrl"
+    (click)="closeContextImageFullscreen()"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Full screen image"
+  >
+    <button
+      type="button"
+      class="dg-context-fs__close"
+      (click)="closeContextImageFullscreen(); $event.stopPropagation()"
+      aria-label="Close full screen"
+    >
+      <mat-icon>close</mat-icon>
+    </button>
+    <img
+      [src]="beginnerContextImageUrl"
+      alt="Full screen view"
+      class="dg-context-fs__img"
+      (click)="$event.stopPropagation()"
+    />
+    <p class="dg-context-fs__footer-hint">Tap outside or ✕ to close</p>
+  </div>
 </div><!-- /dg-player -->

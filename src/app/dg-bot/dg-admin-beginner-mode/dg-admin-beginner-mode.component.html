@@ -1,0 +1,217 @@
+<div class="dg-bm-page">
+  <div class="container-fluid px-3 py-3">
+    <div
+      *ngIf="message"
+      class="alert d-flex align-items-start gap-2 mb-3"
+      [ngClass]="{
+        'alert-danger': messageType === 'error',
+        'alert-success': messageType === 'success',
+        'alert-info': messageType === 'info'
+      }"
+      role="alert"
+    >
+      <i
+        class="fas mt-1"
+        [ngClass]="{
+          'fa-exclamation-triangle': messageType === 'error',
+          'fa-check-circle': messageType === 'success',
+          'fa-info-circle': messageType === 'info'
+        }"
+      ></i>
+      <div class="flex-grow-1">{{ message }}</div>
+      <button type="button" class="btn-close" aria-label="Close" (click)="message = null"></button>
+    </div>
+
+    <div class="text-center py-5" *ngIf="loading">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 mb-0 text-muted small">Loading…</p>
+    </div>
+
+    <div class="dg-bm-card card" *ngIf="!loading && moduleId">
+      <div class="dg-bm-card__header card-header">
+        <div class="dg-bm-card__header-text">
+          <h4 class="mb-1">🎯 Beginner Mode</h4>
+          <p class="mb-0 text-muted small">{{ moduleTitle }}</p>
+          <p class="mb-0 dg-bm-card__lead">
+            Build short speaking steps for Olly. Each question can have its own picture — great for alphabet, numbers, and vocabulary.
+          </p>
+        </div>
+        <div class="dg-bm-card__header-actions">
+          <button type="button" class="btn btn-outline-secondary btn-sm" (click)="goBack()">
+            <i class="fas fa-arrow-left me-1"></i> Back to module
+          </button>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- Session intro -->
+        <section class="dg-bm-section">
+          <label class="dg-bm-label">Session greeting <span class="text-muted fw-normal">(optional)</span></label>
+          <textarea
+            class="form-control"
+            rows="2"
+            [(ngModel)]="sessionIntro"
+            name="sessionIntro"
+            placeholder="e.g. Hallo! I'm Olly. Let's practice German together — one short step at a time."
+          ></textarea>
+          <small class="text-muted">Olly may use this when the student starts. Keep it short.</small>
+        </section>
+
+        <!-- Questions list -->
+        <section class="dg-bm-section">
+          <div class="dg-bm-section__head">
+            <div>
+              <h5 class="mb-1">Questions for Olly</h5>
+              <p class="text-muted small mb-0">
+                Add one question at a time. Attach a picture when Olly should ask “What do you see?” or teach a word.
+              </p>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm dg-bm-add-btn" (click)="addQuestion()">
+              <i class="fas fa-plus me-1"></i> Add question
+            </button>
+          </div>
+
+          <div *ngIf="questions.length === 0" class="dg-bm-empty">
+            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+            <p class="fw-semibold mb-1">No questions yet</p>
+            <p class="text-muted small mb-3">Click <strong>Add question</strong> to create your first step.</p>
+            <button type="button" class="btn btn-outline-primary" (click)="addQuestion()">
+              <i class="fas fa-plus me-1"></i> Add first question
+            </button>
+          </div>
+
+          <div cdkDropList class="dg-bm-list" (cdkDropListDropped)="dropQuestion($event)">
+            <article
+              *ngFor="let q of questions; let i = index"
+              class="dg-bm-q card"
+              cdkDrag
+            >
+              <div class="dg-bm-q__toolbar">
+                <span class="dg-bm-q__num" cdkDragHandle title="Drag to reorder">
+                  <i class="fas fa-grip-vertical me-1"></i> Q{{ i + 1 }}
+                </span>
+                <div class="dg-bm-q__tools">
+                  <button type="button" class="btn btn-sm btn-light" (click)="moveQuestion(i, -1)" [disabled]="i === 0" aria-label="Move up">
+                    <i class="fas fa-chevron-up"></i>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-light" (click)="moveQuestion(i, 1)" [disabled]="i === questions.length - 1" aria-label="Move down">
+                    <i class="fas fa-chevron-down"></i>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeQuestion(i)" aria-label="Remove">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="dg-bm-q__body">
+                <!-- Image -->
+                <div class="dg-bm-q__image-block">
+                  <label class="dg-bm-label">Picture for this question</label>
+                  <div class="dg-bm-q__image-drop" [class.dg-bm-q__image-drop--has-img]="q.imageUrl">
+                    <img *ngIf="q.imageUrl" [src]="q.imageUrl" alt="Question image" class="dg-bm-q__preview" />
+                    <div *ngIf="!q.imageUrl" class="dg-bm-q__image-placeholder">
+                      <i class="fas fa-image fa-2x text-muted mb-2"></i>
+                      <span class="small text-muted">No image — text-only question is OK</span>
+                    </div>
+                  </div>
+                  <div class="dg-bm-q__image-actions">
+                    <input
+                      #imgFile
+                      type="file"
+                      class="d-none"
+                      accept="image/*"
+                      (change)="onImageSelected($event, i)"
+                    />
+                    <button
+                      type="button"
+                      class="btn btn-outline-primary btn-sm"
+                      (click)="triggerImagePicker(imgFile, i)"
+                      [disabled]="uploadingIndex === i"
+                    >
+                      <span *ngIf="uploadingIndex === i" class="spinner-border spinner-border-sm me-1"></span>
+                      <i class="fas fa-upload me-1" *ngIf="uploadingIndex !== i"></i>
+                      {{ uploadingIndex === i ? 'Uploading…' : 'Upload picture' }}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" *ngIf="q.imageUrl" (click)="clearImage(i)">
+                      Remove picture
+                    </button>
+                  </div>
+                  <input
+                    type="url"
+                    class="form-control form-control-sm mt-2"
+                    [(ngModel)]="q.imageUrl"
+                    [name]="'imgUrl' + i"
+                    placeholder="Or paste image URL"
+                  />
+                </div>
+
+                <!-- Question fields -->
+                <div class="dg-bm-q__fields">
+                  <div class="mb-3">
+                    <label class="dg-bm-label">What should Olly ask? *</label>
+                    <textarea
+                      class="form-control"
+                      rows="2"
+                      [(ngModel)]="q.questionText"
+                      [name]="'qText' + i"
+                      placeholder='e.g. "Schauen wir das Bild an. Was siehst du?" or "How do you say good morning in German?"'
+                    ></textarea>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-12 col-md-6">
+                      <label class="dg-bm-label">Expected answer <span class="text-muted fw-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        [(ngModel)]="q.targetAnswer"
+                        [name]="'qAns' + i"
+                        placeholder="e.g. Guten Morgen"
+                      />
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label class="dg-bm-label">Hint for student <span class="text-muted fw-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        [(ngModel)]="q.hint"
+                        [name]="'qHint' + i"
+                        placeholder="e.g. Starts with Guten…"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- Tips -->
+        <div class="dg-bm-tips alert alert-light border">
+          <strong><i class="fas fa-lightbulb text-warning me-1"></i> Tips</strong>
+          <ul class="mb-0 mt-2 small">
+            <li>One question = one idea. Keep Olly's lines under 10 words when possible.</li>
+            <li>Use a picture for alphabet, numbers, or “What do you see?” activities.</li>
+            <li>Typical session: greeting → 2–3 picture questions → short goodbye.</li>
+          </ul>
+        </div>
+
+        <!-- Footer actions -->
+        <div class="dg-bm-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" (click)="disableBeginnerMode()" [disabled]="saving">
+            Disable Beginner Mode
+          </button>
+          <div class="dg-bm-footer__primary">
+            <button type="button" class="btn btn-outline-primary btn-sm" (click)="saveAndPreview()" [disabled]="saving || questions.length === 0">
+              <i class="fas fa-play me-1"></i> Save &amp; preview
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" (click)="save()" [disabled]="saving">
+              <span *ngIf="saving" class="spinner-border spinner-border-sm me-1"></span>
+              <i class="fas fa-save me-1" *ngIf="!saving"></i>
+              {{ saving ? 'Saving…' : 'Save questions' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

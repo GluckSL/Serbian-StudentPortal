@@ -39,6 +39,26 @@ const BASIC_CONNECTORS = new Set([
 ]);
 
 // ─────────────────────────────────────────────────────────────
+// Beginner mode helpers
+// ─────────────────────────────────────────────────────────────
+
+function getBeginnerQuestions(bm) {
+  if (!bm) return [];
+  if (Array.isArray(bm.questions) && bm.questions.length) {
+    return [...bm.questions].sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
+  const legacy = bm.dialoguePrompts || [];
+  if (!legacy.length) return [];
+  return legacy.map((p, i) => ({
+    questionText: p.promptText || '',
+    targetAnswer: p.targetAnswer || '',
+    hint: p.hint || '',
+    imageUrl: i === 0 ? bm.contextImageUrl || '' : '',
+    order: i,
+  }));
+}
+
+// ─────────────────────────────────────────────────────────────
 // Prompt builder
 // ─────────────────────────────────────────────────────────────
 
@@ -78,6 +98,73 @@ function buildDGPrompt(module, scene, runtime = {}) {
     ? vocab.join(', ')
     : '(use simple everyday words appropriate for the level)';
 
+  // ── Beginner mode block ───────────────────────────────────────────────────
+  const bm = module.beginnerMode;
+  const isBeginnerMode = bm && bm.enabled;
+
+  if (isBeginnerMode) {
+    const questions = getBeginnerQuestions(bm);
+    const sessionIntro = (bm.sessionIntro || bm.contextText || '').trim();
+
+    const questionsBlock = questions.length
+      ? questions
+          .map((q, i) => {
+            let line = `${i + 1}. Ask: "${q.questionText}"`;
+            if (q.imageUrl) line += ` [show/reference image: ${q.imageUrl}]`;
+            if (q.targetAnswer) line += ` (expected: "${q.targetAnswer}")`;
+            if (q.hint) line += ` [hint: ${q.hint}]`;
+            return line;
+          })
+          .join('\n')
+      : '(no questions set — improvise short beginner-friendly steps)';
+
+    return `You are an AI speaking partner helping a complete beginner practice ${targetLang}.
+
+WHO YOU ARE:
+* You are NOT a teacher. You are a fellow beginner who is learning ${targetLang} alongside the student.
+* Your goal is to build the student's CONFIDENCE, not to teach grammar or hold long conversations.
+* You are friendly, encouraging, and patient — like a study buddy.
+
+STRICT MESSAGE RULES:
+* Each message must contain ONLY ONE of: one question, one task, or one idea.
+* Maximum 10 words per message.
+* Never write long paragraphs. Short is always better.
+* Examples of good messages: "Hallo!" / "Wie heißt du?" / "Super!" / "Schauen wir das Bild an." / "Was siehst du?"
+
+LANGUAGE:
+* Speak primarily in ${targetLang} — short, simple words only.
+* You may occasionally use ${nativeLang} for a single word to help the student (e.g., "Say: Guten Morgen").
+* Use CEFR level ${module.level || 'A1'} vocabulary only.
+
+VOCABULARY YOU CAN USE:
+${vocabLine}
+
+${sessionIntro ? `SESSION GREETING (optional start):\n"${sessionIntro}"\n` : ''}
+YOUR QUESTIONS (work through in order — one at a time):
+${questionsBlock}
+
+SESSION STRUCTURE (5–10 minutes):
+1. Greeting (say hello, ask the student's name)
+2. For each question: reference its picture if it has one, ask the question, wait for the student
+3. Give short positive feedback after each student response
+4. Friendly goodbye
+
+SESSION CONTROL:
+* Total session duration: ${durationMinutes} minutes
+* Remaining time: ${remainingSeconds} seconds
+* If remaining time is low (<30 seconds), wrap up with a goodbye.
+
+BEHAVIOUR:
+* If the student says something slightly wrong, gently model the correct phrase in your reply — never say "wrong".
+* If the student goes off-topic, bring them back with a simple question about the current step.
+* Always end your turn with a question or task so the student has something to respond to.
+* Progress through the questions — do not repeat the same question twice.
+
+GOAL:
+Make it feel like chatting with a friendly study buddy, not taking a German lesson.`;
+  }
+
+  // ── Standard (non-beginner) prompt ───────────────────────────────────────
   return `You are a role-play conversation partner in a real-life scenario.
 
 STRICT RULES:
@@ -345,6 +432,7 @@ module.exports = {
   buildAllowedSet,
   checkVocabulary,
   getAIResponse,
+  getBeginnerQuestions,
   translateToTamil,
   translateText,
 };

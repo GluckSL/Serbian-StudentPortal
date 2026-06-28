@@ -556,6 +556,34 @@
   margin-bottom: 2px;
 }
 
+.dg-scene-image-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dg-scene-image-preview {
+  max-width: 200px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.35rem;
+  background: #f8fafc;
+
+  img {
+    max-width: 100%;
+    max-height: 120px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .dg-scene-image-row .btn {
+    flex: 1 1 auto;
+  }
+}
+
 .dg-adm__footer-actions {
   margin-top: 8px;
   padding-top: 16px;
@@ -591,4 +619,72 @@
 
 .cdk-drag-animating {
   transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* ── Beginner mode prompt list ── */
+.beginner-prompt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: 10px;
+}
+
+.beginner-prompt-list .badge {
+  font-size: 0.7rem;
+  line-height: 1.6;
+}
+
+.dg-form-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dg-beginner-mode-btn .badge {
+  font-size: 0.65rem;
+  vertical-align: middle;
+}
+
+@media (max-width: 767px) {
+  .dg-form-page .container-fluid {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .dg-adm-rp-card .card-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 0.65rem;
+  }
+
+  .dg-adm-rp-card .card-body {
+    padding: 12px;
+  }
+
+  .dg-form-header-actions {
+    width: 100%;
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .dg-form-header-actions .btn {
+    width: 100%;
+  }
+
+  .dg-adm__footer-actions {
+    flex-direction: column;
+    align-items: stretch;
+
+    .dg-adm__save-btn {
+      margin-left: 0 !important;
+      width: 100%;
+    }
+
+    .btn {
+      width: 100%;
+    }
+  }
 }

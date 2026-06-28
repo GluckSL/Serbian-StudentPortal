@@ -116,6 +116,48 @@
   .dg-player__module-title {
     flex-basis: 100%;
     margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.35;
+  }
+
+  .dg-conv__context-panel {
+    border-radius: 12px;
+    padding: 0.55rem 0.65rem;
+    width: 100%;
+  }
+
+  .dg-conv__context-img {
+    max-height: min(52vw, 280px);
+    min-height: 160px;
+    width: 100%;
+    object-fit: contain;
+  }
+
+  .dg-conv__context-tap-hint {
+    font-size: 0.78rem;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .dg-conv__context-caption {
+    font-size: 0.78rem;
+  }
+
+  .dg-conv__char--with-context .dg-conv__mascot {
+    min-height: 220px;
+    height: auto;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .dg-conv__mascot-bubble {
+    min-width: 180px;
+    max-width: 92%;
+    padding: 0.55rem 0.75rem;
+
+    p {
+      font-size: 0.78rem;
+      line-clamp: 4;
+    }
   }
 }
 
@@ -492,6 +534,157 @@
 .dg-conv__char--has-header {
   justify-content: flex-start;
   padding-top: 0;
+}
+
+// ── Beginner mode context panel (shown above Olly) ──────────────────────────
+.dg-conv__context-panel {
+  width: 100%;
+  padding: 0.6rem 0.8rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+  border-radius: 14px;
+  border: 1.5px solid #bee3f8;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 2px 10px rgba(66, 153, 225, 0.12);
+}
+
+.dg-conv__context-img-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active .dg-conv__context-img {
+    opacity: 0.92;
+  }
+}
+
+.dg-conv__context-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid #bee3f8;
+  background: white;
+  margin: 0 auto;
+}
+
+.dg-conv__context-tap-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0369a1;
+  background: rgba(255, 255, 255, 0.92);
+  border-top: 1px solid #bee3f8;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.dg-conv__context-caption {
+  font-size: 0.8rem;
+  color: #2c5282;
+  text-align: center;
+  margin: 0;
+  font-style: italic;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.dg-conv__context-step {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0369a1;
+  margin: 0 0 0.25rem;
+  text-align: center;
+}
+
+.dg-conv__char--with-context {
+  justify-content: flex-start;
+
+  .dg-conv__mascot {
+    margin-top: 1rem;
+    flex: 0 1 auto;
+  }
+}
+
+// ── Full-screen context image viewer ──
+.dg-context-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: dg-overlay-in 200ms ease;
+}
+
+.dg-context-fs__close {
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
+  right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+
+  mat-icon {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.dg-context-fs__img {
+  max-width: 100%;
+  max-height: calc(100vh - 120px);
+  max-height: calc(100dvh - 120px);
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+}
+
+.dg-context-fs__footer-hint {
+  position: absolute;
+  bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .dg-conv__mascot {
@@ -1082,6 +1275,15 @@
 }
 
 @media (max-width: 420px) {
+  .dg-conv__context-img {
+    max-height: min(58vw, 260px);
+    min-height: 140px;
+  }
+
+  .dg-conv__char--with-context .dg-conv__mascot {
+    min-height: 200px;
+  }
+
   .dg-conv__session-timer {
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 0.36rem;
@@ -1675,11 +1877,28 @@
   }
 
   .dg-conv__char {
-    min-height: 500px;
+    min-height: auto;
+    padding: 0.65rem;
+  }
+
+  .dg-conv__context-panel {
+    margin-top: 0.25rem;
+    padding: 0.5rem 0.65rem;
+  }
+
+  .dg-conv__context-img {
+    max-height: min(48vw, 260px);
+    min-height: 150px;
+  }
+
+  .dg-conv__char--with-context .dg-conv__mascot {
+    margin-top: 0.75rem;
+    height: auto;
+    min-height: 260px;
   }
 
   .dg-conv__chat {
-    min-height: 500px;
+    min-height: 420px;
   }
 
   .dg-conv__chat-head {
@@ -1712,7 +1931,8 @@
   }
 
   .dg-conv__mascot {
-    height: 400px;
+    height: 360px;
+    margin-top: 2rem;
   }
 
   .dg-conv__mascot-bubble p {

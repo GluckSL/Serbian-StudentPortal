@@ -17,6 +17,8 @@ export interface DgScene {
   _id?: string;
   type: DgSceneType;
   text: string;
+  /** Picture shown above Olly during this scene (beginner / picture activities). */
+  imageUrl?: string;
   audioUrl?: string;
   expectedAnswer?: string;
   translation?: string;
@@ -55,6 +57,36 @@ export interface DgConversationFlowStage {
   aiPrompts: string[];
   expectedResponses: string[];
   helpfulPhrases: string[];
+}
+
+export interface DgBeginnerDialoguePrompt {
+  _id?: string;
+  promptText: string;
+  targetAnswer?: string;
+  hint?: string;
+}
+
+/** One step in beginner mode — Olly's question with optional image above the character. */
+export interface DgBeginnerQuestion {
+  _id?: string;
+  imageUrl?: string;
+  questionText: string;
+  targetAnswer?: string;
+  hint?: string;
+  order?: number;
+}
+
+/** Beginner mode — separate editor; multiple questions each with optional image. */
+export interface DgBeginnerMode {
+  enabled: boolean;
+  sessionIntro?: string;
+  questions?: DgBeginnerQuestion[];
+  /** @deprecated */
+  contextImageUrl?: string;
+  /** @deprecated */
+  contextText?: string;
+  /** @deprecated */
+  dialoguePrompts?: DgBeginnerDialoguePrompt[];
 }
 
 export interface DgCharacterDoc {
@@ -99,6 +131,7 @@ export interface DgModuleSummary {
   aiTutorVocabulary?: DgVocabEntry[];
   allowedGrammar?: DgGrammarEntry[];
   conversationFlow?: DgConversationFlowStage[];
+  beginnerMode?: DgBeginnerMode;
 }
 
 export interface DgPlayPayload {
@@ -119,6 +152,7 @@ export interface DgPlayPayload {
     aiTutorVocabulary?: DgVocabEntry[];
     allowedGrammar?: DgGrammarEntry[];
     conversationFlow?: DgConversationFlowStage[];
+    beginnerMode?: DgBeginnerMode;
   };
   character: DgCharacterDoc;
 }
