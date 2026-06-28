@@ -25,6 +25,31 @@ function attachContentUnlock(access) {
 }
 
 /**
+ * Match a student's batch label to BatchConfig. Normalized keys can collide
+ * (e.g. "45" and "Batch 45" both normalize to "45") — prefer exact name, then
+ * active new-batch configs.
+ */
+function resolveBatchConfigForStudentKey(configs, studentBatchKey) {
+  const target = normalizeBatch(studentBatchKey);
+  if (!target) return null;
+  const matches = configs.filter((cfg) => normalizeBatch(cfg.batchName) === target);
+  if (!matches.length) return null;
+  if (matches.length === 1) return matches[0];
+
+  const trimmedKey = String(studentBatchKey || '').trim();
+  const exact = matches.find((cfg) => String(cfg.batchName || '').trim() === trimmedKey);
+  if (exact) return exact;
+
+  const activeNew = matches.find((cfg) => cfg.journeyActive && isLearningEnabled(cfg.batchType));
+  if (activeNew) return activeNew;
+
+  const active = matches.find((cfg) => cfg.journeyActive);
+  if (active) return active;
+
+  return matches[0];
+}
+
+/**
  * Content access rule for STUDENT users:
  * - GO students always have journey content access.
  * - Non-GO students require at least one active BatchConfig (journeyActive=true)
@@ -75,23 +100,11 @@ async function getJourneyAccessForStudent(student) {
   const allBatchConfigs = await BatchConfig.find({})
     .select('batchName batchType oldBatchDgBotAccess trialDayEnabled journeyActive')
     .lean();
-  const activeMap = new Map();
-  for (const cfg of activeBatchConfigs) {
-    const key = normalizeBatch(cfg.batchName);
-    if (!key) continue;
-    activeMap.set(key, cfg);
-  }
-  const allMap = new Map();
-  for (const cfg of allBatchConfigs) {
-    const key = normalizeBatch(cfg.batchName);
-    if (!key) continue;
-    allMap.set(key, cfg);
-  }
   const matchedConfigs = batchKeys
-    .map((key) => allMap.get(normalizeBatch(key)))
+    .map((key) => resolveBatchConfigForStudentKey(allBatchConfigs, key))
     .filter(Boolean);
   const activeMatched = batchKeys
-    .map((key) => activeMap.get(normalizeBatch(key)))
+    .map((key) => resolveBatchConfigForStudentKey(activeBatchConfigs, key))
     .filter(Boolean);
   const trialDayEnabled = resolveTrialDayEnabled(matchedConfigs);
   let courseDay = normalizeJourneyDay(student.currentCourseDay, trialDayEnabled);

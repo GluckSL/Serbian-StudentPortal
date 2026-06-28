@@ -365,7 +365,10 @@ export class AuthService {
       return '/teacher-dashboard';
     }
     if (role === 'STUDENT') {
-      return isCoursePlan(user?.subscription) ? '/student/my-course' : '/student-documents';
+      // Course-plan students (Silver / Platinum) land directly on My Course.
+      // All other students — including service-plan and accounts where subscription
+      // is not yet known — land on the Dashboard which is accessible to every student.
+      return isCoursePlan(user?.subscription) ? '/student/my-course' : '/student-progress';
     }
     return null;
   }

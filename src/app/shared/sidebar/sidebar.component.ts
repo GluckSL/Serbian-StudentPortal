@@ -9,6 +9,7 @@ import { PortalTrackingService } from '../../services/portal-tracking.service';
 import { InteractiveGameService } from '../../features/glueck-arena/services/interactive-game.service';
 import { PaymentRequestNavService } from '../../components/payment-hub-v2/payment-request-nav.service';
 import { PaymentNotificationNavService } from '../../components/payment-hub-v2/payment-notification-nav.service';
+import { isCoursePlan } from '../../utils/student-subscription-plans.util';
 
 @Component({
   selector: 'app-sidebar',
@@ -67,6 +68,19 @@ export class SidebarComponent implements OnInit {
               .map((g) => ({
                 ...g,
                 items: (g.items || []).filter((item) => item.id !== 'student-announcements')
+              }))
+              .filter((g) => (g.items || []).length > 0);
+          }
+          // Hide course-locked items when we know the student is on a service plan
+          // (docs / visa / post-landing).  When subscription is not yet loaded we
+          // leave the items visible; they will be hidden on the next emission once
+          // the profile has been refreshed with the full subscription value.
+          if (user.subscription && !isCoursePlan(user.subscription)) {
+            const courseGatedIds = new Set(['my-course', 'glueck-arena']);
+            groups = groups
+              .map((g) => ({
+                ...g,
+                items: (g.items || []).filter((item) => !courseGatedIds.has(item.id))
               }))
               .filter((g) => (g.items || []).length > 0);
           }
