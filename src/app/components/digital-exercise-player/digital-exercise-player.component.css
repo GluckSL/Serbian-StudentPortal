@@ -7448,11 +7448,6 @@
   opacity: 0.9;
   white-space: nowrap;
 }
-  color: #475569;
-  font-size: 0.9rem;
-  font-style: italic;
-  animation: slow-hint-in 180ms ease-out;
-}
 @keyframes slow-hint-in {
   from {
     opacity: 0;
