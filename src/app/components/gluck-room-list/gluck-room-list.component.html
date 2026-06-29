@@ -1,8 +1,16 @@
-<div class="gluck-room-list">
+<div class="gluck-room-list" [class.student-view]="isStudent">
 
   <!-- ── Header ── -->
   <div class="header">
-    <h1>Gluck Room</h1>
+    <div>
+      <h1>Gluck Room</h1>
+      <p *ngIf="isStudent" class="header-subtitle">Join your scheduled learning sessions</p>
+    </div>
+    <div *ngIf="isStudent" class="student-summary">
+      <span><strong>{{ tabCount('scheduled') }}</strong> Upcoming</span>
+      <span><strong>{{ tabCount('active') }}</strong> Live</span>
+      <span><strong>{{ tabCount('ended') }}</strong> Completed</span>
+    </div>
     <div class="header-actions">
       <button *ngIf="canManage()" mat-stroked-button class="btn-bulk" (click)="createBulkSession()">
         <mat-icon>layers</mat-icon> Bulk Session
@@ -20,6 +28,12 @@
         <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Search sessions...">
         <mat-icon matPrefix>search</mat-icon>
       </mat-form-field>
+      <div *ngIf="isStudent" class="student-filter-chips">
+        <button type="button" [class.active]="studentQuickFilter === 'all'" (click)="setStudentQuickFilter('all')">All</button>
+        <button type="button" [class.active]="studentQuickFilter === 'today'" (click)="setStudentQuickFilter('today')">Today</button>
+        <button type="button" [class.active]="studentQuickFilter === 'week'" (click)="setStudentQuickFilter('week')">This Week</button>
+        <button type="button" [class.active]="studentQuickFilter === 'available'" (click)="setStudentQuickFilter('available')">Available Now</button>
+      </div>
       <mat-form-field *ngIf="!isStudent" appearance="outline">
         <mat-label>Batch</mat-label>
         <mat-select [(ngModel)]="batchFilter" (ngModelChange)="onBatchFilterChange()">
@@ -75,6 +89,78 @@
 
   </mat-tab-group>
 
+  <ng-container *ngIf="isStudent && !loading && !error">
+    <section class="student-hero" *ngIf="heroSession as hero">
+      <div class="student-hero__content">
+        <span class="student-hero__eyebrow">{{ hero.status === 'active' ? 'Live class is open' : 'Up next' }}</span>
+        <h2>{{ hero.sessionName }}</h2>
+        <div class="student-hero__meta">
+          <span><mat-icon>schedule</mat-icon>{{ formatDate(hero.scheduledStartTime) }}</span>
+          <span><mat-icon>timer</mat-icon>{{ formatDuration(hero.maxDurationMinutes) }}</span>
+          <span><mat-icon>school</mat-icon>{{ hero.batch }}</span>
+        </div>
+        <button *ngIf="hero.status === 'active' || canJoinSession(hero)"
+          mat-flat-button class="student-hero__cta"
+          (click)="joinSession(hero._id, $event)">
+          <mat-icon>videocam</mat-icon>{{ joinButtonLabel(hero) }}
+        </button>
+        <span *ngIf="hero.status !== 'active' && !canJoinSession(hero)" class="student-hero__countdown">
+          {{ timeUntilJoinOpens(hero) }}
+        </span>
+      </div>
+      <div class="student-hero__visual" [style.backgroundImage]="'url(' + sessionImage(0) + ')'">
+        <span>{{ sessionStatusText(hero) }}</span>
+      </div>
+    </section>
+
+    <section class="student-session-grid" *ngIf="displayedSessions.length > 0">
+      <article class="student-session-card"
+        *ngFor="let s of displayedSessions; let i = index"
+        [class.is-live]="s.status === 'active'"
+        [class.is-ended]="s.status === 'ended'"
+        (click)="openSession(s._id, $event)">
+        <div class="student-session-card__image" [style.backgroundImage]="'url(' + sessionImage(i + 1) + ')'">
+          <span [class.live]="s.status === 'active'">{{ sessionStatusText(s) }}</span>
+        </div>
+        <div class="student-session-card__body">
+          <h3>{{ s.sessionName }}</h3>
+          <p><mat-icon>event</mat-icon>{{ formatDate(s.scheduledStartTime) }}</p>
+          <p><mat-icon>timer</mat-icon>{{ formatDuration(s.maxDurationMinutes) }}</p>
+          <div class="student-session-card__pills">
+            <span class="batch-pill">{{ s.batch }}</span>
+            <span *ngIf="s.plan" class="plan-pill">{{ s.plan }}</span>
+          </div>
+        </div>
+        <div class="student-session-card__actions" (click)="$event.stopPropagation()">
+          <button *ngIf="s.status === 'active' || canJoinSession(s)"
+            mat-flat-button class="student-join-button"
+            (click)="joinSession(s._id, $event)">
+            <mat-icon>videocam</mat-icon>{{ joinButtonLabel(s) }}
+          </button>
+          <span *ngIf="s.status !== 'active' && !canJoinSession(s)" class="student-closed-button">
+            {{ timeUntilJoinOpens(s) }}
+          </span>
+          <button *ngIf="s.status === 'ended'" mat-stroked-button class="recording-btn" (click)="openRecording(s._id, $event)">
+            <mat-icon>play_circle</mat-icon> Recording
+          </button>
+        </div>
+      </article>
+    </section>
+
+    <div *ngIf="displayedSessions.length === 0" class="student-empty-card">
+      <mat-icon>calendar_month</mat-icon>
+      <h3>{{ studentEmptyTitle }}</h3>
+      <p>{{ studentEmptyText }}</p>
+    </div>
+
+    <mat-paginator *ngIf="totalCount > pageSize"
+      class="gluck-room-paginator"
+      [length]="totalCount" [pageIndex]="pageIndex" [pageSize]="pageSize"
+      [pageSizeOptions]="[10,15,25,50]" [showFirstLastButtons]="true"
+      (page)="onPageChange($event)">
+    </mat-paginator>
+  </ng-container>
+
   <!-- ── Loading skeleton ── -->
   <div *ngIf="loading" class="loading-shade">
     <div class="sessions-skeleton">
@@ -88,7 +174,7 @@
     </div>
   </div>
 
-  <ng-container *ngIf="!loading && !error">
+  <ng-container *ngIf="!loading && !error && !isStudent">
 
     <!-- ── Empty state ── -->
     <div *ngIf="sessions.length === 0" class="empty-card">

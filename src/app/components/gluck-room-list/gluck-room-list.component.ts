@@ -33,6 +33,7 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   batchFilter = 'all';
   planFilter = 'all';
   searchQuery = '';
+  studentQuickFilter: 'all' | 'today' | 'week' | 'available' = 'all';
 
   pageIndex = 0;
   pageSize = 15;
@@ -56,6 +57,45 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     if (this.statusTab !== 'scheduled') cols.push('participants');
     if (!(this.isStudent && this.statusTab === 'ended')) cols.push('actions');
     return cols;
+  }
+
+  get displayedSessions(): any[] {
+    if (!this.isStudent || this.studentQuickFilter === 'all') return this.sessions;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const endOfToday = startOfToday + 24 * 60 * 60 * 1000;
+    const endOfWeek = now.getTime() + 7 * 24 * 60 * 60 * 1000;
+
+    return this.sessions.filter((session) => {
+      const start = new Date(session.scheduledStartTime).getTime();
+      if (this.studentQuickFilter === 'today') return start >= startOfToday && start < endOfToday;
+      if (this.studentQuickFilter === 'week') return start >= now.getTime() && start <= endOfWeek;
+      if (this.studentQuickFilter === 'available') return session.status === 'active' || this.canJoinSession(session);
+      return true;
+    });
+  }
+
+  get heroSession(): any | null {
+    if (!this.isStudent) return null;
+    return this.sessions.find((session) => session.status === 'active')
+      || this.sessions.find((session) => this.canJoinSession(session))
+      || this.sessions[0]
+      || null;
+  }
+
+  get studentEmptyTitle(): string {
+    if (this.studentQuickFilter === 'available') return 'No rooms available now';
+    if (this.statusTab === 'active') return 'No live sessions right now';
+    if (this.statusTab === 'ended') return 'No completed sessions yet';
+    return 'No upcoming sessions found';
+  }
+
+  get studentEmptyText(): string {
+    if (this.studentQuickFilter !== 'all') return 'Try another filter or check the full schedule.';
+    if (this.statusTab === 'active') return 'Check Upcoming for your next scheduled class.';
+    if (this.statusTab === 'ended') return 'Recordings will appear here after completed sessions.';
+    return 'Your next Gluck Room class will appear here once it is scheduled.';
   }
 
   constructor(
@@ -168,6 +208,10 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     this.loadSessions();
   }
 
+  setStudentQuickFilter(filter: 'all' | 'today' | 'week' | 'available'): void {
+    this.studentQuickFilter = filter;
+  }
+
   onPageChange(ev: PageEvent): void {
     this.pageIndex = ev.pageIndex;
     this.pageSize = ev.pageSize;
@@ -270,6 +314,12 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     window.open(`/gluck-room/${id}`, '_blank');
   }
 
+  openSession(id: string | undefined, event?: Event): void {
+    event?.stopPropagation();
+    if (!id) return;
+    this.viewSession(id);
+  }
+
   openRecording(sessionId: string, event?: Event): void {
     event?.stopPropagation();
     this.gluckRoomService.getSessionRecording(sessionId).subscribe({
@@ -304,8 +354,8 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
 
   /** Label shown on the Join button for upcoming sessions */
   joinButtonLabel(session: any): string {
-    if (session.status === 'active') return 'Join';
-    if (this.canJoinSession(session)) return 'Join';
+    if (session.status === 'active') return 'Join Room Now';
+    if (this.canJoinSession(session)) return 'Join Now';
     return this.timeUntilJoinOpens(session);
   }
 
@@ -340,6 +390,23 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return h > 0 ? `${h}h ${m}m` : `${m} min`;
+  }
+
+  sessionImage(index: number): string {
+    const images = [
+      'assets/gluck-room/session-germany-flag.png',
+      'assets/gluck-room/session-germany-city.png',
+      'assets/gluck-room/session-learning-1.png',
+      'assets/gluck-room/session-learning-2.png'
+    ];
+    return images[index % images.length];
+  }
+
+  sessionStatusText(session: any): string {
+    if (session.status === 'active') return 'Live now';
+    if (this.canJoinSession(session)) return 'Available';
+    if (session.status === 'ended') return 'Completed';
+    return 'Scheduled';
   }
 
   statusLabel(status: string): string {
