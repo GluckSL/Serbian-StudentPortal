@@ -150,70 +150,6 @@
       </div>
 
       <div class="ph-finance-overview-secondary-row">
-        <article class="ph-finance-overview-card ph-finance-overview-card--ongoing-batches">
-          <div class="ph-finance-overview-card__header">
-            <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--batches" aria-hidden="true">
-              <mat-icon>view_module</mat-icon>
-            </div>
-            <h2 class="ph-finance-overview-card__title">ALL payment (Language)</h2>
-          </div>
-          <div class="ph-finance-overview-card__middle">
-            <div class="ph-finance-overview-card__main ph-finance-overview-card__main--value-only">
-              <span class="ph-finance-overview-card__value">
-                {{ loadingVisibleBatches ? '...' : visibleBatches.length }}
-              </span>
-            </div>
-            <p class="ph-finance-overview-card__hint">
-              Pinned batches visible to all admins on the finance dashboard — remove anytime.
-            </p>
-          </div>
-
-          <div class="ph-finance-card-actions">
-            <a
-              class="ph-finance-overview-ongoing-link ph-finance-card-actions__show"
-              [routerLink]="batchesRoute('all')"
-              [queryParams]="batchesQuery('all')"
-            >
-              <span>Show details</span>
-              <mat-icon>arrow_forward</mat-icon>
-            </a>
-            <button
-              type="button"
-              class="ph-finance-manage-batches-btn"
-              *ngIf="!loadingVisibleBatches"
-              (click)="toggleManageVisibleBatches()"
-              [attr.aria-expanded]="showManageVisibleBatches"
-            >
-              <mat-icon>{{ showManageVisibleBatches ? 'expand_less' : 'tune' }}</mat-icon>
-              <span>{{ showManageVisibleBatches ? 'Hide manage' : 'Manage batches' }}</span>
-            </button>
-          </div>
-
-          <div class="ph-finance-batch-chips" *ngIf="!loadingVisibleBatches && showManageVisibleBatches && visibleBatches.length">
-            <div class="ph-finance-batch-chip" *ngFor="let b of visibleBatches">
-              <mat-icon class="ph-finance-batch-chip__icon">label</mat-icon>
-              <span class="ph-finance-batch-chip__name">{{ b }}</span>
-              <span class="ph-finance-batch-chip__level" *ngIf="visibleBatchLevelStatuses[b]">
-                {{ visibleBatchLevelStatuses[b] }}
-              </span>
-              <button
-                type="button"
-                class="ph-finance-batch-chip__remove"
-                (click)="removeVisibleBatch(b)"
-                [disabled]="savingVisibleBatches"
-                [attr.aria-label]="'Remove ' + b + ' from dashboard'"
-                matTooltip="Remove from dashboard"
-              >
-                <mat-icon>close</mat-icon>
-              </button>
-            </div>
-          </div>
-
-          <p class="ph-finance-batch-chips-empty" *ngIf="!loadingVisibleBatches && !visibleBatches.length">
-            No batches added yet — use the <strong>+ Add Batch</strong> button above.
-          </p>
-        </article>
-
         <article class="ph-finance-overview-card ph-finance-overview-card--language-payment">
           <div class="ph-finance-overview-card__header">
             <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--language-payment" aria-hidden="true">
@@ -323,6 +259,70 @@
 
           <p class="ph-finance-batch-chips-empty" *ngIf="!loadingVisibleBatches && !languageBatches.length && !showManageLanguageBatches">
             No batches added yet — click <strong>Manage batches</strong> below.
+          </p>
+        </article>
+
+        <article class="ph-finance-overview-card ph-finance-overview-card--ongoing-batches">
+          <div class="ph-finance-overview-card__header">
+            <div class="ph-finance-overview-card__icon ph-finance-overview-card__icon--batches" aria-hidden="true">
+              <mat-icon>view_module</mat-icon>
+            </div>
+            <h2 class="ph-finance-overview-card__title">ALL payment (Language)</h2>
+          </div>
+          <div class="ph-finance-overview-card__middle">
+            <div class="ph-finance-overview-card__main ph-finance-overview-card__main--value-only">
+              <span class="ph-finance-overview-card__value">
+                {{ loadingVisibleBatches ? '...' : visibleBatches.length }}
+              </span>
+            </div>
+            <p class="ph-finance-overview-card__hint">
+              Pinned batches visible to all admins on the finance dashboard — remove anytime.
+            </p>
+          </div>
+
+          <div class="ph-finance-card-actions">
+            <a
+              class="ph-finance-overview-ongoing-link ph-finance-card-actions__show"
+              [routerLink]="batchesRoute('all')"
+              [queryParams]="batchesQuery('all')"
+            >
+              <span>Show details</span>
+              <mat-icon>arrow_forward</mat-icon>
+            </a>
+            <button
+              type="button"
+              class="ph-finance-manage-batches-btn"
+              *ngIf="!loadingVisibleBatches"
+              (click)="toggleManageVisibleBatches()"
+              [attr.aria-expanded]="showManageVisibleBatches"
+            >
+              <mat-icon>{{ showManageVisibleBatches ? 'expand_less' : 'tune' }}</mat-icon>
+              <span>{{ showManageVisibleBatches ? 'Hide manage' : 'Manage batches' }}</span>
+            </button>
+          </div>
+
+          <div class="ph-finance-batch-chips" *ngIf="!loadingVisibleBatches && showManageVisibleBatches && visibleBatches.length">
+            <div class="ph-finance-batch-chip" *ngFor="let b of visibleBatches">
+              <mat-icon class="ph-finance-batch-chip__icon">label</mat-icon>
+              <span class="ph-finance-batch-chip__name">{{ b }}</span>
+              <span class="ph-finance-batch-chip__level" *ngIf="visibleBatchLevelStatuses[b]">
+                {{ visibleBatchLevelStatuses[b] }}
+              </span>
+              <button
+                type="button"
+                class="ph-finance-batch-chip__remove"
+                (click)="removeVisibleBatch(b)"
+                [disabled]="savingVisibleBatches"
+                [attr.aria-label]="'Remove ' + b + ' from dashboard'"
+                matTooltip="Remove from dashboard"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <p class="ph-finance-batch-chips-empty" *ngIf="!loadingVisibleBatches && !visibleBatches.length">
+            No batches added yet — use the <strong>+ Add Batch</strong> button above.
           </p>
         </article>
 

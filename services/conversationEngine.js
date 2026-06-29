@@ -259,8 +259,56 @@ async function generateOpeningMessage(state) {
 }
 
 /**
+ * Compare what the student said against the expected answer.
+ * Returns true only when the content is genuinely close — never based on
+ * pronunciation score alone (which is always high for clear speech even if the
+ * words are wrong).
+ *
+ * Rules:
+ *   1. Normalize both strings (lowercase, strip punctuation, collapse whitespace).
+ *   2. Exact match or student's text contains the full expected phrase → correct.
+ *   3. Expected contains student's text AND student said ≥ 60 % of expected length → correct.
+ *   4. Word-level overlap: ≥ 75 % of expected words found in student speech → correct.
+ */
+function _isBeginnerAnswerCorrect(said, expected) {
+  const norm = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[.,!?;:'"„"–—]/g, '')
+      .replace(/\s+/g, ' ');
+
+  const s = norm(said);
+  const e = norm(expected);
+
+  if (!s || !e) return false;
+
+  // Exact match
+  if (s === e) return true;
+
+  // Student said something that fully contains the expected phrase
+  if (s.includes(e)) return true;
+
+  // Expected contains what student said AND it's a substantial portion (≥ 60 %)
+  if (e.includes(s) && s.length >= Math.max(3, e.length * 0.6)) return true;
+
+  // Word-level overlap ≥ 75 %
+  const eWords = e.split(' ').filter(Boolean);
+  const sWords = new Set(s.split(' ').filter(Boolean));
+  if (eWords.length === 0) return false;
+
+  const matched = eWords.filter((w) =>
+    sWords.has(w) ||
+    [...sWords].some((sw) => (sw.length > 2 && w.startsWith(sw)) || (w.length > 2 && sw.startsWith(w)))
+  );
+  return matched.length / eWords.length >= 0.75;
+}
+
+/**
  * Handle one student turn in beginner mode.
- * Asks questions one-by-one; advances on correct answer or after a language-hint repeat.
+ * Asks questions one-by-one; advances only when the student's answer matches the
+ * expected answer (text similarity). When wrong, Olly corrects and stays on the
+ * same question until the student gets it right.
  * Returns the same shape as processStudentTurn.
  */
 async function _processBeginnerTurn(sessionId, state, transcript, pronunciationScore) {
@@ -283,27 +331,39 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
   const randFeedback = () => FEEDBACKS[Math.floor(Math.random() * FEEDBACKS.length)];
 
   if (state.beginnerAwaitingRepeat) {
-    // Student just repeated the German phrase after a hint — accept and advance
-    nextIdx = currentIdx + 1;
-    if (nextIdx >= questions.length) {
-      isComplete = true;
-      aiText = ctx.language === 'German'
-        ? 'Super! Du hast alle Fragen beantwortet! Sehr gut!'
-        : 'Great! You answered all the questions! Well done!';
+    // Student was shown the target phrase as a hint and should now repeat it.
+    // Accept only if they actually said something close to the target.
+    const target = (currentQ?.targetAnswer || '').trim();
+    const repeatOk = target
+      ? _isBeginnerAnswerCorrect(transcript, target)
+      : transcript.trim().length > 0;
+
+    if (repeatOk) {
+      nextIdx = currentIdx + 1;
+      if (nextIdx >= questions.length) {
+        isComplete = true;
+        aiText = ctx.language === 'German'
+          ? 'Super! Du hast alle Fragen beantwortet! Sehr gut!'
+          : 'Great! You answered all the questions! Well done!';
+      } else {
+        const nextQ = questions[nextIdx];
+        aiText = `${randFeedback()} ${(nextQ.questionText || '').trim()}`;
+      }
     } else {
-      const nextQ = questions[nextIdx];
-      aiText = `${randFeedback()} ${(nextQ.questionText || '').trim()}`;
+      // Still didn't say it correctly — show the hint again
+      aiText = target
+        ? (ctx.language === 'German' ? `Noch einmal. Sag: "${target}"` : `Try again. Say: "${target}"`)
+        : (ctx.language === 'German' ? 'Versuche es noch einmal.' : 'Try again.');
     }
   } else {
-    // Evaluate student's answer against the expected answer (if provided)
     let isCorrect = false;
+
     if (currentQ?.targetAnswer?.trim()) {
-      const expected = currentQ.targetAnswer.toLowerCase().trim();
-      const said = transcript.toLowerCase().trim();
-      isCorrect = said.includes(expected) || expected.includes(said) || pronunciationScore >= 70;
+      // Expected answer set → use text-similarity only (never rely on pronunciation score)
+      isCorrect = _isBeginnerAnswerCorrect(transcript, currentQ.targetAnswer);
     } else {
-      // No expected answer: accept any non-empty spoken response
-      isCorrect = transcript.trim().length > 0 && pronunciationScore >= 30;
+      // No expected answer → open question; accept any non-empty response
+      isCorrect = transcript.trim().length > 0;
     }
 
     if (isCorrect) {
@@ -318,26 +378,33 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
         aiText = `${randFeedback()} ${(nextQ.questionText || '').trim()}`;
       }
     } else {
-      // Wrong answer — give hint and stay on same question
-      if (currentQ?.targetAnswer?.trim()) {
+      // Wrong answer — correct and stay on the same question
+      const target = (currentQ?.targetAnswer || '').trim();
+      const hint = (currentQ?.hint || '').trim();
+      if (target) {
+        // Show the correct answer so the student can repeat it
         aiText = ctx.language === 'German'
-          ? `Sag: "${currentQ.targetAnswer}"`
-          : `Say: "${currentQ.targetAnswer}"`;
-      } else if (currentQ?.hint?.trim()) {
-        aiText = currentQ.hint.trim();
+          ? `Nicht ganz. Sag: "${target}"`
+          : `Not quite. Say: "${target}"`;
+      } else if (hint) {
+        aiText = hint;
       } else {
-        aiText = (currentQ?.questionText || '').trim()
-          || (ctx.language === 'German' ? 'Versuche es noch einmal.' : 'Try again.');
+        aiText = ctx.language === 'German'
+          ? 'Versuche es noch einmal.'
+          : 'Try again.';
       }
     }
   }
+
+  // Keep awaitingRepeat true if student failed to repeat the hint phrase
+  const stillAwaitingRepeat = state.beginnerAwaitingRepeat && nextIdx === currentIdx;
 
   const finalHistory = [...historyWithStudent, { speaker: 'ai', text: aiText }];
   setState(sessionId, {
     turnCount: newTurnCount,
     history: finalHistory,
     beginnerQuestionIndex: nextIdx,
-    beginnerAwaitingRepeat: false,
+    beginnerAwaitingRepeat: stillAwaitingRepeat,
   });
 
   const progressPct = questions.length > 0
