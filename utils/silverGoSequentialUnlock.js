@@ -9,7 +9,7 @@ const { allStudentBatchStringsForContent } = require('./effectiveStudentBatch');
 const { isSilverGoStudent, silverGoRecordingBatchKeys, SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
 const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
-const { isCourseDayAdminBlocked } = require('./journeyContentBlock');
+const { isCourseDayAdminBlocked, getEffectiveAccessibleLevels } = require('./journeyContentBlock');
 const { SILVER_GO_RECORDING_WATCH_RATIO, recordingWatchCountsAsComplete } = require('./recordingWatchCompletion');
 
 const { clampStandardJourneyDay } = require('./journeyDay');
@@ -22,6 +22,10 @@ function normalizeCourseDay(d) {
 }
 
 function silverGoCompletionOptions(student) {
+  const accessibleLevels = getEffectiveAccessibleLevels(
+    student?.level,
+    student?.blockedJourneyLevels
+  );
   return {
     includeRecordings: true,
     includeDg: true,
@@ -30,6 +34,7 @@ function silverGoCompletionOptions(student) {
     recordingWatchRatio: SILVER_GO_RECORDING_WATCH_RATIO,
     recordingBatchNames: silverGoRecordingBatchKeys(student),
     studentLevel: student?.level,
+    accessibleLevels,
     studentPlan: student?.subscription,
     goStatus: student?.goStatus,
     subscription: student?.subscription

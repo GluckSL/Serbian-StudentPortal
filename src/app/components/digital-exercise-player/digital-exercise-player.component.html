@@ -991,7 +991,21 @@
                   (loadstart)="onVpLoadStart(currentQuestion)"
                   (timeupdate)="onVpVideoTimeUpdate($event, currentQuestion)"
                   (ended)="onVpVideoEnded($event, currentQuestion)"
+                  (waiting)="onVpVideoWaiting()"
+                  (canplay)="onVpVideoCanPlay()"
+                  (playing)="onVpVideoCanPlay()"
+                  (error)="onVpVideoError()"
                 ></video>
+
+                <!-- Buffering spinner — visible on slow networks while data loads -->
+                <div
+                  class="vp-buffering-overlay"
+                  *ngIf="vpIsBuffering"
+                  aria-label="Loading video…"
+                  aria-live="polite"
+                >
+                  <div class="vp-buffering-spinner"></div>
+                </div>
 
                 <!-- Darken on top of the last frame (still visible underneath) -->
                 <div
@@ -1827,18 +1841,6 @@
         <aside class="question-sidebar">
           <div class="sidebar-header">
             <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
-            <button
-              type="button"
-              class="sidebar-refetch-media"
-              (click)="refetchMediaFromR2()"
-              [disabled]="mediaRefetchInProgress"
-              title="Reload audio from cloud storage if files are missing"
-            >
-              <span class="material-icons">{{
-                mediaRefetchInProgress ? "hourglass_empty" : "cloud_download"
-              }}</span>
-              {{ mediaRefetchInProgress ? "Checking…" : "Refetch media" }}
-            </button>
           </div>
           <div class="question-nav-grid">
             <button
@@ -2760,10 +2762,14 @@
                 class="pronunciation-listening"
                 *ngIf="currentQuestion.isRecording"
               >
-                <span class="material-icons">mic</span>
-                🎤 Listening<span class="vp-listening-dots" aria-hidden="true"
-                  ><span>.</span><span>.</span><span>.</span></span
-                >
+                <div class="pronunciation-listening__main">
+                  <span class="material-icons">mic</span>
+                  <span class="pronunciation-listening__text"
+                    >Listening<span class="vp-listening-dots" aria-hidden="true"
+                      ><span>.</span><span>.</span><span>.</span></span
+                    ></span
+                  >
+                </div>
                 <app-audio-visualizer
                   class="pronunciation-visualizer"
                   [analyser]="getPronAnalyser()"
@@ -2772,21 +2778,25 @@
               </div>
 
               <div
-                class="pronunciation-listening"
+                class="pronunciation-listening pronunciation-listening--processing"
                 *ngIf="
                   currentQuestion.pronUiState === 'processing' &&
                   !currentQuestion.isRecording
                 "
               >
-                <span class="material-icons">hourglass_top</span>
-                Processing<span class="vp-listening-dots" aria-hidden="true"
-                  ><span>.</span><span>.</span><span>.</span></span
-                >
+                <div class="pronunciation-listening__main">
+                  <span class="material-icons">hourglass_top</span>
+                  <span class="pronunciation-listening__text"
+                    >Processing<span class="vp-listening-dots" aria-hidden="true"
+                      ><span>.</span><span>.</span><span>.</span></span
+                    ></span
+                  >
+                </div>
                 <span
                   class="pronunciation-processing-slow"
                   *ngIf="pronProcessingSlow"
                 >
-                  — this may take a moment.
+                  This may take a moment.
                 </span>
               </div>
 
@@ -2797,10 +2807,12 @@
                   !currentQuestion.isRecording
                 "
               >
-                <span class="material-icons">error_outline</span>
-                {{
-                  currentQuestion.pronMessage || "No speech detected, try again"
-                }}
+                <div class="pronunciation-listening__main">
+                  <span class="material-icons">error_outline</span>
+                  <span class="pronunciation-listening__text">{{
+                    currentQuestion.pronMessage || "No speech detected, try again"
+                  }}</span>
+                </div>
               </div>
             </div>
 
@@ -3870,7 +3882,7 @@
               <label class="qa-input-label">Your Answer</label>
               <textarea
                 class="qa-textarea"
-                rows="4"
+                rows="3"
                 placeholder="Write your answer here..."
                 [(ngModel)]="currentQuestion.qaResponse"
                 (ngModelChange)="markAttempted(currentQuestion)"
@@ -4178,23 +4190,29 @@
                         </div>
 
                         <div class="pronunciation-listening" *ngIf="currentQuestion.subQuestionIsRecording?.[sqIndex]">
-                          <span class="material-icons">mic</span>
-                          🎤 Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+                          <div class="pronunciation-listening__main">
+                            <span class="material-icons">mic</span>
+                            <span class="pronunciation-listening__text">Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                          </div>
                           <app-audio-visualizer class="pronunciation-visualizer"
                             [analyser]="getPronAnalyser()"
                             [active]="!!currentQuestion.subQuestionIsRecording?.[sqIndex]">
                           </app-audio-visualizer>
                         </div>
 
-                        <div class="pronunciation-listening" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
-                          <span class="material-icons">hourglass_top</span>
-                          Processing<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
-                          <span class="pronunciation-processing-slow" *ngIf="pronProcessingSlow">— this may take a moment.</span>
+                        <div class="pronunciation-listening pronunciation-listening--processing" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
+                          <div class="pronunciation-listening__main">
+                            <span class="material-icons">hourglass_top</span>
+                            <span class="pronunciation-listening__text">Processing<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                          </div>
+                          <span class="pronunciation-processing-slow" *ngIf="pronProcessingSlow">This may take a moment.</span>
                         </div>
 
                         <div class="pronunciation-listening pronunciation-listening--error" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'error' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
-                          <span class="material-icons">error_outline</span>
-                          {{ currentQuestion.subQuestionPronMessage?.[sqIndex] || 'No speech detected, try again' }}
+                          <div class="pronunciation-listening__main">
+                            <span class="material-icons">error_outline</span>
+                            <span class="pronunciation-listening__text">{{ currentQuestion.subQuestionPronMessage?.[sqIndex] || 'No speech detected, try again' }}</span>
+                          </div>
                         </div>
                       </div>
 

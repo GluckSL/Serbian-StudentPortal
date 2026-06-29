@@ -82,6 +82,9 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       : 0.9;
   const studentLevel = String(options.studentLevel || '').toUpperCase().trim();
   const studentPlan = String(options.studentPlan || '').toUpperCase().trim();
+  const accessibleLevels = Array.isArray(options.accessibleLevels) && options.accessibleLevels.length
+    ? options.accessibleLevels.filter(Boolean)
+    : null;
   const recordingBatchNames =
     Array.isArray(options.recordingBatchNames) && options.recordingBatchNames.length
       ? options.recordingBatchNames.map((b) => String(b || '').trim()).filter(Boolean)
@@ -115,6 +118,7 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     visibleToStudents: true,
     isActive: true,
     courseDay: day,
+    ...(accessibleLevels ? { level: { $in: accessibleLevels } } : {}),
     ...exerciseVersionClauseForBatch(batchType, studentBatchKeys),
   })
     .select('_id title splitLineage questions')

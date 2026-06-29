@@ -464,6 +464,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Optional line from admin (e.g. “Try again”) shown under feedback while clip may play. */
   vpFeedbackCaption: string | null = null;
 
+  /** True while the video element is waiting for data (buffering / slow network). */
+  vpIsBuffering = false;
+  /** Retry counter for auto-reload when a clip stalls; resets on each new clip. */
+  private vpBufferRetryCount = 0;
+  /** Timer that fires a forced reload when the video has been stalled too long. */
+  private vpBufferStallTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Hidden video elements keyed by URL used to prefetch the next clip. */
+  private vpPrefetchMap = new Map<string, HTMLVideoElement>();
+
   /** Practice history chat (video-only exercises). */
   vpChatMessages: VpChatMessage[] = [];
   private vpChatSeq = 0;
@@ -534,6 +543,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.cancelImagePinAutoAdvance();
     this.clearImagePinInteractionState();
     this.ollyContext.clearActivityDetail();
+    this.clearVpBufferStallTimer();
+    this.clearVpPrefetchMap();
   }
 
   /** Share live exercise context with Olly so it can give activity-aware support. */
@@ -5365,6 +5376,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   onVpLoadStart(pq?: PlayerQuestion): void {
     this.vpVideoElement = null;
+    this.vpIsBuffering = true;
+    this.vpBufferRetryCount = 0;
+    this.clearVpBufferStallTimer();
     if (pq?.data?.type === 'video-pronunciation') {
       pq.vpCurrentTimeSec = 0;
     }
@@ -5382,6 +5396,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     video.muted = false;
     video.play().catch(() => {});
+    this.vpIsBuffering = false;
+    this.vpBufferRetryCount = 0;
+    this.clearVpBufferStallTimer();
+    // Start loading the next clip in the background while this one plays.
+    this.prefetchNextVpClip();
   }
 
   onVpVideoTimeUpdate(ev: Event, pq: PlayerQuestion): void {
@@ -5416,6 +5435,78 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     this.pushTutorTurnPromptForSpeak(this.speakTargetCaptionForQuestion(pq));
     this.publishOllyActivityContext();
+  }
+
+  // ── Slow-network / buffering helpers ──────────────────────────────────────
+
+  /** Called when the video stalls waiting for data. Shows spinner + schedules a reload. */
+  onVpVideoWaiting(): void {
+    this.vpIsBuffering = true;
+    this.clearVpBufferStallTimer();
+    // After 6 s of stalling, attempt a forced src reload (max 3 retries).
+    this.vpBufferStallTimer = setTimeout(() => {
+      const v = this.vpVideoElement;
+      if (!v || !v.paused) return;
+      if (this.vpBufferRetryCount < 3) {
+        this.vpBufferRetryCount++;
+        const src = v.src;
+        v.src = '';
+        v.load();
+        v.src = src;
+        const t = this.currentQuestion?.vpCurrentTimeSec ?? 0;
+        v.addEventListener('canplay', () => {
+          try { v.currentTime = t; } catch {}
+          v.play().catch(() => {});
+        }, { once: true });
+      }
+    }, 6000);
+  }
+
+  /** Called when enough data is buffered to resume playback. Clears spinner. */
+  onVpVideoCanPlay(): void {
+    this.vpIsBuffering = false;
+    this.clearVpBufferStallTimer();
+  }
+
+  /** Called on unrecoverable video load error. Shows a retry button via the buffering flag. */
+  onVpVideoError(): void {
+    this.vpIsBuffering = false;
+    this.clearVpBufferStallTimer();
+    // Let Angular rerender; if autoplay was expected, it will retry on user interaction.
+  }
+
+  private clearVpBufferStallTimer(): void {
+    if (this.vpBufferStallTimer !== null) {
+      clearTimeout(this.vpBufferStallTimer);
+      this.vpBufferStallTimer = null;
+    }
+  }
+
+  /**
+   * Kick off a background prefetch of the next clip so it loads while the
+   * student is still watching/pronouncing the current one.
+   */
+  private prefetchNextVpClip(): void {
+    const nextIndex = this.currentIndex + 1;
+    if (nextIndex >= this.playerQuestions.length) return;
+    const nextQ = this.playerQuestions[nextIndex];
+    if (nextQ?.data?.type !== 'video-pronunciation') return;
+    const url = this.getMediaFullUrl(nextQ.data.videoUrl);
+    if (!url || this.vpPrefetchMap.has(url)) return;
+    const v = document.createElement('video');
+    v.preload = 'auto';
+    v.muted = true;
+    v.src = url;
+    v.load();
+    this.vpPrefetchMap.set(url, v);
+  }
+
+  /** Destroy all prefetch elements (called on destroy / exercise complete). */
+  private clearVpPrefetchMap(): void {
+    this.vpPrefetchMap.forEach(v => {
+      try { v.src = ''; v.load(); } catch {}
+    });
+    this.vpPrefetchMap.clear();
   }
 
   /** Dim layer over the video so copy + buttons read clearly on top of the last frame. */

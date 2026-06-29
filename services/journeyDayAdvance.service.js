@@ -475,6 +475,23 @@ async function applyJourneyDayRollovers() {
   );
 }
 
+/**
+ * Repeatedly advances a Silver GO student until no further days can be unlocked.
+ * Handles the case where the student was previously reconciled back to a lower day
+ * but multiple completed days are now re-unlockable in a single pass.
+ * Capped at 200 iterations to prevent runaway loops.
+ */
+async function advanceSilverGoStudentToStableDay(studentId) {
+  let totalAdvanced = 0;
+  const MAX_ADVANCES = 200;
+  while (totalAdvanced < MAX_ADVANCES) {
+    const result = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
+    if (!result.advanced) break;
+    totalAdvanced++;
+  }
+  return { totalAdvanced };
+}
+
 module.exports = {
   syncPendingFlagsFromMeeting,
   recomputePendingForStudent,
@@ -483,5 +500,6 @@ module.exports = {
   normalizeCourseDay,
   markPendingAdvanceForStudentDay,
   checkAndInstantlyAdvanceSilverGoStudent,
+  advanceSilverGoStudentToStableDay,
   checkAndInstantlyAdvancePlatinumStudent
 };
