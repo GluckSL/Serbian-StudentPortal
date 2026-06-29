@@ -283,6 +283,10 @@ export interface DigitalExercise {
     sourceExerciseId?: string;
     questionSources?: Array<{ sourceQuestionIndex: number; sourceQuestionId?: string }>;
   };
+  /** 'v1' = original exercises; 'v2' = Online Exercises 2.0 (batch-specific). Default: 'v1'. */
+  version?: 'v1' | 'v2';
+  /** Batch numbers this v2 exercise is assigned to. e.g. ['45', '46']. */
+  targetBatches?: string[];
 }
 
 export interface ExerciseAttempt {
@@ -542,6 +546,16 @@ export class DigitalExerciseService {
       }
     });
     return this.http.get<any>(`${this.apiUrl}/admin/all`, { params, withCredentials: true });
+  }
+
+  /** Deep-clone an existing exercise into Online Exercises 2.0. */
+  copyToV2(id: string): Observable<{ exercise: DigitalExercise }> {
+    return this.http.post<{ exercise: DigitalExercise }>(`${this.apiUrl}/${id}/copy-to-v2`, {}, { withCredentials: true });
+  }
+
+  /** Update the targetBatches array for a v2 exercise. */
+  updateTargetBatches(id: string, targetBatches: string[]): Observable<DigitalExercise> {
+    return this.http.patch<DigitalExercise>(`${this.apiUrl}/${id}/target-batches`, { targetBatches }, { withCredentials: true });
   }
 
   createExercise(exercise: Partial<DigitalExercise>): Observable<DigitalExercise> {

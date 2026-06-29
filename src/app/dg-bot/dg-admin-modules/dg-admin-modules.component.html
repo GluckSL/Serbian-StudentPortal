@@ -6,9 +6,10 @@
         <div class="col-md-8">
           <h1 class="admin-title">
             <i class="fas fa-robot"></i>
-            DG Bot modules
+            {{ isV2 ? 'DG Bot Modules 2.0' : 'DG Bot modules' }}
           </h1>
-          <p class="admin-subtitle">Manage digital guide modules, teaching context, and guided scenes</p>
+          <p class="admin-subtitle" *ngIf="!isV2">Manage digital guide modules, teaching context, and guided scenes</p>
+          <p class="admin-subtitle" *ngIf="isV2">Copy DG Bot modules from v1, then assign each one to specific batches.</p>
         </div>
         <div class="col-md-4 text-end" *ngIf="!loading">
           <div class="admin-stats-quick">
@@ -22,12 +23,43 @@
           <div class="dg-mm-skel dg-mm-skel--header-pill ms-auto"></div>
         </div>
       </div>
+
+      <!-- Version switcher tabs -->
+      <div class="dg-version-tabs mt-2">
+        <button
+          type="button"
+          class="dg-version-tab"
+          [class.dg-version-tab--active]="!isV2"
+          (click)="switchToV1()"
+        >
+          <i class="fas fa-robot me-1"></i> DG Bot Modules
+        </button>
+        <button
+          type="button"
+          class="dg-version-tab"
+          [class.dg-version-tab--active]="isV2"
+          (click)="switchToV2()"
+        >
+          <i class="fas fa-star me-1"></i> DG Bot Modules 2.0
+        </button>
+      </div>
     </div>
   </div>
 
   <div class="admin-content">
     <div class="container-fluid">
       <p class="dg-adm__msg mb-2" *ngIf="message">{{ message }}</p>
+
+      <!-- v2 info banner -->
+      <div class="dg-v2-info-banner" *ngIf="isV2 && !loading">
+        <i class="fas fa-info-circle me-2"></i>
+        <span>
+          <strong>DG Bot Modules 2.0</strong> are batch-specific copies of DG Bot modules.
+          Go to <strong>DG Bot Modules</strong> and click
+          <span class="dg-copy-badge-inline"><i class="fas fa-copy"></i> Copy to 2.0</span>
+          on any module to create a v2 copy, then assign batches in the editor.
+        </span>
+      </div>
 
       <!-- Initial load skeleton -->
       <ng-container *ngIf="loading">
@@ -101,7 +133,7 @@
               <div class="dg-mm-actions">
                 <button class="btn btn-primary btn-add-module" type="button" (click)="goCreate()">
                   <i class="fas fa-plus"></i>
-                  Create New Module
+                  {{ isV2 ? 'Create v2 Module' : 'Create New Module' }}
                 </button>
                 <a class="btn btn-trash-module" routerLink="/admin-trash">
                   <i class="fas fa-trash"></i>
@@ -163,7 +195,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3" *ngIf="!isV2">
               <div class="stat-card bg-info text-white">
                 <div class="stat-icon"><i class="fas fa-language"></i></div>
                 <div class="stat-content">
@@ -172,12 +204,30 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3" *ngIf="!isV2">
               <div class="stat-card bg-secondary text-white">
                 <div class="stat-icon"><i class="fas fa-globe"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatEnglish }}</h3>
                   <p>English</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3" *ngIf="isV2">
+              <div class="stat-card bg-info text-white">
+                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-content">
+                  <h3>{{ dgStatTotal - dgStatUnassigned }}</h3>
+                  <p>Batch assigned</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3" *ngIf="isV2">
+              <div class="stat-card bg-secondary text-white">
+                <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                <div class="stat-content">
+                  <h3>{{ dgStatUnassigned }}</h3>
+                  <p>No batch yet</p>
                 </div>
               </div>
             </div>
@@ -207,7 +257,7 @@
                       <th>Module</th>
                       <th>Level/Category</th>
                       <th>Journey day</th>
-                      <th>Batches</th>
+                      <th>{{ isV2 ? 'Target Batches' : 'Batches' }}</th>
                       <th>Language</th>
                       <th>Status</th>
                       <th class="text-center dg-mm-col-visibility">Student view</th>
@@ -221,6 +271,9 @@
                           <div class="module-title">{{ m.title }}</div>
                           <span class="badge dg-mm-badge-beginner mt-1" *ngIf="isBeginnerMode(m)">
                             <i class="fas fa-seedling me-1"></i> Beginner mode
+                          </span>
+                          <span class="badge dg-mm-badge-v2 mt-1" *ngIf="isV2">
+                            <i class="fas fa-star me-1"></i> v2
                           </span>
                         </div>
                       </td>
@@ -242,10 +295,17 @@
                       <td>
                         <span
                           class="badge bg-light text-dark border"
-                          *ngIf="showsAllBatches(m)"
+                          *ngIf="showsAllBatches(m) && !isV2"
                           title="Visible to all batches with active journey + GO Students"
                         >
                           All active batches
+                        </span>
+                        <span
+                          class="badge bg-warning text-dark"
+                          *ngIf="showsAllBatches(m) && isV2"
+                          title="No batch assigned yet — students cannot see this module"
+                        >
+                          <i class="fas fa-exclamation-triangle me-1"></i> Not assigned
                         </span>
                         <div class="dg-mm-batch-list" *ngIf="!showsAllBatches(m)">
                           <span
@@ -284,6 +344,18 @@
                       </td>
                       <td class="text-center">
                         <div class="action-buttons">
+                          <!-- Copy to v2 — only on v1 list -->
+                          <button
+                            *ngIf="!isV2"
+                            type="button"
+                            class="btn btn-sm btn-copy-v2 me-1"
+                            (click)="copyToV2(m)"
+                            [disabled]="!m._id || copyingV2Id === m._id"
+                            title="Copy to DG Bot Modules 2.0"
+                          >
+                            <i class="fas" [ngClass]="copyingV2Id === m._id ? 'fa-spinner fa-spin' : 'fa-copy'"></i>
+                            <span class="ms-1 d-none d-xl-inline">2.0</span>
+                          </button>
                           <button
                             type="button"
                             class="btn btn-sm btn-outline-purple me-1"
@@ -340,11 +412,22 @@
           </div>
         </div>
 
-        <div class="mm-empty-card" *ngIf="modules.length === 0">
+        <div class="mm-empty-card" *ngIf="modules.length === 0 && !isV2">
           <div class="empty-state">
             <div class="empty-state-icon">🦊</div>
             <h3>No DG modules yet</h3>
             <p>Create your first module with <strong>Create New Module</strong>.</p>
+          </div>
+        </div>
+
+        <div class="mm-empty-card" *ngIf="modules.length === 0 && isV2">
+          <div class="empty-state">
+            <div class="empty-state-icon">⭐</div>
+            <h3>No DG Bot Modules 2.0 yet</h3>
+            <p>
+              Go to <a routerLink="/admin/dg-modules" class="text-primary fw-bold">DG Bot Modules</a>
+              and click <strong>Copy to 2.0</strong> on any module to create a batch-specific copy.
+            </p>
           </div>
         </div>
 

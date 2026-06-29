@@ -1302,6 +1302,28 @@ export class MyCourseComponent implements OnInit {
     return String(this.profile?.batchType || '').toLowerCase() === 'old';
   }
 
+  /** New batch 2.0 students see v2 exercises and DG modules only. */
+  get isNew2BatchStudent(): boolean {
+    if (!this.journeyProfileLoaded) return false;
+    return String(this.profile?.batchType || '').toLowerCase() === 'new2';
+  }
+
+  get exercisesTabLabel(): string {
+    return this.isNew2BatchStudent ? 'Online Exercises 2.0' : 'Exercises';
+  }
+
+  get gluckBuddyTabLabel(): string {
+    return this.isNew2BatchStudent ? 'Gluck Buddy 2.0' : 'Glück Buddy';
+  }
+
+  get exercisesSectionLabel(): string {
+    return this.isNew2BatchStudent ? 'Online Exercises 2.0' : 'Exercises';
+  }
+
+  get gluckBuddySectionLabel(): string {
+    return this.isNew2BatchStudent ? 'Gluck Buddy 2.0' : 'Gluck Buddy';
+  }
+
   /** Exercises tab — new-batch students with learning content only. */
   get showExercisesTab(): boolean {
     return this.journeyProfileLoaded && !this.isOldBatchStudent && this.profile?.learningContentEnabled === true;

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DigitalExerciseService } from '../../services/digital-exercise.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { HttpClient } from '@angular/common/http';
 import { MaterialModule } from '../../shared/material.module';
 import { resolveMediaUrl } from '../../utils/media-url';
 
@@ -91,6 +92,20 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   saving = false;
   editId: string | null = null;
   loadingExercise = false;
+  exerciseVersion: 'v1' | 'v2' = 'v1';
+  selectedTargetBatches: string[] = [];
+  batchToAdd = '';
+  batches: Array<{ batchName: string }> = [];
+  loadingBatches = false;
+
+  get isV2Exercise(): boolean {
+    return this.exerciseVersion === 'v2';
+  }
+
+  get selectableBatches(): Array<{ batchName: string }> {
+    return this.batches.filter(b => !this.selectedTargetBatches.includes(b.batchName));
+  }
+
   attachmentUploading = false;
   currentAttachmentItem: FreeModeItem | null = null;
   contentBlockFieldVisibility: Map<number, Set<string>> = new Map();
@@ -130,15 +145,45 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
     private exerciseService: DigitalExerciseService,
     private router: Router,
     private route: ActivatedRoute,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
+    if (!id) {
+      this.exerciseVersion = this.route.snapshot.queryParamMap.get('exerciseVersion') === 'v2' ? 'v2' : 'v1';
+      if (this.isV2Exercise) this.loadBatches();
+    }
     if (id) {
       this.editId = id;
       this.loadExercise(id);
     }
+  }
+
+  private loadBatches(): void {
+    this.loadingBatches = true;
+    this.http
+      .get<{ batches: Array<{ batchName: string }>; upcomingBatches?: Array<{ batchName: string }> }>('/api/batch-journey', { withCredentials: true })
+      .subscribe({
+        next: (res) => {
+          const all = [...(res?.batches || []), ...(res?.upcomingBatches || [])];
+          const seen = new Set<string>();
+          this.batches = all
+            .map(b => ({ batchName: String(b.batchName || '').trim() }))
+            .filter(b => {
+              if (!b.batchName || seen.has(b.batchName)) return false;
+              seen.add(b.batchName);
+              return true;
+            })
+            .sort((a, b) => a.batchName.localeCompare(b.batchName, undefined, { numeric: true }));
+          this.loadingBatches = false;
+        },
+        error: () => {
+          this.batches = [];
+          this.loadingBatches = false;
+        }
+      });
   }
 
   private loadExercise(id: string): void {
@@ -155,6 +200,9 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
         this.estimatedDuration = ex.estimatedDuration || 15;
         this.courseDay = ex.courseDay ?? null;
         this.tags = Array.isArray(ex.tags) ? ex.tags.join(', ') : '';
+        this.exerciseVersion = ex.version === 'v2' ? 'v2' : 'v1';
+        this.selectedTargetBatches = Array.isArray(ex.targetBatches) ? [...ex.targetBatches] : [];
+        if (this.isV2Exercise) this.loadBatches();
         this.items = this.questionsToItems(ex.questions || []);
         if (ex.trailingContentBlocks?.length) {
           for (const block of ex.trailingContentBlocks) {
@@ -701,8 +749,12 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
 
   save(): void {
     if (this.saving || !this.isValid()) return;
+    if (this.isV2Exercise && this.selectedTargetBatches.length === 0) {
+      this.snackBar.open('Select at least one batch for Online Exercises 2.0', 'Close', { duration: 4000, panelClass: ['error-snack'] });
+      return;
+    }
     this.saving = true;
-    const payload = {
+    const payload: any = {
       title: this.title.trim(),
       description: this.description.trim(),
       targetLanguage: this.targetLanguage,
@@ -719,6 +771,9 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
         return clone;
       }),
     };
+    if (this.isV2Exercise) {
+      payload.targetBatches = [...this.selectedTargetBatches];
+    }
 
     const request = this.editId
       ? this.exerciseService.updateFreeModeExercise(this.editId, payload)
@@ -731,7 +786,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
         if (!this.editId) {
           this.resetForm();
         } else {
-          this.router.navigate(['/admin/digital-exercises']);
+          this.router.navigate([this.isV2Exercise ? '/admin/digital-exercises-v2' : '/admin/digital-exercises']);
         }
       },
       error: (err) => {
@@ -751,6 +806,18 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   }
 
   goBack(): void {
-    this.router.navigate(['/admin/digital-exercises']);
+    this.router.navigate([this.isV2Exercise ? '/admin/digital-exercises-v2' : '/admin/digital-exercises']);
+  }
+
+  onBatchDropdownChange(): void {
+    const value = String(this.batchToAdd || '').trim();
+    if (value && !this.selectedTargetBatches.includes(value)) {
+      this.selectedTargetBatches = [...this.selectedTargetBatches, value];
+    }
+    this.batchToAdd = '';
+  }
+
+  removeTargetBatch(batch: string): void {
+    this.selectedTargetBatches = this.selectedTargetBatches.filter(b => b !== batch);
   }
 }

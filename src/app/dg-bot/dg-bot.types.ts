@@ -116,6 +116,8 @@ export interface DgModuleSummary {
   minPracticeMinutes?: number;
   maxPracticeMinutes?: number | null;
   courseDay?: number | null;
+  /** v1 = original, v2 = DG Bot Modules 2.0 (batch-specific). */
+  version?: 'v1' | 'v2';
   /** Optional targeting: empty/unset = visible to all batches. */
   targetBatches?: string[];
   characterId?: string | DgCharacterDoc;

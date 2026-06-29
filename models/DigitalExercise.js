@@ -367,6 +367,20 @@ const DigitalExerciseSchema = new mongoose.Schema({
     attachmentUrls: [{ type: String }],
   }],
 
+  /**
+   * v1 = original exercises (default for all existing documents).
+   * v2 = Online Exercises 2.0 — batch-specific exercises for newer batches (45+).
+   */
+  version: { type: String, enum: ['v1', 'v2'], default: 'v1', index: true },
+
+  /**
+   * Batch numbers this v2 exercise is assigned to.
+   * Empty array = not yet assigned to any batch.
+   * Example: ['45', '46'] means only students in batch 45 or 46 can see it.
+   * Only relevant when version === 'v2'.
+   */
+  targetBatches: [{ type: String }],
+
   // Soft delete
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null },

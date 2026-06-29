@@ -43,9 +43,12 @@ async function getStudentDgJourneyAccess(userId) {
     enabled: journeyAccess.enabled,
     learningEnabled: journeyAccess.learningEnabled !== false,
     dgBotEnabled: journeyAccess.dgBotEnabled !== false,
+    batchType: journeyAccess.batchType,
     unlockMode,
     dgUnlockedWeek,
     courseDay: journeyAccess.contentUnlockDay ?? journeyAccess.courseDay,
+    journeyCourseDay: journeyAccess.courseDay,
+    trialDayEnabled: !!journeyAccess.trialDayEnabled,
     minAssignedContentDay: minimumAssignedContentDay(u, journeyAccess.trialDayEnabled),
     batchKeys,
   };

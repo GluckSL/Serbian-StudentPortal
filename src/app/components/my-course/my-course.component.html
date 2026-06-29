@@ -102,11 +102,11 @@
       </button>
       <button *ngIf="showExercisesTab" type="button" role="tab" class="mc-tab"
         [class.mc-tab--on]="activeTab === 'exercises'" (click)="setTab('exercises')">
-        Exercises
+        {{ exercisesTabLabel }}
       </button>
       <button *ngIf="allowsTalkBuddyTab" type="button" role="tab" class="mc-tab"
         [class.mc-tab--on]="activeTab === 'talk-buddy'" (click)="setTab('talk-buddy')">
-        Glück Buddy
+        {{ gluckBuddyTabLabel }}
       </button>
       <button type="button" role="tab" class="mc-tab" [class.mc-tab--on]="activeTab === 'journey'"
         (click)="setTab('journey')">
@@ -393,7 +393,7 @@
               <span>{{ progressExercisesPct }}%</span>
             </div>
             <div class="mc-progress-card__body">
-              <span class="mc-progress-card__label">Exercises</span>
+              <span class="mc-progress-card__label">{{ exercisesSectionLabel }}</span>
               <strong class="mc-progress-card__count">{{ progressExercisesDone }} / {{ progressExercisesTotal
                 }}</strong>
               <p class="mc-progress-card__hint">Hover for details</p>
@@ -471,7 +471,7 @@
     <div class="mc-day-sections" *ngIf="allowsLearningContent">
       <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises">
         <div class="mc-day-section__head">
-          <h4>Exercises</h4>
+          <h4>{{ exercisesSectionLabel }}</h4>
           <span class="mc-day-section__count" *ngIf="selectedDayExercises.length">{{ selectedDayExercises.length }}</span>
         </div>
         <p class="mc-day-section__intro">Digital exercises assigned to journey day {{ selectedJourneyDay }}.</p>
@@ -692,7 +692,7 @@
     <div class="mc-day-sections" *ngIf="allowsTalkBuddyTab">
       <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy">
         <div class="mc-day-section__head">
-          <h4>Gluck Buddy</h4>
+          <h4>{{ gluckBuddySectionLabel }}</h4>
           <span class="mc-day-section__count mc-day-section__count--muted">Day {{ selectedJourneyDay }}</span>
         </div>
         <p class="mc-day-section__intro">Speaking role-play for this journey day (Completed / Pending / New).</p>
@@ -844,7 +844,7 @@
             <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy"
               *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length)">
               <div class="mc-day-section__head">
-                <h4>Gluck Buddy modules</h4>
+                <h4>{{ gluckBuddySectionLabel }} modules</h4>
                 <span class="mc-day-section__count mc-day-section__count--pending"
                   *ngIf="gluckExamDgSectionHasPending()" aria-label="Pending modules">1</span>
                 <span class="mc-day-section__count" *ngIf="!gluckExamDgSectionHasPending()">
@@ -1158,7 +1158,7 @@
       <div class="mc-completion-section"
         *ngIf="isSilverGoStudentFrontend && serverIncompleteExercises.length && !currentDayIncompleteExercises.length">
         <p class="mc-completion-section__label">
-          <span class="material-icons">quiz</span> Exercises
+          <span class="material-icons">quiz</span> {{ exercisesSectionLabel }}
         </p>
         <div class="mc-completion-item" *ngFor="let ex of serverIncompleteExercises">
           <div class="mc-completion-item__info">
@@ -1174,7 +1174,7 @@
       <!-- Exercises -->
       <div class="mc-completion-section" *ngIf="currentDayIncompleteExercises.length">
         <p class="mc-completion-section__label">
-          <span class="material-icons">quiz</span> Exercises
+          <span class="material-icons">quiz</span> {{ exercisesSectionLabel }}
         </p>
         <div class="mc-completion-item" *ngFor="let ex of currentDayIncompleteExercises">
           <div class="mc-completion-item__info">
@@ -1193,7 +1193,7 @@
       <div class="mc-completion-section"
         *ngIf="isSilverGoStudentFrontend && serverIncompleteDg.length && !currentDayIncompleteDg.length">
         <p class="mc-completion-section__label">
-          <span class="material-icons">record_voice_over</span> Gluck Buddy
+          <span class="material-icons">record_voice_over</span> {{ gluckBuddySectionLabel }}
         </p>
         <div class="mc-completion-item" *ngFor="let m of serverIncompleteDg">
           <div class="mc-completion-item__info">
@@ -1209,7 +1209,7 @@
       <!-- Gluck Buddy (DG) -->
       <div class="mc-completion-section" *ngIf="currentDayIncompleteDg.length">
         <p class="mc-completion-section__label">
-          <span class="material-icons">record_voice_over</span> Gluck Buddy
+          <span class="material-icons">record_voice_over</span> {{ gluckBuddySectionLabel }}
         </p>
         <div class="mc-completion-item" *ngFor="let m of currentDayIncompleteDg">
           <div class="mc-completion-item__info">

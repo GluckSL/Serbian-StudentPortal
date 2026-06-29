@@ -32,7 +32,11 @@ const { recoverExerciseMedia } = require('../utils/exerciseMediaRecover');
 const { sanitizeQuestions, sanitizeQuestionPlainText } = require('../utils/sanitizeHtml');
 const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
-const { isValidAdminCourseDay, parseAdminCourseDay } = require('../utils/journeyDay');
+const { isValidAdminCourseDay, parseAdminCourseDay, TRIAL_JOURNEY_DAY } = require('../utils/journeyDay');
+const {
+  exerciseVersionClauseForBatch,
+  exerciseVersionAllowedForStudent,
+} = require('../utils/batchType');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
@@ -138,6 +142,7 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'visibleToStudents',
   'weeklyTestEnabled',
   'examEnabled',
+  'targetBatches',
 ];
 
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
@@ -148,6 +153,18 @@ function parsePositiveInt(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   const parsed = parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
   return Math.min(parsed, max);
+}
+
+/** Normalize a student batch label into keys that may appear in exercise.targetBatches. */
+function exerciseBatchMatchKeys(batch) {
+  const trimmed = String(batch || '').trim();
+  if (!trimmed) return [];
+  const keys = new Set([trimmed]);
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits) keys.add(digits);
+  const batchNum = trimmed.match(/(\d+)/);
+  if (batchNum) keys.add(batchNum[1]);
+  return [...keys];
 }
 
 function buildQuestionTypeSummary(questionTypes = []) {
@@ -1543,7 +1560,7 @@ const {
 
 async function getStudentExerciseAccess(userId) {
   const { reconcileSilverGoCourseDay } = require('../utils/silverGoSequentialUnlock');
-  const { minimumAssignedContentDay } = require('../utils/journeyDay');
+  const { minimumAssignedContentDay, TRIAL_JOURNEY_DAY } = require('../utils/journeyDay');
   await reconcileSilverGoCourseDay(userId);
   const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
   const u = await User.findById(userId)
@@ -1553,20 +1570,26 @@ async function getStudentExerciseAccess(userId) {
     return {
       enabled: true,
       courseDay: 1,
+      journeyCourseDay: 1,
+      trialDayEnabled: false,
       minAssignedContentDay: 1,
       accessibleLevels: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
       studentLevel: null
     };
   }
   const journeyAccess = await getJourneyAccessForStudent(u);
-  const courseDay = journeyAccess.contentUnlockDay ?? journeyAccess.courseDay;
+  const journeyCourseDay = journeyAccess.courseDay;
+  const courseDay = journeyAccess.contentUnlockDay ?? journeyCourseDay;
   const minAssignedContentDay = minimumAssignedContentDay(u, journeyAccess.trialDayEnabled);
   const studentLevel = u.level || 'A1';
   const accessibleLevels = getEffectiveAccessibleLevels(studentLevel, u.blockedJourneyLevels);
   return {
     enabled: journeyAccess.enabled,
     learningEnabled: journeyAccess.learningEnabled !== false,
+    batchType: journeyAccess.batchType,
     courseDay,
+    journeyCourseDay,
+    trialDayEnabled: !!journeyAccess.trialDayEnabled,
     minAssignedContentDay,
     accessibleLevels,
     studentLevel,
@@ -1786,7 +1809,11 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
         });
       }
       const studentCourseDay = studentExerciseAccess.courseDay;
+      const journeyCourseDay = studentExerciseAccess.journeyCourseDay ?? studentCourseDay;
       const minAssignedDay = studentExerciseAccess.minAssignedContentDay ?? 1;
+      const onTrialDay =
+        !!studentExerciseAccess.trialDayEnabled &&
+        Number(journeyCourseDay) === TRIAL_JOURNEY_DAY;
       const requestedCourseDay = parseAdminCourseDay(req.query.courseDay);
       const todayOnly = String(req.query.todayOnly) === 'true' || String(req.query.todayOnly) === '1';
       if (requestedCourseDay != null) {
@@ -1797,19 +1824,26 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           listSort = { sequenceLetter: 1, title: 1, createdAt: -1 };
         }
       } else if (todayOnly) {
-        if (studentCourseDay >= minAssignedDay) {
-          andClauses.push({ courseDay: studentCourseDay });
+        const todayCourseDay = onTrialDay ? TRIAL_JOURNEY_DAY : studentCourseDay;
+        if (todayCourseDay >= minAssignedDay) {
+          andClauses.push({ courseDay: todayCourseDay });
         } else {
           andClauses.push({ courseDay: -1 });
         }
       } else {
         const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
-        andClauses.push(studentAssignedCourseDayOrClause(studentCourseDay, minAssignedDay));
+        const rangeMaxDay = onTrialDay ? TRIAL_JOURNEY_DAY : studentCourseDay;
+        andClauses.push(studentAssignedCourseDayOrClause(rangeMaxDay, minAssignedDay));
       }
       andClauses.push({ level: { $in: studentExerciseAccess.accessibleLevels } });
       appendNotBlockedToAndClauses(
         andClauses,
         studentExerciseAccess.student?.blockedJourneyLevels
+      );
+
+      const batchKeys = exerciseBatchMatchKeys(studentExerciseAccess.student?.batch);
+      andClauses.push(
+        exerciseVersionClauseForBatch(studentExerciseAccess.batchType, batchKeys)
       );
     }
 
@@ -2012,16 +2046,22 @@ router.get('/gluck-exam', verifyToken, blockVisaDocsOnly, async (req, res) => {
     }
 
     const minAssignedDay = access.minAssignedContentDay ?? 1;
+    const onTrialDay =
+      !!access.trialDayEnabled && Number(access.journeyCourseDay) === TRIAL_JOURNEY_DAY;
+    const rangeMaxDay = onTrialDay ? TRIAL_JOURNEY_DAY : access.courseDay;
     const { studentAssignedCourseDayOrClause } = require('../utils/journeyDay');
     const andClauses = [
       { isActive: true },
       { isDeleted: { $ne: true } },
       { visibleToStudents: true },
       { $or: [{ weeklyTestEnabled: true }, { examEnabled: true }] },
-      studentAssignedCourseDayOrClause(access.courseDay, minAssignedDay),
+      studentAssignedCourseDayOrClause(rangeMaxDay, minAssignedDay),
       { level: { $in: access.accessibleLevels } }
     ];
     appendNotBlockedToAndClauses(andClauses, access.student?.blockedJourneyLevels);
+
+    const batchKeys = exerciseBatchMatchKeys(access.student?.batch);
+    andClauses.push(exerciseVersionClauseForBatch(access.batchType, batchKeys));
 
     const exercises = await DigitalExercise.find({ $and: andClauses })
       .select('_id title level category courseDay weeklyTestEnabled examEnabled')
@@ -2319,8 +2359,19 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
 // GET /api/digital-exercises/admin/all  — Admin list (lightweight metadata only)
 router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, level, category, search, courseDay } = req.query;
+    const { page = 1, limit = 20, status, level, category, search, courseDay, version, targetBatch } = req.query;
     const adminAnd = [{ isDeleted: { $ne: true } }];
+
+    // version filter: 'v1' shows only v1, 'v2' shows only v2, omitted = all (backwards compat)
+    if (version === 'v1') {
+      adminAnd.push({ $or: [{ version: 'v1' }, { version: { $exists: false } }] });
+    } else if (version === 'v2') {
+      adminAnd.push({ version: 'v2' });
+      // targetBatch filter: only show v2 exercises assigned to this batch
+      if (targetBatch) {
+        adminAnd.push({ targetBatches: String(targetBatch) });
+      }
+    }
 
     if (status === 'active') adminAnd.push({ isActive: true });
     else if (status === 'inactive') adminAnd.push({ isActive: false });
@@ -2349,7 +2400,7 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     const total = await DigitalExercise.countDocuments(filter);
     const exercises = await DigitalExercise.find(filter)
       .select(
-        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode testerVerified isActive isFreeMode createdBy createdAt updatedAt questions.type'
+        'title description targetLanguage difficulty level category courseDay visibleToStudents watchOnlyMode testerVerified isActive isFreeMode version targetBatches createdBy createdAt updatedAt questions.type'
       )
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
@@ -2393,6 +2444,74 @@ router.get('/admin/all', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     res.json({ exercises, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
   } catch (err) {
     console.error('GET /digital-exercises/admin/all error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/digital-exercises/:id/target-batches — Update targetBatches for a v2 exercise
+router.patch('/:id/target-batches', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid exercise id' });
+    }
+    const { targetBatches } = req.body;
+    if (!Array.isArray(targetBatches)) {
+      return res.status(400).json({ error: 'targetBatches must be an array' });
+    }
+    const sanitized = targetBatches.map(b => String(b).trim()).filter(Boolean);
+    const exercise = await DigitalExercise.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true }, version: 'v2' },
+      { $set: { targetBatches: sanitized, lastUpdatedBy: req.user.id, updatedAt: new Date() } },
+      { new: true }
+    ).select('_id title version targetBatches');
+    if (!exercise) {
+      return res.status(404).json({ error: 'v2 exercise not found' });
+    }
+    res.json(exercise);
+  } catch (err) {
+    console.error('PATCH /digital-exercises/:id/target-batches error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/digital-exercises/:id/copy-to-v2 — Deep-clone an exercise into Online Exercises 2.0
+router.post('/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid exercise id' });
+    }
+    const source = await DigitalExercise.findOne({ _id: id, isDeleted: { $ne: true } }).lean();
+    if (!source) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    // Strip Mongoose/Mongo-specific fields, then build the copy
+    const { _id, createdAt, updatedAt, totalAttempts, totalCompletions, averageScore,
+            testerVerified, splitLineage, ...rest } = source;
+
+    const copy = new DigitalExercise({
+      ...rest,
+      title: source.title,
+      version: 'v2',
+      targetBatches: [],
+      visibleToStudents: false,
+      publishedAt: null,
+      totalAttempts: 0,
+      totalCompletions: 0,
+      averageScore: 0,
+      testerVerified: false,
+      createdBy: req.user.id,
+      lastUpdatedBy: req.user.id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    await copy.save();
+    res.status(201).json({ exercise: copy });
+  } catch (err) {
+    console.error('POST /digital-exercises/:id/copy-to-v2 error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2795,7 +2914,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
-    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags } = req.body;
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one question item is required' });
@@ -2905,6 +3024,9 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     exercise.estimatedDuration = estimatedDuration || exercise.estimatedDuration;
     exercise.courseDay = courseDay != null ? courseDay : exercise.courseDay;
     exercise.tags = tags || exercise.tags;
+    if (exercise.version === 'v2' && Array.isArray(targetBatches)) {
+      exercise.targetBatches = targetBatches.map((b) => String(b).trim()).filter(Boolean);
+    }
     exercise.questions = normalizeQuestionContexts(questions);
     exercise.trailingContentBlocks = trailingContentBlocks;
     exercise.isFreeMode = true;
@@ -3151,6 +3273,18 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
         return res.status(403).json({
           error: 'This exercise is above your current language level.',
           code: 'LEVEL_NOT_ALLOWED'
+        });
+      }
+      if (!exerciseVersionAllowedForStudent(access.batchType, exercise, exerciseBatchMatchKeys(access.student?.batch))) {
+        if (exercise.version === 'v2') {
+          return res.status(403).json({
+            error: 'This exercise is not assigned to your batch.',
+            code: 'BATCH_NOT_ASSIGNED'
+          });
+        }
+        return res.status(403).json({
+          error: 'This exercise is not available for your batch.',
+          code: 'VERSION_NOT_ALLOWED'
         });
       }
     }

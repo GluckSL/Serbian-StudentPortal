@@ -3,7 +3,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import {
   DigitalExerciseService,
   DigitalExercise,
@@ -23,8 +23,12 @@ import { MaterialModule } from '../../../shared/material.module';
   <!-- Header -->
   <div class="dem-header">
     <div class="dem-title-area">
-      <h1><span class="material-icons">edit_note</span> Digital Exercises</h1>
-      <p>Create and manage interactive digital exercises for students</p>
+      <h1>
+        <span class="material-icons">{{ isV2 ? 'upgrade' : 'edit_note' }}</span>
+        {{ isV2 ? 'Online Exercises 2.0' : 'Digital Exercises' }}
+      </h1>
+      <p *ngIf="!isV2">Create and manage interactive digital exercises for students</p>
+      <p *ngIf="isV2">Copy exercises from Online Exercises, then edit each one to choose which batch can see it.</p>
     </div>
     <div class="header-actions">
       <button class="btn-freemode" (click)="navigateToFreeMode()">
@@ -307,6 +311,15 @@ import { MaterialModule } from '../../../shared/material.module';
             <button class="btn-icon btn-edit" (click)="navigateToEdit(ex)" matTooltip="Edit">
               <span class="material-icons">edit</span>
             </button>
+            <button
+              *ngIf="!isV2"
+              class="btn-icon btn-copy-v2"
+              (click)="copyToV2(ex)"
+              matTooltip="Copy to Online Exercises 2.0"
+              [disabled]="copyingV2Id === exerciseRowId(ex)"
+            >
+              <span class="material-icons">{{ copyingV2Id === exerciseRowId(ex) ? 'hourglass_empty' : 'content_copy' }}</span>
+            </button>
             <button class="btn-icon btn-delete" (click)="deleteExercise(ex)" matTooltip="Delete" *ngIf="isAdminUser">
               <span class="material-icons">delete</span>
             </button>
@@ -316,9 +329,10 @@ import { MaterialModule } from '../../../shared/material.module';
     </table>
 
     <div class="empty-state" *ngIf="exercises.length === 0">
-      <span class="material-icons empty-icon">edit_note</span>
-      <h3>No exercises yet</h3>
-      <p>Create your first interactive digital exercise manually or extract one directly from a worksheet PDF.</p>
+      <span class="material-icons empty-icon">{{ isV2 ? 'upgrade' : 'edit_note' }}</span>
+      <h3>{{ isV2 ? 'No exercises in Online Exercises 2.0 yet' : 'No exercises yet' }}</h3>
+      <p *ngIf="!isV2">Create your first interactive digital exercise manually or extract one directly from a worksheet PDF.</p>
+      <p *ngIf="isV2">Go to <strong>Online Exercises</strong>, use the copy button on any exercise you want here, then open it in this tab and edit to assign a batch.</p>
       <div class="empty-actions">
         <button class="btn-freemode" (click)="navigateToFreeMode()">
           <span class="material-icons">auto_awesome</span> Free Mode
@@ -907,6 +921,8 @@ import { MaterialModule } from '../../../shared/material.module';
     .btn-delete:hover { border-color: #e11d48; color: #e11d48; }
     .btn-view:hover { border-color: #28a745; color: #28a745; }
     .btn-test:hover { border-color: #7c3aed; color: #7c3aed; }
+    .btn-copy-v2:hover { border-color: #0891b2; color: #0891b2; }
+    .btn-copy-v2:disabled { opacity: 0.5; cursor: not-allowed; }
     .test-fm-badge {
       font-size: 7px;
       font-weight: 800;
@@ -984,6 +1000,13 @@ export class DigitalExerciseManagementComponent implements OnInit {
   totalPages = 1;
   currentPage = 1;
   isAdminUser = false;
+  copyingV2Id: string | null = null;
+  /** 'v1' = Online Exercises; 'v2' = Online Exercises 2.0 */
+  exerciseVersion: 'v1' | 'v2' = 'v1';
+
+  get isV2(): boolean {
+    return this.exerciseVersion === 'v2';
+  }
 
   /** Multi-select on the current list page */
   selectedIds: string[] = [];
@@ -1014,11 +1037,13 @@ export class DigitalExerciseManagementComponent implements OnInit {
     private exerciseService: DigitalExerciseService,
     private authService: AuthService,
     private router: Router,
+    private route: ActivatedRoute,
     private snackBar: MatSnackBar,
     private notify: NotificationService
   ) {}
 
   ngOnInit(): void {
+    this.exerciseVersion = this.route.snapshot.data['exerciseVersion'] === 'v2' ? 'v2' : 'v1';
     this.authService.currentUser$.subscribe(user => {
       if (user) {
         this.isAdminUser = user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN' || user.role === 'SUB_ADMIN';
@@ -1042,7 +1067,8 @@ export class DigitalExerciseManagementComponent implements OnInit {
       level: this.filters.level,
       category: this.filters.category,
       page: this.currentPage,
-      limit: 20
+      limit: 20,
+      version: this.exerciseVersion
     };
     if (this.filters.scheduleFilter === 'trial') {
       params.courseDay = 0;
@@ -1098,31 +1124,36 @@ export class DigitalExerciseManagementComponent implements OnInit {
     this.loadExercises();
   }
 
+  private builderQueryParams(): Record<string, string> {
+    return this.isV2 ? { exerciseVersion: 'v2' } : {};
+  }
+
   navigateToFreeMode(): void {
-    this.router.navigate(['/admin/digital-exercises/create-freemode']);
+    this.router.navigate(['/admin/digital-exercises/create-freemode'], { queryParams: this.builderQueryParams() });
   }
 
   navigateToCreate(): void {
-    this.router.navigate(['/admin/digital-exercises/create']);
+    this.router.navigate(['/admin/digital-exercises/create'], { queryParams: this.builderQueryParams() });
   }
 
   navigateToVideoExercise(): void {
-    this.router.navigate(['/admin/digital-exercises/create-video']);
+    this.router.navigate(['/admin/digital-exercises/create-video'], { queryParams: this.builderQueryParams() });
   }
 
   navigateToAiGenerator(): void {
-    this.router.navigate(['/admin/digital-exercises/generate-ai']);
+    this.router.navigate(['/admin/digital-exercises/generate-ai'], { queryParams: this.builderQueryParams() });
   }
 
   navigateToListeningWorksheetGenerator(): void {
-    this.router.navigate(['/admin/digital-exercises/generate-listening-manual']);
+    this.router.navigate(['/admin/digital-exercises/generate-listening-manual'], { queryParams: this.builderQueryParams() });
   }
 
   navigateToEdit(ex: DigitalExercise): void {
     const id = ex._id ?? (ex as any).id;
     if (!id) return;
     const route = ex.isFreeMode ? 'edit-freemode' : 'edit';
-    this.router.navigate(['/admin/digital-exercises', id, route]);
+    const queryParams = ex.version === 'v2' || this.isV2 ? { exerciseVersion: 'v2' } : {};
+    this.router.navigate(['/admin/digital-exercises', id, route], { queryParams });
   }
 
   exerciseRowId(ex: DigitalExercise): string {
@@ -1321,6 +1352,23 @@ export class DigitalExerciseManagementComponent implements OnInit {
   viewCompletions(exercise: DigitalExercise): void {
     const id = exercise._id ?? (exercise as any).id;
     if (id) this.router.navigate(['/admin/digital-exercises', id, 'completions']);
+  }
+
+  copyToV2(exercise: DigitalExercise): void {
+    const id = exercise._id ?? (exercise as any).id;
+    if (!id || this.copyingV2Id) return;
+    this.copyingV2Id = String(id);
+    this.exerciseService.copyToV2(String(id)).subscribe({
+      next: () => {
+        this.copyingV2Id = null;
+        this.showSuccess(`"${exercise.title}" copied to Online Exercises 2.0 — open it there and edit to choose the batch`);
+      },
+      error: (err) => {
+        this.copyingV2Id = null;
+        const msg = err?.error?.error || err?.error?.message || err?.message || 'Failed to copy exercise';
+        this.showError(msg);
+      }
+    });
   }
 
   testExercise(exercise: DigitalExercise): void {

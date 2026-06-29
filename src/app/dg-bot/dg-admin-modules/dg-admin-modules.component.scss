@@ -980,3 +980,81 @@
   border-top: 1px solid #e8ecf4;
   background: #fafbff;
 }
+
+/* ── Version tabs ── */
+.dg-version-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dg-version-tab {
+  background: rgba(255, 255, 255, 0.35);
+  border: 1.5px solid rgba(1, 31, 75, 0.2);
+  color: #011f4b;
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.6);
+  }
+
+  &.dg-version-tab--active {
+    background: #011f4b;
+    color: #fff;
+    border-color: #011f4b;
+  }
+}
+
+/* ── v2 info banner ── */
+.dg-v2-info-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #1e40af;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+
+  i { flex-shrink: 0; margin-top: 2px; }
+}
+
+.dg-copy-badge-inline {
+  background: #6366f1;
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Copy-to-v2 button ── */
+.btn-copy-v2 {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 3px 9px;
+  transition: opacity 0.18s;
+
+  &:hover:not(:disabled) { opacity: 0.88; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+/* ── v2 badge in title ── */
+.dg-mm-badge-v2 {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  color: #fff !important;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}

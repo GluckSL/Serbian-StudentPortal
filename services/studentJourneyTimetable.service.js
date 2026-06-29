@@ -7,7 +7,12 @@ const GameSet = require('../models/GameSet');
 const BatchConfig = require('../models/BatchConfig');
 const { effectiveStudentBatch, normalizeBatch } = require('../utils/effectiveStudentBatch');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
-const { isLearningEnabled } = require('../utils/batchType');
+const {
+  isLearningEnabled,
+  exerciseVersionClauseForBatch,
+  dgModuleVersionClauseForBatch,
+  normalizeBatchType,
+} = require('../utils/batchType');
 const { utcMidnightMs, journeyDayRangeStart } = require('../utils/journeyDay');
 
 const TZ = 'Asia/Kolkata';
@@ -79,7 +84,8 @@ async function buildStudentJourneyTimetable(student, options = {}) {
   const journeyLength = cfg?.journeyLength || 200;
   const trial = !!cfg?.trialDayEnabled;
   const dayStart = journeyDayRangeStart(trial);
-  const learningEnabled = cfg ? isLearningEnabled(cfg) : true;
+  const learningEnabled = cfg ? isLearningEnabled(cfg.batchType) : true;
+  const batchType = normalizeBatchType(cfg?.batchType);
   const batchKeys = studentTargetBatchKeys(student);
   const plan = String(student.subscription || '').toUpperCase();
 
@@ -103,6 +109,7 @@ async function buildStudentJourneyTimetable(student, options = {}) {
         isDeleted: { $ne: true },
         visibleToStudents: true,
         isActive: true,
+        ...exerciseVersionClauseForBatch(batchType, batchKeys),
       })
         .select('title category level courseDay weeklyTestEnabled examEnabled')
         .sort({ courseDay: 1, title: 1 })
@@ -113,7 +120,10 @@ async function buildStudentJourneyTimetable(student, options = {}) {
         courseDay: { $gte: dayStart, $lte: journeyLength },
         visibleToStudents: true,
         isActive: true,
-        ...moduleTargetingQuery(batchKeys),
+        $and: [
+          moduleTargetingQuery(batchKeys),
+          dgModuleVersionClauseForBatch(batchType),
+        ],
       })
         .select('title level courseDay weeklyTestEnabled examEnabled')
         .sort({ courseDay: 1, title: 1 })

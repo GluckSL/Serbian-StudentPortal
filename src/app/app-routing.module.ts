@@ -435,7 +435,14 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./dg-bot/dg-admin-modules/dg-admin-modules.component').then((m) => m.DgAdminModulesComponent),
     canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] },
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], moduleVersion: 'v1' },
+  },
+  {
+    path: 'admin/dg-modules-v2',
+    loadComponent: () =>
+      import('./dg-bot/dg-admin-modules/dg-admin-modules.component').then((m) => m.DgAdminModulesComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], moduleVersion: 'v2' },
   },
 
   // ── Sprechen Exam (Goethe A1 Speaking Bot) ───────────────────────────────
@@ -552,6 +559,13 @@ export const routes: Routes = [
     loadComponent: () => import('./components/admin-dashboard/digital-exercise-management/digital-exercise-management.component').then(m => m.DigitalExerciseManagementComponent),
     canActivate: [AuthGuard, RoleGuard],
     data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'] }
+  },
+  // Admin/Teacher: Online Exercises 2.0 — batch-specific exercises for newer batches
+  {
+    path: 'admin/digital-exercises-v2',
+    loadComponent: () => import('./components/admin-dashboard/digital-exercise-management/digital-exercise-management.component').then(m => m.DigitalExerciseManagementComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER', 'TEACHER_ADMIN'], exerciseVersion: 'v2' }
   },
   // Admin/Teacher: create exercise via free mode builder
   {

@@ -10,6 +10,15 @@ const {
 const User = require('../models/User');
 const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { normalizeBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
+const { dgModuleVersionClauseForBatch, normalizeBatchType } = require('../utils/batchType');
+const { TRIAL_JOURNEY_DAY } = require('../utils/journeyDay');
+
+function effectiveDgUnlockDay(access) {
+  if (access?.trialDayEnabled && Number(access.journeyCourseDay) === TRIAL_JOURNEY_DAY) {
+    return TRIAL_JOURNEY_DAY;
+  }
+  return Number.isFinite(Number(access?.courseDay)) ? Number(access.courseDay) : 1;
+}
 const { weekDayRange } = require('../utils/oldBatchDgWeekAccess');
 const {
   buildDgModulePayloadFromLearning,
@@ -148,6 +157,7 @@ exports.create = async (req, res) => {
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
     res.status(201).json({
       ...plain,
+      version: plain.version || 'v1',
       targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
     });
   } catch (e) {
@@ -176,6 +186,7 @@ exports.update = async (req, res) => {
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
     res.json({
       ...plain,
+      version: plain.version || 'v1',
       targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
     });
   } catch (e) {
@@ -195,6 +206,7 @@ exports.getAdminById = async (req, res) => {
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
     res.json({
       ...plain,
+      version: plain.version || 'v1',
       targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
     });
   } catch (e) {
@@ -212,19 +224,86 @@ exports.listAdmin = async (req, res) => {
     if (req.user.role === 'TEACHER') {
       filter.createdBy = req.user.id;
     }
+    const version = req.query.version;
+    if (version === 'v2') {
+      filter.version = 'v2';
+    } else if (version === 'v1') {
+      filter.$or = [{ version: 'v1' }, { version: { $exists: false } }];
+    }
     const modules = await DGModule.find(filter)
-      .select(ADMIN_MODULE_LIST_SELECT)
+      .select(ADMIN_MODULE_LIST_SELECT + ' version')
       .sort({ updatedAt: -1 })
       .lean();
     res.json({
       modules: (modules || []).map((m) => ({
         ...m,
+        version: m.version || 'v1',
         targetBatches: Array.isArray(m.targetBatchKeys) ? m.targetBatchKeys : [],
         beginnerMode: { enabled: !!m.beginnerMode?.enabled },
       })),
     });
   } catch (e) {
     res.status(500).json({ message: e.message || 'List failed' });
+  }
+};
+
+/** POST /dg/modules/:id/copy-to-v2 — Deep-clone a v1 module into DG Bot Modules 2.0. */
+exports.copyToV2 = async (req, res) => {
+  try {
+    const source = await DGModule.findById(req.params.id).lean();
+    if (!source || !source.isActive) {
+      return res.status(404).json({ message: 'Module not found' });
+    }
+    if (source.version === 'v2') {
+      return res.status(400).json({ message: 'Module is already a v2 module.' });
+    }
+    const { _id, createdAt, updatedAt, __v, ...rest } = source;
+    const copy = new DGModule({
+      ...rest,
+      title: source.title,
+      version: 'v2',
+      targetBatchKeys: [],
+      visibleToStudents: false,
+      createdBy: req.user.id,
+    });
+    await copy.save();
+    const plain = copy.toObject();
+    res.status(201).json({
+      module: {
+        ...plain,
+        version: 'v2',
+        targetBatches: [],
+        beginnerMode: { enabled: !!plain.beginnerMode?.enabled },
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message || 'Copy failed' });
+  }
+};
+
+/** PATCH /dg/modules/:id/target-batches — Update targetBatchKeys for a v2 module. */
+exports.patchTargetBatches = async (req, res) => {
+  try {
+    const { targetBatches } = req.body;
+    if (!Array.isArray(targetBatches)) {
+      return res.status(400).json({ message: 'targetBatches must be an array.' });
+    }
+    const doc = await DGModule.findById(req.params.id);
+    if (!doc || !doc.isActive) {
+      return res.status(404).json({ message: 'Module not found' });
+    }
+    if (doc.version !== 'v2') {
+      return res.status(400).json({ message: 'Only v2 modules support batch targeting via this endpoint.' });
+    }
+    doc.targetBatchKeys = normalizeBatchKeys(targetBatches);
+    await doc.save();
+    const plain = doc.toObject();
+    res.json({
+      success: true,
+      targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message || 'Update target batches failed' });
   }
 };
 
@@ -241,20 +320,23 @@ exports.listStudent = async (req, res) => {
         dgUnlockedWeek: access.dgUnlockedWeek ?? 0,
       });
     }
-    const studentDay = Number.isFinite(Number(access.courseDay))
-      ? Math.min(200, Math.max(1, Math.floor(Number(access.courseDay))))
-      : 1;
+    const studentDay = effectiveDgUnlockDay(access);
+    const unlockAccess = { ...access, courseDay: studentDay };
 
     const batchKeys = access.batchKeys || [];
-    const batchFilter = batchKeys.length ? moduleTargetingQuery(batchKeys) : {};
-    const moduleFilter = {
-      isActive: true,
-      visibleToStudents: true,
-      ...batchFilter,
-    };
-    if (gluckExamOnly) {
-      moduleFilter.$or = [{ weeklyTestEnabled: true }, { examEnabled: true }];
+    const batchType = normalizeBatchType(access.batchType);
+    const andParts = [
+      { isActive: true },
+      { visibleToStudents: true },
+      dgModuleVersionClauseForBatch(batchType),
+    ];
+    if (batchKeys.length) {
+      andParts.push(moduleTargetingQuery(batchKeys));
     }
+    if (gluckExamOnly) {
+      andParts.push({ $or: [{ weeklyTestEnabled: true }, { examEnabled: true }] });
+    }
+    const moduleFilter = { $and: andParts };
 
     let moduleQuery = DGModule.find(moduleFilter);
     if (gluckExamOnly) {
@@ -275,7 +357,7 @@ exports.listStudent = async (req, res) => {
     const unlockedForDay = (modules || []).filter((m) => {
       // A1 and A2 content is always visible regardless of journey day.
       const isA1A2 = A1_A2_LEVELS.has(String(m?.level || '').toUpperCase());
-      if (!isA1A2 && !dgModuleUnlockedForAccess(access, m?.courseDay)) return false;
+      if (!isA1A2 && !dgModuleUnlockedForAccess(unlockAccess, m?.courseDay)) return false;
       if (isContentBlockedForStudent(studentDoc, { courseDay: m?.courseDay, level: m?.level })) return false;
       return true;
     });
@@ -384,7 +466,22 @@ exports.getPlay = async (req, res) => {
           code: 'LEARNING_CONTENT_DISABLED',
         });
       }
-      if (!dgModuleUnlockedForAccess(access, mod.courseDay)) {
+      const batchType = normalizeBatchType(access.batchType);
+      const modVersion = mod.version === 'v2' ? 'v2' : 'v1';
+      if (batchType === 'new2' && modVersion !== 'v2') {
+        return res.status(403).json({
+          message: 'This module is not available for your batch.',
+          code: 'VERSION_NOT_ALLOWED',
+        });
+      }
+      if (batchType === 'new' && modVersion === 'v2') {
+        return res.status(403).json({
+          message: 'This module is not available for your batch.',
+          code: 'VERSION_NOT_ALLOWED',
+        });
+      }
+      const unlockAccess = { ...access, courseDay: effectiveDgUnlockDay(access) };
+      if (!dgModuleUnlockedForAccess(unlockAccess, mod.courseDay)) {
         const weekLock = dgWeekLockMessage(access, mod.courseDay);
         if (weekLock) {
           return res.status(403).json(weekLock);

@@ -67,6 +67,27 @@
         <input type="text" [(ngModel)]="tags" placeholder="comma, separated" />
       </div>
     </div>
+    <div class="meta-row" *ngIf="isV2Exercise">
+      <div class="meta-field meta-field--full">
+        <label>Show to batches</label>
+        <select
+          class="fm-batch-select"
+          [(ngModel)]="batchToAdd"
+          (change)="onBatchDropdownChange()"
+          [disabled]="loadingBatches || selectableBatches.length === 0"
+        >
+          <option value="">{{ loadingBatches ? 'Loading batches…' : (selectableBatches.length ? 'Select batch…' : 'No more batches to add') }}</option>
+          <option *ngFor="let b of selectableBatches" [value]="b.batchName">{{ b.batchName }}</option>
+        </select>
+        <div class="fm-selected-batches" *ngIf="selectedTargetBatches.length > 0">
+          <span class="fm-selected-batch-pill" *ngFor="let b of selectedTargetBatches">
+            {{ b }}
+            <button type="button" (click)="removeTargetBatch(b)" aria-label="Remove batch">×</button>
+          </span>
+        </div>
+        <small class="text-muted" *ngIf="!loadingBatches && batches.length === 0">No batches found. Create a batch in Journey first.</small>
+      </div>
+    </div>
   </div>
 
   <!-- Utilities Row (above question types) -->

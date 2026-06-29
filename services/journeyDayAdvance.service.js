@@ -23,6 +23,7 @@ const {
   allPriorJourneyDaysComplete
 } = require('../utils/silverGoSequentialUnlock');
 const { SILVER_GO_STUDENT_SELECT } = require('../utils/goSilverTrack');
+const { isLearningEnabled } = require('../utils/batchType');
 
 /**
  * Check if a Silver GO student has completed all tasks for their current journey day
@@ -407,7 +408,8 @@ async function applyJourneyDayRollovers() {
             ? silverGoCompletionOptions(s)
             : {
                 includeRecordings: false,
-                includeDg: cfg.batchType === 'new',
+                includeDg: isLearningEnabled(cfg.batchType),
+                batchType: cfg.batchType,
                 includeLearningModules: true,
                 studentLevel: s.level,
                 studentPlan: s.subscription,

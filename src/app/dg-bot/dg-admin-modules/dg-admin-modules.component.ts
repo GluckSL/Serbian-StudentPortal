@@ -15,6 +15,9 @@ import type { DgModuleSummary } from '../dg-bot.types';
   styleUrls: ['./dg-admin-modules.component.scss'],
 })
 export class DgAdminModulesComponent implements OnInit {
+  /** 'v2' when this component is used for the DG Bot Modules 2.0 route. */
+  moduleVersion: 'v1' | 'v2' = 'v1';
+
   modules: DgModuleSummary[] = [];
   /** Filter list by title (Learning Modules–style search). */
   listFilter = '';
@@ -24,11 +27,17 @@ export class DgAdminModulesComponent implements OnInit {
   message: string | null = null;
   /** Row id while PATCH visibility is in flight */
   visibilityBusyId: string | null = null;
+  /** Row id while copy-to-v2 is in flight */
+  copyingV2Id: string | null = null;
 
   pageIndex = 0;
   pageSize = 10;
   readonly pageSizeOptions = [5, 10, 25, 50];
   readonly skeletonRows = [0, 1, 2, 3, 4, 5, 6, 7];
+
+  get isV2(): boolean {
+    return this.moduleVersion === 'v2';
+  }
 
   get filteredModules(): DgModuleSummary[] {
     let list = this.modules;
@@ -77,6 +86,11 @@ export class DgAdminModulesComponent implements OnInit {
     return this.modules.filter((m) => (m.language || '') === 'English').length;
   }
 
+  /** v2 modules with no batches assigned yet */
+  get dgStatUnassigned(): number {
+    return this.modules.filter((m) => !m.targetBatches || m.targetBatches.length === 0).length;
+  }
+
   trackModule(_: number, m: DgModuleSummary): string {
     return m._id || m.title || '';
   }
@@ -105,6 +119,14 @@ export class DgAdminModulesComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.route.data.subscribe((data) => {
+      if (data['moduleVersion'] === 'v2') {
+        this.moduleVersion = 'v2';
+      } else {
+        this.moduleVersion = 'v1';
+      }
+    });
+
     this.route.queryParamMap.subscribe((params) => {
       const status = (params.get('status') || '').toLowerCase();
       if (status === 'all' || status === 'live' || status === 'draft') {
@@ -120,7 +142,7 @@ export class DgAdminModulesComponent implements OnInit {
 
   reload(): void {
     this.loading = true;
-    firstValueFrom(this.dgApi.listAdminModules())
+    firstValueFrom(this.dgApi.listAdminModules(this.moduleVersion))
       .then((m) => {
         this.modules = m.modules || [];
         this.pageIndex = 0;
@@ -133,12 +155,20 @@ export class DgAdminModulesComponent implements OnInit {
   }
 
   goCreate(): void {
-    this.router.navigate(['/admin/dg-modules/new']);
+    if (this.isV2) {
+      this.router.navigate(['/admin/dg-modules/new'], { queryParams: { moduleVersion: 'v2' } });
+    } else {
+      this.router.navigate(['/admin/dg-modules/new']);
+    }
   }
 
   goEdit(m: DgModuleSummary): void {
     if (!m._id) return;
-    this.router.navigate(['/admin/dg-modules', m._id, 'edit']);
+    if (this.isV2) {
+      this.router.navigate(['/admin/dg-modules', m._id, 'edit'], { queryParams: { moduleVersion: 'v2' } });
+    } else {
+      this.router.navigate(['/admin/dg-modules', m._id, 'edit']);
+    }
   }
 
   goPreview(m: DgModuleSummary): void {
@@ -161,12 +191,33 @@ export class DgAdminModulesComponent implements OnInit {
       const res = await firstValueFrom(this.dgApi.patchModuleVisibility(id, next));
       m.visibleToStudents = res.visibleToStudents ?? next;
       this.message = next
-        ? 'Shown to students when their journey day reaches this module’s day.'
+        ? 'Shown to students when their journey day reaches this module\'s day.'
         : 'Hidden from students.';
     } catch (e: any) {
       this.message = e?.error?.message || 'Could not update visibility';
     } finally {
       this.visibilityBusyId = null;
+    }
+  }
+
+  async copyToV2(m: DgModuleSummary): Promise<void> {
+    const id = m._id;
+    if (!id || this.copyingV2Id) return;
+    this.copyingV2Id = id;
+    this.message = null;
+    try {
+      const res = await firstValueFrom(this.dgApi.copyModuleToV2(id));
+      const newId = res?.module?._id;
+      this.message = `Copied to DG Bot Modules 2.0. Opening editor…`;
+      setTimeout(() => {
+        this.router.navigate(['/admin/dg-modules', newId, 'edit'], {
+          queryParams: { moduleVersion: 'v2' },
+        });
+      }, 800);
+    } catch (e: any) {
+      this.message = e?.error?.message || 'Copy failed';
+    } finally {
+      this.copyingV2Id = null;
     }
   }
 
@@ -180,5 +231,13 @@ export class DgAdminModulesComponent implements OnInit {
     } catch (e: any) {
       this.message = e?.error?.message || 'Delete failed';
     }
+  }
+
+  switchToV1(): void {
+    this.router.navigate(['/admin/dg-modules']);
+  }
+
+  switchToV2(): void {
+    this.router.navigate(['/admin/dg-modules-v2']);
   }
 }

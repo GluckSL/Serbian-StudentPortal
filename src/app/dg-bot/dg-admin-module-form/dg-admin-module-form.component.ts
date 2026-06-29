@@ -47,6 +47,8 @@ function emptyRolePlayScenario(): DgRolePlayScenario {
 })
 export class DgAdminModuleFormComponent implements OnInit {
   formMode: 'create' | 'edit' = 'edit';
+  /** 'v2' when opened from DG Bot Modules 2.0 context. */
+  moduleVersion: 'v1' | 'v2' = 'v1';
   characters: DgCharacterDoc[] = [];
   loading = true;
   saving = false;
@@ -137,6 +139,8 @@ export class DgAdminModuleFormComponent implements OnInit {
 
     const mode = this.route.snapshot.data['dgFormMode'] as string | undefined;
     this.formMode = mode === 'create' ? 'create' : 'edit';
+    const mvParam = this.route.snapshot.queryParamMap.get('moduleVersion');
+    this.moduleVersion = mvParam === 'v2' ? 'v2' : 'v1';
     const id = this.route.snapshot.paramMap.get('id');
 
     this.loading = true;
@@ -207,8 +211,16 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.batchToAdd = '';
   }
 
+  get isV2(): boolean {
+    return this.moduleVersion === 'v2';
+  }
+
+  private get adminListRoute(): string {
+    return this.isV2 ? '/admin/dg-modules-v2' : '/admin/dg-modules';
+  }
+
   goBack(): void {
-    this.router.navigate(['/admin/dg-modules']);
+    this.router.navigate([this.adminListRoute]);
   }
 
   isInvalid(key: string): boolean {
@@ -270,6 +282,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editWeeklyTestEnabled = !!row.weeklyTestEnabled;
     this.editExamEnabled = !!row.examEnabled;
     this.targetBatches = Array.isArray(row.targetBatches) ? [...row.targetBatches] : [];
+    if (row.version === 'v2') this.moduleVersion = 'v2';
     this.editScenes = JSON.parse(JSON.stringify(row.scenes || [])).sort(
       (a: DgScene, b: DgScene) => (a.order || 0) - (b.order || 0),
     );
@@ -723,6 +736,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       visibleToStudents: this.editVisible,
       weeklyTestEnabled: !!this.editWeeklyTestEnabled && !this.editExamEnabled,
       examEnabled: !!this.editExamEnabled && !this.editWeeklyTestEnabled,
+      version: this.moduleVersion,
       targetBatches: this.targetBatches,
       rolePlayScenario: this.editRolePlay,
       allowedVocabulary: this.allowedVocabulary,
@@ -819,7 +833,7 @@ export class DgAdminModuleFormComponent implements OnInit {
         this.selected = updated;
       }
       if (navigateAfterSave) {
-        this.router.navigate(['/admin/dg-modules'], {
+        this.router.navigate([this.adminListRoute], {
           queryParams: {
             saved: this.selected?._id || '',
             status: 'all',
@@ -922,7 +936,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     if (!confirm('Archive this DG module?')) return;
     try {
       await firstValueFrom(this.dgApi.deleteModule(this.selected._id));
-      this.router.navigate(['/admin/dg-modules']);
+      this.router.navigate([this.adminListRoute]);
     } catch (e: any) {
       this.messageType = 'error';
       this.message = e?.error?.message || 'Delete failed';

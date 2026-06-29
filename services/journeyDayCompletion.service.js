@@ -14,6 +14,12 @@ const ZoomRecordingView = require('../models/ZoomRecordingView');
 const DGModule = require('../models/DGModule');
 const DGSession = require('../models/DGSession');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
+const {
+  normalizeBatchType,
+  exerciseVersionClauseForBatch,
+  dgModuleVersionClauseForBatch,
+} = require('../utils/batchType');
+const BatchConfig = require('../models/BatchConfig');
 const { batchesAlign } = require('../utils/effectiveStudentBatch');
 const {
   resolveInheritedAttempt,
@@ -30,7 +36,7 @@ const dayCompletionCache = new Map();
 const CACHE_TTL_MS = 60_000;
 
 function dayCompletionCacheKey(studentId, day, batchNames, options) {
-  return `${String(studentId)}:${day}:${batchNames.join(',')}:${options.includeRecordings ? '1' : '0'}:${options.includeDg ? '1' : '0'}:${options.studentLevel || ''}:${options.studentPlan || ''}:${options.goStatus || ''}`;
+  return `${String(studentId)}:${day}:${batchNames.join(',')}:${options.includeRecordings ? '1' : '0'}:${options.includeDg ? '1' : '0'}:${options.studentLevel || ''}:${options.studentPlan || ''}:${options.goStatus || ''}:${options.batchType || ''}`;
 }
 
 function dayCompletionCacheGet(key) {
@@ -84,11 +90,32 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
     ? new mongoose.Types.ObjectId(String(studentId))
     : null;
 
+  let batchType = options.batchType ? normalizeBatchType(options.batchType) : null;
+  if (!batchType && batchNames.length) {
+    const primary = batchNames[0];
+    const cfg = primary
+      ? await BatchConfig.findOne({
+          batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i'),
+        })
+          .select('batchType')
+          .lean()
+      : null;
+    batchType = normalizeBatchType(cfg?.batchType);
+  } else if (!batchType) {
+    batchType = normalizeBatchType('new');
+  }
+  const studentBatchKeys = studentTargetBatchKeys({
+    batch: batchNames[0] || '',
+    goStatus: options.goStatus || '',
+    subscription: options.subscription || '',
+  });
+
   const exercises = await DigitalExercise.find({
     isDeleted: { $ne: true },
     visibleToStudents: true,
     isActive: true,
-    courseDay: day
+    courseDay: day,
+    ...exerciseVersionClauseForBatch(batchType, studentBatchKeys),
   })
     .select('_id title splitLineage questions')
     .lean();
@@ -292,17 +319,14 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
   let dgDone = 0;
   const incompleteDg = [];
   if (includeDg) {
-    const dgStudent = {
-      batch: batchNames[0] || '',
-      goStatus: options.goStatus || '',
-      subscription: options.subscription || ''
-    };
-    const studentBatchKeys = studentTargetBatchKeys(dgStudent);
     const dgModules = await DGModule.find({
       isActive: true,
       visibleToStudents: true,
       courseDay: day,
-      ...moduleTargetingQuery(studentBatchKeys)
+      $and: [
+        moduleTargetingQuery(studentBatchKeys),
+        dgModuleVersionClauseForBatch(batchType),
+      ],
     })
       .select('_id title')
       .lean();

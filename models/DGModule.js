@@ -151,6 +151,12 @@ const DGModuleSchema = new mongoose.Schema(
     conversationFlow: { type: [DgFlowEntrySchema], default: [] },
     /** Beginner mode: teacher attaches an image/text context and configures dialogue prompts for Olly. */
     beginnerMode: { type: DgBeginnerModeSchema, default: () => ({}) },
+
+    /**
+     * v1 = original DG Bot Modules (default for all existing documents).
+     * v2 = DG Bot Modules 2.0 — batch-specific modules for newer batches.
+     */
+    version: { type: String, enum: ['v1', 'v2'], default: 'v1', index: true },
   },
   { timestamps: true }
 );
@@ -161,6 +167,7 @@ DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, weeklyTestEnabled: 1, 
 DGModuleSchema.index({ isActive: 1, visibleToStudents: 1, examEnabled: 1, title: 1 });
 DGModuleSchema.index({ createdBy: 1 });
 DGModuleSchema.index({ targetBatchKeys: 1, visibleToStudents: 1, isActive: 1, courseDay: 1 });
+DGModuleSchema.index({ version: 1, isActive: 1, visibleToStudents: 1 });
 
 DGModuleSchema.pre('validate', function dgValidatePracticeWindow(next) {
   if (

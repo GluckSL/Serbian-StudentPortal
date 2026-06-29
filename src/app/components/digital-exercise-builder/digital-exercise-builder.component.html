@@ -184,6 +184,34 @@
               </small>
             </div>
           </div>
+          <div class="field-group field-group--batches" *ngIf="isV2Exercise">
+            <label class="field-label" for="ex-target-batches">
+              <span class="material-icons" aria-hidden="true">groups</span>
+              Show to batches
+            </label>
+            <div class="batch-dropdown-row">
+              <select
+                id="ex-target-batches"
+                class="field-input field-input--sm batch-select"
+                [(ngModel)]="batchToAdd"
+                (change)="onBatchDropdownChange()"
+                [disabled]="loadingBatches || selectableBatches.length === 0"
+              >
+                <option value="">{{ loadingBatches ? 'Loading batches…' : (selectableBatches.length ? 'Select batch…' : 'No more batches to add') }}</option>
+                <option *ngFor="let b of selectableBatches" [value]="b.batchName">{{ b.batchName }}</option>
+              </select>
+            </div>
+            <div class="selected-batches" *ngIf="selectedTargetBatches.length > 0">
+              <span class="selected-batch-pill" *ngFor="let b of selectedTargetBatches">
+                {{ b }}
+                <button type="button" class="selected-batch-remove" (click)="removeTargetBatch(b)" aria-label="Remove batch">
+                  <span class="material-icons">close</span>
+                </button>
+              </span>
+            </div>
+            <small class="text-muted" *ngIf="!loadingBatches && batches.length === 0">No batches found. Create a batch in Journey first.</small>
+            <small class="text-muted" *ngIf="batches.length > 0">Only students in the selected batches will see this exercise when published.</small>
+          </div>
           <div class="field-group field-group--desc">
             <label class="field-label required" for="ex-desc">Description</label>
             <div class="field-input-wrap">

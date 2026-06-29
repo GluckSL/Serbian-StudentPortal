@@ -36,12 +36,13 @@ const BatchConfigSchema = new mongoose.Schema({
   },
   /**
    * Batch type controls student learning-content visibility.
-   * - new: modules + exercises + live/recordings are available
+   * - new: modules + exercises + live/recordings are available (v1 content)
+   * - new2: 2.0 modules + exercises + live/recordings (v2 content only)
    * - old: only live classes + recordings (default for new configs)
    */
   batchType: {
     type: String,
-    enum: ['new', 'old'],
+    enum: ['new', 'old', 'new2'],
     default: 'old',
     index: true
   },

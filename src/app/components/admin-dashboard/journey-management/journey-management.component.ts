@@ -20,7 +20,7 @@ interface BatchSummary {
   batchStartDate: string | null;
   autoDay: boolean;
   notes: string;
-  batchType?: 'new' | 'old';
+  batchType?: 'new' | 'old' | 'new2';
   /** When batchType is old: weekly DG Bot release (days 1–7, then 8–14, …). */
   oldBatchDgBotAccess?: boolean;
   /** When true, students need at least strictJourneyThresholdPercent of each day’s tasks to advance. */
@@ -417,7 +417,7 @@ interface TimelineDay {
                          [title]="studentsBehindTooltip(b)"></i>
                       {{ b.batchName }}
                     </span>
-                    <span class="j-pause-badge" *ngIf="b.journeyPaused && b.batchType === 'new'">
+                    <span class="j-pause-badge" *ngIf="b.journeyPaused && batchTypeSupportsPause(b.batchType)">
                       <i class="fas fa-pause"></i> Paused
                     </span>
                     <span class="j-behind-batch-badge" *ngIf="batchBehindCalendar(b)"
@@ -508,7 +508,7 @@ interface TimelineDay {
         <h2>{{ selectedBatch.batchName }}</h2>
         <span class="j-batch-meta">{{ batchStudents.length }} students</span>
         <span class="j-day-pill" style="margin-left:8px">Day {{ selectedBatch.batchCurrentDay }}</span>
-        <span class="j-pause-badge j-pause-badge--header" *ngIf="selectedBatch.journeyPaused && editBatchType === 'new'">
+        <span class="j-pause-badge j-pause-badge--header" *ngIf="selectedBatch.journeyPaused && isNewStyleBatch">
           <i class="fas fa-pause"></i> Journey paused
         </span>
         <span class="j-auto-badge" *ngIf="selectedBatch.autoDay">
@@ -556,7 +556,7 @@ interface TimelineDay {
             </span>
           </div>
         </div>
-        <div class="j-ro-card" *ngIf="editBatchType === 'new'">
+        <div class="j-ro-card" *ngIf="isNewStyleBatch">
           <div class="j-ro-card-icon" [ngClass]="editJourneyPaused ? 'j-ro-card-icon--amber' : 'j-ro-card-icon--green'">
             <i class="fas" [class.fa-pause]="editJourneyPaused" [class.fa-play]="!editJourneyPaused"></i>
           </div>
@@ -580,7 +580,7 @@ interface TimelineDay {
           <div class="j-ro-card-icon j-ro-card-icon--blue"><i class="fas fa-toggle-on"></i></div>
           <div class="j-ro-card-body">
             <span class="j-ro-card-label">Batch type</span>
-            <span class="j-ro-card-value">{{ editBatchType === 'old' ? (editOldBatchDgBotAccess ? 'Old — live/recordings + DG Bot (weekly)' : 'Old (live/recordings only)') : 'New (modules/exercises enabled)' }}</span>
+            <span class="j-ro-card-value">{{ editBatchTypeLabel }}</span>
           </div>
         </div>
         <div class="j-ro-card" *ngIf="editBatchType === 'old'">
@@ -641,7 +641,7 @@ interface TimelineDay {
               <label class="j-field-label">{{ editTrialDayEnabled && editTrialAccessStartDate ? 'Day 1 starts' : 'Batch start date' }}</label>
               <input type="date" [(ngModel)]="editBatchStartDate" class="j-input j-input--compact">
             </div>
-            <div class="j-config-field" *ngIf="editBatchType === 'new' && editTrialDayEnabled">
+            <div class="j-config-field" *ngIf="isNewStyleBatch && editTrialDayEnabled">
               <label class="j-field-label">Trial access starts</label>
               <input type="date" [(ngModel)]="editTrialAccessStartDate" class="j-input j-input--compact">
             </div>
@@ -669,6 +669,7 @@ interface TimelineDay {
               <label class="j-field-label">Batch type</label>
               <select class="j-input j-input--compact" [(ngModel)]="editBatchType" (ngModelChange)="onBatchTypeChange()">
                 <option value="new">New batch (modules + exercises + classes)</option>
+                <option value="new2">New batch 2.0 (2.0 exercises + Gluck Buddy; same classes &amp; arena)</option>
                 <option value="old">Old batch (classes + recordings only)</option>
               </select>
             </div>
@@ -702,7 +703,7 @@ interface TimelineDay {
               </div>
             </div>
 
-            <div class="j-toggle-card" *ngIf="editBatchType === 'new'" [class.j-toggle-card--on]="editTrialDayEnabled">
+            <div class="j-toggle-card" *ngIf="isNewStyleBatch" [class.j-toggle-card--on]="editTrialDayEnabled">
               <div class="j-toggle-card-head">
                 <span class="j-toggle-card-label" title="Start with one Trial orientation day before Day 1">Trial day</span>
                 <span class="j-toggle-card-status" [class.j-toggle-card-status--on]="editTrialDayEnabled">{{ editTrialDayEnabled ? 'On' : 'Off' }}</span>
@@ -717,7 +718,7 @@ interface TimelineDay {
               </p>
             </div>
 
-            <div class="j-toggle-card j-toggle-card--pause" *ngIf="editBatchType === 'new'"
+            <div class="j-toggle-card j-toggle-card--pause" *ngIf="isNewStyleBatch"
                  [class.j-toggle-card--warn]="editJourneyPaused">
               <div class="j-toggle-card-head">
                 <span class="j-toggle-card-label" title="Freeze batch day until resumed">Pause journey</span>
@@ -772,7 +773,7 @@ interface TimelineDay {
         </div>
       </div>
 
-      <div class="j-start-date-info j-start-date-info--warn" *ngIf="editJourneyPaused && editBatchType === 'new'">
+      <div class="j-start-date-info j-start-date-info--warn" *ngIf="editJourneyPaused && isNewStyleBatch">
         <i class="fas fa-pause-circle"></i>
         <div>
           <strong>Journey paused.</strong>
@@ -782,7 +783,7 @@ interface TimelineDay {
       </div>
 
       <!-- Info box when start date is set -->
-      <div class="j-start-date-info" *ngIf="editBatchStartDate && !(editJourneyPaused && editBatchType === 'new')">
+      <div class="j-start-date-info" *ngIf="editBatchStartDate && !(editJourneyPaused && isNewStyleBatch)">
         <i class="fas fa-calendar-check"></i>
         <div>
           <strong>Auto-schedule active.</strong>
@@ -4321,7 +4322,7 @@ export class JourneyManagementComponent implements OnInit {
   editTrialAccessStartDate = '';
   editBatchStartDate = '';   // ISO date string 'YYYY-MM-DD', empty = manual mode
   editNotes = '';
-  editBatchType: 'new' | 'old' = 'old';
+  editBatchType: 'new' | 'old' | 'new2' = 'old';
   /** Old batch only: weekly DG Bot access. */
   editOldBatchDgBotAccess = false;
   /** When false, daily rollover advances students without requiring day tasks. */
@@ -5357,7 +5358,7 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   computedDayFromDate(): number {
-    if (this.editJourneyPaused && this.editBatchType === 'new') {
+    if (this.editJourneyPaused && this.isNewStyleBatch) {
       return this.selectedBatch?.batchCurrentDay ?? this.editBatchDay;
     }
     return computeJourneyDayFromStartDate(
@@ -5367,6 +5368,34 @@ export class JourneyManagementComponent implements OnInit {
       this.editTrialDayEnabled,
       this.editTrialAccessStartDate || null
     );
+  }
+
+  get isNewStyleBatch(): boolean {
+    return this.editBatchType === 'new' || this.editBatchType === 'new2';
+  }
+
+  get editBatchTypeLabel(): string {
+    if (this.editBatchType === 'old') {
+      return this.editOldBatchDgBotAccess
+        ? 'Old — live/recordings + DG Bot (weekly)'
+        : 'Old (live/recordings only)';
+    }
+    if (this.editBatchType === 'new2') {
+      return 'New batch 2.0 (2.0 exercises + Gluck Buddy; same classes & arena)';
+    }
+    return 'New (modules/exercises enabled)';
+  }
+
+  batchTypeSupportsPause(batchType?: string): boolean {
+    const t = String(batchType || '').toLowerCase();
+    return t === 'new' || t === 'new2';
+  }
+
+  private normalizeEditBatchType(raw: string | undefined | null): 'new' | 'old' | 'new2' {
+    const t = String(raw || '').toLowerCase();
+    if (t === 'old') return 'old';
+    if (t === 'new2') return 'new2';
+    return 'new';
   }
 
   batchScheduleHint(): string {
@@ -5419,7 +5448,7 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   canPickBulkApplyDay(): boolean {
-    return !!this.editBatchStartDate && this.editBatchType === 'new' && this.editJourneyPaused;
+    return !!this.editBatchStartDate && this.isNewStyleBatch && this.editJourneyPaused;
   }
 
   bulkApplyDayTarget(): number {
@@ -5463,7 +5492,7 @@ export class JourneyManagementComponent implements OnInit {
       ? new Date(b.trialAccessStartDate).toISOString().slice(0, 10)
       : '';
     this.editNotes = b.notes;
-    this.editBatchType = b.batchType === 'old' ? 'old' : 'new';
+    this.editBatchType = this.normalizeEditBatchType(b.batchType);
     this.editOldBatchDgBotAccess = !!b.oldBatchDgBotAccess;
     this.editStrictJourneyRule = !!b.strictJourneyRule;
     this.editStrictThresholdPercent =
@@ -5547,7 +5576,7 @@ export class JourneyManagementComponent implements OnInit {
           this.selectedBatch.strictJourneyThresholdPercent = this.editStrictThresholdPercent;
           this.editAutoRecordingEnabled = !!r.config.autoRecordingEnabled;
           this.selectedBatch.autoRecordingEnabled = this.editAutoRecordingEnabled;
-          this.editBatchType = r.config.batchType === 'old' ? 'old' : 'new';
+          this.editBatchType = this.normalizeEditBatchType(r.config.batchType);
           this.selectedBatch.batchType = this.editBatchType;
           this.editOldBatchDgBotAccess = !!r.config.oldBatchDgBotAccess;
           this.selectedBatch.oldBatchDgBotAccess = this.editOldBatchDgBotAccess;
@@ -5641,10 +5670,10 @@ export class JourneyManagementComponent implements OnInit {
       strictJourneyRule: this.editStrictJourneyRule,
       strictJourneyThresholdPercent: this.editStrictThresholdPercent,
       autoRecordingEnabled: this.editAutoRecordingEnabled,
-      journeyPaused: this.editBatchType === 'new' ? !!this.editJourneyPaused : false,
-      trialDayEnabled: this.editBatchType === 'new' ? !!this.editTrialDayEnabled : false,
+      journeyPaused: this.isNewStyleBatch ? !!this.editJourneyPaused : false,
+      trialDayEnabled: this.isNewStyleBatch ? !!this.editTrialDayEnabled : false,
       trialAccessStartDate:
-        this.editBatchType === 'new' && this.editTrialDayEnabled && this.editTrialAccessStartDate
+        this.isNewStyleBatch && this.editTrialDayEnabled && this.editTrialAccessStartDate
           ? this.editTrialAccessStartDate
           : null
     };
@@ -5657,12 +5686,12 @@ export class JourneyManagementComponent implements OnInit {
     this.selectedBatch.batchStartDate = config.batchStartDate || null;
     this.selectedBatch.autoDay = !!config.batchStartDate;
     this.selectedBatch.notes = config.notes;
-    this.selectedBatch.batchType = config.batchType === 'old' ? 'old' : 'new';
+    this.selectedBatch.batchType = this.normalizeEditBatchType(config.batchType);
     this.selectedBatch.strictJourneyRule = !!config.strictJourneyRule;
     this.selectedBatch.strictJourneyThresholdPercent =
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
     this.editStrictJourneyRule = !!config.strictJourneyRule;
-    this.editBatchType = config.batchType === 'old' ? 'old' : 'new';
+    this.editBatchType = this.normalizeEditBatchType(config.batchType);
     this.editOldBatchDgBotAccess = !!config.oldBatchDgBotAccess;
     this.selectedBatch.oldBatchDgBotAccess = this.editOldBatchDgBotAccess;
     this.editStrictThresholdPercent =

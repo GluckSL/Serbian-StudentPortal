@@ -845,7 +845,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     }
     if (batchType !== undefined) {
       if (!isValidBatchTypeInput(batchType)) {
-        return res.status(400).json({ message: 'batchType must be "new" or "old"' });
+        return res.status(400).json({ message: 'batchType must be "new", "new2", or "old"' });
       }
       cfg.batchType = normalizeBatchType(batchType);
       if (!isOldBatchType(cfg.batchType)) {
@@ -1036,7 +1036,7 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
         ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(cfgBatch)}$`, 'i') }).lean()
         : null;
     const result = await checkDayCompletion(student._id, batchKeys, day, {
-      includeDg: batchCfg?.batchType === 'new',
+      includeDg: batchCfg ? isLearningEnabled(batchCfg.batchType) : false,
       goStatus: student.goStatus,
       subscription: student.subscription
     });
@@ -1088,7 +1088,7 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
     }
 
     const completion = await checkDayCompletion(student._id, batchKeys, currentDay, {
-      includeDg: cfg.batchType === 'new',
+      includeDg: isLearningEnabled(cfg.batchType),
       goStatus: student.goStatus,
       subscription: student.subscription,
       studentLevel: student.level

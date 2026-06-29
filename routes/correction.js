@@ -34,6 +34,7 @@ const {
   computeJourneyDayCompletion,
   meetsStrictThreshold
 } = require('../services/journeyDayCompletion.service');
+const { isLearningEnabled } = require('../utils/batchType');
 const {
   checkAndInstantlyAdvanceSilverGoStudent,
   markPendingAdvanceForStudentDay
@@ -125,7 +126,8 @@ async function tryJourneyAdvanceAfterSilverRecording(student, studentId, courseD
   if (cfgDoc && cfgDoc.strictJourneyRule) {
     const comp = await computeJourneyDayCompletion(studentId, keys, dayInt, {
       includeRecordings: true,
-      includeDg: cfgDoc.batchType === 'new',
+      includeDg: isLearningEnabled(cfgDoc.batchType),
+      batchType: cfgDoc.batchType,
       includeLearningModules: true,
       studentLevel: student.level,
       studentPlan: student.subscription,

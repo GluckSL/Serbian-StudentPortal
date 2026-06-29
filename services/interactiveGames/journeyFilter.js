@@ -6,7 +6,8 @@ const User = require('../../models/User');
 const { getJourneyAccessForStudent } = require('../../utils/studentJourneyAccess');
 const {
   minimumAssignedContentDay,
-  studentAssignedCourseDayOrClause
+  studentAssignedCourseDayOrClause,
+  TRIAL_JOURNEY_DAY,
 } = require('../../utils/journeyDay');
 const { studentTargetBatchKeys, moduleTargetingQuery } = require('../../utils/batchTargeting');
 const {
@@ -25,7 +26,11 @@ async function buildStudentFilter(studentId) {
   try {
     const student = await loadStudent(studentId);
     const access = await getJourneyAccessForStudent(student);
-    const courseDay = access?.contentUnlockDay ?? access?.courseDay ?? 0;
+    const onTrialDay =
+      !!access?.trialDayEnabled && Number(access?.courseDay) === TRIAL_JOURNEY_DAY;
+    const courseDay = onTrialDay
+      ? TRIAL_JOURNEY_DAY
+      : (access?.contentUnlockDay ?? access?.courseDay ?? 0);
     const minDay = minimumAssignedContentDay(student, access?.trialDayEnabled);
     const batchKeys = studentTargetBatchKeys(student);
 
@@ -74,9 +79,14 @@ async function isGated(studentId, set) {
       const student = await loadStudent(studentId);
       const access = await getJourneyAccessForStudent(student);
       const minDay = minimumAssignedContentDay(student, access?.trialDayEnabled);
+      const onTrialDay =
+        !!access?.trialDayEnabled && Number(access?.courseDay) === TRIAL_JOURNEY_DAY;
+      const unlockDay = onTrialDay
+        ? TRIAL_JOURNEY_DAY
+        : (access?.contentUnlockDay ?? access?.courseDay ?? 0);
       const n = Number(set.courseDay);
       if (Number.isFinite(n) && n < minDay) return true;
-      if ((access?.contentUnlockDay ?? access?.courseDay ?? 0) < set.courseDay) return true;
+      if (unlockDay < n) return true;
     } catch { /* allow */ }
   }
 

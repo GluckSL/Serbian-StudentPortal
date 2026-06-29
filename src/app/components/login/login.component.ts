@@ -257,12 +257,13 @@ export class LoginComponent implements OnInit {
       error: (err) => {
         this.loading = false;
 
+        const serverMsg: string = err.error?.msg || err.error?.message || '';
         if (err.status === 403) {
-          this.errorMessage = 'Access denied. Your student account has been withdrawn.';
+          this.errorMessage = serverMsg || 'Access denied. Please contact Glück Global support.';
         } else if (err.status === 401 || err.status === 400) {
-          this.errorMessage = 'Invalid username or password!';
+          this.errorMessage = serverMsg || 'Invalid username or password!';
         } else {
-          this.errorMessage = 'Server error. Please try again later.';
+          this.errorMessage = serverMsg || 'Server error. Please try again later.';
         }
       }
     });

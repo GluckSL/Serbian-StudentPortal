@@ -125,8 +125,30 @@ export class DgApiService {
   }
 
   /** Admin grid: lightweight rows (title, level, flags, …). Full content via `getAdminModule` or `getPlay`. */
-  listAdminModules(): Observable<{ modules: DgModuleSummary[] }> {
-    return this.http.get<{ modules: DgModuleSummary[] }>(`${this.base}/modules`);
+  listAdminModules(version?: 'v1' | 'v2'): Observable<{ modules: DgModuleSummary[] }> {
+    let params = new HttpParams();
+    if (version) params = params.set('version', version);
+    return this.http.get<{ modules: DgModuleSummary[] }>(`${this.base}/modules`, { params });
+  }
+
+  /** Deep-clone a v1 module into DG Bot Modules 2.0. */
+  copyModuleToV2(id: string): Observable<{ module: DgModuleSummary }> {
+    return this.http.post<{ module: DgModuleSummary }>(`${this.base}/modules/${id}/copy-to-v2`, {}).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
+  }
+
+  /** Update targetBatches for a v2 DG module. */
+  patchModuleTargetBatches(
+    id: string,
+    targetBatches: string[],
+  ): Observable<{ success: boolean; targetBatches: string[] }> {
+    return this.http.patch<{ success: boolean; targetBatches: string[] }>(
+      `${this.base}/modules/${id}/target-batches`,
+      { targetBatches },
+    ).pipe(
+      tap(() => this.invalidateStudentModulesCache()),
+    );
   }
 
   getAdminModule(id: string): Observable<DgModuleSummary> {

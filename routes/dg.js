@@ -60,6 +60,8 @@ router.post(
 router.post('/modules', verifyToken, checkRole(staffRoles), dgModuleController.create);
 router.put('/modules/:id', verifyToken, checkRole(staffRoles), dgModuleController.update);
 router.patch('/modules/:id/visibility', verifyToken, checkRole(staffRoles), dgModuleController.patchVisibility);
+router.post('/modules/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), dgModuleController.copyToV2);
+router.patch('/modules/:id/target-batches', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), dgModuleController.patchTargetBatches);
 router.delete('/modules/:id', verifyToken, checkRole(staffRoles), dgModuleController.remove);
 router.get('/modules/:id/play', verifyToken, dgModuleController.getPlay);
 router.get(

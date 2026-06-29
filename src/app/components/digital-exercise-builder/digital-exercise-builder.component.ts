@@ -19,6 +19,7 @@ import {
 } from '../../utils/question-attachments';
 import { countFillBlankRuns } from '../../utils/fill-blank';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { HttpClient } from '@angular/common/http';
 import {
   clampAdminCourseDayInput,
   isValidAdminCourseDay
@@ -117,6 +118,10 @@ interface VideoFeedbackAudioRow {
   uploading: boolean;
 }
 
+interface BatchOption {
+  batchName: string;
+}
+
 @Component({
   selector: 'app-digital-exercise-builder',
   standalone: true,
@@ -152,6 +157,17 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   visibleToStudents = false;
   weeklyTestEnabled = false;
   examEnabled = false;
+  /** 'v2' when editing/creating Online Exercises 2.0 */
+  exerciseVersion: 'v1' | 'v2' = 'v1';
+  /** Batch names selected for v2 exercises */
+  selectedTargetBatches: string[] = [];
+  batchToAdd = '';
+  batches: BatchOption[] = [];
+  loadingBatches = false;
+
+  get isV2Exercise(): boolean {
+    return this.exerciseVersion === 'v2';
+  }
 
   onWeeklyTestToggle(on: boolean): void {
     this.weeklyTestEnabled = !!on;
@@ -251,15 +267,50 @@ export class DigitalExerciseBuilderComponent implements OnInit {
     private exerciseService: DigitalExerciseService,
     private router: Router,
     private route: ActivatedRoute,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
     this.exerciseId = this.route.snapshot.paramMap.get('id');
     this.isEditMode = !!this.exerciseId;
+    if (!this.isEditMode) {
+      this.exerciseVersion = this.route.snapshot.queryParamMap.get('exerciseVersion') === 'v2' ? 'v2' : 'v1';
+    }
     if (this.isEditMode) {
       this.loadExercise();
+    } else if (this.exerciseVersion === 'v2') {
+      this.loadBatches();
     }
+  }
+
+  get selectableBatches(): BatchOption[] {
+    return this.batches.filter(b => !this.selectedTargetBatches.includes(b.batchName));
+  }
+
+  private loadBatches(): void {
+    this.loadingBatches = true;
+    this.http
+      .get<{ batches: BatchOption[]; upcomingBatches?: BatchOption[] }>('/api/batch-journey', { withCredentials: true })
+      .subscribe({
+        next: (res) => {
+          const all = [...(res?.batches || []), ...(res?.upcomingBatches || [])];
+          const seen = new Set<string>();
+          this.batches = all
+            .map(b => ({ batchName: String(b.batchName || '').trim() }))
+            .filter(b => {
+              if (!b.batchName || seen.has(b.batchName)) return false;
+              seen.add(b.batchName);
+              return true;
+            })
+            .sort((a, b) => a.batchName.localeCompare(b.batchName, undefined, { numeric: true }));
+          this.loadingBatches = false;
+        },
+        error: () => {
+          this.batches = [];
+          this.loadingBatches = false;
+        }
+      });
   }
 
   loadExercise(): void {
@@ -283,6 +334,13 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         this.visibleToStudents = exercise.visibleToStudents || false;
         this.weeklyTestEnabled = !!exercise.weeklyTestEnabled;
         this.examEnabled = !!exercise.examEnabled;
+        this.exerciseVersion = exercise.version === 'v2' ? 'v2' : 'v1';
+        this.selectedTargetBatches = Array.isArray(exercise.targetBatches)
+          ? [...exercise.targetBatches]
+          : [];
+        if (this.isV2Exercise) {
+          this.loadBatches();
+        }
         this.questions = (exercise.questions || []).map(q => this.mapQuestionFromApi(q));
         this.videoSuccessFeedbackRows = (exercise.videoSuccessFeedback || []).map((x) => ({
           audioUrl: x.audioUrl,
@@ -1617,6 +1675,11 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       return;
     }
     if (!this.isInfoValid()) { this.showError('Please fill in all required exercise info'); this.activeTab = 'info'; return; }
+    if (this.isV2Exercise && this.selectedTargetBatches.length === 0) {
+      this.showError('Select at least one batch for Online Exercises 2.0');
+      this.activeTab = 'info';
+      return;
+    }
     const hasVideoOnly = this.questions.length > 0 && this.questions.every(q => q.type === 'video-pronunciation');
     if (hasVideoOnly) {
       if (!this.isVideoQuestionsValid()) { this.showError('Please complete all video questions (video + caption required)'); this.activeTab = 'video'; return; }
@@ -1661,6 +1724,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       questions: normalizedQuestions as any,
       videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
       videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows),
+      ...(this.isV2Exercise
+        ? {
+            version: 'v2' as const,
+            targetBatches: [...this.selectedTargetBatches]
+          }
+        : {}),
       ...(this.isEditMode && this.mediaClears.length
         ? { mediaClears: [...this.mediaClears] }
         : {})
@@ -1674,7 +1743,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       next: () => {
         this.saving = false;
         this.showSuccess(this.isEditMode ? 'Exercise updated!' : 'Exercise created!');
-        setTimeout(() => this.router.navigate(['/admin/digital-exercises']), 1200);
+        const returnPath = this.isV2Exercise ? '/admin/digital-exercises-v2' : '/admin/digital-exercises';
+        setTimeout(() => this.router.navigate([returnPath]), 1200);
       },
       error: (err) => {
         this.saving = false;
@@ -1909,7 +1979,19 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   }
 
   cancel(): void {
-    this.router.navigate(['/admin/digital-exercises']);
+    this.router.navigate([this.isV2Exercise ? '/admin/digital-exercises-v2' : '/admin/digital-exercises']);
+  }
+
+  onBatchDropdownChange(): void {
+    const value = String(this.batchToAdd || '').trim();
+    if (value && !this.selectedTargetBatches.includes(value)) {
+      this.selectedTargetBatches = [...this.selectedTargetBatches, value];
+    }
+    this.batchToAdd = '';
+  }
+
+  removeTargetBatch(batch: string): void {
+    this.selectedTargetBatches = this.selectedTargetBatches.filter(b => b !== batch);
   }
 
   /** For query params when opening AI / Audio wizards (0 = Trial, 1–200). */

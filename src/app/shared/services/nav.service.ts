@@ -18,6 +18,24 @@ export type AccessLevel = 'view' | 'edit' | 'full';
 @Injectable({ providedIn: 'root' })
 export class NavService {
   private readonly SUB_ADMIN_DEFAULT_PERMISSIONS: string[] = ['profile'];
+  /** Shared child-route patterns for v2-only tabs (edit/create/preview without granting v1 list). */
+  private readonly V2_TAB_CHILD_ROUTE_PATTERNS: Record<string, RegExp[]> = {
+    'exercises-v2': [
+      /^\/admin\/digital-exercises\/create(?:\/|$)/,
+      /^\/admin\/digital-exercises\/create-freemode(?:\/|$)/,
+      /^\/admin\/digital-exercises\/create-video(?:\/|$)/,
+      /^\/admin\/digital-exercises\/generate-listening-manual(?:\/|$)/,
+      /^\/admin\/digital-exercises\/[^/]+\/edit(?:\/|$)/,
+      /^\/digital-exercises\/[^/]+\/play(?:\/|$)/,
+    ],
+    'dg-bot-v2': [
+      /^\/admin\/dg-modules\/new(?:\/|$)/,
+      /^\/admin\/dg-modules\/[^/]+\/edit(?:\/|$)/,
+      /^\/admin\/dg-modules\/[^/]+\/beginner-mode(?:\/|$)/,
+      /^\/admin\/dg-modules\/[^/]+\/analytics(?:\/|$)/,
+      /^\/dg-bot\/[^/]+\/play(?:\/|$)/,
+    ],
+  };
   private readonly SUB_ADMIN_ROUTE_ALIASES: Record<string, string[]> = {
     modules: [
       '/learning-modules',
@@ -30,6 +48,13 @@ export class NavService {
       '/admin/dg-modules',
       '/admin/sprechen-exam'
     ],
+    'dg-bot': [
+      '/admin/dg-modules/new',
+      '/admin/dg-modules',
+    ],
+    'dg-bot-v2': [
+      '/admin/dg-modules-v2',
+    ],
     exercises: [
       '/admin/digital-exercises',
       '/admin/digital-exercises/create',
@@ -37,6 +62,9 @@ export class NavService {
       '/admin/digital-exercises/create-video',
       // '/admin/digital-exercises/generate-ai', // DISABLED: PDF worksheet extractor route
       '/admin/digital-exercises/generate-listening-manual'
+    ],
+    'exercises-v2': [
+      '/admin/digital-exercises-v2',
     ],
     'manage-classes': [
       '/teacher/meetings'
@@ -111,10 +139,12 @@ export class NavService {
     {
       group: 'Learning Content',
       items: [
-        { id: 'dg-bot',            label: 'DG Bot Modules',   icon: 'pets',             route: '/admin/dg-modules',        subGroup: 'Module Management' },
+        { id: 'dg-bot',            label: 'DG Bot Modules',       icon: 'pets',             route: '/admin/dg-modules',        subGroup: 'Module Management' },
+        { id: 'dg-bot-v2',        label: 'DG Bot Modules 2.0',   icon: 'auto_awesome',     route: '/admin/dg-modules-v2',     subGroup: 'Module Management' },
         { id: 'sprechen-exam',     label: 'Sprechen Exam',    icon: 'record_voice_over', route: '/admin/sprechen-exam',    subGroup: 'Module Management' },
-        { id: 'exercises',         label: 'Online Exercises', icon: 'fitness_center',   route: '/admin/digital-exercises', subGroup: null },
-        { id: 'teacher-resources', label: 'Teacher Resources', icon: 'folder_shared',  route: '/admin/teacher-resources', subGroup: null },
+        { id: 'exercises',         label: 'Online Exercises',     icon: 'fitness_center',   route: '/admin/digital-exercises',    subGroup: null },
+        { id: 'exercises-v2',      label: 'Online Exercises 2.0', icon: 'upgrade',          route: '/admin/digital-exercises-v2', subGroup: null },
+        { id: 'teacher-resources', label: 'Teacher Resources',     icon: 'folder_shared',    route: '/admin/teacher-resources',    subGroup: null },
         { id: 'correction',        label: 'Correction',       icon: 'build_circle',     route: '/admin/correction',        subGroup: null }
       ]
     },
@@ -209,8 +239,10 @@ export class NavService {
       group: 'Learning',
       items: [
         { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',        subGroup: 'Module Management' },
+        { id: 'dg-bot-v2', label: 'DG Bot Modules 2.0', icon: 'auto_awesome', route: '/admin/dg-modules-v2', subGroup: 'Module Management' },
         { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
-        { id: 'exercises', label: 'Online Exercises',  icon: 'fitness_center', route: '/admin/digital-exercises', subGroup: null },
+        { id: 'exercises',    label: 'Online Exercises',     icon: 'fitness_center', route: '/admin/digital-exercises',    subGroup: null },
+        { id: 'exercises-v2', label: 'Online Exercises 2.0', icon: 'upgrade',        route: '/admin/digital-exercises-v2', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
         { id: 'bf-team-battles', label: 'Team Battles', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
 
@@ -462,11 +494,7 @@ export class NavService {
     );
     const allowedItems = this.getAllAdminNavItems().filter(item => allowedIds.has(item.id));
     const normalizedRoute = this.normalizeRoute(route);
-    return allowedItems.some(item => {
-      if (this.routeMatches(item.route, normalizedRoute)) return true;
-      const aliases = this.TEACHER_ROUTE_ALIASES[item.id] || [];
-      return aliases.some(alias => this.routeMatches(alias, normalizedRoute));
-    });
+    return allowedItems.some(item => this.tabAllowsRoute(item.id, item.route, normalizedRoute));
   }
 
   private getTeacherNavWithTabs(
@@ -568,11 +596,19 @@ export class NavService {
     );
 
     const normalizedRoute = this.normalizeRoute(route);
-    return allowedItems.some(item => {
-      if (this.routeMatches(item.route, normalizedRoute)) return true;
-      const aliases = this.SUB_ADMIN_ROUTE_ALIASES[item.id] || [];
-      return aliases.some(alias => this.routeMatches(alias, normalizedRoute));
-    });
+    return allowedItems.some(item => this.tabAllowsRoute(item.id, item.route, normalizedRoute));
+  }
+
+  /** Whether a sidebar tab grants access to a route (primary route, aliases, or v2 child patterns). */
+  private tabAllowsRoute(tabId: string, tabRoute: string, normalizedRoute: string): boolean {
+    if (this.routeMatches(tabRoute, normalizedRoute)) return true;
+    const aliases = [
+      ...(this.SUB_ADMIN_ROUTE_ALIASES[tabId] || []),
+      ...(this.TEACHER_ROUTE_ALIASES[tabId] || []),
+    ];
+    if (aliases.some(alias => this.routeMatches(alias, normalizedRoute))) return true;
+    const v2Patterns = this.V2_TAB_CHILD_ROUTE_PATTERNS[tabId] || [];
+    return v2Patterns.some(rx => rx.test(normalizedRoute));
   }
 
   private getSubAdminNav(

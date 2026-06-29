@@ -130,8 +130,10 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "user-roles",
   "modules",
   "dg-bot",
+  "dg-bot-v2",
   "sprechen-exam",
   "exercises",
+  "exercises-v2",
   "teacher-resources",
   "journey",
   "go-students",
@@ -1492,22 +1494,26 @@ router.post("/login", loginLimiter, async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
-    if (user.role === 'STUDENT' && user.isActive === false) {
-      return res.status(403).json({
-        msg: 'Your account is not active yet. Please wait for payment approval — you will receive an email with your login details once approved.',
-      });
-    }
-
     // Keep ADMIN directory password column in sync when recoverable copy is missing.
-    if (user.role === 'STUDENT' && password) {
-      const { readRecoverablePassword, storeRecoverablePassword } = require('../utils/passwordRecoverable');
-      if (!readRecoverablePassword(user.passwordRecoverable)) {
-        const stored = storeRecoverablePassword(password);
-        if (stored) {
-          user.passwordRecoverable = stored;
-          await user.save().catch(() => {});
+    // Also auto-activate any student account that was pending (e.g. CRM-synced) — if they
+    // have valid credentials, their account is considered ready.
+    if (user.role === 'STUDENT') {
+      let needsSave = false;
+      if (password) {
+        const { readRecoverablePassword, storeRecoverablePassword } = require('../utils/passwordRecoverable');
+        if (!readRecoverablePassword(user.passwordRecoverable)) {
+          const stored = storeRecoverablePassword(password);
+          if (stored) {
+            user.passwordRecoverable = stored;
+            needsSave = true;
+          }
         }
       }
+      if (user.isActive === false) {
+        user.isActive = true;
+        needsSave = true;
+      }
+      if (needsSave) await user.save().catch(() => {});
     }
 
     // ⚠️ Uncertain / Withdrawn — show confirmation modal instead of logging in
