@@ -998,6 +998,11 @@ router.post('/:batchName/assign-teacher', verifyToken, checkRole(['ADMIN', 'TEAC
       { $set: { assignedTeacher: teacherId } }
     );
 
+    await User.updateOne(
+      { _id: teacherId, assignedBatches: { $ne: bn } },
+      { $push: { assignedBatches: bn } }
+    );
+
     res.json({
       message: `Assigned ${teacher.name} to batch "${bn}"`,
       batchName: bn,
