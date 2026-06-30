@@ -1789,6 +1789,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  font-size: 14px;
   box-shadow: 0 3px 10px color-mix(in srgb, var(--ipm-color, #4f46e5) 26%, transparent);
 }
 
@@ -2031,6 +2032,9 @@
   .mcq-options,
   .mcq-options--visual {
     grid-template-columns: 1fr;
+  }
+  .ipm-label-card {
+    font-size: 12px;
   }
 }
 
@@ -4714,7 +4718,7 @@
 }
 .question-card .q-question-box {
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: 8px;
 }
 .question-card .q-question-box:has(> .mcq-options) {
   padding: 14px 16px;
@@ -7201,7 +7205,7 @@
   gap: 4px;
   background: #f0f7ff;
   border-radius: 8px;
-  padding: 7px 12px;
+  padding: 10px 14px;
   margin: 0 0 8px;
   font-size: 0.84rem;
   line-height: 1.45;
