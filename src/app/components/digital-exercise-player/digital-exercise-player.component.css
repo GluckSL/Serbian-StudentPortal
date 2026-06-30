@@ -529,7 +529,7 @@
   border: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .sidebar-title {
@@ -1460,7 +1460,7 @@
   padding: 8px 24px 20px;
 }
 .q-card-passage-subs .sub-questions-list {
-  gap: 12px;
+  gap: 16px;
 }
 .q-card-passage-subs .q-body.qa-body {
   padding-bottom: 8px;
@@ -1617,7 +1617,7 @@
 .sub-options {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   margin-top: 28px;
   grid-template-columns: unset;
 }
@@ -1680,7 +1680,7 @@
 .sub-q-word-bank-words {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
   align-items: center;
   margin-bottom: 12px;
 }
@@ -1717,7 +1717,7 @@
 .ipm-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   touch-action: pan-y;
 }
 
@@ -2011,12 +2011,11 @@
 .mcq-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px;
 }
-
 .mcq-options--visual {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
-  gap: 10px;
+  gap: 16px;
 }
 
 @media (max-width: 768px) {
@@ -2331,7 +2330,7 @@
 .matching-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
   margin-bottom: 0;
 }
 
@@ -2339,7 +2338,7 @@
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: 10px;
+  gap: 16px;
 }
 
 .matching-row.labels-row {
@@ -2661,7 +2660,7 @@
 .word-bank-fill-body {
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 16px;
 }
 
 .word-bank-box {
@@ -2681,7 +2680,7 @@
 .word-bank-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 16px;
   margin-top: 12px;
 }
 
@@ -2715,7 +2714,7 @@
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .word-bank-prompt {
@@ -2856,7 +2855,7 @@
 .pronunciation-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
 
 .pronunciation-word-card {
@@ -2933,7 +2932,7 @@
 .pronunciation-controls-btns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
+  gap: 16px;
   width: 100%;
 }
 
@@ -3072,7 +3071,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   padding: 16px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -3214,13 +3213,13 @@
 .qa-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
 }
 .qa-tf-inline-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: nowrap;
 }
 .qa-tf-inline-row .qa-prompt {
@@ -3336,7 +3335,7 @@
 .tf-answers {
   display: flex;
   flex-wrap: wrap;
-  gap: 22px;
+  gap: 16px;
   align-items: center;
 }
 .tf-btn {
@@ -3387,7 +3386,7 @@
 .listening-body {
   display: flex;
   flex-direction: column;
-  gap: 34px;
+  gap: 16px;
 }
 .listening-audio-wrap {
   margin: 4px 0;
@@ -3413,7 +3412,7 @@
 .jumble-body {
   display: flex;
   flex-direction: column;
-  gap: 34px;
+  gap: 16px;
 }
 .jumble-category-tip {
   font-size: 0.82rem;
@@ -3427,7 +3426,7 @@
 .jumble-scramble {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
   padding: 20px;
   background: #f0f4ff;
   border-radius: 14px;
@@ -3493,7 +3492,7 @@
 .rearrange-body {
   display: flex;
   flex-direction: column;
-  gap: 34px;
+  gap: 16px;
 }
 .rearrange-tokens-wrap {
   margin-top: 0;
@@ -3509,7 +3508,7 @@
 .rearrange-drop {
   display: flex;
   flex-wrap: nowrap;
-  gap: 14px;
+  gap: 16px;
   padding: 20px;
   padding-right: 56px; /* makes dropping at end reliable */
   background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 70%);
@@ -4106,7 +4105,7 @@
 
 .result-meta {
   display: flex;
-  gap: 24px;
+  gap: 16px;
   justify-content: center;
   margin-bottom: 22px;
   flex-wrap: wrap;
@@ -4135,7 +4134,7 @@
 .result-mini-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 16px;
   margin-bottom: 18px;
 }
 
@@ -4185,7 +4184,7 @@
 .result-actions-new {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 24px;
 }
 
@@ -4335,7 +4334,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   margin-bottom: 28px;
   padding: 20px 24px;
   background: white;
@@ -4372,7 +4371,7 @@
 .review-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   margin-bottom: 28px;
 }
 
@@ -4396,7 +4395,7 @@
 .review-q-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   padding: 16px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
@@ -4573,7 +4572,7 @@
 
 .review-actions {
   display: flex;
-  gap: 14px;
+  gap: 16px;
   justify-content: center;
   padding: 24px 0 0;
   border-top: 1px solid #e5e7eb;
@@ -4591,9 +4590,6 @@
 @media (max-width: 600px) {
   .intro-stats {
     grid-template-columns: 1fr;
-  }
-  .matching-row {
-    gap: 6px;
   }
   .matching-connector,
   .connector-spacer {
@@ -4647,7 +4643,6 @@
   }
   .pronunciation-controls-btns {
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
   }
   .pronunciation-controls-btns .btn-record {
     padding: 10px 10px;
@@ -4656,7 +4651,6 @@
   }
   .pronunciation-listening {
     flex-wrap: wrap;
-    gap: 8px;
     padding: 9px 12px;
   }
   .pronunciation-visualizer {
@@ -4693,21 +4687,11 @@
     padding: 16px;
   }
   .question-sidebar {
-    gap: 12px;
     padding: 16px;
   }
   .question-nav-grid {
     justify-content: center;
   }
-.question-card .q-body {
-  gap: 12px;
-}
-.question-card .q-guidance-stack {
-  gap: 10px;
-}
-.question-card .q-top-media-stack {
-  gap: 10px;
-}
 .question-card .q-top-media-stack .q-attachment-img,
 .question-card .q-top-media-stack .q-image {
   max-width: 100%;
@@ -4747,10 +4731,6 @@
   font-weight: 650;
   line-height: 1.55;
 }
-.mcq-options,
-.mcq-options--visual {
-  gap: 8px;
-}
 .mcq-option,
 .match-item,
 .tf-btn,
@@ -4759,24 +4739,6 @@
 }
 .mcq-option {
   font-size: 0.85rem !important;
-}
-.word-bank-fill-body,
-.qa-body,
-.listening-body,
-.jumble-body,
-.rearrange-body {
-  gap: 12px;
-}
-.word-bank-item-row {
-  gap: 24px;
-}
-.word-bank-pills {
-  gap: 14px;
-}
-.jumble-scramble,
-.rearrange-drop {
-  gap: 12px;
-  padding: 18px;
 }
 .qa-tf-inline-row {
   align-items: stretch;
@@ -4796,7 +4758,6 @@
 }
 .question-nav-btns--outside {
   flex-wrap: nowrap;
-  gap: 8px;
   margin-top: 6px;
 }
 .question-nav-btns--outside .btn-nav {
@@ -6674,7 +6635,7 @@
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 10px;
+    gap: 16px;
     width: min(100%, 320px);
   }
 
