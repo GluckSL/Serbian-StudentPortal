@@ -33,9 +33,9 @@
           </span>
           <span *ngIf="conversationComplete">Complete!</span>
         </span>-->
-          <div class="dg-player__progress-meta" *ngIf="conversationMode">
+          <div class="dg-player__progress-meta">
             <span class="dg-player__module-title">{{ payload.module.title }}</span>
-            <p class="dg-player__progress-note">
+            <p class="dg-player__progress-note" *ngIf="conversationMode">
               Practice until the timer runs out — then you can continue or end the session.
             </p>
           </div>
@@ -134,14 +134,24 @@
             </div>
             <div class="dg-conv__brand-text">
               <h3>Conversation Session</h3>
-              <p>Practicing {{ payload.module.title }}</p>
             </div>
           </div>
-          <div class="dg-conv__head-tools">
+          <div class="dg-conv__actions-row">
             <button
-              mat-stroked-button
               type="button"
-              class="dg-conv__replay"
+              class="dg-conv__action-btn"
+              [class.dg-conv__action-btn--active]="ccMode === 'en'"
+              (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
+            >CC EN</button>
+            <button
+              type="button"
+              class="dg-conv__action-btn"
+              [class.dg-conv__action-btn--active]="ccMode === 'ta'"
+              (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
+            >CC தமிழ்</button>
+            <button
+              type="button"
+              class="dg-conv__action-btn dg-conv__action-btn--replay"
               [disabled]="status === 'speaking' || isTransitioning"
               (click)="replayTts()"
             >
@@ -241,34 +251,30 @@
             </div>
             <div class="dg-conv__brand-text">
               <h3>Conversation Session</h3>
-              <div class="dg-conv__actions-row">
-                <button
-                  type="button"
-                  class="dg-conv__action-btn"
-                  [class.dg-conv__action-btn--active]="ccMode === 'en'"
-                  (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
-                >
-                  CC EN
-                </button>
-                <button
-                  type="button"
-                  class="dg-conv__action-btn"
-                  [class.dg-conv__action-btn--active]="ccMode === 'ta'"
-                  (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
-                >
-                  CC தமிழ்
-                </button>
-                <button
-                  type="button"
-                  class="dg-conv__action-btn dg-conv__action-btn--replay"
-                  [disabled]="status === 'speaking' || isAiThinking"
-                  (click)="replayTts()"
-                >
-                  <mat-icon>volume_up</mat-icon>
-                  Replay
-                </button>
-              </div>
             </div>
+          </div>
+          <div class="dg-conv__actions-row">
+            <button
+              type="button"
+              class="dg-conv__action-btn"
+              [class.dg-conv__action-btn--active]="ccMode === 'en'"
+              (click)="ccMode = ccMode === 'en' ? 'none' : 'en'"
+            >CC EN</button>
+            <button
+              type="button"
+              class="dg-conv__action-btn"
+              [class.dg-conv__action-btn--active]="ccMode === 'ta'"
+              (click)="ccMode = ccMode === 'ta' ? 'none' : 'ta'"
+            >CC தமிழ்</button>
+            <button
+              type="button"
+              class="dg-conv__action-btn dg-conv__action-btn--replay"
+              [disabled]="status === 'speaking' || isAiThinking"
+              (click)="replayTts()"
+            >
+              <mat-icon>volume_up</mat-icon>
+              Replay
+            </button>
           </div>
         </header>
         <div class="dg-conv__session-divider">
