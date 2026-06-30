@@ -265,14 +265,15 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
       this.examDone = true;
       this.awaitingStudent = false;
       this.currentCard = null;
-      if (result.scores) {
-        this.finalScores = result.scores;
+      const scores = result.finalScores || result.scores;
+      if (scores) {
+        this.finalScores = scores;
       } else if (this.sessionId) {
         try {
           const comp = await firstValueFrom(this.api.completeSession(this.sessionId));
           this.finalScores = comp.scores;
         } catch {
-          /* non-fatal */
+          console.warn('[sprechen] completeSession failed, finalScores may be missing');
         }
       }
       return;
