@@ -474,6 +474,7 @@ async function processTurn(session, module, transcript, durationMs, action) {
   const lastIdx = session.turns.length - 1;
   session.turns[lastIdx].evaluation = eval1;
   session.turns[lastIdx].evaluations = [eval1, eval2];
+  session.markModified('turns');
 
   // ── A2 Teil 1: bot answers student question inline ────────────────────────
   const inlineBotMessages = [];
@@ -538,6 +539,7 @@ async function _processSchedulingTurn(session, module, phases, transcript, durat
   const lastIdx = session.turns.length - 1;
   session.turns[lastIdx].evaluation = eval1;
   session.turns[lastIdx].evaluations = [eval1, eval2];
+  session.markModified('turns');
 
   // Build chat history for bot
   const chatHistory = session.turns

@@ -582,6 +582,7 @@ async function processTurn(session, module, transcript, durationMs) {
   const lastTurnIdx = session.turns.length - 1;
   session.turns[lastTurnIdx].evaluation = eval1;
   session.turns[lastTurnIdx].evaluations = [eval1, eval2];
+  session.markModified('turns');
 
   // ── 3. Guided retry for Teil 3 wrong task type ────────────────────────────
   const isTeil3Request = currentPhaseDef.turnType === 'teil3_student_request';

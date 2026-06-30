@@ -514,19 +514,19 @@ async function scoreTurn({ teil, turnType, transcript, card, criteria, examForma
 
   if (eId === 2) {
     // Examiner 2: Heuristic (rule-based)
-    return heuristicScoreTurn({ turnType, transcript, criteria, examFormat: format });
+    return { ...heuristicScoreTurn({ turnType, transcript, criteria, examFormat: format }), examinerId: eId };
   }
 
   // Examiner 1: GPT
   if (!process.env.DG_OPENAI_API_KEY) {
-    return heuristicScoreTurn({ turnType, transcript, criteria, examFormat: format });
+    return { ...heuristicScoreTurn({ turnType, transcript, criteria, examFormat: format }), examinerId: eId };
   }
 
   try {
-    return await gptScoreTurn({ teil, turnType, transcript, card, criteria, examFormat: format });
+    return { ...await gptScoreTurn({ teil, turnType, transcript, card, criteria, examFormat: format }), examinerId: eId };
   } catch (err) {
     console.error('[sprechenEvaluator] GPT error:', err.message);
-    return heuristicScoreTurn({ turnType, transcript, criteria, examFormat: format });
+    return { ...heuristicScoreTurn({ turnType, transcript, criteria, examFormat: format }), examinerId: eId };
   }
 }
 
