@@ -1891,13 +1891,10 @@
 
       <!-- MIDDLE (now 70%): Question + Answer area -->
       <div class="question-area">
-        <!-- Single Question View -->
+        <!-- Card 1: Header -->
         <div
-          class="question-card"
+          class="question-card question-card--header"
           [class]="'q-type-' + currentQuestion.data.type"
-          [class.q-card-passage-subs]="hasSubQuestions(currentQuestion.data)"
-          [class.q-card-exit]="cardAnimState === 'exiting'"
-          [class.q-card-enter]="cardAnimState === 'entering'"
         >
           <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
           <div
@@ -1926,6 +1923,46 @@
               >{{ currentQuestion.data.points || 1 }} marks</span
             >
           </div>
+        </div>
+
+        <!-- Card 2 row: Instruction & Example side by side -->
+        <div
+          class="question-card-row"
+          *ngIf="hasVisibleTextContent(worksheetInstructionDisplay(currentQuestion.data)) || hasVisibleTextContent(currentQuestion.data.example)"
+        >
+          <div
+            class="question-card question-card--instruction"
+            *ngIf="hasVisibleTextContent(worksheetInstructionDisplay(currentQuestion.data))"
+          >
+            <div class="q-instruction-banner">
+              <span class="q-instruction-label">Instruction</span>
+              <span
+                class="q-instruction-text"
+                [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"
+              ></span>
+            </div>
+          </div>
+          <div
+            class="question-card question-card--example"
+            *ngIf="hasVisibleTextContent(currentQuestion.data.example)"
+          >
+            <div class="q-example-banner">
+              <span class="q-example-label">Example</span>
+              <span
+                class="q-example-text"
+                [innerHTML]="currentQuestion.data.example | safeHtml"
+              ></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Body -->
+        <div
+          class="question-card question-card--body"
+          [class.q-card-passage-subs]="hasSubQuestions(currentQuestion.data)"
+          [class.q-card-exit]="cardAnimState === 'exiting'"
+          [class.q-card-enter]="cardAnimState === 'entering'"
+        >
 
           <div
             class="q-top-media-stack"
@@ -1984,35 +2021,12 @@
           <div
             class="q-guidance-stack"
             *ngIf="
-              worksheetInstructionDisplay(currentQuestion.data) ||
-              currentQuestion.data.example ||
               currentQuestion.data.context ||
               (currentQuestion.data.type === 'question-answer' &&
                 isTrueFalseQuestion(currentQuestion.data) &&
                 currentQuestion.data.storyParagraph)
             "
           >
-            <div
-              class="q-instruction-banner"
-              *ngIf="worksheetInstructionDisplay(currentQuestion.data)"
-            >
-              <span class="q-instruction-label">Instruction</span>
-              <span
-                class="q-instruction-text"
-                [innerHTML]="
-                  worksheetInstructionDisplay(currentQuestion.data) | safeHtml
-                "
-              ></span>
-            </div>
-
-            <div class="q-example-banner" *ngIf="currentQuestion.data.example">
-              <span class="q-example-label">Example</span>
-              <span
-                class="q-example-text"
-                [innerHTML]="currentQuestion.data.example | safeHtml"
-              ></span>
-            </div>
-
             <div class="q-context-box" *ngIf="currentQuestion.data.context">
               <div
                 class="q-context-text"
