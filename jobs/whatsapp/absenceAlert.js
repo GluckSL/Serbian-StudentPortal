@@ -1,78 +1,104 @@
 /**
- * Task 2 — WhatsApp absence alerts.
+ * WhatsApp absence alerts — two separate passes per run.
  *
- * Runs every 5 minutes. Two separate passes per run:
+ * Pass A — Early join reminder (5 min after startTime, class still live):
+ *   Finds meetings that started 5+ minutes ago, are still ongoing, and have
+ *   not yet had an early-join reminder sent (earlyJoinReminderSent !== true).
+ *   Uses JoinLog (portal click data) to identify who hasn't clicked Join yet,
+ *   and sends them a WhatsApp nudge + email.  Atomic claim via findOneAndUpdate
+ *   so the reminder fires exactly once per meeting even if the cron overlaps.
  *
- * Pass A — During class (30 min after startTime, while meeting is still live):
- *   Finds meetings that started 30+ min ago and are still within their duration,
- *   checks attendees who haven't joined yet (attendance entry is absent/missing),
- *   and sends a "you haven't joined yet" alert.
- *
- * Pass B — After class (attendance already recorded by autoFetchAttendance):
+ * Pass B — After-class absence (attendance already recorded by autoFetchAttendance):
  *   Finds meetings where attendanceRecorded=true and absenceWhatsappSent!=true,
- *   sends a post-class absence notification to every student who attended=false.
+ *   sends a post-class absence WhatsApp to every student who attended=false.
  */
+'use strict';
+
 const cron = require('node-cron');
 const MeetingLink = require('../../models/MeetingLink');
 const User = require('../../models/User');
+const transporter = require('../../config/emailConfig');
 const { sendWhatsappNotification, NOTIFICATION_TYPES } = require('../../services/whatsappCrmService');
+const { getJoinLogDataForMeeting } = require('../../services/joinLogHelpers');
+const { sendLiveJoinReminderEmails } = require('../../services/classJoinReminderEmail');
+const { resolveStudentPhone } = require('../../services/studentReminderHelpers');
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ── Pass A: early join reminder (5 min after class starts) ───────────────────
 
-async function resolvePhone(studentId, fallbackPhone) {
-  if (fallbackPhone) return fallbackPhone;
-  if (!studentId) return '';
-  const user = await User.findById(studentId).select('whatsappNumber phoneNumber').lean();
-  return user?.whatsappNumber || user?.phoneNumber || '';
-}
-
-// ── Pass A: during-class alerts ───────────────────────────────────────────────
-
-async function processDuringClassAbsence() {
+async function processEarlyJoinReminder() {
   const now = new Date();
-  const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000);
+  const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
-  // Meetings that started 30+ min ago but whose end time is still in the future
-  const meetings = await MeetingLink.find({
+  // Find unprocessed ongoing meetings that started 5+ min ago
+  const candidates = await MeetingLink.find({
     status: { $in: ['scheduled', 'started'] },
-    startTime: { $lte: thirtyMinAgo },
-    attendanceRecorded: { $ne: true },
+    startTime: { $lte: fiveMinAgo },
+    earlyJoinReminderSent: { $ne: true },
     'attendees.0': { $exists: true },
-  }).lean();
+  })
+    .select('_id startTime duration topic batch plan joinUrl link attendees assignedTeacher timezone')
+    .lean();
 
-  const eligible = meetings.filter((m) => {
+  // Only process meetings whose end time is still in the future
+  const ongoing = candidates.filter((m) => {
     const endTime = new Date(m.startTime.getTime() + (m.duration || 60) * 60000);
     return endTime > now;
   });
 
-  for (const m of eligible) {
-    const topic = m.topic || 'Your class';
+  for (const m of ongoing) {
+    // Atomic claim — marks the flag so only one cron run processes each meeting
+    const claimed = await MeetingLink.findOneAndUpdate(
+      { _id: m._id, earlyJoinReminderSent: { $ne: true } },
+      { $set: { earlyJoinReminderSent: true, earlyJoinReminderSentAt: now } },
+      { new: false }
+    );
+    if (!claimed) continue; // another process already claimed it
 
-    // Build a set of studentIds who are confirmed present in the attendance array
-    const presentIds = new Set(
-      (m.attendance || [])
-        .filter((a) => a.attended || a.status === 'attended')
-        .map((a) => String(a.studentId))
+    const topic = m.topic || 'Your class';
+    const { hasJoin } = await getJoinLogDataForMeeting(m._id);
+
+    // Students who are on the attendee list but haven't clicked Join in the portal
+    const notJoined = m.attendees.filter(
+      (a) => a.studentId && !hasJoin.has(String(a.studentId))
     );
 
-    for (const attendee of m.attendees) {
-      if (presentIds.has(String(attendee.studentId))) continue;
+    if (!notJoined.length) continue;
 
-      const phone = await resolvePhone(attendee.studentId, attendee.whatsappNumber || '');
+    // ── WhatsApp (short nudge) ──────────────────────────────────────────────
+    const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+    for (const attendee of notJoined) {
+      const user = await User.findById(attendee.studentId)
+        .select('whatsappNumber phoneNumber')
+        .lean();
+      const phone = resolveStudentPhone(user);
       await sendWhatsappNotification({
         phone,
         name: attendee.name,
         type: NOTIFICATION_TYPES.ABSENT_DURING_CLASS,
-        message: `Hi ${attendee.name}, your class "${topic}" is currently ongoing and you haven't joined yet. Please join now: ${m.joinUrl || m.link || ''}`,
+        message: `Hi ${attendee.name}, your class "${topic}" started 5 minutes ago and you haven't joined yet. Open the portal to join now: ${portalUrl}/login`,
         data: {
           meetingId: m._id,
           topic,
           batch: m.batch,
           startTime: m.startTime,
-          joinUrl: m.joinUrl || m.link,
         },
       });
     }
+
+    // ── Email (reuse existing live-join reminder template) ──────────────────
+    const recipients = notJoined.map((a) => ({ name: a.name, email: a.email }));
+    const teacherDoc = m.assignedTeacher
+      ? await User.findById(m.assignedTeacher).select('name').lean()
+      : null;
+    const teacherName = teacherDoc?.name || '';
+
+    await sendLiveJoinReminderEmails(m, transporter, recipients, teacherName).catch((err) =>
+      console.error('[AbsenceAlert] ❌ Email send error for', topic, ':', err.message)
+    );
+
+    console.log(
+      `[AbsenceAlert] ✅ Early join reminders sent for "${topic}" (batch: ${m.batch}) — ${notJoined.length} student(s) not yet in portal`
+    );
   }
 }
 
@@ -98,7 +124,8 @@ async function processAfterClassAbsence() {
     const absentees = meeting.attendance.filter((a) => !a.attended);
 
     for (const entry of absentees) {
-      const phone = await resolvePhone(entry.studentId, entry.whatsappNumber || '');
+      const user = await User.findById(entry.studentId).select('whatsappNumber phoneNumber').lean();
+      const phone = resolveStudentPhone(user) || entry.whatsappNumber || '';
       await sendWhatsappNotification({
         phone,
         name: entry.name,
@@ -123,8 +150,8 @@ async function processAfterClassAbsence() {
 // ── Orchestrator ──────────────────────────────────────────────────────────────
 
 async function processAbsenceAlerts() {
-  await processDuringClassAbsence().catch((err) =>
-    console.error('[AbsenceAlert] ❌ During-class pass error:', err.message)
+  await processEarlyJoinReminder().catch((err) =>
+    console.error('[AbsenceAlert] ❌ Early-join pass error:', err.message)
   );
   await processAfterClassAbsence().catch((err) =>
     console.error('[AbsenceAlert] ❌ After-class pass error:', err.message)
@@ -137,7 +164,7 @@ function scheduleAbsenceAlerts() {
       console.error('[AbsenceAlert] ❌ Job error:', err.message)
     );
   });
-  console.log('📅 [WhatsApp] Absence alerts scheduled (every 5 min — during + after class)');
+  console.log('📅 [WhatsApp] Absence alerts scheduled (every 5 min — early join + after class)');
 }
 
-module.exports = { scheduleAbsenceAlerts, processAbsenceAlerts };
+module.exports = { scheduleAbsenceAlerts, processAbsenceAlerts, processEarlyJoinReminder, processAfterClassAbsence };

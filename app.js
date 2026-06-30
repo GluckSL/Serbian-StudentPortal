@@ -111,6 +111,7 @@ const ollyRoutes = require('./routes/olly');
 const announcementRoutes = require('./routes/announcements');
 const jobOpeningsRoutes = require('./routes/jobOpenings');
 const crmPortalRoutes = require('./routes/crmPortal');
+const crmPortalProxyRoutes = require('./routes/crmPortalProxy');
 const testAccountRoutes = require('./routes/testAccounts');
 const gluckRoomRoutes = require('./routes/gluckRoom');
 const correctionRoutes = require('./routes/correction');
@@ -132,6 +133,9 @@ const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
 const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
 const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
 const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
+const { schedulePaymentOverdueReminder } = require('./jobs/whatsapp/paymentOverdueReminder');
+const { isWhatsappAutomatedJobsEnabled } = require('./services/whatsappCrmService');
+const { scheduleDailyTaskReminder } = require('./jobs/dailyTaskReminder');
 const { scheduleConsecutiveAbsenceEmailReport } = require('./jobs/consecutiveAbsenceEmailReport');
 const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
@@ -388,6 +392,7 @@ app.use('/api/olly', ollyRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/job-openings', jobOpeningsRoutes);
 app.use('/api/crm', crmPortalRoutes);
+app.use('/api/crm-portal', auth.verifyToken, crmPortalProxyRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/gluckroom', gluckRoomRoutes);
 app.use('/api/correction', correctionRoutes);
@@ -615,11 +620,19 @@ connectMongoDb()
       scheduleZoomMeetingReminderEmails();
       schedulePublishScheduledAnnouncements();
 
-      scheduleClassReminders();
-      scheduleAbsenceAlerts();
-      scheduleMissedActivitiesAlerts();
-      scheduleWeeklyReports();
-      scheduleConsecutiveAbsenceAlerts();
+      if (isWhatsappAutomatedJobsEnabled()) {
+        scheduleClassReminders();
+        scheduleAbsenceAlerts();
+        scheduleMissedActivitiesAlerts();
+        scheduleWeeklyReports();
+        scheduleConsecutiveAbsenceAlerts();
+        schedulePaymentOverdueReminder();
+        console.log('[WhatsApp] Automated notification jobs scheduled');
+      } else {
+        console.log('[WhatsApp] Automated jobs OFF — manual CRM send still available if WHATSAPP_MANUAL_SEND_ENABLED=true');
+      }
+      // Daily task reminder runs email regardless of WhatsApp gate
+      scheduleDailyTaskReminder();
       scheduleConsecutiveAbsenceEmailReport();
       scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();

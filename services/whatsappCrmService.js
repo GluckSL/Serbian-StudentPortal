@@ -1,12 +1,40 @@
 /**
- * WhatsApp CRM webhook service.
- * All notification jobs call sendWhatsappNotification() to POST to the CRM.
+ * WhatsApp CRM integration.
+ * - Automated jobs → student-portal/webhook (CLASS_REMINDER, ABSENT_*, etc.)
+ * - Manual CRM portal sends → student-portal/whatsapp/send-message (Language Dept number)
  */
 const axios = require('axios');
 
+const CRM_BASE =
+  process.env.CRM_PORTAL_API_BASE ||
+  'https://s3wpekt2qj.ap-south-1.awsapprunner.com/api/v1';
+const CRM_TOKEN =
+  process.env.WEB_FORM_API_KEY || process.env.CRM_PORTAL_API_TOKEN || 'GluckGlobalWeb2026';
+const CRM_HEADERS = {
+  Authorization: `Bearer ${CRM_TOKEN}`,
+  'Content-Type': 'application/json',
+};
+
 const WEBHOOK_URL =
   process.env.WHATSAPP_CRM_WEBHOOK_URL ||
-  'https://s3wpekt2qj.ap-south-1.awsapprunner.com/api/v1/student-poratal/webhook';
+  `${CRM_BASE}/student-portal/webhook`;
+
+/** Master kill switch — WHATSAPP_SEND_ENABLED=false disables everything. */
+function isWhatsappSendEnabled() {
+  return String(process.env.WHATSAPP_SEND_ENABLED ?? 'true').toLowerCase() !== 'false';
+}
+
+/** Manual send from Admin → CRM → WhatsApp tab. */
+function isWhatsappManualSendEnabled() {
+  if (!isWhatsappSendEnabled()) return false;
+  return String(process.env.WHATSAPP_MANUAL_SEND_ENABLED ?? 'true').toLowerCase() !== 'false';
+}
+
+/** Automated cron jobs (class reminders, absence alerts, etc.). */
+function isWhatsappAutomatedJobsEnabled() {
+  if (!isWhatsappSendEnabled()) return false;
+  return String(process.env.WHATSAPP_AUTOMATED_JOBS_ENABLED ?? 'true').toLowerCase() !== 'false';
+}
 
 /**
  * Notification type constants — one per action.
@@ -20,6 +48,8 @@ const NOTIFICATION_TYPES = {
   EXCESSIVE_ABSENCES: 'EXCESSIVE_ABSENCES',
   WEEKLY_PROGRESS_REPORT: 'WEEKLY_PROGRESS_REPORT',
   CONSECUTIVE_ABSENCE: 'CONSECUTIVE_ABSENCE',
+  DAILY_TASK_REMINDER: 'DAILY_TASK_REMINDER',
+  PAYMENT_OVERDUE_REMINDER: 'PAYMENT_OVERDUE_REMINDER',
 };
 
 /**
@@ -34,6 +64,11 @@ const NOTIFICATION_TYPES = {
  * @returns {Promise<boolean>}        - true on success, false on failure
  */
 async function sendWhatsappNotification({ phone, name, type, message, data = {} }) {
+  if (!isWhatsappAutomatedJobsEnabled()) {
+    console.log(`[WhatsApp] ⏸ Skipped "${type}" for ${name} (${phone}) — automated jobs disabled`);
+    return false;
+  }
+
   if (!phone) {
     console.warn(`[WhatsApp] Skipping "${type}" for ${name} — no phone number on record`);
     return false;
@@ -83,8 +118,54 @@ async function sendBulkWhatsappNotifications(recipients, type, messageFn, dataFn
   return { attempted: recipients.length, successful, failed };
 }
 
+/**
+ * Send a manual WhatsApp from the CRM portal UI.
+ * Uses the documented CRM send-message API (Language Department business number).
+ */
+async function sendManualWhatsappMessage({ phone_number, message, department = 'Language', student_id }) {
+  if (!isWhatsappManualSendEnabled()) {
+    console.log(`[WhatsApp] ⏸ Skipped manual message to ${phone_number} — manual send disabled`);
+    return {
+      ok: false,
+      status: 503,
+      error: { message: 'Manual WhatsApp sending is disabled on this server.' },
+    };
+  }
+
+  const payload = { phone_number, message, department };
+  if (student_id != null && student_id !== '') {
+    payload.student_id = student_id;
+  }
+
+  try {
+    const response = await axios.post(
+      `${CRM_BASE}/student-portal/whatsapp/send-message`,
+      payload,
+      { headers: CRM_HEADERS, timeout: 30000 }
+    );
+    console.log(
+      `[WhatsApp] ✅ Manual message via CRM send-message API → ${phone_number}`,
+      response.data?.data?.sent_at || ''
+    );
+    return { ok: true, status: response.status, data: response.data };
+  } catch (err) {
+    const status = err.response?.status;
+    const body = err.response?.data || { message: err.message };
+    console.error(
+      `[WhatsApp] ❌ Manual send failed for ${phone_number} — HTTP ${status}:`,
+      JSON.stringify(body)
+    );
+    return { ok: false, status: status || 502, error: body };
+  }
+}
+
 module.exports = {
   sendWhatsappNotification,
   sendBulkWhatsappNotifications,
+  sendManualWhatsappMessage,
+  isWhatsappSendEnabled,
+  isWhatsappManualSendEnabled,
+  isWhatsappAutomatedJobsEnabled,
   NOTIFICATION_TYPES,
+  CRM_BASE,
 };

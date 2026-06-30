@@ -339,6 +339,14 @@ export const routes: Routes = [
   // Test Accounts management
   { path: 'admin/test-accounts', loadComponent: () => import('./components/admin-dashboard/test-accounts/test-accounts.component').then(m => m.TestAccountsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN'] } },
 
+  // CRM Portal — Enrollment Board, Language Team Board, WhatsApp
+  {
+    path: 'admin/crm',
+    loadComponent: () => import('./components/admin-hub/crm-portal/crm-portal.component').then(m => m.CrmPortalComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] },
+  },
+
   // Correction Panel
   {
     path: 'admin/correction/review/:studentId/:exerciseId/:attemptId',

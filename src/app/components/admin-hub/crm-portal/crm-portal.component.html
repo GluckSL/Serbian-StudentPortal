@@ -1,0 +1,809 @@
+<div class="crm-portal">
+
+  <!-- ── Main Tab Bar ──────────────────────────────────────── -->
+  <div class="crm-tabs">
+    <button class="crm-tab" [class.crm-tab--active]="activeTab === 'enrollment'" (click)="setTab('enrollment')">
+      <span class="material-icons">assignment</span>
+      <span>Enrollment Board</span>
+    </button>
+    <button class="crm-tab" [class.crm-tab--active]="activeTab === 'language'" (click)="setTab('language')">
+      <span class="material-icons">language</span>
+      <span>Language Team Board</span>
+    </button>
+    <button class="crm-tab" [class.crm-tab--active]="activeTab === 'whatsapp'" (click)="setTab('whatsapp')">
+      <span class="material-icons">chat</span>
+      <span>WhatsApp</span>
+    </button>
+  </div>
+
+  <!-- ── BOARD TABS (Enrollment / Language) ───────────────── -->
+  <ng-container *ngIf="activeTab !== 'whatsapp'">
+    <ng-container *ngTemplateOutlet="boardPanel; context: { $implicit: currentBoard }"></ng-container>
+  </ng-container>
+
+  <!-- ── WHATSAPP TAB ─────────────────────────────────────── -->
+  <div class="crm-wa" *ngIf="activeTab === 'whatsapp'">
+    <div class="crm-wa-layout">
+      <div class="crm-wa-main">
+        <div class="crm-section-header">
+          <span class="material-icons crm-section-icon">chat</span>
+          <div>
+            <h2 class="crm-section-title">Send WhatsApp Message</h2>
+            <p class="crm-section-sub">Send a message via the Language Department WhatsApp number</p>
+          </div>
+        </div>
+
+        <div class="crm-wa-notice crm-wa-notice--warn" *ngIf="!waSendEnabled">
+          <span class="material-icons">pause_circle</span>
+          <div>
+            <strong>Manual WhatsApp sending is disabled</strong>
+            <p>
+              Set <code>WHATSAPP_MANUAL_SEND_ENABLED=true</code> in <code>.env</code> and restart <code>node app.js</code> to test sends from this form.
+            </p>
+          </div>
+        </div>
+
+        <div class="crm-wa-notice crm-wa-notice--info" *ngIf="waSendEnabled && !waAutomatedEnabled">
+          <span class="material-icons">science</span>
+          <div>
+            <strong>Testing mode — manual send only</strong>
+            <p>
+              You can send from this form. Automated jobs (absence alerts, class reminders) stay <strong>off</strong>
+              while <code>WHATSAPP_AUTOMATED_JOBS_ENABLED=false</code>.
+            </p>
+          </div>
+        </div>
+
+        <div class="crm-wa-notice">
+          <span class="material-icons">info</span>
+          <div>
+            <strong>How delivery works</strong>
+            <p>
+              Messages are sent from the <strong>Glück Language Department WhatsApp business number</strong>,
+              not from your personal phone. Check WhatsApp for a chat from that business account.
+              If nothing arrives within a few minutes, the CRM/WhatsApp backend may need to enable
+              template messaging for new contacts — contact the CRM team.
+            </p>
+          </div>
+        </div>
+
+        <div class="crm-wa-form">
+      <div class="crm-form-row">
+        <div class="crm-field crm-field--half">
+          <label class="crm-label">Phone Number <span class="crm-required">*</span></label>
+          <input class="crm-input" type="tel" [(ngModel)]="wa.phoneNumber"
+            placeholder="+94771234567 (E.164 format)" />
+          <small class="crm-hint">Must start with + followed by 7–19 digits</small>
+        </div>
+        <div class="crm-field crm-field--half">
+          <label class="crm-label">Student ID <span class="crm-optional">(optional)</span></label>
+          <input class="crm-input" type="number" [(ngModel)]="wa.studentId" placeholder="e.g. 12345" />
+          <small class="crm-hint">CRM student ID for audit logging</small>
+        </div>
+      </div>
+
+      <div class="crm-form-row">
+        <div class="crm-field crm-field--half">
+          <label class="crm-label">Department</label>
+          <select class="crm-select" [(ngModel)]="wa.department">
+            <option value="Language">Language</option>
+            <option value="Sales">Sales</option>
+            <option value="Admin">Admin</option>
+          </select>
+        </div>
+        <div class="crm-field crm-field--half">
+          <label class="crm-label">Character count</label>
+          <div class="crm-char-count">
+            <span [class.crm-char-warn]="wa.message.length > 3800">{{ wa.message.length }}</span> / 4096
+          </div>
+        </div>
+      </div>
+
+      <div class="crm-field">
+        <label class="crm-label">Message <span class="crm-required">*</span></label>
+        <textarea class="crm-textarea" [(ngModel)]="wa.message"
+          placeholder="Type your message here…" rows="6" maxlength="4096"></textarea>
+      </div>
+
+      <!-- Result banner -->
+      <div class="crm-wa-result"
+        [class.crm-wa-result--success]="waResult?.success && !waResult?.deliveryUncertain"
+        [class.crm-wa-result--warn]="waResult?.success && waResult?.deliveryUncertain"
+        *ngIf="waResult?.success">
+        <span class="material-icons">{{ waResult?.deliveryUncertain ? 'warning' : 'check_circle' }}</span>
+        <div class="crm-wa-result__body">
+          <strong>{{ waResult!.message }}</strong>
+          <p *ngIf="waResult!.phone">To: {{ displayWaPhone(waResult!.phone) }}</p>
+          <p *ngIf="waResult!.sentAt">Submitted at: {{ waResult!.sentAt }}</p>
+          <p *ngIf="waResult!.sentMessage" class="crm-wa-result__preview">“{{ waResult!.sentMessage }}”</p>
+          <p class="crm-wa-result__note" *ngIf="waResult!.deliveryUncertain">
+            The portal reached Dilani's CRM API and got <strong>201 Accepted</strong>, but WhatsApp delivery
+            happens on her backend (Meta WhatsApp Business). If the student still has no message:
+            check WhatsApp for a chat from the <strong>Glück Language Department business number</strong>
+            (not your personal chats), and ask Dilani to verify <code>WA_STUDENT_PHONE_ID</code> and
+            template messaging for new contacts.
+          </p>
+          <p class="crm-wa-result__note" *ngIf="!waResult!.deliveryUncertain">
+            CRM accepted this request. If the recipient does not see the message, check the
+            Language Department business chat on WhatsApp or ask the CRM team to verify delivery.
+          </p>
+          <p class="crm-wa-result__endpoint" *ngIf="waResult!.crmEndpoint">
+            CRM endpoint: {{ waResult!.crmEndpoint }}
+          </p>
+        </div>
+      </div>
+      <div class="crm-wa-result crm-wa-result--error" *ngIf="waResult && !waResult.success">
+        <span class="material-icons">error</span>
+        <span>{{ waResult.message }}</span>
+      </div>
+
+      <div class="crm-wa-actions">
+        <button class="crm-btn crm-btn--primary"
+          [disabled]="waSending || !wa.phoneNumber || !wa.message || !waSendEnabled"
+          (click)="sendWhatsApp()">
+          <span class="material-icons" *ngIf="!waSending">send</span>
+          <span class="crm-spinner" *ngIf="waSending"></span>
+          {{ waSending ? 'Sending…' : 'Send Message' }}
+        </button>
+      </div>
+        </div>
+      </div>
+
+      <aside class="crm-wa-automations">
+        <div class="crm-wa-automations__header">
+          <span class="material-icons">auto_awesome</span>
+          <div>
+            <h3 class="crm-wa-automations__title">Automated reminders</h3>
+            <p class="crm-wa-automations__sub">Student messages sent on a schedule (Asia/Colombo)</p>
+          </div>
+        </div>
+
+        <div class="crm-wa-automations__status"
+          [class.crm-wa-automations__status--on]="waAutomatedEnabled"
+          [class.crm-wa-automations__status--off]="!waAutomatedEnabled">
+          <span class="material-icons">{{ waAutomatedEnabled ? 'check_circle' : 'pause_circle' }}</span>
+          <span>{{ waAutomatedEnabled ? 'WhatsApp automations active' : 'WhatsApp automations paused' }}</span>
+        </div>
+
+        <div class="crm-wa-auto-list">
+          <article class="crm-wa-auto-card" *ngFor="let item of waAutomations"
+            [class.crm-wa-auto-card--active]="automationIsActive(item)"
+            [class.crm-wa-auto-card--paused]="!automationIsActive(item)">
+            <div class="crm-wa-auto-card__icon">
+              <span class="material-icons">{{ item.icon }}</span>
+            </div>
+            <div class="crm-wa-auto-card__body">
+              <h4 class="crm-wa-auto-card__title">{{ item.title }}</h4>
+              <p class="crm-wa-auto-card__desc">{{ item.description }}</p>
+              <div class="crm-wa-auto-card__meta">
+                <span class="crm-wa-auto-chip crm-wa-auto-chip--schedule">
+                  <span class="material-icons">schedule</span>
+                  {{ item.schedule }}
+                </span>
+                <span class="crm-wa-auto-chip crm-wa-auto-chip--channel">
+                  {{ automationChannelsLabel(item) }}
+                </span>
+                <span class="crm-wa-auto-chip"
+                  [class.crm-wa-auto-chip--on]="automationIsActive(item)"
+                  [class.crm-wa-auto-chip--off]="!automationIsActive(item)">
+                  {{ automationStatusLabel(item) }}
+                </span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ BOARD PANEL TEMPLATE ════════════════════════════════ -->
+<ng-template #boardPanel let-board>
+  <div class="crm-board">
+
+    <!-- Dashboard header -->
+    <div class="crm-dash-header">
+      <div class="crm-dash-header__left">
+        <span class="crm-dash-header__dot"></span>
+        <div>
+          <h2 class="crm-dash-header__title">
+            {{ board.type === 'enrollment' ? 'Enrollment Board' : 'Language Team Board' }}
+          </h2>
+          <span class="crm-dash-header__sub">CRM live data · external database</span>
+        </div>
+      </div>
+      <div class="crm-board-actions">
+        <button class="crm-btn crm-btn--outline crm-btn--sm"
+          [class.crm-btn--active]="board.showSimpleFilter"
+          (click)="board.showSimpleFilter = !board.showSimpleFilter">
+          <span class="material-icons">filter_list</span>
+          Filters
+          <span class="crm-filter-badge" *ngIf="getActiveFilterCount(board) > 0">{{ getActiveFilterCount(board) }}</span>
+        </button>
+        <button class="crm-btn crm-btn--outline crm-btn--sm"
+          [class.crm-btn--active]="board.showAdvanced"
+          (click)="toggleAdvanced(board)">
+          <span class="material-icons">tune</span> Advanced
+        </button>
+        <button class="crm-btn crm-btn--compare crm-btn--sm"
+          (click)="runPortalCompare(board)"
+          [disabled]="board.loading || compare.loading"
+          title="Find CRM students not in the portal (matched by email)">
+          <span class="material-icons">compare_arrows</span>
+          Compare
+        </button>
+        <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="refreshBoard(board)" [disabled]="board.loading">
+          <span class="material-icons">refresh</span>
+        </button>
+        <select class="crm-select crm-select--sm" [ngModel]="board.limit"
+          (ngModelChange)="changeLimit(board, $event)">
+          <option [value]="25">25 / page</option>
+          <option [value]="50">50 / page</option>
+          <option [value]="100">100 / page</option>
+          <option [value]="200">200 / page</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Portal compare panel -->
+    <div class="crm-compare-panel" *ngIf="compare.show">
+      <div class="crm-compare-panel__header">
+        <div class="crm-compare-panel__title">
+          <span class="material-icons">compare_arrows</span>
+          <div>
+            <strong>CRM vs Portal</strong>
+            <span class="crm-compare-panel__sub">
+              Unique CRM students (by email) not found in the portal
+              <span *ngIf="getActiveFilterCount(board) > 0"> — using current filters</span>
+            </span>
+          </div>
+        </div>
+        <div class="crm-compare-panel__actions">
+          <button class="crm-btn crm-btn--primary crm-btn--sm"
+            *ngIf="!compare.loading && getCompareInviteTargets().length > 0"
+            [disabled]="compareBulkInviting || compareInviteSending.size > 0"
+            (click)="sendAllCompareSignupInvites()">
+            <span class="material-icons">mail</span>
+            {{ compareBulkInviting ? 'Sending invites…' : 'Send signup to all (' + getCompareInviteTargets().length + ')' }}
+          </button>
+          <button class="crm-btn crm-btn--outline crm-btn--sm"
+            *ngIf="!compare.loading && compare.missing.length > 0"
+            (click)="exportCompareCsv()">
+            <span class="material-icons">download</span> Export CSV
+          </button>
+          <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="closeCompare()">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="crm-compare-panel__loading" *ngIf="compare.loading">
+        <span class="crm-spinner"></span>
+        Loading all CRM records and comparing with portal students…
+      </div>
+
+      <div class="crm-compare-panel__error" *ngIf="!compare.loading && compare.error">
+        <span class="material-icons">error</span>
+        {{ compare.error }}
+      </div>
+
+      <ng-container *ngIf="!compare.loading && !compare.error">
+        <div class="crm-compare-kpis">
+          <div class="crm-compare-kpi">
+            <span class="crm-compare-kpi__val">{{ compare.crmTotal | number }}</span>
+            <span class="crm-compare-kpi__lbl">On CRM board (unique)</span>
+          </div>
+          <div class="crm-compare-kpi crm-compare-kpi--ok">
+            <span class="crm-compare-kpi__val">{{ compare.matchedInPortal | number }}</span>
+            <span class="crm-compare-kpi__lbl">In portal</span>
+          </div>
+          <div class="crm-compare-kpi crm-compare-kpi--warn">
+            <span class="crm-compare-kpi__val">{{ compare.missingFromPortal | number }}</span>
+            <span class="crm-compare-kpi__lbl">Missing from portal</span>
+          </div>
+          <div class="crm-compare-kpi">
+            <span class="crm-compare-kpi__val">{{ compare.portalTotal | number }}</span>
+            <span class="crm-compare-kpi__lbl">Portal students total</span>
+          </div>
+        </div>
+
+        <p class="crm-compare-note" *ngIf="compare.crmDuplicatesSkipped > 0">
+          <span class="material-icons">info</span>
+          {{ compare.crmDuplicatesSkipped | number }} duplicate CRM row(s) with the same email were merged
+          ({{ compare.crmRawTotal | number }} raw records → {{ compare.crmTotal | number }} unique).
+        </p>
+
+        <p class="crm-compare-note crm-compare-note--success" *ngIf="compareInviteBanner">
+          <span class="material-icons">check_circle</span>
+          {{ compareInviteBanner }}
+        </p>
+
+        <p class="crm-compare-note" *ngIf="compare.missingNoEmail > 0">
+          <span class="material-icons">info</span>
+          {{ compare.missingNoEmail }} CRM record(s) have no email — listed below and cannot be matched automatically.
+        </p>
+
+        <div class="crm-compare-empty" *ngIf="compare.missing.length === 0">
+          <span class="material-icons">check_circle</span>
+          All CRM board students with an email appear to exist in the portal.
+        </div>
+
+        <div class="crm-compare-table-wrap" *ngIf="compare.missing.length > 0">
+          <table class="crm-table crm-compare-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Package</th>
+                <th>Enrolled</th>
+                <th>Counsellor</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of compare.missing; trackBy: trackByCompareEmail">
+                <td>
+                  <div class="crm-name-cell">
+                    <span class="crm-avatar">{{ getInitials(row.name) }}</span>
+                    <span>{{ row.name || '—' }}</span>
+                  </div>
+                </td>
+                <td>{{ row.email || '—' }}</td>
+                <td>{{ row.phone || row.whatsapp || '—' }}</td>
+                <td>
+                  <span class="crm-badge crm-badge--sm" [ngClass]="getStatusClass(row.status)">
+                    {{ row.status || '—' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="crm-pkg" [ngClass]="getPackageClass(row.package)">{{ row.package || '—' }}</span>
+                </td>
+                <td>{{ row.enrolled || '—' }}</td>
+                <td>{{ row.counsellor || '—' }}</td>
+                <td class="crm-compare-action">
+                  <ng-container *ngIf="row.email?.includes('@') && row.reason !== 'No email on CRM record'">
+                    <button class="crm-btn crm-btn--outline crm-btn--xs"
+                      *ngIf="!isCompareInviteSent(row.email)"
+                      [disabled]="isCompareInviteSending(row.email) || compareBulkInviting"
+                      (click)="sendCompareSignupInvite(row)"
+                      title="Email registration / signup form">
+                      <span class="material-icons">mail</span>
+                      {{ isCompareInviteSending(row.email) ? 'Sending…' : 'Send signup' }}
+                    </button>
+                    <span class="crm-compare-sent" *ngIf="isCompareInviteSent(row.email)">
+                      <span class="material-icons">check</span> Sent
+                    </span>
+                  </ng-container>
+                  <span class="crm-compare-muted" *ngIf="!row.email?.includes('@')">No email</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="crm-kpi-row" *ngIf="!board.loading && !board.error">
+      <div class="crm-kpi crm-kpi--blue">
+        <span class="material-icons crm-kpi__icon">groups</span>
+        <div class="crm-kpi__body">
+          <span class="crm-kpi__val">{{ board.total | number }}</span>
+          <span class="crm-kpi__lbl">Total Matching</span>
+        </div>
+      </div>
+      <div class="crm-kpi crm-kpi--teal">
+        <span class="material-icons crm-kpi__icon">view_list</span>
+        <div class="crm-kpi__body">
+          <span class="crm-kpi__val">{{ board.items.length | number }}</span>
+          <span class="crm-kpi__lbl">On This Page</span>
+        </div>
+      </div>
+      <div class="crm-kpi crm-kpi--purple">
+        <span class="material-icons crm-kpi__icon">filter_alt</span>
+        <div class="crm-kpi__body">
+          <span class="crm-kpi__val">{{ getActiveFilterCount(board) }}</span>
+          <span class="crm-kpi__lbl">Active Filters</span>
+        </div>
+      </div>
+      <div class="crm-kpi crm-kpi--orange">
+        <span class="material-icons crm-kpi__icon">layers</span>
+        <div class="crm-kpi__body">
+          <span class="crm-kpi__val">{{ board.page }} / {{ board.totalPages }}</span>
+          <span class="crm-kpi__lbl">Current Page</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI skeleton -->
+    <div class="crm-kpi-row" *ngIf="board.loading">
+      <div class="crm-kpi crm-kpi--sk" *ngFor="let _ of [1,2,3,4]"></div>
+    </div>
+
+    <!-- Quick status filters -->
+    <div class="crm-quick-status" *ngIf="!board.loading && board.mode === 'list'">
+      <span class="crm-quick-status__label">Quick status:</span>
+      <button *ngFor="let status of getQuickStatuses(board)"
+        class="crm-status-chip"
+        [class.crm-status-chip--active]="isQuickStatusActive(board, status)"
+        [ngClass]="getStatusClass(status)"
+        (click)="applyQuickStatus(board, status)">
+        {{ status }}
+      </button>
+    </div>
+
+    <!-- Page status breakdown -->
+    <div class="crm-page-stats" *ngIf="!board.loading && board.mode === 'list' && board.items.length > 0">
+      <span class="crm-page-stats__label">This page breakdown:</span>
+      <span class="crm-page-stat" *ngFor="let s of getPageStatusCounts(board); trackBy: trackByStatus">
+        <span class="crm-badge crm-badge--sm" [ngClass]="getStatusClass(s.status)">{{ s.status }}</span>
+        <strong>{{ s.count }}</strong>
+      </span>
+    </div>
+
+    <!-- Active filter tags -->
+    <div class="crm-active-filters" *ngIf="getActiveFilterTags(board).length > 0">
+      <span class="crm-active-filters__label">Applied:</span>
+      <button class="crm-filter-tag" *ngFor="let tag of getActiveFilterTags(board)"
+        (click)="removeFilterTag(board, tag.key)" title="Click to remove">
+        <span class="crm-filter-tag__label">{{ tag.label }}:</span>
+        <span class="crm-filter-tag__value">{{ tag.value }}</span>
+        <span class="material-icons">close</span>
+      </button>
+      <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="clearAllFilters(board)">
+        Clear all
+      </button>
+    </div>
+
+    <!-- ── Simple Filters ──────────────────────────────────── -->
+    <div class="crm-filter-panel" *ngIf="board.showSimpleFilter">
+      <div class="crm-filter-panel__title">
+        <span class="material-icons">search</span>
+        Search &amp; filter students
+      </div>
+      <div class="crm-filter-grid">
+        <div class="crm-field crm-field--wide">
+          <label class="crm-label">Search</label>
+          <div class="crm-input-icon">
+            <span class="material-icons crm-input-icon__icon">search</span>
+            <input class="crm-input crm-input--icon" type="text" [(ngModel)]="board.simpleQ"
+              placeholder="Name, email or phone…"
+              (keyup.enter)="runSimpleSearch(board)" />
+          </div>
+        </div>
+
+        <div class="crm-field">
+          <label class="crm-label">Date From</label>
+          <input class="crm-input" type="date" [(ngModel)]="board.simpleDateFrom" />
+        </div>
+
+        <div class="crm-field">
+          <label class="crm-label">Date To</label>
+          <input class="crm-input" type="date" [(ngModel)]="board.simpleDateTo" />
+        </div>
+
+        <ng-container *ngIf="board.type === 'enrollment'">
+          <div class="crm-field">
+            <label class="crm-label">Status</label>
+            <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['studentStatus']"
+              placeholder="e.g. Ongoing" />
+          </div>
+          <div class="crm-field">
+            <label class="crm-label">Batch</label>
+            <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['intake']"
+              placeholder="e.g. Batch 35" />
+          </div>
+          <div class="crm-field">
+            <label class="crm-label">Counsellor</label>
+            <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['counsellor']"
+              placeholder="Counsellor name" />
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="board.type === 'language'">
+          <div class="crm-field">
+            <label class="crm-label">Status</label>
+            <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['status']"
+              placeholder="e.g. Ongoing" />
+          </div>
+          <div class="crm-field">
+            <label class="crm-label">Batch</label>
+            <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['intake']"
+              placeholder="e.g. Batch 35" />
+          </div>
+          <div class="crm-field">
+            <label class="crm-label">Assignee</label>
+            <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['assignedStaff']"
+              placeholder="Language team member" />
+          </div>
+        </ng-container>
+      </div>
+
+      <div class="crm-filter-actions">
+        <button class="crm-btn crm-btn--primary crm-btn--sm" (click)="runSimpleSearch(board)">
+          <span class="material-icons">search</span> Apply filters
+        </button>
+        <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="clearSimpleFilters(board)">
+          <span class="material-icons">clear</span> Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Advanced Filters ─────────────────────────────────── -->
+    <div class="crm-advanced-panel" *ngIf="board.showAdvanced">
+      <div class="crm-advanced-header">
+        <div class="crm-adv-logic">
+          <span class="crm-adv-logic__label">Match</span>
+          <button class="crm-logic-btn" [class.crm-logic-btn--active]="board.filterLogic === 'and'"
+            (click)="board.filterLogic = 'and'">ALL (AND)</button>
+          <button class="crm-logic-btn" [class.crm-logic-btn--active]="board.filterLogic === 'or'"
+            (click)="board.filterLogic = 'or'">ANY (OR)</button>
+          <span class="crm-adv-logic__label">conditions</span>
+        </div>
+        <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="addFilterRow(board)">
+          <span class="material-icons">add</span> Add Filter
+        </button>
+      </div>
+
+      <!-- Loading fields notice -->
+      <div class="crm-adv-loading" *ngIf="!board.fieldsLoaded">
+        <span class="crm-spinner"></span> Loading available fields…
+      </div>
+
+      <!-- Filter rows -->
+      <div class="crm-filter-rows" *ngIf="board.fieldsLoaded">
+        <div class="crm-filter-row" *ngFor="let row of board.filterRows; let i = index; trackBy: trackByIndex">
+
+          <!-- Field selector -->
+          <select class="crm-select crm-select--field" [(ngModel)]="row.field"
+            (ngModelChange)="onFieldChange(board, row)">
+            <option value="">— Select field —</option>
+            <option *ngFor="let f of board.fields" [value]="f.key">{{ f.label }}</option>
+          </select>
+
+          <!-- Operator selector -->
+          <select class="crm-select crm-select--op" [(ngModel)]="row.operator" *ngIf="row.field">
+            <option *ngFor="let op of getOperatorsForRow(row)" [value]="op.value">{{ op.label }}</option>
+          </select>
+
+          <!-- Value input area -->
+          <ng-container *ngIf="row.field && !needsNoValue(row.operator)">
+
+            <!-- Date relative -->
+            <select class="crm-select crm-select--val" [(ngModel)]="row.value"
+              *ngIf="isDateRelative(row.operator)">
+              <option value="">— Select —</option>
+              <option *ngFor="let d of dateRelativeOptions" [value]="d.value">{{ d.label }}</option>
+            </select>
+
+            <!-- Text with known values: dropdown -->
+            <ng-container *ngIf="!isDateRelative(row.operator) && row.fieldMeta?.kind === 'text' && row.fieldValues && row.fieldValues.length > 0">
+              <select class="crm-select crm-select--val" [(ngModel)]="row.value"
+                *ngIf="!row.isMulti">
+                <option value="">— Select value —</option>
+                <option *ngFor="let v of row.fieldValues" [value]="v">{{ v }}</option>
+              </select>
+            </ng-container>
+
+            <!-- Loading field values -->
+            <span class="crm-adv-loading" *ngIf="row.loadingFieldValues">
+              <span class="crm-spinner crm-spinner--sm"></span>
+            </span>
+
+            <!-- Number or date: text/date input -->
+            <input class="crm-input crm-input--val"
+              *ngIf="!isDateRelative(row.operator) && (row.fieldMeta?.kind === 'number' || (!row.fieldValues && row.fieldMeta?.kind === 'text'))"
+              [type]="row.fieldMeta?.kind === 'number' ? 'number' : 'text'"
+              [(ngModel)]="row.value" placeholder="Value" />
+            <input class="crm-input crm-input--val"
+              *ngIf="!isDateRelative(row.operator) && (row.fieldMeta?.kind === 'date' || row.fieldMeta?.kind === 'datetime')"
+              type="date" [(ngModel)]="row.value" />
+
+            <!-- Second value for "between" -->
+            <ng-container *ngIf="needsSecondValue(row.operator)">
+              <span class="crm-adv-and">and</span>
+              <input class="crm-input crm-input--val"
+                [type]="row.fieldMeta?.kind === 'number' ? 'number' : 'date'"
+                [(ngModel)]="row.value2" placeholder="To value" />
+            </ng-container>
+          </ng-container>
+
+          <button class="crm-icon-btn crm-icon-btn--danger" (click)="removeFilterRow(board, i)"
+            title="Remove filter">
+            <span class="material-icons">delete_outline</span>
+          </button>
+        </div>
+
+        <div class="crm-adv-empty" *ngIf="board.filterRows.length === 0">
+          No filters added. Click <strong>Add Filter</strong> to start.
+        </div>
+      </div>
+
+      <!-- Group By -->
+      <div class="crm-groupby" *ngIf="board.fieldsLoaded && board.fields.length > 0">
+        <div class="crm-groupby__label">
+          <span class="material-icons">group_work</span> Group By
+          <small>(pick up to 3)</small>
+        </div>
+        <div class="crm-groupby__chips">
+          <ng-container *ngFor="let f of board.fields">
+            <button *ngIf="f.groupable"
+              class="crm-chip"
+              [class.crm-chip--active]="board.groupByFields.includes(f.key)"
+              [disabled]="!board.groupByFields.includes(f.key) && board.groupByFields.length >= 3"
+              (click)="toggleGroupBy(board, f.key)">
+              {{ f.label }}
+            </button>
+          </ng-container>
+        </div>
+      </div>
+
+      <div class="crm-advanced-actions">
+        <button class="crm-btn crm-btn--primary crm-btn--sm" (click)="runAdvancedQuery(board)">
+          <span class="material-icons">play_arrow</span> Run Query
+        </button>
+        <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="clearAdvancedFilters(board)">
+          <span class="material-icons">clear_all</span> Clear All
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Error ────────────────────────────────────────────── -->
+    <div class="crm-error" *ngIf="board.error">
+      <span class="material-icons">error_outline</span>
+      <span>{{ board.error }}</span>
+      <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="loadBoard(board)">Retry</button>
+    </div>
+
+    <!-- ── Loading ───────────────────────────────────────────── -->
+    <div class="crm-loading" *ngIf="board.loading">
+      <div class="crm-loading__row" *ngFor="let _ of [1,2,3,4,5]">
+        <div class="crm-loading__cell crm-loading__cell--wide"></div>
+        <div class="crm-loading__cell"></div>
+        <div class="crm-loading__cell"></div>
+        <div class="crm-loading__cell crm-loading__cell--wide"></div>
+        <div class="crm-loading__cell"></div>
+      </div>
+    </div>
+
+    <!-- ── LIST MODE results ─────────────────────────────────── -->
+    <ng-container *ngIf="!board.loading && !board.error && board.mode === 'list'">
+      <div class="crm-table-card">
+        <div class="crm-table-toolbar" *ngIf="board.items.length > 0">
+          <span class="crm-table-toolbar__info">
+            Showing <strong>{{ getPageRange(board).start }}–{{ getPageRange(board).end }}</strong>
+            of <strong>{{ board.total | number }}</strong> students
+          </span>
+          <span class="crm-table-toolbar__meta" *ngIf="getActiveFilterCount(board) > 0">
+            {{ getActiveFilterCount(board) }} filter(s) applied
+          </span>
+        </div>
+
+        <div class="crm-table-wrap" *ngIf="board.items.length > 0">
+          <table class="crm-table">
+            <thead>
+              <tr>
+                <th *ngFor="let col of getBoardColumns(board)">{{ getBoardLabels(board)[col] }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of board.items; trackBy: trackByIndex">
+                <td *ngFor="let col of getBoardColumns(board)"
+                  [class.crm-td-name]="isNameColumn(board, col)"
+                  [class.crm-td-muted]="getCellValue(row, col) === '—'">
+                  <ng-container [ngSwitch]="getColumnDisplayType(board, col)">
+                    <div *ngSwitchCase="'name'" class="crm-student-cell">
+                      <span class="crm-avatar">{{ getInitials(row[col]) }}</span>
+                      <span class="crm-student-name">{{ getCellValue(row, col) }}</span>
+                    </div>
+                    <span *ngSwitchCase="'status'" class="crm-badge" [ngClass]="getStatusClass(row[col])">
+                      {{ getCellValue(row, col) }}
+                    </span>
+                    <span *ngSwitchCase="'package'" class="crm-pkg" [ngClass]="getPackageClass(row[col])">
+                      {{ getCellValue(row, col) }}
+                    </span>
+                    <span *ngSwitchCase="'lead'" class="crm-lead">{{ getCellValue(row, col) }}</span>
+                    <span *ngSwitchDefault>{{ getCellValue(row, col) }}</span>
+                  </ng-container>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="crm-empty" *ngIf="board.items.length === 0">
+          <span class="material-icons">inbox</span>
+          <p>No students found</p>
+          <small>Try adjusting your filters or clear all to see more results</small>
+          <button class="crm-btn crm-btn--outline crm-btn--sm" *ngIf="getActiveFilterCount(board) > 0"
+            (click)="clearAllFilters(board)">Clear all filters</button>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="crm-pagination" *ngIf="board.totalPages > 1">
+        <button class="crm-page-btn" [disabled]="board.page === 1"
+          (click)="goToPage(board, board.page - 1)">
+          <span class="material-icons">chevron_left</span>
+        </button>
+
+        <ng-container *ngFor="let p of getPageNumbers(board)">
+          <span class="crm-page-ellipsis" *ngIf="p === -1">…</span>
+          <button class="crm-page-btn" *ngIf="p !== -1"
+            [class.crm-page-btn--active]="p === board.page"
+            (click)="goToPage(board, p)">{{ p }}</button>
+        </ng-container>
+
+        <button class="crm-page-btn" [disabled]="board.page === board.totalPages"
+          (click)="goToPage(board, board.page + 1)">
+          <span class="material-icons">chevron_right</span>
+        </button>
+
+        <span class="crm-page-info">
+          Page {{ board.page }} of {{ board.totalPages }} &nbsp;·&nbsp; {{ board.total | number }} total
+        </span>
+      </div>
+    </ng-container>
+
+    <!-- ── GROUPED MODE results ──────────────────────────────── -->
+    <ng-container *ngIf="!board.loading && !board.error && board.mode === 'grouped'">
+      <div class="crm-grouped-summary">
+        <span class="material-icons">group_work</span>
+        Grouped by: <strong>{{ board.groupByFields.join(', ') }}</strong>
+        &nbsp;·&nbsp; {{ board.total | number }} total records
+        &nbsp;·&nbsp; {{ board.groups.length }} groups
+      </div>
+
+      <div class="crm-group" *ngFor="let group of board.groups; trackBy: trackByKey">
+        <button class="crm-group__header" (click)="toggleGroup(board, group.key)">
+          <span class="material-icons crm-group__toggle">
+            {{ isGroupCollapsed(board, group.key) ? 'expand_more' : 'expand_less' }}
+          </span>
+          <span class="crm-group__title">
+            {{ group.key === '__empty__' ? '(No value)' : group.key }}
+          </span>
+          <span class="crm-group__count">{{ group.total | number }} records</span>
+        </button>
+
+        <div class="crm-group__body" *ngIf="!isGroupCollapsed(board, group.key)">
+          <div class="crm-table-wrap">
+            <table class="crm-table" *ngIf="group.items?.length > 0">
+              <thead>
+                <tr>
+                  <th *ngFor="let col of getBoardColumns(board)">{{ getBoardLabels(board)[col] }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of group.items; trackBy: trackByIndex">
+                  <td *ngFor="let col of getBoardColumns(board)">
+                    <ng-container *ngIf="col === 'currentStatus'">
+                      <span class="crm-badge" [ngClass]="getStatusClass(row[col])">
+                        {{ getCellValue(row, col) }}
+                      </span>
+                    </ng-container>
+                    <ng-container *ngIf="col !== 'currentStatus'">
+                      {{ getCellValue(row, col) }}
+                    </ng-container>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="crm-group__more" *ngIf="group.total > (group.items?.length || 0)">
+              Showing {{ group.items?.length }} of {{ group.total }} in this group.
+              Use advanced filters to narrow down.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="crm-empty" *ngIf="board.groups.length === 0">
+        <span class="material-icons">inbox</span>
+        <p>No groups returned</p>
+      </div>
+    </ng-container>
+
+  </div>
+</ng-template>

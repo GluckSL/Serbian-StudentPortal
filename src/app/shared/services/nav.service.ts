@@ -117,7 +117,8 @@ export class NavService {
         { id: 'dashboard',  label: 'Dashboard', icon: 'dashboard', route: '/admin-dashboard', subGroup: null },
         { id: 'students',   label: 'Students',  icon: 'school',    route: '/admin/students',  subGroup: 'Student Management' },
         { id: 'teachers',   label: 'Teachers',  icon: 'group',     route: '/teachers',        subGroup: 'Teacher Management' },
-        { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null }
+        { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null },
+        { id: 'crm',        label: 'CRM',        icon: 'hub',       route: '/admin/crm',       subGroup: null }
       ]
     },
 

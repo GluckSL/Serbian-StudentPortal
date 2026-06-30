@@ -1758,6 +1758,82 @@ function buildBatchDay1ReminderEmail({ name, batchName, type, startDate }) {
   };
 }
 
+/**
+ * Short daily task reminder sent at 12 PM when a student hasn't completed today's exercises / DG bot.
+ *
+ * @param {object} params
+ * @param {string} params.name            - Student name
+ * @param {number} params.day             - Journey day number
+ * @param {Array}  params.incompleteTasks - [{ kind, title }] (max 3 shown)
+ * @param {string} params.portalUrl       - Portal base URL
+ */
+function buildDailyTaskReminderEmail({ name, day, incompleteTasks = [], portalUrl }) {
+  const loginUrl = `${(portalUrl || 'https://gluckstudentsportal.com').replace(/\/$/, '')}/login`;
+  const shown = (incompleteTasks || []).slice(0, 3);
+  const taskListHtml = shown.length
+    ? `<ul style="margin:12px 0 20px;padding-left:22px;color:#374151;font-size:15px;line-height:1.8;">
+        ${shown.map((t) => `<li>${escapeHtml(t.title || 'Task')}</li>`).join('')}
+       </ul>`
+    : '';
+
+  return {
+    subject: `Complete today's Day ${day} tasks — Glück Global`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0"
+               style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#000e89 0%,#6c3fc5 100%);padding:28px 40px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global</h1>
+              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Daily Task Reminder</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px;">
+              <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
+                Hi <strong>${escapeHtml(name)}</strong>,
+              </p>
+              <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
+                You still have tasks left to complete for <strong>Day ${day}</strong>. Finish them before the day ends to keep your streak and progress on track!
+              </p>
+              ${taskListHtml}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 24px;">
+                    <a href="${loginUrl}"
+                       style="display:inline-block;background:#000e89;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;border-radius:8px;">
+                      Open Portal &amp; Complete Tasks
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5;">
+                Consistency is key — every task you complete brings you closer to fluency. See you in the portal!
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8f9ff;padding:18px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;color:#94a3b8;font-size:12px;">
+                © Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+    text: `Hi ${name},\n\nYou still have tasks left to complete for Day ${day}. Log in to the portal and finish them today:\n${loginUrl}\n\nKeep up the great work!\n\n— Glück Global`,
+  };
+}
+
 module.exports = {
   buildPasswordResetOtpEmail,
   buildEmailChangeOtpEmail,
@@ -1770,6 +1846,7 @@ module.exports = {
   buildSignupProofReceivedAdminEmail,
   buildJobApplicationReceivedAdminEmail,
   buildSignupApprovedWelcomeEmail,
+  buildDailyTaskReminderEmail,
   buildJourneyDayReminderEmail,
   buildJourneyWeekReminderEmail,
   buildPortalAbsenceReminderEmail,

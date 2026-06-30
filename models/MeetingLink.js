@@ -121,6 +121,10 @@ const meetingLinkSchema = new mongoose.Schema({
   absenceWhatsappSent: { type: Boolean, default: false },
   absenceWhatsappSentAt: Date,
 
+  // Early join reminder (automated: 5 min after start, students not yet in JoinLog)
+  earlyJoinReminderSent: { type: Boolean, default: false },
+  earlyJoinReminderSentAt: Date,
+
   // Email notification status
   emailNotificationStatus: {
     attempted: { type: Number, default: 0 },

@@ -52,6 +52,7 @@ const ROUTE_LOADER: Record<string, () => Promise<Type<any>>> = {
   '/help':                      () => import('../help/help.component').then(m => m.HelpComponent),
   '/admin/test-accounts':       () => import('../admin-dashboard/test-accounts/test-accounts.component').then(m => m.TestAccountsComponent),
   '/profile':                   () => import('../profile/profile.component').then(m => m.ProfileComponent),
+  '/admin/crm':                 () => import('./crm-portal/crm-portal.component').then(m => m.CrmPortalComponent),
 };
 
 @Component({
