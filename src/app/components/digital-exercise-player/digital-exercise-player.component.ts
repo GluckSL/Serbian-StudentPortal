@@ -6040,6 +6040,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return String(data.instruction ?? '').trim();
   }
 
+  hasVisibleTextContent(value: string | null | undefined): boolean {
+    if (!value) return false;
+    return value.replace(/<[^>]*>/g, '').trim().length > 0;
+  }
+
   /**
    * Returns the sectionTitle for question at `index` only when it differs from
    * the previous question's sectionTitle (i.e. a new section begins), so the
