@@ -207,6 +207,10 @@
   <div class="sp-exam-player__summary-wrap">
     <app-exam-summary
       [scores]="finalScores"
+      [examFormat]="payload?.module?.examFormat || 'A1'"
+      [maxTeil1]="payload?.module?.rubric?.teil1?.maxPoints || (isA2 ? 6 : 3)"
+      [maxTeil2]="payload?.module?.rubric?.teil2?.maxPoints || (isA2 ? 6 : 6)"
+      [maxTeil3]="payload?.module?.rubric?.teil3?.maxPoints || (isA2 ? 6 : 6)"
       (retake)="onRetake()"
       (exit)="onExit()"
     ></app-exam-summary>

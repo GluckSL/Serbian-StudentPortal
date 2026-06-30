@@ -9,224 +9,353 @@ import type { SprechenScores } from '../sprechen-exam.types';
   standalone: true,
   imports: [CommonModule, MatButtonModule, MatIconModule],
   template: `
-    <div class="exam-sum">
-      <div class="exam-sum__header" [class.exam-sum__header--pass]="scores?.passed" [class.exam-sum__header--fail]="scores && !scores.passed">
-        <mat-icon class="exam-sum__badge-icon">{{ scores?.passed ? 'emoji_events' : 'school' }}</mat-icon>
-        <h2 class="exam-sum__title">{{ scores?.passed ? 'Bestanden' : 'Nicht bestanden' }}</h2>
-        <p class="exam-sum__subtitle">Goethe A1 Sprechprüfung — Ergebnis</p>
-      </div>
+    <div class="exam-result">
+      <div class="exam-result__card">
+        <div class="exam-result__inner">
+          <div class="exam-result__hero">
+            <div
+              class="exam-result__hero-icon"
+              [class.exam-result__hero-icon--pass]="scores?.passed"
+              [class.exam-result__hero-icon--fail]="scores && !scores.passed"
+            >
+              <mat-icon>{{ scores?.passed ? 'emoji_events' : 'school' }}</mat-icon>
+            </div>
+          </div>
 
-      <div class="exam-sum__scores" *ngIf="scores">
-        <div class="exam-sum__hero">
-          <div
-            class="exam-sum__ring"
-            [style.--p]="scores.total"
-            [class.exam-sum__ring--pass]="scores.passed"
-            [class.exam-sum__ring--fail]="!scores.passed"
-          >
-            <div class="exam-sum__ring-score">{{ scores.total | number:'1.0-1' }}</div>
-            <div class="exam-sum__ring-sub">von 15 Punkten</div>
+          <p class="exam-result__label">{{ examLabel }}</p>
+          <h1 class="exam-result__heading">Dein Ergebnis</h1>
+
+          <div class="exam-result__score-block">
+            <div class="exam-result__points-big">
+              <span class="points-earned">{{ scores?.total ?? 0 | number:'1.0-1' }}</span>
+              <span class="points-sep">/</span>
+              <span class="points-total">{{ maxTotal }}</span>
+              <span class="points-label">Punkte</span>
+            </div>
+          </div>
+
+          <div class="exam-result__meta">
+            <span
+              class="exam-result__meta-item"
+              [class.exam-result__meta-item--pass]="scores?.passed"
+              [class.exam-result__meta-item--fail]="scores && !scores.passed"
+            >
+              <mat-icon>{{ scores?.passed ? 'check_circle' : 'cancel' }}</mat-icon>
+              {{ scores?.passed ? 'Bestanden' : 'Nicht bestanden' }}
+            </span>
+          </div>
+
+          <div class="exam-result__teile" *ngIf="scores">
+            <div class="exam-result__teil-row">
+              <span class="exam-result__teil-label">Teil 1</span>
+              <span class="exam-result__teil-score">{{ scores.teil1 | number:'1.0-1' }} / {{ maxTeil1 }}</span>
+            </div>
+            <div class="exam-result__teil-row">
+              <span class="exam-result__teil-label">Teil 2</span>
+              <span class="exam-result__teil-score">{{ scores.teil2 | number:'1.0-1' }} / {{ maxTeil2 }}</span>
+            </div>
+            <div class="exam-result__teil-row">
+              <span class="exam-result__teil-label">Teil 3</span>
+              <span class="exam-result__teil-score">{{ scores.teil3 | number:'1.0-1' }} / {{ maxTeil3 }}</span>
+            </div>
+            <div class="exam-result__teil-row exam-result__teil-row--total">
+              <span class="exam-result__teil-label">Gesamt</span>
+              <span class="exam-result__teil-score exam-result__teil-score--total">{{ scores.total | number:'1.0-1' }} / {{ maxTotal }}</span>
+            </div>
+          </div>
+
+          <p class="exam-result__note">
+            Ihr Ergebnis wird von Ihrem Tutor überprüft. Bei Fragen wenden Sie sich bitte an Ihr Kursleiterteam.
+          </p>
+
+          <div class="exam-result__actions">
+            <button class="exam-result__btn exam-result__btn--primary" type="button" (click)="retake.emit()">
+              <mat-icon>replay</mat-icon>
+              Nochmal versuchen
+            </button>
+            <button class="exam-result__btn exam-result__btn--outline" type="button" (click)="exit.emit()">
+              <mat-icon>home</mat-icon>
+              Zurück zur Übersicht
+            </button>
           </div>
         </div>
-
-        <div class="exam-sum__row">
-          <span class="exam-sum__row-label">Teil 1 — Sich vorstellen</span>
-          <span class="exam-sum__row-score">{{ scores.teil1 | number:'1.0-1' }} / 3</span>
-          <div class="exam-sum__bar"><div class="exam-sum__bar-fill" [style.width.%]="(scores.teil1 / 3) * 100"></div></div>
-        </div>
-        <div class="exam-sum__row">
-          <span class="exam-sum__row-label">Teil 2 — Fragen & Antworten</span>
-          <span class="exam-sum__row-score">{{ scores.teil2 | number:'1.0-1' }} / 6</span>
-          <div class="exam-sum__bar"><div class="exam-sum__bar-fill" [style.width.%]="(scores.teil2 / 6) * 100"></div></div>
-        </div>
-        <div class="exam-sum__row">
-          <span class="exam-sum__row-label">Teil 3 — Bitten</span>
-          <span class="exam-sum__row-score">{{ scores.teil3 | number:'1.0-1' }} / 6</span>
-          <div class="exam-sum__bar"><div class="exam-sum__bar-fill" [style.width.%]="(scores.teil3 / 6) * 100"></div></div>
-        </div>
-
-        <div class="exam-sum__total">
-          <span>Gesamtpunktzahl</span>
-          <span class="exam-sum__total-score">{{ scores.total | number:'1.0-1' }} / 15</span>
-        </div>
-      </div>
-
-      <p class="exam-sum__note">
-        Ihr Ergebnis wird von Ihrem Tutor überprüft. Bei Fragen wenden Sie sich bitte an Ihr Kursleiterteam.
-      </p>
-
-      <div class="exam-sum__actions">
-        <button mat-stroked-button (click)="retake.emit()">
-          <mat-icon>replay</mat-icon>
-          Nochmal versuchen
-        </button>
-        <button mat-flat-button color="primary" (click)="exit.emit()">
-          <mat-icon>home</mat-icon>
-          Zurück zur Übersicht
-        </button>
       </div>
     </div>
   `,
   styles: [`
-    .exam-sum {
-      max-width: 500px;
-      margin: 0 auto;
-      padding: 24px 16px;
-      animation: fadeIn .4s ease;
-    }
-
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-
-    .exam-sum__header {
-      text-align: center;
-      border-radius: 12px;
-      padding: 28px 20px 20px;
-      margin-bottom: 24px;
-      background: #e8f5e9;
-    }
-
-    .exam-sum__header--pass { background: #e8f5e9; }
-    .exam-sum__header--fail { background: #fff3e0; }
-
-    .exam-sum__badge-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      color: #43a047;
-    }
-
-    .exam-sum__header--fail .exam-sum__badge-icon { color: #fb8c00; }
-
-    .exam-sum__title {
-      font-size: 26px;
-      font-weight: 800;
-      color: #2e7d32;
-      margin: 8px 0 4px;
-    }
-
-    .exam-sum__header--fail .exam-sum__title { color: #e65100; }
-
-    .exam-sum__subtitle {
-      font-size: 13px;
-      color: #6a9e6d;
-      margin: 0;
-    }
-
-    .exam-sum__scores {
-      background: #fff;
-      border-radius: 10px;
-      border: 1px solid #e0e0e0;
-      padding: 16px 20px;
-      margin-bottom: 16px;
+    .exam-result {
+      min-height: 100%;
       display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .exam-sum__hero {
-      display: flex;
+      align-items: center;
       justify-content: center;
-      padding: 6px 0 4px;
+      padding: 20px 16px;
     }
 
-    .exam-sum__ring {
-      width: 142px;
-      height: 142px;
-      border-radius: 999px;
-      display: grid;
-      place-content: center;
-      text-align: center;
-      background: radial-gradient(circle at 50% 40%, #fff 0%, #fff 48%, transparent 49%),
-        conic-gradient(#3949ab calc((var(--p, 0) / 15) * 1turn), #e8eaf6 0);
-      border: 10px solid #e8eaf6;
-      box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+    .exam-result__card {
+      width: 100%;
+      max-width: 480px;
+      animation: result-enter .45s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes result-enter {
+      from { opacity: 0; transform: translateY(16px) scale(.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .exam-result__card {
       position: relative;
+      background: linear-gradient(180deg, #fff 0%, #fafbff 55%, #f8fafc 100%);
+      border-radius: 24px;
+      box-shadow:
+        0 26px 70px rgba(15,23,42,0.14),
+        0 12px 34px rgba(99,102,241,0.1),
+        0 0 0 1px rgba(255,255,255,0.8) inset;
       overflow: hidden;
+      border: 1px solid rgba(226,232,240,0.95);
     }
 
-    .exam-sum__ring--pass { border-color: rgba(67, 160, 71, 0.18); }
-    .exam-sum__ring--fail { border-color: rgba(251, 140, 0, 0.18); }
+    .exam-result__inner {
+      padding: 44px 36px 40px;
+      text-align: center;
+      overflow-y: auto;
+    }
 
-    .exam-sum__ring-score {
-      font-size: 34px;
-      font-weight: 900;
-      color: #1a237e;
+    .exam-result__hero-icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #eef2ff 0%, #e0e7ff 100%);
+      border: 2px solid #c7d2fe;
+      box-shadow: 0 8px 24px rgba(99,102,241,0.2);
+    }
+
+    .exam-result__hero-icon--pass {
+      background: linear-gradient(145deg, #e8f5e9 0%, #c8e6c9 100%);
+      border-color: #a5d6a7;
+      box-shadow: 0 8px 24px rgba(76,175,80,0.2);
+    }
+
+    .exam-result__hero-icon--fail {
+      background: linear-gradient(145deg, #fff3e0 0%, #ffe0b2 100%);
+      border-color: #ffcc80;
+      box-shadow: 0 8px 24px rgba(255,152,0,0.2);
+    }
+
+    .exam-result__hero-icon .mat-icon {
+      font-size: 30px;
+      width: 30px;
+      height: 30px;
+      color: #4f46e5;
+    }
+
+    .exam-result__hero-icon--pass .mat-icon { color: #2e7d32; }
+    .exam-result__hero-icon--fail .mat-icon { color: #e65100; }
+
+    .exam-result__label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: #6366f1;
+      margin: 0 0 12px;
+    }
+
+    .exam-result__heading {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0 0 20px;
+      letter-spacing: -.03em;
+      line-height: 1.2;
+    }
+
+    .exam-result__score-block {
+      margin-bottom: 20px;
+    }
+
+    .exam-result__points-big {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .exam-result__points-big .points-earned {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: #6366f1;
       line-height: 1;
+      letter-spacing: -.02em;
     }
 
-    .exam-sum__ring-sub {
-      margin-top: 6px;
-      font-size: 12px;
-      color: #607d8b;
+    .exam-result__points-big .points-sep {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #94a3b8;
+      margin: 0 2px;
+    }
+
+    .exam-result__points-big .points-total {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: #64748b;
+    }
+
+    .exam-result__points-big .points-label {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-left: 6px;
+    }
+
+    .exam-result__meta {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .exam-result__meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .9rem;
+      color: #64748b;
       font-weight: 600;
     }
 
-    .exam-sum__row {
+    .exam-result__meta-item .mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .exam-result__meta-item--pass { color: #047857; }
+    .exam-result__meta-item--fail { color: #b91c1c; }
+
+    .exam-result__teile {
       display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .exam-sum__row-label {
-      flex: 1 1 180px;
-      font-size: 14px;
-      color: #555;
-    }
-
-    .exam-sum__row-score {
-      font-weight: 700;
-      font-size: 14px;
-      color: #3949ab;
-      min-width: 48px;
-      text-align: right;
-    }
-
-    .exam-sum__bar {
-      flex-basis: 100%;
-      height: 6px;
-      background: #e8eaf6;
-      border-radius: 3px;
+      flex-direction: column;
+      gap: 2px;
+      margin-bottom: 24px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
       overflow: hidden;
+      background: #f8fafc;
     }
 
-    .exam-sum__bar-fill {
-      height: 100%;
-      background: #3949ab;
-      border-radius: 3px;
-      transition: width .5s ease;
-    }
-
-    .exam-sum__total {
+    .exam-result__teil-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-top: 1px solid #e0e0e0;
-      padding-top: 12px;
+      padding: 10px 16px;
+      background: #fff;
+    }
+
+    .exam-result__teil-row + .exam-result__teil-row {
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .exam-result__teil-row--total {
+      background: #eef2ff;
+      border-top: 2px solid #c7d2fe;
+    }
+
+    .exam-result__teil-label {
+      font-size: .85rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .exam-result__teil-score {
+      font-size: 1rem;
       font-weight: 700;
-      font-size: 16px;
-      color: #212121;
+      color: #6366f1;
     }
 
-    .exam-sum__total-score { color: #3949ab; font-size: 20px; }
-
-    .exam-sum__note {
-      font-size: 12px;
-      color: #9e9e9e;
-      text-align: center;
-      margin-bottom: 24px;
+    .exam-result__teil-score--total {
+      font-size: 1.15rem;
+      color: #4f46e5;
     }
 
-    .exam-sum__actions {
+    .exam-result__note {
+      font-size: .8rem;
+      color: #94a3b8;
+      margin: 0 0 28px;
+      line-height: 1.5;
+    }
+
+    .exam-result__actions {
       display: flex;
+      flex-direction: column;
       gap: 12px;
+    }
+
+    .exam-result__btn {
+      display: flex;
+      align-items: center;
       justify-content: center;
-      flex-wrap: wrap;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      border: none;
+      font-family: inherit;
+    }
+
+    .exam-result__btn .mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+    }
+
+    .exam-result__btn--primary {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: #fff;
+      box-shadow: 0 4px 18px rgba(99,102,241,0.4);
+    }
+
+    .exam-result__btn--primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(99,102,241,0.45);
+    }
+
+    .exam-result__btn--outline {
+      background: #fff;
+      color: #6366f1;
+      border: 2px solid #c7d2fe;
+    }
+
+    .exam-result__btn--outline:hover {
+      background: #eef2ff;
+      border-color: #6366f1;
     }
   `],
 })
 export class ExamSummaryComponent {
   @Input() scores: SprechenScores | null = null;
+  @Input() examFormat: string = 'A1';
+  @Input() maxTeil1: number = 3;
+  @Input() maxTeil2: number = 6;
+  @Input() maxTeil3: number = 6;
   @Output() retake = new EventEmitter<void>();
   @Output() exit = new EventEmitter<void>();
+
+  get examLabel(): string {
+    return this.examFormat === 'A2' ? 'Goethe A2 — Sprechprüfung' : 'Goethe A1 — Sprechprüfung';
+  }
+
+  get maxTotal(): number {
+    return this.maxTeil1 + this.maxTeil2 + this.maxTeil3;
+  }
 }

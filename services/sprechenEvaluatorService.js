@@ -128,7 +128,7 @@ function heuristicA2Criteria({ turnType, transcript, criteria }) {
   for (const c of criteria) {
     let level = 'E';
     let tags = [];
-    const lm = c.levelMap || {};
+    const lm = c.levelMap || _defaultA2LevelMap(c.points);
 
     if (!text) {
       tags.push('No response');
@@ -387,8 +387,20 @@ function applyA1LevelToPoints(criterionDef, level) {
   }
 }
 
+function _defaultA2LevelMap(points) {
+  if (!points || points <= 0) return { A: 0, B: 0, C: 0, D: 0, E: 0 };
+  const r = (v) => Math.round(v * 2) / 2; // round to nearest 0.5
+  return {
+    A: r(points),
+    B: r(points * 0.75),
+    C: r(points * 0.5),
+    D: r(points * 0.25),
+    E: 0,
+  };
+}
+
 function applyA2LevelToPoints(criterionDef, level) {
-  const lm = criterionDef.levelMap || {};
+  const lm = criterionDef.levelMap || _defaultA2LevelMap(criterionDef.points);
   return lm[level] !== undefined ? lm[level] : 0;
 }
 
