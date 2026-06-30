@@ -261,6 +261,30 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  get statusPillText(): string {
+    if (this.conversationComplete) return 'COMPLETE';
+    if (this.isAiThinking) return `${this.botDisplayName} IS THINKING…`;
+    if (this.status === 'speaking') return `${this.botDisplayName}'S TURN`;
+    if (this.status === 'processing') return 'PROCESSING…';
+    if (this.status === 'listening') return 'LISTENING…';
+    if (this.waitingForUser && this.awaitingGermanRepeat) return 'SAY IT IN GERMAN';
+    if (this.waitingForUser) return 'YOUR TURN';
+    if (!this.conversationStarted) return 'WAITING…';
+    return '—';
+  }
+
+  get statusPillMod(): string {
+    if (this.conversationComplete) return 'complete';
+    if (this.isAiThinking) return 'thinking';
+    if (this.status === 'speaking') return 'ai-turn';
+    if (this.status === 'processing') return 'processing';
+    if (this.status === 'listening') return 'listening';
+    if (this.awaitingGermanRepeat) return 'repeat';
+    if (this.waitingForUser) return 'user-turn';
+    if (!this.conversationStarted) return 'waiting';
+    return 'idle';
+  }
+
   get showStudentTurnUi(): boolean {
     if (this.conversationComplete) return false;
     if (!this.waitingForUser) return false;
