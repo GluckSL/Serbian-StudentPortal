@@ -26,7 +26,9 @@ const {
   getRegNoSeed: sharedGetRegNoSeed,
   generatePassword: sharedGeneratePassword,
   createRegNoAllocator,
+  normalizePhone,
 } = require('../utils/userRegistration');
+const { sendManualWhatsappMessage } = require('../services/whatsappCrmService');
 const { studentRequiresWithdrawalConfirmation } = require('../utils/portalBatchPresets');
 const {
   sendWithdrawalLoginAttemptEmail,
@@ -3020,11 +3022,13 @@ router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMI
       return res.status(403).json({ success: false, msg: 'Forbidden' });
     }
 
-    const { name, email } = req.body || {};
+    const { name, email, phone, whatsapp, crmStudentId, department } = req.body || {};
     const normalizedEmail = String(email || '').trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
       return res.status(400).json({ success: false, msg: 'A valid email is required.' });
     }
+
+    const displayName = String(name || '').trim() || 'there';
 
     const existingStudent = await User.findOne({
       email: normalizedEmail,
@@ -3069,10 +3073,43 @@ router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMI
       html: inviteMail.html,
     });
 
+    let whatsappSent = false;
+    let whatsappNote = '';
+    const phoneNumber = normalizePhone(whatsapp || phone);
+    if (phoneNumber) {
+      const waMessage =
+        `Hi ${displayName === 'there' ? 'there' : displayName}, you're invited to register for Glück Global. ` +
+        `Complete your signup here: ${registerUrl}`;
+      const waResult = await sendManualWhatsappMessage({
+        phone_number: phoneNumber,
+        message: waMessage,
+        department: department || 'Sales',
+        student_id: crmStudentId,
+      });
+      whatsappSent = Boolean(waResult.ok);
+      if (!waResult.ok) {
+        whatsappNote = waResult.error?.message || 'WhatsApp could not be sent.';
+      }
+    } else {
+      whatsappNote = 'No phone number on record — email only.';
+    }
+
+    const channels = ['email'];
+    if (whatsappSent) channels.push('WhatsApp');
+    const msg = whatsappSent
+      ? `Registration invite sent to ${normalizedEmail} and WhatsApp (${phoneNumber}).`
+      : phoneNumber
+        ? `Registration invite emailed to ${normalizedEmail}. WhatsApp failed: ${whatsappNote}`
+        : `Registration invite emailed to ${normalizedEmail}. ${whatsappNote}`;
+
     return res.json({
       success: true,
-      msg: `Registration invite sent to ${normalizedEmail}.`,
+      msg,
+      emailSent: true,
+      whatsappSent,
+      whatsappNote: whatsappSent ? '' : whatsappNote,
       applicationToken: signupApp.applicationToken,
+      channels,
     });
   } catch (err) {
     console.error('[POST /auth/admin/register-invite]', err);

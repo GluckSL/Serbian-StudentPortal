@@ -369,8 +369,8 @@
                       *ngIf="!isCompareInviteSent(row.email)"
                       [disabled]="isCompareInviteSending(row.email) || compareBulkInviting"
                       (click)="sendCompareSignupInvite(row)"
-                      title="Email registration / signup form">
-                      <span class="material-icons">mail</span>
+                      title="Send registration invite via email and WhatsApp">
+                      <span class="material-icons">send</span>
                       {{ isCompareInviteSending(row.email) ? 'Sending…' : 'Send signup' }}
                     </button>
                     <span class="crm-compare-sent" *ngIf="isCompareInviteSent(row.email)">

@@ -469,10 +469,21 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/auth/admin/signup-link`, { email, name });
   }
 
-  sendRegisterInvite(email: string, name?: string): Observable<{ success?: boolean; msg?: string }> {
-    return this.http.post<{ success?: boolean; msg?: string }>(
+  sendRegisterInvite(
+    email: string,
+    name?: string,
+    options?: { phone?: string; whatsapp?: string; crmStudentId?: string | number; department?: string }
+  ): Observable<{ success?: boolean; msg?: string; emailSent?: boolean; whatsappSent?: boolean }> {
+    return this.http.post<{ success?: boolean; msg?: string; emailSent?: boolean; whatsappSent?: boolean }>(
       `${this.apiUrl}/auth/admin/register-invite`,
-      { email, name }
+      {
+        email,
+        name,
+        phone: options?.phone,
+        whatsapp: options?.whatsapp,
+        crmStudentId: options?.crmStudentId,
+        department: options?.department,
+      }
     );
   }
 

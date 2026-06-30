@@ -1116,7 +1116,12 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     if (!email.includes('@') || this.isCompareInviteSending(email)) return;
 
     this.compareInviteSending.add(email);
-    this.authService.sendRegisterInvite(email, row.name).pipe(takeUntil(this.destroy$)).subscribe({
+    this.authService.sendRegisterInvite(email, row.name, {
+      phone: row.phone,
+      whatsapp: row.whatsapp,
+      crmStudentId: row.crmId || undefined,
+      department: this.activeTab === 'language' ? 'Language' : 'Sales',
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         this.compareInviteSending.delete(email);
         const success = res?.success !== false;
@@ -1149,7 +1154,12 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     const requests = targets.map(row => {
       const email = String(row.email || '').trim().toLowerCase();
       this.compareInviteSending.add(email);
-      return this.authService.sendRegisterInvite(email, row.name).pipe(
+      return this.authService.sendRegisterInvite(email, row.name, {
+        phone: row.phone,
+        whatsapp: row.whatsapp,
+        crmStudentId: row.crmId || undefined,
+        department: this.activeTab === 'language' ? 'Language' : 'Sales',
+      }).pipe(
         catchError(err => of({
           success: false,
           msg: err?.error?.msg || err?.error?.message || 'Failed to send invite.',
@@ -1177,7 +1187,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
         const failed = merged.length - sent;
         this.compareInviteBanner = failed
           ? `Sent ${sent} signup invite(s). ${failed} failed — see row status below.`
-          : `Sent signup invite to ${sent} student(s).`;
+          : `Sent signup invite to ${sent} student(s) via email${this.waSendEnabled ? ' + WhatsApp (when phone on file)' : ''}.`;
         this.compareBulkInviting = false;
       },
       error: () => {
