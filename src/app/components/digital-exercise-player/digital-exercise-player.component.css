@@ -969,7 +969,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 14px 24px;
+  padding: 16px;
   background: #f1f5f9;
   border-bottom: 1px solid #e2e8f0;
 }
@@ -992,7 +992,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 14px;
-  padding: 24px 28px 0;
+  padding: 16px 16px 0;
   background: #ffffff;
 }
 
@@ -1156,7 +1156,7 @@
 
 /* Context + instruction + example: padded to align with .q-body */
 .q-guidance-stack {
-  padding: 16px 18px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1281,7 +1281,7 @@
 
 .q-question-box {
   margin: 0;
-  padding: 14px 18px;
+  padding: 16px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #f8fafc;
@@ -1289,7 +1289,7 @@
 }
 
 .q-body {
-  padding: 16px 18px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1398,7 +1398,7 @@
 /* Listening panel (shared audio above multipart prompts) */
 .q-listening-panel {
   margin: 20px 24px 18px;
-  padding: 14px 16px;
+  padding: 16px;
   border-radius: 14px;
   border: 1px solid #c7d2fe;
   background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
@@ -1496,7 +1496,7 @@
 @media (max-width: 720px) {
   .q-listening-panel {
     margin: 0 16px 12px;
-    padding: 12px 14px;
+    padding: 16px;
   }
   .q-card-passage-subs .sub-questions-inner {
     padding: 8px 16px 16px;
@@ -1784,7 +1784,7 @@
   color: #ffffff;
   min-height: 44px;
   min-width: 120px;
-  padding: 0 16px;
+  padding: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2050,7 +2050,7 @@
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  padding: 10px 14px !important;
+  padding: 16px !important;
   font-size: 0.88rem !important;
   border-radius: 10px !important;
   border: 1.5px solid #dbe3ef;
@@ -2365,7 +2365,7 @@
   flex: 1;
   min-width: 60px;
   min-height: 40px;
-  padding: 8px 12px;
+  padding: 16px;
   border: 1.5px solid #dbe3ef;
   border-radius: 10px;
   background: #ffffff;
@@ -2711,7 +2711,7 @@
 .word-bank-item-row {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  padding: 24px;
+  padding: 16px;
   background: #ffffff;
   display: flex;
   flex-direction: column;
@@ -3073,7 +3073,7 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 14px;
+  padding: 16px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -3327,7 +3327,7 @@
   background: #f8fafc;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 18px 20px;
+  padding: 16px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
   white-space: pre-wrap; /* preserve admin textarea line breaks */
   word-break: break-word;
@@ -3341,7 +3341,7 @@
 }
 .tf-btn {
   flex: 0 0 auto;
-  padding: 16px 24px;
+  padding: 16px;
   border-radius: 14px;
   border: 1px solid #c7d2fe;
   background: #ffffff;
@@ -3608,7 +3608,7 @@
 
 .rearrange-answer-box {
   margin-top: 12px;
-  padding: 12px 14px;
+  padding: 16px;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.55);
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
@@ -3665,7 +3665,7 @@
   align-items: center;
   gap: 10px;
   margin-top: 6px;
-  padding: 10px 14px;
+  padding: 16px;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -4397,13 +4397,13 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 16px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
 }
 
 .review-q-body {
-  padding: 14px 16px;
+  padding: 16px;
   font-size: 0.92rem;
 }
 
@@ -4700,15 +4700,12 @@
     justify-content: center;
   }
 .question-card .q-body {
-  padding: 16px 18px;
   gap: 12px;
 }
 .question-card .q-guidance-stack {
-  padding: 16px 18px;
   gap: 10px;
 }
 .question-card .q-top-media-stack {
-  padding: 10px 14px 0;
   gap: 10px;
 }
 .question-card .q-top-media-stack .q-attachment-img,
@@ -4717,12 +4714,9 @@
   max-height: 200px;
 }
 .question-card .q-question-box {
-  padding: 12px 16px;
   border-radius: 8px;
 }
-.question-card .q-question-box:has(> .mcq-options) {
-  padding: 14px 16px;
-}
+
 .question-card .q-question-box:has(> .mcq-options) > .q-text {
   padding-bottom: 12px;
   margin-bottom: 0;
@@ -4764,11 +4758,7 @@
   min-height: 40px;
 }
 .mcq-option {
-  padding: 8px 12px !important;
   font-size: 0.85rem !important;
-}
-.match-item {
-  padding: 8px 12px;
 }
 .word-bank-fill-body,
 .qa-body,
@@ -4778,7 +4768,6 @@
   gap: 12px;
 }
 .word-bank-item-row {
-  padding: 22px 18px;
   gap: 24px;
 }
 .word-bank-pills {
@@ -4809,7 +4798,6 @@
   flex-wrap: nowrap;
   gap: 8px;
   margin-top: 6px;
-  padding: 10px;
 }
 .question-nav-btns--outside .btn-nav {
   flex: 1;
@@ -7181,7 +7169,7 @@
   gap: 5px;
   background: #f0f9ff;
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 16px;
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.5;
@@ -7205,7 +7193,7 @@
   gap: 4px;
   background: #f0f7ff;
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 16px;
   margin: 0 0 8px;
   font-size: 0.84rem;
   line-height: 1.45;
