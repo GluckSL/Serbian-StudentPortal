@@ -746,7 +746,18 @@ async function completeSession(session, module) {
     session.turns, rubric, module.passThreshold
   );
   session.scores = finalScores;
-  session.examinerScores = examinerScores;
+  session.examinerScores = examinerScores.map(es => ({
+    examinerId: es.examinerId,
+    scores: {
+      teil1: es.teil1,
+      teil2: es.teil2,
+      teil3: es.teil3,
+      pronunciation: 0,
+      total: es.total,
+      passed: es.total >= (module.passThreshold || 14),
+    },
+    completed: true,
+  }));
   session.finalScores = finalScores;
   session.completed = true;
   session.completedAt = new Date();
