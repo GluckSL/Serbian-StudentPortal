@@ -247,6 +247,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   playerQuestions: PlayerQuestion[] = [];
   currentIndex = 0;
   submitting = false;
+  cardAnimState: 'idle' | 'exiting' | 'entering' = 'idle';
+  private navigating = false;
   private currentlyPlayingAudio: HTMLAudioElement | null = null;
   showFinishSummary = false;
   finishingAll = false;
@@ -1980,43 +1982,69 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   prevQuestion(): void {
-    this.closeMcqOptionImageLightbox();
-    this.cancelImagePinAutoAdvance();
-    this.clearImagePinInteractionState();
-    if (this.currentIndex > 0) {
-      this.stopCurrentAudio();
-      this.currentIndex--;
-      this.preloadImagesAroundCurrentQuestion();
-      this.afterVideoOnlyNavigation();
-      this.scheduleDraftSave();
-      this.publishOllyActivityContext();
-    }
-  }
-
-  nextQuestion(): void {
-    this.closeMcqOptionImageLightbox();
-    this.cancelImagePinAutoAdvance();
-    this.clearImagePinInteractionState();
-    if (this.currentIndex < this.playerQuestions.length - 1) {
-      this.stopCurrentAudio();
-      this.currentIndex++;
-      this.preloadImagesAroundCurrentQuestion();
-      this.afterVideoOnlyNavigation();
-      this.scheduleDraftSave();
-      this.publishOllyActivityContext();
-    }
-  }
-
-  goToQuestion(index: number): void {
+    if (this.navigating || this.currentIndex <= 0) return;
     this.closeMcqOptionImageLightbox();
     this.cancelImagePinAutoAdvance();
     this.clearImagePinInteractionState();
     this.stopCurrentAudio();
-    this.currentIndex = index;
-    this.preloadImagesAroundCurrentQuestion();
-    this.afterVideoOnlyNavigation();
-    this.scheduleDraftSave();
-    this.publishOllyActivityContext();
+    this.navigating = true;
+    this.cardAnimState = 'exiting';
+    setTimeout(() => {
+      this.currentIndex--;
+      this.cardAnimState = 'entering';
+      this.preloadImagesAroundCurrentQuestion();
+      this.afterVideoOnlyNavigation();
+      this.scheduleDraftSave();
+      this.publishOllyActivityContext();
+      setTimeout(() => {
+        this.cardAnimState = 'idle';
+        this.navigating = false;
+      }, 150);
+    }, 150);
+  }
+
+  nextQuestion(): void {
+    if (this.navigating || this.currentIndex >= this.playerQuestions.length - 1) return;
+    this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
+    this.clearImagePinInteractionState();
+    this.stopCurrentAudio();
+    this.navigating = true;
+    this.cardAnimState = 'exiting';
+    setTimeout(() => {
+      this.currentIndex++;
+      this.cardAnimState = 'entering';
+      this.preloadImagesAroundCurrentQuestion();
+      this.afterVideoOnlyNavigation();
+      this.scheduleDraftSave();
+      this.publishOllyActivityContext();
+      setTimeout(() => {
+        this.cardAnimState = 'idle';
+        this.navigating = false;
+      }, 150);
+    }, 150);
+  }
+
+  goToQuestion(index: number): void {
+    if (this.navigating || index === this.currentIndex || index < 0 || index >= this.playerQuestions.length) return;
+    this.closeMcqOptionImageLightbox();
+    this.cancelImagePinAutoAdvance();
+    this.clearImagePinInteractionState();
+    this.stopCurrentAudio();
+    this.navigating = true;
+    this.cardAnimState = 'exiting';
+    setTimeout(() => {
+      this.currentIndex = index;
+      this.cardAnimState = 'entering';
+      this.preloadImagesAroundCurrentQuestion();
+      this.afterVideoOnlyNavigation();
+      this.scheduleDraftSave();
+      this.publishOllyActivityContext();
+      setTimeout(() => {
+        this.cardAnimState = 'idle';
+        this.navigating = false;
+      }, 150);
+    }, 150);
   }
 
   /** Navigate to a batch question by its position in the batch list */

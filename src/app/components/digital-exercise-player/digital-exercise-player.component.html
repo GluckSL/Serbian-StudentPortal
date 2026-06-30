@@ -83,17 +83,18 @@
               <span class="points-total">{{ result.totalPoints }}</span>
               <span class="points-label">points</span>
             </div>
-            <div
-              class="result-percent"
-              [class]="getScoreClass(result.scorePercentage)"
-            >
-              {{ result.scorePercentage }}%
-            </div>
           </div>
           <div class="result-meta">
             <span class="result-meta-item">
               <span class="material-icons">schedule</span>
               {{ formatTime(elapsedSeconds) }}
+            </span>
+            <span
+              class="result-meta-item"
+              [class]="getScoreClass(result.scorePercentage)"
+            >
+              <span class="material-icons">stars</span>
+              {{ result.scorePercentage }}%
             </span>
             <span
               class="result-meta-item"
@@ -146,18 +147,18 @@
               <span class="material-icons">replay</span>
               Re-attempt
             </button>
-            <button
-              class="btn-go-back"
-              type="button"
-              (click)="backToExercises()"
-              [disabled]="submitting"
-            >
-              <span class="material-icons">arrow_back</span>
-              Go back
-            </button>
           </div>
         </div>
       </div>
+      <button
+        class="result-back-btn"
+        type="button"
+        (click)="backToExercises()"
+        title="Back to exercises"
+        aria-label="Back to exercises"
+      >
+        <span class="material-icons">arrow_back</span>
+      </button>
     </div>
   </div>
 
@@ -193,6 +194,7 @@
           [class.correct]="hasSubQuestions(pq.data) ? isMultipartFullyCorrect(pq) : pq.isCorrect === true"
           [class.partial]="hasSubQuestions(pq.data) && isMultipartPartial(pq)"
           [class.wrong]="hasSubQuestions(pq.data) ? (hasMultipartBeenGraded(pq) && getMultipartPointsEarned(pq) === 0) : pq.isCorrect === false"
+          [ngClass]="'review-q-block--' + pq.data.type"
         >
           <div class="review-q-head">
             <span class="review-q-num">Question {{ i + 1 }}</span>
@@ -590,14 +592,6 @@
           </div>
         </div>
       </ng-container>
-    </div>
-    <div class="review-actions">
-      <button class="btn-secondary" (click)="backToResult()">
-        <span class="material-icons">arrow_back</span> Back to result
-      </button>
-      <button class="btn-primary" (click)="backToExercises()">
-        <span class="material-icons">list</span> All Exercises
-      </button>
     </div>
   </div>
 
@@ -1902,6 +1896,8 @@
           class="question-card"
           [class]="'q-type-' + currentQuestion.data.type"
           [class.q-card-passage-subs]="hasSubQuestions(currentQuestion.data)"
+          [class.q-card-exit]="cardAnimState === 'exiting'"
+          [class.q-card-enter]="cardAnimState === 'entering'"
         >
           <!-- Worksheet section header (shown when sectionTitle changes between questions) -->
           <div
