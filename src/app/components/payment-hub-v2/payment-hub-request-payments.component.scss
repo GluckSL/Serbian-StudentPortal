@@ -433,6 +433,69 @@
   background: #ffebee;
 }
 
+.ap-signup-section {
+  margin: 16px 0 24px;
+  padding: 16px 18px;
+  border: 1px solid #c5cae9;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f3f5ff 0%, #fff 100%);
+}
+
+.ap-signup-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ap-signup-section__title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #283593;
+}
+
+.ap-signup-section__sub {
+  margin: 0;
+  max-width: 44rem;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #5c6bc0;
+}
+
+.ap-signup-batch-field {
+  min-width: 180px;
+  margin: 0;
+}
+
+.ap-signup-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  color: #78909c;
+  font-size: 13px;
+
+  mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.ap-signup-loading {
+  padding: 12px 0;
+}
+
+.ap-existing-title {
+  margin: 8px 0 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #37474f;
+}
+
 .ap-refresh-btn {
   flex-shrink: 0;
   width: 42px;

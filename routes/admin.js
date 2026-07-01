@@ -1756,10 +1756,20 @@ router.get('/signup-applications/pending', verifyToken, isAdmin, async (req, res
     const list = await SignupApplication.find({ status: 'proof_submitted' })
       .sort({ proofSubmittedAt: -1, updatedAt: -1 })
       .select(
-        'applicationToken name email phoneNumber whatsappNumber level subscription currency amount proofPaidAmount proofPaymentDateTime proofAccountHolderName proofScreenshotKey proofSubmittedAt paymentMethod status createdAt'
+        'applicationToken name email phoneNumber whatsappNumber level subscription currency amount proofPaidAmount proofPaymentDateTime proofAccountHolderName proofScreenshotKey proofScreenshotOriginalName proofSubmittedAt paymentMethod status createdAt'
       )
       .lean();
-    return noStoreJson(res, { success: true, data: list, total: list.length });
+    const data = list.map((row) => {
+      const key = row.proofScreenshotKey;
+      const proofViewUrl =
+        key && (String(key).startsWith('http://') || String(key).startsWith('https://'))
+          ? String(key)
+          : key
+            ? `/uploads/${String(key).replace(/^\/+/, '')}`
+            : null;
+      return { ...row, proofViewUrl };
+    });
+    return noStoreJson(res, { success: true, data, total: data.length });
   } catch (err) {
     console.error('[GET /admin/signup-applications/pending]', err);
     return res.status(500).json({ success: false, message: 'Failed to load pending signup applications.' });

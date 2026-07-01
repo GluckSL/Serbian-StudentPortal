@@ -66,6 +66,8 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   computedAmount = 0;
   paymentFinalized = false;
   catalogLoading = false;
+  /** Latest status from resume API — used to avoid re-finalize when proof is already submitted. */
+  applicationStatus: string | null = null;
 
   paymentSubStep: 'choose-method' | 'ready' | 'proof-done' | 'payment-done' = 'choose-method';
   paymentMethodChoice: 'manual' | 'razorpay' | null = null;
@@ -124,8 +126,9 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
             this.otpSubStep = 'info';
           }
           this.selectedSubscription = d.subscription || this.selectedSubscription;
+          this.applicationStatus = d.status || null;
           if (d.status === 'proof_submitted') {
-            this.currentStep = 2;
+            this.currentStep = 3;
             this.paymentSubStep = 'proof-done';
             this.computedAmount = d.amount || 0;
             this.paymentFinalized = true;
@@ -487,6 +490,13 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
       this.otpSubStep = 'info';
       return;
     }
+    if (this.applicationStatus === 'proof_submitted') {
+      this.error = '';
+      this.success = '';
+      this.currentStep = 3;
+      this.paymentSubStep = 'proof-done';
+      return;
+    }
     this.error = '';
     this.success = '';
     this.currentStep = 2;
@@ -521,6 +531,11 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   }
 
   private preparePaymentStep(): void {
+    if (this.applicationStatus === 'proof_submitted') {
+      this.currentStep = 3;
+      this.paymentSubStep = 'proof-done';
+      return;
+    }
     if (this.paymentFinalized && this.computedAmount > 0) {
       if (!this.paymentMethodChoice) {
         this.paymentSubStep = 'choose-method';
@@ -730,6 +745,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
       }).subscribe({
         next: () => {
           this.loading = false;
+          this.applicationStatus = 'proof_submitted';
           this.paymentSubStep = 'proof-done';
           this.currentStep = 3;
           this.svc.clearToken();

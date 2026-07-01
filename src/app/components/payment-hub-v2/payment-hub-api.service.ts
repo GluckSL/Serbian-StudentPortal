@@ -195,6 +195,29 @@ export interface PagedResponse<T> {
   totalPages: number;
 }
 
+/** Public self-signup application awaiting bank-transfer proof review (no portal account yet). */
+export interface SignupPendingApplication {
+  applicationToken: string;
+  name: string;
+  email: string;
+  phoneNumber?: string;
+  whatsappNumber?: string;
+  level?: string;
+  subscription?: string;
+  currency?: string;
+  amount?: number;
+  proofPaidAmount?: number;
+  proofPaymentDateTime?: string;
+  proofAccountHolderName?: string;
+  proofScreenshotKey?: string;
+  proofScreenshotOriginalName?: string;
+  proofViewUrl?: string | null;
+  proofSubmittedAt?: string;
+  paymentMethod?: string;
+  status: string;
+  createdAt?: string;
+}
+
 export interface ApprovalQueueItem {
   _id: string;
   paymentRequestId: {
@@ -1056,5 +1079,23 @@ export class PaymentHubApiService {
 
   syncJourneyDueNotifications(): Observable<{ success: boolean; data: unknown }> {
     return this.http.post<{ success: boolean; data: unknown }>(`${this.base}/notifications/journey-due/sync`, {});
+  }
+
+  // ── Public signup proof queue (pre-account registrations) ───────────────
+
+  getPendingSignupApplications(): Observable<{ success: boolean; data: SignupPendingApplication[]; total: number }> {
+    return this.http.get<{ success: boolean; data: SignupPendingApplication[]; total: number }>(
+      `${environment.apiUrl}/admin/signup-applications/pending`,
+    );
+  }
+
+  approveSignupApplication(
+    applicationToken: string,
+    body?: { batch?: string },
+  ): Observable<{ success: boolean; message?: string; regNo?: string; userId?: string }> {
+    return this.http.post<{ success: boolean; message?: string; regNo?: string; userId?: string }>(
+      `${environment.apiUrl}/admin/signup-applications/${encodeURIComponent(applicationToken)}/approve`,
+      body || {},
+    );
   }
 }
