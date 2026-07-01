@@ -2219,7 +2219,7 @@
                 *ngFor="let i of getMatchingIndices(currentQuestion)"
               >
                 <!-- Left Item -->
-                <button
+                <span
                   *ngIf="currentQuestion.matchingLeft![i] as item"
                   class="match-item left-item"
                   [ngClass]="getLeftMatchClass(currentQuestion, i)"
@@ -2231,10 +2231,12 @@
                   [class.wrong]="
                     hasCurrentSubmitted && !isMatchCorrect(currentQuestion, i)
                   "
+                  role="button"
+                  tabindex="0"
                   (click)="selectLeft(currentQuestion, i)"
                 >
                   <span [innerHTML]="item.value | safeHtml"></span>
-                </button>
+                </span>
                 <div
                   *ngIf="!currentQuestion.matchingLeft![i]"
                   class="match-item-placeholder"
@@ -2246,7 +2248,7 @@
                 </div>
 
                 <!-- Right Item -->
-                <button
+                <span
                   *ngIf="currentQuestion.matchingRight![i] as rItem"
                   class="match-item right-item"
                   [ngClass]="getRightMatchClass(currentQuestion, i)"
@@ -2264,10 +2266,12 @@
                     rItem.matchedLeftIndex !== null &&
                     !isMatchCorrect(currentQuestion, rItem.matchedLeftIndex)
                   "
+                  role="button"
+                  tabindex="0"
                   (click)="selectRight(currentQuestion, i)"
                 >
                   <span [innerHTML]="rItem.value | safeHtml"></span>
-                </button>
+                </span>
                 <div
                   *ngIf="!currentQuestion.matchingRight![i]"
                   class="match-item-placeholder"
@@ -2550,63 +2554,60 @@
             <ng-container
               *ngTemplateOutlet="playerQuestionAudioAttachment"
             ></ng-container>
-            <div class="sp-table-wrap">
-              <table
-                class="sp-pairs-table"
-                *ngIf="singularPluralDisplayRows(currentQuestion).length"
+            <div class="sp-rows">
+              <!-- Labels Row -->
+              <div class="sp-row sp-labels-row">
+                <span class="sp-col-label">Singular</span>
+                <div class="connector-spacer"></div>
+                <span class="sp-col-label">Plural</span>
+              </div>
+              <div
+                class="sp-row"
+                *ngFor="
+                  let sp of singularPluralDisplayRows(currentQuestion);
+                  let ri = index
+                "
               >
-                <thead>
-                  <tr>
-                    <th>Singular</th>
-                    <th>Plural</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    *ngFor="
-                      let sp of singularPluralDisplayRows(currentQuestion);
-                      let ri = index
+                <span class="sp-singular-item">{{ sp.singular }}</span>
+                <div class="matching-connector">
+                  <div class="connector-dot"></div>
+                </div>
+                <div class="sp-input-wrap">
+                  <input
+                    type="text"
+                     class="sp-box-input"
+                    [(ngModel)]="currentQuestion.singularPluralInputs![ri]"
+                    (ngModelChange)="markAttempted(currentQuestion)"
+                    (focus)="
+                      setActiveSpecialInputTarget({
+                        type: 'singular-plural',
+                        rowIndex: ri,
+                      })
                     "
-                  >
-                    <td class="sp-singular-cell">{{ sp.singular }}</td>
-                    <td class="sp-plural-cell">
-                      <input
-                        type="text"
-                         class="sp-box-input"
-                        [(ngModel)]="currentQuestion.singularPluralInputs![ri]"
-                        (ngModelChange)="markAttempted(currentQuestion)"
-                        (focus)="
-                          setActiveSpecialInputTarget({
-                            type: 'singular-plural',
-                            rowIndex: ri,
-                          })
-                        "
-                        [placeholder]="'Plural ' + (ri + 1)"
-                        [class.correct]="
-                          hasCurrentSubmitted &&
-                          isSpRowCorrect(currentQuestion, ri)
-                        "
-                        [class.wrong]="
-                          hasCurrentSubmitted &&
-                          !isSpRowCorrect(currentQuestion, ri)
-                        "
-                        [disabled]="hasCurrentSubmitted"
-                      />
-                      <span
-                        class="blank-correct-val"
-                        *ngIf="
-                          hasCurrentSubmitted &&
-                          !isSpRowCorrect(currentQuestion, ri)
-                        "
+                    [placeholder]="'Plural ' + (ri + 1)"
+                    [class.correct]="
+                      hasCurrentSubmitted &&
+                      isSpRowCorrect(currentQuestion, ri)
+                    "
+                    [class.wrong]="
+                      hasCurrentSubmitted &&
+                      !isSpRowCorrect(currentQuestion, ri)
+                    "
+                    [disabled]="hasCurrentSubmitted"
+                  />
+                  <span
+                    class="blank-correct-val"
+                    *ngIf="
+                      hasCurrentSubmitted &&
+                      !isSpRowCorrect(currentQuestion, ri)
+                    "
                       >
                         → {{ getSpCorrectPlural(currentQuestion, ri) }}
                       </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div
+                    </div>
+                  </div>
+                </div>
+                <div
               class="special-char-pad"
               *ngIf="
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
@@ -3135,7 +3136,6 @@
                 >
                   {{ token }}
                 </button>
-                <span *ngIf="token === ' '" class="jumble-space"> </span>
               </ng-container>
             </div>
             <ng-container
@@ -4008,7 +4008,7 @@
                         <div class="matching-col-label">...with these</div>
                       </div>
                       <div class="matching-row" *ngFor="let i of getSubMatchingIndices(currentQuestion, sqIndex)">
-                        <button
+                        <span
                           *ngIf="getSubMatchingLeftItems(sq)[i] as item"
                           class="match-item left-item"
                           [ngClass]="getSubLeftMatchClass(currentQuestion, sqIndex, i)"
@@ -4016,10 +4016,12 @@
                           [class.matched]="currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== null && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== undefined"
                           [class.correct]="hasCurrentSubmitted && isSubMatchCorrect(currentQuestion, sqIndex, i)"
                           [class.wrong]="hasCurrentSubmitted && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== null && currentQuestion.subQuestionMatching?.[sqIndex]?.[i] !== undefined && !isSubMatchCorrect(currentQuestion, sqIndex, i)"
+                          role="button"
+                          tabindex="0"
                           (click)="selectSubQuestionMatchingLeft(currentQuestion, sqIndex, i)"
                         >
                           <span [innerHTML]="item | safeHtml"></span>
-                        </button>
+                        </span>
                         <div
                           *ngIf="!getSubMatchingLeftItems(sq)[i]"
                           class="match-item-placeholder"
@@ -4027,7 +4029,7 @@
                         <div class="matching-connector">
                           <div class="connector-dot"></div>
                         </div>
-                        <button
+                        <span
                           *ngIf="getSubMatchingRightItems(sq)[i] as rItem"
                           class="match-item right-item"
                           [ngClass]="getSubRightMatchClass(currentQuestion, sqIndex, i)"
@@ -4036,10 +4038,12 @@
                           [class.disabled]="isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i)"
                           [class.correct]="hasCurrentSubmitted && isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && isSubMatchCorrect(currentQuestion, sqIndex, getLeftIndexForSubRight(currentQuestion, sqIndex, i))"
                           [class.wrong]="hasCurrentSubmitted && isSubQuestionMatchingRightUsed(currentQuestion, sqIndex, i) && !isSubMatchCorrect(currentQuestion, sqIndex, getLeftIndexForSubRight(currentQuestion, sqIndex, i))"
+                          role="button"
+                          tabindex="0"
                           (click)="selectSubQuestionMatchingRight(currentQuestion, sqIndex, i)"
                         >
                           <span [innerHTML]="rItem | safeHtml"></span>
-                        </button>
+                        </span>
                         <div
                           *ngIf="!getSubMatchingRightItems(sq)[i]"
                           class="match-item-placeholder"
@@ -4295,26 +4299,27 @@
 
                     <!-- Singular Plural -->
                     <div *ngIf="sq.type === 'singular_plural'" class="sub-q-singular-plural">
-                      <table class="sp-pairs-table" *ngIf="getSubQuestionSpRows(sq).length">
-                        <thead>
-                          <tr>
-                            <th>Singular</th>
-                            <th>Plural</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr *ngFor="let sp of getSubQuestionSpRows(sq); let ri = index">
-                            <td class="sp-singular-cell">{{ sp.singular }}</td>
-                            <td class="sp-plural-cell">
-                              <input type="text" class="sp-box-input"
-                                [ngModel]="getSubQuestionSpInput(currentQuestion, sqIndex, ri)"
-                                (ngModelChange)="setSubQuestionSpInput(currentQuestion, sqIndex, ri, $event)"
-                                [disabled]="hasCurrentSubmitted"
-                                [placeholder]="'Plural'" />
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                      <div class="sp-rows">
+                        <!-- Labels Row -->
+                        <div class="sp-row sp-labels-row">
+                          <span class="sp-col-label">Singular</span>
+                          <div class="connector-spacer"></div>
+                          <span class="sp-col-label">Plural</span>
+                        </div>
+                        <div class="sp-row" *ngFor="let sp of getSubQuestionSpRows(sq); let ri = index">
+                          <span class="sp-singular-item">{{ sp.singular }}</span>
+                          <div class="matching-connector">
+                            <div class="connector-dot"></div>
+                          </div>
+                          <div class="sp-input-wrap">
+                            <input type="text" class="sp-box-input"
+                              [ngModel]="getSubQuestionSpInput(currentQuestion, sqIndex, ri)"
+                              (ngModelChange)="setSubQuestionSpInput(currentQuestion, sqIndex, ri, $event)"
+                              [disabled]="hasCurrentSubmitted"
+                              [placeholder]="'Plural'" />
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <!-- Jumble Word -->
@@ -4330,7 +4335,6 @@
                             [disabled]="hasCurrentSubmitted || isSubQuestionJumbleTokenUsed(currentQuestion, sqIndex, ti)">
                             {{ token }}
                           </button>
-                          <span *ngIf="token === ' '" class="jumble-space"> </span>
                         </ng-container>
                       </div>
                       <input type="text" class="sub-q-input jumble-input"
