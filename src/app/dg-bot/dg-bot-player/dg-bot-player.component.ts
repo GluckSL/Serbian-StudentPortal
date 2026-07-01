@@ -158,6 +158,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   private correctStreak = 0;
   private lastPracticeAttemptWrong = false;
   private consecutivePracticeFailures = 0;
+  private convConsecutiveFailures = 0;
   private sceneBehaviorPlan: DgSceneBehaviorPlan | null = null;
   private conversationHistory: DgConversationMessage[] = [];
   private conversationTurn = 0;
@@ -920,6 +921,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
     if (ok) {
       this.correctStreak += 1;
+      this.consecutivePracticeFailures = 0;
       this.practicePassed = true;
       this.charState.setState('happy');
       this.dialogueVariant = 'success';
@@ -935,20 +937,34 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     } else {
       this.correctStreak = 0;
       this.lastPracticeAttemptWrong = true;
+      this.consecutivePracticeFailures += 1;
       this.charState.setState('sad');
       this.dialogueVariant = 'encourage';
       const lines = this.engine.feedbackLines(false, false);
-      this.displayLine = `${lines.en} Try again when you're ready.`;
-      this.displaySub = lines.de;
-      this.mascotSpeechText = lines.de;
-      await this.playFeedbackTts(lines.de, 'sad');
-      this.displayLine = this.scene?.text || '';
-      this.displaySub = this.scene?.translation || '';
-      this.mascotSpeechText = this.scene?.text || '';
-      this.dialogueVariant = 'default';
-      this.canNext = false;
-      this.practiceRetryTick += 1;
-      this.charState.setState('idle');
+
+      if (this.consecutivePracticeFailures >= 3) {
+        const skipMsg = "That's okay! It will come with time. Let's move on to the next.";
+        this.displayLine = skipMsg;
+        this.displaySub = '';
+        this.mascotSpeechText = skipMsg;
+        this.dialogueVariant = 'default';
+        this.charState.setState('idle');
+        await this.playFeedbackTts(skipMsg, 'idle');
+        this.practicePassed = true;
+        void this.advance();
+      } else {
+        this.displayLine = `${lines.en} Try again when you're ready.`;
+        this.displaySub = lines.de;
+        this.mascotSpeechText = lines.de;
+        await this.playFeedbackTts(lines.de, 'sad');
+        this.displayLine = this.scene?.text || '';
+        this.displaySub = this.scene?.translation || '';
+        this.mascotSpeechText = this.scene?.text || '';
+        this.dialogueVariant = 'default';
+        this.canNext = false;
+        this.practiceRetryTick += 1;
+        this.charState.setState('idle');
+      }
     }
   }
 
@@ -1011,6 +1027,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.conversationTurn = 0;
     this.beginnerQuestionIndex = 0;
     this.convRetryTick = 0;
+    this.convConsecutiveFailures = 0;
     this.canNext = false;
     this.isAiThinking = false;
     this.waitingForUser = false;
@@ -1122,6 +1139,50 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
     // Don't show the start-trigger phrase as a chat bubble
     const isStartTrigger = /^(bereit|ready|start)$/i.test(transcript);
+
+    // Track consecutive wrong pronunciation attempts in conversation mode
+    if (!isStartTrigger && this.conversationStarted) {
+      const isPronunciationFail = ev.score != null ? ev.score < 55 : (ev.isCorrect === false);
+      if (isPronunciationFail) {
+        this.convConsecutiveFailures += 1;
+      } else {
+        this.convConsecutiveFailures = 0;
+      }
+
+      if (this.convConsecutiveFailures >= 3) {
+        this.convConsecutiveFailures = 0;
+        const skipMsg = "That's okay! It will come with time. Let's move on to the next.";
+        if (!isStartTrigger) {
+          this.chatHistory = [
+            ...this.chatHistory,
+            { speaker: 'student', text: transcript, score: ev.score ?? undefined },
+          ];
+        }
+        this.chatHistory = [
+          ...this.chatHistory,
+          { speaker: 'ai', text: skipMsg },
+        ];
+        this.scrollChatToLatest();
+        this.conversationHistory = [
+          ...this.conversationHistory,
+          { role: 'user', text: transcript },
+          { role: 'ai', text: skipMsg },
+        ];
+        this.conversationTurn += 1;
+        this.displayLine = skipMsg;
+        this.displaySub = '';
+        this.mascotSpeechText = skipMsg;
+        this.charState.setState('idle');
+        this.isAiThinking = false;
+        this.aiTyping = false;
+        this.logTts();
+        await this.playTtsBlob(skipMsg);
+        this.charState.setState('idle');
+        this.openMicForUserTurn();
+        return;
+      }
+    }
+
     if (!isStartTrigger) {
       this.chatHistory = [
         ...this.chatHistory,
@@ -1248,10 +1309,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.pendingGermanHint = '';
       this.conversationTurn = response.turnNumber ?? (this.conversationTurn + 1);
       // Beginner mode: use the question index returned by the server; fall back to formula
+      const prevBeginnerIdx = this.beginnerQuestionIndex;
       if (response.beginnerQuestionIndex != null) {
         this.beginnerQuestionIndex = response.beginnerQuestionIndex;
       } else {
         this.syncBeginnerQuestionIndex();
+      }
+      // Reset failure counter when the conversation advances to a new question
+      if (this.beginnerQuestionIndex !== prevBeginnerIdx) {
+        this.convConsecutiveFailures = 0;
       }
 
       this.conversationHistory = [
