@@ -266,6 +266,7 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
     const isAlreadyPublished = zoomRec && zoomRec.isPublished !== false;
     const requestStatus = req_?.status || null;
     const canRequest =
+      !isAlreadyPublished &&
       requestStatus !== 'PENDING' &&
       requestStatus !== 'APPROVED' &&
       quota.remaining > 0 &&

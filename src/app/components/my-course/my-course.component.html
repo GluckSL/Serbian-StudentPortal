@@ -1397,8 +1397,7 @@
               <td class="mc-req-table__action-col">
                 <div class="mc-req-table__actions">
                   <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
-                    *ngIf="cls.isAlreadyPublished && !cls.canRequest && cls.requestStatus !== 'PENDING' && cls.requestStatus !== 'APPROVED'"
-                    title="Access granted" aria-label="Access granted">
+                    *ngIf="cls.isAlreadyPublished" title="Access granted" aria-label="Access granted">
                     <span class="material-icons">check_circle</span>
                   </span>
                   <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
