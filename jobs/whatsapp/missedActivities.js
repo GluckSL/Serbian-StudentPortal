@@ -13,11 +13,11 @@ const cron = require('node-cron');
 const MeetingLink = require('../../models/MeetingLink');
 const ExerciseAttempt = require('../../models/ExerciseAttempt');
 const User = require('../../models/User');
-const { sendWhatsappNotification, NOTIFICATION_TYPES } = require('../../services/whatsappCrmService');
+const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 
 // ── Alert A: missed activities (no exercise completed in last 7 days) ──────────
 
-async function processMissedActivities() {
+async function processMissedActivities(batchSettings) {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   // Fetch all active students
@@ -26,6 +26,8 @@ async function processMissedActivities() {
     .lean();
 
   for (const student of students) {
+    if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.MISSED_ACTIVITIES, student.batch)) continue;
+
     const recentCompleted = await ExerciseAttempt.countDocuments({
       studentId: student._id,
       status: 'completed',
@@ -53,12 +55,13 @@ async function processMissedActivities() {
 
 // ── Alert B: excessive absences (5+ absent in last 10 recorded classes) ────────
 
-async function processExcessiveAbsences() {
+async function processExcessiveAbsences(batchSettings) {
   const students = await User.find({ role: 'STUDENT', isActive: true })
     .select('_id name whatsappNumber phoneNumber batch')
     .lean();
 
   for (const student of students) {
+    if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.EXCESSIVE_ABSENCES, student.batch)) continue;
     // Get last 10 recorded meetings for this student's batch
     const recentMeetings = await MeetingLink.find({
       batch: student.batch,
@@ -102,10 +105,11 @@ async function processExcessiveAbsences() {
 // ── Orchestrator ──────────────────────────────────────────────────────────────
 
 async function processMissedActivitiesAndAbsences() {
-  await processMissedActivities().catch((err) =>
+  const batchSettings = await getBatchSettingsMap();
+  await processMissedActivities(batchSettings).catch((err) =>
     console.error('[MissedActivities] ❌ Missed-activities error:', err.message)
   );
-  await processExcessiveAbsences().catch((err) =>
+  await processExcessiveAbsences(batchSettings).catch((err) =>
     console.error('[MissedActivities] ❌ Excessive-absences error:', err.message)
   );
 }

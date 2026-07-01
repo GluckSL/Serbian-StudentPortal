@@ -14,7 +14,7 @@
 const cron = require('node-cron');
 const MeetingLink = require('../../models/MeetingLink');
 const User = require('../../models/User');
-const { sendWhatsappNotification, NOTIFICATION_TYPES } = require('../../services/whatsappCrmService');
+const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 
 const CONSECUTIVE_THRESHOLD = 3;
 const MEETINGS_TO_CHECK = 10; // look back this many recorded meetings
@@ -24,6 +24,8 @@ const MEETINGS_TO_CHECK = 10; // look back this many recorded meetings
 // Field: consecutiveAbsenceAlertStreak — last streak count we alerted on.
 
 async function processConsecutiveAbsences() {
+  const batchSettings = await getBatchSettingsMap();
+
   const students = await User.find({ role: 'STUDENT', isActive: true })
     .select('_id name whatsappNumber phoneNumber batch assignedTeacher consecutiveAbsenceAlertSentAt consecutiveAbsenceAlertStreak')
     .lean();
@@ -31,6 +33,7 @@ async function processConsecutiveAbsences() {
   let alertsSent = 0;
 
   for (const student of students) {
+    if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.CONSECUTIVE_ABSENCE, student.batch)) continue;
     try {
       const recentMeetings = await MeetingLink.find({
         batch: student.batch,

@@ -1756,13 +1756,119 @@ router.get('/signup-applications/pending', verifyToken, isAdmin, async (req, res
     const list = await SignupApplication.find({ status: 'proof_submitted' })
       .sort({ proofSubmittedAt: -1, updatedAt: -1 })
       .select(
-        'applicationToken name email phoneNumber whatsappNumber level subscription currency amount proofPaidAmount proofPaymentDateTime proofAccountHolderName proofScreenshotKey proofSubmittedAt paymentMethod status createdAt'
+        'applicationToken name email phoneNumber whatsappNumber level subscription currency amount proofPaidAmount proofPaymentDateTime proofAccountHolderName proofScreenshotKey proofScreenshotOriginalName proofSubmittedAt paymentMethod status createdAt'
       )
       .lean();
-    return noStoreJson(res, { success: true, data: list, total: list.length });
+    const data = list.map((row) => {
+      const key = row.proofScreenshotKey;
+      const proofViewUrl =
+        key && (String(key).startsWith('http://') || String(key).startsWith('https://'))
+          ? String(key)
+          : key
+            ? `/uploads/${String(key).replace(/^\/+/, '')}`
+            : null;
+      return { ...row, proofViewUrl };
+    });
+    return noStoreJson(res, { success: true, data, total: data.length });
   } catch (err) {
     console.error('[GET /admin/signup-applications/pending]', err);
     return res.status(500).json({ success: false, message: 'Failed to load pending signup applications.' });
+  }
+});
+
+router.patch('/signup-applications/:applicationToken', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const applicationToken = String(req.params.applicationToken || '').trim();
+    if (!applicationToken) {
+      return res.status(400).json({ success: false, message: 'Application token is required.' });
+    }
+
+    const app = await SignupApplication.findOne({ applicationToken });
+    if (!app) {
+      return res.status(404).json({ success: false, message: 'Signup application not found.' });
+    }
+    if (app.status !== 'proof_submitted') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot edit application in status "${app.status}".`,
+      });
+    }
+
+    const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const PLANS = ['SILVER', 'PLATINUM', 'DOCS_RECOGNITION', 'VISA_DOC', 'POST_LANDING', 'VISA_DOC_ONLY'];
+    const CURRENCIES = ['INR', 'LKR', 'USD'];
+    const body = req.body || {};
+
+    if (body.level != null) {
+      const level = String(body.level).trim().toUpperCase();
+      if (!LEVELS.includes(level)) {
+        return res.status(400).json({ success: false, message: 'Invalid level.' });
+      }
+      app.level = level;
+      app.languageLevelOpted = level;
+    }
+    if (body.subscription != null) {
+      const subscription = String(body.subscription).trim().toUpperCase();
+      if (!PLANS.includes(subscription)) {
+        return res.status(400).json({ success: false, message: 'Invalid plan.' });
+      }
+      app.subscription = subscription;
+    }
+    if (body.currency != null) {
+      const currency = String(body.currency).trim().toUpperCase();
+      if (!CURRENCIES.includes(currency)) {
+        return res.status(400).json({ success: false, message: 'Invalid currency.' });
+      }
+      app.currency = currency;
+    }
+    if (body.amount != null) {
+      const amount = Number(body.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ success: false, message: 'Quoted fee must be a positive number.' });
+      }
+      app.amount = amount;
+    }
+    if (body.proofPaidAmount != null) {
+      const paid = Number(body.proofPaidAmount);
+      if (!Number.isFinite(paid) || paid <= 0) {
+        return res.status(400).json({ success: false, message: 'Declared paid amount must be a positive number.' });
+      }
+      app.proofPaidAmount = paid;
+    }
+    if (body.proofPaymentDateTime != null && body.proofPaymentDateTime !== '') {
+      const dt = new Date(body.proofPaymentDateTime);
+      if (Number.isNaN(dt.getTime())) {
+        return res.status(400).json({ success: false, message: 'Invalid payment date.' });
+      }
+      app.proofPaymentDateTime = dt;
+    }
+    if (body.proofAccountHolderName != null) {
+      const holder = String(body.proofAccountHolderName).trim();
+      if (!holder) {
+        return res.status(400).json({ success: false, message: 'Account holder name is required.' });
+      }
+      app.proofAccountHolderName = holder;
+    }
+
+    await app.save();
+
+    const row = app.toObject();
+    const key = row.proofScreenshotKey;
+    const proofViewUrl =
+      key && (String(key).startsWith('http://') || String(key).startsWith('https://'))
+        ? String(key)
+        : key
+          ? `/uploads/${String(key).replace(/^\/+/, '')}`
+          : null;
+
+    return res.json({
+      success: true,
+      message: 'Signup details updated.',
+      data: { ...row, proofViewUrl },
+    });
+  } catch (err) {
+    console.error('[PATCH /admin/signup-applications/:token]', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to update signup application.' });
   }
 });
 

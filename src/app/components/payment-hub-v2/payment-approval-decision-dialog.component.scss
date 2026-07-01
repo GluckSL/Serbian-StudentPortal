@@ -179,6 +179,12 @@
   font-size: 0.78rem;
   color: #64748b;
   line-height: 1.4;
+
+  &--error {
+    flex: 1 1 100%;
+    color: #b91c1c;
+    font-weight: 600;
+  }
 }
 
 .pad-field {

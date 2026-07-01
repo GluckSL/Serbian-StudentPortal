@@ -640,7 +640,7 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
     app.status = 'proof_submitted';
     await app.save();
 
-    const adminUrl = `${process.env.FRONTEND_URL || 'https://gluckstudentsportal.com'}/admin/payment-request`;
+    const adminUrl = `${process.env.FRONTEND_URL || 'https://gluckstudentsportal.com'}/admin/payment-request?tab=approvals`;
     const attachments = await buildSignupProofAttachments(f, screenshotKey);
     const notifyMail = buildSignupProofReceivedAdminEmail({
       studentName: app.name,

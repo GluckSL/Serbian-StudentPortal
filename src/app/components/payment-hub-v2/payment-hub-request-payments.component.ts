@@ -1,6 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -16,13 +19,17 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { PaymentHubApiService, StudentBrowseRow, ApprovalQueueItem } from './payment-hub-api.service';
+import { PaymentHubApiService, StudentBrowseRow, ApprovalQueueItem, SignupPendingApplication } from './payment-hub-api.service';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentRequestNavService } from './payment-request-nav.service';
 import {
   PaymentApprovalDecisionDialogComponent,
   PaymentApprovalDecisionMode,
 } from './payment-approval-decision-dialog.component';
+import {
+  SignupApprovalEditDialogComponent,
+  SignupApprovalEditResult,
+} from './signup-approval-edit-dialog.component';
 
 @Component({
   selector: 'app-payment-hub-request-payments',
@@ -62,6 +69,9 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   readonly planOptions = [
     { value: 'SILVER', label: 'Silver' },
     { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'DOCS_RECOGNITION', label: 'Docs recognition' },
+    { value: 'VISA_DOC', label: 'Visa doc' },
+    { value: 'POST_LANDING', label: 'Post landing' },
     { value: 'VISA_DOC_ONLY', label: 'Visa Doc Only' },
   ];
 
@@ -100,6 +110,13 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW,APPROVED,REJECTED';
   /** Count of items awaiting decision (badge on tab + sidebar). */
   pendingQueueTotal = 0;
+  pendingHubTotal = 0;
+  pendingSignupTotal = 0;
+
+  loadingSignups = false;
+  signupRows: SignupPendingApplication[] = [];
+  signupApproveBatch = '';
+  loadingSignupToken: string | null = null;
 
   activeView: 'send' | 'approvals' = 'send';
 
@@ -124,20 +141,30 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     private readonly snack: MatSnackBar,
     private readonly paymentRequestNav: PaymentRequestNavService,
     private readonly dialog: MatDialog,
+    private readonly route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab === 'approvals') {
+      this.activeView = 'approvals';
+      this.approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
+    }
     this.applyFilters();
     this.loadApprovals();
+    this.loadSignupApprovals();
     this.refreshPendingQueueCount();
   }
 
   setActiveView(view: 'send' | 'approvals'): void {
     this.activeView = view;
-    if (view === 'approvals' && this.approvalStatusFilter !== 'SUBMITTED,UNDER_REVIEW') {
-      this.approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
-      this.approvalPage = 1;
-      this.loadApprovals();
+    if (view === 'approvals') {
+      if (this.approvalStatusFilter !== 'SUBMITTED,UNDER_REVIEW') {
+        this.approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
+        this.approvalPage = 1;
+        this.loadApprovals();
+      }
+      this.loadSignupApprovals();
     }
   }
 
@@ -321,7 +348,8 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.approvalTotal = res.total || 0;
         this.loadingApprovals = false;
         if (this.approvalStatusFilter === 'SUBMITTED,UNDER_REVIEW') {
-          this.pendingQueueTotal = this.approvalTotal;
+          this.pendingHubTotal = this.approvalTotal;
+          this.pendingQueueTotal = this.pendingHubTotal + this.pendingSignupTotal;
         }
       },
       error: () => {
@@ -331,13 +359,55 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     });
   }
 
-  refreshPendingQueueCount(): void {
-    this.api.getApprovalQueue({ page: 1, limit: 1, status: 'SUBMITTED,UNDER_REVIEW' }).subscribe({
+  loadSignupApprovals(): void {
+    this.loadingSignups = true;
+    this.api.getPendingSignupApplications().subscribe({
       next: (res) => {
-        this.pendingQueueTotal = res.total || 0;
+        this.signupRows = res.data || [];
+        this.pendingSignupTotal = res.total ?? this.signupRows.length;
+        this.pendingQueueTotal = this.pendingHubTotal + this.pendingSignupTotal;
+        this.paymentRequestNav.setPendingCount(this.pendingQueueTotal);
+        this.loadingSignups = false;
+        if (this.pendingSignupTotal > 0 && this.activeView === 'send') {
+          this.activeView = 'approvals';
+          this.approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
+          this.approvalPage = 1;
+          this.loadApprovals();
+        }
+      },
+      error: (err) => {
+        this.loadingSignups = false;
+        const msg = err?.error?.message || err?.status === 404
+          ? 'Signup approvals API not found — deploy the latest backend.'
+          : 'Could not load new signup applications';
+        this.snack.open(msg, 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  private emptyApprovalPage() {
+    return of({ success: true, data: [], total: 0, page: 1, totalPages: 0 });
+  }
+
+  private emptySignupPage() {
+    return of({ success: true, data: [], total: 0 });
+  }
+
+  refreshPendingQueueCount(): void {
+    forkJoin({
+      hub: this.api.getApprovalQueue({ page: 1, limit: 1, status: 'SUBMITTED,UNDER_REVIEW' }).pipe(
+        catchError(() => this.emptyApprovalPage()),
+      ),
+      signups: this.api.getPendingSignupApplications().pipe(
+        catchError(() => this.emptySignupPage()),
+      ),
+    }).subscribe({
+      next: ({ hub, signups }) => {
+        this.pendingHubTotal = hub.total || 0;
+        this.pendingSignupTotal = signups.total ?? signups.data?.length ?? 0;
+        this.pendingQueueTotal = this.pendingHubTotal + this.pendingSignupTotal;
         this.paymentRequestNav.setPendingCount(this.pendingQueueTotal);
       },
-      error: () => { /* ignore */ },
     });
   }
 
@@ -466,6 +536,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.snack.open('Approved. Confirmation email sent to the student.' + msg + (res.isFullyPaid ? ' Fully paid!' : ''), 'OK', { duration: 5000 });
         this.activeActionId = null;
         this.loadApprovals();
+        this.loadSignupApprovals();
         this.refreshPendingQueueCount();
       },
       error: (e) => {
@@ -490,6 +561,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.activeActionId = null;
         this.rejectReason = '';
         this.loadApprovals();
+        this.loadSignupApprovals();
         this.refreshPendingQueueCount();
       },
       error: (e) => {
@@ -508,6 +580,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.activeActionId = null;
         this.reuploadNote = '';
         this.loadApprovals();
+        this.loadSignupApprovals();
         this.refreshPendingQueueCount();
       },
       error: (e) => {
@@ -527,6 +600,83 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     return new Date(raw).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
+  formatSignupSubmittedAt(row: SignupPendingApplication): string {
+    const raw = row.proofSubmittedAt || row.createdAt;
+    if (!raw) return '—';
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  }
+
+  formatSignupPaymentDate(row: SignupPendingApplication): string {
+    if (!row.proofPaymentDateTime) return '—';
+    const d = new Date(row.proofPaymentDateTime);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  }
+
+  signupDeclaredAmount(row: SignupPendingApplication): number {
+    return row.proofPaidAmount ?? row.amount ?? 0;
+  }
+
+  viewSignupProof(row: SignupPendingApplication): void {
+    if (!row.proofViewUrl) {
+      this.snack.open('Proof file not available.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+    window.open(row.proofViewUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  openSignupEdit(row: SignupPendingApplication, ev?: Event): void {
+    ev?.stopPropagation();
+    const ref = this.dialog.open(SignupApprovalEditDialogComponent, {
+      width: '580px',
+      maxWidth: '96vw',
+      panelClass: 'lm-dialog-panel',
+      autoFocus: false,
+      data: { application: row, defaultBatch: this.signupApproveBatch },
+    });
+
+    ref.afterClosed().subscribe((result: SignupApprovalEditResult | undefined) => {
+      if (!result) return;
+      const { batch, ...patch } = result;
+      this.api.updateSignupApplication(row.applicationToken, patch).subscribe({
+        next: () => {
+          if (batch) this.signupApproveBatch = batch;
+          this.snack.open('Signup details saved. Review and click Approve when ready.', 'OK', { duration: 4000 });
+          this.loadSignupApprovals();
+        },
+        error: (e) => {
+          this.snack.open(e?.error?.message || 'Could not save signup details', 'Dismiss', { duration: 5000 });
+        },
+      });
+    });
+  }
+
+  approveSignup(row: SignupPendingApplication, ev?: Event): void {
+    ev?.stopPropagation();
+    if (this.loadingSignupToken) return;
+    this.loadingSignupToken = row.applicationToken;
+    const body = this.signupApproveBatch.trim() ? { batch: this.signupApproveBatch.trim() } : undefined;
+    this.api.approveSignupApplication(row.applicationToken, body).subscribe({
+      next: (res) => {
+        this.loadingSignupToken = null;
+        const reg = res.regNo ? ` Web App ID: ${res.regNo}.` : '';
+        this.snack.open((res.message || 'Signup approved.') + reg, 'OK', { duration: 6000 });
+        this.loadSignupApprovals();
+        this.refreshPendingQueueCount();
+      },
+      error: (e) => {
+        this.loadingSignupToken = null;
+        this.snack.open(e?.error?.message || 'Could not approve signup', 'Dismiss', { duration: 5000 });
+      },
+    });
+  }
+
+  refreshApprovalsTab(): void {
+    this.loadApprovals();
+    this.loadSignupApprovals();
+    this.refreshPendingQueueCount();
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   initialLetter(name: string | undefined): string {
@@ -536,6 +686,14 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   planLabel(val: string | undefined): string {
     return this.planOptions.find(p => p.value === val)?.label || val || '—';
+  }
+
+  planPillClass(val: string | undefined): string {
+    const v = String(val || '').toUpperCase();
+    if (v === 'PLATINUM') return 'ap-plan-pill--platinum';
+    if (v === 'SILVER') return 'ap-plan-pill--silver';
+    if (v === 'VISA_DOC_ONLY') return 'ap-plan-pill--visa';
+    return 'ap-plan-pill--default';
   }
 
   statusClass(status: string): string {

@@ -24,6 +24,15 @@
   <!-- ══════════════════════════════════════════════════════ SEND REQUEST -->
   <div class="tab-content" *ngIf="activeView === 'send'">
 
+      <div class="ap-signup-banner" *ngIf="pendingSignupTotal > 0" role="status">
+        <mat-icon>person_add</mat-icon>
+        <div>
+          <strong>{{ pendingSignupTotal }} new signup payment proof{{ pendingSignupTotal > 1 ? 's' : '' }} waiting</strong>
+          <span> — not shown under existing students. Open Pending Approvals to review.</span>
+        </div>
+        <button type="button" class="ap-signup-banner__btn" (click)="setActiveView('approvals')">Review signups</button>
+      </div>
+
       <!-- Filter Bar -->
       <div class="filter-bar">
         <mat-form-field appearance="outline" class="filter-field filter-search">
@@ -242,16 +251,123 @@
 
       <header class="ap-queue-bar">
         <div class="ap-queue-bar__intro">
-          <h3 class="ap-queue-title">Approval queue</h3>
-          <p class="ap-queue-sub" *ngIf="pendingQueueTotal > 0">
-            <span class="ap-queue-pending">{{ pendingQueueTotal }}</span> awaiting review — approve credits the declared amount only.
-          </p>
-          <p class="ap-queue-sub" *ngIf="pendingQueueTotal === 0">No submissions waiting for review right now.</p>
+          <div class="ap-queue-bar__badge">
+            <mat-icon>pending_actions</mat-icon>
+          </div>
+          <div>
+            <h3 class="ap-queue-title">Approval queue</h3>
+            <p class="ap-queue-sub" *ngIf="pendingQueueTotal > 0">
+              <span class="ap-queue-pending">{{ pendingQueueTotal }}</span> awaiting review
+              <ng-container *ngIf="pendingSignupTotal > 0"> — includes {{ pendingSignupTotal }} new signup{{ pendingSignupTotal > 1 ? 's' : '' }}</ng-container>.
+            </p>
+            <p class="ap-queue-sub" *ngIf="pendingQueueTotal === 0">No submissions waiting for review right now.</p>
+          </div>
         </div>
-        <button type="button" class="ap-refresh-btn" (click)="loadApprovals()" matTooltip="Refresh list" aria-label="Refresh list">
+        <button type="button" class="ap-refresh-btn" (click)="refreshApprovalsTab()" matTooltip="Refresh list" aria-label="Refresh list">
           <mat-icon>refresh</mat-icon>
         </button>
       </header>
+
+      <!-- New public signups (no portal account yet) -->
+      <section class="ap-signup-section">
+        <header class="ap-signup-section__head">
+          <div class="ap-signup-section__head-left">
+            <span class="ap-signup-section__icon"><mat-icon>person_add</mat-icon></span>
+            <div>
+              <h4 class="ap-signup-section__title">New student signups</h4>
+              <p class="ap-signup-section__sub">Bank-transfer proofs from the public registration form — approving creates the student account and sends the welcome email.</p>
+            </div>
+          </div>
+          <mat-form-field appearance="outline" class="ap-signup-batch-field" *ngIf="signupRows.length > 0">
+            <mat-label>Batch (optional)</mat-label>
+            <input matInput [(ngModel)]="signupApproveBatch" placeholder="e.g. A1-2026" />
+          </mat-form-field>
+        </header>
+
+        <div *ngIf="loadingSignups" class="loading-center ap-signup-loading">
+          <mat-spinner diameter="32"></mat-spinner>
+        </div>
+
+        <div *ngIf="!loadingSignups && signupRows.length === 0" class="ap-signup-empty ap-signup-empty--inset">
+          <mat-icon>person_add</mat-icon>
+          <p>No new signup payment proofs waiting.</p>
+        </div>
+
+        <div *ngIf="!loadingSignups && signupRows.length > 0" class="ap-table-shell ap-signup-table">
+          <div class="ap-table-scroll">
+            <table class="ap-table">
+              <thead>
+                <tr>
+                  <th>Applicant</th>
+                  <th>Contact</th>
+                  <th>Level</th>
+                  <th>Plan</th>
+                  <th class="ap-num">Declared</th>
+                  <th class="ap-num">Quoted fee</th>
+                  <th>Payment date</th>
+                  <th>Account holder</th>
+                  <th>Submitted</th>
+                  <th>Proof</th>
+                  <th class="ap-col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of signupRows" class="ap-table-row ap-table-row--pending">
+                  <td class="ap-cell-student">
+                    <div class="ap-student-name">{{ row.name || '—' }}</div>
+                    <div class="ap-student-meta">{{ row.email }}</div>
+                  </td>
+                  <td>
+                    <div class="ap-student-meta" *ngIf="row.phoneNumber">{{ row.phoneNumber }}</div>
+                    <div class="ap-student-meta" *ngIf="row.whatsappNumber && row.whatsappNumber !== row.phoneNumber">WA: {{ row.whatsappNumber }}</div>
+                  </td>
+                  <td>{{ row.level || '—' }}</td>
+                  <td><span class="ap-plan-pill" [ngClass]="planPillClass(row.subscription)">{{ planLabel(row.subscription) }}</span></td>
+                  <td class="ap-num ap-amount-declared">{{ row.currency || '—' }} {{ fmt(signupDeclaredAmount(row)) }}</td>
+                  <td class="ap-num ap-muted">{{ row.currency || '—' }} {{ fmt(row.amount) }}</td>
+                  <td>{{ formatSignupPaymentDate(row) }}</td>
+                  <td>{{ row.proofAccountHolderName || '—' }}</td>
+                  <td class="ap-muted">{{ formatSignupSubmittedAt(row) }}</td>
+                  <td>
+                    <button
+                      *ngIf="row.proofViewUrl"
+                      type="button"
+                      class="ap-proof-btn"
+                      (click)="viewSignupProof(row)">
+                      <mat-icon>image</mat-icon>
+                      View proof
+                    </button>
+                    <span *ngIf="!row.proofViewUrl" class="ap-no-proof">No file</span>
+                  </td>
+                  <td class="ap-col-actions">
+                    <div class="ap-action-btns">
+                      <button
+                        type="button"
+                        class="ap-action-btn ap-action-btn--edit"
+                        [disabled]="loadingSignupToken === row.applicationToken"
+                        (click)="openSignupEdit(row, $event)">
+                        <mat-icon>edit</mat-icon>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        class="ap-action-btn ap-action-btn--approve ap-action-btn--primary"
+                        [disabled]="loadingSignupToken === row.applicationToken"
+                        (click)="approveSignup(row, $event)">
+                        <mat-spinner *ngIf="loadingSignupToken === row.applicationToken" diameter="14" class="ap-action-spinner"></mat-spinner>
+                        <mat-icon *ngIf="loadingSignupToken !== row.applicationToken">check_circle</mat-icon>
+                        Approve
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <h4 class="ap-existing-title">Existing student payments</h4>
 
       <div class="ap-filter-row" role="group" aria-label="Filter by status">
         <button
@@ -330,7 +446,8 @@
                   <td><span class="pill" [ngClass]="statusClass(sub.status)">{{ sub.status }}</span></td>
                   <td class="ap-muted">{{ sub.submittedAt | date:'dd MMM y, HH:mm' }}</td>
                   <td>
-                    <button type="button" class="ap-link-btn" (click)="viewScreenshot(sub); $event.stopPropagation()">
+                    <button type="button" class="ap-proof-btn" (click)="viewScreenshot(sub); $event.stopPropagation()">
+                      <mat-icon>image</mat-icon>
                       View proof
                     </button>
                   </td>

@@ -15,7 +15,7 @@ const MeetingLink = require('../../models/MeetingLink');
 const ExerciseAttempt = require('../../models/ExerciseAttempt');
 const StudentProgress = require('../../models/StudentProgress');
 const User = require('../../models/User');
-const { sendWhatsappNotification, NOTIFICATION_TYPES } = require('../../services/whatsappCrmService');
+const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -108,6 +108,7 @@ function buildMessage(student, stats) {
 // ── Main report processor ─────────────────────────────────────────────────────
 
 async function processWeeklyReports() {
+  const batchSettings = await getBatchSettingsMap();
   const thisWeekRange = weekBoundaries(0);
   const lastWeekRange = weekBoundaries(1);
 
@@ -119,6 +120,7 @@ async function processWeeklyReports() {
   let sent = 0;
 
   for (const student of students) {
+    if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.WEEKLY_PROGRESS_REPORT, student.batch)) continue;
     try {
       const [
         thisClasses, lastClasses,
