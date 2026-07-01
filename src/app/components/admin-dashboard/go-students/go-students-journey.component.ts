@@ -361,7 +361,7 @@ interface PickerItem {
       <div class="gs-modal-body">
         <p class="gs-resource-sub" *ngIf="resourceRecording">{{ resourceRecording.title }}</p>
         <div class="gs-resource-upload">
-          <p class="gs-resource-hint">Share worksheets, PDFs, slides, or other files with GO students (max 20 MB each).</p>
+          <p class="gs-resource-hint">Share worksheets, PDFs, slides, or other files with GO students (max 50 MB each).</p>
           <label class="gs-resource-pick">
             <i class="fas fa-cloud-upload-alt"></i>
             {{ uploadingFiles ? 'Uploading…' : 'Choose files' }}

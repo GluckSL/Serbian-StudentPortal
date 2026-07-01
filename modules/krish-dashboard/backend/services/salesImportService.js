@@ -750,7 +750,7 @@ function previewRows(rows) {
  * Commit validated rows into sales_students + sales_student_services.
  * Upserts by email address — one student per unique email (626 rows = 626 students).
  */
-async function commitImport(validatedRows, staffUserId) {
+async function commitImport(validatedRows, staffUserId, options = {}) {
   const normalized = validatedRows.map((r) => ({
     rowIndex: r.rowIndex,
     record: { ...(r.record || r) },
@@ -935,8 +935,10 @@ async function commitImport(validatedRows, staffUserId) {
 
   await batchSyncStudentServices(serviceSync);
 
-  await repairStaleProfessionData();
-  await repairDocumentPaymentStatuses(SalesStudent);
+  if (!options.skipRepairs) {
+    await repairStaleProfessionData();
+    await repairDocumentPaymentStatuses(SalesStudent);
+  }
   invalidateCache();
   return {
     imported,

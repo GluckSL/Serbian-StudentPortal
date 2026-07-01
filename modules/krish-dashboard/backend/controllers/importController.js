@@ -1,6 +1,7 @@
 const multer = require('multer');
 const XLSX = require('xlsx');
 const { previewRows, commitImport } = require('../services/salesImportService');
+const { fetchAndCommitFromCrm } = require('../services/salesCrmFetchService');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -102,4 +103,19 @@ async function commit(req, res) {
   });
 }
 
-module.exports = { preview, commit };
+async function fetchCrm(req, res) {
+  try {
+    const staffUserId = req.user?.userId || req.user?.id || null;
+    const result = await fetchAndCommitFromCrm(staffUserId);
+    res.json({ success: true, data: result });
+  } catch (e) {
+    console.error('[KrishDash] CRM fetch error', e);
+    const status = e.response?.status === 401 || e.response?.status === 403 ? 502 : 500;
+    res.status(status).json({
+      success: false,
+      message: e.response?.data?.message || e.message || 'Failed to fetch from CRM',
+    });
+  }
+}
+
+module.exports = { preview, commit, fetchCrm };

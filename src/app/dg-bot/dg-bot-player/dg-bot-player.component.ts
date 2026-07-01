@@ -44,6 +44,7 @@ import { DgAudioPlayerService } from '../dg-audio-player.service';
 import { dgDevLog } from '../dg-dev-log';
 import { DgCharacterEmotionService } from '../dg-character-emotion.service';
 import type { DgCharacterAnimState } from '../dg-character-state.service';
+import { resolveMediaUrl } from '../../utils/media-url';
 
 export interface DgSceneFlowItem {
   type: string;
@@ -415,8 +416,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   get beginnerContextImageUrl(): string {
     if (this.isBeginnerModeActive && !this.conversationStarted) return '';
     const sceneImg = this.scene?.imageUrl?.trim();
-    if (sceneImg && !this.conversationMode) return sceneImg;
-    return this.currentBeginnerQuestion?.imageUrl ?? '';
+    if (sceneImg && !this.conversationMode) return resolveMediaUrl(sceneImg);
+    return resolveMediaUrl(this.currentBeginnerQuestion?.imageUrl);
   }
 
   get beginnerContextText(): string {
@@ -920,6 +921,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
     if (ok) {
       this.correctStreak += 1;
+      this.consecutivePracticeFailures = 0;
       this.practicePassed = true;
       this.charState.setState('happy');
       this.dialogueVariant = 'success';
@@ -935,20 +937,34 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     } else {
       this.correctStreak = 0;
       this.lastPracticeAttemptWrong = true;
+      this.consecutivePracticeFailures += 1;
       this.charState.setState('sad');
       this.dialogueVariant = 'encourage';
       const lines = this.engine.feedbackLines(false, false);
-      this.displayLine = `${lines.en} Try again when you're ready.`;
-      this.displaySub = lines.de;
-      this.mascotSpeechText = lines.de;
-      await this.playFeedbackTts(lines.de, 'sad');
-      this.displayLine = this.scene?.text || '';
-      this.displaySub = this.scene?.translation || '';
-      this.mascotSpeechText = this.scene?.text || '';
-      this.dialogueVariant = 'default';
-      this.canNext = false;
-      this.practiceRetryTick += 1;
-      this.charState.setState('idle');
+
+      if (this.consecutivePracticeFailures >= 3) {
+        const skipMsg = "That's okay! It will come with time. Let's move on to the next.";
+        this.displayLine = skipMsg;
+        this.displaySub = '';
+        this.mascotSpeechText = skipMsg;
+        this.dialogueVariant = 'default';
+        this.charState.setState('idle');
+        await this.playFeedbackTts(skipMsg, 'idle');
+        this.practicePassed = true;
+        void this.advance();
+      } else {
+        this.displayLine = `${lines.en} Try again when you're ready.`;
+        this.displaySub = lines.de;
+        this.mascotSpeechText = lines.de;
+        await this.playFeedbackTts(lines.de, 'sad');
+        this.displayLine = this.scene?.text || '';
+        this.displaySub = this.scene?.translation || '';
+        this.mascotSpeechText = this.scene?.text || '';
+        this.dialogueVariant = 'default';
+        this.canNext = false;
+        this.practiceRetryTick += 1;
+        this.charState.setState('idle');
+      }
     }
   }
 
@@ -1122,6 +1138,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
     // Don't show the start-trigger phrase as a chat bubble
     const isStartTrigger = /^(bereit|ready|start)$/i.test(transcript);
+
     if (!isStartTrigger) {
       this.chatHistory = [
         ...this.chatHistory,
@@ -1254,44 +1271,79 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.syncBeginnerQuestionIndex();
       }
 
+      const skipMsg = (response.skipMessage || '').trim();
+      const nextPrompt = (response.text || '').trim();
+      const skipped = !!response.questionSkipped && !!skipMsg;
+
       this.conversationHistory = [
         ...this.conversationHistory,
-        { role: 'user', text: transcript },
-        { role: 'ai', text: response.text },
+        { role: 'user' as const, text: transcript },
+        ...(skipped
+          ? [
+              { role: 'ai' as const, text: skipMsg },
+              ...(nextPrompt ? [{ role: 'ai' as const, text: nextPrompt }] : []),
+            ]
+          : [{ role: 'ai' as const, text: response.text }]),
       ];
 
       this.chatHistory = [
         ...this.chatHistory,
-        {
-          speaker: 'ai',
-          text: response.text,
-          translation: response.translatedTamil || undefined,
-          translationEn: response.translatedEnglish || undefined,
-        },
+        ...(skipped
+          ? [
+              { speaker: 'ai' as const, text: skipMsg },
+              ...(nextPrompt
+                ? [{
+                    speaker: 'ai' as const,
+                    text: nextPrompt,
+                    translation: response.translatedTamil || undefined,
+                    translationEn: response.translatedEnglish || undefined,
+                  }]
+                : []),
+            ]
+          : [{
+              speaker: 'ai' as const,
+              text: response.text,
+              translation: response.translatedTamil || undefined,
+              translationEn: response.translatedEnglish || undefined,
+            }]),
       ];
       this.scrollChatToLatest();
 
-      if (this.sessionId && (response.text || '').trim()) {
-        firstValueFrom(
-          this.dgApi.updateSession({
-            sessionId: this.sessionId,
-            event: 'conv_ai',
-            sceneIndex: this.index,
-            meta: { text: (response.text || '').trim() },
-          }),
-        ).catch(() => {});
+      if (this.sessionId) {
+        const lines = skipped
+          ? [skipMsg, nextPrompt].filter(Boolean)
+          : [(response.text || '').trim()].filter(Boolean);
+        for (const line of lines) {
+          firstValueFrom(
+            this.dgApi.updateSession({
+              sessionId: this.sessionId,
+              event: 'conv_ai',
+              sceneIndex: this.index,
+              meta: { text: line },
+            }),
+          ).catch(() => {});
+        }
       }
 
-      this.aiResponseText = response.text;
+      this.aiResponseText = skipped ? (nextPrompt || skipMsg) : response.text;
       this.aiResponseTamil = response.translatedTamil;
-      this.displayLine = response.text;
+      this.displayLine = skipped ? (nextPrompt || skipMsg) : response.text;
       this.displaySub = response.translatedTamil || '';
-      this.mascotSpeechText = response.text;
+      this.mascotSpeechText = skipped ? skipMsg : response.text;
       this.dialogueVariant = 'default';
       this.charState.setState('speaking');
 
       this.logTts();
-      await this.playTtsBlob(response.text);
+      if (skipped) {
+        await this.playTtsBlob(skipMsg);
+        if (nextPrompt) {
+          this.mascotSpeechText = nextPrompt;
+          this.displayLine = nextPrompt;
+          await this.playTtsBlob(nextPrompt);
+        }
+      } else {
+        await this.playTtsBlob(response.text);
+      }
 
       const phase = response.phase || (response.complete ? 'complete' : 'active');
 

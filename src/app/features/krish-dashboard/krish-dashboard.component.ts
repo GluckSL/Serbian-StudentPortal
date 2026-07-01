@@ -167,6 +167,9 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   importError = '';
   resetLoading = false;
   exportLoading = false;
+  crmFetchLoading = false;
+  crmFetchMessage = '';
+  crmFetchError = '';
 
   // ── Note form (inside drawer) ─────────────────────────────────────────────
   noteForm = { type: 'NOTE', content: '', followUpDate: '' };
@@ -244,8 +247,10 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
-  loadAnalytics(): void {
-    this.analyticsLoading = true;
+  loadAnalytics(soft = false): void {
+    if (!soft || !this.analytics) {
+      this.analyticsLoading = true;
+    }
     this.api.getAnalytics().subscribe({
       next: (res) => {
         if (res.success) {
@@ -1499,6 +1504,48 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   }
 
   // ── Export ────────────────────────────────────────────────────────────────
+
+  fetchFromCrm(): void {
+    if (this.crmFetchLoading) return;
+    const confirmed = window.confirm(
+      'Fetch the latest student data from CRM? Overview will be updated to match the CRM enrollment board. Records no longer in CRM will be removed.'
+    );
+    if (!confirmed) return;
+
+    this.crmFetchLoading = true;
+    this.crmFetchMessage = '';
+    this.crmFetchError = '';
+    this.cdr.markForCheck();
+
+    this.api.fetchFromCrm().subscribe({
+      next: (res) => {
+        if (res.success) {
+          const d = res.data || {};
+          const parts = [
+            `${d.overviewTotal ?? d.crmTotal ?? 0} students in overview`,
+            `${d.imported ?? 0} new`,
+            `${d.updated ?? 0} updated`,
+          ];
+          if (d.removed) parts.push(`${d.removed} removed`);
+          if (d.failed?.length) parts.push(`${d.failed.length} failed`);
+          this.crmFetchMessage = `Synced from CRM — ${parts.join(', ')}.`;
+          this.loadStudents();
+          this.loadAnalytics(true);
+        } else {
+          this.crmFetchError = res.message || 'CRM fetch failed';
+        }
+        this.crmFetchLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.crmFetchError =
+          err?.error?.message ||
+          (err?.status === 0 ? 'Could not reach server — check that the backend is running.' : 'CRM fetch failed');
+        this.crmFetchLoading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
 
   /** Export all students matching the current filters (not just the current page). */
   exportData(format: 'csv' | 'xlsx' = 'xlsx'): void {

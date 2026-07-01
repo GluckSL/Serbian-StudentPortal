@@ -46,7 +46,7 @@ const upload = multer({
     }
     cb(null, true);
   },
-  limits: { fileSize: 20 * 1024 * 1024 }
+  limits: { fileSize: 50 * 1024 * 1024 }
 });
 
 const uploadResources = upload.array('files', 5);

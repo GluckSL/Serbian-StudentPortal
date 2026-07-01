@@ -85,8 +85,9 @@ async function proxyPost(upstreamPath, req, res) {
 router.use(isAdmin);
 
 // ── Enrollment Board ─────────────────────────────────────────────────────────
+// List-all uses the filter route — the bare list endpoint ignores page and repeats page 1.
 router.get('/enrollment-board', (req, res) =>
-  proxyGet('/sales-dashboard/enrollment-board', req, res)
+  proxyGet('/sales-dashboard/enrollment-board/filter', req, res)
 );
 router.get('/enrollment-board/filter', (req, res) =>
   proxyGet('/sales-dashboard/enrollment-board/filter', req, res)

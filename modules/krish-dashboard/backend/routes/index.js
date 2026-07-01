@@ -78,6 +78,7 @@ router.patch('/students/:id/notes/:noteId',  canEdit, notesCtrl.updateNote);
 // ── Import ─────────────────────────────────────────────────────────────────
 router.post('/import/preview', canEdit, importCtrl.preview);
 router.post('/import/commit',  canEdit, importCtrl.commit);
+router.post('/import/fetch-crm', canEdit, importCtrl.fetchCrm);
 
 // ── Export ─────────────────────────────────────────────────────────────────
 router.get('/export', canView, exportCtrl.exportStudents);

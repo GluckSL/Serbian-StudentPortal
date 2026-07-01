@@ -108,6 +108,10 @@ export class KrishDashboardApiService {
     return this.http.post(`${BASE}/import/commit`, fd, { withCredentials: true });
   }
 
+  fetchFromCrm(): Observable<any> {
+    return this.http.post(`${BASE}/import/fetch-crm`, {}, { withCredentials: true });
+  }
+
   getExportUrl(filters: Partial<KrishDashboardFilters>, format: 'csv' | 'xlsx'): string {
     return `${BASE}/export?${this.buildFilterParams(filters).set('format', format).toString()}`;
   }

@@ -120,6 +120,8 @@ function startConversation(sessionId, moduleData) {
     beginnerQuestionIndex: 0,
     /** True when a language hint was shown; next student turn should advance the question. */
     beginnerAwaitingRepeat: false,
+    /** Consecutive wrong attempts on the current beginner question (skip after 3). */
+    beginnerConsecutiveFailures: 0,
 
     createdAt: Date.now(),
   };
@@ -304,6 +306,32 @@ function _isBeginnerAnswerCorrect(said, expected) {
   return matched.length / eWords.length >= 0.75;
 }
 
+const BEGINNER_SKIP_MESSAGE = "That's okay! It will come with time. Let's move on to the next.";
+const BEGINNER_MAX_FAILURES = 3;
+
+function _beginnerSkipAdvance(questions, currentIdx, ctx) {
+  const nextIdx = currentIdx + 1;
+  if (nextIdx >= questions.length) {
+    return {
+      nextIdx,
+      isComplete: true,
+      skipMessage: BEGINNER_SKIP_MESSAGE,
+      aiText: ctx.language === 'German'
+        ? 'Super! Du hast alle Fragen beantwortet! Sehr gut!'
+        : 'Great! You answered all the questions! Well done!',
+      questionSkipped: true,
+    };
+  }
+  const nextQ = questions[nextIdx];
+  return {
+    nextIdx,
+    isComplete: false,
+    skipMessage: BEGINNER_SKIP_MESSAGE,
+    aiText: (nextQ.questionText || '').trim(),
+    questionSkipped: true,
+  };
+}
+
 /**
  * Handle one student turn in beginner mode.
  * Asks questions one-by-one; advances only when the student's answer matches the
@@ -326,6 +354,9 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
   let nextIdx = currentIdx;
   let aiText = '';
   let isComplete = false;
+  let questionSkipped = false;
+  let skipMessage = '';
+  let nextFailures = state.beginnerConsecutiveFailures || 0;
 
   const FEEDBACKS = ['Super!', 'Sehr gut!', 'Prima!', 'Bravo!', 'Wunderbar!'];
   const randFeedback = () => FEEDBACKS[Math.floor(Math.random() * FEEDBACKS.length)];
@@ -339,6 +370,7 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
       : transcript.trim().length > 0;
 
     if (repeatOk) {
+      nextFailures = 0;
       nextIdx = currentIdx + 1;
       if (nextIdx >= questions.length) {
         isComplete = true;
@@ -350,10 +382,21 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
         aiText = `${randFeedback()} ${(nextQ.questionText || '').trim()}`;
       }
     } else {
-      // Still didn't say it correctly — show the hint again
-      aiText = target
-        ? (ctx.language === 'German' ? `Noch einmal. Sag: "${target}"` : `Try again. Say: "${target}"`)
-        : (ctx.language === 'German' ? 'Versuche es noch einmal.' : 'Try again.');
+      nextFailures += 1;
+      if (nextFailures >= BEGINNER_MAX_FAILURES) {
+        const skip = _beginnerSkipAdvance(questions, currentIdx, ctx);
+        nextIdx = skip.nextIdx;
+        isComplete = skip.isComplete;
+        aiText = skip.aiText;
+        questionSkipped = skip.questionSkipped;
+        skipMessage = skip.skipMessage;
+        nextFailures = 0;
+      } else {
+        // Still didn't say it correctly — show the hint again
+        aiText = target
+          ? (ctx.language === 'German' ? `Noch einmal. Sag: "${target}"` : `Try again. Say: "${target}"`)
+          : (ctx.language === 'German' ? 'Versuche es noch einmal.' : 'Try again.');
+      }
     }
   } else {
     let isCorrect = false;
@@ -367,6 +410,7 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
     }
 
     if (isCorrect) {
+      nextFailures = 0;
       nextIdx = currentIdx + 1;
       if (nextIdx >= questions.length) {
         isComplete = true;
@@ -378,26 +422,37 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
         aiText = `${randFeedback()} ${(nextQ.questionText || '').trim()}`;
       }
     } else {
-      // Wrong answer — correct and stay on the same question
-      const target = (currentQ?.targetAnswer || '').trim();
-      const hint = (currentQ?.hint || '').trim();
-      if (target) {
-        // Show the correct answer so the student can repeat it
-        aiText = ctx.language === 'German'
-          ? `Nicht ganz. Sag: "${target}"`
-          : `Not quite. Say: "${target}"`;
-      } else if (hint) {
-        aiText = hint;
+      nextFailures += 1;
+      if (nextFailures >= BEGINNER_MAX_FAILURES) {
+        const skip = _beginnerSkipAdvance(questions, currentIdx, ctx);
+        nextIdx = skip.nextIdx;
+        isComplete = skip.isComplete;
+        aiText = skip.aiText;
+        questionSkipped = skip.questionSkipped;
+        skipMessage = skip.skipMessage;
+        nextFailures = 0;
       } else {
-        aiText = ctx.language === 'German'
-          ? 'Versuche es noch einmal.'
-          : 'Try again.';
+        // Wrong answer — correct and stay on the same question
+        const target = (currentQ?.targetAnswer || '').trim();
+        const hint = (currentQ?.hint || '').trim();
+        if (target) {
+          // Show the correct answer so the student can repeat it
+          aiText = ctx.language === 'German'
+            ? `Nicht ganz. Sag: "${target}"`
+            : `Not quite. Say: "${target}"`;
+        } else if (hint) {
+          aiText = hint;
+        } else {
+          aiText = ctx.language === 'German'
+            ? 'Versuche es noch einmal.'
+            : 'Try again.';
+        }
       }
     }
   }
 
-  // Keep awaitingRepeat true if student failed to repeat the hint phrase
-  const stillAwaitingRepeat = state.beginnerAwaitingRepeat && nextIdx === currentIdx;
+  // Keep awaitingRepeat true if student failed to repeat the hint phrase (and was not skipped)
+  const stillAwaitingRepeat = !questionSkipped && state.beginnerAwaitingRepeat && nextIdx === currentIdx;
 
   const finalHistory = [...historyWithStudent, { speaker: 'ai', text: aiText }];
   setState(sessionId, {
@@ -405,6 +460,7 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
     history: finalHistory,
     beginnerQuestionIndex: nextIdx,
     beginnerAwaitingRepeat: stillAwaitingRepeat,
+    beginnerConsecutiveFailures: nextFailures,
   });
 
   const progressPct = questions.length > 0
@@ -429,6 +485,8 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
     maxAllowedSeconds: null,
     shouldWrapUp: false,
     beginnerQuestionIndex: nextIdx,
+    questionSkipped: questionSkipped || undefined,
+    skipMessage: skipMessage || undefined,
   };
 }
 

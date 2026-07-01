@@ -120,6 +120,49 @@ $hold-color: #d97706;
   }
 }
 
+.kd-btn--fetch {
+  background: #fff;
+  color: $accent;
+  border: 1px solid #a5b4fc;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.12);
+
+  .material-icons { font-size: 18px; }
+
+  &:hover:not(:disabled) {
+    background: $accent-light;
+    border-color: $accent;
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: wait;
+  }
+}
+
+.kd-spin {
+  animation: spin 0.9s linear infinite;
+}
+
+.kd-fetch-banner {
+  margin: 0 20px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+
+  &--ok {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #047857;
+  }
+
+  &--err {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+  }
+}
+
 // ── Advanced filter (inline panel below Service Opted) ─────────────────────
 .kd-advfilter-inline.kd-section {
   margin-top: 12px;

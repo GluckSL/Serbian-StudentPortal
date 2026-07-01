@@ -7,6 +7,7 @@ import { firstValueFrom } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { DgApiService } from '../dg-api.service';
 import { environment } from '../../../environments/environment';
+import { resolveMediaUrl } from '../../utils/media-url';
 import type { DgBeginnerMode, DgBeginnerQuestion, DgModuleSummary } from '../dg-bot.types';
 
 interface BatchSummary {
@@ -103,6 +104,10 @@ export class DgAdminBeginnerModeComponent implements OnInit {
 
   get questionCount(): number {
     return this.questions.length;
+  }
+
+  imagePreviewUrl(url?: string): string {
+    return resolveMediaUrl(url);
   }
 
   goBack(): void {

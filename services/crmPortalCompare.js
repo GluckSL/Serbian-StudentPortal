@@ -16,6 +16,7 @@ const CRM_HEADERS = {
 
 const PAGE_LIMIT = 200;
 const MAX_PAGES = 100;
+const FETCH_CONCURRENCY = 4;
 
 function normEmail(v) {
   return String(v || '').trim().toLowerCase();
@@ -90,7 +91,7 @@ function dedupeCrmRows(crmRows, boardType) {
   return { unique, uniqueWithEmail, noEmail, duplicatesSkipped };
 }
 
-async function fetchAllCrmRecords(boardType, { simple = {}, advanced = null }) {
+async function fetchCrmPage(boardType, { simple = {}, advanced = null, page = 1, limit = PAGE_LIMIT }) {
   const paths =
     boardType === 'enrollment'
       ? {
@@ -104,60 +105,80 @@ async function fetchAllCrmRecords(boardType, { simple = {}, advanced = null }) {
           advanced: '/students/language-team-board/advanced/query',
         };
 
-  const all = [];
-  let page = 1;
-  let totalPages = 1;
-
-  while (page <= totalPages && page <= MAX_PAGES) {
-    let response;
-
-    if (advanced?.filters?.length) {
-      response = await axios.post(
-        `${CRM_BASE}${paths.advanced}`,
-        {
-          filters: advanced.filters,
-          filterLogic: advanced.filterLogic || 'and',
-          page,
-          limit: PAGE_LIMIT,
-        },
-        { headers: CRM_HEADERS, timeout: 60000 }
-      );
-      const data = response.data || {};
-      if (data.mode === 'grouped') {
-        throw new Error('Compare is not available for grouped results. Clear group-by and try again.');
-      }
-      const items = data.data || data.items || [];
-      all.push(...items);
-      const pg = data.pagination || {};
-      totalPages = pg.totalPages || data.totalPages || 1;
-      if (!items.length) break;
-    } else if (hasSimpleFilters(simple) || boardType === 'language') {
-      response = await axios.get(`${CRM_BASE}${paths.filter}`, {
-        headers: CRM_HEADERS,
-        params: { ...simple, page, limit: PAGE_LIMIT },
-        timeout: 60000,
-      });
-      const data = response.data || {};
-      const items = data.data || [];
-      all.push(...items);
-      const pg = data.pagination || {};
-      totalPages = pg.totalPages || 1;
-      if (!items.length) break;
-    } else {
-      response = await axios.get(`${CRM_BASE}${paths.list}`, {
-        headers: CRM_HEADERS,
-        params: { page, limit: PAGE_LIMIT },
-        timeout: 60000,
-      });
-      const data = response.data || {};
-      const items = data.data || [];
-      all.push(...items);
-      const pg = data.pagination || {};
-      totalPages = pg.totalPages || 1;
-      if (!items.length) break;
+  if (advanced?.filters?.length) {
+    const response = await axios.post(
+      `${CRM_BASE}${paths.advanced}`,
+      {
+        filters: advanced.filters,
+        filterLogic: advanced.filterLogic || 'and',
+        page,
+        limit,
+      },
+      { headers: CRM_HEADERS, timeout: 60000 }
+    );
+    const data = response.data || {};
+    if (data.mode === 'grouped') {
+      throw new Error('Compare is not available for grouped results. Clear group-by and try again.');
     }
+    const items = data.data || data.items || [];
+    const pg = data.pagination || {};
+    return {
+      items,
+      totalPages: pg.totalPages || data.totalPages || 1,
+    };
+  }
 
-    page += 1;
+  if (hasSimpleFilters(simple) || boardType === 'language' || boardType === 'enrollment') {
+    const response = await axios.get(`${CRM_BASE}${paths.filter}`, {
+      headers: CRM_HEADERS,
+      params: { ...simple, page, limit },
+      timeout: 60000,
+    });
+    const data = response.data || {};
+    const items = data.data || [];
+    const pg = data.pagination || {};
+    return {
+      items,
+      totalPages: pg.totalPages || 1,
+    };
+  }
+
+  const response = await axios.get(`${CRM_BASE}${paths.list}`, {
+    headers: CRM_HEADERS,
+    params: { page, limit },
+    timeout: 60000,
+  });
+  const data = response.data || {};
+  const items = data.data || [];
+  const pg = data.pagination || {};
+  return {
+    items,
+    totalPages: pg.totalPages || 1,
+  };
+}
+
+async function fetchAllCrmRecords(boardType, { simple = {}, advanced = null }) {
+  const first = await fetchCrmPage(boardType, { simple, advanced, page: 1 });
+  const all = [...(first.items || [])];
+  const totalPages = Math.min(first.totalPages || 1, MAX_PAGES);
+
+  if (totalPages <= 1) {
+    return all;
+  }
+
+  const remainingPages = [];
+  for (let page = 2; page <= totalPages; page++) {
+    remainingPages.push(page);
+  }
+
+  for (let i = 0; i < remainingPages.length; i += FETCH_CONCURRENCY) {
+    const batch = remainingPages.slice(i, i + FETCH_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map((page) => fetchCrmPage(boardType, { simple, advanced, page }))
+    );
+    for (const result of results) {
+      all.push(...(result.items || []));
+    }
   }
 
   return all;
@@ -227,4 +248,4 @@ async function compareBoardWithPortal(boardType, query = {}) {
   };
 }
 
-module.exports = { compareBoardWithPortal };
+module.exports = { compareBoardWithPortal, fetchAllCrmRecords };

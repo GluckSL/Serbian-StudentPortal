@@ -256,6 +256,10 @@ export interface DgConversationResponse {
   hintEn?: string;
   /** Beginner mode only: the question index after this turn (0-based). */
   beginnerQuestionIndex?: number;
+  /** Beginner mode: student failed 3 times and was moved to the next question. */
+  questionSkipped?: boolean;
+  /** Encouragement line shown before the next question when `questionSkipped` is true. */
+  skipMessage?: string;
 }
 
 /** One entry in the chat history shown on screen. */
