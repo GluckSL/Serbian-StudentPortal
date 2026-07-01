@@ -643,19 +643,27 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 0;
-  color: #78909c;
-  font-size: 13px;
+  padding: 16px;
+  color: #94a3b8;
+  font-size: 0.75rem;
+
+  &--inset {
+    margin: 0 16px 16px;
+    padding: 14px 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px dashed #e2e8f0;
+  }
 
   mat-icon {
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
   }
 }
 
 .ap-signup-loading {
-  padding: 12px 0;
+  padding: 16px;
 }
 
 .ap-existing-title {
@@ -905,33 +913,33 @@
   position: sticky;
   right: 0;
   z-index: 1;
-  min-width: 168px;
+  min-width: 200px;
   white-space: nowrap;
   background: inherit;
-  box-shadow: -6px 0 10px rgba(255, 255, 255, 0.9);
+  box-shadow: -4px 0 8px rgba(248, 250, 252, 0.95);
 }
 
 thead .ap-col-actions {
-  background: #f5f7ff;
-  box-shadow: -6px 0 10px rgba(245, 247, 255, 0.95);
+  background: #1e293b;
+  box-shadow: none;
 }
 
 .ap-table-row--pending .ap-col-actions {
-  background: #fffef5;
+  background: #fffbeb;
 }
 
 .ap-table-row--open .ap-col-actions {
-  background: #f3f5ff;
+  background: #eff6ff;
 }
 
 .ap-table-row:hover .ap-col-actions {
-  background: #fafbff;
+  background: #f8fafc;
 }
 
 .ap-action-btns {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 .ap-action-btn {
@@ -939,19 +947,20 @@ thead .ap-col-actions {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 32px;
+  min-height: 28px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid transparent;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 0.6875rem;
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+  white-space: nowrap;
 
   mat-icon {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
   }
 
   &:disabled {
@@ -960,25 +969,37 @@ thead .ap-col-actions {
   }
 
   &--approve {
-    background: #e8f5e9;
-    border-color: #a5d6a7;
-    color: #1b5e20;
+    background: #ecfdf5;
+    border-color: #6ee7b7;
+    color: #047857;
 
     &:hover:not(:disabled) {
-      background: #2e7d32;
-      border-color: #2e7d32;
+      background: #059669;
+      border-color: #059669;
       color: #fff;
     }
   }
 
-  &--reject {
-    background: #ffebee;
-    border-color: #ef9a9a;
-    color: #c62828;
+  &--primary {
+    background: #059669;
+    border-color: #059669;
+    color: #fff;
+    padding: 0 12px;
 
     &:hover:not(:disabled) {
-      background: #c62828;
-      border-color: #c62828;
+      background: #047857;
+      border-color: #047857;
+    }
+  }
+
+  &--reject {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #dc2626;
+
+    &:hover:not(:disabled) {
+      background: #dc2626;
+      border-color: #dc2626;
       color: #fff;
     }
   }
@@ -1594,12 +1615,19 @@ thead .ap-col-actions {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #e53935;
+  background: #ef4444;
   color: white;
   border-radius: 10px;
-  padding: 2px 7px;
-  font-size: 11px;
-  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  margin-left: 4px;
+  min-width: 18px;
+}
+
+.ph-view-tab--active .badge-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 .pill {

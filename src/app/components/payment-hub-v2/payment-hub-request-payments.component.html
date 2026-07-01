@@ -288,7 +288,7 @@
           <mat-spinner diameter="32"></mat-spinner>
         </div>
 
-        <div *ngIf="!loadingSignups && signupRows.length === 0" class="ap-signup-empty">
+        <div *ngIf="!loadingSignups && signupRows.length === 0" class="ap-signup-empty ap-signup-empty--inset">
           <mat-icon>person_add</mat-icon>
           <p>No new signup payment proofs waiting.</p>
         </div>
@@ -438,7 +438,8 @@
                   <td><span class="pill" [ngClass]="statusClass(sub.status)">{{ sub.status }}</span></td>
                   <td class="ap-muted">{{ sub.submittedAt | date:'dd MMM y, HH:mm' }}</td>
                   <td>
-                    <button type="button" class="ap-link-btn" (click)="viewScreenshot(sub); $event.stopPropagation()">
+                    <button type="button" class="ap-proof-btn" (click)="viewScreenshot(sub); $event.stopPropagation()">
+                      <mat-icon>image</mat-icon>
                       View proof
                     </button>
                   </td>
