@@ -189,6 +189,48 @@
                   {{ automationStatusLabel(item) }}
                 </span>
               </div>
+
+              <!-- ── Batch Targeting ── -->
+              <div class="crm-batch-target" *ngIf="availableBatches.length > 0">
+                <button class="crm-batch-target__trigger"
+                  [class.crm-batch-target__trigger--filtered]="!getBatchSetting(item.automationType).allBatches && getBatchSetting(item.automationType).targetBatches.length > 0"
+                  (click)="toggleBatchPicker(item.automationType)">
+                  <span class="material-icons">group_work</span>
+                  {{ getBatchSummaryLabel(item.automationType) }}
+                  <span class="material-icons crm-batch-target__caret">
+                    {{ openBatchPicker === item.automationType ? 'expand_less' : 'expand_more' }}
+                  </span>
+                </button>
+
+                <div class="crm-batch-picker" *ngIf="openBatchPicker === item.automationType">
+                  <div class="crm-batch-picker__header">
+                    <span class="crm-batch-picker__title">Target batches</span>
+                    <div class="crm-batch-picker__actions">
+                      <button class="crm-batch-picker__link" (click)="selectAllBatches(item.automationType)">All</button>
+                      <span class="crm-batch-picker__sep">·</span>
+                      <button class="crm-batch-picker__link" (click)="clearAllBatches(item.automationType)">None</button>
+                    </div>
+                  </div>
+                  <div class="crm-batch-picker__list">
+                    <label class="crm-batch-picker__item" *ngFor="let batch of availableBatches">
+                      <input type="checkbox"
+                        [checked]="isBatchSelected(item.automationType, batch)"
+                        (change)="toggleBatch(item.automationType, batch)" />
+                      <span class="crm-batch-picker__name">{{ batch }}</span>
+                    </label>
+                  </div>
+                  <div class="crm-batch-picker__footer">
+                    <button class="crm-btn crm-btn--primary crm-btn--xs"
+                      [disabled]="getBatchSetting(item.automationType).saving"
+                      (click)="saveBatchSettings(item.automationType)">
+                      <span class="crm-spinner crm-spinner--sm" *ngIf="getBatchSetting(item.automationType).saving"></span>
+                      {{ getBatchSetting(item.automationType).saving ? 'Saving…' : 'Save' }}
+                    </button>
+                    <button class="crm-btn crm-btn--ghost crm-btn--xs" (click)="closeBatchPicker()">Cancel</button>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </article>
         </div>

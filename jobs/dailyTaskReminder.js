@@ -16,7 +16,7 @@ const cron = require('node-cron');
 const User = require('../models/User');
 const transporter = require('../config/emailConfig');
 const { getIncompleteTasksForStudent } = require('../services/languageTrackingReminders.service');
-const { sendWhatsappNotification, NOTIFICATION_TYPES, isWhatsappAutomatedJobsEnabled } = require('../services/whatsappCrmService');
+const { sendWhatsappNotification, NOTIFICATION_TYPES, isWhatsappAutomatedJobsEnabled, getBatchSettingsMap, isBatchAllowedBySettings } = require('../services/whatsappCrmService');
 const { buildDailyTaskReminderEmail } = require('../utils/emailTemplates');
 const {
   resolveStudentPhone,
@@ -38,11 +38,18 @@ async function processDailyTaskReminders() {
     .select('_id name email batch level subscription goStatus currentCourseDay whatsappNumber phoneNumber')
     .lean();
 
+  const batchSettings = await getBatchSettingsMap();
+
   let sent = 0;
   let skipped = 0;
 
   for (const student of students) {
     try {
+      if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.DAILY_TASK_REMINDER, student.batch)) {
+        skipped++;
+        continue;
+      }
+
       // Skip if already reminded today
       if (await wasReminderSentToday(JOB_PREFIX, student._id)) {
         skipped++;

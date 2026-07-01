@@ -239,4 +239,66 @@ router.post('/whatsapp/send-message', async (req, res) => {
   });
 });
 
+// ── WhatsApp Automation Batch Settings ───────────────────────────────────────
+
+/**
+ * GET /api/crm-portal/whatsapp/automation-batch-settings
+ * Returns per-automation batch targeting settings + available batch list.
+ */
+router.get('/whatsapp/automation-batch-settings', async (_req, res) => {
+  try {
+    const WhatsappAutomationSettings = require('../models/WhatsappAutomationSettings');
+    const BatchConfig = require('../models/BatchConfig');
+
+    const [settings, batches] = await Promise.all([
+      WhatsappAutomationSettings.find().lean(),
+      BatchConfig.find().select('batchName').sort({ batchName: 1 }).lean(),
+    ]);
+
+    res.json({
+      success: true,
+      settings,
+      batches: batches.map((b) => b.batchName),
+    });
+  } catch (err) {
+    console.error('[crm-portal] automation-batch-settings GET error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * PUT /api/crm-portal/whatsapp/automation-batch-settings
+ * Save batch targeting for a single automation type.
+ * Body: { automationType: string, allBatches: boolean, targetBatches: string[] }
+ */
+router.put('/whatsapp/automation-batch-settings', async (req, res) => {
+  try {
+    const { automationType, targetBatches, allBatches } = req.body || {};
+    const WhatsappAutomationSettings = require('../models/WhatsappAutomationSettings');
+    const { AUTOMATION_TYPES } = WhatsappAutomationSettings;
+
+    if (!automationType || !AUTOMATION_TYPES.includes(automationType)) {
+      return res.status(422).json({ success: false, message: `Invalid automationType: ${automationType}` });
+    }
+
+    const doc = await WhatsappAutomationSettings.findOneAndUpdate(
+      { automationType },
+      {
+        $set: {
+          allBatches: allBatches !== false,
+          targetBatches: Array.isArray(targetBatches) ? targetBatches : [],
+          updatedAt: new Date(),
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    console.log(`[crm-portal] ✅ Batch settings saved for ${automationType}: allBatches=${doc.allBatches}, batches=[${doc.targetBatches.join(',')}]`);
+    res.json({ success: true, settings: doc });
+  } catch (err) {
+    console.error('[crm-portal] automation-batch-settings PUT error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

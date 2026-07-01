@@ -343,12 +343,20 @@
                     <div class="ap-action-btns">
                       <button
                         type="button"
+                        class="ap-action-btn ap-action-btn--edit"
+                        [disabled]="loadingSignupToken === row.applicationToken"
+                        (click)="openSignupEdit(row, $event)">
+                        <mat-icon>edit</mat-icon>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
                         class="ap-action-btn ap-action-btn--approve ap-action-btn--primary"
                         [disabled]="loadingSignupToken === row.applicationToken"
                         (click)="approveSignup(row, $event)">
                         <mat-spinner *ngIf="loadingSignupToken === row.applicationToken" diameter="14" class="ap-action-spinner"></mat-spinner>
                         <mat-icon *ngIf="loadingSignupToken !== row.applicationToken">check_circle</mat-icon>
-                        Approve & create account
+                        Approve
                       </button>
                     </div>
                   </td>

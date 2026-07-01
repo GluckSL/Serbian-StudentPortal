@@ -26,6 +26,10 @@ import {
   PaymentApprovalDecisionDialogComponent,
   PaymentApprovalDecisionMode,
 } from './payment-approval-decision-dialog.component';
+import {
+  SignupApprovalEditDialogComponent,
+  SignupApprovalEditResult,
+} from './signup-approval-edit-dialog.component';
 
 @Component({
   selector: 'app-payment-hub-request-payments',
@@ -619,6 +623,32 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       return;
     }
     window.open(row.proofViewUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  openSignupEdit(row: SignupPendingApplication, ev?: Event): void {
+    ev?.stopPropagation();
+    const ref = this.dialog.open(SignupApprovalEditDialogComponent, {
+      width: '580px',
+      maxWidth: '96vw',
+      panelClass: 'lm-dialog-panel',
+      autoFocus: false,
+      data: { application: row, defaultBatch: this.signupApproveBatch },
+    });
+
+    ref.afterClosed().subscribe((result: SignupApprovalEditResult | undefined) => {
+      if (!result) return;
+      const { batch, ...patch } = result;
+      this.api.updateSignupApplication(row.applicationToken, patch).subscribe({
+        next: () => {
+          if (batch) this.signupApproveBatch = batch;
+          this.snack.open('Signup details saved. Review and click Approve when ready.', 'OK', { duration: 4000 });
+          this.loadSignupApprovals();
+        },
+        error: (e) => {
+          this.snack.open(e?.error?.message || 'Could not save signup details', 'Dismiss', { duration: 5000 });
+        },
+      });
+    });
   }
 
   approveSignup(row: SignupPendingApplication, ev?: Event): void {

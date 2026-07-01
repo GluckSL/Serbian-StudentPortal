@@ -13,7 +13,7 @@
 const cron = require('node-cron');
 const StudentPaymentProfile = require('../../modules/payments-v2/backend/models/StudentPaymentProfile');
 const User = require('../../models/User');
-const { sendWhatsappNotification, NOTIFICATION_TYPES } = require('../../services/whatsappCrmService');
+const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 const {
   resolveStudentPhone,
   wasReminderSentToday,
@@ -60,17 +60,24 @@ async function processPaymentOverdueReminders() {
     .select('studentId overdueAmount overdueCount currencyBreakdown')
     .lean();
 
+  const batchSettings = await getBatchSettingsMap();
+
   let sent = 0;
   let skipped = 0;
 
   for (const profile of overdueProfiles) {
     try {
       const student = await User.findById(profile.studentId)
-        .select('name whatsappNumber phoneNumber isActive studentStatus')
+        .select('name whatsappNumber phoneNumber isActive studentStatus batch')
         .lean();
 
       // Skip withdrawn, inactive, or missing students
       if (!student || !student.isActive || student.studentStatus === 'WITHDREW') {
+        skipped++;
+        continue;
+      }
+
+      if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.PAYMENT_OVERDUE_REMINDER, student.batch)) {
         skipped++;
         continue;
       }

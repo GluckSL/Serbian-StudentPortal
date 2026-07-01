@@ -8,11 +8,12 @@
 const cron = require('node-cron');
 const MeetingLink = require('../../models/MeetingLink');
 const User = require('../../models/User');
-const { sendWhatsappNotification, NOTIFICATION_TYPES } = require('../../services/whatsappCrmService');
+const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 
 const REMINDER_WINDOW_MINUTES = 30;
 
 async function processClassReminders() {
+  const batchSettings = await getBatchSettingsMap();
   const now = new Date();
   const windowEnd = new Date(now.getTime() + REMINDER_WINDOW_MINUTES * 60 * 1000);
 
@@ -39,6 +40,11 @@ async function processClassReminders() {
       { new: true }
     );
     if (!meeting) continue;
+
+    if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.CLASS_REMINDER, meeting.batch)) {
+      console.log(`[ClassReminder] ⏭ Skipped "${meeting.topic}" (batch: ${meeting.batch}) — not in targeted batches`);
+      continue;
+    }
 
     const minutesUntilStart = Math.round((meeting.startTime - now) / 60000);
     const topic = meeting.topic || 'Your class';

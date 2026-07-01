@@ -159,6 +159,46 @@ async function sendManualWhatsappMessage({ phone_number, message, department = '
   }
 }
 
+/**
+ * Load all automation batch-targeting settings from the DB as a map.
+ * Call once at the start of a cron job, then use isBatchAllowedBySettings() per student.
+ *
+ * @returns {Promise<Record<string, {allBatches: boolean, targetBatches: string[]}>>}
+ */
+async function getBatchSettingsMap() {
+  try {
+    const WhatsappAutomationSettings = require('../models/WhatsappAutomationSettings');
+    const allSettings = await WhatsappAutomationSettings.find().lean();
+    const map = {};
+    for (const s of allSettings) {
+      map[s.automationType] = s;
+    }
+    return map;
+  } catch (err) {
+    console.warn('[WhatsApp] getBatchSettingsMap error — failing open:', err.message);
+    return {};
+  }
+}
+
+/**
+ * Synchronous check: is this student's batch allowed for the given automation type?
+ * Always returns true if no settings found (fail-open — backward compatible).
+ *
+ * @param {Record<string, any>} settingsMap  - result of getBatchSettingsMap()
+ * @param {string} automationType            - one of NOTIFICATION_TYPES values
+ * @param {string|undefined} studentBatch    - e.g. "35" or "Batch 35"
+ * @returns {boolean}
+ */
+function isBatchAllowedBySettings(settingsMap, automationType, studentBatch) {
+  const setting = settingsMap[automationType];
+  if (!setting || setting.allBatches || !setting.targetBatches || setting.targetBatches.length === 0) {
+    return true;
+  }
+  if (!studentBatch) return false;
+  const normalized = String(studentBatch).toLowerCase().trim();
+  return setting.targetBatches.some((b) => String(b).toLowerCase().trim() === normalized);
+}
+
 module.exports = {
   sendWhatsappNotification,
   sendBulkWhatsappNotifications,
@@ -166,6 +206,8 @@ module.exports = {
   isWhatsappSendEnabled,
   isWhatsappManualSendEnabled,
   isWhatsappAutomatedJobsEnabled,
+  getBatchSettingsMap,
+  isBatchAllowedBySettings,
   NOTIFICATION_TYPES,
   CRM_BASE,
 };

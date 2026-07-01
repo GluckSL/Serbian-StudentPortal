@@ -1089,6 +1089,24 @@ export class PaymentHubApiService {
     );
   }
 
+  updateSignupApplication(
+    applicationToken: string,
+    body: {
+      level?: string;
+      subscription?: string;
+      currency?: string;
+      amount?: number;
+      proofPaidAmount?: number;
+      proofPaymentDateTime?: string;
+      proofAccountHolderName?: string;
+    },
+  ): Observable<{ success: boolean; message?: string; data?: SignupPendingApplication }> {
+    return this.http.patch<{ success: boolean; message?: string; data?: SignupPendingApplication }>(
+      `${environment.apiUrl}/admin/signup-applications/${encodeURIComponent(applicationToken)}`,
+      body,
+    );
+  }
+
   approveSignupApplication(
     applicationToken: string,
     body?: { batch?: string },

@@ -18,14 +18,14 @@ const cron = require('node-cron');
 const MeetingLink = require('../../models/MeetingLink');
 const User = require('../../models/User');
 const transporter = require('../../config/emailConfig');
-const { sendWhatsappNotification, NOTIFICATION_TYPES } = require('../../services/whatsappCrmService');
+const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 const { getJoinLogDataForMeeting } = require('../../services/joinLogHelpers');
 const { sendLiveJoinReminderEmails } = require('../../services/classJoinReminderEmail');
 const { resolveStudentPhone } = require('../../services/studentReminderHelpers');
 
 // ── Pass A: early join reminder (5 min after class starts) ───────────────────
 
-async function processEarlyJoinReminder() {
+async function processEarlyJoinReminder(batchSettings = {}) {
   const now = new Date();
   const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
@@ -53,6 +53,11 @@ async function processEarlyJoinReminder() {
       { new: false }
     );
     if (!claimed) continue; // another process already claimed it
+
+    if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.ABSENT_DURING_CLASS, m.batch)) {
+      console.log(`[AbsenceAlert] ⏭ Skipped early-join for "${m.topic}" (batch: ${m.batch}) — not in targeted batches`);
+      continue;
+    }
 
     const topic = m.topic || 'Your class';
     const { hasJoin } = await getJoinLogDataForMeeting(m._id);
@@ -104,7 +109,7 @@ async function processEarlyJoinReminder() {
 
 // ── Pass B: after-class alerts ────────────────────────────────────────────────
 
-async function processAfterClassAbsence() {
+async function processAfterClassAbsence(batchSettings = {}) {
   const meetings = await MeetingLink.find({
     attendanceRecorded: true,
     absenceWhatsappSent: { $ne: true },
@@ -119,6 +124,11 @@ async function processAfterClassAbsence() {
       { new: true }
     );
     if (!meeting) continue;
+
+    if (!isBatchAllowedBySettings(batchSettings, NOTIFICATION_TYPES.ABSENT_AFTER_CLASS, meeting.batch)) {
+      console.log(`[AbsenceAlert] ⏭ Skipped after-class for "${meeting.topic}" (batch: ${meeting.batch}) — not in targeted batches`);
+      continue;
+    }
 
     const topic = meeting.topic || 'Your class';
     const absentees = meeting.attendance.filter((a) => !a.attended);
@@ -150,10 +160,11 @@ async function processAfterClassAbsence() {
 // ── Orchestrator ──────────────────────────────────────────────────────────────
 
 async function processAbsenceAlerts() {
-  await processEarlyJoinReminder().catch((err) =>
+  const batchSettings = await getBatchSettingsMap();
+  await processEarlyJoinReminder(batchSettings).catch((err) =>
     console.error('[AbsenceAlert] ❌ Early-join pass error:', err.message)
   );
-  await processAfterClassAbsence().catch((err) =>
+  await processAfterClassAbsence(batchSettings).catch((err) =>
     console.error('[AbsenceAlert] ❌ After-class pass error:', err.message)
   );
 }

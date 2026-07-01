@@ -84,6 +84,15 @@ export interface WaAutomationItem {
   /** Email sends even when automated WhatsApp jobs are off */
   emailAlways?: boolean;
   icon: string;
+  /** Matches NOTIFICATION_TYPES key in the backend */
+  automationType: string;
+}
+
+export interface WaAutomationBatchSetting {
+  allBatches: boolean;
+  targetBatches: string[];
+  saving?: boolean;
+  dirty?: boolean;
 }
 
 const TEXT_OPS = [
@@ -180,6 +189,13 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
   waSending = false;
   waSendEnabled = true;
   waAutomatedEnabled = false;
+
+  // Batch targeting for automations
+  availableBatches: string[] = [];
+  waBatchSettings: Record<string, WaAutomationBatchSetting> = {};
+  waBatchSettingsLoading = false;
+  openBatchPicker: string | null = null;
+
   waResult: {
     success: boolean;
     message: string;
@@ -198,6 +214,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       channels: ['WhatsApp', 'Email'],
       whatsappGated: true,
       icon: 'videocam',
+      automationType: 'ABSENT_DURING_CLASS',
     },
     {
       title: 'Daily tasks incomplete',
@@ -207,6 +224,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       whatsappGated: true,
       emailAlways: true,
       icon: 'task_alt',
+      automationType: 'DAILY_TASK_REMINDER',
     },
     {
       title: 'Payment overdue',
@@ -215,6 +233,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       channels: ['WhatsApp'],
       whatsappGated: true,
       icon: 'payments',
+      automationType: 'PAYMENT_OVERDUE_REMINDER',
     },
     {
       title: 'Class reminder (before start)',
@@ -223,6 +242,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       channels: ['WhatsApp'],
       whatsappGated: true,
       icon: 'schedule',
+      automationType: 'CLASS_REMINDER',
     },
     {
       title: 'After-class absence',
@@ -231,6 +251,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       channels: ['WhatsApp'],
       whatsappGated: true,
       icon: 'event_busy',
+      automationType: 'ABSENT_AFTER_CLASS',
     },
     {
       title: 'Missed activities',
@@ -239,6 +260,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       channels: ['WhatsApp'],
       whatsappGated: true,
       icon: 'fitness_center',
+      automationType: 'MISSED_ACTIVITIES',
     },
     {
       title: 'Weekly progress report',
@@ -247,6 +269,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       channels: ['WhatsApp'],
       whatsappGated: true,
       icon: 'insights',
+      automationType: 'WEEKLY_PROGRESS_REPORT',
     },
     {
       title: 'Consecutive absences',
@@ -255,6 +278,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       channels: ['WhatsApp'],
       whatsappGated: true,
       icon: 'warning',
+      automationType: 'CONSECUTIVE_ABSENCE',
     },
   ];
 
@@ -677,6 +701,114 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
         },
         error: () => { this.waSendEnabled = false; this.waAutomatedEnabled = false; },
       });
+    this.loadAutomationBatchSettings();
+  }
+
+  loadAutomationBatchSettings(): void {
+    this.waBatchSettingsLoading = true;
+    this.http.get<any>('/api/crm-portal/whatsapp/automation-batch-settings')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.waBatchSettingsLoading = false;
+          this.availableBatches = res?.batches || [];
+          const settingsMap: Record<string, WaAutomationBatchSetting> = {};
+          for (const item of this.waAutomations) {
+            const saved = (res?.settings || []).find((s: any) => s.automationType === item.automationType);
+            settingsMap[item.automationType] = {
+              allBatches: saved ? saved.allBatches : true,
+              targetBatches: saved ? (saved.targetBatches || []) : [],
+              saving: false,
+              dirty: false,
+            };
+          }
+          this.waBatchSettings = settingsMap;
+        },
+        error: () => { this.waBatchSettingsLoading = false; },
+      });
+  }
+
+  getBatchSetting(automationType: string): WaAutomationBatchSetting {
+    return this.waBatchSettings[automationType] ?? { allBatches: true, targetBatches: [] };
+  }
+
+  getBatchSummaryLabel(automationType: string): string {
+    const s = this.getBatchSetting(automationType);
+    if (s.allBatches || s.targetBatches.length === 0) return 'All batches';
+    if (s.targetBatches.length === this.availableBatches.length) return 'All batches';
+    return `${s.targetBatches.length} of ${this.availableBatches.length} batches`;
+  }
+
+  toggleBatchPicker(automationType: string): void {
+    this.openBatchPicker = this.openBatchPicker === automationType ? null : automationType;
+  }
+
+  closeBatchPicker(): void {
+    this.openBatchPicker = null;
+  }
+
+  isBatchSelected(automationType: string, batchName: string): boolean {
+    const s = this.getBatchSetting(automationType);
+    if (s.allBatches) return true;
+    return s.targetBatches.includes(batchName);
+  }
+
+  toggleBatch(automationType: string, batchName: string): void {
+    if (!this.waBatchSettings[automationType]) return;
+    const s = this.waBatchSettings[automationType];
+
+    if (s.allBatches) {
+      // Switching from "all" → select all except this one
+      s.allBatches = false;
+      s.targetBatches = this.availableBatches.filter(b => b !== batchName);
+    } else {
+      const idx = s.targetBatches.indexOf(batchName);
+      if (idx >= 0) {
+        s.targetBatches = s.targetBatches.filter(b => b !== batchName);
+      } else {
+        s.targetBatches = [...s.targetBatches, batchName];
+      }
+      if (s.targetBatches.length === this.availableBatches.length) {
+        s.allBatches = true;
+        s.targetBatches = [];
+      }
+    }
+    s.dirty = true;
+  }
+
+  selectAllBatches(automationType: string): void {
+    if (!this.waBatchSettings[automationType]) return;
+    const s = this.waBatchSettings[automationType];
+    s.allBatches = true;
+    s.targetBatches = [];
+    s.dirty = true;
+  }
+
+  clearAllBatches(automationType: string): void {
+    if (!this.waBatchSettings[automationType]) return;
+    const s = this.waBatchSettings[automationType];
+    s.allBatches = false;
+    s.targetBatches = [];
+    s.dirty = true;
+  }
+
+  saveBatchSettings(automationType: string): void {
+    const s = this.waBatchSettings[automationType];
+    if (!s || s.saving) return;
+
+    s.saving = true;
+    this.http.put<any>('/api/crm-portal/whatsapp/automation-batch-settings', {
+      automationType,
+      allBatches: s.allBatches,
+      targetBatches: s.targetBatches,
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        s.saving = false;
+        s.dirty = false;
+        this.openBatchPicker = null;
+      },
+      error: () => { s.saving = false; },
+    });
   }
 
   automationIsActive(item: WaAutomationItem): boolean {
