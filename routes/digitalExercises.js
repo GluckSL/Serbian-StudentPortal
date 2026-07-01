@@ -302,9 +302,7 @@ function parseTrueFalse(raw) {
 
 function isTrueFalseQuestionShape(q) {
   if (!q || q.type !== 'question-answer') return false;
-  if (q.worksheetKind === 'true-false') return true;
-  const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
-  return samples.some((s) => parseTrueFalse(s) !== null);
+  return q.worksheetKind === 'true-false';
 }
 
 function formatTrueFalseLabel(raw) {
@@ -3445,11 +3443,9 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
     } else if (q.type === 'question-answer') {
       const studentAns = (resp.qaResponse || '').trim();
 
-      const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
-      const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
-      const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
-
-      if (isTrueFalse) {
+      if (q.worksheetKind === 'true-false') {
+        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+        const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
         const expected = parseTrueFalse(expectedRaw);
         const given = parseTrueFalse(studentAns);
         rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
@@ -3773,10 +3769,9 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
         rawScore = Math.max(0, Math.min(100, Number(resp.pronunciationScore) || 0));
         correctAnswer = { caption: q.caption, acceptedVariants: q.acceptedVariants };
       } else if (q.type === 'question-answer') {
-        const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
-        const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
-        const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
-        if (isTrueFalse) {
+        if (q.worksheetKind === 'true-false') {
+          const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+          const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
           const expected = parseTrueFalse(expectedRaw);
           const given = parseTrueFalse(resp.qaResponse);
           rawScore = expected !== null && given !== null && given === expected ? 100 : 0;
