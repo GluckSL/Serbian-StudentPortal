@@ -24,6 +24,15 @@
   <!-- ══════════════════════════════════════════════════════ SEND REQUEST -->
   <div class="tab-content" *ngIf="activeView === 'send'">
 
+      <div class="ap-signup-banner" *ngIf="pendingSignupTotal > 0" role="status">
+        <mat-icon>person_add</mat-icon>
+        <div>
+          <strong>{{ pendingSignupTotal }} new signup payment proof{{ pendingSignupTotal > 1 ? 's' : '' }} waiting</strong>
+          <span> — not shown under existing students. Open Pending Approvals to review.</span>
+        </div>
+        <button type="button" class="ap-signup-banner__btn" (click)="setActiveView('approvals')">Review signups</button>
+      </div>
+
       <!-- Filter Bar -->
       <div class="filter-bar">
         <mat-form-field appearance="outline" class="filter-field filter-search">
@@ -242,12 +251,17 @@
 
       <header class="ap-queue-bar">
         <div class="ap-queue-bar__intro">
-          <h3 class="ap-queue-title">Approval queue</h3>
-          <p class="ap-queue-sub" *ngIf="pendingQueueTotal > 0">
-            <span class="ap-queue-pending">{{ pendingQueueTotal }}</span> awaiting review
-            <ng-container *ngIf="pendingSignupTotal > 0"> — includes {{ pendingSignupTotal }} new signup{{ pendingSignupTotal > 1 ? 's' : '' }}</ng-container>.
-          </p>
-          <p class="ap-queue-sub" *ngIf="pendingQueueTotal === 0">No submissions waiting for review right now.</p>
+          <div class="ap-queue-bar__badge">
+            <mat-icon>pending_actions</mat-icon>
+          </div>
+          <div>
+            <h3 class="ap-queue-title">Approval queue</h3>
+            <p class="ap-queue-sub" *ngIf="pendingQueueTotal > 0">
+              <span class="ap-queue-pending">{{ pendingQueueTotal }}</span> awaiting review
+              <ng-container *ngIf="pendingSignupTotal > 0"> — includes {{ pendingSignupTotal }} new signup{{ pendingSignupTotal > 1 ? 's' : '' }}</ng-container>.
+            </p>
+            <p class="ap-queue-sub" *ngIf="pendingQueueTotal === 0">No submissions waiting for review right now.</p>
+          </div>
         </div>
         <button type="button" class="ap-refresh-btn" (click)="refreshApprovalsTab()" matTooltip="Refresh list" aria-label="Refresh list">
           <mat-icon>refresh</mat-icon>
@@ -257,9 +271,12 @@
       <!-- New public signups (no portal account yet) -->
       <section class="ap-signup-section">
         <header class="ap-signup-section__head">
-          <div>
-            <h4 class="ap-signup-section__title">New student signups</h4>
-            <p class="ap-signup-section__sub">Bank-transfer proofs from the public registration form — approving creates the student account and sends the welcome email.</p>
+          <div class="ap-signup-section__head-left">
+            <span class="ap-signup-section__icon"><mat-icon>person_add</mat-icon></span>
+            <div>
+              <h4 class="ap-signup-section__title">New student signups</h4>
+              <p class="ap-signup-section__sub">Bank-transfer proofs from the public registration form — approving creates the student account and sends the welcome email.</p>
+            </div>
           </div>
           <mat-form-field appearance="outline" class="ap-signup-batch-field" *ngIf="signupRows.length > 0">
             <mat-label>Batch (optional)</mat-label>
@@ -296,47 +313,44 @@
               </thead>
               <tbody>
                 <tr *ngFor="let row of signupRows" class="ap-table-row ap-table-row--pending">
-                  <td>
-                    <div class="ap-student-cell">
-                      <span class="ap-avatar">{{ initialLetter(row.name) }}</span>
-                      <div>
-                        <div class="ap-student-name">{{ row.name || '—' }}</div>
-                        <div class="ap-student-email">{{ row.email }}</div>
-                      </div>
-                    </div>
+                  <td class="ap-cell-student">
+                    <div class="ap-student-name">{{ row.name || '—' }}</div>
+                    <div class="ap-student-meta">{{ row.email }}</div>
                   </td>
                   <td>
-                    <div class="ap-detail-text" *ngIf="row.phoneNumber">{{ row.phoneNumber }}</div>
-                    <div class="ap-detail-text" *ngIf="row.whatsappNumber && row.whatsappNumber !== row.phoneNumber">WA: {{ row.whatsappNumber }}</div>
+                    <div class="ap-student-meta" *ngIf="row.phoneNumber">{{ row.phoneNumber }}</div>
+                    <div class="ap-student-meta" *ngIf="row.whatsappNumber && row.whatsappNumber !== row.phoneNumber">WA: {{ row.whatsappNumber }}</div>
                   </td>
                   <td>{{ row.level || '—' }}</td>
-                  <td>{{ planLabel(row.subscription) }}</td>
-                  <td class="ap-num">{{ row.currency || '—' }} {{ fmt(signupDeclaredAmount(row)) }}</td>
-                  <td class="ap-num">{{ row.currency || '—' }} {{ fmt(row.amount) }}</td>
+                  <td><span class="ap-plan-pill" [ngClass]="planPillClass(row.subscription)">{{ planLabel(row.subscription) }}</span></td>
+                  <td class="ap-num ap-amount-declared">{{ row.currency || '—' }} {{ fmt(signupDeclaredAmount(row)) }}</td>
+                  <td class="ap-num ap-muted">{{ row.currency || '—' }} {{ fmt(row.amount) }}</td>
                   <td>{{ formatSignupPaymentDate(row) }}</td>
                   <td>{{ row.proofAccountHolderName || '—' }}</td>
-                  <td>{{ formatSignupSubmittedAt(row) }}</td>
+                  <td class="ap-muted">{{ formatSignupSubmittedAt(row) }}</td>
                   <td>
                     <button
                       *ngIf="row.proofViewUrl"
                       type="button"
                       class="ap-proof-btn"
                       (click)="viewSignupProof(row)">
+                      <mat-icon>image</mat-icon>
                       View proof
                     </button>
                     <span *ngIf="!row.proofViewUrl" class="ap-no-proof">No file</span>
                   </td>
                   <td class="ap-col-actions">
-                    <button
-                      mat-flat-button
-                      color="primary"
-                      type="button"
-                      class="ap-quick-btn"
-                      [disabled]="loadingSignupToken === row.applicationToken"
-                      (click)="approveSignup(row, $event)">
-                      <mat-spinner *ngIf="loadingSignupToken === row.applicationToken" diameter="16"></mat-spinner>
-                      <span *ngIf="loadingSignupToken !== row.applicationToken">Approve &amp; create account</span>
-                    </button>
+                    <div class="ap-action-btns">
+                      <button
+                        type="button"
+                        class="ap-action-btn ap-action-btn--approve ap-action-btn--primary"
+                        [disabled]="loadingSignupToken === row.applicationToken"
+                        (click)="approveSignup(row, $event)">
+                        <mat-spinner *ngIf="loadingSignupToken === row.applicationToken" diameter="14" class="ap-action-spinner"></mat-spinner>
+                        <mat-icon *ngIf="loadingSignupToken !== row.applicationToken">check_circle</mat-icon>
+                        Approve & create account
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>

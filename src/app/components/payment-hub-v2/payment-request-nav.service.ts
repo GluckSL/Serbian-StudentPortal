@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, forkJoin } from 'rxjs';
+import { BehaviorSubject, Observable, forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { PaymentHubApiService } from './payment-hub-api.service';
 
 /** Pending payment-proof count for Req Payment nav badge (admin). */
@@ -16,14 +17,17 @@ export class PaymentRequestNavService {
 
   refresh(): void {
     forkJoin({
-      hub: this.api.getApprovalQueue({ page: 1, limit: 1, status: 'SUBMITTED,UNDER_REVIEW' }),
-      signups: this.api.getPendingSignupApplications(),
+      hub: this.api.getApprovalQueue({ page: 1, limit: 1, status: 'SUBMITTED,UNDER_REVIEW' }).pipe(
+        catchError(() => of({ total: 0, data: [] })),
+      ),
+      signups: this.api.getPendingSignupApplications().pipe(
+        catchError(() => of({ total: 0, data: [] })),
+      ),
     }).subscribe({
       next: ({ hub, signups }) => {
-        const total = (hub.total || 0) + (signups.total || signups.data?.length || 0);
+        const total = (hub.total || 0) + (signups.total ?? signups.data?.length ?? 0);
         this.setPendingCount(total);
       },
-      error: () => { /* keep last known count */ },
     });
   }
 }

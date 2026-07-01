@@ -1,7 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { forkJoin } from 'rxjs';
+import { ActivatedRoute } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -63,6 +65,9 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   readonly planOptions = [
     { value: 'SILVER', label: 'Silver' },
     { value: 'PLATINUM', label: 'Platinum' },
+    { value: 'DOCS_RECOGNITION', label: 'Docs recognition' },
+    { value: 'VISA_DOC', label: 'Visa doc' },
+    { value: 'POST_LANDING', label: 'Post landing' },
     { value: 'VISA_DOC_ONLY', label: 'Visa Doc Only' },
   ];
 
@@ -132,9 +137,15 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     private readonly snack: MatSnackBar,
     private readonly paymentRequestNav: PaymentRequestNavService,
     private readonly dialog: MatDialog,
+    private readonly route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab === 'approvals') {
+      this.activeView = 'approvals';
+      this.approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
+    }
     this.applyFilters();
     this.loadApprovals();
     this.loadSignupApprovals();
@@ -349,30 +360,50 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     this.api.getPendingSignupApplications().subscribe({
       next: (res) => {
         this.signupRows = res.data || [];
-        this.pendingSignupTotal = res.total || this.signupRows.length;
+        this.pendingSignupTotal = res.total ?? this.signupRows.length;
         this.pendingQueueTotal = this.pendingHubTotal + this.pendingSignupTotal;
         this.paymentRequestNav.setPendingCount(this.pendingQueueTotal);
         this.loadingSignups = false;
+        if (this.pendingSignupTotal > 0 && this.activeView === 'send') {
+          this.activeView = 'approvals';
+          this.approvalStatusFilter = 'SUBMITTED,UNDER_REVIEW';
+          this.approvalPage = 1;
+          this.loadApprovals();
+        }
       },
-      error: () => {
+      error: (err) => {
         this.loadingSignups = false;
-        this.snack.open('Could not load new signup applications', 'Dismiss', { duration: 4000 });
+        const msg = err?.error?.message || err?.status === 404
+          ? 'Signup approvals API not found — deploy the latest backend.'
+          : 'Could not load new signup applications';
+        this.snack.open(msg, 'Dismiss', { duration: 5000 });
       },
     });
   }
 
+  private emptyApprovalPage() {
+    return of({ success: true, data: [], total: 0, page: 1, totalPages: 0 });
+  }
+
+  private emptySignupPage() {
+    return of({ success: true, data: [], total: 0 });
+  }
+
   refreshPendingQueueCount(): void {
     forkJoin({
-      hub: this.api.getApprovalQueue({ page: 1, limit: 1, status: 'SUBMITTED,UNDER_REVIEW' }),
-      signups: this.api.getPendingSignupApplications(),
+      hub: this.api.getApprovalQueue({ page: 1, limit: 1, status: 'SUBMITTED,UNDER_REVIEW' }).pipe(
+        catchError(() => this.emptyApprovalPage()),
+      ),
+      signups: this.api.getPendingSignupApplications().pipe(
+        catchError(() => this.emptySignupPage()),
+      ),
     }).subscribe({
       next: ({ hub, signups }) => {
         this.pendingHubTotal = hub.total || 0;
-        this.pendingSignupTotal = signups.total || signups.data?.length || 0;
+        this.pendingSignupTotal = signups.total ?? signups.data?.length ?? 0;
         this.pendingQueueTotal = this.pendingHubTotal + this.pendingSignupTotal;
         this.paymentRequestNav.setPendingCount(this.pendingQueueTotal);
       },
-      error: () => { /* ignore */ },
     });
   }
 
@@ -625,6 +656,14 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   planLabel(val: string | undefined): string {
     return this.planOptions.find(p => p.value === val)?.label || val || '—';
+  }
+
+  planPillClass(val: string | undefined): string {
+    const v = String(val || '').toUpperCase();
+    if (v === 'PLATINUM') return 'ap-plan-pill--platinum';
+    if (v === 'SILVER') return 'ap-plan-pill--silver';
+    if (v === 'VISA_DOC_ONLY') return 'ap-plan-pill--visa';
+    return 'ap-plan-pill--default';
   }
 
   statusClass(status: string): string {
