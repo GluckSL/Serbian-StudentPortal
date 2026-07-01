@@ -247,8 +247,10 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
-  loadAnalytics(): void {
-    this.analyticsLoading = true;
+  loadAnalytics(soft = false): void {
+    if (!soft || !this.analytics) {
+      this.analyticsLoading = true;
+    }
     this.api.getAnalytics().subscribe({
       next: (res) => {
         if (res.success) {
@@ -1506,7 +1508,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   fetchFromCrm(): void {
     if (this.crmFetchLoading) return;
     const confirmed = window.confirm(
-      'Fetch the latest student data from CRM? This will update enrollment records to match the current CRM enrollment board.'
+      'Fetch the latest student data from CRM? Overview will be updated to match the CRM enrollment board. Records no longer in CRM will be removed.'
     );
     if (!confirmed) return;
 
@@ -1520,14 +1522,15 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
         if (res.success) {
           const d = res.data || {};
           const parts = [
-            `${d.crmTotal ?? 0} CRM students`,
+            `${d.overviewTotal ?? d.crmTotal ?? 0} students in overview`,
             `${d.imported ?? 0} new`,
             `${d.updated ?? 0} updated`,
           ];
+          if (d.removed) parts.push(`${d.removed} removed`);
           if (d.failed?.length) parts.push(`${d.failed.length} failed`);
           this.crmFetchMessage = `Synced from CRM — ${parts.join(', ')}.`;
           this.loadStudents();
-          this.loadAnalytics();
+          this.loadAnalytics(true);
         } else {
           this.crmFetchError = res.message || 'CRM fetch failed';
         }
