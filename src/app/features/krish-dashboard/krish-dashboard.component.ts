@@ -167,6 +167,9 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   importError = '';
   resetLoading = false;
   exportLoading = false;
+  crmFetchLoading = false;
+  crmFetchMessage = '';
+  crmFetchError = '';
 
   // ── Note form (inside drawer) ─────────────────────────────────────────────
   noteForm = { type: 'NOTE', content: '', followUpDate: '' };
@@ -1499,6 +1502,47 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
   }
 
   // ── Export ────────────────────────────────────────────────────────────────
+
+  fetchFromCrm(): void {
+    if (this.crmFetchLoading) return;
+    const confirmed = window.confirm(
+      'Fetch the latest student data from CRM? This will update enrollment records to match the current CRM enrollment board.'
+    );
+    if (!confirmed) return;
+
+    this.crmFetchLoading = true;
+    this.crmFetchMessage = '';
+    this.crmFetchError = '';
+    this.cdr.markForCheck();
+
+    this.api.fetchFromCrm().subscribe({
+      next: (res) => {
+        if (res.success) {
+          const d = res.data || {};
+          const parts = [
+            `${d.crmTotal ?? 0} CRM students`,
+            `${d.imported ?? 0} new`,
+            `${d.updated ?? 0} updated`,
+          ];
+          if (d.failed?.length) parts.push(`${d.failed.length} failed`);
+          this.crmFetchMessage = `Synced from CRM — ${parts.join(', ')}.`;
+          this.loadStudents();
+          this.loadAnalytics();
+        } else {
+          this.crmFetchError = res.message || 'CRM fetch failed';
+        }
+        this.crmFetchLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.crmFetchError =
+          err?.error?.message ||
+          (err?.status === 0 ? 'Could not reach server — check that the backend is running.' : 'CRM fetch failed');
+        this.crmFetchLoading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
 
   /** Export all students matching the current filters (not just the current page). */
   exportData(format: 'csv' | 'xlsx' = 'xlsx'): void {

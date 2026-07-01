@@ -9,6 +9,10 @@
       </div>
 
       <div class="kd-hero__actions">
+        <button type="button" class="kd-btn kd-btn--fetch" (click)="fetchFromCrm()" [disabled]="crmFetchLoading">
+          <span class="material-icons" [class.kd-spin]="crmFetchLoading">sync</span>
+          {{ crmFetchLoading ? 'Fetching…' : 'Fetch' }}
+        </button>
         <button type="button" class="kd-btn kd-btn--filter" (click)="toggleAdvancedFilter()"
           [class.kd-btn--filter-active]="advancedFilterOpen || hasActiveAdvancedFilters()">
           <span class="material-icons">tune</span>
@@ -32,6 +36,9 @@
       </div>
     </div>
   </header>
+
+  <div class="kd-fetch-banner kd-fetch-banner--ok" *ngIf="crmFetchMessage">{{ crmFetchMessage }}</div>
+  <div class="kd-fetch-banner kd-fetch-banner--err" *ngIf="crmFetchError">{{ crmFetchError }}</div>
 
   <!-- Summary stats — click to filter -->
   <div class="kd-summary-bar">

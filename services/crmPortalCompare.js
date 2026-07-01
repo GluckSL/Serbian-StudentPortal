@@ -131,7 +131,8 @@ async function fetchAllCrmRecords(boardType, { simple = {}, advanced = null }) {
       const pg = data.pagination || {};
       totalPages = pg.totalPages || data.totalPages || 1;
       if (!items.length) break;
-    } else if (hasSimpleFilters(simple) || boardType === 'language') {
+    } else if (hasSimpleFilters(simple) || boardType === 'language' || boardType === 'enrollment') {
+      // Enrollment list-all endpoint ignores page; filter works for unfiltered fetch too.
       response = await axios.get(`${CRM_BASE}${paths.filter}`, {
         headers: CRM_HEADERS,
         params: { ...simple, page, limit: PAGE_LIMIT },
@@ -227,4 +228,4 @@ async function compareBoardWithPortal(boardType, query = {}) {
   };
 }
 
-module.exports = { compareBoardWithPortal };
+module.exports = { compareBoardWithPortal, fetchAllCrmRecords };
