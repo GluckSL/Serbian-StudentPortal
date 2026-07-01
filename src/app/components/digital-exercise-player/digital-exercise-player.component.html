@@ -4461,8 +4461,12 @@
             (click)="navPrev($event)"
             [disabled]="isFirstQuestion || finishingAll"
           >
-            <span class="material-icons">arrow_back</span> Previous
+            <span class="material-icons">arrow_back</span>
+            <span class="nav-btn-label">Previous</span>
           </button>
+          <span class="nav-questions-progress"
+            >{{ currentIndex + 1 }} / {{ playerQuestions.length }} Questions</span
+          >
           <button
             type="button"
             class="btn-nav btn-next"
@@ -4470,7 +4474,7 @@
             (click)="navNext($event)"
             [disabled]="finishingAll"
           >
-            Next <span class="material-icons">arrow_forward</span>
+            <span class="nav-btn-label">Next </span><span class="material-icons">arrow_forward</span>
           </button>
           <button
             type="button"
@@ -4482,7 +4486,7 @@
             <span class="material-icons">{{
               finishingAll ? "hourglass_empty" : "flag"
             }}</span>
-            {{ finishingAll ? "Finishing..." : "Finish & Submit" }}
+            <span class="nav-btn-label">{{ finishingAll ? "Finishing..." : "Finish & Submit" }}</span>
           </button>
         </div>
       </div>

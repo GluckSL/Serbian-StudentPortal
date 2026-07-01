@@ -734,6 +734,37 @@
   align-items: center;
 }
 
+@media (max-width: 640px) {
+  .player-header-top {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .player-header-top > .btn-icon-back {
+    order: 1;
+  }
+  .player-header-top > .timer {
+    order: 2;
+  }
+  .player-header-top > .player-header-title {
+    order: 3;
+    flex: 1 1 100%;
+    text-align: center;
+    padding: 0;
+  }
+  .nav-btn-label {
+    display: none;
+  }
+  .btn-finish .nav-btn-label {
+    display: inline;
+  }
+  .btn-nav {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
 .btn-icon-back {
   background: none;
   border: 1.5px solid #e0e0e0;
@@ -821,9 +852,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #555;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #444;
   flex-shrink: 0;
 }
 .timer .material-icons {
@@ -940,7 +975,7 @@
 
 .question-card {
   background: white;
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   border: 1px solid #e2e8f0;
@@ -994,7 +1029,7 @@
 }
 
 .question-card--header .q-header {
-  border-radius: 0 0 16px 16px;
+  border-radius: 0 0 8px 8px;
 }
 
 .question-card--instruction,
@@ -1014,9 +1049,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px;
+  padding: 8px;
   background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
 }
 
 .q-type-mcq .q-header { background: #e8f4fd; border-bottom-color: #90caf9; }
@@ -1326,7 +1360,7 @@
 
 .q-question-box {
   margin: 0;
-  padding: 16px;
+  padding: 8px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #f8fafc;
@@ -1352,7 +1386,7 @@
 }
 
 .q-question-box:has(> .mcq-options) {
-  padding: 14px 16px;
+  padding: 8px;
 }
 
 .q-question-box:has(> .mcq-options) > .q-text {
@@ -1436,7 +1470,7 @@
 .sub-question-card {
   /* background: #f0eeff; */
   /* border: 1.5px solid #e2e8f0; */
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0;
 }
 
@@ -3704,11 +3738,17 @@
   padding: 16px;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
   position: relative;
   z-index: 30;
   flex-shrink: 0;
+}
+.nav-questions-progress {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #666;
+  white-space: nowrap;
 }
 
 .ipm-auto-advance {
@@ -3758,13 +3798,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   background: white;
   border: 1.5px solid #c7d2fe;
   border-radius: 8px;
-  padding: 6px 14px;
+  padding: 4px 10px;
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: #4f46e5;
   transition: all 0.2s;
@@ -3791,13 +3831,13 @@
 .btn-submit {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: white;
   border: none;
   border-radius: 8px;
-  padding: 7px 20px;
-  font-size: 0.85rem;
+  padding: 5px 14px;
+  font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
@@ -4804,17 +4844,15 @@
   margin-top: 6px;
 }
 .question-nav-btns--outside .btn-nav {
-  flex: 1;
   min-width: 0;
   justify-content: center;
-  min-height: 36px;
+  min-height: 30px;
 }
 .question-nav-btns--outside .btn-submit {
   order: unset;
-  flex: 1;
   min-width: 0;
   justify-content: center;
-  min-height: 36px;
+  min-height: 30px;
 }
 .question-nav-btns--outside .btn-nav,
 .question-nav-btns--outside .btn-submit,
@@ -4846,15 +4884,15 @@
   }
   .btn-nav,
   .match-item {
-    padding: 8px;
-    min-height: 38px;
+    padding: 6px;
+    min-height: 32px;
     height: auto !important;
   }
   .info-stat > div {
     text-align: left;
   }
   .q-header {
-    padding: 8px 16px;
+  padding: 16px;
   }
   .q-dot,
   .question-nav-grid .q-dot {
@@ -7171,7 +7209,7 @@
   display: flex;
   flex-direction: column;
   margin: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   font-size: 0.88rem;
   line-height: 1.5;
@@ -7207,7 +7245,7 @@
   display: flex;
   flex-direction: column;
   margin: 0 0 8px;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   font-size: 0.84rem;
   line-height: 1.45;
