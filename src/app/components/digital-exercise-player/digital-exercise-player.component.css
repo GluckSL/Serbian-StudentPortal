@@ -3548,17 +3548,14 @@
 }
 .rearrange-drop {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 16px;
-  padding: 20px;
-  padding-right: 56px; /* makes dropping at end reliable */
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
   background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 70%);
   border: 1.5px dashed #a5b4fc;
   border-radius: 12px;
-  min-height: 56px;
+  min-height: 50px;
   position: relative;
-  overflow-x: auto;
-  overflow-y: hidden;
   box-shadow:
     0 10px 24px rgba(99, 102, 241, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
@@ -3592,12 +3589,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
-  padding: 14px 18px;
+  min-height: 32px;
+  padding: 6px 10px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   border: 1.5px solid rgba(99, 102, 241, 0.4);
-  border-radius: 12px;
-  font-size: 0.98rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
   font-weight: 700;
   color: #0f172a;
   box-shadow:
@@ -3639,9 +3636,9 @@
 .rearrange-drop .cdk-drop-list-placeholder,
 .rearrange-drop .cdk-drag-placeholder {
   display: inline-flex;
-  width: 90px;
-  height: 42px;
-  border-radius: 12px;
+  width: 70px;
+  height: 34px;
+  border-radius: 10px;
   border: 2px dashed rgba(99, 102, 241, 0.55);
   background: rgba(99, 102, 241, 0.08);
 }
