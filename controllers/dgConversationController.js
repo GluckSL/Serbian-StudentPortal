@@ -411,6 +411,8 @@ exports.respond = async (req, res) => {
       languageHint:           false,
       // Beginner mode: current question index after this turn
       beginnerQuestionIndex:  result.beginnerQuestionIndex ?? undefined,
+      questionSkipped:        result.questionSkipped || undefined,
+      skipMessage:            result.skipMessage || undefined,
       // legacy fields kept for backward compat
       turnNumber:             result.turnCount,
       sceneComplete:          result.complete,

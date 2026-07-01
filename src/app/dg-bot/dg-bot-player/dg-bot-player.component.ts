@@ -44,6 +44,7 @@ import { DgAudioPlayerService } from '../dg-audio-player.service';
 import { dgDevLog } from '../dg-dev-log';
 import { DgCharacterEmotionService } from '../dg-character-emotion.service';
 import type { DgCharacterAnimState } from '../dg-character-state.service';
+import { resolveMediaUrl } from '../../utils/media-url';
 
 export interface DgSceneFlowItem {
   type: string;
@@ -158,7 +159,6 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   private correctStreak = 0;
   private lastPracticeAttemptWrong = false;
   private consecutivePracticeFailures = 0;
-  private convConsecutiveFailures = 0;
   private sceneBehaviorPlan: DgSceneBehaviorPlan | null = null;
   private conversationHistory: DgConversationMessage[] = [];
   private conversationTurn = 0;
@@ -416,8 +416,8 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   get beginnerContextImageUrl(): string {
     if (this.isBeginnerModeActive && !this.conversationStarted) return '';
     const sceneImg = this.scene?.imageUrl?.trim();
-    if (sceneImg && !this.conversationMode) return sceneImg;
-    return this.currentBeginnerQuestion?.imageUrl ?? '';
+    if (sceneImg && !this.conversationMode) return resolveMediaUrl(sceneImg);
+    return resolveMediaUrl(this.currentBeginnerQuestion?.imageUrl);
   }
 
   get beginnerContextText(): string {
@@ -1027,7 +1027,6 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.conversationTurn = 0;
     this.beginnerQuestionIndex = 0;
     this.convRetryTick = 0;
-    this.convConsecutiveFailures = 0;
     this.canNext = false;
     this.isAiThinking = false;
     this.waitingForUser = false;
@@ -1139,40 +1138,6 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
     // Don't show the start-trigger phrase as a chat bubble
     const isStartTrigger = /^(bereit|ready|start)$/i.test(transcript);
-
-    // After 3 consecutive failed attempts, skip the current word/question with encouragement
-    if (!isStartTrigger && this.conversationStarted && this.convConsecutiveFailures >= 3) {
-      this.convConsecutiveFailures = 0;
-      const skipMsg = "That's okay! It will come with time. Let's move on to the next.";
-      this.chatHistory = [
-        ...this.chatHistory,
-        { speaker: 'student', text: transcript, score: ev.score ?? undefined },
-        { speaker: 'ai', text: skipMsg },
-      ];
-      this.scrollChatToLatest();
-      this.conversationHistory = [
-        ...this.conversationHistory,
-        { role: 'user', text: transcript },
-        { role: 'ai', text: skipMsg },
-      ];
-      this.conversationTurn += 1;
-      // Advance beginner question index so the AI moves to the next word
-      if (this.isBeginnerModeActive) {
-        const nextIdx = Math.min(this.beginnerQuestionIndex + 1, this.beginnerQuestions.length - 1);
-        this.beginnerQuestionIndex = nextIdx;
-      }
-      this.displayLine = skipMsg;
-      this.displaySub = '';
-      this.mascotSpeechText = skipMsg;
-      this.charState.setState('idle');
-      this.isAiThinking = false;
-      this.aiTyping = false;
-      this.logTts();
-      await this.playTtsBlob(skipMsg);
-      this.charState.setState('idle');
-      this.openMicForUserTurn();
-      return;
-    }
 
     if (!isStartTrigger) {
       this.chatHistory = [
@@ -1300,67 +1265,85 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.pendingGermanHint = '';
       this.conversationTurn = response.turnNumber ?? (this.conversationTurn + 1);
       // Beginner mode: use the question index returned by the server; fall back to formula
-      const prevBeginnerIdx = this.beginnerQuestionIndex;
       if (response.beginnerQuestionIndex != null) {
         this.beginnerQuestionIndex = response.beginnerQuestionIndex;
       } else {
         this.syncBeginnerQuestionIndex();
       }
-      // Track consecutive failures: beginner mode uses question-index stagnation;
-      // non-beginner uses pronunciation score as a proxy.
-      if (this.isBeginnerModeActive && this.conversationStarted) {
-        if (this.beginnerQuestionIndex === prevBeginnerIdx) {
-          this.convConsecutiveFailures += 1;
-        } else {
-          this.convConsecutiveFailures = 0;
-        }
-      } else if (this.conversationStarted) {
-        const isFail = ev.score != null ? ev.score < 55 : (ev.isCorrect === false);
-        if (isFail) {
-          this.convConsecutiveFailures += 1;
-        } else {
-          this.convConsecutiveFailures = 0;
-        }
-      }
+
+      const skipMsg = (response.skipMessage || '').trim();
+      const nextPrompt = (response.text || '').trim();
+      const skipped = !!response.questionSkipped && !!skipMsg;
 
       this.conversationHistory = [
         ...this.conversationHistory,
-        { role: 'user', text: transcript },
-        { role: 'ai', text: response.text },
+        { role: 'user' as const, text: transcript },
+        ...(skipped
+          ? [
+              { role: 'ai' as const, text: skipMsg },
+              ...(nextPrompt ? [{ role: 'ai' as const, text: nextPrompt }] : []),
+            ]
+          : [{ role: 'ai' as const, text: response.text }]),
       ];
 
       this.chatHistory = [
         ...this.chatHistory,
-        {
-          speaker: 'ai',
-          text: response.text,
-          translation: response.translatedTamil || undefined,
-          translationEn: response.translatedEnglish || undefined,
-        },
+        ...(skipped
+          ? [
+              { speaker: 'ai' as const, text: skipMsg },
+              ...(nextPrompt
+                ? [{
+                    speaker: 'ai' as const,
+                    text: nextPrompt,
+                    translation: response.translatedTamil || undefined,
+                    translationEn: response.translatedEnglish || undefined,
+                  }]
+                : []),
+            ]
+          : [{
+              speaker: 'ai' as const,
+              text: response.text,
+              translation: response.translatedTamil || undefined,
+              translationEn: response.translatedEnglish || undefined,
+            }]),
       ];
       this.scrollChatToLatest();
 
-      if (this.sessionId && (response.text || '').trim()) {
-        firstValueFrom(
-          this.dgApi.updateSession({
-            sessionId: this.sessionId,
-            event: 'conv_ai',
-            sceneIndex: this.index,
-            meta: { text: (response.text || '').trim() },
-          }),
-        ).catch(() => {});
+      if (this.sessionId) {
+        const lines = skipped
+          ? [skipMsg, nextPrompt].filter(Boolean)
+          : [(response.text || '').trim()].filter(Boolean);
+        for (const line of lines) {
+          firstValueFrom(
+            this.dgApi.updateSession({
+              sessionId: this.sessionId,
+              event: 'conv_ai',
+              sceneIndex: this.index,
+              meta: { text: line },
+            }),
+          ).catch(() => {});
+        }
       }
 
-      this.aiResponseText = response.text;
+      this.aiResponseText = skipped ? (nextPrompt || skipMsg) : response.text;
       this.aiResponseTamil = response.translatedTamil;
-      this.displayLine = response.text;
+      this.displayLine = skipped ? (nextPrompt || skipMsg) : response.text;
       this.displaySub = response.translatedTamil || '';
-      this.mascotSpeechText = response.text;
+      this.mascotSpeechText = skipped ? skipMsg : response.text;
       this.dialogueVariant = 'default';
       this.charState.setState('speaking');
 
       this.logTts();
-      await this.playTtsBlob(response.text);
+      if (skipped) {
+        await this.playTtsBlob(skipMsg);
+        if (nextPrompt) {
+          this.mascotSpeechText = nextPrompt;
+          this.displayLine = nextPrompt;
+          await this.playTtsBlob(nextPrompt);
+        }
+      } else {
+        await this.playTtsBlob(response.text);
+      }
 
       const phase = response.phase || (response.complete ? 'complete' : 'active');
 

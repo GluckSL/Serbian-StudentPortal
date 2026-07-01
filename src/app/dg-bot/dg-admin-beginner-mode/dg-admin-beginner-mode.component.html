@@ -141,7 +141,7 @@
                 <div class="dg-bm-q__image-block">
                   <label class="dg-bm-label">Picture for this question</label>
                   <div class="dg-bm-q__image-drop" [class.dg-bm-q__image-drop--has-img]="q.imageUrl">
-                    <img *ngIf="q.imageUrl" [src]="q.imageUrl" alt="Question image" class="dg-bm-q__preview" />
+                    <img *ngIf="q.imageUrl" [src]="imagePreviewUrl(q.imageUrl)" alt="Question image" class="dg-bm-q__preview" />
                     <div *ngIf="!q.imageUrl" class="dg-bm-q__image-placeholder">
                       <i class="fas fa-image fa-2x text-muted mb-2"></i>
                       <span class="small text-muted">No image — text-only question is OK</span>

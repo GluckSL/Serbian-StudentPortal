@@ -8,6 +8,7 @@ import { HttpClient } from '@angular/common/http';
 import { DgApiService } from '../dg-api.service';
 import { LearningModulesService } from '../../services/learning-modules.service';
 import { environment } from '../../../environments/environment';
+import { resolveMediaUrl } from '../../utils/media-url';
 import { isValidAdminCourseDay } from '../../utils/journey-day.util';
 import type {
   DgCharacterDoc,
@@ -453,6 +454,10 @@ export class DgAdminModuleFormComponent implements OnInit {
     if (this.editScenes[index]) {
       this.editScenes[index].imageUrl = '';
     }
+  }
+
+  sceneImagePreviewUrl(url?: string): string {
+    return resolveMediaUrl(url);
   }
 
   addVocabulary(): void {

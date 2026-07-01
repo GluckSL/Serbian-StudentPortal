@@ -81,7 +81,14 @@ function extractMediaKeyFromUrl(url) {
   const s = String(url || '').trim();
   if (!s) return null;
   const lower = s.toLowerCase();
-  const markers = ['listening-media/', 'exercise-attachments/', 'pdf-exercises/', 'glueck-arena/', 'job-openings/'];
+  const markers = [
+    'listening-media/',
+    'exercise-attachments/',
+    'pdf-exercises/',
+    'glueck-arena/',
+    'job-openings/',
+    'dg-context-images/',
+  ];
   for (const m of markers) {
     const idx = lower.indexOf(m);
     if (idx !== -1) return s.slice(idx).replace(/^\/+/, '');
