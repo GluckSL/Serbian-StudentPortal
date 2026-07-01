@@ -842,21 +842,23 @@
 
 .ap-amount-declared {
   font-weight: 700;
-  color: #1b5e20;
+  color: #047857;
 }
 
 .ap-muted {
-  color: #78909c;
+  color: #94a3b8;
+  font-size: 0.6875rem;
 }
 
 .ap-cell-student .ap-student-name {
-  font-weight: 700;
-  color: #1a237e;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: #0f172a;
 }
 
 .ap-student-meta {
-  font-size: 12px;
-  color: #78909c;
+  font-size: 0.6875rem;
+  color: #64748b;
   margin-top: 2px;
   word-break: break-word;
 }
