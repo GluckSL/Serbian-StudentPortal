@@ -244,20 +244,28 @@
                 class="q-instruction-banner"
                 *ngIf="worksheetInstructionDisplay(pq.data)"
               >
-                <span class="q-instruction-label">Instruction</span>
-                <span
-                  class="q-instruction-text"
-                  [innerHTML]="
-                    worksheetInstructionDisplay(pq.data) | safeHtml
-                  "
-                ></span>
+                <div class="q-instruction-banner-header">
+                  <span class="q-instruction-label">Instruction</span>
+                </div>
+                <div class="q-instruction-banner-body">
+                  <span
+                    class="q-instruction-text"
+                    [innerHTML]="
+                      worksheetInstructionDisplay(pq.data) | safeHtml
+                    "
+                  ></span>
+                </div>
               </div>
               <div class="q-example-banner" *ngIf="pq.data.example">
-                <span class="q-example-label">Example</span>
-                <span
-                  class="q-example-text"
-                  [innerHTML]="pq.data.example | safeHtml"
-                ></span>
+                <div class="q-example-banner-header">
+                  <span class="q-example-label">Example</span>
+                </div>
+                <div class="q-example-banner-body">
+                  <span
+                    class="q-example-text"
+                    [innerHTML]="pq.data.example | safeHtml"
+                  ></span>
+                </div>
               </div>
               <div class="q-context-box" *ngIf="pq.data.context">
                 <div
@@ -788,46 +796,10 @@
           <span class="material-icons">arrow_back</span>
           <span class="btn-back-label">Back</span>
         </button>
-        <div class="assessment-header-right">
-          <div class="timer">
-            <span class="material-icons">schedule</span>
-            Remaining: {{ formatTime(sessionRemainingSeconds) }}
-          </div>
-        </div>
-      </div>
-      <div class="header-center">
-        <div class="header-title-progress">
-          <div class="exercise-title-sm">{{ exercise?.title }}</div>
-          <div class="progress-text">
-            {{ answeredCount }} / {{ playerQuestions.length }} attempted
-          </div>
-        </div>
-        <div class="progress-ring-wrap">
-          <svg class="progress-ring-svg" viewBox="0 0 36 36">
-            <circle
-              class="progress-ring-track"
-              cx="18"
-              cy="18"
-              r="15.9155"
-              fill="none"
-              stroke-width="3"
-            />
-            <circle
-              class="progress-ring-bar"
-              cx="18"
-              cy="18"
-              r="15.9155"
-              fill="none"
-              stroke-width="3"
-              stroke-linecap="round"
-              transform="rotate(-90 18 18)"
-              [attr.stroke-dasharray]="progressRingCircumference"
-              [attr.stroke-dashoffset]="progressRingOffset"
-            />
-          </svg>
-          <span class="progress-ring-label"
-            >{{ getProgressPercentage() }}%</span
-          >
+        <div class="player-header-title">{{ exercise?.title }}</div>
+        <div class="timer">
+          <span class="material-icons">schedule</span>
+          {{ formatTime(sessionRemainingSeconds) }}
         </div>
       </div>
     </div>
@@ -1816,25 +1788,23 @@
               </div>
             </div>
           </div>
-          <div class="info-specs desktop-only">
-            <div class="spec-label">Question types</div>
-            <div class="spec-pills">
-              <span
-                *ngFor="let qt of getQuestionTypes()"
-                class="spec-pill"
-                [ngClass]="'pill-' + qt.type"
-              >
-                <span class="material-icons">{{ qt.icon }}</span>
-                {{ qt.label }}: {{ qt.indices.join(", ") }}
-              </span>
+
+          <div class="info-progress">
+            <div class="info-progress-head">
+              <span class="info-progress-label">Progress</span>
+              <span class="info-progress-count">{{ answeredCount }}/{{ playerQuestions.length }}</span>
             </div>
+            <mat-progress-bar
+              mode="determinate"
+              [value]="playerQuestions.length ? (answeredCount / playerQuestions.length * 100) : 0"
+            ></mat-progress-bar>
           </div>
         </aside>
 
         <!-- RIGHT (now below LEFT): Question Navigator + Status -->
         <aside class="question-sidebar">
           <div class="sidebar-header">
-            <div class="sidebar-title">QUIZ ({{ playerQuestions.length }})</div>
+            <div class="sidebar-title">Jump to question</div>
           </div>
           <div class="question-nav-grid">
             <button
@@ -1857,8 +1827,7 @@
             </button>
           </div>
 
-          <!-- Mobile: Question types -->
-          <div class="info-specs mobile-only">
+          <div class="info-specs">
             <div class="spec-label">Question types</div>
             <div class="spec-pills">
               <span
@@ -1872,20 +1841,6 @@
             </div>
           </div>
 
-          <div class="status-legend">
-            <span class="status-item correct">
-              <span class="status-icon correct"></span>
-              {{ correctCount }} Correct
-            </span>
-            <span class="status-item wrong">
-              <span class="status-icon wrong"></span>
-              {{ wrongCount }} Wrong
-            </span>
-            <span class="status-item unanswered">
-              <span class="status-icon unanswered"></span>
-              {{ unattemptedCount }} Unanswered
-            </span>
-          </div>
         </aside>
       </div>
 
@@ -1935,11 +1890,15 @@
             *ngIf="hasVisibleTextContent(worksheetInstructionDisplay(currentQuestion.data))"
           >
             <div class="q-instruction-banner">
-              <span class="q-instruction-label">Instruction</span>
-              <span
-                class="q-instruction-text"
-                [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"
-              ></span>
+              <div class="q-instruction-banner-header">
+                <span class="q-instruction-label">Instruction</span>
+              </div>
+              <div class="q-instruction-banner-body">
+                <span
+                  class="q-instruction-text"
+                  [innerHTML]="worksheetInstructionDisplay(currentQuestion.data) | safeHtml"
+                ></span>
+              </div>
             </div>
           </div>
           <div
@@ -1947,11 +1906,15 @@
             *ngIf="hasVisibleTextContent(currentQuestion.data.example)"
           >
             <div class="q-example-banner">
-              <span class="q-example-label">Example</span>
-              <span
-                class="q-example-text"
-                [innerHTML]="currentQuestion.data.example | safeHtml"
-              ></span>
+              <div class="q-example-banner-header">
+                <span class="q-example-label">Example</span>
+              </div>
+              <div class="q-example-banner-body">
+                <span
+                  class="q-example-text"
+                  [innerHTML]="currentQuestion.data.example | safeHtml"
+                ></span>
+              </div>
             </div>
           </div>
         </div>
