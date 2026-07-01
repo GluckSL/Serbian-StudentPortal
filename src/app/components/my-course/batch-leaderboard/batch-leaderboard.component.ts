@@ -83,7 +83,7 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
   /** Only show entries that have some activity — students shouldn't see inactives */
   get visibleLeaderboard(): LeaderboardEntry[] {
     const all = this.leaderboard;
-    const active = all.filter(e => e.totalPoints > 0 || e.loggedToday);
+    const active = all.filter(e => e.engagementMinutes > 0);
     // Always include the current student even if inactive
     const myId = this.myStats?.studentId;
     if (myId && !active.find(e => e.studentId === myId)) {
@@ -190,24 +190,65 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
     return `Day ${day} tasks`;
   }
 
-  /** How many points needed to reach the rank above */
-  get pointsToRankUp(): number | null {
+  /** How many engagement minutes needed to reach the rank above */
+  get minutesToRankUp(): number | null {
     if (!this.myStats || !this.myRank || this.myRank <= 1) return null;
     const above = this.leaderboard.find(e => e.rank === this.myRank! - 1);
     if (!above) return null;
-    return Math.max(0, above.totalPoints - this.myStats.totalPoints + 1);
+    if (above.engagementMinutes > this.myStats.engagementMinutes) {
+      return above.engagementMinutes - this.myStats.engagementMinutes + 1;
+    }
+    const myPct = this.exerciseCompletionPercent(this.myStats);
+    const abovePct = this.exerciseCompletionPercent(above);
+    if (abovePct > myPct) return null;
+    return null;
   }
 
-  /** Progress percentage toward rank-up (0–100) */
+  /** Progress toward rank-up based on engagement time (0–100) */
   get rankUpProgress(): number {
     if (!this.myStats || !this.myRank || this.myRank <= 1) return 100;
     const above = this.leaderboard.find(e => e.rank === this.myRank! - 1);
-    if (!above || above.totalPoints <= 0) return 100;
-    return Math.min(100, Math.round((this.myStats.totalPoints / above.totalPoints) * 100));
+    if (!above || above.engagementMinutes <= 0) return 100;
+    return Math.min(100, Math.round((this.myStats.engagementMinutes / above.engagementMinutes) * 100));
+  }
+
+  get myEngagementLabel(): string {
+    return this.formatEngagementMinutes(this.myStats?.engagementMinutes ?? 0);
   }
 
   get activeMatesCount(): number {
-    return this.leaderboard.filter(e => e.totalPoints > 0 || e.loggedToday).length;
+    return this.leaderboard.filter(e => e.engagementMinutes > 0).length;
+  }
+
+  get activeMatesLabel(): string {
+    if (this.subTab === 'today') return `${this.activeMatesCount} batchmate${this.activeMatesCount === 1 ? '' : 's'} learning today`;
+    if (this.subTab === 'weekly') return `${this.activeMatesCount} batchmate${this.activeMatesCount === 1 ? '' : 's'} learning this week`;
+    return `${this.activeMatesCount} batchmate${this.activeMatesCount === 1 ? '' : 's'} learning overall`;
+  }
+
+  formatEngagementMinutes(minutes: number): string {
+    const mins = Math.max(0, Math.round(minutes || 0));
+    if (mins <= 0) return '0m';
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return m ? `${h}h ${m}m` : `${h}h`;
+    }
+    return `${mins}m`;
+  }
+
+  exerciseCompletionPercent(entry: LeaderboardEntry): number {
+    const total = entry.exercisesTotal ?? 0;
+    const done = entry.exercisesCompleted ?? 0;
+    if (total <= 0) return 0;
+    return Math.round((done / total) * 100);
+  }
+
+  formatExerciseCompletion(entry: LeaderboardEntry): string {
+    const total = entry.exercisesTotal ?? 0;
+    const done = entry.exercisesCompleted ?? 0;
+    if (total <= 0) return '—';
+    return `${done}/${total} (${this.exerciseCompletionPercent(entry)}%)`;
   }
 
   getRankMedal(rank: number): string {
@@ -218,23 +259,45 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
   }
 
   getActivityLabel(entry: LeaderboardEntry): string {
-    if (entry.averageScore != null && entry.averageScore > 0) {
-      return `Avg score ${entry.averageScore}%`;
-    }
     const parts: string[] = [];
-    if (entry.exercisesCompleted > 0) {
+
+    if (entry.engagementMinutes > 0) {
+      parts.push(`${this.formatEngagementMinutes(entry.engagementMinutes)} learning`);
+    }
+
+    if (entry.exercisesTotal > 0) {
+      parts.push(`${this.formatExerciseCompletion(entry)} exercises`);
+    } else if (entry.exercisesCompleted > 0) {
       parts.push(`${entry.exercisesCompleted} exercise${entry.exercisesCompleted > 1 ? 's' : ''} done`);
     }
-    if (entry.dgSessionsCompleted > 0) {
-      parts.push(`${entry.dgSessionsCompleted} Buddy session${entry.dgSessionsCompleted > 1 ? 's' : ''}`);
+
+    if (parts.length) return parts.join(' · ');
+    if (entry.loggedToday) return 'Checked in · no learning time yet';
+    return 'Getting started';
+  }
+
+  getRankUpHint(): string | null {
+    if (!this.myStats || !this.myRank || this.myRank <= 1) return null;
+    const above = this.leaderboard.find(e => e.rank === this.myRank! - 1);
+    if (!above) return null;
+
+    const mins = this.minutesToRankUp;
+    if (mins != null && mins > 0) {
+      return `+${this.formatEngagementMinutes(mins)} learning to reach #${this.myRank - 1}`;
     }
-    if (!parts.length) return entry.loggedToday ? 'Checked in today' : 'Getting started';
-    return parts.join(' · ');
+
+    const myPct = this.exerciseCompletionPercent(this.myStats);
+    const abovePct = this.exerciseCompletionPercent(above);
+    if (this.myStats.engagementMinutes === above.engagementMinutes && abovePct > myPct) {
+      return `Complete more exercises to reach #${this.myRank - 1}`;
+    }
+
+    return `Keep learning to reach #${this.myRank - 1}`;
   }
 
   getStatusBadge(entry: LeaderboardEntry): { label: string; cls: string } | null {
     const avg = entry.averageScore ?? 0;
-    const active = entry.totalPoints > 0;
+    const active = entry.engagementMinutes > 0;
 
     if (this.subTab === 'today') {
       if (entry.rank === 1 && active) return { label: 'Topper', cls: 'badge--champion' };

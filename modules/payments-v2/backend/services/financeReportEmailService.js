@@ -18,7 +18,7 @@ const {
 
 // ─── Recipients ───────────────────────────────────────────────────────────────
 const TO_ADDRESS = 'lawson@gluckglobal.com';
-const BCC_ADDRESSES = 'ceo@gluckglobal.com,admissions@gluckglobal.com,sourav@gluckglobal.com';
+const CC_ADDRESSES = 'ceo@gluckglobal.com,admissions@gluckglobal.com,sourav@gluckglobal.com';
 
 // ─── Mailer ────────────────────────────────────────────────────────────────────
 let _transporter = null;
@@ -48,7 +48,7 @@ async function sendReport({ subject, html, attachments }) {
   await t.sendMail({
     from,
     to: TO_ADDRESS,
-    bcc: BCC_ADDRESSES,
+    cc: CC_ADDRESSES,
     subject,
     html,
     attachments: attachments || [],

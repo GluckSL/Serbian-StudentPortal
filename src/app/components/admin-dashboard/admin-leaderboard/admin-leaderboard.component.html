@@ -227,7 +227,7 @@
             *ngFor="let entry of sortedRows"
             [class.alb-tr--top1]="entry.rank === 1"
             [class.alb-tr--top3]="entry.rank <= 3 && entry.rank > 1"
-            [class.alb-tr--inactive]="entry.totalPoints === 0 && !entry.loggedToday"
+            [class.alb-tr--inactive]="entry.engagementMinutes === 0 && !entry.loggedToday"
           >
             <td class="alb-td alb-td--rank">
               <span class="alb-rank-medal" *ngIf="entry.rank <= 3">{{ getRankMedal(entry.rank) }}</span>
@@ -289,9 +289,9 @@
               <span class="alb-zero" *ngIf="!entry.engagementMinutes">—</span>
             </td>
             <td class="alb-td alb-td--status">
-              <span class="alb-status alb-status--active" *ngIf="entry.totalPoints > 0">Active</span>
-              <span class="alb-status alb-status--logged" *ngIf="entry.totalPoints === 0 && entry.loggedToday">Logged in</span>
-              <span class="alb-status alb-status--inactive" *ngIf="entry.totalPoints === 0 && !entry.loggedToday">Inactive</span>
+              <span class="alb-status alb-status--active" *ngIf="entry.engagementMinutes > 0">Active</span>
+              <span class="alb-status alb-status--logged" *ngIf="entry.engagementMinutes === 0 && entry.loggedToday">Logged in</span>
+              <span class="alb-status alb-status--inactive" *ngIf="entry.engagementMinutes === 0 && !entry.loggedToday">Inactive</span>
             </td>
           </tr>
         </tbody>

@@ -52,7 +52,7 @@
       <!-- Empty activity -->
       <div class="lb-empty lb-empty--sm" *ngIf="batch && visibleLeaderboard.length === 0">
         <span class="material-icons lb-empty__icon">emoji_events</span>
-        <p class="lb-empty__msg">Be the first to score today!<br>Complete an exercise or Buddy session.</p>
+        <p class="lb-empty__msg">Be the first to learn today!<br>Complete exercises, Buddy, or Arena.</p>
       </div>
 
       <!-- Activity rows -->
@@ -114,11 +114,15 @@
         <span class="material-icons">bolt</span>
       </div>
 
-      <!-- Top row: Rank + Day -->
-      <div class="lb-pos-grid lb-pos-grid--2">
+      <!-- Top row: Rank + Time + Day -->
+      <div class="lb-pos-grid lb-pos-grid--3">
         <div class="lb-pos-cell lb-pos-cell--rank">
           <span class="lb-pos-cell__label">Rank</span>
           <span class="lb-pos-cell__rank">#{{ myRank }}</span>
+        </div>
+        <div class="lb-pos-cell lb-pos-cell--time">
+          <span class="lb-pos-cell__label">Time</span>
+          <span class="lb-pos-cell__val lb-pos-cell__val--green">{{ myEngagementLabel }}</span>
         </div>
         <div class="lb-pos-cell">
           <span class="lb-pos-cell__label">Day</span>
@@ -146,25 +150,23 @@
         </div>
       </div>
 
-      <!-- Rank-up progress (hidden on This Week — task cards shown instead) -->
-      <div class="lb-pos-rankup" *ngIf="subTab !== 'weekly' && myRank && myRank > 1 && pointsToRankUp !== null">
+      <!-- Rank-up progress -->
+      <div class="lb-pos-rankup" *ngIf="myRank && myRank > 1 && getRankUpHint() as rankHint">
         <div class="lb-pos-rankup__bar-wrap">
           <div class="lb-pos-rankup__bar">
             <div class="lb-pos-rankup__fill" [style.width.%]="rankUpProgress"></div>
           </div>
           <span class="lb-pos-rankup__pct">{{ rankUpProgress }}%</span>
         </div>
-        <p class="lb-pos-rankup__hint">
-          <strong>+{{ pointsToRankUp }} pts</strong> to reach <strong>#{{ myRank ? myRank - 1 : 1 }}</strong>
-        </p>
+        <p class="lb-pos-rankup__hint">{{ rankHint }}</p>
       </div>
 
-      <!-- Batchmates moved today (hidden on This Week) -->
-      <div class="lb-pos-moved" *ngIf="subTab !== 'weekly'">
+      <!-- Batchmates learning -->
+      <div class="lb-pos-moved" *ngIf="activeMatesCount > 0">
         <span class="lb-pos-moved__clock">⏰</span>
         <div class="lb-pos-moved__text">
-          <strong>{{ activeMatesCount }} batchmate{{ activeMatesCount === 1 ? '' : 's' }} moved today</strong>
-          <span>Don't stay still</span>
+          <strong>{{ activeMatesLabel }}</strong>
+          <span>More learning time moves you up</span>
         </div>
       </div>
 
@@ -182,7 +184,7 @@
         <span class="material-icons">bolt</span> Your Position
         <span class="material-icons">bolt</span>
       </div>
-      <p class="lb-right-empty-msg">Complete a task today to get ranked!</p>
+      <p class="lb-right-empty-msg">Start learning today to get ranked!</p>
     </div>
   </div>
 

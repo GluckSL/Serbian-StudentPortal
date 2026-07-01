@@ -18,6 +18,7 @@ export interface LeaderboardEntry {
   averageScore: number | null;
   loginPoints: number;
   totalPoints: number;
+  exerciseCompletionPercent: number;
   currentStreak: number;
   loggedToday: boolean;
   rank: number;

@@ -435,6 +435,29 @@ function getDateRange(period) {
   return { start, end: now };
 }
 
+function exerciseCompletionPercent(completed, total) {
+  const done = Number(completed) || 0;
+  const pool = Number(total) || 0;
+  if (pool <= 0) return 0;
+  return Math.round((done / pool) * 100);
+}
+
+/** Rank by learning engagement first, then exercise completion rate (aligned with Language Tracking). */
+function compareLeaderboardEntries(a, b) {
+  if (b.engagementMinutes !== a.engagementMinutes) {
+    return b.engagementMinutes - a.engagementMinutes;
+  }
+  const aPct = a.exerciseCompletionPercent ?? exerciseCompletionPercent(a.exercisesCompleted, a.exercisesTotal);
+  const bPct = b.exerciseCompletionPercent ?? exerciseCompletionPercent(b.exercisesCompleted, b.exercisesTotal);
+  if (bPct !== aPct) return bPct - aPct;
+  if (b.exercisesCompleted !== a.exercisesCompleted) return b.exercisesCompleted - a.exercisesCompleted;
+  const aAvg = a.averageScore ?? 0;
+  const bAvg = b.averageScore ?? 0;
+  if (bAvg !== aAvg) return bAvg - aAvg;
+  if (b.dgSessionsCompleted !== a.dgSessionsCompleted) return b.dgSessionsCompleted - a.dgSessionsCompleted;
+  return (b.currentCourseDay || 1) - (a.currentCourseDay || 1);
+}
+
 /** Total engagement minutes: exercises + buddy + arena + live classes (period-aware). */
 async function attachEngagementMinutes(students, period, scores) {
   if (!students.length) return;
@@ -582,6 +605,7 @@ async function buildLeaderboard(batchOrBatches, period) {
       averageScore: null,
       loginPoints: 0,
       totalPoints: 0,
+      exerciseCompletionPercent: 0,
       currentStreak: 0,
       loggedToday: false,
       engagementMinutes: 0,
@@ -612,17 +636,13 @@ async function buildLeaderboard(batchOrBatches, period) {
 
   for (const id of Object.keys(scores)) {
     const s = scores[id];
-    const xpPts = Math.floor(s.arenaXp / 10);
-    const bonus = period === 'overall' ? Math.min(10, Math.floor((s.currentCourseDay || 1) / 20)) : 0;
-    s.totalPoints = s.exercisesCompleted * 2 + s.dgSessionsCompleted * 2 + xpPts + s.loginPoints + bonus;
+    s.exerciseCompletionPercent = exerciseCompletionPercent(s.exercisesCompleted, s.exercisesTotal);
+    // Composite score mirrors rank order (engagement → completion % → exercises done)
+    s.totalPoints = s.engagementMinutes * 1000 + s.exerciseCompletionPercent * 10 + s.exercisesCompleted;
   }
 
   return Object.values(scores)
-    .sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      if (b.exercisesCompleted !== a.exercisesCompleted) return b.exercisesCompleted - a.exercisesCompleted;
-      return (b.currentCourseDay || 1) - (a.currentCourseDay || 1);
-    })
+    .sort(compareLeaderboardEntries)
     .map((s, i) => ({ ...s, rank: i + 1 }));
 }
 
@@ -712,10 +732,10 @@ router.get('/admin', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER'
           period
         );
 
-    const activeCount = fullLeaderboard.filter((e) => e.totalPoints > 0).length;
+    const activeCount = fullLeaderboard.filter((e) => e.engagementMinutes > 0).length;
     const loggedTodayCount = fullLeaderboard.filter((e) => e.loggedToday).length;
     const loggedOnlyCount = fullLeaderboard.filter(
-      (e) => e.loggedToday && e.totalPoints === 0
+      (e) => e.loggedToday && e.engagementMinutes === 0
     ).length;
 
     let displayList = fullLeaderboard;

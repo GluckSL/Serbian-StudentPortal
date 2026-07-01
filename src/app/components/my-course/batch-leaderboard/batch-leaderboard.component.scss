@@ -294,6 +294,7 @@
   gap: 10px;
 
   &--2 { grid-template-columns: 1fr 1fr; }
+  &--3 { grid-template-columns: 1fr 1fr 1fr; }
 }
 
 .lb-pos-cell {
@@ -313,6 +314,11 @@
   &--rank {
     border-color: #c4b5fd;
     background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  }
+
+  &--time {
+    border-color: #86efac;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
   }
 }
 
@@ -661,7 +667,8 @@
     }
   }
 
-  .lb-pos-grid--2 {
+  .lb-pos-grid--2,
+  .lb-pos-grid--3 {
     gap: 6px;
   }
 
@@ -688,7 +695,11 @@
   }
 
   .lb-pos-cell__val {
-    font-size: 20px;
+    font-size: 18px;
+  }
+
+  .lb-pos-cell--time .lb-pos-cell__val {
+    font-size: 16px;
   }
 
   .lb-pos-tasks-label {
