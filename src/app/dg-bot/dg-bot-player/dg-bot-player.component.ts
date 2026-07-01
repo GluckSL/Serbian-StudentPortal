@@ -1140,47 +1140,38 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     // Don't show the start-trigger phrase as a chat bubble
     const isStartTrigger = /^(bereit|ready|start)$/i.test(transcript);
 
-    // Track consecutive wrong pronunciation attempts in conversation mode
-    if (!isStartTrigger && this.conversationStarted) {
-      const isPronunciationFail = ev.score != null ? ev.score < 55 : (ev.isCorrect === false);
-      if (isPronunciationFail) {
-        this.convConsecutiveFailures += 1;
-      } else {
-        this.convConsecutiveFailures = 0;
+    // After 3 consecutive failed attempts, skip the current word/question with encouragement
+    if (!isStartTrigger && this.conversationStarted && this.convConsecutiveFailures >= 3) {
+      this.convConsecutiveFailures = 0;
+      const skipMsg = "That's okay! It will come with time. Let's move on to the next.";
+      this.chatHistory = [
+        ...this.chatHistory,
+        { speaker: 'student', text: transcript, score: ev.score ?? undefined },
+        { speaker: 'ai', text: skipMsg },
+      ];
+      this.scrollChatToLatest();
+      this.conversationHistory = [
+        ...this.conversationHistory,
+        { role: 'user', text: transcript },
+        { role: 'ai', text: skipMsg },
+      ];
+      this.conversationTurn += 1;
+      // Advance beginner question index so the AI moves to the next word
+      if (this.isBeginnerModeActive) {
+        const nextIdx = Math.min(this.beginnerQuestionIndex + 1, this.beginnerQuestions.length - 1);
+        this.beginnerQuestionIndex = nextIdx;
       }
-
-      if (this.convConsecutiveFailures >= 3) {
-        this.convConsecutiveFailures = 0;
-        const skipMsg = "That's okay! It will come with time. Let's move on to the next.";
-        if (!isStartTrigger) {
-          this.chatHistory = [
-            ...this.chatHistory,
-            { speaker: 'student', text: transcript, score: ev.score ?? undefined },
-          ];
-        }
-        this.chatHistory = [
-          ...this.chatHistory,
-          { speaker: 'ai', text: skipMsg },
-        ];
-        this.scrollChatToLatest();
-        this.conversationHistory = [
-          ...this.conversationHistory,
-          { role: 'user', text: transcript },
-          { role: 'ai', text: skipMsg },
-        ];
-        this.conversationTurn += 1;
-        this.displayLine = skipMsg;
-        this.displaySub = '';
-        this.mascotSpeechText = skipMsg;
-        this.charState.setState('idle');
-        this.isAiThinking = false;
-        this.aiTyping = false;
-        this.logTts();
-        await this.playTtsBlob(skipMsg);
-        this.charState.setState('idle');
-        this.openMicForUserTurn();
-        return;
-      }
+      this.displayLine = skipMsg;
+      this.displaySub = '';
+      this.mascotSpeechText = skipMsg;
+      this.charState.setState('idle');
+      this.isAiThinking = false;
+      this.aiTyping = false;
+      this.logTts();
+      await this.playTtsBlob(skipMsg);
+      this.charState.setState('idle');
+      this.openMicForUserTurn();
+      return;
     }
 
     if (!isStartTrigger) {
@@ -1315,9 +1306,21 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       } else {
         this.syncBeginnerQuestionIndex();
       }
-      // Reset failure counter when the conversation advances to a new question
-      if (this.beginnerQuestionIndex !== prevBeginnerIdx) {
-        this.convConsecutiveFailures = 0;
+      // Track consecutive failures: beginner mode uses question-index stagnation;
+      // non-beginner uses pronunciation score as a proxy.
+      if (this.isBeginnerModeActive && this.conversationStarted) {
+        if (this.beginnerQuestionIndex === prevBeginnerIdx) {
+          this.convConsecutiveFailures += 1;
+        } else {
+          this.convConsecutiveFailures = 0;
+        }
+      } else if (this.conversationStarted) {
+        const isFail = ev.score != null ? ev.score < 55 : (ev.isCorrect === false);
+        if (isFail) {
+          this.convConsecutiveFailures += 1;
+        } else {
+          this.convConsecutiveFailures = 0;
+        }
       }
 
       this.conversationHistory = [
