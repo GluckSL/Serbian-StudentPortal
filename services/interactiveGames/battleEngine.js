@@ -82,11 +82,11 @@ function sanitizeQuestionForClient(q, gameType, index) {
   }
   if (gameType === 'matching') {
     const tokens = (q.tokens?.length ? q.tokens : (q.word || '').split(',').filter(Boolean));
-    const translation = q.translation || '';
+    const rightVal = q.hint || q.translation || '';
     const pairs = tokens.map((t, i) => ({
       id: String(i),
       left: t.trim(),
-      right: translation ? (translation.split(',').filter(Boolean)[i] || translation) : '…',
+      right: rightVal ? (rightVal.split(',').filter(Boolean)[i] || rightVal) : '…',
     }));
     const allRight = pairs.map(p => p.right);
     const shuffledRight = [...allRight].sort(() => Math.random() - 0.5);
@@ -400,17 +400,16 @@ async function submitBattleAnswer(roomId, studentId, payload, buildLeaderboardFn
     if (!isCorrect) revealCorrect = { word: qDoc.word || '' };
   } else if (room.gameType === 'matching') {
     const ordered = payload.orderedTokens || [];
-    const pairs = qDoc.pairs || [];
-    const tokens = qDoc.tokens || [];
+    const rightValues = (qDoc.hint || qDoc.translation || '').split(',').filter(Boolean);
     let correctCount = 0;
-    for (let i = 0; i < ordered.length && i < tokens.length; i++) {
-      if ((ordered[i] || '').toLowerCase().trim() === (tokens[i] || '').toLowerCase().trim()) {
+    for (let i = 0; i < ordered.length && i < rightValues.length; i++) {
+      if ((ordered[i] || '').toLowerCase().trim() === (rightValues[i] || '').toLowerCase().trim()) {
         correctCount++;
       }
     }
-    const isCorrect = correctCount === tokens.length;
+    const isCorrect = correctCount === rightValues.length;
     evalResult = { isCorrect, points: isCorrect ? basePoints(room.gameType) : Math.max(0, correctCount * 2) };
-    if (!isCorrect) revealCorrect = { sentence: tokens.join(' | ') };
+    if (!isCorrect) revealCorrect = { sentence: rightValues.join(' | ') };
   } else if (room.gameType === 'flapjugation') {
     const pronounIndex = { ich: 0, du: 1, er: 2, sie: 2, es: 2, wir: 3, ihr: 4, Sie: 5 }[payload.pronoun || ''];
     const correctForm = (qDoc.tokens || [])[pronounIndex];

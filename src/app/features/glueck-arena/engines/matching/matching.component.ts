@@ -52,18 +52,17 @@ interface MatchPair {
             <option value="" disabled>Choose translation</option>
             <option *ngFor="let opt of rightOptions" [value]="opt">{{ opt }}</option>
           </select>
-          <div class="mc__status" *ngIf="pair.isCorrect === true">
-            <mat-icon>check_circle</mat-icon> Correct
-          </div>
-          <div class="mc__status mc__status--wrong" *ngIf="pair.isCorrect === false">
-            <mat-icon>cancel</mat-icon> Wrong
-          </div>
+
         </div>
 
         <div class="mc__actions">
           <button mat-raised-button color="primary" (click)="checkAll()"
-            [disabled]="!allSelected || phase !== 'playing'">
+            [disabled]="!allSelected || phase !== 'playing' || checked">
             <mat-icon>check</mat-icon> Check All
+          </button>
+          <button mat-raised-button color="accent" class="mc__continue-btn"
+            *ngIf="checked" (click)="finish()">
+            <mat-icon>arrow_forward</mat-icon> Continue
           </button>
         </div>
       </div>
@@ -103,9 +102,8 @@ interface MatchPair {
     .mc__arrow { color: #94a3b8; display: flex; align-items: center; }
     .mc__select { flex: 1; min-width: 120px; padding: 10px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 14px; font-weight: 600; background: #fff; }
     .mc__select:focus { border-color: #405980; }
-    .mc__status { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: #22c55e; width: 100%; justify-content: center; }
-    .mc__status--wrong { color: #ef4444; }
     .mc__actions { text-align: center; margin-top: 20px; }
+    .mc__continue-btn { margin-left: 12px; }
     .mc__complete { text-align: center; padding: 40px 24px; }
     .mc__complete-icon { font-size: 72px; width: 72px; height: 72px; color: #ff8f00; }
     .mc__complete h3 { font-size: 24px; color: #1e293b; margin: 16px 0; }
@@ -122,6 +120,7 @@ export class MatchingComponent implements OnInit, OnDestroy {
   @Output() onComplete = new EventEmitter<MatchResult>();
 
   phase: 'playing' | 'complete' = 'playing';
+  checked = false;
   pairs: MatchPair[] = [];
   rightOptions: string[] = [];
   score = 0;
@@ -160,13 +159,14 @@ export class MatchingComponent implements OnInit, OnDestroy {
     this.pairs = pool.map(q => ({
       questionId: q._id,
       left: q.word,
-      right: q.translation,
+      right: (q as any).hint || q.translation,
       selectedRight: null,
       isCorrect: null,
     }));
-    this.rightOptions = this.shuffledRightOptions.length
+    const allOptions = this.shuffledRightOptions.length
       ? [...this.shuffledRightOptions]
-      : this.shuffle(pool.map(q => q.translation));
+      : pool.map(q => (q as any).hint || q.translation);
+    this.rightOptions = this.shuffle([...new Set(allOptions)]);
   }
 
   selectMatch(index: number, event: Event) {
@@ -180,13 +180,13 @@ export class MatchingComponent implements OnInit, OnDestroy {
     if (!this.allSelected || this.phase !== 'playing') return;
     let correct = 0;
     for (const pair of this.pairs) {
-      pair.isCorrect = pair.selectedRight === pair.right;
+      pair.isCorrect = pair.selectedRight?.trim().toLowerCase() === pair.right?.trim().toLowerCase();
       if (pair.isCorrect) correct++;
     }
     this.correctCount = correct;
     this.score = correct * 10;
     this.xpBurst = correct * 10;
-    this.xpTrigger++;
+    if (this.xpBurst > 0) this.xpTrigger++;
     this.audio.playXpGain();
     if (correct === this.pairs.length) {
       this.audio.playCorrect();
@@ -194,7 +194,7 @@ export class MatchingComponent implements OnInit, OnDestroy {
     } else {
       this.audio.playWrong();
     }
-    setTimeout(() => this.finish(), 1500);
+    this.checked = true;
   }
 
   finish() {
