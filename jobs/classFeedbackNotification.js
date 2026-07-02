@@ -8,14 +8,14 @@
  * Adds feedbackNotificationSent flag to MeetingLink to prevent re-sends.
  */
 const cron = require('node-cron');
-const MeetingLink = require('../../models/MeetingLink');
-const FeedbackBatchSettings = require('../../models/FeedbackBatchSettings');
-const User = require('../../models/User');
-const transporter = require('../../config/emailConfig');
+const MeetingLink = require('../models/MeetingLink');
+const FeedbackBatchSettings = require('../models/FeedbackBatchSettings');
+const User = require('../models/User');
+const transporter = require('../config/emailConfig');
 const {
   sendWhatsappNotification,
   isWhatsappAutomatedJobsEnabled,
-} = require('../../services/whatsappCrmService');
+} = require('../services/whatsappCrmService');
 
 const FEEDBACK_NOTIFICATION_TYPE = 'CLASS_FEEDBACK_REQUEST';
 const LOOK_BACK_MINUTES = 35; // look back window after class ends
