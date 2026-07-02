@@ -104,6 +104,8 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   feedbackMeeting: StudentMeeting | null = null;
   feedbackBatchEnabled = false;
   submittedFeedbackIds = new Set<string>();
+  /** Cached per-batch feedback feature flag from admin settings. */
+  private feedbackEnabledBatches = new Map<string, boolean>();
 
   constructor(
     private zoomService: ZoomService,
@@ -217,8 +219,20 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
       this.attemptedMeetings = items;
       this.attemptedPage = page;
       this.attemptedTotal = total;
+      this.preloadFeedbackBatchStatus(items);
     }
   }
+
+  private preloadFeedbackBatchStatus(meetings: StudentMeeting[]): void {
+    const batches = [...new Set(meetings.map((m) => m.batch).filter(Boolean))];
+    for (const batch of batches) {
+      if (this.feedbackEnabledBatches.has(batch)) continue;
+      this.feedbackEnabledBatches.set(batch, false);
+      this.classFeedbackService.isBatchEnabled(batch).subscribe({
+        next: (res) => this.feedbackEnabledBatches.set(batch, !!res.enabled),
+        error: () => this.feedbackEnabledBatches.set(batch, false),
+      });
+    }
 
   private getPageForTab(tab: ClassTab): number {
     if (tab === 'upcoming') return this.upcomingPage;
@@ -605,6 +619,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   hasFeedbackEnabled(m: StudentMeeting): boolean {
-    return m.hasEnded && !this.submittedFeedbackIds.has(m._id);
+    if (!m.hasEnded) return false;
+    return this.feedbackEnabledBatches.get(m.batch) === true;
   }
 }

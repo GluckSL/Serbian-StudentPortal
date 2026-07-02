@@ -81,7 +81,7 @@
           <span class="cfa-toggle-track">
             <span class="cfa-toggle-thumb"></span>
           </span>
-          <span class="cfa-toggle-label">{{ pendingChanges[b.batch] ? 'Enabled' : 'Disabled' }}</span>
+          <span class="cfa-toggle-label" *ngIf="pendingChanges[b.batch]">Enabled</span>
         </label>
       </div>
       <div class="cfa-empty" *ngIf="filteredBatches.length === 0">No batches found.</div>

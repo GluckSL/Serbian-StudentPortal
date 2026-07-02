@@ -54,7 +54,7 @@
 
 .cfa-title {
   margin: 0 0 2px;
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 800;
   color: var(--text-dark);
 }
@@ -62,7 +62,7 @@
 .cfa-subtitle {
   margin: 0;
   color: var(--text-light);
-  font-size: 14px;
+  font-size: 12px;
 }
 
 // Tabs
@@ -131,9 +131,9 @@
 
 .cfa-settings-info p {
   margin: 0;
-  font-size: 14px;
-  color: var(--text-mid);
-  line-height: 1.6;
+  font-size: 12px;
+  color: var(--text-light);
+  line-height: 1.5;
   max-width: 540px;
 }
 
@@ -147,9 +147,9 @@
   background: var(--fox-orange-light);
   border: 1px solid #ffd0c0;
   border-radius: var(--radius-pill);
-  padding: 8px 18px;
+  padding: 6px 14px;
   text-align: center;
-  min-width: 80px;
+  min-width: 68px;
 }
 
 .cfa-stat-total {
@@ -159,7 +159,7 @@
 
 .cfa-stat-num {
   display: block;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 800;
   color: var(--fox-orange);
 }
@@ -167,11 +167,11 @@
 .cfa-stat-total .cfa-stat-num { color: var(--purple); }
 
 .cfa-stat-label {
-  font-size: 11px;
+  font-size: 9px;
   color: var(--text-light);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
 }
 
 // Controls bar
@@ -269,8 +269,8 @@
 }
 
 .cfa-toggle-track {
-  width: 44px;
-  height: 24px;
+  width: 36px;
+  height: 20px;
   background: #ddd;
   border-radius: var(--radius-pill);
   position: relative;
@@ -282,25 +282,27 @@
 
 .cfa-toggle-thumb {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
   background: #fff;
   border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   transition: transform 0.2s;
 
-  .cfa-toggle:has(input:checked) & { transform: translateX(20px); }
+  .cfa-toggle:has(input:checked) & { transform: translateX(16px); }
 }
 
 .cfa-toggle-label {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-light);
-  min-width: 60px;
+  color: var(--fox-orange);
+  min-width: 52px;
 
-  .cfa-toggle:has(input:checked) & { color: var(--fox-orange); }
+  .cfa-toggle:has(input:not(:checked)) & {
+    display: none;
+  }
 }
 
 // Save bar

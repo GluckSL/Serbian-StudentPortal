@@ -252,6 +252,7 @@
                 <button
                   type="button"
                   class="sm-pill sm-pill--feedback"
+                  *ngIf="hasFeedbackEnabled(meeting)"
                   [class.sm-pill--feedback-done]="submittedFeedbackIds.has(meeting._id)"
                   (click)="openFeedback(meeting)"
                   title="{{ submittedFeedbackIds.has(meeting._id) ? 'Feedback submitted' : 'Give Feedback' }}">
