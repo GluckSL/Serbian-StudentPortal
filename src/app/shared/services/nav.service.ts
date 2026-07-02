@@ -73,6 +73,7 @@ export class NavService {
     journey: [
       '/admin/journey'
     ],
+    'batch-leaderboard': ['/admin/leaderboard'],
     'portal-analytics': ['/portal-analytics', '/portal-analytics/daily-logs'],
     'language-tracking': ['/admin/language-tracking'],
     'go-students': [
