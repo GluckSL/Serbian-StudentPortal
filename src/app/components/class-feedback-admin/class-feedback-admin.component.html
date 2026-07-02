@@ -1,0 +1,269 @@
+<div class="cfa-page">
+
+  <!-- Page Header -->
+  <div class="cfa-header">
+    <div class="cfa-header-left">
+      <span class="cfa-fox-badge">🦊</span>
+      <div>
+        <h1 class="cfa-title">Class Feedback</h1>
+        <p class="cfa-subtitle">Manage batch feedback settings and view student responses</p>
+      </div>
+    </div>
+    <div class="cfa-header-right" *ngIf="activeTab === 'responses'">
+      <button class="cfa-btn cfa-btn-export" (click)="exportCsv()">
+        <span class="cfa-btn-icon">⬇️</span> Export CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="cfa-tabs">
+    <button class="cfa-tab" [class.cfa-tab-active]="activeTab === 'settings'" (click)="setTab('settings')">
+      ⚙️ Batch Settings
+    </button>
+    <button class="cfa-tab" [class.cfa-tab-active]="activeTab === 'responses'" (click)="setTab('responses')">
+      💬 Feedback Responses
+      <span class="cfa-tab-count" *ngIf="total > 0">{{ total }}</span>
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- TAB: BATCH SETTINGS                                           -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div class="cfa-panel" *ngIf="activeTab === 'settings'">
+    <div class="cfa-settings-top">
+      <div class="cfa-settings-info">
+        <p>Enable feedback for specific batches. When enabled, students in that batch will see a
+           <strong>Feedback</strong> button after every live class and receive an email + WhatsApp
+           notification with a direct feedback link.</p>
+      </div>
+      <div class="cfa-settings-stats">
+        <div class="cfa-stat-pill">
+          <span class="cfa-stat-num">{{ enabledCount }}</span>
+          <span class="cfa-stat-label">Batches Enabled</span>
+        </div>
+        <div class="cfa-stat-pill cfa-stat-total">
+          <span class="cfa-stat-num">{{ batches.length }}</span>
+          <span class="cfa-stat-label">Total Batches</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search + bulk actions -->
+    <div class="cfa-controls">
+      <div class="cfa-search-wrap">
+        <span class="cfa-search-icon">🔍</span>
+        <input class="cfa-search-input" type="text" placeholder="Search batch..." [(ngModel)]="searchBatch" />
+      </div>
+      <div class="cfa-bulk-btns">
+        <button class="cfa-btn cfa-btn-sm cfa-btn-ghost" (click)="enableAll()">Enable All</button>
+        <button class="cfa-btn cfa-btn-sm cfa-btn-ghost" (click)="disableAll()">Disable All</button>
+      </div>
+    </div>
+
+    <!-- Loading skeleton -->
+    <div class="cfa-skeleton-list" *ngIf="batchesLoading">
+      <div class="cfa-skeleton-row" *ngFor="let i of [1,2,3,4,5,6]"></div>
+    </div>
+
+    <!-- Batch list -->
+    <div class="cfa-batch-list" *ngIf="!batchesLoading">
+      <div class="cfa-batch-row" *ngFor="let b of filteredBatches">
+        <div class="cfa-batch-name">
+          <span class="cfa-batch-dot" [class.cfa-dot-on]="pendingChanges[b.batch]"></span>
+          {{ b.batch }}
+        </div>
+        <div class="cfa-batch-meta" *ngIf="b.updatedAt">
+          Last updated: {{ formatDate(b.updatedAt) }}
+        </div>
+        <label class="cfa-toggle" [title]="(pendingChanges[b.batch] ? 'Disable' : 'Enable') + ' feedback for ' + b.batch">
+          <input type="checkbox" [checked]="pendingChanges[b.batch]" (change)="toggleBatch(b.batch)" />
+          <span class="cfa-toggle-track">
+            <span class="cfa-toggle-thumb"></span>
+          </span>
+          <span class="cfa-toggle-label" *ngIf="pendingChanges[b.batch]">Enabled</span>
+        </label>
+      </div>
+      <div class="cfa-empty" *ngIf="filteredBatches.length === 0">No batches found.</div>
+    </div>
+
+    <!-- Save bar -->
+    <div class="cfa-save-bar" [class.cfa-save-bar-visible]="hasPendingChanges() || batchSaveMsg">
+      <div class="cfa-save-msg success" *ngIf="batchSaveMsg">✅ {{ batchSaveMsg }}</div>
+      <div class="cfa-save-msg error" *ngIf="batchSaveError">❌ {{ batchSaveError }}</div>
+      <button class="cfa-btn cfa-btn-primary" (click)="saveSettings()" [disabled]="batchSaving">
+        <span *ngIf="!batchSaving">💾 Save Changes</span>
+        <span *ngIf="batchSaving">Saving...</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- TAB: FEEDBACK RESPONSES                                        -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <div class="cfa-panel" *ngIf="activeTab === 'responses'">
+
+    <!-- Stats Cards -->
+    <div class="cfa-stats-row" *ngIf="stats && stats.total > 0">
+      <div class="cfa-stats-card">
+        <div class="cfa-stats-icon">📊</div>
+        <div class="cfa-stats-val">{{ stats.total }}</div>
+        <div class="cfa-stats-key">Total Responses</div>
+      </div>
+      <div class="cfa-stats-card">
+        <div class="cfa-stats-icon">🧠</div>
+        <div class="cfa-stats-bars">
+          <div class="cfa-bar-row" *ngFor="let k of ['not_really','mostly','completely']">
+            <span class="cfa-bar-label">{{ understandingLabels[k] }}</span>
+            <div class="cfa-bar-track"><div class="cfa-bar-fill" [style.width.%]="statPercent(stats.understanding[k] || 0)"></div></div>
+            <span class="cfa-bar-pct">{{ stats.understanding[k] || 0 }}</span>
+          </div>
+        </div>
+        <div class="cfa-stats-key">Understanding</div>
+      </div>
+      <div class="cfa-stats-card">
+        <div class="cfa-stats-icon">⚡</div>
+        <div class="cfa-stats-bars">
+          <div class="cfa-bar-row" *ngFor="let k of ['too_slow','just_right','too_fast']">
+            <span class="cfa-bar-label">{{ paceLabels[k] }}</span>
+            <div class="cfa-bar-track"><div class="cfa-bar-fill cfa-bar-pace" [style.width.%]="statPercent(stats.pace[k] || 0)"></div></div>
+            <span class="cfa-bar-pct">{{ stats.pace[k] || 0 }}</span>
+          </div>
+        </div>
+        <div class="cfa-stats-key">Pace</div>
+      </div>
+      <div class="cfa-stats-card">
+        <div class="cfa-stats-icon">🔥</div>
+        <div class="cfa-stats-bars">
+          <div class="cfa-bar-row" *ngFor="let k of ['not_motivated','somewhat_motivated','very_motivated']">
+            <span class="cfa-bar-label">{{ motivationLabels[k] }}</span>
+            <div class="cfa-bar-track"><div class="cfa-bar-fill cfa-bar-motiv" [style.width.%]="statPercent(stats.motivation[k] || 0)"></div></div>
+            <span class="cfa-bar-pct">{{ stats.motivation[k] || 0 }}</span>
+          </div>
+        </div>
+        <div class="cfa-stats-key">Motivation</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="cfa-filters">
+      <div class="cfa-filter-group">
+        <label class="cfa-filter-label">Batch</label>
+        <select class="cfa-filter-select" [(ngModel)]="filters.batch">
+          <option value="">All Batches</option>
+          <option *ngFor="let b of allBatchNames" [value]="b">{{ b }}</option>
+        </select>
+      </div>
+      <div class="cfa-filter-group">
+        <label class="cfa-filter-label">From Date</label>
+        <input class="cfa-filter-input" type="date" [(ngModel)]="filters.dateFrom" />
+      </div>
+      <div class="cfa-filter-group">
+        <label class="cfa-filter-label">To Date</label>
+        <input class="cfa-filter-input" type="date" [(ngModel)]="filters.dateTo" />
+      </div>
+      <div class="cfa-filter-group">
+        <label class="cfa-filter-label">Understanding</label>
+        <select class="cfa-filter-select" [(ngModel)]="filters.understanding">
+          <option value="">All</option>
+          <option value="not_really">😕 Not really</option>
+          <option value="mostly">🙂 Mostly</option>
+          <option value="completely">😄 Completely</option>
+        </select>
+      </div>
+      <div class="cfa-filter-group">
+        <label class="cfa-filter-label">Motivation</label>
+        <select class="cfa-filter-select" [(ngModel)]="filters.motivation">
+          <option value="">All</option>
+          <option value="not_motivated">😴 Not motivated</option>
+          <option value="somewhat_motivated">🙂 Somewhat</option>
+          <option value="very_motivated">🔥 Very motivated</option>
+        </select>
+      </div>
+      <div class="cfa-filter-actions">
+        <button class="cfa-btn cfa-btn-primary cfa-btn-sm" (click)="applyFilters()">Apply</button>
+        <button class="cfa-btn cfa-btn-ghost cfa-btn-sm" (click)="clearFilters()">Clear</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="cfa-table-wrap">
+      <div class="cfa-skeleton-list" *ngIf="responsesLoading">
+        <div class="cfa-skeleton-row tall" *ngFor="let i of [1,2,3,4,5]"></div>
+      </div>
+
+      <table class="cfa-table" *ngIf="!responsesLoading && feedbacks.length > 0">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Batch</th>
+            <th>Class</th>
+            <th>Date</th>
+            <th>Understanding</th>
+            <th>Pace</th>
+            <th>Confidence</th>
+            <th>Motivation</th>
+            <th>Submitted</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let fb of feedbacks">
+            <td>
+              <div class="cfa-student-cell">
+                <div class="cfa-student-avatar">{{ (fb.studentName || 'S')[0].toUpperCase() }}</div>
+                <div>
+                  <div class="cfa-student-name">{{ fb.studentName }}</div>
+                  <div class="cfa-student-email">{{ fb.studentEmail }}</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="cfa-batch-tag">{{ fb.batch }}</span></td>
+            <td class="cfa-class-title">{{ fb.classTitle }}</td>
+            <td class="cfa-date-cell">{{ formatDate(fb.classDate) }}</td>
+            <td>
+              <span class="cfa-badge" [ngClass]="getUnderstandingBadgeClass(fb.understanding)">
+                {{ understandingLabels[fb.understanding] || fb.understanding }}
+              </span>
+            </td>
+            <td>
+              <span class="cfa-badge" [ngClass]="getPaceBadgeClass(fb.pace)">
+                {{ paceLabels[fb.pace] || fb.pace }}
+              </span>
+            </td>
+            <td class="cfa-stars-cell">{{ starsDisplay(fb.confidence) }}</td>
+            <td>
+              <span class="cfa-badge" [ngClass]="getMotivationBadgeClass(fb.motivation)">
+                {{ motivationLabels[fb.motivation] || fb.motivation }}
+              </span>
+            </td>
+            <td class="cfa-date-cell">{{ formatDateTime(fb.submittedAt) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Empty state -->
+      <div class="cfa-empty-state" *ngIf="!responsesLoading && feedbacks.length === 0">
+        <span class="cfa-empty-fox">🦊</span>
+        <h3>No feedback yet</h3>
+        <p>Responses will appear here once students submit their class feedback.</p>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="cfa-pagination" *ngIf="totalPages > 1">
+      <button class="cfa-page-btn" (click)="goToPage(page - 1)" [disabled]="page === 1">‹</button>
+      <button
+        class="cfa-page-btn"
+        *ngFor="let p of pageNumbers"
+        [class.cfa-page-active]="p === page"
+        (click)="goToPage(p)">{{ p }}</button>
+      <button class="cfa-page-btn" (click)="goToPage(page + 1)" [disabled]="page === totalPages">›</button>
+    </div>
+
+    <!-- Results info -->
+    <div class="cfa-results-info" *ngIf="!responsesLoading && total > 0">
+      Showing {{ (page - 1) * pageSize + 1 }}–{{ Math.min(page * pageSize, total) }} of {{ total }} responses
+    </div>
+
+  </div>
+</div>

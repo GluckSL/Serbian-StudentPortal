@@ -1,9 +1,27 @@
 /**
  * WhatsApp CRM integration.
- * - Automated jobs → student-portal/webhook (CLASS_REMINDER, ABSENT_*, etc.)
- * - Manual CRM portal sends → student-portal/whatsapp/send-message (Language Dept number)
+ * Automated jobs and manual CRM sends both use student-portal/whatsapp/send-message
+ * (Language Dept business number). The legacy webhook only acknowledges receipt and
+ * does not confirm WhatsApp delivery.
  */
 const axios = require('axios');
+
+const E164_PHONE_RE = /^\+\d{7,19}$/;
+
+/** Normalize to E.164 (+ followed by digits). Fixes common SL local format (+07… → +947…). */
+function normalizeE164Phone(raw) {
+  if (raw == null) return '';
+  let phone = String(raw).trim().replace(/[\s\-().]/g, '');
+  if (!phone) return '';
+  if (!phone.startsWith('+')) {
+    phone = phone.startsWith('00') ? `+${phone.slice(2)}` : `+${phone}`;
+  }
+  // Sri Lanka numbers sometimes stored as +07XXXXXXXX instead of +947XXXXXXXX
+  if (/^\+0\d{8,}$/.test(phone)) {
+    phone = `+94${phone.slice(2)}`;
+  }
+  return phone;
+}
 
 const CRM_BASE =
   process.env.CRM_PORTAL_API_BASE ||
@@ -53,14 +71,14 @@ const NOTIFICATION_TYPES = {
 };
 
 /**
- * Send a single WhatsApp notification via the CRM webhook.
+ * Send a single automated WhatsApp notification via the CRM send-message API.
  *
  * @param {object} params
  * @param {string} params.phone       - Recipient phone / WhatsApp number (e.g. "+94771234567")
  * @param {string} params.name        - Recipient display name
- * @param {string} params.type        - One of NOTIFICATION_TYPES values
+ * @param {string} params.type        - One of NOTIFICATION_TYPES values (logged only)
  * @param {string} params.message     - Human-readable message text
- * @param {object} [params.data]      - Optional extra context forwarded to the CRM
+ * @param {object} [params.data]      - Optional extra context (studentId forwarded when present)
  * @returns {Promise<boolean>}        - true on success, false on failure
  */
 async function sendWhatsappNotification({ phone, name, type, message, data = {} }) {
@@ -69,24 +87,41 @@ async function sendWhatsappNotification({ phone, name, type, message, data = {} 
     return false;
   }
 
-  if (!phone) {
+  const phone_number = normalizeE164Phone(phone);
+  if (!phone_number) {
     console.warn(`[WhatsApp] Skipping "${type}" for ${name} — no phone number on record`);
     return false;
   }
+  if (!E164_PHONE_RE.test(phone_number)) {
+    console.warn(`[WhatsApp] Skipping "${type}" for ${name} — invalid phone: ${phone}`);
+    return false;
+  }
 
-  const payload = { phone, name, type, message, data };
+  const payload = { phone_number, message, department: 'Language' };
+  const rawStudentId = data?.studentId ?? data?.student_id;
+  if (rawStudentId != null && rawStudentId !== '') {
+    const numericId = parseInt(String(rawStudentId), 10);
+    if (Number.isFinite(numericId) && numericId >= 1) {
+      payload.student_id = numericId;
+    }
+  }
 
   try {
-    await axios.post(WEBHOOK_URL, payload, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 10000,
-    });
-    console.log(`[WhatsApp] ✅ Sent "${type}" to ${name} (${phone})`);
+    const response = await axios.post(
+      `${CRM_BASE}/student-portal/whatsapp/send-message`,
+      payload,
+      { headers: CRM_HEADERS, timeout: 30000 }
+    );
+    const sentAt = response.data?.data?.sent_at;
+    console.log(
+      `[WhatsApp] ✅ CRM accepted "${type}" for ${name} (${phone_number})` +
+        (sentAt ? ` — sent_at ${sentAt}` : '')
+    );
     return true;
   } catch (err) {
     const status = err.response?.status;
     const body = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.error(`[WhatsApp] ❌ Failed "${type}" for ${name} (${phone}) — HTTP ${status}: ${body}`);
+    console.error(`[WhatsApp] ❌ Failed "${type}" for ${name} (${phone_number}) — HTTP ${status}: ${body}`);
     return false;
   }
 }
@@ -129,6 +164,15 @@ async function sendManualWhatsappMessage({ phone_number, message, department = '
       ok: false,
       status: 503,
       error: { message: 'Manual WhatsApp sending is disabled on this server.' },
+    };
+  }
+
+  phone_number = normalizeE164Phone(phone_number);
+  if (!phone_number || !E164_PHONE_RE.test(phone_number)) {
+    return {
+      ok: false,
+      status: 422,
+      error: { message: 'phone_number must be E.164 format: + followed by 7–19 digits' },
     };
   }
 
@@ -189,20 +233,26 @@ async function getBatchSettingsMap() {
  * @param {string|undefined} studentBatch    - e.g. "35" or "Batch 35"
  * @returns {boolean}
  */
+function normalizeBatchName(batch) {
+  if (!batch) return '';
+  return String(batch).toLowerCase().replace(/^batch\s*/i, '').trim();
+}
+
 function isBatchAllowedBySettings(settingsMap, automationType, studentBatch) {
   const setting = settingsMap[automationType];
   if (!setting || setting.allBatches || !setting.targetBatches || setting.targetBatches.length === 0) {
     return true;
   }
   if (!studentBatch) return false;
-  const normalized = String(studentBatch).toLowerCase().trim();
-  return setting.targetBatches.some((b) => String(b).toLowerCase().trim() === normalized);
+  const normalized = normalizeBatchName(studentBatch);
+  return setting.targetBatches.some((b) => normalizeBatchName(b) === normalized);
 }
 
 module.exports = {
   sendWhatsappNotification,
   sendBulkWhatsappNotifications,
   sendManualWhatsappMessage,
+  normalizeE164Phone,
   isWhatsappSendEnabled,
   isWhatsappManualSendEnabled,
   isWhatsappAutomatedJobsEnabled,

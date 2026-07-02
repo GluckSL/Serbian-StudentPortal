@@ -1789,6 +1789,36 @@ mat-card-actions button mat-icon {
 }
 .sm-pill--upload:hover { background: #dcfce7; border-color: #4ade80; }
 
+/* ── Feedback button (fox) ── */
+.sm-pill--feedback {
+  background: #fff4f0;
+  border: 1px solid #ffd0c0;
+  color: #FF6B35;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  line-height: 1;
+}
+.sm-pill--feedback:hover {
+  background: #ffe0d0;
+  border-color: #FF6B35;
+  transform: scale(1.1) rotate(-5deg);
+}
+.sm-pill--feedback-done {
+  opacity: 0.5;
+  cursor: default;
+  filter: grayscale(0.5);
+}
+.sm-pill--feedback-done:hover {
+  transform: none;
+}
+
 /* ── Submission badge ── */
 .sub-badge {
   display: inline-flex; align-items: center; gap: 3px;

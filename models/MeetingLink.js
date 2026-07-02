@@ -125,6 +125,10 @@ const meetingLinkSchema = new mongoose.Schema({
   earlyJoinReminderSent: { type: Boolean, default: false },
   earlyJoinReminderSentAt: Date,
 
+  // Post-class feedback notification
+  feedbackNotificationSent: { type: Boolean, default: false },
+  feedbackNotificationSentAt: Date,
+
   // Email notification status
   emailNotificationStatus: {
     attempted: { type: Number, default: 0 },

@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, Input, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { MaterialModule } from '../../shared/material.module';
 import { ZoomService } from '../../services/zoom.service';
 import { NotificationService } from '../../services/notification.service';
@@ -8,6 +9,8 @@ import { ClassResourceService } from '../../services/class-resource.service';
 import { ClassDoubtService } from '../../services/class-doubt.service';
 import { ClassSubmissionService } from '../../services/class-submission.service';
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
+import { ClassFeedbackService } from '../../services/class-feedback.service';
+import { ClassFeedbackModalComponent } from '../class-feedback-modal/class-feedback-modal.component';
 
 interface StudentMeeting {
   _id: string;
@@ -38,7 +41,7 @@ type ClassTab = 'upcoming' | 'live' | 'attempted';
 @Component({
   selector: 'app-student-meetings',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule],
+  imports: [CommonModule, FormsModule, MaterialModule, ClassFeedbackModalComponent],
   templateUrl: './student-meetings.component.html',
   styleUrls: ['./student-meetings.component.css']
 })
@@ -96,18 +99,39 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   submissionCaption = '';
   uploading = false;
 
+  // Feedback modal
+  showFeedbackModal = false;
+  feedbackMeeting: StudentMeeting | null = null;
+  feedbackBatchEnabled = false;
+  submittedFeedbackIds = new Set<string>();
+  /** Cached per-batch feedback feature flag from admin settings. */
+  private feedbackEnabledBatches = new Map<string, boolean>();
+
   constructor(
     private zoomService: ZoomService,
     private notify: NotificationService,
     private resourceService: ClassResourceService,
     private doubtService: ClassDoubtService,
     private submissionService: ClassSubmissionService,
-    private joinClassFlow: JoinClassFlowService
+    private joinClassFlow: JoinClassFlowService,
+    private classFeedbackService: ClassFeedbackService,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
     this.loadInitial();
     this.meetingsRefreshId = setInterval(() => this.refreshCurrentTab(), 60000);
+    // Handle deep-link: ?feedbackClass=<meetingId>
+    this.route.queryParams.subscribe((params) => {
+      const classId = params['feedbackClass'];
+      if (classId) {
+        this.activeTab = 'attempted';
+        // Load attempted tab then open feedback modal for the specific class
+        this.fetchTab('attempted', 1, false, false);
+        // Delay to allow meetings to load
+        setTimeout(() => this.openFeedbackById(classId), 1500);
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -195,6 +219,19 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
       this.attemptedMeetings = items;
       this.attemptedPage = page;
       this.attemptedTotal = total;
+      this.preloadFeedbackBatchStatus(items);
+    }
+  }
+
+  private preloadFeedbackBatchStatus(meetings: StudentMeeting[]): void {
+    const batches = [...new Set(meetings.map((m) => m.batch).filter(Boolean))];
+    for (const batch of batches) {
+      if (this.feedbackEnabledBatches.has(batch)) continue;
+      this.feedbackEnabledBatches.set(batch, false);
+      this.classFeedbackService.isBatchEnabled(batch).subscribe({
+        next: (res) => this.feedbackEnabledBatches.set(batch, !!res.enabled),
+        error: () => this.feedbackEnabledBatches.set(batch, false),
+      });
     }
   }
 
@@ -534,5 +571,56 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   viewSubmissionFile(sub: any): void {
     if (sub?.fileUrl) window.open(sub.fileUrl, '_blank');
+  }
+
+  // ── Feedback modal ─────────────────────────────────────────────────────
+
+  openFeedback(m: StudentMeeting): void {
+    if (!m.hasEnded) return;
+    this.feedbackMeeting = m;
+    this.showFeedbackModal = true;
+    // Load batch enabled status lazily (once per batch)
+    this.classFeedbackService.isBatchEnabled(m.batch).subscribe({
+      next: (res) => { this.feedbackBatchEnabled = res.enabled; },
+      error: () => { this.feedbackBatchEnabled = false; }
+    });
+  }
+
+  openFeedbackById(meetingId: string): void {
+    const found = this.attemptedMeetings.find((m) => m._id === meetingId);
+    if (found) {
+      this.openFeedback(found);
+    } else {
+      // Create a minimal meeting object for the feedback modal using the meeting API
+      this.classFeedbackService.getMeetingForFeedback(meetingId).subscribe({
+        next: (res) => {
+          if (res.success && res.meeting) {
+            const m = res.meeting as StudentMeeting;
+            m.hasEnded = true;
+            this.feedbackMeeting = m;
+            this.feedbackBatchEnabled = true;
+            this.showFeedbackModal = true;
+          }
+        },
+        error: () => {}
+      });
+    }
+  }
+
+  closeFeedbackModal(): void {
+    this.showFeedbackModal = false;
+    this.feedbackMeeting = null;
+  }
+
+  onFeedbackSubmitted(): void {
+    if (this.feedbackMeeting) {
+      this.submittedFeedbackIds.add(this.feedbackMeeting._id);
+    }
+    setTimeout(() => this.closeFeedbackModal(), 2000);
+  }
+
+  hasFeedbackEnabled(m: StudentMeeting): boolean {
+    if (!m.hasEnded) return false;
+    return this.feedbackEnabledBatches.get(m.batch) === true;
   }
 }
