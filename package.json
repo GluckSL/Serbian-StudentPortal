@@ -15,7 +15,8 @@
     "deploy:prepare": "node scripts/prepare-production-deploy.js",
     "deploy:frontend": "node scripts/prepare-production-deploy.js",
     "test": "ng test",
-    "test:split-inheritance": "node --test tests/exerciseSplitInheritance.test.js",
+    "test:whatsapp-batch100": "node tools/test-whatsapp-batch100-only.js",
+    "test:whatsapp-diag": "node tools/test-whatsapp-batch100.js",
     "test:game-import": "node --test tests/gameImport.test.js",
     "test:journey-pause": "node --test tests/journeyPause.test.js",
     "upload:arena-sfx": "node tools/upload-arena-sfx-to-r2.js"
