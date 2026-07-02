@@ -317,7 +317,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'].includes(this.currentUserRole);
   }
 
-  confidenceNudge(conf?: PronunciationConfidence): string {
+  confidenceNudge(conf?: PronunciationConfidence, score?: number): string {
+    if (score != null && score >= 85) return '';
     if (conf === 'medium') return 'Almost there, try again for a perfect score.';
     if (conf === 'low') return 'We might have misheard you. Try speaking clearly.';
     return '';
@@ -722,7 +723,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   /** Label helper for confidence-tier UI messaging (low / medium / high). */
-  confidenceHeadline(conf: PronunciationConfidence | undefined | null): string | null {
+  confidenceHeadline(conf: PronunciationConfidence | undefined | null, score?: number): string | null {
+    if (score != null && score >= 85) return null;
     if (conf === 'high') return 'Great job!';
     if (conf === 'medium') return 'Almost there — try once more';
     if (conf === 'low') return "Let's try again";
@@ -6681,7 +6683,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.isVideoOnlyExercise) {
       this.pushVpChat('user', pq.vpSpokenText || '(no audio)', { isCorrect, score: pq.pronunciationScore || 0 });
       if (isCorrect) {
-        this.pushVpChat('tutor', this.confidenceHeadline(res.confidence) || 'Great job!');
+        this.pushVpChat('tutor', 'Great job!');
       } else if (isAlmostCorrect) {
         this.pushVpChat('tutor', 'Almost there — try once more for a perfect score!');
       } else {

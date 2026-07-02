@@ -1214,22 +1214,32 @@
                       <p
                         class="vp-stage-confidence"
                         *ngIf="
-                          lastConfidenceByIndex[currentQuestion.index] as conf
+                          confidenceHeadline(
+                            lastConfidenceByIndex[currentQuestion.index],
+                            currentQuestion.pronunciationScore
+                          ) as headline
                         "
                         [class.vp-wrong-minimal-hide-on-mobile]="
                           currentQuestion.vpResult !== 'correct'
                         "
-                        [class.vp-stage-confidence--high]="conf === 'high'"
-                        [class.vp-stage-confidence--medium]="conf === 'medium'"
-                        [class.vp-stage-confidence--low]="conf === 'low'"
+                        [class.vp-stage-confidence--high]="
+                          lastConfidenceByIndex[currentQuestion.index] === 'high'
+                        "
+                        [class.vp-stage-confidence--medium]="
+                          lastConfidenceByIndex[currentQuestion.index] === 'medium'
+                        "
+                        [class.vp-stage-confidence--low]="
+                          lastConfidenceByIndex[currentQuestion.index] === 'low'
+                        "
                       >
-                        {{ confidenceHeadline(conf) }}
+                        {{ headline }}
                       </p>
                       <p
                         class="pron-confidence-nudge"
                         *ngIf="
                           confidenceNudge(
-                            lastConfidenceByIndex[currentQuestion.index]
+                            lastConfidenceByIndex[currentQuestion.index],
+                            currentQuestion.pronunciationScore
                           )
                         "
                         [class.vp-wrong-minimal-hide-on-mobile]="
@@ -1238,7 +1248,8 @@
                       >
                         {{
                           confidenceNudge(
-                            lastConfidenceByIndex[currentQuestion.index]
+                            lastConfidenceByIndex[currentQuestion.index],
+                            currentQuestion.pronunciationScore
                           )
                         }}
                       </p>
@@ -2837,19 +2848,30 @@
               <!-- Confidence headline -->
               <div
                 class="pronunciation-confidence"
-                *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
-                [attr.data-confidence]="conf"
+                *ngIf="
+                  confidenceHeadline(
+                    lastConfidenceByIndex[currentQuestion.index],
+                    currentQuestion.pronunciationScore
+                  ) as headline
+                "
+                [attr.data-confidence]="lastConfidenceByIndex[currentQuestion.index]"
               >
-                {{ confidenceHeadline(conf) }}
+                {{ headline }}
               </div>
               <div
                 class="pron-confidence-nudge"
                 *ngIf="
-                  confidenceNudge(lastConfidenceByIndex[currentQuestion.index])
+                  confidenceNudge(
+                    lastConfidenceByIndex[currentQuestion.index],
+                    currentQuestion.pronunciationScore
+                  )
                 "
               >
                 {{
-                  confidenceNudge(lastConfidenceByIndex[currentQuestion.index])
+                  confidenceNudge(
+                    lastConfidenceByIndex[currentQuestion.index],
+                    currentQuestion.pronunciationScore
+                  )
                 }}
               </div>
               <div
@@ -4212,12 +4234,12 @@
                           </ng-container>
                         </div>
 
-                        <div class="pronunciation-confidence" *ngIf="lastConfidenceByIndex[currentQuestion.index] as conf"
-                          [attr.data-confidence]="conf">
-                          {{ confidenceHeadline(conf) }}
+                        <div class="pronunciation-confidence" *ngIf="confidenceHeadline(lastConfidenceByIndex[currentQuestion.index], currentQuestion.subQuestionPronunciationScore?.[sqIndex]) as headline"
+                          [attr.data-confidence]="lastConfidenceByIndex[currentQuestion.index]">
+                          {{ headline }}
                         </div>
-                        <div class="pron-confidence-nudge" *ngIf="confidenceNudge(lastConfidenceByIndex[currentQuestion.index])">
-                          {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index]) }}
+                        <div class="pron-confidence-nudge" *ngIf="confidenceNudge(lastConfidenceByIndex[currentQuestion.index], currentQuestion.subQuestionPronunciationScore?.[sqIndex])">
+                          {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index], currentQuestion.subQuestionPronunciationScore?.[sqIndex]) }}
                         </div>
                         <div class="pron-audio-quality-banner" *ngIf="currentQuestion.subQuestionPronLowAudioQuality?.[sqIndex]">
                           Your microphone input seems low. Try speaking louder or closer to the mic.

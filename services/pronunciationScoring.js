@@ -514,8 +514,12 @@ function computeConfidence(score, opts = {}) {
   const s = clamp(Number(score) || 0, 0, 100);
   const lowAudioQuality = !!opts.lowAudioQuality;
   const wordCoverage = Number(opts.wordCoverage || 0);
-  if ((lowAudioQuality && s < 70) || wordCoverage < 0.35) return 'low';
-  if (!lowAudioQuality && wordCoverage >= 0.8 && s >= 75) return 'high';
+  if (wordCoverage < 0.35) return 'low';
+  // A strong lexical match means we heard them correctly — do not downgrade
+  // confidence just because the mic level was low.
+  if (s >= 85 && wordCoverage >= 0.8) return 'high';
+  if (lowAudioQuality && s < 70) return 'low';
+  if (wordCoverage >= 0.8 && s >= 75) return 'high';
   return 'medium';
 }
 
