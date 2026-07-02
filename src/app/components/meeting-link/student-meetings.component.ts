@@ -233,6 +233,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
         error: () => this.feedbackEnabledBatches.set(batch, false),
       });
     }
+  }
 
   private getPageForTab(tab: ClassTab): number {
     if (tab === 'upcoming') return this.upcomingPage;
