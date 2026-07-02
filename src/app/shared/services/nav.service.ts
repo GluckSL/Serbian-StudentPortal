@@ -212,6 +212,7 @@ export class NavService {
         { id: 'job-openings',    label: 'Job Openings',     icon: 'work',                route: '/admin/job-openings',    subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets',  icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
         { id: 'olly-chat',       label: 'Olly Live Chat 🦊', icon: 'forum',             route: '/admin/olly-chat',       subGroup: null },
+        { id: 'class-feedback',  label: 'Class Feedback 🦊', icon: 'rate_review',       route: '/admin/class-feedback',  subGroup: null },
         { id: 'help',            label: 'Help & Support',   icon: 'help',                route: '/help',                  subGroup: null }
       ]
     },

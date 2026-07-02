@@ -1,0 +1,122 @@
+<div class="fb-overlay" *ngIf="visible" (click)="close()">
+  <div class="fb-modal" (click)="$event.stopPropagation()">
+
+    <!-- Close Button -->
+    <button class="fb-close" (click)="close()" aria-label="Close">✕</button>
+
+    <!-- Header -->
+    <div class="fb-header">
+      <div class="fb-fox-icon">🦊</div>
+      <h2 class="fb-title">How was your class?</h2>
+      <p class="fb-subtitle">{{ classTitle }}</p>
+      <span class="fb-batch-badge">{{ batch }}</span>
+    </div>
+
+    <!-- Loading -->
+    <div class="fb-loading" *ngIf="loading">
+      <div class="fb-spinner"></div>
+      <p>Loading...</p>
+    </div>
+
+    <!-- Already submitted / success screen -->
+    <div class="fb-success" *ngIf="!loading && step === 'success'">
+      <div class="fb-success-fox">🦊</div>
+      <h3>{{ alreadySubmitted ? 'Already Submitted!' : 'Thank you!' }}</h3>
+      <p>{{ successMessage }}</p>
+      <button class="fb-btn fb-btn-primary" (click)="close()">Close</button>
+    </div>
+
+    <!-- Feedback Form -->
+    <div class="fb-form" *ngIf="!loading && step === 'form'">
+
+      <!-- Q1: Understanding -->
+      <div class="fb-question">
+        <div class="fb-q-label">
+          <span class="fb-q-number">1</span>
+          How well did you understand today's class?
+        </div>
+        <div class="fb-options">
+          <button
+            *ngFor="let opt of understandingOptions"
+            [class]="'fb-option ' + opt.foxMood + (selectedUnderstanding === opt.value ? ' fb-option-selected' : '')"
+            (click)="selectUnderstanding(opt.value)">
+            <span class="fb-opt-fox">🦊</span>
+            <span class="fb-opt-emoji">{{ opt.emoji }}</span>
+            <span class="fb-opt-label">{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Q2: Pace -->
+      <div class="fb-question">
+        <div class="fb-q-label">
+          <span class="fb-q-number">2</span>
+          How was the pace of the class?
+        </div>
+        <div class="fb-options">
+          <button
+            *ngFor="let opt of paceOptions"
+            [class]="'fb-option ' + opt.foxMood + (selectedPace === opt.value ? ' fb-option-selected' : '')"
+            (click)="selectPace(opt.value)">
+            <span class="fb-opt-fox">🦊</span>
+            <span class="fb-opt-emoji">{{ opt.emoji }}</span>
+            <span class="fb-opt-label">{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Q3: Confidence (Stars) -->
+      <div class="fb-question">
+        <div class="fb-q-label">
+          <span class="fb-q-number">3</span>
+          How confident do you feel using today's topic?
+        </div>
+        <div class="fb-stars">
+          <button
+            *ngFor="let s of confidenceStars"
+            class="fb-star"
+            [class.fb-star-filled]="selectedConfidence >= s"
+            (click)="selectConfidence(s)"
+            [attr.aria-label]="s + ' star' + (s > 1 ? 's' : '')">
+            <span class="fb-star-fox">🦊</span>
+            <span class="fb-star-icon">{{ selectedConfidence >= s ? '⭐' : '☆' }}</span>
+          </button>
+          <span class="fb-stars-hint" *ngIf="selectedConfidence > 0">
+            {{ ['', 'Just starting!', 'Getting there!', 'Fox-level confident! 🦊'][selectedConfidence] }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Q4: Motivation -->
+      <div class="fb-question">
+        <div class="fb-q-label">
+          <span class="fb-q-number">4</span>
+          How motivated are you to try the Self-Learning part tomorrow?
+        </div>
+        <div class="fb-options">
+          <button
+            *ngFor="let opt of motivationOptions"
+            [class]="'fb-option ' + opt.foxMood + (selectedMotivation === opt.value ? ' fb-option-selected' : '')"
+            (click)="selectMotivation(opt.value)">
+            <span class="fb-opt-fox">🦊</span>
+            <span class="fb-opt-emoji">{{ opt.emoji }}</span>
+            <span class="fb-opt-label">{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="fb-error" *ngIf="error">{{ error }}</div>
+
+      <!-- Submit -->
+      <button
+        class="fb-btn fb-btn-submit"
+        [disabled]="!isFormValid || submitting"
+        (click)="onSubmit()">
+        <span *ngIf="!submitting">🦊 Submit Feedback</span>
+        <span *ngIf="submitting">Sending...</span>
+      </button>
+
+    </div>
+  </div>
+</div>

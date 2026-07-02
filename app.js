@@ -115,6 +115,7 @@ const crmPortalProxyRoutes = require('./routes/crmPortalProxy');
 const testAccountRoutes = require('./routes/testAccounts');
 const gluckRoomRoutes = require('./routes/gluckRoom');
 const correctionRoutes = require('./routes/correction');
+const classFeedbackRoutes = require('./routes/classFeedback');
 
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
@@ -150,6 +151,7 @@ const { scheduleMilestoneAbsenceAlerts, scheduleWeeklyAbsenceSummary } = require
 const { scheduleWeeklyMilestoneChecks } = require('./jobs/weeklyMilestoneChecks');
 const { scheduleLateJoinEarlyExitAlerts } = require('./jobs/lateJoinEarlyExitAlert');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
+const { scheduleFeedbackNotifications } = require('./jobs/classFeedbackNotification');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -396,6 +398,7 @@ app.use('/api/crm-portal', auth.verifyToken, crmPortalProxyRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/gluckroom', gluckRoomRoutes);
 app.use('/api/correction', correctionRoutes);
+app.use('/api/class-feedback', classFeedbackRoutes);
 
 const pdfExerciseGeneratorRoutes = require('./routes/pdfExerciseGenerator');
 app.use('/api/pdf-exercises', pdfExerciseGeneratorRoutes);
@@ -647,6 +650,7 @@ connectMongoDb()
       scheduleWeeklyAbsenceSummary();
       scheduleWeeklyMilestoneChecks();
       scheduleLateJoinEarlyExitAlerts();
+      scheduleFeedbackNotifications();
 
       const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
       const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');

@@ -38,6 +38,14 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
   },
 
+  // Admin: Class Feedback management
+  {
+    path: 'admin/class-feedback',
+    loadComponent: () => import('./components/class-feedback-admin/class-feedback-admin.component').then(m => m.ClassFeedbackAdminComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
+  },
+
   // Login and Signup routes
   { path: 'login', loadComponent: () => import('./components/login/login.component').then(m => m.LoginComponent) },
   { path: 'register', loadComponent: () => import('./components/register/register.component').then(m => m.RegisterComponent) },
