@@ -64,6 +64,7 @@ type QuestionRowData = {
   question?: string;
   options?: string[];
   prompt?: string;
+  sentence?: string;
   subQuestions?: unknown[];
   attachmentUrl?: string;
   attachmentUrls?: string[];
