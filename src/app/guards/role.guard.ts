@@ -18,15 +18,25 @@ export class RoleGuard implements CanActivate {
 
   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
     const expectedRole = route.data['role'];
+    const allowedRoles = Array.isArray(expectedRole) ? expectedRole : [expectedRole];
+    const adminScopedRoute = allowedRoles.some(
+      (role: string) => role === 'ADMIN' || role === 'TEACHER_ADMIN'
+    );
 
     // Use cached user first — no HTTP call needed if already logged in
     const cachedUser = this.authService.getSnapshotUser();
     if (cachedUser) {
       const subAdminNeedsFullProfile =
         cachedUser?.role === 'SUB_ADMIN' &&
+        adminScopedRoute &&
         !cachedUser?.sidebarPermissions?.length &&
         !Object.keys(cachedUser?.sidebarAccessLevels || {}).length;
-      if (subAdminNeedsFullProfile) {
+      const teacherNeedsFullProfile =
+        cachedUser?.role === 'TEACHER' &&
+        adminScopedRoute &&
+        !cachedUser?.teacherTabPermissions?.length &&
+        !Object.keys(cachedUser?.teacherTabAccessLevels || {}).length;
+      if (subAdminNeedsFullProfile || teacherNeedsFullProfile) {
         return this.authService.refreshUserProfile().pipe(
           map(user => this.checkRole(user, expectedRole, state.url)),
           catchError(() => {

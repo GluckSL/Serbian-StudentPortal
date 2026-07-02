@@ -2066,7 +2066,12 @@ router.get("/profile", verifyToken, async (req, res) => {
       });
     }
 
-    res.json(user);
+    const profile = typeof user.toObject === 'function' ? user.toObject() : user;
+    res.json({
+      ...profile,
+      sidebarAccessLevels: accessLevelsToObject(profile.sidebarAccessLevels),
+      teacherTabAccessLevels: accessLevelsToObject(profile.teacherTabAccessLevels),
+    });
   } catch (err) {
     console.error("Error fetching profile:", err);
     res.status(500).json({ message: "Server error" });

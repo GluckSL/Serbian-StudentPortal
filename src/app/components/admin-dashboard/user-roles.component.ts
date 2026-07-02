@@ -1386,11 +1386,8 @@ export class UserRolesComponent implements OnInit {
   ): Record<string, AccessLevel> {
     if (!this.isTeacherAssignableRole(role)) return {};
     const normalized = this.navService.normalizeAccessLevels(accessLevels || {});
-    const hasExplicitAccessLevels = Object.keys(normalized).length > 0;
-    if (!hasExplicitAccessLevels) {
-      for (const permissionId of fallbackPermissions || []) {
-        if (!normalized[permissionId]) normalized[permissionId] = 'view';
-      }
+    for (const permissionId of fallbackPermissions || []) {
+      if (!normalized[permissionId]) normalized[permissionId] = 'view';
     }
     return normalized;
   }

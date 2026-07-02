@@ -1483,37 +1483,42 @@ function exerciseOwnerId(exercise) {
 }
 
 const EXERCISES_TAB_ID = 'exercises';
+const {
+  loadTeacherTabUser,
+  exercisesTabIdForVersion,
+} = require('../services/teacherTabPermissions.service');
+const { getTeacherTabLevel } = require('../services/subAdminPermissions');
 
-function teacherExercisesTabLevel(teacherUser) {
-  const levels = teacherUser?.teacherTabAccessLevels || {};
-  const level = levels[EXERCISES_TAB_ID];
-  if (level === 'view' || level === 'edit' || level === 'full') return level;
-  const perms = teacherUser?.teacherTabPermissions || [];
-  return perms.includes(EXERCISES_TAB_ID) ? 'view' : null;
+function teacherExercisesTabLevel(teacherUser, version) {
+  const tabId = exercisesTabIdForVersion(version);
+  const primary = getTeacherTabLevel(teacherUser, tabId);
+  if (primary) return primary;
+  if (tabId !== EXERCISES_TAB_ID) {
+    return getTeacherTabLevel(teacherUser, EXERCISES_TAB_ID);
+  }
+  return null;
 }
 
 async function loadTeacherPermissions(userId) {
-  return User.findById(userId)
-    .select('teacherTabPermissions teacherTabAccessLevels')
-    .lean();
+  return loadTeacherTabUser(userId);
 }
 
-async function teacherCanEditExercise(user, exercise) {
+async function teacherCanEditExercise(user, exercise, version = 'v1') {
   if (user.role !== 'TEACHER') return true;
   const owner = exerciseOwnerId(exercise);
   if (owner === String(user.id)) return true;
   const teacherUser = await loadTeacherPermissions(user.id);
-  const level = teacherExercisesTabLevel(teacherUser);
+  const level = teacherExercisesTabLevel(teacherUser, version);
   return level === 'edit' || level === 'full';
 }
 
 /** View-level access: any teacher who has the exercises tab assigned (view/edit/full) can read. */
-async function teacherCanViewExercise(user, exercise) {
+async function teacherCanViewExercise(user, exercise, version = 'v1') {
   if (user.role !== 'TEACHER') return true;
   const owner = exerciseOwnerId(exercise);
   if (owner === String(user.id)) return true;
   const teacherUser = await loadTeacherPermissions(user.id);
-  const level = teacherExercisesTabLevel(teacherUser);
+  const level = teacherExercisesTabLevel(teacherUser, version);
   return level === 'view' || level === 'edit' || level === 'full';
 }
 
@@ -2909,7 +2914,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     const exercise = await DigitalExercise.findById(req.params.id);
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+    if (!(await teacherCanEditExercise(req.user, exercise))) {
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
