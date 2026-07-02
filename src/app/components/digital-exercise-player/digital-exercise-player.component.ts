@@ -15,7 +15,8 @@ import {
 } from '@angular/cdk/drag-drop';
 import {
   DigitalExerciseService, DigitalExercise,
-  QuestionResponse, SubmitResult, SubmitQuestionResult
+  QuestionResponse, SubmitResult, SubmitQuestionResult,
+  EXERCISE_PASS_SCORE_PERCENT
 } from '../../services/digital-exercise.service';
 import {
   DigitalExercisePlayerDraftService,
@@ -1440,7 +1441,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       scorePercentage,
       earnedPoints,
       totalPoints,
-      passed: scorePercentage >= 60,
+      passed: scorePercentage >= EXERCISE_PASS_SCORE_PERCENT,
       answerDetails: this.playerQuestions.map((p, i) => {
         const pts = p.data.points || 1;
         const ok = i === this.currentIndex ? true : p.isCorrect === true;

@@ -1,4 +1,3 @@
-const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const DGSession = require('../models/DGSession');
 const DGModule = require('../models/DGModule');
 const {
@@ -7,7 +6,11 @@ const {
   dgWeekLockMessage,
 } = require('../utils/dgStudentJourneyGate');
 const { totalSessionMinutes, extractChatTurns, effectiveSessionScore } = require('../utils/dgSessionMetrics');
-const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
+const {
+  teacherCanAccessOwnedOrAssignedTab,
+  dgTabIdForModule,
+} = require('../services/teacherTabPermissions.service');
 
 function pushLog(session, entry) {
   session.logs.push({
@@ -209,8 +212,7 @@ exports.complete = async (req, res) => {
     let previousCourseDay = null;
     if (req.user && req.user.role === 'STUDENT') {
       try {
-        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
-        const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
+        const advResult = await tryInstantJourneyAdvanceAfterTask(req.user.id);
         if (advResult.advanced) {
           journeyAdvanced = true;
           previousCourseDay = advResult.previousDay;
@@ -265,7 +267,13 @@ exports.listByModuleAdmin = async (req, res) => {
     if (!mod || !mod.isActive) {
       return res.status(404).json({ message: 'Module not found' });
     }
-    if (req.user.role === 'TEACHER' && mod.createdBy.toString() !== req.user.id) {
+    const canView = await teacherCanAccessOwnedOrAssignedTab(
+      req,
+      dgTabIdForModule(mod),
+      mod.createdBy,
+      'view'
+    );
+    if (!canView) {
       return res.status(403).json({ message: 'Forbidden' });
     }
 

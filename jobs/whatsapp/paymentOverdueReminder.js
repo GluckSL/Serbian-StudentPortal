@@ -96,9 +96,7 @@ async function processPaymentOverdueReminders() {
 
       const amountLabel = formatOverdueAmount(profile);
       const message =
-        `Good morning ${student.name}! A gentle reminder: you have ${amountLabel} overdue on your Glück account. ` +
-        `Please clear it when you can so your learning continues without interruption. ` +
-        `Questions? Reply here or email support@gluckglobal.com`;
+        `Hi ${student.name}, you have ${amountLabel} overdue on your Glück account. Please pay when you can — questions: support@gluckglobal.com`;
 
       await sendWhatsappNotification({
         phone,

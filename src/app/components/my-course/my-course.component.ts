@@ -21,7 +21,12 @@ import {
 } from '../../services/batch-leaderboard.service';
 import { DgApiService } from '../../dg-bot/dg-api.service';
 import { DgModuleSummary } from '../../dg-bot/dg-bot.types';
-import { DigitalExercise, DigitalExerciseService, ExerciseAttempt } from '../../services/digital-exercise.service';
+import {
+  DigitalExercise,
+  DigitalExerciseService,
+  ExerciseAttempt,
+  EXERCISE_PASS_SCORE_PERCENT
+} from '../../services/digital-exercise.service';
 import { digitalExercisePlayCommands } from '../../utils/digital-exercise-id.util';
 import { SprechenApiService } from '../../sprechen-exam/sprechen-api.service';
 import { SprechenExamAggregate, SprechenExamModuleSummary, SprechenExamSummary, SprechenScores, SprechenSessionSummary } from '../../sprechen-exam/sprechen-exam.types';
@@ -82,7 +87,7 @@ interface GluckExamLastItemData {
 })
 export class MyCourseComponent implements OnInit {
   /** Match DigitalExercisesComponent passing threshold. */
-  readonly passScorePercent = 60;
+  readonly passScorePercent = EXERCISE_PASS_SCORE_PERCENT;
   /** Row placeholders for the loading skeleton (My class tab). */
   readonly skeletonMeetingRows = [0, 1, 2, 3, 4];
   readonly skeletonSideLines = [0, 1, 2];

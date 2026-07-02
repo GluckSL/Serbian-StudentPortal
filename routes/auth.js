@@ -93,9 +93,9 @@ function issueLoginResponse(user, keepSessionActive, res, extra = {}) {
       profilePhoto: user.profilePhoto || null,
       sidebarPermissions: user.sidebarPermissions || [],
       teacherTabPermissions: user.teacherTabPermissions || [],
-      sidebarAccessLevels: user.sidebarAccessLevels || {},
+      sidebarAccessLevels: accessLevelsToObject(user.sidebarAccessLevels),
       sidebarDeletePermissions: user.sidebarDeletePermissions || [],
-      teacherTabAccessLevels: user.teacherTabAccessLevels || {},
+      teacherTabAccessLevels: accessLevelsToObject(user.teacherTabAccessLevels),
     },
   };
   if (extra.welcomeBack) {
@@ -137,7 +137,10 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "exercises",
   "exercises-v2",
   "teacher-resources",
+  "correction",
+  "crm",
   "journey",
+  "batch-leaderboard",
   "go-students",
   "go-students-sinhala",
   "manage-classes",
@@ -153,6 +156,7 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "portal-analytics",
   "glueck-arena-analytics",
   "glueck-arena-command",
+  "glueck-arena-teacher",
   "bf-team-battles",
   "finance-dashboard",
   "enrollment-overview",
@@ -168,12 +172,25 @@ const ALLOWED_SIDEBAR_PERMISSION_IDS = [
   "support-tickets",
   "job-openings",
   "olly-chat",
+  "class-feedback",
   "announcements",
   "glueck-arena",
   "help",
   "profile"
 ];
 const ALLOWED_ACCESS_LEVELS = ["view", "edit", "full"];
+
+/** Mongoose Map fields must not be read with Object.entries — use Map iteration instead. */
+function accessLevelsToObject(accessLevels) {
+  if (!accessLevels) return {};
+  if (accessLevels instanceof Map) {
+    return Object.fromEntries(accessLevels);
+  }
+  if (typeof accessLevels === "object" && !Array.isArray(accessLevels)) {
+    return { ...accessLevels };
+  }
+  return {};
+}
 
 function normalizeSidebarPermissions(sidebarPermissions) {
   if (!Array.isArray(sidebarPermissions)) {
@@ -233,14 +250,12 @@ function normalizeSidebarDeletePermissions(deletePermissions, accessLevels = {})
 function normalizeAccessLevels(accessLevels, fallbackPermissions = []) {
   const normalized = {};
 
-  if (accessLevels && typeof accessLevels === "object" && !Array.isArray(accessLevels)) {
-    for (const [permissionId, level] of Object.entries(accessLevels)) {
-      if (
-        ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId) &&
-        ALLOWED_ACCESS_LEVELS.includes(level)
-      ) {
-        normalized[permissionId] = level;
-      }
+  for (const [permissionId, level] of Object.entries(accessLevelsToObject(accessLevels))) {
+    if (
+      ALLOWED_SIDEBAR_PERMISSION_IDS.includes(permissionId) &&
+      ALLOWED_ACCESS_LEVELS.includes(level)
+    ) {
+      normalized[permissionId] = level;
     }
   }
 
@@ -2051,7 +2066,12 @@ router.get("/profile", verifyToken, async (req, res) => {
       });
     }
 
-    res.json(user);
+    const profile = typeof user.toObject === 'function' ? user.toObject() : user;
+    res.json({
+      ...profile,
+      sidebarAccessLevels: accessLevelsToObject(profile.sidebarAccessLevels),
+      teacherTabAccessLevels: accessLevelsToObject(profile.teacherTabAccessLevels),
+    });
   } catch (err) {
     console.error("Error fetching profile:", err);
     res.status(500).json({ message: "Server error" });
@@ -2063,9 +2083,18 @@ router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   try {
     const users = await User.find({
       role: { $in: ['TEACHER', 'TEACHER_ADMIN', 'ADMIN', 'SUB_ADMIN'] }
-    }).select("name email regNo role sidebarPermissions teacherTabPermissions sidebarAccessLevels sidebarDeletePermissions teacherTabAccessLevels").sort({ role: 1, name: 1 });
+    })
+      .select("name email regNo role sidebarPermissions teacherTabPermissions sidebarAccessLevels sidebarDeletePermissions teacherTabAccessLevels")
+      .sort({ role: 1, name: 1 })
+      .lean();
 
-    res.status(200).json(users);
+    res.status(200).json(
+      users.map((user) => ({
+        ...user,
+        sidebarAccessLevels: accessLevelsToObject(user.sidebarAccessLevels),
+        teacherTabAccessLevels: accessLevelsToObject(user.teacherTabAccessLevels),
+      }))
+    );
   } catch (error) {
     console.error("âŒ Error fetching teachers and admins:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -2337,7 +2366,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       const hasSidebarAccessLevelsPayload = typeof sidebarAccessLevels !== "undefined";
       const accessLevelSeed = hasSidebarAccessLevelsPayload
         ? normalizeAccessLevels(sidebarAccessLevels)
-        : normalizeAccessLevels(existingUser.sidebarAccessLevels || {});
+        : normalizeAccessLevels(accessLevelsToObject(existingUser.sidebarAccessLevels));
 
       const normalizedSidebarPermissions =
         hasSidebarAccessLevelsPayload
@@ -2378,7 +2407,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       const hasTeacherAccessLevelsPayload = typeof teacherTabAccessLevels !== "undefined";
       const teacherAccessLevelSeed = hasTeacherAccessLevelsPayload
         ? normalizeAccessLevels(teacherTabAccessLevels)
-        : normalizeAccessLevels(existingUser.teacherTabAccessLevels || {});
+        : normalizeAccessLevels(accessLevelsToObject(existingUser.teacherTabAccessLevels));
 
       const normalizedTeacherTabPermissions =
         hasTeacherAccessLevelsPayload

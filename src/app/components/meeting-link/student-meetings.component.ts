@@ -215,6 +215,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
       this.ongoingMeetings = items;
       this.livePage = page;
       this.liveTotal = total;
+      this.preloadFeedbackBatchStatus(items);
     } else {
       this.attemptedMeetings = items;
       this.attemptedPage = page;
@@ -576,10 +577,9 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   // ── Feedback modal ─────────────────────────────────────────────────────
 
   openFeedback(m: StudentMeeting): void {
-    if (!m.hasEnded) return;
+    if (!this.isClassEligibleForFeedback(m)) return;
     this.feedbackMeeting = m;
     this.showFeedbackModal = true;
-    // Load batch enabled status lazily (once per batch)
     this.classFeedbackService.isBatchEnabled(m.batch).subscribe({
       next: (res) => { this.feedbackBatchEnabled = res.enabled; },
       error: () => { this.feedbackBatchEnabled = false; }
@@ -587,7 +587,9 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   openFeedbackById(meetingId: string): void {
-    const found = this.attemptedMeetings.find((m) => m._id === meetingId);
+    const found =
+      this.attemptedMeetings.find((m) => m._id === meetingId) ||
+      this.ongoingMeetings.find((m) => m._id === meetingId);
     if (found) {
       this.openFeedback(found);
     } else {
@@ -596,7 +598,9 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
         next: (res) => {
           if (res.success && res.meeting) {
             const m = res.meeting as StudentMeeting;
-            m.hasEnded = true;
+            m.hasEnded = res.meeting.status === 'ended';
+            m.isOngoing = res.meeting.status === 'started';
+            m.currentStatus = res.meeting.status === 'started' ? 'live' : res.meeting.status;
             this.feedbackMeeting = m;
             this.feedbackBatchEnabled = true;
             this.showFeedbackModal = true;
@@ -619,8 +623,19 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     setTimeout(() => this.closeFeedbackModal(), 2000);
   }
 
+  /** Live or ended class — not upcoming/scheduled only. */
+  isClassEligibleForFeedback(m: StudentMeeting): boolean {
+    return !!(
+      m.isOngoing ||
+      m.hasEnded ||
+      m.status === 'started' ||
+      m.currentStatus === 'live' ||
+      m.currentStatus === 'ongoing'
+    );
+  }
+
   hasFeedbackEnabled(m: StudentMeeting): boolean {
-    if (!m.hasEnded) return false;
-    return this.feedbackEnabledBatches.get(m.batch) === true;
+    if (this.feedbackEnabledBatches.get(m.batch) !== true) return false;
+    return this.isClassEligibleForFeedback(m);
   }
 }

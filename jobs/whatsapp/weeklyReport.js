@@ -65,44 +65,12 @@ async function sumTimeSpent(studentId, start, end) {
   return records.reduce((acc, r) => acc + (r.timeSpent || 0), 0);
 }
 
-function trend(thisWeek, lastWeek) {
-  if (lastWeek === 0 && thisWeek === 0) return 'same';
-  if (thisWeek > lastWeek) return 'up';
-  if (thisWeek < lastWeek) return 'down';
-  return 'same';
-}
-
-function trendEmoji(t) {
-  if (t === 'up') return '📈';
-  if (t === 'down') return '📉';
-  return '➡️';
-}
-
 function buildMessage(student, stats) {
   const { thisWeek, lastWeek } = stats;
-  const lines = [
-    `Hi ${student.name}! Here is your weekly progress report 📊`,
-    '',
-    `🎓 Classes attended : ${thisWeek.classes} (last week: ${lastWeek.classes}) ${trendEmoji(trend(thisWeek.classes, lastWeek.classes))}`,
-    `✅ Exercises done   : ${thisWeek.exercises} (last week: ${lastWeek.exercises}) ${trendEmoji(trend(thisWeek.exercises, lastWeek.exercises))}`,
-    `⏱ Time on modules  : ${thisWeek.timeSpent} min (last week: ${lastWeek.timeSpent} min) ${trendEmoji(trend(thisWeek.timeSpent, lastWeek.timeSpent))}`,
-    '',
-  ];
-
-  const improvements = [];
-  if (thisWeek.classes > lastWeek.classes) improvements.push('attendance');
-  if (thisWeek.exercises > lastWeek.exercises) improvements.push('exercise completion');
-  if (thisWeek.timeSpent > lastWeek.timeSpent) improvements.push('study time');
-
-  if (improvements.length > 0) {
-    lines.push(`Great job improving your ${improvements.join(' and ')} this week! Keep it up! 💪`);
-  } else if (improvements.length === 0 && (thisWeek.classes > 0 || thisWeek.exercises > 0)) {
-    lines.push('Keep going — consistency is what builds fluency! 🌟');
-  } else {
-    lines.push('It looks like a quiet week. Try to log in and do at least one activity today! 🚀');
-  }
-
-  return lines.join('\n');
+  return (
+    `Hi ${student.name}! This week: ${thisWeek.classes} classes, ${thisWeek.exercises} exercises, ` +
+    `${thisWeek.timeSpent} min study (last week: ${lastWeek.classes}, ${lastWeek.exercises}, ${lastWeek.timeSpent} min). Keep going!`
+  );
 }
 
 // ── Main report processor ─────────────────────────────────────────────────────

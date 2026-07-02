@@ -300,7 +300,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
   /**
    * Optional within-day sequence letter (a, b, c …).
    * When set, students must complete every exercise with an earlier letter on the
-   * same courseDay (with score ≥ 60 %) before this one unlocks.
+   * same courseDay (with score ≥ 40 %) before this one unlocks.
    * Null / empty = ungated (always accessible once the day unlocks).
    */
   sequenceLetter: {

@@ -168,7 +168,8 @@
         <div class="crm-wa-auto-list">
           <article class="crm-wa-auto-card" *ngFor="let item of waAutomations"
             [class.crm-wa-auto-card--active]="automationIsActive(item)"
-            [class.crm-wa-auto-card--paused]="!automationIsActive(item)">
+            [class.crm-wa-auto-card--paused]="!automationIsActive(item)"
+            [class.crm-wa-auto-card--picker-open]="openBatchPicker === item.automationType">
             <div class="crm-wa-auto-card__icon">
               <span class="material-icons">{{ item.icon }}</span>
             </div>

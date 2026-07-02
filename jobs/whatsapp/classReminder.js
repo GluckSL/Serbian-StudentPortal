@@ -64,7 +64,7 @@ async function processClassReminders() {
         phone: userPhone,
         name: attendee.name,
         type: NOTIFICATION_TYPES.CLASS_REMINDER,
-        message: `Hi ${attendee.name}, your class "${topic}" starts in ${minutesUntilStart} minute(s). Join here: ${joinUrl}`,
+        message: `Hi ${attendee.name}, "${topic}" starts in ${minutesUntilStart} min. Join: ${joinUrl}`,
         data: {
           meetingId: meeting._id,
           topic,
@@ -86,7 +86,7 @@ async function processClassReminders() {
           phone: teacherPhone,
           name: teacher.name,
           type: NOTIFICATION_TYPES.CLASS_REMINDER,
-          message: `Hi ${teacher.name}, your class "${topic}" (Batch: ${meeting.batch}) starts in ${minutesUntilStart} minute(s). Start: ${meeting.startUrl || joinUrl}`,
+          message: `Hi ${teacher.name}, "${topic}" (Batch ${meeting.batch}) starts in ${minutesUntilStart} min. Start: ${meeting.startUrl || joinUrl}`,
           data: {
             meetingId: meeting._id,
             topic,

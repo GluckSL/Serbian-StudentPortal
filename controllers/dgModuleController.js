@@ -25,6 +25,12 @@ const {
   resolveDefaultCharacterId,
 } = require('../services/mapLearningToDgPayload');
 const { generateScenesWithAi } = require('../services/dgSceneGeneratorService');
+const {
+  teacherHasAssignedTabAccessById,
+  teacherCanAccessOwnedOrAssignedTab,
+  dgTabIdForModule,
+  dgTabIdForModuleVersion,
+} = require('../services/teacherTabPermissions.service');
 
 const MAX_LEARNING_IMPORT_BATCH = 20;
 
@@ -167,6 +173,20 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
+    const existing = await DGModule.findById(req.params.id).select('createdBy version isActive').lean();
+    if (!existing || existing.isActive === false) {
+      return res.status(404).json({ message: 'Module not found' });
+    }
+    const canEdit = await teacherCanAccessOwnedOrAssignedTab(
+      req,
+      dgTabIdForModule(existing),
+      existing.createdBy,
+      'edit'
+    );
+    if (!canEdit) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
     const body = normalizePracticeWindow({ ...req.body });
     if (Array.isArray(body.scenes)) body.scenes = sortScenes(body.scenes);
     delete body.createdBy;
@@ -200,7 +220,13 @@ exports.getAdminById = async (req, res) => {
     if (!doc || !doc.isActive) {
       return res.status(404).json({ message: 'Module not found' });
     }
-    if (req.user.role === 'TEACHER' && doc.createdBy.toString() !== req.user.id) {
+    const canView = await teacherCanAccessOwnedOrAssignedTab(
+      req,
+      dgTabIdForModule(doc),
+      doc.createdBy,
+      'view'
+    );
+    if (!canView) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
@@ -221,10 +247,14 @@ const ADMIN_MODULE_LIST_SELECT =
 exports.listAdmin = async (req, res) => {
   try {
     const filter = { isActive: true };
-    if (req.user.role === 'TEACHER') {
-      filter.createdBy = req.user.id;
-    }
     const version = req.query.version;
+    if (req.user.role === 'TEACHER') {
+      const tabId = dgTabIdForModuleVersion(version === 'v2' ? 'v2' : 'v1');
+      const canViewShared = await teacherHasAssignedTabAccessById(req.user.id, tabId, 'view');
+      if (!canViewShared) {
+        filter.createdBy = req.user.id;
+      }
+    }
     if (version === 'v2') {
       filter.version = 'v2';
     } else if (version === 'v1') {
@@ -622,7 +652,13 @@ exports.patchVisibility = async (req, res) => {
     const visible = req.body.visibleToStudents === true || String(req.body.visibleToStudents) === 'true';
     const doc = await DGModule.findById(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Module not found' });
-    if (req.user.role === 'TEACHER' && doc.createdBy.toString() !== req.user.id) {
+    const canEdit = await teacherCanAccessOwnedOrAssignedTab(
+      req,
+      dgTabIdForModule(doc),
+      doc.createdBy,
+      'edit'
+    );
+    if (!canEdit) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     doc.visibleToStudents = visible;
@@ -637,7 +673,13 @@ exports.remove = async (req, res) => {
   try {
     const doc = await DGModule.findById(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Module not found' });
-    if (req.user.role === 'TEACHER' && doc.createdBy.toString() !== req.user.id) {
+    const canEdit = await teacherCanAccessOwnedOrAssignedTab(
+      req,
+      dgTabIdForModule(doc),
+      doc.createdBy,
+      'edit'
+    );
+    if (!canEdit) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     doc.isActive = false;

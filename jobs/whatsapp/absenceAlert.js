@@ -80,7 +80,7 @@ async function processEarlyJoinReminder(batchSettings = {}) {
         phone,
         name: attendee.name,
         type: NOTIFICATION_TYPES.ABSENT_DURING_CLASS,
-        message: `Hi ${attendee.name}, your class "${topic}" started 5 minutes ago and you haven't joined yet. Open the portal to join now: ${portalUrl}/login`,
+        message: `Hi ${attendee.name}, "${topic}" started 5 min ago — please join now: ${portalUrl}/login`,
         data: {
           meetingId: m._id,
           topic,
@@ -140,7 +140,7 @@ async function processAfterClassAbsence(batchSettings = {}) {
         phone,
         name: entry.name,
         type: NOTIFICATION_TYPES.ABSENT_AFTER_CLASS,
-        message: `Hi ${entry.name}, you were marked absent from the class "${topic}" (Batch: ${meeting.batch}) on ${meeting.startTime?.toLocaleDateString()}. Please reach out to your teacher if you need help catching up.`,
+        message: `Hi ${entry.name}, you were absent from "${topic}" on ${meeting.startTime?.toLocaleDateString()}. Log in or contact your teacher if you need help.`,
         data: {
           meetingId: meeting._id,
           topic,

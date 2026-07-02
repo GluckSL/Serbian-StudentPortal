@@ -143,7 +143,12 @@
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
+  position: relative;
   transition: border-color 0.15s, background 0.15s;
+
+  &--picker-open {
+    z-index: 30;
+  }
 
   &--active {
     border-color: #bfdbfe;
@@ -1435,7 +1440,7 @@
   position: absolute;
   left: 0;
   top: calc(100% + 4px);
-  z-index: 120;
+  z-index: 1;
   background: #fff;
   border: 1px solid #cbd5e1;
   border-radius: 10px;

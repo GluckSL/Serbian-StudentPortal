@@ -35,10 +35,7 @@ const {
   meetsStrictThreshold
 } = require('../services/journeyDayCompletion.service');
 const { isLearningEnabled } = require('../utils/batchType');
-const {
-  checkAndInstantlyAdvanceSilverGoStudent,
-  markPendingAdvanceForStudentDay
-} = require('../services/journeyDayAdvance.service');
+const { markPendingAdvanceForStudentDay, tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { listCrossBatchRecordingsForStudent } = require('../services/journeyCrossBatchRecordingAccess.service');
 
@@ -107,11 +104,6 @@ async function upsertZoomRecordingView(studentId, meetingLinkId, durationSec, st
 }
 
 async function tryJourneyAdvanceAfterSilverRecording(student, studentId, courseDay, batchName) {
-  if (isSilverGoStudent(student)) {
-    await SilverGoUnlockCache.deleteOne({ studentId });
-    return checkAndInstantlyAdvanceSilverGoStudent(studentId);
-  }
-
   const dayInt = parseInt(String(courseDay), 10);
   const currentDay = parseInt(String(student.currentCourseDay || 1), 10);
   if (!Number.isFinite(dayInt) || dayInt !== currentDay) return { advanced: false };
@@ -122,41 +114,17 @@ async function tryJourneyAdvanceAfterSilverRecording(student, studentId, courseD
     ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
     : null;
 
-  let allowInstantAdvance = true;
-  if (cfgDoc && cfgDoc.strictJourneyRule) {
-    const comp = await computeJourneyDayCompletion(studentId, keys, dayInt, {
-      includeRecordings: true,
-      includeDg: isLearningEnabled(cfgDoc.batchType),
-      batchType: cfgDoc.batchType,
-      includeLearningModules: true,
-      studentLevel: student.level,
-      studentPlan: student.subscription,
-      goStatus: student.goStatus,
-      subscription: student.subscription
-    });
-    allowInstantAdvance = meetsStrictThreshold(comp, cfgDoc);
-  }
+  const advResult = await tryInstantJourneyAdvanceAfterTask(String(studentId), {
+    includeRecordings: true,
+    includeDg: cfgDoc ? isLearningEnabled(cfgDoc.batchType) : false,
+    batchType: cfgDoc?.batchType,
+    studentLevel: student.level,
+    studentPlan: student.subscription,
+    goStatus: student.goStatus,
+    subscription: student.subscription
+  });
+  if (advResult.advanced) return advResult;
 
-  if (!allowInstantAdvance) return { advanced: false };
-
-  const nextDay = Math.min(200, dayInt + 1);
-  const advancedNow = await User.updateOne(
-    { _id: studentId, role: 'STUDENT', currentCourseDay: dayInt },
-    {
-      $set: withJourneyLevelInSet(
-        nextDay,
-        {
-          currentCourseDay: nextDay,
-          pendingJourneyDayAdvance: false,
-          pendingJourneyDayAdvanceForDay: null
-        },
-        { student }
-      )
-    }
-  );
-  if (advancedNow?.modifiedCount) {
-    return { advanced: true, previousDay: dayInt, newDay: nextDay };
-  }
   await markPendingAdvanceForStudentDay(String(studentId), String(batchName || primary || ''), dayInt);
   return { advanced: false };
 }
@@ -811,6 +779,7 @@ router.patch('/student/:studentId/exercise/:exerciseId/correct', verifyToken, ch
     }
 
     res.json({ success: true, attempt: { _id: attempt._id, scorePercentage: score, earnedPoints, totalPoints, status: 'completed' } });
+    tryInstantJourneyAdvanceAfterTask(String(studentId)).catch(() => {});
   } catch (err) {
     console.error('[correction] correct-exercise error:', err);
     res.status(500).json({ error: 'Failed to correct exercise' });
@@ -850,6 +819,7 @@ router.post('/student/:studentId/dg/:moduleId/mark-complete', verifyToken, check
     }
 
     res.json({ success: true, session: { _id: session._id, completed: true, moduleCompletionPercent: 100 } });
+    tryInstantJourneyAdvanceAfterTask(String(studentId)).catch(() => {});
   } catch (err) {
     console.error('[correction] mark-dg-complete error:', err);
     res.status(500).json({ error: 'Failed to mark DG module as complete' });
@@ -888,6 +858,7 @@ router.post('/student/:studentId/game/:gameSetId/mark-complete', verifyToken, ch
     }
 
     res.json({ success: true, attempt: { _id: attempt._id, accuracy: 100, status: 'completed' } });
+    tryInstantJourneyAdvanceAfterTask(String(studentId)).catch(() => {});
   } catch (err) {
     console.error('[correction] mark-game-complete error:', err);
     res.status(500).json({ error: 'Failed to mark game as complete' });

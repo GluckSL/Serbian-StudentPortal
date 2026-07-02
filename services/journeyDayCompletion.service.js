@@ -401,7 +401,15 @@ function meetsStrictThreshold(completion, cfg) {
   return completion.completionPercent >= threshold;
 }
 
+function clearDayCompletionCacheForStudent(studentId) {
+  const prefix = `${String(studentId)}:`;
+  for (const key of dayCompletionCache.keys()) {
+    if (key.startsWith(prefix)) dayCompletionCache.delete(key);
+  }
+}
+
 module.exports = {
   computeJourneyDayCompletion,
-  meetsStrictThreshold
+  meetsStrictThreshold,
+  clearDayCompletionCacheForStudent
 };

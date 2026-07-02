@@ -9,6 +9,12 @@ interface FeedbackOption {
   foxMood: string; // CSS class for fox animation
 }
 
+interface ConfidenceOption {
+  value: number;
+  label: string;
+  foxMood: string;
+}
+
 @Component({
   selector: 'app-class-feedback-modal',
   standalone: true,
@@ -55,7 +61,11 @@ export class ClassFeedbackModalComponent implements OnInit, OnChanges {
     { value: 'very_motivated',     label: 'Very motivated!',    emoji: '🔥', foxMood: 'fox-fire' },
   ];
 
-  readonly confidenceStars = [1, 2, 3];
+  readonly confidenceOptions: ConfidenceOption[] = [
+    { value: 1, label: 'Just starting', foxMood: 'fox-sad' },
+    { value: 2, label: 'Getting there', foxMood: 'fox-ok' },
+    { value: 3, label: 'Very confident', foxMood: 'fox-happy' },
+  ];
 
   constructor(private feedbackService: ClassFeedbackService) {}
 

@@ -39,11 +39,12 @@ const {
 } = require('../utils/batchType');
 const { isExerciseR2Configured, putExerciseMediaBuffer } = require('../services/exerciseMediaR2');
 const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
-const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
 const {
   attachInheritedAttemptsForStudent,
   resolveInheritedAttempt,
-  isInheritedPassing
+  isInheritedPassing,
+  PASS_SCORE_PERCENT
 } = require('../services/exerciseSplitInheritance.service');
 
 // ─── Attachment upload (per-question) ─────────────────────────────────────────
@@ -1482,37 +1483,42 @@ function exerciseOwnerId(exercise) {
 }
 
 const EXERCISES_TAB_ID = 'exercises';
+const {
+  loadTeacherTabUser,
+  exercisesTabIdForVersion,
+} = require('../services/teacherTabPermissions.service');
+const { getTeacherTabLevel } = require('../services/subAdminPermissions');
 
-function teacherExercisesTabLevel(teacherUser) {
-  const levels = teacherUser?.teacherTabAccessLevels || {};
-  const level = levels[EXERCISES_TAB_ID];
-  if (level === 'view' || level === 'edit' || level === 'full') return level;
-  const perms = teacherUser?.teacherTabPermissions || [];
-  return perms.includes(EXERCISES_TAB_ID) ? 'view' : null;
+function teacherExercisesTabLevel(teacherUser, version) {
+  const tabId = exercisesTabIdForVersion(version);
+  const primary = getTeacherTabLevel(teacherUser, tabId);
+  if (primary) return primary;
+  if (tabId !== EXERCISES_TAB_ID) {
+    return getTeacherTabLevel(teacherUser, EXERCISES_TAB_ID);
+  }
+  return null;
 }
 
 async function loadTeacherPermissions(userId) {
-  return User.findById(userId)
-    .select('teacherTabPermissions teacherTabAccessLevels')
-    .lean();
+  return loadTeacherTabUser(userId);
 }
 
-async function teacherCanEditExercise(user, exercise) {
+async function teacherCanEditExercise(user, exercise, version = 'v1') {
   if (user.role !== 'TEACHER') return true;
   const owner = exerciseOwnerId(exercise);
   if (owner === String(user.id)) return true;
   const teacherUser = await loadTeacherPermissions(user.id);
-  const level = teacherExercisesTabLevel(teacherUser);
+  const level = teacherExercisesTabLevel(teacherUser, version);
   return level === 'edit' || level === 'full';
 }
 
 /** View-level access: any teacher who has the exercises tab assigned (view/edit/full) can read. */
-async function teacherCanViewExercise(user, exercise) {
+async function teacherCanViewExercise(user, exercise, version = 'v1') {
   if (user.role !== 'TEACHER') return true;
   const owner = exerciseOwnerId(exercise);
   if (owner === String(user.id)) return true;
   const teacherUser = await loadTeacherPermissions(user.id);
-  const level = teacherExercisesTabLevel(teacherUser);
+  const level = teacherExercisesTabLevel(teacherUser, version);
   return level === 'view' || level === 'edit' || level === 'full';
 }
 
@@ -1647,13 +1653,13 @@ async function checkSequenceLock(studentId, exercise) {
 
   if (!priorExercises.length) return { locked: false, previousLetter: null, previousTitle: null };
 
-  // Check if each prior exercise has a passing attempt (≥60%) by this student
+  // Check if each prior exercise has a passing attempt (≥PASS_SCORE_PERCENT) by this student
   const priorIds = priorExercises.map((e) => e._id);
   const completedAttempts = await ExerciseAttempt.find({
     studentId,
     exerciseId: { $in: priorIds },
     status: 'completed',
-    scorePercentage: { $gte: 60 }
+    scorePercentage: { $gte: PASS_SCORE_PERCENT }
   }).select('exerciseId').lean();
 
   const passedIds = new Set(completedAttempts.map((a) => a.exerciseId.toString()));
@@ -1723,7 +1729,7 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
     studentId,
     exerciseId: { $in: allDayExerciseIds },
     status: 'completed',
-    scorePercentage: { $gte: 60 }
+    scorePercentage: { $gte: PASS_SCORE_PERCENT }
   })
     .select('exerciseId')
     .lean();
@@ -2908,7 +2914,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     const exercise = await DigitalExercise.findById(req.params.id);
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
 
-    if (req.user.role === 'TEACHER' && exercise.createdBy.toString() !== req.user.id) {
+    if (!(await teacherCanEditExercise(req.user, exercise))) {
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
@@ -3587,6 +3593,9 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
     // Only treat the attempt as complete when every question has been submitted at least once.
     // (An 80 % threshold caused multi-clip exercises — e.g. 14 clips — to finish after 12, skipping the rest.)
     const allSubmitted = gradedResponses.length >= exercise.questions.length;
+    let journeyAdvanced = false;
+    let newCourseDay = null;
+    let previousCourseDay = null;
 
     attempt.responses = gradedResponses;
     attempt.earnedPoints = earnedPoints;
@@ -3615,7 +3624,16 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
         averageScore: avgResult[0]?.avg ? Math.round(avgResult[0].avg) : 0
       });
       if (req.user.role === 'STUDENT') {
-        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
+        try {
+          const advResult = await tryInstantJourneyAdvanceAfterTask(req.user.id);
+          if (advResult.advanced) {
+            journeyAdvanced = true;
+            previousCourseDay = advResult.previousDay;
+            newCourseDay = advResult.newDay;
+          }
+        } catch (advErr) {
+          console.error('[Instant Advance] exercise question submit check failed (non-critical):', advErr.message);
+        }
       }
     }
     await attempt.save();
@@ -3629,7 +3647,9 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
       totalPoints,
       scorePercentage,
       allSubmitted,
-      passed: scorePercentage >= 60
+      passed: scorePercentage >= PASS_SCORE_PERCENT,
+      journeyAdvanced,
+      ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})
     });
   } catch (err) {
     console.error('POST /digital-exercises/:id/submit-question error:', err);
@@ -3930,8 +3950,7 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
     let previousCourseDay = null;
     if (req.user.role === 'STUDENT') {
       try {
-        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
-        const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
+        const advResult = await tryInstantJourneyAdvanceAfterTask(req.user.id);
         if (advResult.advanced) {
           journeyAdvanced = true;
           previousCourseDay = advResult.previousDay;
@@ -3946,7 +3965,7 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
       scorePercentage,
       earnedPoints,
       totalPoints,
-      passed: scorePercentage >= 60,
+      passed: scorePercentage >= PASS_SCORE_PERCENT,
       answerDetails,
       journeyAdvanced,
       ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})

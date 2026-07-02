@@ -7,7 +7,12 @@ import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { DigitalExerciseService, DigitalExercise, ExerciseAttempt } from '../../services/digital-exercise.service';
+import {
+  DigitalExerciseService,
+  DigitalExercise,
+  ExerciseAttempt,
+  EXERCISE_PASS_SCORE_PERCENT
+} from '../../services/digital-exercise.service';
 import { AuthService } from '../../services/auth.service';
 import { parseAdminCourseDayOrNull, TRIAL_JOURNEY_DAY } from '../../utils/journey-day.util';
 import { digitalExercisePlayCommands, exerciseIdForRoute } from '../../utils/digital-exercise-id.util';
@@ -58,7 +63,7 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   totalExercises = 0;
   readonly pageSize = 12;
   /** Aligned with server submit `passed` rule */
-  readonly passScorePercent = 60;
+  readonly passScorePercent = EXERCISE_PASS_SCORE_PERCENT;
 
   readonly allLevels: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   /** Level filter dropdown options (students = only up to profile level). */

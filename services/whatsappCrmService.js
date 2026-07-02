@@ -58,6 +58,33 @@ function isWhatsappAutomatedJobsEnabled() {
  * Notification type constants — one per action.
  * Must match the types expected by the CRM on the other end.
  */
+/** Automated WhatsApp messages must be one short paragraph (no line breaks). */
+const WHATSAPP_AUTO_MSG_MAX_LEN = 400;
+
+/**
+ * Collapse automated messages to a single short paragraph for WhatsApp delivery limits.
+ * Replaces newlines with spaces, trims, and caps length without breaking URLs when possible.
+ */
+function normalizeWhatsappAutomatedMessage(message) {
+  if (message == null) return '';
+  let text = String(message)
+    .replace(/[\r\n\u2028\u2029]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= WHATSAPP_AUTO_MSG_MAX_LEN) return text;
+
+  const urlMatch = text.match(/https?:\/\/\S+/);
+  const url = urlMatch ? urlMatch[0] : '';
+  const bodyBudget = url ? WHATSAPP_AUTO_MSG_MAX_LEN - url.length - 1 : WHATSAPP_AUTO_MSG_MAX_LEN - 1;
+  let body = url ? text.replace(url, '').replace(/\s+/g, ' ').trim() : text;
+  if (body.length > bodyBudget) {
+    const cut = body.slice(0, bodyBudget);
+    const lastSpace = cut.lastIndexOf(' ');
+    body = (lastSpace > bodyBudget * 0.5 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
+  }
+  return url ? `${body} ${url}`.trim() : body;
+}
+
 const NOTIFICATION_TYPES = {
   CLASS_REMINDER: 'CLASS_REMINDER',
   ABSENT_DURING_CLASS: 'ABSENT_DURING_CLASS',
@@ -86,6 +113,8 @@ async function sendWhatsappNotification({ phone, name, type, message, data = {} 
     console.log(`[WhatsApp] ⏸ Skipped "${type}" for ${name} (${phone}) — automated jobs disabled`);
     return false;
   }
+
+  message = normalizeWhatsappAutomatedMessage(message);
 
   const phone_number = normalizeE164Phone(phone);
   if (!phone_number) {
@@ -252,6 +281,7 @@ module.exports = {
   sendWhatsappNotification,
   sendBulkWhatsappNotifications,
   sendManualWhatsappMessage,
+  normalizeWhatsappAutomatedMessage,
   normalizeE164Phone,
   isWhatsappSendEnabled,
   isWhatsappManualSendEnabled,

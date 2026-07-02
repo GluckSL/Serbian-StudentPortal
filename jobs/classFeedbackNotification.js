@@ -179,7 +179,7 @@ async function processFeedbackNotifications() {
             phone,
             name,
             type: FEEDBACK_NOTIFICATION_TYPE,
-            message: `Hi ${name}! 🦊 Your class "${classTitle}" (${batch}) just ended. Please take 30 seconds to share your feedback: ${feedbackUrl}`,
+            message: `Hi ${name}! "${classTitle}" just ended. Share quick feedback: ${feedbackUrl}`,
             data: {
               meetingId: meeting._id,
               classTitle,

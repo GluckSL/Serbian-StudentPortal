@@ -11,6 +11,7 @@ const XpTransaction = require('../models/XpTransaction');
 const StudentGameStats = require('../models/StudentGameStats');
 
 const journeyFilterService = require('../services/interactiveGames/journeyFilter');
+const { tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
 const scoringService = require('../services/interactiveGames/scoring');
 const scrambleRushService = require('../services/interactiveGames/scrambleRush');
 const sentenceBuilderService = require('../services/interactiveGames/sentenceBuilder');
@@ -1028,7 +1029,32 @@ exports.completeAttempt = async (req, res) => {
       await cacheService.del('ga:lb:*');
     }
 
-    res.json({ success: true, attempt: updated, xpBonus, accuracy, newAchievements, preview: staffPreview });
+    let journeyAdvanced = false;
+    let newCourseDay = null;
+    let previousCourseDay = null;
+    if (!staffPreview && req.user?.role === 'STUDENT') {
+      try {
+        const advResult = await tryInstantJourneyAdvanceAfterTask(req.user.id);
+        if (advResult.advanced) {
+          journeyAdvanced = true;
+          previousCourseDay = advResult.previousDay;
+          newCourseDay = advResult.newDay;
+        }
+      } catch (advErr) {
+        console.error('[Instant Advance] arena complete check failed (non-critical):', advErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      attempt: updated,
+      xpBonus,
+      accuracy,
+      newAchievements,
+      preview: staffPreview,
+      journeyAdvanced,
+      ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})
+    });
   } catch (err) {
     serverError(res, err);
   }
