@@ -125,8 +125,12 @@ async function provisionPublicSignupUser(appDoc, opts = {}) {
     }
     existing.isActive = isActive;
     existing.studentStatus = 'ONGOING';
-    if (app.passwordHash) existing.password = app.passwordHash;
+    if (app.passwordHash) {
+      existing.password = app.passwordHash;
+      existing.passwordChangedAt = existing.passwordChangedAt || new Date();
+    }
     if (app.passwordRecoverable) existing.passwordRecoverable = app.passwordRecoverable;
+    existing.mustChangePassword = false;
     existing.signupSource = existing.signupSource || 'public_signup';
     await existing.save();
     await SignupApplication.updateOne({ _id: app._id }, { userId: existing._id }).catch(() => {});
@@ -157,6 +161,7 @@ async function provisionPublicSignupUser(appDoc, opts = {}) {
       signupSource: 'public_signup',
       isActive,
       mustChangePassword: false,
+      passwordChangedAt: new Date(),
       password: app.passwordHash,
       passwordRecoverable: app.passwordRecoverable || undefined,
     });

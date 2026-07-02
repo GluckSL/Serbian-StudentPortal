@@ -69,13 +69,7 @@ async function processDailyTaskReminders() {
       // ── WhatsApp (gated) ────────────────────────────────────────────────
       if (isWhatsappAutomatedJobsEnabled()) {
         const phone = resolveStudentPhone(student);
-        const taskSummary = incompleteTasks
-          .slice(0, 3)
-          .map((t) => t.title || 'task')
-          .join(', ');
-        const waMsg = incompleteTasks.length <= 3
-          ? `Hi ${student.name}, you still have ${incompleteTasks.length} task(s) left for Day ${day} (${taskSummary}). Complete them now: ${portalUrl}`
-          : `Hi ${student.name}, you still have ${incompleteTasks.length} tasks left for Day ${day}. Complete them before midnight: ${portalUrl}`;
+        const waMsg = `Hi ${student.name}, ${incompleteTasks.length} task(s) left for Day ${day}. Complete today: ${portalUrl}`;
         await sendWhatsappNotification({
           phone,
           name: student.name,

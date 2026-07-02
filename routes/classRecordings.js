@@ -18,7 +18,7 @@ const { backfillZoomRecordings, getBackfillStatus } = require('../services/zoomR
 const { processManualRecordingUpload, processManualRecordingFromR2 } = require('../services/recordingProcessor');
 const manualRecordingUpload = require('../config/manualRecordingUpload');
 const { allStudentBatchStringsForContent, recordingAccessBatchKeys, batchesAlign, normalizeBatch } = require('../utils/effectiveStudentBatch');
-const { markPendingAdvanceForStudentDay, checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { markPendingAdvanceForStudentDay, tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
 const BatchConfig = require('../models/BatchConfig');
 const {
   computeJourneyDayCompletion,
@@ -1858,8 +1858,9 @@ router.put('/view/:viewId', verifyToken, async (req, res) => {
         const watchedEnough = recDurationSec > 0 && totalWatchedSec >= Math.ceil(recDurationSec * watchRatio);
 
         if (recording?.active && watchedEnough) {
-          await SilverGoUnlockCache.deleteOne({ studentId: view.student });
-          const advResult = await checkAndInstantlyAdvanceSilverGoStudent(String(view.student));
+          const advResult = await tryInstantJourneyAdvanceAfterTask(String(view.student), {
+            includeRecordings: true
+          });
           if (advResult.advanced) {
             journeyAdvanced = true;
             previousCourseDay = advResult.previousDay;
@@ -2036,56 +2037,21 @@ router.put('/zoom/view/:viewId', verifyToken, async (req, res) => {
         totalWatchedSec >= Math.ceil(recordingDurationSec * completionWatchRatio);
 
       if (isEligibleGate) {
-        const dayInt = Math.floor(day);
+        const advResult = await tryInstantJourneyAdvanceAfterTask(String(view.student), {
+          creditMeetings: meeting?._id ? [meeting._id] : []
+        });
+        if (advResult.advanced) {
+          return res.json({
+            success: true,
+            journeyAdvanced: true,
+            previousCourseDay: advResult.previousDay,
+            newCourseDay: advResult.newDay
+          });
+        }
 
-        if (isSilverGo) {
-          await SilverGoUnlockCache.deleteOne({ studentId: view.student });
-          const advResult = await checkAndInstantlyAdvanceSilverGoStudent(String(view.student));
-          if (advResult.advanced) {
-            return res.json({
-              success: true,
-              journeyAdvanced: true,
-              previousCourseDay: advResult.previousDay,
-              newCourseDay: advResult.newDay
-            });
-          }
-        } else {
-          const nextDay = Math.min(200, dayInt + 1);
-          const batchKeys = studentLean ? allStudentBatchStringsForContent(studentLean) : [];
-          const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
-          const primary = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
-          const cfgDoc = primary
-            ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
-            : null;
-
-          let allowInstantAdvance = true;
-          if (cfgDoc && cfgDoc.strictJourneyRule) {
-            const comp = await computeJourneyDayCompletion(view.student, batchKeys, dayInt, {
-              creditMeetings: meeting?._id ? [meeting._id] : []
-            });
-            allowInstantAdvance = meetsStrictThreshold(comp, cfgDoc);
-          }
-
-          if (allowInstantAdvance) {
-            const advancedNow = await User.updateOne(
-              { _id: view.student, role: 'STUDENT', currentCourseDay: dayInt },
-              {
-                $set: withJourneyLevelInSet(
-                  nextDay,
-                  {
-                    currentCourseDay: nextDay,
-                    pendingJourneyDayAdvance: false,
-                    pendingJourneyDayAdvanceForDay: null
-                  },
-                  { student: studentLean }
-                )
-              }
-            );
-            if (advancedNow?.modifiedCount) {
-              return res.json({ success: true, journeyAdvanced: true, previousCourseDay: dayInt, newCourseDay: nextDay });
-            }
-            await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
-          }
+        if (!isSilverGo) {
+          const dayInt = Math.floor(day);
+          await markPendingAdvanceForStudentDay(String(view.student), String(meeting.batch || ''), dayInt);
         }
       }
     }

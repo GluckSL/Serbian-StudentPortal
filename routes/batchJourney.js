@@ -22,6 +22,7 @@ const {
   computeJourneyDayCompletion,
   meetsStrictThreshold
 } = require('../services/journeyDayCompletion.service');
+const { tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
@@ -609,6 +610,24 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     const activeBatchDay = computeBatchDay(cfg);
     const trial = !!cfg.trialDayEnabled;
 
+    let studentRows = students;
+    if (cfg.strictJourneyRule && activeBatchDay != null) {
+      const behindIds = students
+        .filter((s) => resolveCourseDay(s.currentCourseDay, trial) < activeBatchDay)
+        .map((s) => String(s._id));
+      if (behindIds.length) {
+        await Promise.all(
+          behindIds.map((id) =>
+            tryInstantJourneyAdvanceAfterTask(id).catch(() => ({ advanced: false }))
+          )
+        );
+        studentRows = await User.find({ role: 'STUDENT', batch: batchRx })
+          .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount batch')
+          .sort({ name: 1 })
+          .lean();
+      }
+    }
+
     res.json({
       batchName,
       config: {
@@ -628,7 +647,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         ...journeyPauseFieldsForApi(cfg)
       },
       teacher: { teacherId, teacherName },
-      students: students.map(s => ({
+      students: studentRows.map(s => ({
         _id: s._id,
         name: s.name,
         regNo: s.regNo,
@@ -1022,7 +1041,7 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
     if (!(await teacherCanAccessStudent(req, req.params.studentId))) {
       return res.status(403).json({ message: 'You do not have access to this student.' });
     }
-    const student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
+    let student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
       .select('name regNo batch currentCourseDay goStatus subscription').lean();
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
@@ -1030,7 +1049,15 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
       ? await BatchConfig.findOne({ batchName: batchNameRegex(student.batch) }).select('trialDayEnabled').lean()
       : null;
     const studentTrial = !!stBatchCfg?.trialDayEnabled;
-    const dayStart = journeyDayRangeStart(studentTrial);
+
+    let catchUpAdvanced = false;
+    const catchUp = await tryInstantJourneyAdvanceAfterTask(req.params.studentId);
+    if (catchUp.totalAdvanced > 0) {
+      catchUpAdvanced = true;
+      student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
+        .select('name regNo batch currentCourseDay goStatus subscription').lean();
+      if (!student) return res.status(404).json({ message: 'Student not found' });
+    }
 
     const day = resolveCourseDay(student.currentCourseDay, studentTrial);
     const batchKeys = allStudentBatchStringsForContent(student);
@@ -1056,6 +1083,7 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
       studentId: student._id,
       name: student.name,
       currentDay: day,
+      catchUpAdvanced,
       strictJourneyRule,
       strictJourneyThresholdPercent,
       thresholdMet,

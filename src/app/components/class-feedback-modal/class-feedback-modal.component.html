@@ -65,25 +65,20 @@
         </div>
       </div>
 
-      <!-- Q3: Confidence (Stars) -->
+      <!-- Q3: Confidence -->
       <div class="fb-question">
         <div class="fb-q-label">
           <span class="fb-q-number">3</span>
           How confident do you feel using today's topic?
         </div>
-        <div class="fb-stars">
+        <div class="fb-options">
           <button
-            *ngFor="let s of confidenceStars"
-            class="fb-star"
-            [class.fb-star-filled]="selectedConfidence >= s"
-            (click)="selectConfidence(s)"
-            [attr.aria-label]="s + ' star' + (s > 1 ? 's' : '')">
-            <span class="fb-star-fox">🦊</span>
-            <span class="fb-star-icon">{{ selectedConfidence >= s ? '⭐' : '☆' }}</span>
+            *ngFor="let opt of confidenceOptions"
+            [class]="'fb-option ' + opt.foxMood + (selectedConfidence === opt.value ? ' fb-option-selected' : '')"
+            (click)="selectConfidence(opt.value)">
+            <span class="fb-opt-fox">🦊</span>
+            <span class="fb-opt-label">{{ opt.label }}</span>
           </button>
-          <span class="fb-stars-hint" *ngIf="selectedConfidence > 0">
-            {{ ['', 'Just starting!', 'Getting there!', 'Fox-level confident! 🦊'][selectedConfidence] }}
-          </span>
         </div>
       </div>
 

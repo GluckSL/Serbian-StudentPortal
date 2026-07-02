@@ -6,7 +6,7 @@
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const DigitalExercise = require('../models/DigitalExercise');
 
-const PASS_SCORE_PERCENT = 60;
+const PASS_SCORE_PERCENT = 40;
 
 function questionTotalPoints(q) {
   const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];

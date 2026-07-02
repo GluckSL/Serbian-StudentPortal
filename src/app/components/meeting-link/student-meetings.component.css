@@ -980,7 +980,9 @@ mat-card-actions button mat-icon {
 
   .classes-table--attempted tr.sm-class-card-row td:nth-child(5) .sm-btn-group {
     width: auto;
+    max-width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 4px;
   }
 
@@ -1011,6 +1013,16 @@ mat-card-actions button mat-icon {
 
   .classes-table--attempted tr.sm-class-card-row .sm-pill--doubt i {
     color: #b45309;
+  }
+
+  .classes-table--attempted tr.sm-class-card-row .sm-pill--upload i {
+    color: #15803d;
+  }
+
+  /* Feedback uses emoji (not <i>) — restore size hidden by font-size: 0 on .sm-pill */
+  .classes-table--attempted tr.sm-class-card-row .sm-pill--feedback {
+    font-size: 17px;
+    line-height: 1;
   }
 
   .classes-table--attempted tr.sm-class-card-row .sm-pill:hover:not(:disabled) {
@@ -1124,7 +1136,9 @@ mat-card-actions button mat-icon {
 
   .classes-table--7 tr.sm-class-card-row td:nth-child(7) .sm-btn-group {
     width: auto;
+    max-width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 6px;
   }
 
@@ -1154,6 +1168,16 @@ mat-card-actions button mat-icon {
 
   .classes-table--7 tr.sm-class-card-row .sm-pill--doubt i {
     color: #b45309;
+  }
+
+  .classes-table--7 tr.sm-class-card-row .sm-pill--upload i {
+    color: #15803d;
+  }
+
+  /* Feedback uses emoji (not <i>) — restore size hidden by font-size: 0 on .sm-pill */
+  .classes-table--7 tr.sm-class-card-row .sm-pill--feedback {
+    font-size: 17px;
+    line-height: 1;
   }
 
   .classes-table--7 tr.sm-class-card-row .sm-pill:hover:not(:disabled) {

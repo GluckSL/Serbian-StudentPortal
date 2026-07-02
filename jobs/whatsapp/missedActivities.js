@@ -41,7 +41,7 @@ async function processMissedActivities(batchSettings) {
       phone,
       name: student.name,
       type: NOTIFICATION_TYPES.MISSED_ACTIVITIES,
-      message: `Hi ${student.name}, you haven't completed any activities in the past 7 days. Log in to the portal and continue your learning journey — consistency is key!`,
+      message: `Hi ${student.name}, no activities completed in 7 days. Log in and finish at least one today!`,
       data: {
         studentId: student._id,
         batch: student.batch,
@@ -89,7 +89,7 @@ async function processExcessiveAbsences(batchSettings) {
       phone,
       name: student.name,
       type: NOTIFICATION_TYPES.EXCESSIVE_ABSENCES,
-      message: `Hi ${student.name}, you have been absent in ${absentCount} of your last ${recentMeetings.length} classes (Batch: ${student.batch}). Please contact your teacher to discuss your attendance.`,
+      message: `Hi ${student.name}, absent ${absentCount} of your last ${recentMeetings.length} classes. Please speak with your teacher.`,
       data: {
         studentId: student._id,
         batch: student.batch,

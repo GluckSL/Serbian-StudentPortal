@@ -102,6 +102,7 @@ interface StudentRow {
     complete: boolean;
     breakdown: { exercises: any; classes: any };
     incompleteTasks?: IncompleteTaskItem[];
+    thresholdMet?: boolean;
   } | null;
   advancing?: boolean;
 }
@@ -951,9 +952,9 @@ interface TimelineDay {
                 </button>
                 <button type="button" class="j-btn j-btn-sm"
                         [title]="advanceArrowTitle(s)"
-                        [class.j-btn-success]="s.taskStatus?.complete"
-                        [class.j-btn-warning]="!s.taskStatus?.complete"
-                        (click)="advanceStudentDay(s, !s.taskStatus?.complete)"
+                        [class.j-btn-success]="s.taskStatus?.complete || s.taskStatus?.thresholdMet"
+                        [class.j-btn-warning]="!s.taskStatus?.complete && !s.taskStatus?.thresholdMet"
+                        (click)="advanceStudentDay(s, !(s.taskStatus?.complete || s.taskStatus?.thresholdMet))"
                         [disabled]="s.advancing || s.saving || (!advanceArrowHasJumpTarget(s) && s.currentCourseDay >= selectedBatch!.journeyLength)">
                   <i class="fas" [class.fa-arrow-right]="!s.advancing" [class.fa-spinner]="s.advancing"
                                  [class.fa-spin]="s.advancing"></i>
@@ -1668,6 +1669,11 @@ interface TimelineDay {
       <div *ngIf="taskModal.complete" class="j-modal-all-done">
         <span class="j-modal-icon-ok"><i class="fas fa-check-circle"></i></span>
         <span>All tasks for this day are completed. Student can advance to the next day.</span>
+      </div>
+
+      <div *ngIf="!taskModal.complete && taskModal.thresholdMet" class="j-modal-all-done">
+        <span class="j-modal-icon-ok"><i class="fas fa-check-circle"></i></span>
+        <span>Strict threshold met (≥ {{ taskModal.strictJourneyThresholdPercent }}%). Student can advance to the next day.</span>
       </div>
 
       <div *ngIf="!taskModal.complete && taskModal.incompleteTasks.length" class="j-modal-list">
@@ -5749,8 +5755,14 @@ export class JourneyManagementComponent implements OnInit {
         s.taskStatus = {
           complete: r.complete,
           breakdown: r.breakdown,
-          incompleteTasks: incomplete
+          incompleteTasks: incomplete,
+          thresholdMet: r.thresholdMet
         };
+        if (r.catchUpAdvanced && r.currentDay != null) {
+          s.currentCourseDay = r.currentDay;
+          s.editDay = r.currentDay;
+          this.notify.success(`${s.name} advanced to Day ${r.currentDay} (threshold met).`);
+        }
         s.checkingTasks = false;
         this.openTaskModalFromResponse(s._id, s.name, r.currentDay ?? s.currentCourseDay, r.complete, incomplete, {
           completionPercent: r.completionPercent,
@@ -5834,7 +5846,8 @@ export class JourneyManagementComponent implements OnInit {
       return 'Advance to next day';
     }
     const thr = this.editStrictThresholdPercent ?? 100;
-    return s.taskStatus?.complete
+    const canAdvance = !!(s.taskStatus?.complete || s.taskStatus?.thresholdMet);
+    return canAdvance
       ? 'Advance to next day'
       : `Advance if day tasks meet ≥ ${thr}% (or use force)`;
   }

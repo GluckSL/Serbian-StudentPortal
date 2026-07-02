@@ -7,6 +7,9 @@ import { switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { StudentProgressService } from './student-progress.service';
 
+/** Minimum score (0–100) to pass an exercise and unlock the next sequence letter. */
+export const EXERCISE_PASS_SCORE_PERCENT = 40;
+
 export type QuestionType =
   | 'mcq'
   | 'matching'

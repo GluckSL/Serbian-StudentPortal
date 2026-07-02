@@ -37,7 +37,7 @@ const {
   recordingWatchCountsAsComplete,
   recordingWatchSecondsForComplete
 } = require('../utils/recordingWatchCompletion');
-const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
 const { readRecoverablePassword } = require('../utils/passwordRecoverable');
 
 function createGoStudentsRouter(trackKey) {
@@ -688,11 +688,8 @@ function createGoStudentsRouter(trackKey) {
         );
 
         let journeyAdvanced = false;
-        if (isSilverGoStudent(student)) {
-          await SilverGoUnlockCache.deleteOne({ studentId });
-          const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
-          journeyAdvanced = !!adv?.advanced;
-        }
+        const adv = await tryInstantJourneyAdvanceAfterTask(studentId, { includeRecordings: true });
+        journeyAdvanced = !!adv?.advanced;
 
         res.json({
           success: true,
@@ -744,11 +741,10 @@ function createGoStudentsRouter(trackKey) {
         const watched = recordingWatchCountsAsComplete(watchDuration, durationSec);
 
         let journeyAdvanced = false;
-        if (isSilverGoStudent(student)) {
-          await SilverGoUnlockCache.deleteOne({ studentId });
-          const adv = await checkAndInstantlyAdvanceSilverGoStudent(studentId);
-          journeyAdvanced = !!adv?.advanced;
-        }
+        const adv = await tryInstantJourneyAdvanceAfterTask(studentId, {
+          creditMeetings: [meetingLinkId]
+        });
+        journeyAdvanced = !!adv?.advanced;
 
         res.json({
           success: true,

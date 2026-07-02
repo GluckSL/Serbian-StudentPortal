@@ -1,4 +1,3 @@
-const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
 const DGSession = require('../models/DGSession');
 const DGModule = require('../models/DGModule');
 const {
@@ -7,7 +6,7 @@ const {
   dgWeekLockMessage,
 } = require('../utils/dgStudentJourneyGate');
 const { totalSessionMinutes, extractChatTurns, effectiveSessionScore } = require('../utils/dgSessionMetrics');
-const { checkAndInstantlyAdvanceSilverGoStudent } = require('../services/journeyDayAdvance.service');
+const { tryInstantJourneyAdvanceAfterTask } = require('../services/journeyDayAdvance.service');
 
 function pushLog(session, entry) {
   session.logs.push({
@@ -209,8 +208,7 @@ exports.complete = async (req, res) => {
     let previousCourseDay = null;
     if (req.user && req.user.role === 'STUDENT') {
       try {
-        await SilverGoUnlockCache.deleteOne({ studentId: req.user.id });
-        const advResult = await checkAndInstantlyAdvanceSilverGoStudent(req.user.id);
+        const advResult = await tryInstantJourneyAdvanceAfterTask(req.user.id);
         if (advResult.advanced) {
           journeyAdvanced = true;
           previousCourseDay = advResult.previousDay;

@@ -14,7 +14,8 @@ const BatchConfig = require('../models/BatchConfig');
 const { allStudentBatchStringsForContent, batchesAlign } = require('../utils/effectiveStudentBatch');
 const {
   computeJourneyDayCompletion,
-  meetsStrictThreshold
+  meetsStrictThreshold,
+  clearDayCompletionCacheForStudent
 } = require('./journeyDayCompletion.service');
 const { withJourneyLevelInSet } = require('./journeyLevelSync.service');
 const { shouldSkipStudentRollover } = require('../utils/journeyPause');
@@ -140,7 +141,15 @@ async function checkAndInstantlyAdvancePlatinumStudent(studentId, meetingBatch, 
 
   if (!allowAdvance) return { advanced: false };
 
-  const nextDay = Math.min(200, currentDay + 1);
+  const calendarDay = cfgDoc?.batchStartDate ? computeJourneyDayFromBatchConfig(cfgDoc) : null;
+  if (calendarDay != null && currentDay >= calendarDay) return { advanced: false };
+
+  const maxDay = cfgDoc?.journeyLength != null ? Math.min(200, Math.max(1, cfgDoc.journeyLength)) : 200;
+  const nextDay = calendarDay != null
+    ? Math.min(maxDay, currentDay + 1, calendarDay)
+    : Math.min(maxDay, currentDay + 1);
+  if (nextDay <= currentDay) return { advanced: false };
+
   const result = await User.updateOne(
     { _id: studentId, role: 'STUDENT', currentCourseDay: currentDay },
     {
@@ -158,6 +167,81 @@ async function checkAndInstantlyAdvancePlatinumStudent(studentId, meetingBatch, 
 
   if (result.modifiedCount) {
     console.log(`🚀 [Instant Advance] Platinum student ${studentId}: Day ${currentDay} → ${nextDay}`);
+    return { advanced: true, previousDay: currentDay, newDay: nextDay };
+  }
+  return { advanced: false };
+}
+
+/**
+ * Platinum students with strict journey: check on every task completion (exercise, DG session)
+ * and instantly advance if the student now meets the batch completion threshold.
+ * Caps at the batch calendar day so a student can't jump ahead of the batch.
+ *
+ * Example: batch on Day 3, student on Day 2, threshold 50%.
+ *   - Student completes 50 % of Day 2 tasks → advances to Day 3 instantly.
+ *   - If already on Day 3 → calendarDay cap (Day 3) prevents any further advance.
+ */
+async function checkAndInstantlyAdvancePlatinumStrictStudent(studentId, completionOptions = {}) {
+  const student = await User.findById(studentId)
+    .select(SILVER_GO_STUDENT_SELECT)
+    .lean();
+  if (!student || student.role !== 'STUDENT') return { advanced: false };
+  if (isSilverSubscriptionStudent(student)) return { advanced: false };
+
+  const keys = allStudentBatchStringsForContent(student);
+  if (!keys.length) return { advanced: false };
+
+  const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+  const primary = primaryGoBatchFromKeys(keys) || keys[0];
+  const cfgDoc = primary
+    ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primary)}$`, 'i') }).lean()
+    : null;
+
+  if (!cfgDoc || !cfgDoc.strictJourneyRule) return { advanced: false };
+
+  const currentDay = normalizeCourseDay(student.currentCourseDay);
+  if (currentDay >= 200) return { advanced: false };
+
+  const calendarDay = cfgDoc.batchStartDate ? computeJourneyDayFromBatchConfig(cfgDoc) : null;
+  if (calendarDay != null && currentDay >= calendarDay) return { advanced: false };
+
+  const completion = await computeJourneyDayCompletion(studentId, keys, currentDay, {
+    includeRecordings: false,
+    includeDg: isLearningEnabled(cfgDoc.batchType),
+    batchType: cfgDoc.batchType,
+    studentLevel: student.level,
+    studentPlan: student.subscription,
+    goStatus: student.goStatus,
+    subscription: student.subscription,
+    ...completionOptions
+  });
+
+  if (!meetsStrictThreshold(completion, cfgDoc)) return { advanced: false };
+
+  const maxDay = cfgDoc.journeyLength != null ? Math.min(200, Math.max(1, cfgDoc.journeyLength)) : 200;
+  const nextDay = calendarDay != null
+    ? Math.min(maxDay, currentDay + 1, calendarDay)
+    : Math.min(maxDay, currentDay + 1);
+
+  if (nextDay <= currentDay) return { advanced: false };
+
+  const result = await User.updateOne(
+    { _id: studentId, role: 'STUDENT', currentCourseDay: currentDay },
+    {
+      $set: withJourneyLevelInSet(
+        nextDay,
+        {
+          currentCourseDay: nextDay,
+          pendingJourneyDayAdvance: false,
+          pendingJourneyDayAdvanceForDay: null
+        },
+        { student }
+      )
+    }
+  );
+
+  if (result.modifiedCount) {
+    console.log(`🚀 [Instant Advance] Platinum strict student ${studentId}: Day ${currentDay} → ${nextDay}`);
     return { advanced: true, previousDay: currentDay, newDay: nextDay };
   }
   return { advanced: false };
@@ -492,6 +576,59 @@ async function advanceSilverGoStudentToStableDay(studentId) {
   return { totalAdvanced };
 }
 
+/**
+ * Catch-up loop for Platinum strict students who already met the threshold but were not
+ * advanced yet (e.g. completed tasks before instant-advance existed, or server was offline).
+ * Advances one day per iteration, capped at the batch calendar day.
+ */
+async function advancePlatinumStrictStudentToStableDay(studentId, completionOptions = {}) {
+  let totalAdvanced = 0;
+  const MAX_ADVANCES = 200;
+  while (totalAdvanced < MAX_ADVANCES) {
+    const opts = totalAdvanced === 0 ? completionOptions : {};
+    const result = await checkAndInstantlyAdvancePlatinumStrictStudent(studentId, opts);
+    if (!result.advanced) break;
+    totalAdvanced++;
+  }
+  return { totalAdvanced };
+}
+
+/**
+ * Call after any student task completion or on catch-up (journey load, admin re-check).
+ * Tries Silver GO then Platinum strict, advancing up to the batch calendar day.
+ */
+async function tryInstantJourneyAdvanceAfterTask(studentId, completionOptions = {}) {
+  clearDayCompletionCacheForStudent(studentId);
+  await SilverGoUnlockCache.deleteOne({ studentId });
+
+  const studentBefore = await User.findById(studentId).select('currentCourseDay').lean();
+  const beforeDay = studentBefore ? normalizeCourseDay(studentBefore.currentCourseDay) : null;
+
+  const silver = await advanceSilverGoStudentToStableDay(studentId);
+  if (silver.totalAdvanced > 0) {
+    const student = await User.findById(studentId).select('currentCourseDay').lean();
+    return {
+      advanced: true,
+      previousDay: beforeDay,
+      newDay: student ? normalizeCourseDay(student.currentCourseDay) : null,
+      totalAdvanced: silver.totalAdvanced
+    };
+  }
+
+  const platinum = await advancePlatinumStrictStudentToStableDay(studentId, completionOptions);
+  if (platinum.totalAdvanced > 0) {
+    const student = await User.findById(studentId).select('currentCourseDay').lean();
+    return {
+      advanced: true,
+      previousDay: beforeDay,
+      newDay: student ? normalizeCourseDay(student.currentCourseDay) : null,
+      totalAdvanced: platinum.totalAdvanced
+    };
+  }
+
+  return { advanced: false, totalAdvanced: 0 };
+}
+
 module.exports = {
   syncPendingFlagsFromMeeting,
   recomputePendingForStudent,
@@ -501,5 +638,8 @@ module.exports = {
   markPendingAdvanceForStudentDay,
   checkAndInstantlyAdvanceSilverGoStudent,
   advanceSilverGoStudentToStableDay,
-  checkAndInstantlyAdvancePlatinumStudent
+  checkAndInstantlyAdvancePlatinumStudent,
+  checkAndInstantlyAdvancePlatinumStrictStudent,
+  advancePlatinumStrictStudentToStableDay,
+  tryInstantJourneyAdvanceAfterTask
 };
