@@ -1255,7 +1255,12 @@
                       </p>
                       <div
                         class="pron-audio-quality-banner"
-                        *ngIf="currentQuestion.pronLowAudioQuality"
+                        *ngIf="
+                          shouldShowLowAudioWarning(
+                            currentQuestion.pronLowAudioQuality,
+                            currentQuestion.pronunciationScore
+                          )
+                        "
                       >
                         Your microphone input seems low. Try speaking louder or
                         closer to the mic.
@@ -2876,7 +2881,12 @@
               </div>
               <div
                 class="pron-audio-quality-banner"
-                *ngIf="currentQuestion.pronLowAudioQuality"
+                *ngIf="
+                  shouldShowLowAudioWarning(
+                    currentQuestion.pronLowAudioQuality,
+                    currentQuestion.pronunciationScore
+                  )
+                "
               >
                 Your microphone input seems low. Try speaking louder or closer
                 to the mic.
@@ -4241,7 +4251,7 @@
                         <div class="pron-confidence-nudge" *ngIf="confidenceNudge(lastConfidenceByIndex[currentQuestion.index], currentQuestion.subQuestionPronunciationScore?.[sqIndex])">
                           {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index], currentQuestion.subQuestionPronunciationScore?.[sqIndex]) }}
                         </div>
-                        <div class="pron-audio-quality-banner" *ngIf="currentQuestion.subQuestionPronLowAudioQuality?.[sqIndex]">
+                        <div class="pron-audio-quality-banner" *ngIf="shouldShowLowAudioWarning(currentQuestion.subQuestionPronLowAudioQuality?.[sqIndex], currentQuestion.subQuestionPronunciationScore?.[sqIndex])">
                           Your microphone input seems low. Try speaking louder or closer to the mic.
                         </div>
 

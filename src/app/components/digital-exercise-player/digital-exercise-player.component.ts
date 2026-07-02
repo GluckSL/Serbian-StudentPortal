@@ -324,6 +324,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return '';
   }
 
+  /** Show mic-quality banner only when audio was genuinely low and the score was not strong. */
+  shouldShowLowAudioWarning(lowFlag?: boolean, score?: number): boolean {
+    if (!lowFlag) return false;
+    if (score != null && score >= 85) return false;
+    return true;
+  }
+
   shouldShowNeedHelp(pq: PlayerQuestion): boolean {
     return Number(pq?.pronAttemptCount || pq?.vpFailCount || 0) >= 2;
   }
@@ -2467,6 +2474,33 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         });
       }
     }
+
+    const subs = data.subQuestions || [];
+    subs.forEach((sq: any, sqi: number) => {
+      if (sq?.type !== 'fill-blank') return;
+      const count = countFillBlankRuns(sq.sentence || '');
+      if (count <= 0) return;
+      const correctList = sq._correctAnswers || sq.answers || [];
+      const partLabel = this.getFillBlankReviewPartLabel(
+        questionIndex,
+        this.getSubQuestionPartNumber(sqi, data),
+        'sub',
+        hasSubQuestions
+      );
+      for (let bi = 0; bi < count; bi++) {
+        blankNum++;
+        const studentAnswer = String(pq.subQuestionFillBlankAnswers?.[sqi]?.[bi] ?? '').trim();
+        const correctAnswer = String(correctList[bi] ?? '').trim();
+        items.push({
+          globalIndex: blankNum,
+          partLabel,
+          studentAnswer,
+          correctAnswer,
+          isCorrect: this.isSubFillCorrect(pq, sqi, bi),
+          answered: studentAnswer.length > 0
+        });
+      }
+    });
 
     return items;
   }
@@ -4999,6 +5033,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (type === 'question-answer') {
       return !this.htmlToPlainText(data.prompt) && !this.isTrueFalseQuestion(data);
+    }
+    if (type === 'fill-blank') {
+      return countFillBlankRuns(data.sentence || '') === 0;
     }
     return false;
   }

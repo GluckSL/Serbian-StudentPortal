@@ -504,10 +504,37 @@ function applyThresholdScoring(q, rawScore) {
   return { score, threshold, scoringMode, isCorrect, pointsEarned };
 }
 
+/** True when the parent row itself has a gradable answer (not only shared context for sub-parts). */
+function parentHasAnswerablePart(q) {
+  if (!q || typeof q !== 'object') return false;
+  const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+  if (!subs.length) return true;
+
+  const type = String(q.type || '').toLowerCase();
+  if (type === 'mcq') {
+    const hasQuestion = !!sanitizeQuestionPlainText(q.question || '');
+    const hasOptions = Array.isArray(q.options)
+      && q.options.some((o) => !!sanitizeQuestionPlainText(o || ''));
+    return hasQuestion || hasOptions;
+  }
+  if (type === 'question-answer') {
+    const hasPrompt = !!sanitizeQuestionPlainText(q.prompt || '');
+    const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+    return hasPrompt || isTrueFalse;
+  }
+  if (type === 'fill-blank') {
+    return fillBlankSlotCount(q) > 0;
+  }
+  return true;
+}
+
 function questionTotalPoints(q) {
   const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
   const subPts = subs.reduce((sum, sq) => sum + (sq?.points ?? 1), 0);
-  return (q?.points ?? 1) + subPts;
+  const parentPts = parentHasAnswerablePart(q) ? (q?.points ?? 1) : 0;
+  return parentPts + subPts;
 }
 
 function exerciseTotalPoints(questions) {
@@ -704,6 +731,13 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
   const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
   if (!subs.length) {
     return { isCorrect: parentIsCorrect, pointsEarned, correctAnswer, subResults };
+  }
+
+  // Context-only parent (passage/media/instruction) — grade sub-parts only.
+  if (!parentHasAnswerablePart(q)) {
+    parentIsCorrect = true;
+    parentPointsEarned = 0;
+    pointsEarned = 0;
   }
 
   const subResps = Array.isArray(resp.subQuestionResponses) ? resp.subQuestionResponses : [];
@@ -1335,6 +1369,9 @@ function getParentPartReviewGrade(q, r) {
   const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
   if (!subs.length) {
     return { isCorrect: !!r.isCorrect, pointsEarned: Number(r.pointsEarned) || 0 };
+  }
+  if (!parentHasAnswerablePart(q)) {
+    return { isCorrect: true, pointsEarned: 0 };
   }
   const subPts = (r.subQuestionGrades || []).reduce((sum, g) => sum + (Number(g.pointsEarned) || 0), 0);
   const parentPts = Math.max(0, (Number(r.pointsEarned) || 0) - subPts);
@@ -2309,6 +2346,52 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
             randomizeLabels: randomize,
             allowRetry: q?.settings?.allowRetry !== false
           };
+        }
+        if (Array.isArray(q.subQuestions) && q.subQuestions.length) {
+          stripped.subQuestions = q.subQuestions.map((sq) => {
+            const strippedSq = { ...sq };
+            delete strippedSq.correctAnswerIndex;
+            delete strippedSq.answers;
+            delete strippedSq.sampleAnswers;
+            delete strippedSq.expectedTranscript;
+            delete strippedSq.expectedWord;
+            delete strippedSq.rearrangeAnswer;
+            delete strippedSq.rearrangeTokens;
+            if (sq.type === 'matching' && sq.pairs) {
+              strippedSq.shuffledRight = shuffleArray(sq.pairs.map((p) => sanitizeQuestionPlainText(p.right)));
+              strippedSq.pairs = sq.pairs.map((p) => ({ left: sanitizeQuestionPlainText(p.left) }));
+            }
+            if (sq.type === 'word_bank_fill') {
+              strippedSq.wordBank = (Array.isArray(sq.wordBank) ? sq.wordBank : []).map((w) => sanitizeQuestionPlainText(w));
+              strippedSq.items = (Array.isArray(sq.items) ? sq.items : []).map((item) => ({
+                prompt: sanitizeQuestionPlainText(item?.prompt || '')
+              }));
+              strippedSq.reusableWords = sq.reusableWords !== false;
+            }
+            if (sq.type === 'singular_plural' && Array.isArray(sq.pairs)) {
+              strippedSq.pairs = sq.pairs.map((p) => ({ singular: sanitizeQuestionPlainText(p.singular) }));
+            }
+            if (sq.type === 'image_pin_match') {
+              strippedSq.imageUrl = sq.imageUrl || '';
+              strippedSq.pins = (Array.isArray(sq.pins) ? sq.pins : [])
+                .map((p) => ({
+                  id: String(p?.id || ''),
+                  x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+                  y: Math.max(0, Math.min(100, Number(p?.y) || 0)),
+                }))
+                .filter((p) => p.id);
+              const baseLabels = (Array.isArray(sq.labels) ? sq.labels : [])
+                .map((l) => ({ id: String(l?.id || ''), text: sanitizeQuestionPlainText(l?.text || '') }))
+                .filter((l) => l.id && l.text);
+              const randomize = sq?.settings?.randomizeLabels !== false;
+              strippedSq.labels = randomize ? shuffleArray(baseLabels) : baseLabels;
+              strippedSq.settings = {
+                randomizeLabels: randomize,
+                allowRetry: sq?.settings?.allowRetry !== false
+              };
+            }
+            return strippedSq;
+          });
         }
         return stripped;
       });

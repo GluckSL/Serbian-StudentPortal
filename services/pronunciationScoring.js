@@ -523,6 +523,28 @@ function computeConfidence(score, opts = {}) {
   return 'medium';
 }
 
+/**
+ * Whether to show the learner-facing "mic input seems low" banner.
+ * Prefers client-reported peak/average levels; suppresses on strong matches.
+ */
+function computeLowAudioQualityFlag(opts = {}) {
+  const score = Number(opts.score) || 0;
+  const wordCoverage = Number(opts.wordCoverage) || 0;
+  const clientMeta = opts.clientMeta || {};
+
+  if (score >= 85 && wordCoverage >= 0.8) return false;
+  if (clientMeta.silenceRejected) return true;
+
+  const peak = Number(clientMeta.audioPeak);
+  const avg = Number(clientMeta.audioAverage);
+  if (Number.isFinite(peak) && Number.isFinite(avg)) {
+    return peak < 0.025 && avg < 0.007;
+  }
+
+  const audioSize = Number(opts.audioSize) || 0;
+  return audioSize > 0 && audioSize < 3000;
+}
+
 // --- Word analysis for response ---
 
 function buildDetailedWordAnalysis(expectedTokens, spokenTokens) {
@@ -606,6 +628,7 @@ module.exports = {
   evaluateThreshold,
   evaluateThresholdAdvanced,
   computeConfidence,
+  computeLowAudioQualityFlag,
   compareWords,
   buildWordAnalysis,
   generatePronunciationHints,

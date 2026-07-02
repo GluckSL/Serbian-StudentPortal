@@ -61,6 +61,7 @@ const {
   evaluateThresholdAdvanced,
   normalizeText,
   computeConfidence,
+  computeLowAudioQualityFlag,
   DEFAULT_THRESHOLD,
   explainPronunciationFromScore,
 } = require('../services/pronunciationScoring');
@@ -281,12 +282,6 @@ router.post(
       const attemptCount = Number.isFinite(attemptCountRaw) ? Math.max(0, Math.floor(attemptCountRaw)) : 0;
       const normalization = normalizeAudioForTranscription(audioPath);
       normalizedAudioPath = normalization.normalized ? normalization.path : null;
-      const likelyLowAudio = audioSize > 0 && audioSize < 12000;
-      const lowAudioQuality = Boolean(
-        likelyLowAudio ||
-        clientMeta?.silenceRejected ||
-        !normalization.normalized
-      );
 
       // IMPORTANT: Do NOT pass the expected sentence as a Whisper prompt — it
       // causes Whisper to autocomplete partial speech into the full target phrase,
@@ -314,6 +309,12 @@ router.post(
       if (isFreeSpeech) {
         const durationMs = Date.now() - startedAt;
         const cm = clientMeta || {};
+        const lowAudioQuality = computeLowAudioQualityFlag({
+          clientMeta: cm,
+          audioSize,
+          score: transcript ? 100 : 0,
+          wordCoverage: transcript ? 1 : 0,
+        });
         pronAnalytics.record({
           requestId,
           userId: String(req.user?.id || req.user?._id || '').slice(-8),
@@ -362,7 +363,13 @@ router.post(
         variants,
         lang: language.bcp47,
         attemptCount,
-        lowAudioQuality,
+      });
+
+      const lowAudioQuality = computeLowAudioQualityFlag({
+        clientMeta: clientMeta || {},
+        audioSize,
+        score: scoreRes.score,
+        wordCoverage: scoreRes.wordCoverage,
       });
 
       const durationMs = Date.now() - startedAt;
