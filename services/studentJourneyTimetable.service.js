@@ -12,6 +12,7 @@ const {
   exerciseVersionClauseForBatch,
   dgModuleVersionClauseForBatch,
   normalizeBatchType,
+  isNew2BatchType,
 } = require('../utils/batchType');
 const { utcMidnightMs, journeyDayRangeStart } = require('../utils/journeyDay');
 
@@ -121,8 +122,8 @@ async function buildStudentJourneyTimetable(student, options = {}) {
         visibleToStudents: true,
         isActive: true,
         $and: [
-          moduleTargetingQuery(batchKeys),
-          dgModuleVersionClauseForBatch(batchType),
+          dgModuleVersionClauseForBatch(batchType, batchKeys),
+          ...(isNew2BatchType(batchType) ? [] : [moduleTargetingQuery(batchKeys)]),
         ],
       })
         .select('title level courseDay weeklyTestEnabled examEnabled')

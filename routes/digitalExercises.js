@@ -1676,19 +1676,25 @@ function exerciseUnlockedForStudentDay(exercise, studentDay, minCourseDay = 1) {
  * @param {object} exercise  — lean DigitalExercise doc
  * @returns {Promise<{locked: boolean, previousLetter: string|null, previousTitle: string|null}>}
  */
-async function checkSequenceLock(studentId, exercise) {
+async function checkSequenceLock(studentId, exercise, access = null) {
   const sl = exercise.sequenceLetter;
   if (!sl || exercise.courseDay == null || exercise.courseDay === undefined) {
     return { locked: false, previousLetter: null, previousTitle: null };
   }
 
-  // Find all exercises on the same day with a letter strictly before ours
-  const priorExercises = await DigitalExercise.find({
+  const priorFilter = {
     courseDay: exercise.courseDay,
     sequenceLetter: { $lt: sl, $ne: null, $exists: true },
     visibleToStudents: true,
-    isDeleted: { $ne: true }
-  }).select('_id sequenceLetter title splitLineage questions').lean();
+    isDeleted: { $ne: true },
+  };
+  if (access?.batchType) {
+    const batchKeys = exerciseBatchMatchKeys(access.student?.batch);
+    Object.assign(priorFilter, exerciseVersionClauseForBatch(access.batchType, batchKeys));
+  }
+
+  // Find all exercises on the same day with a letter strictly before ours
+  const priorExercises = await DigitalExercise.find(priorFilter).select('_id sequenceLetter title splitLineage questions').lean();
 
   if (!priorExercises.length) return { locked: false, previousLetter: null, previousTitle: null };
 
@@ -1730,7 +1736,7 @@ async function checkSequenceLock(studentId, exercise) {
  *   - sequenceLocked: boolean
  *   - previousSequenceLetter: string | null
  */
-async function attachSequenceLockStatusForList(studentId, exercises) {
+async function attachSequenceLockStatusForList(studentId, exercises, access = null) {
   const sequenced = (exercises || []).filter(
     (ex) => ex?.sequenceLetter && ex?.courseDay != null && ex?.courseDay !== undefined
   );
@@ -1745,13 +1751,19 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
   );
   if (!courseDays.length) return;
 
-  const dayExercises = await DigitalExercise.find({
+  const dayFilter = {
     courseDay: { $in: courseDays },
     sequenceLetter: { $ne: null, $exists: true },
     visibleToStudents: true,
     isActive: true,
-    isDeleted: { $ne: true }
-  })
+    isDeleted: { $ne: true },
+  };
+  if (access?.batchType) {
+    const batchKeys = exerciseBatchMatchKeys(access.student?.batch);
+    Object.assign(dayFilter, exerciseVersionClauseForBatch(access.batchType, batchKeys));
+  }
+
+  const dayExercises = await DigitalExercise.find(dayFilter)
     .select('_id courseDay sequenceLetter title splitLineage questions.type questions.points questions.subQuestions.points')
     .lean();
 
@@ -2050,7 +2062,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       await attachInheritedAttemptsForStudent(req.user.id, exercises);
 
       // Attach sequence lock status in one batched pass.
-      await attachSequenceLockStatusForList(req.user.id, exercises);
+      await attachSequenceLockStatusForList(req.user.id, exercises, studentExerciseAccess);
     }
 
     const payload = {
@@ -2240,7 +2252,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
         });
       }
       // Sequence gate: must complete prior letter(s) first
-      const seqLock = await checkSequenceLock(req.user.id, exercise);
+      const seqLock = await checkSequenceLock(req.user.id, exercise, access);
       if (seqLock.locked) {
         return res.status(403).json({
           error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first before attempting this one.`,
@@ -3381,7 +3393,11 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
         });
       }
       // Sequence gate
-      const seqLock = await checkSequenceLock(req.user.id, exercise.toObject ? exercise.toObject() : exercise);
+      const seqLock = await checkSequenceLock(
+        req.user.id,
+        exercise.toObject ? exercise.toObject() : exercise,
+        access
+      );
       if (seqLock.locked) {
         return res.status(403).json({
           error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first.`,

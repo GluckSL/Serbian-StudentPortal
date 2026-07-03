@@ -56,6 +56,7 @@ module.exports = {
   normalizeBatchKey,
   normalizeBatchKeys,
   studentTargetBatchKeys,
+  expandBatchKeyLookupVariants,
   moduleTargetingQuery,
 };
 

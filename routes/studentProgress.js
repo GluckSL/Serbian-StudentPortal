@@ -19,7 +19,8 @@ const MeetingLink = require('../models/MeetingLink');
 const BatchConfig = require('../models/BatchConfig');
 const { getJourneyAccessForStudent } = require('../utils/studentJourneyAccess');
 const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
-const { BATCH_TYPE_NEW, normalizeBatchType } = require('../utils/batchType');
+const { BATCH_TYPE_NEW, normalizeBatchType, exerciseVersionClauseForBatch } = require('../utils/batchType');
+const { studentTargetBatchKeys } = require('../utils/batchTargeting');
 const {
   normalizeBlockedJourneyLevels,
   levelForJourneyDay,
@@ -549,7 +550,11 @@ router.get('/journey', verifyToken, checkRole(['STUDENT', 'TEACHER']), async (re
             { isDeleted: { $ne: true } },
             { visibleToStudents: true },
             { level: { $in: accessibleLevelsForEx } },
-            { courseDay: { $gt: studentCourseDay, $lte: 200 } }
+            { courseDay: { $gt: studentCourseDay, $lte: 200 } },
+            exerciseVersionClauseForBatch(
+              normalizeBatchType(journeyAccess.batchType),
+              studentTargetBatchKeys(student)
+            ),
           ];
           appendNotBlockedToAndClauses(nextLockAnd, student.blockedJourneyLevels);
           const nex = await DigitalExercise.findOne({ $and: nextLockAnd }).sort({ courseDay: 1 }).select('title courseDay').lean();
