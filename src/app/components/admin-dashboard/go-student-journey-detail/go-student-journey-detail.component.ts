@@ -216,9 +216,28 @@ interface LevelBlock {
           <div class="gsd-row-side">
             <span *ngIf="dm.locked" class="gsd-chip gsd-chip-lock">Locked</span>
             <ng-container *ngIf="!dm.locked">
-              <span class="gsd-status" [class.gsd-status-done]="dm.status === 'completed'" [class.gsd-status-wip]="dm.status === 'in_progress'" [class.gsd-status-ns]="dm.status === 'not_started'">
-                {{ dm.status === 'not_started' ? 'Not started' : dm.status === 'in_progress' ? 'In progress' : 'Completed' }}
-              </span>
+              <span
+                *ngIf="dm.status === 'completed'"
+                class="gsd-status gsd-status-done"
+              >Completed</span>
+              <ng-container *ngIf="dm.status !== 'completed'">
+                <span
+                  class="gsd-status"
+                  [class.gsd-status-wip]="dm.status === 'in_progress'"
+                  [class.gsd-status-ns]="dm.status === 'not_started'"
+                >
+                  {{ dm.status === 'not_started' ? 'Not started' : 'In progress' }}
+                </span>
+                <button
+                  type="button"
+                  class="gsd-btn gsd-btn-outline gsd-btn-complete"
+                  [disabled]="markingDgModuleId === dm._id"
+                  (click)="markDgComplete(dm)"
+                >
+                  <span *ngIf="markingDgModuleId === dm._id" class="spinner-border spinner-border-sm" role="status"></span>
+                  {{ markingDgModuleId === dm._id ? 'Saving…' : 'Mark complete' }}
+                </button>
+              </ng-container>
             </ng-container>
           </div>
         </div>
@@ -396,7 +415,8 @@ interface LevelBlock {
     .gsd-ico { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
     .gsd-row-title { font-size: 14px; font-weight: 600; color: #0f172a; }
     .gsd-row-meta { font-size: 12px; color: #64748b; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 8px; }
-    .gsd-row-side { text-align: right; flex-shrink: 0; }
+    .gsd-row-side { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .gsd-btn-complete { margin-top: 2px; }
     .gsd-chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 8px; background: #f1f5f9; color: #64748b; }
     .gsd-chip-lock { background: #fef2f2; color: #dc2626; }
     .gsd-chip-ok { background: #dcfce7; color: #166534; }
@@ -468,6 +488,7 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
   saving = false;
   markingRecordingId: string | null = null;
   markingZoomId: string | null = null;
+  markingDgModuleId: string | null = null;
   detail: any = null;
   journeySync: {
     effectiveAccessDay?: number;
@@ -604,6 +625,28 @@ export class GoStudentJourneyDetailComponent implements OnInit, OnDestroy {
         error: (e) => {
           this.markingRecordingId = null;
           this.notify.error(e?.error?.message || 'Failed to mark recording as watched.');
+        }
+      });
+  }
+
+  markDgComplete(dm: { _id: string; title?: string }): void {
+    if (!this.studentId || !dm?._id) return;
+    this.markingDgModuleId = dm._id;
+    this.http
+      .post<{ success: boolean }>(
+        `${environment.apiUrl}/correction/student/${this.studentId}/dg/${dm._id}/mark-complete`,
+        {},
+        { withCredentials: true }
+      )
+      .subscribe({
+        next: () => {
+          this.markingDgModuleId = null;
+          this.notify.success('DG module marked as complete.');
+          this.load(this.studentId);
+        },
+        error: (e) => {
+          this.markingDgModuleId = null;
+          this.notify.error(e?.error?.error || e?.error?.message || 'Failed to mark DG module as complete.');
         }
       });
   }

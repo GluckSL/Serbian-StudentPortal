@@ -144,6 +144,7 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'weeklyTestEnabled',
   'examEnabled',
   'targetBatches',
+  'version',
 ];
 
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
@@ -2856,7 +2857,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), 
 // POST /api/digital-exercises/freemode  — Create exercise from Free Mode builder items
 router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags } = req.body;
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, version, targetBatches } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one question item is required' });
@@ -2973,7 +2974,15 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       trailingContentBlocks,
       isFreeMode: true,
       createdBy: req.user.id,
-      lastUpdatedBy: req.user.id
+      lastUpdatedBy: req.user.id,
+      ...(String(version || '').toLowerCase() === 'v2'
+        ? {
+            version: 'v2',
+            targetBatches: Array.isArray(targetBatches)
+              ? targetBatches.map((b) => String(b).trim()).filter(Boolean)
+              : []
+          }
+        : {})
     };
 
     if (Object.prototype.hasOwnProperty.call(normalizedBody, 'questions')) {
@@ -3001,7 +3010,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
-    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches } = req.body;
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches, version } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one question item is required' });
@@ -3113,6 +3122,11 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     exercise.tags = tags || exercise.tags;
     if (exercise.version === 'v2' && Array.isArray(targetBatches)) {
       exercise.targetBatches = targetBatches.map((b) => String(b).trim()).filter(Boolean);
+    } else if (String(version || '').toLowerCase() === 'v2' && exercise.version !== 'v2') {
+      exercise.version = 'v2';
+      exercise.targetBatches = Array.isArray(targetBatches)
+        ? targetBatches.map((b) => String(b).trim()).filter(Boolean)
+        : [];
     }
     exercise.questions = normalizeQuestionContexts(questions);
     exercise.trailingContentBlocks = trailingContentBlocks;
