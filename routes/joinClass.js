@@ -14,8 +14,13 @@ const {
   buildZoomWebUrl,
   resolveMeetingJoinPwd,
 } = require('../utils/zoomJoinUrls');
+const { ensureZoomMeetingLive } = require('../services/zoomMeetingLifecycle.service');
 
 const router = express.Router();
+
+// Re-verify a Zoom link at most once per this window on join (avoids hammering
+// the Zoom API when a whole class clicks "Join" within a few seconds).
+const JOIN_ZOOM_CHECK_THROTTLE_MS = 3 * 60 * 1000;
 
 /** SPA sends Bearer token; return JSON so Angular can open Zoom (top-level navigation cannot send Authorization). */
 function wantsJoinClassJsonResponse(req) {
@@ -101,11 +106,6 @@ router.get('/join-class/:meetingId', verifyToken, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Meeting not found' });
     }
 
-    const zoomId = normalizeZoomNumericId(meeting.zoomMeetingId);
-    if (!zoomId) {
-      return res.status(400).json({ success: false, message: 'Meeting has no Zoom meeting id' });
-    }
-
     const student = await User.findById(req.user.id).select(
       'name email role batch subscription currentCourseDay goStatus'
     );
@@ -116,6 +116,20 @@ router.get('/join-class/:meetingId', verifyToken, async (req, res) => {
     const access = studentMayJoinMeeting(student, meeting);
     if (!access.ok) {
       return res.status(403).json({ success: false, message: access.reason });
+    }
+
+    // Auto-heal: if the Zoom meeting has expired / been deleted on Zoom's side,
+    // regenerate it now so the student never sees "Invalid meeting ID".
+    // Throttled + best-effort: a transient Zoom error must not block the join.
+    try {
+      await ensureZoomMeetingLive(meeting, { throttleMs: JOIN_ZOOM_CHECK_THROTTLE_MS });
+    } catch (healErr) {
+      console.warn('join-class link check failed (continuing):', healErr.message);
+    }
+
+    const zoomId = normalizeZoomNumericId(meeting.zoomMeetingId);
+    if (!zoomId) {
+      return res.status(400).json({ success: false, message: 'Meeting has no Zoom meeting id' });
     }
 
     const rawName = String(student.name || req.user.name || 'Student');

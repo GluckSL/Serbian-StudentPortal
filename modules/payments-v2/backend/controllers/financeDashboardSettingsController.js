@@ -144,7 +144,8 @@ const triggerReport = async (req, res) => {
     }
     // Run async — don't wait so the HTTP response is instant
     const fn = type === 'morning' ? sendMorningReport : sendEveningReport;
-    fn().catch((err) =>
+    // force: true — manual triggers bypass the daily idempotency guard so admins can resend.
+    fn({ force: true }).catch((err) =>
       console.error(`[FinanceReport] ❌ Manual ${type} trigger failed:`, err.message),
     );
     res.json({

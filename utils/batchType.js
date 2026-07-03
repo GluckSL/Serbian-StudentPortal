@@ -42,21 +42,19 @@ function batchTypeLabel(type) {
   return 'New (full content)';
 }
 
-/** Student exercise list: new2 → v2 only (optional batch keys); new → v1 only. */
+/** Student exercise list: new2 → v2 only (must be assigned to student's batch); new → v1 only. */
 function exerciseVersionClauseForBatch(batchType, batchKeys = []) {
   const t = normalizeBatchType(batchType);
   if (t === BATCH_TYPE_NEW2) {
     const keys = Array.isArray(batchKeys) ? batchKeys.filter(Boolean) : [];
     if (!keys.length) {
-      return { version: 'v2' };
+      // Student has no batch — do not show unassigned v2 exercises.
+      return { version: 'v2', targetBatches: { $in: ['__no_batch__'] } };
     }
+    // Empty targetBatches on an exercise means not yet assigned — hidden from students.
     return {
       version: 'v2',
-      $or: [
-        { targetBatches: { $exists: false } },
-        { targetBatches: { $size: 0 } },
-        { targetBatches: { $in: keys } },
-      ],
+      targetBatches: { $in: keys },
     };
   }
   return { $or: [{ version: { $ne: 'v2' } }, { version: { $exists: false } }] };
@@ -77,7 +75,7 @@ function exerciseVersionAllowedForStudent(batchType, exercise, batchKeys = []) {
   if (t === BATCH_TYPE_NEW2) {
     if (!isV2) return false;
     const targets = Array.isArray(exercise?.targetBatches) ? exercise.targetBatches : [];
-    if (!targets.length) return true;
+    if (!targets.length) return false;
     const keys = Array.isArray(batchKeys) ? batchKeys : [];
     return keys.some((key) => targets.includes(key));
   }

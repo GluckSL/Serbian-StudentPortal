@@ -44,6 +44,7 @@ const {
   attachInheritedAttemptsForStudent,
   resolveInheritedAttempt,
   isInheritedPassing,
+  buildFullCopySplitLineage,
   PASS_SCORE_PERCENT
 } = require('../services/exerciseSplitInheritance.service');
 
@@ -2575,9 +2576,26 @@ router.post('/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       return res.status(404).json({ error: 'Exercise not found' });
     }
 
+    // Prevent duplicate copies: one v2 copy per source exercise.
+    const existingCopy = await DigitalExercise.findOne({
+      version: 'v2',
+      isDeleted: { $ne: true },
+      'splitLineage.sourceExerciseId': source._id
+    })
+      .select('_id title')
+      .lean();
+    if (existingCopy) {
+      return res.status(409).json({
+        error: 'This exercise is already in Online Exercises 2.0. Open it there to edit or assign batches.',
+        exerciseId: String(existingCopy._id)
+      });
+    }
+
     // Strip Mongoose/Mongo-specific fields, then build the copy
     const { _id, createdAt, updatedAt, totalAttempts, totalCompletions, averageScore,
             testerVerified, splitLineage, ...rest } = source;
+
+    const v2Lineage = buildFullCopySplitLineage(source);
 
     const copy = new DigitalExercise({
       ...rest,
@@ -2590,6 +2608,7 @@ router.post('/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       totalCompletions: 0,
       averageScore: 0,
       testerVerified: false,
+      ...(v2Lineage ? { splitLineage: v2Lineage } : {}),
       createdBy: req.user.id,
       lastUpdatedBy: req.user.id,
       createdAt: new Date(),

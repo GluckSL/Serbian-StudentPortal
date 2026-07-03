@@ -127,6 +127,7 @@ const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
 const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
 const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
 const { scheduleZoomMeetingReminderEmails } = require('./jobs/zoomMeetingReminderEmails');
+const { scheduleZoomMeetingLinkHealth } = require('./jobs/zoomMeetingLinkHealth');
 
 // WhatsApp CRM notification jobs
 const { scheduleClassReminders } = require('./jobs/whatsapp/classReminder');
@@ -621,6 +622,7 @@ connectMongoDb()
       scheduleAutoFetchAttendance();
       scheduleJourneyDayRollover();
       scheduleZoomMeetingReminderEmails();
+      scheduleZoomMeetingLinkHealth();
       schedulePublishScheduledAnnouncements();
 
       if (isWhatsappAutomatedJobsEnabled()) {

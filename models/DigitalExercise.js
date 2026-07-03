@@ -375,7 +375,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
 
   /**
    * Batch numbers this v2 exercise is assigned to.
-   * Empty array = not yet assigned to any batch.
+   * Empty array = not yet assigned (hidden from students until batches are set).
    * Example: ['45', '46'] means only students in batch 45 or 46 can see it.
    * Only relevant when version === 'v2'.
    */

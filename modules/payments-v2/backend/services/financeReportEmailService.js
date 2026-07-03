@@ -68,6 +68,30 @@ function todayIST() {
   return d;
 }
 
+/** IST calendar day as YYYY-MM-DD — used as the idempotency key for daily reports. */
+function istDateKey() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+}
+
+/**
+ * Atomically claim the daily send so the same report is never emailed twice in
+ * one IST day — even if the cron fires twice or a second server process/instance
+ * is running against the same MongoDB. Returns true if this caller should send.
+ * Manual triggers pass { force: true } to bypass the guard and always resend.
+ */
+async function claimDailySend(reportType, force = false) {
+  if (force) return true;
+  const FinanceReportSendLog = require('../models/FinanceReportSendLog');
+  const dateKey = istDateKey();
+  const won = await FinanceReportSendLog.claim(reportType, dateKey);
+  if (!won) {
+    console.log(
+      `[FinanceReport] ⏭️  Skipping duplicate ${reportType} report — already sent for ${dateKey} (another process/firing).`,
+    );
+  }
+  return won;
+}
+
 function overdueDays(isoDate) {
   if (!isoDate) return null;
   const since = new Date(isoDate);
@@ -394,7 +418,8 @@ function emailWrapper(title, badge, badgeColor, bodyHtml) {
 }
 
 // ─── 10 AM Morning Report ─────────────────────────────────────────────────────
-async function sendMorningReport() {
+async function sendMorningReport({ force = false } = {}) {
+  if (!(await claimDailySend('morning', force))) return;
   const rows = await fetchVisibleBatchData();
 
   const now = new Date().toLocaleString('en-IN', {
@@ -577,7 +602,8 @@ async function sendMorningReport() {
 }
 
 // ─── 6 PM Evening Report ──────────────────────────────────────────────────────
-async function sendEveningReport() {
+async function sendEveningReport({ force = false } = {}) {
+  if (!(await claimDailySend('evening', force))) return;
   const [rows, todayReceived] = await Promise.all([
     fetchVisibleBatchData(),
     fetchTodayReceivedByBatch(),
