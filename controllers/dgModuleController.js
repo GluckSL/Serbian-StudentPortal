@@ -10,7 +10,7 @@ const {
 const User = require('../models/User');
 const { isContentBlockedForStudent } = require('../utils/journeyContentBlock');
 const { normalizeBatchKeys, moduleTargetingQuery } = require('../utils/batchTargeting');
-const { dgModuleVersionClauseForBatch, normalizeBatchType } = require('../utils/batchType');
+const { dgModuleVersionClauseForBatch, normalizeBatchType, isNew2BatchType, dgModuleVersionAllowedForStudent } = require('../utils/batchType');
 const { TRIAL_JOURNEY_DAY } = require('../utils/journeyDay');
 
 function effectiveDgUnlockDay(access) {
@@ -358,9 +358,9 @@ exports.listStudent = async (req, res) => {
     const andParts = [
       { isActive: true },
       { visibleToStudents: true },
-      dgModuleVersionClauseForBatch(batchType),
+      dgModuleVersionClauseForBatch(batchType, batchKeys),
     ];
-    if (batchKeys.length) {
+    if (!isNew2BatchType(batchType) && batchKeys.length) {
       andParts.push(moduleTargetingQuery(batchKeys));
     }
     if (gluckExamOnly) {
@@ -508,6 +508,14 @@ exports.getPlay = async (req, res) => {
         return res.status(403).json({
           message: 'This module is not available for your batch.',
           code: 'VERSION_NOT_ALLOWED',
+        });
+      }
+      if (!dgModuleVersionAllowedForStudent(batchType, mod, access.batchKeys || [])) {
+        return res.status(403).json({
+          message: modVersion === 'v2'
+            ? 'This module is not assigned to your batch.'
+            : 'This module is not available for your batch.',
+          code: modVersion === 'v2' ? 'BATCH_NOT_ASSIGNED' : 'VERSION_NOT_ALLOWED',
         });
       }
       const unlockAccess = { ...access, courseDay: effectiveDgUnlockDay(access) };

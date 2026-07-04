@@ -544,6 +544,7 @@ async function attachEngagementMinutes(students, period, scores) {
     for (const att of m.attendance || []) {
       const sid = String(att.studentId || att.userId || '');
       if (studentIds.has(sid) && att.attended && scores[sid]) {
+        scores[sid].liveClassMinutes += dur;
         scores[sid].engagementMinutes += dur;
       }
     }
@@ -609,6 +610,7 @@ async function buildLeaderboard(batchOrBatches, period) {
       currentStreak: 0,
       loggedToday: false,
       engagementMinutes: 0,
+      liveClassMinutes: 0,
     };
   }
 

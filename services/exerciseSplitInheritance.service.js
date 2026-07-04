@@ -31,6 +31,27 @@ function getSourceIndices(exercise) {
   return sources.map((s) => Number(s.sourceQuestionIndex));
 }
 
+/**
+ * Build splitLineage for a full v1→v2 copy so v1 completions inherit on the v2 exercise.
+ * @param {object} sourceExercise — lean v1 exercise with _id and questions
+ * @returns {object|undefined}
+ */
+function buildFullCopySplitLineage(sourceExercise) {
+  const sourceId = sourceExercise?._id;
+  const questions = Array.isArray(sourceExercise?.questions) ? sourceExercise.questions : [];
+  if (!sourceId || !questions.length) return undefined;
+
+  const questionSources = questions.map((q, i) => ({
+    sourceQuestionIndex: i,
+    ...(q?._id ? { sourceQuestionId: q._id } : {}),
+  }));
+
+  return {
+    sourceExerciseId: sourceId,
+    questionSources,
+  };
+}
+
 function responseByIndex(responses, index) {
   const idx = Number(index);
   if (!Array.isArray(responses)) return null;
@@ -257,6 +278,7 @@ async function studentHasPassedExercise(studentId, exercise) {
 module.exports = {
   PASS_SCORE_PERCENT,
   getSourceIndices,
+  buildFullCopySplitLineage,
   hasResponseForQuestion,
   resolveInheritedAttempt,
   attachInheritedAttemptsForStudent,

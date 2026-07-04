@@ -24,7 +24,7 @@ import { catchError, of } from 'rxjs';
 
 type Period = LeaderboardPeriod;
 
-type SortField = 'rank' | 'exercisesCompleted' | 'dgSessionsCompleted' | 'averageScore' | 'totalPoints' | 'currentStreak' | 'currentCourseDay' | 'engagementMinutes';
+type SortField = 'rank' | 'exercisesCompleted' | 'dgSessionsCompleted' | 'averageScore' | 'liveClassMinutes' | 'currentStreak' | 'currentCourseDay' | 'engagementMinutes';
 
 
 
@@ -408,8 +408,7 @@ export class AdminLeaderboardComponent implements OnInit {
     return entry.averageScore != null && entry.averageScore > 0 ? `${entry.averageScore}%` : '—';
   }
 
-  formatEngagementMinutes(entry: LeaderboardEntry): string {
-    const mins = entry.engagementMinutes ?? 0;
+  formatDurationMinutes(mins: number): string {
     if (mins <= 0) return '—';
     if (mins >= 60) {
       const h = Math.floor(mins / 60);
@@ -417,6 +416,14 @@ export class AdminLeaderboardComponent implements OnInit {
       return m ? `${h}h ${m}m` : `${h}h`;
     }
     return `${mins} min`;
+  }
+
+  formatEngagementMinutes(entry: LeaderboardEntry): string {
+    return this.formatDurationMinutes(entry.engagementMinutes ?? 0);
+  }
+
+  formatLiveClassMinutes(entry: LeaderboardEntry): string {
+    return this.formatDurationMinutes(entry.liveClassMinutes ?? 0);
   }
 
   getRankMedal(rank: number): string {
@@ -447,7 +454,7 @@ export class AdminLeaderboardComponent implements OnInit {
 
     if (!this.data?.leaderboard.length) return 0;
 
-    const max = Math.max(...this.data.leaderboard.map(e => e.totalPoints), 1);
+    const max = Math.max(...this.data.leaderboard.map(e => e.liveClassMinutes ?? 0), 1);
 
     return Math.round((val / max) * 100);
 

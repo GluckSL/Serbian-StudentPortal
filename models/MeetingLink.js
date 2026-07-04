@@ -35,6 +35,10 @@ const meetingLinkSchema = new mongoose.Schema({
   hostEmail: { type: String },
   startUrl: { type: String }, // For host to start meeting
   joinUrl: { type: String }, // For participants to join
+
+  // Last time the Zoom meeting was verified to still exist on Zoom's side.
+  // Used to throttle the auto expiry-check + regeneration on join.
+  lastZoomCheckAt: { type: Date },
   
   // Admin/user who created the meeting
   createdBy: { 

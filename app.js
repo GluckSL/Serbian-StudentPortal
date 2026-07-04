@@ -100,6 +100,7 @@ const digitalExercisesRoutes = require('./routes/digitalExercises');
 const dgRoutes = require('./routes/dg');
 const sprechenRoutes = require('./routes/sprechen');
 const visaTrackingRoutes = require('./routes/visaTracking');
+const universityApplicationsRoutes = require('./routes/universityApplications');
 const studentPaymentRoutes = require('./routes/studentPayments');
 const batchJourneyRoutes = require('./routes/batchJourney');
 const goStudentsRoutes = require('./routes/goStudents');
@@ -127,6 +128,7 @@ const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
 const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
 const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
 const { scheduleZoomMeetingReminderEmails } = require('./jobs/zoomMeetingReminderEmails');
+const { scheduleZoomMeetingLinkHealth } = require('./jobs/zoomMeetingLinkHealth');
 
 // WhatsApp CRM notification jobs
 const { scheduleClassReminders } = require('./jobs/whatsapp/classReminder');
@@ -382,6 +384,7 @@ app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/dg', dgRoutes);
 app.use('/api/sprechen', sprechenRoutes);
 app.use('/api/visa-tracking', visaTrackingRoutes);
+app.use('/api/university-applications', universityApplicationsRoutes);
 app.use('/api/student-payments', studentPaymentRoutes);
 app.use('/api/batch-journey', batchJourneyRoutes);
 app.use('/api/go-students', goStudentsRoutes);
@@ -621,6 +624,7 @@ connectMongoDb()
       scheduleAutoFetchAttendance();
       scheduleJourneyDayRollover();
       scheduleZoomMeetingReminderEmails();
+      scheduleZoomMeetingLinkHealth();
       schedulePublishScheduledAnnouncements();
 
       if (isWhatsappAutomatedJobsEnabled()) {

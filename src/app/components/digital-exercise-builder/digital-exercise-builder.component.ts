@@ -1781,6 +1781,12 @@ export class DigitalExerciseBuilderComponent implements OnInit {
           right: String(p.right || '').trim()
         }));
       }
+      if (q.type === 'fill-blank') {
+        row.sentence = String(q.sentence || '');
+        row.answers = (q.answers || []).map((a: string) => String(a || '').trim()).filter(Boolean);
+        row.hint = String(q.hint || '');
+        row.caseSensitive = q.caseSensitive || false;
+      }
       if ((q.type as any) === 'word_bank_fill') {
         row.wordBank = (q.wordBank || []).map((w) => String(w || '').trim()).filter(Boolean);
         row.items = (q.items || [])

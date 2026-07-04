@@ -151,6 +151,16 @@ function sanitizeQuestions(questions) {
         .map((t) => sanitizeQuestionPlainText(t))
         .filter((t) => typeof t === 'string' && t.trim().length > 0);
     }
+    // fill-blank answers (plain text)
+    if (Array.isArray(out.answers)) {
+      out.answers = out.answers.map((a) =>
+        typeof a === 'string' ? sanitizeQuestionPlainText(a) : a
+      );
+    }
+    // Sub-questions: sanitize nested fields the same way
+    if (Array.isArray(out.subQuestions) && out.subQuestions.length) {
+      out.subQuestions = sanitizeQuestions(out.subQuestions);
+    }
     return out;
   });
 }

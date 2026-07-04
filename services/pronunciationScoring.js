@@ -514,9 +514,35 @@ function computeConfidence(score, opts = {}) {
   const s = clamp(Number(score) || 0, 0, 100);
   const lowAudioQuality = !!opts.lowAudioQuality;
   const wordCoverage = Number(opts.wordCoverage || 0);
-  if ((lowAudioQuality && s < 70) || wordCoverage < 0.35) return 'low';
-  if (!lowAudioQuality && wordCoverage >= 0.8 && s >= 75) return 'high';
+  if (wordCoverage < 0.35) return 'low';
+  // A strong lexical match means we heard them correctly — do not downgrade
+  // confidence just because the mic level was low.
+  if (s >= 85 && wordCoverage >= 0.8) return 'high';
+  if (lowAudioQuality && s < 70) return 'low';
+  if (wordCoverage >= 0.8 && s >= 75) return 'high';
   return 'medium';
+}
+
+/**
+ * Whether to show the learner-facing "mic input seems low" banner.
+ * Prefers client-reported peak/average levels; suppresses on strong matches.
+ */
+function computeLowAudioQualityFlag(opts = {}) {
+  const score = Number(opts.score) || 0;
+  const wordCoverage = Number(opts.wordCoverage) || 0;
+  const clientMeta = opts.clientMeta || {};
+
+  if (score >= 85 && wordCoverage >= 0.8) return false;
+  if (clientMeta.silenceRejected) return true;
+
+  const peak = Number(clientMeta.audioPeak);
+  const avg = Number(clientMeta.audioAverage);
+  if (Number.isFinite(peak) && Number.isFinite(avg)) {
+    return peak < 0.025 && avg < 0.007;
+  }
+
+  const audioSize = Number(opts.audioSize) || 0;
+  return audioSize > 0 && audioSize < 3000;
 }
 
 // --- Word analysis for response ---
@@ -602,6 +628,7 @@ module.exports = {
   evaluateThreshold,
   evaluateThresholdAdvanced,
   computeConfidence,
+  computeLowAudioQualityFlag,
   compareWords,
   buildWordAnalysis,
   generatePronunciationHints,

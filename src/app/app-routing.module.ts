@@ -269,15 +269,16 @@ export const routes: Routes = [
   { path: 'student/job-openings/:id', loadComponent: () => import('./components/job-openings/student-job-detail.component').then(m => m.StudentJobDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
   // Admin Document Verification route
-  { path: 'admin/document-verification', loadComponent: () => import('./components/admin-dashboard/document-verification/document-verification.component').then(m => m.DocumentVerificationComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
-  { path: 'admin/document-verification/student/:studentId', loadComponent: () => import('./components/admin-dashboard/document-verification/student-document-profile.component').then(m => m.StudentDocumentProfileComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
+  { path: 'admin/document-verification', loadComponent: () => import('./components/admin-dashboard/document-verification/document-verification.component').then(m => m.DocumentVerificationComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/document-verification/student/:studentId', loadComponent: () => import('./components/admin-dashboard/document-verification/student-document-profile.component').then(m => m.StudentDocumentProfileComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/university-applications', loadComponent: () => import('./components/admin-dashboard/university-applications/university-applications.component').then(m => m.UniversityApplicationsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Google Sheet Sync route
   { path: 'admin/google-sheet-sync', loadComponent: () => import('./components/admin-dashboard/google-sheet-sync/google-sheet-sync.component').then(m => m.GoogleSheetSyncComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Admin Agreement Templates & Student Workspaces
-  { path: 'admin/agreements/templates', loadComponent: () => import('./components/admin-dashboard/agreements/agreement-templates.component').then(m => m.AgreementTemplatesComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
-  { path: 'admin/agreements/student/:studentId', loadComponent: () => import('./components/admin-dashboard/agreements/student-agreements.component').then(m => m.StudentAgreementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'ADMIN' } },
+  { path: 'admin/agreements/templates', loadComponent: () => import('./components/admin-dashboard/agreements/agreement-templates.component').then(m => m.AgreementTemplatesComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  { path: 'admin/agreements/student/:studentId', loadComponent: () => import('./components/admin-dashboard/agreements/student-agreements.component').then(m => m.StudentAgreementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Admin Visa Tracking route
   { path: 'admin/visa-tracking', loadComponent: () => import('./components/admin-dashboard/visa-tracking/visa-tracking.component').then(m => m.VisaTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },

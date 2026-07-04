@@ -212,8 +212,8 @@
             <th class="alb-th alb-th--num" (click)="setSort('currentCourseDay')">
               Day <span class="material-icons alb-sort-icon">{{ getSortIcon('currentCourseDay') }}</span>
             </th>
-            <th class="alb-th alb-th--pts" (click)="setSort('totalPoints')">
-              Points <span class="material-icons alb-sort-icon">{{ getSortIcon('totalPoints') }}</span>
+            <th class="alb-th alb-th--pts" (click)="setSort('liveClassMinutes')">
+              Live Class <span class="material-icons alb-sort-icon">{{ getSortIcon('liveClassMinutes') }}</span>
             </th>
             <th class="alb-th alb-th--num" (click)="setSort('engagementMinutes')">
               Engagement <span class="material-icons alb-sort-icon">{{ getSortIcon('engagementMinutes') }}</span>
@@ -280,7 +280,8 @@
               <span class="alb-day">{{ entry.currentCourseDay }}</span>
             </td>
             <td class="alb-td alb-td--pts">
-              <span class="alb-pts">{{ entry.totalPoints }}</span>
+              <span class="alb-pts" *ngIf="entry.liveClassMinutes > 0">{{ formatLiveClassMinutes(entry) }}</span>
+              <span class="alb-zero" *ngIf="!entry.liveClassMinutes">—</span>
             </td>
             <td class="alb-td alb-td--num">
               <span class="alb-engagement" *ngIf="entry.engagementMinutes > 0">

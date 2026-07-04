@@ -131,7 +131,10 @@ async function getJourneyAccessForStudent(student) {
   );
   const dgBotEnabled = matchedConfigs.length > 0 && (hasNewBatchType || hasOldDgAccess);
   const dgUnlockMode = hasNewBatchType ? 'daily' : hasOldDgAccess ? 'weekly' : 'none';
-  const primaryCfg = matchedConfigs[0] || null;
+  const primaryBatch = String(student.batch || '').trim();
+  const primaryCfg = primaryBatch
+    ? resolveBatchConfigForStudentKey(allBatchConfigs, primaryBatch)
+    : matchedConfigs[0] || null;
   const batchType = primaryCfg ? normalizeBatchType(primaryCfg.batchType) : BATCH_TYPE_NEW;
 
   return attachContentUnlock({

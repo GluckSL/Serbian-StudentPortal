@@ -64,6 +64,7 @@ type QuestionRowData = {
   question?: string;
   options?: string[];
   prompt?: string;
+  sentence?: string;
   subQuestions?: unknown[];
   attachmentUrl?: string;
   attachmentUrls?: string[];
@@ -317,10 +318,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return ['ADMIN', 'TEACHER', 'TEACHER_ADMIN', 'SUB_ADMIN'].includes(this.currentUserRole);
   }
 
-  confidenceNudge(conf?: PronunciationConfidence): string {
+  confidenceNudge(conf?: PronunciationConfidence, score?: number): string {
+    if (score != null && score >= 85) return '';
     if (conf === 'medium') return 'Almost there, try again for a perfect score.';
     if (conf === 'low') return 'We might have misheard you. Try speaking clearly.';
     return '';
+  }
+
+  /** Show mic-quality banner only when audio was genuinely low and the score was not strong. */
+  shouldShowLowAudioWarning(lowFlag?: boolean, score?: number): boolean {
+    if (!lowFlag) return false;
+    if (score != null && score >= 85) return false;
+    return true;
   }
 
   shouldShowNeedHelp(pq: PlayerQuestion): boolean {
@@ -722,7 +731,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   /** Label helper for confidence-tier UI messaging (low / medium / high). */
-  confidenceHeadline(conf: PronunciationConfidence | undefined | null): string | null {
+  confidenceHeadline(conf: PronunciationConfidence | undefined | null, score?: number): string | null {
+    if (score != null && score >= 85) return null;
     if (conf === 'high') return 'Great job!';
     if (conf === 'medium') return 'Almost there — try once more';
     if (conf === 'low') return "Let's try again";
@@ -2465,6 +2475,33 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         });
       }
     }
+
+    const subs = data.subQuestions || [];
+    subs.forEach((sq: any, sqi: number) => {
+      if (sq?.type !== 'fill-blank') return;
+      const count = countFillBlankRuns(sq.sentence || '');
+      if (count <= 0) return;
+      const correctList = sq._correctAnswers || sq.answers || [];
+      const partLabel = this.getFillBlankReviewPartLabel(
+        questionIndex,
+        this.getSubQuestionPartNumber(sqi, data),
+        'sub',
+        hasSubQuestions
+      );
+      for (let bi = 0; bi < count; bi++) {
+        blankNum++;
+        const studentAnswer = String(pq.subQuestionFillBlankAnswers?.[sqi]?.[bi] ?? '').trim();
+        const correctAnswer = String(correctList[bi] ?? '').trim();
+        items.push({
+          globalIndex: blankNum,
+          partLabel,
+          studentAnswer,
+          correctAnswer,
+          isCorrect: this.isSubFillCorrect(pq, sqi, bi),
+          answered: studentAnswer.length > 0
+        });
+      }
+    });
 
     return items;
   }
@@ -4998,6 +5035,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (type === 'question-answer') {
       return !this.htmlToPlainText(data.prompt) && !this.isTrueFalseQuestion(data);
     }
+    if (type === 'fill-blank') {
+      return countFillBlankRuns(data.sentence || '') === 0;
+    }
     return false;
   }
 
@@ -6681,7 +6721,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.isVideoOnlyExercise) {
       this.pushVpChat('user', pq.vpSpokenText || '(no audio)', { isCorrect, score: pq.pronunciationScore || 0 });
       if (isCorrect) {
-        this.pushVpChat('tutor', this.confidenceHeadline(res.confidence) || 'Great job!');
+        this.pushVpChat('tutor', 'Great job!');
       } else if (isAlmostCorrect) {
         this.pushVpChat('tutor', 'Almost there — try once more for a perfect score!');
       } else {

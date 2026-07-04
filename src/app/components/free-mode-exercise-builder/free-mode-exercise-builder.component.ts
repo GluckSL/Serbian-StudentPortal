@@ -772,6 +772,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       }),
     };
     if (this.isV2Exercise) {
+      payload.version = 'v2';
       payload.targetBatches = [...this.selectedTargetBatches];
     }
 

@@ -14,6 +14,7 @@ import {
 } from '../../../services/student-documents.service';
 import { AgreementService } from '../../../services/agreement.service';
 import { NotificationService } from '../../../services/notification.service';
+import { UniversityApplication, UniversityApplicationService } from '../../../services/university-application.service';
 
 @Component({
   selector: 'app-student-documents',
@@ -66,6 +67,15 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   agreements: StudentDocumentInstance[] = [];
   loadingAgreements = false;
   uploadingAgreementId: string | null = null;
+
+  // University applications
+  universityApplications: UniversityApplication[] = [];
+  loadingUniversities = false;
+  showUniversityList = false;
+  showUniversityDetail = false;
+  selectedUniversityApp: UniversityApplication | null = null;
+  universityStageDefinitions: { stage: number; label: string; desc: string }[] = [];
+  readonly universityStageIcons = ['fa-paper-plane', 'fa-search', 'fa-check-circle', 'fa-envelope', 'fa-user-graduate'];
   @ViewChild('signedFileInput') signedFileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('reqFileInput') reqFileInput!: ElementRef<HTMLInputElement>;
   private pendingRequirement: { req: DocumentRequirement; isReplace: boolean } | null = null;
@@ -76,7 +86,8 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   constructor(
     private documentService: StudentDocumentsService,
     private agreementService: AgreementService,
-    private notify: NotificationService
+    private notify: NotificationService,
+    private universityService: UniversityApplicationService
   ) {}
 
   ngOnInit(): void {
@@ -597,5 +608,81 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   clearMessages(): void {
     this.successMessage = '';
     this.errorMessage = '';
+  }
+
+  openUniversityApplied(): void {
+    this.showUniversityList = true;
+    this.loadingUniversities = true;
+    this.universityService.getStages().subscribe({
+      next: (res) => {
+        this.universityStageDefinitions = res.data || [];
+      },
+      error: () => {
+        this.universityStageDefinitions = [
+          { stage: 1, label: 'Applied', desc: 'Application submitted to university' },
+          { stage: 2, label: 'In Review', desc: 'University reviewing documents' },
+          { stage: 3, label: 'Approved', desc: 'Admission approved or conditional offer' },
+          { stage: 4, label: 'Offer Letter Sent', desc: 'Formal offer letter issued' },
+          { stage: 5, label: 'Enrolled', desc: 'Student confirmed enrollment' }
+        ];
+      }
+    });
+    this.universityService.getMine().subscribe({
+      next: (res) => {
+        this.universityApplications = res.data || [];
+        this.loadingUniversities = false;
+      },
+      error: () => {
+        this.universityApplications = [];
+        this.loadingUniversities = false;
+        this.notify.error('Failed to load university applications');
+      }
+    });
+  }
+
+  closeUniversityList(): void {
+    this.showUniversityList = false;
+  }
+
+  closeUniversityAll(): void {
+    this.showUniversityList = false;
+    this.showUniversityDetail = false;
+    this.selectedUniversityApp = null;
+  }
+
+  viewUniversityDetail(app: UniversityApplication): void {
+    this.selectedUniversityApp = app;
+    this.showUniversityDetail = true;
+  }
+
+  closeUniversityDetail(): void {
+    this.showUniversityDetail = false;
+    this.selectedUniversityApp = null;
+  }
+
+  getUniversityStageLabel(app: UniversityApplication): string {
+    const idx = (app.currentStage || 1) - 1;
+    const defs = app.stageDefinitions || this.universityStageDefinitions;
+    return defs[idx]?.label || `Stage ${app.currentStage}`;
+  }
+
+  getUniversityProgressPct(app: UniversityApplication): number {
+    const current = app.currentStage || 1;
+    const total = (app.stages?.length || 5);
+    const completed = app.stages?.filter(s => s.status === 'completed').length || 0;
+    if (completed >= total) return 100;
+    return Math.round(((current - 1) / (total - 1)) * 100);
+  }
+
+  universityStatusLabel(status: string): string {
+    if (status === 'in_progress') return 'In Progress';
+    if (status === 'completed') return 'Completed';
+    return 'Pending';
+  }
+
+  universityStatusClass(status: string): string {
+    if (status === 'in_progress') return 'ua-status--progress';
+    if (status === 'completed') return 'ua-status--done';
+    return 'ua-status--pending';
   }
 }

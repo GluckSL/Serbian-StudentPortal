@@ -7,6 +7,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   getSourceIndices,
+  buildFullCopySplitLineage,
   hasResponseForQuestion,
   resolveInheritedAttempt,
   scoreFromMappedResponses,
@@ -46,6 +47,28 @@ function makeSourceAttempt(responses, scorePercentage = 80) {
     responses
   };
 }
+
+describe('buildFullCopySplitLineage', () => {
+  it('maps all source questions 1:1 for v2 copy inheritance', () => {
+    const source = {
+      _id: '507f1f77bcf86cd799439013',
+      questions: [
+        { _id: 'q1', type: 'mcq' },
+        { _id: 'q2', type: 'fill-blank' },
+      ],
+    };
+    const lineage = buildFullCopySplitLineage(source);
+    assert.equal(String(lineage.sourceExerciseId), source._id);
+    assert.equal(lineage.questionSources.length, 2);
+    assert.equal(lineage.questionSources[0].sourceQuestionIndex, 0);
+    assert.equal(String(lineage.questionSources[0].sourceQuestionId), 'q1');
+    assert.equal(lineage.questionSources[1].sourceQuestionIndex, 1);
+  });
+
+  it('returns undefined when source has no questions', () => {
+    assert.equal(buildFullCopySplitLineage({ _id: '507f1f77bcf86cd799439013', questions: [] }), undefined);
+  });
+});
 
 describe('getSourceIndices', () => {
   it('returns indices from lineage', () => {

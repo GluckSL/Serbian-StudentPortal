@@ -18,6 +18,7 @@ const {
   normalizeBatchType,
   exerciseVersionClauseForBatch,
   dgModuleVersionClauseForBatch,
+  isNew2BatchType,
 } = require('../utils/batchType');
 const BatchConfig = require('../models/BatchConfig');
 const { batchesAlign } = require('../utils/effectiveStudentBatch');
@@ -328,8 +329,10 @@ async function computeJourneyDayCompletion(studentId, batchNameOrNames, day, opt
       visibleToStudents: true,
       courseDay: day,
       $and: [
-        moduleTargetingQuery(studentBatchKeys),
-        dgModuleVersionClauseForBatch(batchType),
+        dgModuleVersionClauseForBatch(batchType, studentBatchKeys),
+        ...(isNew2BatchType(batchType)
+          ? []
+          : [moduleTargetingQuery(studentBatchKeys)]),
       ],
     })
       .select('_id title')

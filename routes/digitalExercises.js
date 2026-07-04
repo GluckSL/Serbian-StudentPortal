@@ -44,6 +44,7 @@ const {
   attachInheritedAttemptsForStudent,
   resolveInheritedAttempt,
   isInheritedPassing,
+  buildFullCopySplitLineage,
   PASS_SCORE_PERCENT
 } = require('../services/exerciseSplitInheritance.service');
 
@@ -144,6 +145,7 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'weeklyTestEnabled',
   'examEnabled',
   'targetBatches',
+  'version',
 ];
 
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
@@ -504,10 +506,37 @@ function applyThresholdScoring(q, rawScore) {
   return { score, threshold, scoringMode, isCorrect, pointsEarned };
 }
 
+/** True when the parent row itself has a gradable answer (not only shared context for sub-parts). */
+function parentHasAnswerablePart(q) {
+  if (!q || typeof q !== 'object') return false;
+  const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+  if (!subs.length) return true;
+
+  const type = String(q.type || '').toLowerCase();
+  if (type === 'mcq') {
+    const hasQuestion = !!sanitizeQuestionPlainText(q.question || '');
+    const hasOptions = Array.isArray(q.options)
+      && q.options.some((o) => !!sanitizeQuestionPlainText(o || ''));
+    return hasQuestion || hasOptions;
+  }
+  if (type === 'question-answer') {
+    const hasPrompt = !!sanitizeQuestionPlainText(q.prompt || '');
+    const samples = Array.isArray(q.sampleAnswers) ? q.sampleAnswers : [];
+    const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+    const isTrueFalse = q.worksheetKind === 'true-false' || expectedRaw !== null;
+    return hasPrompt || isTrueFalse;
+  }
+  if (type === 'fill-blank') {
+    return fillBlankSlotCount(q) > 0;
+  }
+  return true;
+}
+
 function questionTotalPoints(q) {
   const subs = Array.isArray(q?.subQuestions) ? q.subQuestions : [];
   const subPts = subs.reduce((sum, sq) => sum + (sq?.points ?? 1), 0);
-  return (q?.points ?? 1) + subPts;
+  const parentPts = parentHasAnswerablePart(q) ? (q?.points ?? 1) : 0;
+  return parentPts + subPts;
 }
 
 function exerciseTotalPoints(questions) {
@@ -704,6 +733,13 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
   const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
   if (!subs.length) {
     return { isCorrect: parentIsCorrect, pointsEarned, correctAnswer, subResults };
+  }
+
+  // Context-only parent (passage/media/instruction) — grade sub-parts only.
+  if (!parentHasAnswerablePart(q)) {
+    parentIsCorrect = true;
+    parentPointsEarned = 0;
+    pointsEarned = 0;
   }
 
   const subResps = Array.isArray(resp.subQuestionResponses) ? resp.subQuestionResponses : [];
@@ -1336,6 +1372,9 @@ function getParentPartReviewGrade(q, r) {
   if (!subs.length) {
     return { isCorrect: !!r.isCorrect, pointsEarned: Number(r.pointsEarned) || 0 };
   }
+  if (!parentHasAnswerablePart(q)) {
+    return { isCorrect: true, pointsEarned: 0 };
+  }
   const subPts = (r.subQuestionGrades || []).reduce((sum, g) => sum + (Number(g.pointsEarned) || 0), 0);
   const parentPts = Math.max(0, (Number(r.pointsEarned) || 0) - subPts);
   const rawScore = gradeParentPartRawScore(q, r);
@@ -1637,19 +1676,25 @@ function exerciseUnlockedForStudentDay(exercise, studentDay, minCourseDay = 1) {
  * @param {object} exercise  — lean DigitalExercise doc
  * @returns {Promise<{locked: boolean, previousLetter: string|null, previousTitle: string|null}>}
  */
-async function checkSequenceLock(studentId, exercise) {
+async function checkSequenceLock(studentId, exercise, access = null) {
   const sl = exercise.sequenceLetter;
   if (!sl || exercise.courseDay == null || exercise.courseDay === undefined) {
     return { locked: false, previousLetter: null, previousTitle: null };
   }
 
-  // Find all exercises on the same day with a letter strictly before ours
-  const priorExercises = await DigitalExercise.find({
+  const priorFilter = {
     courseDay: exercise.courseDay,
     sequenceLetter: { $lt: sl, $ne: null, $exists: true },
     visibleToStudents: true,
-    isDeleted: { $ne: true }
-  }).select('_id sequenceLetter title splitLineage questions').lean();
+    isDeleted: { $ne: true },
+  };
+  if (access?.batchType) {
+    const batchKeys = exerciseBatchMatchKeys(access.student?.batch);
+    Object.assign(priorFilter, exerciseVersionClauseForBatch(access.batchType, batchKeys));
+  }
+
+  // Find all exercises on the same day with a letter strictly before ours
+  const priorExercises = await DigitalExercise.find(priorFilter).select('_id sequenceLetter title splitLineage questions').lean();
 
   if (!priorExercises.length) return { locked: false, previousLetter: null, previousTitle: null };
 
@@ -1691,7 +1736,7 @@ async function checkSequenceLock(studentId, exercise) {
  *   - sequenceLocked: boolean
  *   - previousSequenceLetter: string | null
  */
-async function attachSequenceLockStatusForList(studentId, exercises) {
+async function attachSequenceLockStatusForList(studentId, exercises, access = null) {
   const sequenced = (exercises || []).filter(
     (ex) => ex?.sequenceLetter && ex?.courseDay != null && ex?.courseDay !== undefined
   );
@@ -1706,13 +1751,19 @@ async function attachSequenceLockStatusForList(studentId, exercises) {
   );
   if (!courseDays.length) return;
 
-  const dayExercises = await DigitalExercise.find({
+  const dayFilter = {
     courseDay: { $in: courseDays },
     sequenceLetter: { $ne: null, $exists: true },
     visibleToStudents: true,
     isActive: true,
-    isDeleted: { $ne: true }
-  })
+    isDeleted: { $ne: true },
+  };
+  if (access?.batchType) {
+    const batchKeys = exerciseBatchMatchKeys(access.student?.batch);
+    Object.assign(dayFilter, exerciseVersionClauseForBatch(access.batchType, batchKeys));
+  }
+
+  const dayExercises = await DigitalExercise.find(dayFilter)
     .select('_id courseDay sequenceLetter title splitLineage questions.type questions.points questions.subQuestions.points')
     .lean();
 
@@ -2011,7 +2062,7 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       await attachInheritedAttemptsForStudent(req.user.id, exercises);
 
       // Attach sequence lock status in one batched pass.
-      await attachSequenceLockStatusForList(req.user.id, exercises);
+      await attachSequenceLockStatusForList(req.user.id, exercises, studentExerciseAccess);
     }
 
     const payload = {
@@ -2201,7 +2252,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
         });
       }
       // Sequence gate: must complete prior letter(s) first
-      const seqLock = await checkSequenceLock(req.user.id, exercise);
+      const seqLock = await checkSequenceLock(req.user.id, exercise, access);
       if (seqLock.locked) {
         return res.status(403).json({
           error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first before attempting this one.`,
@@ -2309,6 +2360,52 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
             randomizeLabels: randomize,
             allowRetry: q?.settings?.allowRetry !== false
           };
+        }
+        if (Array.isArray(q.subQuestions) && q.subQuestions.length) {
+          stripped.subQuestions = q.subQuestions.map((sq) => {
+            const strippedSq = { ...sq };
+            delete strippedSq.correctAnswerIndex;
+            delete strippedSq.answers;
+            delete strippedSq.sampleAnswers;
+            delete strippedSq.expectedTranscript;
+            delete strippedSq.expectedWord;
+            delete strippedSq.rearrangeAnswer;
+            delete strippedSq.rearrangeTokens;
+            if (sq.type === 'matching' && sq.pairs) {
+              strippedSq.shuffledRight = shuffleArray(sq.pairs.map((p) => sanitizeQuestionPlainText(p.right)));
+              strippedSq.pairs = sq.pairs.map((p) => ({ left: sanitizeQuestionPlainText(p.left) }));
+            }
+            if (sq.type === 'word_bank_fill') {
+              strippedSq.wordBank = (Array.isArray(sq.wordBank) ? sq.wordBank : []).map((w) => sanitizeQuestionPlainText(w));
+              strippedSq.items = (Array.isArray(sq.items) ? sq.items : []).map((item) => ({
+                prompt: sanitizeQuestionPlainText(item?.prompt || '')
+              }));
+              strippedSq.reusableWords = sq.reusableWords !== false;
+            }
+            if (sq.type === 'singular_plural' && Array.isArray(sq.pairs)) {
+              strippedSq.pairs = sq.pairs.map((p) => ({ singular: sanitizeQuestionPlainText(p.singular) }));
+            }
+            if (sq.type === 'image_pin_match') {
+              strippedSq.imageUrl = sq.imageUrl || '';
+              strippedSq.pins = (Array.isArray(sq.pins) ? sq.pins : [])
+                .map((p) => ({
+                  id: String(p?.id || ''),
+                  x: Math.max(0, Math.min(100, Number(p?.x) || 0)),
+                  y: Math.max(0, Math.min(100, Number(p?.y) || 0)),
+                }))
+                .filter((p) => p.id);
+              const baseLabels = (Array.isArray(sq.labels) ? sq.labels : [])
+                .map((l) => ({ id: String(l?.id || ''), text: sanitizeQuestionPlainText(l?.text || '') }))
+                .filter((l) => l.id && l.text);
+              const randomize = sq?.settings?.randomizeLabels !== false;
+              strippedSq.labels = randomize ? shuffleArray(baseLabels) : baseLabels;
+              strippedSq.settings = {
+                randomizeLabels: randomize,
+                allowRetry: sq?.settings?.allowRetry !== false
+              };
+            }
+            return strippedSq;
+          });
         }
         return stripped;
       });
@@ -2491,9 +2588,26 @@ router.post('/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       return res.status(404).json({ error: 'Exercise not found' });
     }
 
+    // Prevent duplicate copies: one v2 copy per source exercise.
+    const existingCopy = await DigitalExercise.findOne({
+      version: 'v2',
+      isDeleted: { $ne: true },
+      'splitLineage.sourceExerciseId': source._id
+    })
+      .select('_id title')
+      .lean();
+    if (existingCopy) {
+      return res.status(409).json({
+        error: 'This exercise is already in Online Exercises 2.0. Open it there to edit or assign batches.',
+        exerciseId: String(existingCopy._id)
+      });
+    }
+
     // Strip Mongoose/Mongo-specific fields, then build the copy
     const { _id, createdAt, updatedAt, totalAttempts, totalCompletions, averageScore,
             testerVerified, splitLineage, ...rest } = source;
+
+    const v2Lineage = buildFullCopySplitLineage(source);
 
     const copy = new DigitalExercise({
       ...rest,
@@ -2506,6 +2620,7 @@ router.post('/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       totalCompletions: 0,
       averageScore: 0,
       testerVerified: false,
+      ...(v2Lineage ? { splitLineage: v2Lineage } : {}),
       createdBy: req.user.id,
       lastUpdatedBy: req.user.id,
       createdAt: new Date(),
@@ -2773,7 +2888,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), 
 // POST /api/digital-exercises/freemode  — Create exercise from Free Mode builder items
 router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags } = req.body;
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, version, targetBatches } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one question item is required' });
@@ -2890,7 +3005,15 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       trailingContentBlocks,
       isFreeMode: true,
       createdBy: req.user.id,
-      lastUpdatedBy: req.user.id
+      lastUpdatedBy: req.user.id,
+      ...(String(version || '').toLowerCase() === 'v2'
+        ? {
+            version: 'v2',
+            targetBatches: Array.isArray(targetBatches)
+              ? targetBatches.map((b) => String(b).trim()).filter(Boolean)
+              : []
+          }
+        : {})
     };
 
     if (Object.prototype.hasOwnProperty.call(normalizedBody, 'questions')) {
@@ -2918,7 +3041,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
-    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches } = req.body;
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches, version } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one question item is required' });
@@ -3030,6 +3153,11 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     exercise.tags = tags || exercise.tags;
     if (exercise.version === 'v2' && Array.isArray(targetBatches)) {
       exercise.targetBatches = targetBatches.map((b) => String(b).trim()).filter(Boolean);
+    } else if (String(version || '').toLowerCase() === 'v2' && exercise.version !== 'v2') {
+      exercise.version = 'v2';
+      exercise.targetBatches = Array.isArray(targetBatches)
+        ? targetBatches.map((b) => String(b).trim()).filter(Boolean)
+        : [];
     }
     exercise.questions = normalizeQuestionContexts(questions);
     exercise.trailingContentBlocks = trailingContentBlocks;
@@ -3265,7 +3393,11 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
         });
       }
       // Sequence gate
-      const seqLock = await checkSequenceLock(req.user.id, exercise.toObject ? exercise.toObject() : exercise);
+      const seqLock = await checkSequenceLock(
+        req.user.id,
+        exercise.toObject ? exercise.toObject() : exercise,
+        access
+      );
       if (seqLock.locked) {
         return res.status(403).json({
           error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first.`,
