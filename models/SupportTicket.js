@@ -22,6 +22,7 @@ const supportTicketSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now }
       }
     ],
+    url: { type: String, trim: true },
     screenshot: {
       fileName: String,
       originalName: String,

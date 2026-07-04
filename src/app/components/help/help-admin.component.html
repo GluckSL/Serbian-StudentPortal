@@ -237,9 +237,10 @@
             <tr *ngIf="selectedTicket?._id === ticket._id" class="ha-expand-row">
               <td colspan="10">
                 <div class="ha-expand-content">
-                  <div class="ha-expand-ids" *ngIf="ticket.regNo || ticket.batch || ticket.displayPassword">
+                  <div class="ha-expand-ids" *ngIf="ticket.regNo || ticket.batch || ticket.displayPassword || ticket.url">
                     <span *ngIf="ticket.regNo"><i class="fas fa-id-card"></i> Student ID: <strong>{{ ticket.regNo }}</strong><span *ngIf="ticket.displayPassword"> · Password: <strong>{{ ticket.displayPassword }}</strong></span></span>
                     <span *ngIf="ticket.batch"><i class="fas fa-users"></i> Batch: <strong>{{ ticket.batch }}</strong></span>
+                    <span *ngIf="ticket.url"><i class="fas fa-link"></i> URL: <a [href]="ticket.url" target="_blank" rel="noreferrer">{{ ticket.url }}</a></span>
                   </div>
                   <h4>Description</h4>
                   <p>{{ ticket.description }}</p>

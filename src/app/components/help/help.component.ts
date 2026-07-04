@@ -15,6 +15,7 @@ export interface SupportTicket {
   category: string;
   priority: string;
   description: string;
+  url?: string;
   screenshot?: {
     url?: string;
     originalName?: string;
@@ -97,6 +98,7 @@ export class HelpComponent implements OnInit {
       category: ['', Validators.required],
       priority: ['medium', Validators.required],
       description: ['', [Validators.required, Validators.minLength(20), Validators.maxLength(1000)]],
+      url: [''],
       screenshot: [null, Validators.required]
     });
 
@@ -144,6 +146,7 @@ export class HelpComponent implements OnInit {
     fd.append('category', this.ticketForm.value.category);
     fd.append('priority', this.ticketForm.value.priority);
     fd.append('description', this.ticketForm.value.description);
+    fd.append('url', this.ticketForm.value.url || '');
     if (this.currentUser?._id) fd.append('userId', this.currentUser._id);
     fd.append('screenshot', this.screenshotFile);
 

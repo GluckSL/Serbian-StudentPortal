@@ -53,6 +53,7 @@ async function sendNewTicketAlert(ticket) {
       <p><strong>Priority:</strong> ${ticket.priority}</p>
       <p><strong>Subject:</strong> ${ticket.subject}</p>
       <p><strong>Description:</strong> ${ticket.description}</p>
+      <p><strong>URL:</strong> ${ticket.url || 'N/A'}</p>
       <p><strong>Screenshot:</strong> <a href="${ticket?.screenshot?.url || '#'}">View Attachment</a></p>
     `
   });
@@ -105,7 +106,8 @@ router.post('/tickets', upload.single('screenshot'), async (req, res) => {
       subject,
       category,
       priority = 'medium',
-      description
+      description,
+      url = ''
     } = req.body;
 
     if (!name || !email || !subject || !category || !priority || !description) {
@@ -124,6 +126,7 @@ router.post('/tickets', upload.single('screenshot'), async (req, res) => {
       category,
       priority,
       description,
+      url,
       screenshot: {
         fileName: req.file.key,
         originalName: req.file.originalname,
