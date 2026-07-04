@@ -227,13 +227,13 @@
         <div class="ua-mini-stepper">
           <ng-container *ngFor="let def of (app.stageDefinitions || stageDefinitions); let i = index; let last = last">
             <div class="ua-mini-step"
-                 [class.ua-mini-step--done]="app.stages[i]?.status === 'completed'"
-                 [class.ua-mini-step--active]="app.stages[i]?.status === 'in_progress'"
+                 [class.ua-mini-step--done]="app.stages[i].status === 'completed'"
+                 [class.ua-mini-step--active]="app.stages[i].status === 'in_progress'"
                  [matTooltip]="def.label">
               <mat-icon>{{ stageIcons[i] }}</mat-icon>
             </div>
             <div class="ua-mini-line" *ngIf="!last"
-                 [class.ua-mini-line--done]="app.stages[i]?.status === 'completed'"></div>
+                 [class.ua-mini-line--done]="app.stages[i].status === 'completed'"></div>
           </ng-container>
         </div>
 

@@ -16,7 +16,7 @@
           University Applied
         </button>
         <button class="btn btn-header-upload" (click)="toggleUploadForm(); scrollToUploadForm()">
-          <i class="fas" [ngClass]="showUploadForm ? 'fa-times' : 'fa-plus'"></i>
+          <span class="btn-uni-icon"><i class="fas" [ngClass]="showUploadForm ? 'fa-times' : 'fa-plus'"></i></span>
           {{ showUploadForm ? 'Close Form' : 'Upload Document' }}
         </button>
       </div>
@@ -633,11 +633,11 @@
               <div class="ua-mini-track">
                 <ng-container *ngFor="let def of (app.stageDefinitions || universityStageDefinitions); let i = index; let last = last">
                   <span class="ua-mini-dot"
-                        [class.ua-mini-dot--done]="app.stages[i]?.status === 'completed'"
-                        [class.ua-mini-dot--active]="app.stages[i]?.status === 'in_progress'"
+                        [class.ua-mini-dot--done]="app.stages[i].status === 'completed'"
+                        [class.ua-mini-dot--active]="app.stages[i].status === 'in_progress'"
                         [title]="def.label"></span>
                   <span class="ua-mini-bar" *ngIf="!last"
-                        [class.ua-mini-bar--done]="app.stages[i]?.status === 'completed'"></span>
+                        [class.ua-mini-bar--done]="app.stages[i].status === 'completed'"></span>
                 </ng-container>
               </div>
               <span class="ua-phase-pill">
@@ -699,16 +699,16 @@
           <div class="ua-stepper">
             <ng-container *ngFor="let def of (selectedUniversityApp.stageDefinitions || universityStageDefinitions); let i = index; let last = last">
               <div class="ua-step"
-                   [class.ua-step--active]="selectedUniversityApp.stages[i]?.status === 'in_progress' || (i + 1 === selectedUniversityApp.currentStage && selectedUniversityApp.stages[i]?.status !== 'completed')"
-                   [class.ua-step--done]="selectedUniversityApp.stages[i]?.status === 'completed'">
+                   [class.ua-step--active]="selectedUniversityApp.stages[i].status === 'in_progress' || (i + 1 === selectedUniversityApp.currentStage && selectedUniversityApp.stages[i].status !== 'completed')"
+                   [class.ua-step--done]="selectedUniversityApp.stages[i].status === 'completed'">
                 <div class="ua-step-dot">
                   <i class="fas" [ngClass]="universityStageIcons[i]"></i>
-                  <span class="ua-step-pulse" *ngIf="selectedUniversityApp.stages[i]?.status === 'in_progress'"></span>
+                  <span class="ua-step-pulse" *ngIf="selectedUniversityApp.stages[i].status === 'in_progress'"></span>
                 </div>
                 <span class="ua-step-label">{{ def.label }}</span>
               </div>
               <div class="ua-step-line" *ngIf="!last"
-                   [class.ua-step-line--done]="selectedUniversityApp.stages[i]?.status === 'completed'"></div>
+                   [class.ua-step-line--done]="selectedUniversityApp.stages[i].status === 'completed'"></div>
             </ng-container>
           </div>
         </div>
@@ -719,7 +719,7 @@
                [class.ua-stage-card--done]="stg.status === 'completed'">
             <div class="ua-stage-head">
               <span class="ua-stage-num"><i class="fas" [ngClass]="universityStageIcons[i]"></i></span>
-              <span class="ua-stage-name">{{ (selectedUniversityApp.stageDefinitions || universityStageDefinitions)[i]?.label || 'Stage ' + stg.stage }}</span>
+              <span class="ua-stage-name">{{ (selectedUniversityApp.stageDefinitions || universityStageDefinitions)[i].label || 'Stage ' + stg.stage }}</span>
               <span class="ua-status" [ngClass]="universityStatusClass(stg.status)">{{ universityStatusLabel(stg.status) }}</span>
             </div>
             <div class="ua-stage-body" *ngIf="stg.message || stg.stageDate">

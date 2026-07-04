@@ -692,7 +692,6 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
 }
 
 .ua-journey__bar {
@@ -723,6 +722,7 @@
   justify-content: space-between;
   gap: 0;
   overflow-x: auto;
+  padding-top: 20px;
   padding-bottom: 4px;
 }
 
