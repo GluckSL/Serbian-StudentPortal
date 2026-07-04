@@ -137,6 +137,50 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     });
   }
 
+  private get teacherRates(): Record<string, number> {
+    return this.monthlyAnalytics?.teacher?.levelHourlyRates || {};
+  }
+
+  get hasRates(): boolean {
+    return Object.keys(this.teacherRates).length > 0;
+  }
+
+  getRateForLevel(level: string): number {
+    const rates = this.teacherRates;
+    const knownLevel = String(level || '').toUpperCase().match(/\b(A1|A2|B1|B2)\b/)?.[1];
+    return knownLevel ? Number(rates[knownLevel] ?? 0) : 0;
+  }
+
+  computeBaseTotal(): number {
+    const rows = this.monthlyAnalytics?.batchBreakdown || [];
+    if (!this.hasRates || !rows.length) return 0;
+    return rows.reduce((sum: number, row: any) => {
+      const rate = this.getRateForLevel(row.level) || this.getFallbackRate();
+      return sum + (row.tutorHours || 0) * rate;
+    }, 0);
+  }
+
+  private getFallbackRate(): number {
+    const rates = this.teacherRates;
+    const teacherLevels = this.monthlyAnalytics?.teacher?.levels || [];
+    const matchingRates = teacherLevels
+      .map((level: string) => Number(rates[String(level).toUpperCase()] ?? 0))
+      .filter((rate: number) => Number.isFinite(rate) && rate > 0);
+    if (matchingRates.length) {
+      return matchingRates.reduce((sum: number, rate: number) => sum + rate, 0) / matchingRates.length;
+    }
+    const allRates = Object.values(rates).filter((rate): rate is number => Number.isFinite(rate) && rate > 0);
+    return allRates.length ? allRates.reduce((sum: number, rate: number) => sum + rate, 0) / allRates.length : 0;
+  }
+
+  computeTDS(): number {
+    return this.computeBaseTotal() * 10 / 100;
+  }
+
+  computeFinal(): number {
+    return this.computeBaseTotal() - this.computeTDS();
+  }
+
   formatHours(hours: number): string {
     return (hours || 0).toFixed(2);
   }

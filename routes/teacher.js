@@ -154,7 +154,7 @@ router.get('/monthly-hours', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']
         role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
       })
         .populate('assignedCourses', 'title')
-        .select('name regNo email medium assignedBatches assignedCourses')
+        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
         .lean(),
       MeetingLink.find({
         assignedTeacher: teacherId,
@@ -313,7 +313,8 @@ router.get('/monthly-hours', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']
           email: teacher.email || '',
           medium: teacher.medium || '',
           assignedBatches: teacher.assignedBatches || [],
-          levels: [...allLevelSet].sort()
+          levels: [...allLevelSet].sort(),
+          levelHourlyRates: teacher.levelHourlyRates || {}
         },
         month: monthFilter.month,
         monthLabel: monthFilter.monthLabel,
@@ -338,6 +339,264 @@ router.get('/monthly-hours', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch monthly hour details',
+      error: err.message
+    });
+  }
+});
+
+// Teacher self-service analytics report (mirrors admin report but for the logged-in teacher)
+router.get('/report', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const teacherId = req.user.id;
+
+    const teacher = await User.findOne({
+      _id: teacherId,
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
+    })
+      .populate('assignedCourses', 'title')
+      .select('-password')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({ success: false, message: 'Teacher not found' });
+    }
+
+    const students = await User.find({
+      role: 'STUDENT',
+      assignedTeacher: teacherId
+    })
+      .select('name regNo email level batch studentStatus currentCourseDay examScores')
+      .lean();
+
+    const meetings = await MeetingLink.find({ assignedTeacher: teacherId })
+      .select('topic batch startTime duration attendance attendanceRecorded status')
+      .sort({ startTime: -1 })
+      .lean();
+
+    const statusTemplate = { ONGOING: 0, COMPLETED: 0, WITHDREW: 0, UNCERTAIN: 0 };
+    const levelTemplate = { A1: 0, A2: 0, B1: 0, B2: 0, C1: 0, C2: 0 };
+
+    const batchMap = new Map();
+    const allKnownBatches = new Set([...(teacher.assignedBatches || [])]);
+    let courseDaySum = 0;
+    let courseDayCount = 0;
+
+    students.forEach((student) => {
+      const status = String(student.studentStatus || '').toUpperCase();
+      const level = String(student.level || '').toUpperCase();
+      const batch = String(student.batch || '').trim();
+
+      if (statusTemplate[status] !== undefined) statusTemplate[status] += 1;
+      if (levelTemplate[level] !== undefined) levelTemplate[level] += 1;
+
+      if (batch) {
+        allKnownBatches.add(batch);
+        if (!batchMap.has(batch)) {
+          batchMap.set(batch, { batch, totalStudents: 0, ongoing: 0, completed: 0, withdrew: 0, uncertain: 0 });
+        }
+        const info = batchMap.get(batch);
+        info.totalStudents += 1;
+        if (status === 'ONGOING') info.ongoing += 1;
+        if (status === 'COMPLETED') info.completed += 1;
+        if (status === 'WITHDREW') info.withdrew += 1;
+        if (status === 'UNCERTAIN') info.uncertain += 1;
+      }
+
+      if (typeof student.currentCourseDay === 'number' && Number.isFinite(student.currentCourseDay)) {
+        courseDaySum += student.currentCourseDay;
+        courseDayCount += 1;
+      }
+    });
+
+    allKnownBatches.forEach((batch) => {
+      if (!batchMap.has(batch)) {
+        batchMap.set(batch, { batch, totalStudents: 0, ongoing: 0, completed: 0, withdrew: 0, uncertain: 0 });
+      }
+    });
+
+    const batchBreakdown = Array.from(batchMap.values()).sort((a, b) =>
+      String(a.batch).localeCompare(String(b.batch))
+    );
+
+    let attendedCount = 0;
+    let absentCount = 0;
+    let lateCount = 0;
+    let totalAttendanceRecords = 0;
+
+    const formatMeeting = (meeting) => {
+      const attendance = Array.isArray(meeting.attendance) ? meeting.attendance : [];
+      const present = attendance.filter((entry) => entry?.attended === true || entry?.status === 'attended').length;
+      const late = attendance.filter((entry) => entry?.status === 'late').length;
+      const absent = Math.max(attendance.length - present - late, 0);
+      const total = attendance.length;
+      const attendanceRate = total ? Math.round(((present + late) / total) * 100) : 0;
+
+      const meetingDurationMinutes = Number(meeting.duration || 0);
+      const attendedEntries = attendance.filter((entry) => entry?.attended === true || entry?.status === 'attended' || entry?.status === 'late');
+      const attendedMinutesList = attendedEntries
+        .map((entry) => {
+          const mins = entry?.durationMinutes;
+          if (typeof mins === 'number' && Number.isFinite(mins)) return mins;
+          const secs = entry?.duration;
+          if (typeof secs === 'number' && Number.isFinite(secs)) return Math.round(secs / 60);
+          return 0;
+        })
+        .filter((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+      const totalAttendedMinutes = attendedMinutesList.reduce((sum, v) => sum + v, 0);
+      const avgAttendedMinutes = attendedMinutesList.length ? Math.round(totalAttendedMinutes / attendedMinutesList.length) : 0;
+
+      return {
+        _id: meeting._id,
+        topic: meeting.topic || 'Class Meeting',
+        batch: meeting.batch || 'N/A',
+        startTime: meeting.startTime,
+        status: meeting.status || 'scheduled',
+        attendanceRecorded: Boolean(meeting.attendanceRecorded),
+        present,
+        late,
+        absent,
+        total,
+        attendanceRate,
+        meetingDurationMinutes,
+        avgAttendedMinutes,
+        totalAttendedMinutes
+      };
+    };
+
+    const now = new Date();
+    const mappedMeetings = meetings.map((meeting) => {
+      const mapped = formatMeeting(meeting);
+      attendedCount += mapped.present;
+      lateCount += mapped.late;
+      absentCount += mapped.absent;
+      totalAttendanceRecords += mapped.total;
+      return mapped;
+    });
+
+    const recentMeetings = mappedMeetings.slice(0, 8);
+    const upcomingMeetings = mappedMeetings
+      .filter((meeting) => meeting.startTime && new Date(meeting.startTime) >= now)
+      .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+      .slice(0, 10);
+    const allPastMeetings = mappedMeetings
+      .filter((meeting) => meeting.startTime && new Date(meeting.startTime) < now)
+      .sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+    const pastMeetings = allPastMeetings.slice(0, 15);
+
+    let totalScheduledMinutes = 0;
+    let totalAttendedStudentMinutes = 0;
+    let meetingsWithRecordedDuration = 0;
+    let meetingsUsingDefaultDuration = 0;
+
+    const teachingTimeMeetings = allPastMeetings.map((meeting) => {
+      const hasRecordedDuration = meeting.meetingDurationMinutes > 0;
+      const scheduledMinutes = hasRecordedDuration
+        ? meeting.meetingDurationMinutes
+        : (meeting.attendanceRecorded ? 60 : 0);
+
+      if (hasRecordedDuration) meetingsWithRecordedDuration += 1;
+      else if (scheduledMinutes > 0) meetingsUsingDefaultDuration += 1;
+
+      totalScheduledMinutes += scheduledMinutes;
+      totalAttendedStudentMinutes += meeting.totalAttendedMinutes || 0;
+
+      return {
+        _id: meeting._id,
+        topic: meeting.topic,
+        batch: meeting.batch,
+        startTime: meeting.startTime,
+        status: meeting.status,
+        attendanceRecorded: meeting.attendanceRecorded,
+        present: meeting.present,
+        late: meeting.late,
+        absent: meeting.absent,
+        attendanceRate: meeting.attendanceRate,
+        scheduledMinutes,
+        meetingDurationMinutes: meeting.meetingDurationMinutes,
+        totalAttendedMinutes: meeting.totalAttendedMinutes || 0,
+        avgAttendedMinutes: meeting.avgAttendedMinutes || 0
+      };
+    });
+
+    const overallAttendanceRate = totalAttendanceRecords
+      ? Math.round(((attendedCount + lateCount) / totalAttendanceRecords) * 100)
+      : 0;
+
+    const studentsWithExamAverage = students.map((student) => {
+      const examScores = student.examScores || {};
+      const scoreValues = [examScores.reading, examScores.listening, examScores.writing, examScores.speaking]
+        .filter((v) => typeof v === 'number' && Number.isFinite(v));
+      const averageExamScore = scoreValues.length
+        ? Math.round((scoreValues.reduce((sum, v) => sum + v, 0) / scoreValues.length) * 10) / 10
+        : null;
+
+      return {
+        _id: student._id,
+        name: student.name,
+        regNo: student.regNo,
+        email: student.email,
+        level: student.level || 'N/A',
+        batch: student.batch || 'N/A',
+        studentStatus: student.studentStatus || 'UNCERTAIN',
+        currentCourseDay: typeof student.currentCourseDay === 'number' ? student.currentCourseDay : null,
+        averageExamScore
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        teacher: {
+          _id: teacher._id,
+          name: teacher.name,
+          regNo: teacher.regNo,
+          email: teacher.email,
+          role: teacher.role,
+          medium: teacher.medium || [],
+          assignedCourses: teacher.assignedCourses || [],
+          assignedBatches: teacher.assignedBatches || []
+        },
+        summary: {
+          totalStudents: students.length,
+          totalAssignedBatches: allKnownBatches.size,
+          totalMeetings: meetings.length,
+          totalAttendanceRecords,
+          overallAttendanceRate,
+          averageCourseDay: courseDayCount ? Math.round(courseDaySum / courseDayCount) : 0,
+          totalTeachingMinutes: totalScheduledMinutes
+        },
+        teachingTime: {
+          totalMinutes: totalScheduledMinutes,
+          totalAttendedStudentMinutes,
+          pastMeetingCount: allPastMeetings.length,
+          meetingsWithRecordedDuration,
+          meetingsUsingDefaultDuration,
+          meetings: teachingTimeMeetings
+        },
+        performance: {
+          statusBreakdown: statusTemplate,
+          levelBreakdown: levelTemplate
+        },
+        attendance: {
+          attendedCount,
+          lateCount,
+          absentCount,
+          recentMeetings
+        },
+        meetings: {
+          pastMeetings,
+          upcomingMeetings
+        },
+        batchBreakdown,
+        students: studentsWithExamAverage
+      }
+    });
+  } catch (err) {
+    console.error('teacher report error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch teacher report',
       error: err.message
     });
   }

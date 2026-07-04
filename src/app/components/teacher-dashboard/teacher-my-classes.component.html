@@ -65,7 +65,7 @@
             <span class="tmc-analytics-icon tmc-analytics-icon--amber"><i class="fas fa-gift"></i></span>
             <div>
               <small>Total</small>
-              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">{{ formatCurrency(monthlyAnalytics?.totals?.totalBonus || 0) }}</strong>
+              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">{{ hasRates ? formatCurrency(computeBaseTotal()) : '—' }}</strong>
             </div>
           </div>
         </div>
