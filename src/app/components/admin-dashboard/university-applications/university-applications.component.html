@@ -1,0 +1,441 @@
+<div class="ua-page">
+
+  <!-- Hero header -->
+  <header class="ua-hero">
+    <div class="ua-hero__content">
+      <div class="ua-hero__icon">
+        <mat-icon>school</mat-icon>
+      </div>
+      <div>
+        <h1>Manage University Applications</h1>
+        <p>Search students, filter by batch & status, and track each application through 5 phases</p>
+      </div>
+    </div>
+    <a mat-stroked-button routerLink="/admin/document-verification" class="ua-hero__back">
+      <mat-icon>arrow_back</mat-icon>
+      Document Management
+    </a>
+  </header>
+
+  <!-- Stats -->
+  <div class="ua-stats">
+    <div class="ua-stat ua-stat--blue">
+      <mat-icon>groups</mat-icon>
+      <div>
+        <span class="ua-stat__num">{{ stats.totalStudents }}</span>
+        <span class="ua-stat__label">Total Students</span>
+      </div>
+    </div>
+    <div class="ua-stat ua-stat--indigo">
+      <mat-icon>assignment</mat-icon>
+      <div>
+        <span class="ua-stat__num">{{ stats.withApplications }}</span>
+        <span class="ua-stat__label">With Applications</span>
+      </div>
+    </div>
+    <div class="ua-stat ua-stat--amber">
+      <mat-icon>hourglass_top</mat-icon>
+      <div>
+        <span class="ua-stat__num">{{ stats.inProgress }}</span>
+        <span class="ua-stat__label">In Progress</span>
+      </div>
+    </div>
+    <div class="ua-stat ua-stat--green">
+      <mat-icon>check_circle</mat-icon>
+      <div>
+        <span class="ua-stat__num">{{ stats.accepted }}</span>
+        <span class="ua-stat__label">Accepted</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <section class="ua-filters">
+    <div class="ua-filters__row">
+      <mat-form-field appearance="outline" class="ua-filter-field ua-filter-field--search">
+        <mat-label>Search student</mat-label>
+        <mat-icon matPrefix>search</mat-icon>
+        <input matInput [(ngModel)]="filterSearch" (ngModelChange)="onFilterChange()"
+               placeholder="Name, email, or reg no..." />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ua-filter-field">
+        <mat-label>Batch</mat-label>
+        <mat-select [(ngModel)]="filterBatch" (ngModelChange)="onFilterChange()">
+          <mat-option value="ALL">All Batches</mat-option>
+          <mat-option *ngFor="let b of batchOptions" [value]="b">Batch {{ b }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ua-filter-field">
+        <mat-label>Application Status</mat-label>
+        <mat-select [(ngModel)]="filterStatus" (ngModelChange)="onFilterChange()">
+          <mat-option *ngFor="let f of statusFilters" [value]="f.value">{{ f.label }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-stroked-button class="ua-clear-btn" (click)="clearFilters()" type="button">
+        <mat-icon>filter_alt_off</mat-icon>
+        Clear
+      </button>
+    </div>
+
+    <div class="ua-status-pills">
+      <button type="button" class="ua-pill" *ngFor="let f of statusFilters"
+              [class.ua-pill--active]="filterStatus === f.value"
+              (click)="filterStatus = f.value; onFilterChange()">
+        <mat-icon>{{ f.icon }}</mat-icon>
+        {{ f.label }}
+      </button>
+    </div>
+  </section>
+
+  <!-- Student table -->
+  <section class="ua-table-section">
+    <div class="ua-table-head">
+      <h2>
+        <mat-icon>table_rows</mat-icon>
+        Students
+        <span class="ua-count-badge">{{ totalFiltered }}</span>
+      </h2>
+      <span class="ua-table-hint">Click a row to manage university applications</span>
+    </div>
+
+    <div class="ua-table-wrap" *ngIf="!studentsLoading; else tableLoading">
+      <table class="ua-table" *ngIf="paginatedStudents.length; else emptyTable">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Reg No</th>
+            <th>Email</th>
+            <th>Batch</th>
+            <th>Applications</th>
+            <th>Latest University</th>
+            <th>Current Phase</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of paginatedStudents"
+              [class.ua-row--selected]="isSelected(s)"
+              (click)="selectStudent(s)">
+            <td>
+              <div class="ua-student-cell">
+                <div class="ua-avatar">{{ (s.name || '?')[0] }}</div>
+                <strong>{{ s.name || '—' }}</strong>
+              </div>
+            </td>
+            <td>{{ s.regNo || '—' }}</td>
+            <td class="ua-email">{{ s.email || '—' }}</td>
+            <td>
+              <span class="ua-batch-pill" *ngIf="s.batch">{{ s.batch }}</span>
+              <span *ngIf="!s.batch">—</span>
+            </td>
+            <td>
+              <span class="ua-app-count" [class.ua-app-count--zero]="getStudentSummary(s._id).count === 0">
+                {{ getStudentSummary(s._id).count }}
+              </span>
+            </td>
+            <td>{{ getStudentSummary(s._id).universityName }}</td>
+            <td>
+              <span class="ua-phase-tag" *ngIf="getStudentSummary(s._id).count > 0">
+                {{ getStudentSummary(s._id).latestPhase }}/5 · {{ getStudentSummary(s._id).phaseLabel }}
+              </span>
+              <span *ngIf="getStudentSummary(s._id).count === 0">—</span>
+            </td>
+            <td>
+              <span class="ua-outcome" [ngClass]="outcomeClass(getStudentSummary(s._id).outcome)">
+                {{ outcomeLabel(getStudentSummary(s._id).outcome) }}
+              </span>
+            </td>
+            <td>
+              <button mat-icon-button (click)="selectStudent(s); $event.stopPropagation()" matTooltip="Manage">
+                <mat-icon>arrow_forward</mat-icon>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <ng-template #emptyTable>
+        <div class="ua-empty">
+          <mat-icon>person_search</mat-icon>
+          <p>No students match your filters</p>
+          <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
+        </div>
+      </ng-template>
+
+      <mat-paginator
+        [length]="totalFiltered"
+        [pageSize]="pageSize"
+        [pageIndex]="pageIndex"
+        [pageSizeOptions]="[10, 30, 50, 100]"
+        (page)="onPageChange($event)"
+        showFirstLastButtons>
+      </mat-paginator>
+    </div>
+
+    <ng-template #tableLoading>
+      <div class="ua-loading">
+        <mat-spinner diameter="36"></mat-spinner>
+        <span>Loading students...</span>
+      </div>
+    </ng-template>
+  </section>
+
+  <!-- Selected student workspace -->
+  <section class="ua-workspace" id="student-workspace" *ngIf="selectedStudent">
+    <div class="ua-workspace__banner">
+      <div class="ua-workspace__student">
+        <div class="ua-avatar ua-avatar--lg">{{ (selectedStudent.name || '?')[0] }}</div>
+        <div>
+          <h3>{{ selectedStudent.name }}</h3>
+          <p>{{ selectedStudent.email }} · {{ selectedStudent.regNo || '—' }} · Batch {{ selectedStudent.batch || '—' }}</p>
+        </div>
+      </div>
+      <div class="ua-workspace__actions">
+        <button mat-flat-button color="primary" (click)="openCreate()" [disabled]="showForm">
+          <mat-icon>add</mat-icon>
+          Add Application
+        </button>
+        <button mat-icon-button (click)="clearStudent()" matTooltip="Close">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <div class="ua-apps-grid" *ngIf="!isLoadingApps && applications.length; else appsState">
+      <article class="ua-app-card" *ngFor="let app of applications"
+               [class.ua-app-card--accepted]="app.finalOutcome === 'accepted'"
+               [class.ua-app-card--rejected]="app.finalOutcome === 'rejected'">
+        <div class="ua-app-card__top">
+          <div class="ua-app-card__icon">
+            <mat-icon>account_balance</mat-icon>
+          </div>
+          <div class="ua-app-card__info">
+            <h4>{{ app.universityName }}</h4>
+            <p *ngIf="app.course">{{ app.course }}<span *ngIf="app.degreeLevel"> · {{ app.degreeLevel }}</span></p>
+            <p class="ua-app-meta" *ngIf="app.country || app.intakeTerm">
+              {{ app.country }}<span *ngIf="app.intakeTerm"> · {{ app.intakeTerm }}</span>
+            </p>
+          </div>
+          <span class="ua-app-phase">Phase {{ app.currentStage }}/5</span>
+        </div>
+
+        <!-- Mini animated stepper on card -->
+        <div class="ua-mini-stepper">
+          <ng-container *ngFor="let def of (app.stageDefinitions || stageDefinitions); let i = index; let last = last">
+            <div class="ua-mini-step"
+                 [class.ua-mini-step--done]="app.stages[i]?.status === 'completed'"
+                 [class.ua-mini-step--active]="app.stages[i]?.status === 'in_progress'"
+                 [matTooltip]="def.label">
+              <mat-icon>{{ stageIcons[i] }}</mat-icon>
+            </div>
+            <div class="ua-mini-line" *ngIf="!last"
+                 [class.ua-mini-line--done]="app.stages[i]?.status === 'completed'"></div>
+          </ng-container>
+        </div>
+
+        <div class="ua-app-card__foot">
+          <span class="ua-outcome" [ngClass]="outcomeClass(app.finalOutcome || 'pending')">
+            {{ outcomeLabel(app.finalOutcome || 'pending') }}
+          </span>
+          <span class="ua-updated">Updated {{ formatDate(app.updatedAt) }}</span>
+          <div class="ua-app-card__btns">
+            <button mat-stroked-button (click)="openEdit(app)">
+              <mat-icon>edit</mat-icon> Edit
+            </button>
+            <button mat-stroked-button color="warn" (click)="deleteApplication(app)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <ng-template #appsState>
+      <div class="ua-empty ua-empty--compact" *ngIf="!isLoadingApps">
+        <mat-icon>school</mat-icon>
+        <p>No university applications for this student yet</p>
+        <button mat-flat-button color="primary" (click)="openCreate()">Add First Application</button>
+      </div>
+      <div class="ua-loading ua-loading--compact" *ngIf="isLoadingApps">
+        <mat-spinner diameter="32"></mat-spinner>
+        <span>Loading applications...</span>
+      </div>
+    </ng-template>
+  </section>
+
+  <!-- Form overlay -->
+  <div class="ua-form-overlay" *ngIf="showForm" (click)="closeForm()">
+    <div class="ua-form-panel" (click)="$event.stopPropagation()">
+      <div class="ua-form-panel__head">
+        <div>
+          <h3>{{ editingApplication ? 'Edit Application' : 'New University Application' }}</h3>
+          <p *ngIf="selectedStudent">For {{ selectedStudent.name }}</p>
+        </div>
+        <button mat-icon-button (click)="closeForm()"><mat-icon>close</mat-icon></button>
+      </div>
+
+      <div class="ua-form-panel__body">
+        <!-- Animated 5-step journey -->
+        <div class="ua-journey">
+          <div class="ua-journey__progress">
+            <div class="ua-journey__bar">
+              <div class="ua-journey__fill" [style.width.%]="formProgressPct()"></div>
+            </div>
+            <span>{{ formProgressPct() }}% complete</span>
+          </div>
+
+          <div class="ua-journey__steps">
+            <ng-container *ngFor="let def of stageDefinitions; let i = index; let last = last">
+              <div class="ua-journey-step"
+                   [class.ua-journey-step--done]="isStepDone(i)"
+                   [class.ua-journey-step--active]="isStepActive(i)"
+                   [style.--step-color]="stageColors[i]">
+                <div class="ua-journey-step__orb">
+                  <mat-icon>{{ stageIcons[i] }}</mat-icon>
+                  <span class="ua-journey-step__pulse" *ngIf="isStepActive(i)"></span>
+                </div>
+                <span class="ua-journey-step__label">{{ def.label }}</span>
+              </div>
+              <div class="ua-journey-connector" *ngIf="!last"
+                   [class.ua-journey-connector--done]="isStepDone(i)">
+                <div class="ua-journey-connector__fill"></div>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+
+        <!-- University details -->
+        <div class="ua-form-section-title">
+          <mat-icon>info</mat-icon> University Details
+        </div>
+        <div class="ua-form-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>University Name *</mat-label>
+            <input matInput [(ngModel)]="form.universityName" required />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Course / Program</mat-label>
+            <input matInput [(ngModel)]="form.course" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Degree Level</mat-label>
+            <mat-select [(ngModel)]="form.degreeLevel">
+              <mat-option value="">—</mat-option>
+              <mat-option *ngFor="let d of degreeLevels" [value]="d">{{ d }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Country</mat-label>
+            <input matInput [(ngModel)]="form.country" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>City</mat-label>
+            <input matInput [(ngModel)]="form.city" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Campus</mat-label>
+            <input matInput [(ngModel)]="form.campus" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Intake Term</mat-label>
+            <input matInput [(ngModel)]="form.intakeTerm" placeholder="e.g. Winter 2026" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Application Reference</mat-label>
+            <input matInput [(ngModel)]="form.applicationReference" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Website</mat-label>
+            <input matInput [(ngModel)]="form.website" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Language</mat-label>
+            <input matInput [(ngModel)]="form.languageOfInstruction" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Duration</mat-label>
+            <input matInput [(ngModel)]="form.duration" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Tuition Fee</mat-label>
+            <input matInput [(ngModel)]="form.tuitionFee" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="ua-full">
+            <mat-label>Notes (visible to student)</mat-label>
+            <textarea matInput rows="2" [(ngModel)]="form.notes"></textarea>
+          </mat-form-field>
+        </div>
+
+        <!-- Phase cards -->
+        <div class="ua-form-section-title">
+          <mat-icon>timeline</mat-icon> Phase Updates
+        </div>
+        <div class="ua-phase-grid">
+          <div class="ua-phase-tile" *ngFor="let stg of form.stages; let i = index"
+               [class.ua-phase-tile--done]="stg.status === 'completed'"
+               [class.ua-phase-tile--active]="stg.status === 'in_progress'"
+               [style.--tile-color]="stageColors[i]">
+            <div class="ua-phase-tile__head">
+              <div class="ua-phase-tile__icon">
+                <mat-icon>{{ stageIcons[i] }}</mat-icon>
+              </div>
+              <div>
+                <strong>{{ getStageDef(stg.stage)?.label }}</strong>
+                <small>{{ getStageDef(stg.stage)?.desc }}</small>
+              </div>
+              <span class="ua-phase-tile__badge" [class]="'ua-phase-tile__badge--' + stg.status">
+                {{ statusLabel(stg.status) }}
+              </span>
+            </div>
+            <div class="ua-phase-tile__fields">
+              <mat-form-field appearance="outline">
+                <mat-label>Status</mat-label>
+                <mat-select [(ngModel)]="stg.status">
+                  <mat-option value="pending">Pending</mat-option>
+                  <mat-option value="in_progress">In Progress</mat-option>
+                  <mat-option value="completed">Completed</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Date</mat-label>
+                <input matInput type="date"
+                       [ngModel]="stageDateInputValue(stg)"
+                       (ngModelChange)="onStageDateChange(stg, $event)" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="ua-full">
+                <mat-label>Message to Student</mat-label>
+                <textarea matInput rows="2" [(ngModel)]="stg.message"></textarea>
+              </mat-form-field>
+            </div>
+          </div>
+        </div>
+
+        <div class="ua-form-footer-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Final Outcome</mat-label>
+            <mat-select [(ngModel)]="form.finalOutcome">
+              <mat-option *ngFor="let o of finalOutcomes" [value]="o">{{ o | titlecase }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="ua-full">
+            <mat-label>Admin Notes (internal)</mat-label>
+            <textarea matInput rows="2" [(ngModel)]="form.adminNotes"></textarea>
+          </mat-form-field>
+        </div>
+      </div>
+
+      <div class="ua-form-panel__foot">
+        <button mat-stroked-button (click)="closeForm()" type="button">Cancel</button>
+        <button mat-flat-button color="primary" (click)="saveApplication()" [disabled]="saving">
+          <mat-icon>{{ saving ? 'hourglass_top' : 'save' }}</mat-icon>
+          {{ saving ? 'Saving...' : (editingApplication ? 'Update Application' : 'Create Application') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -17,6 +17,39 @@
 }
 
 /* ── Header ── */
+.page-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  background: linear-gradient(135deg, #e8f1fa 0%, #d4e4f4 100%);
+  color: #0c2d5c;
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 91, 150, 0.12);
+}
+.page-top h2 { margin: 0 0 2px; color: #0c2d5c; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em; }
+.page-top .subtitle { margin: 0; color: #475569; font-size: 0.75rem; }
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.btn-university {
+  min-height: 32px !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+}
+.btn-university mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+}
+
 .header {
   margin-bottom: 14px;
   background: linear-gradient(135deg, #e8f1fa 0%, #d4e4f4 100%);

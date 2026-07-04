@@ -12,7 +12,7 @@ import { map, startWith } from 'rxjs/operators';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MaterialModule } from '../../../shared/material.module';
 import { EMPTY, expand, reduce } from 'rxjs';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { normalizeStudentObjectId, studentIdFromRef } from '../../../utils/student-id.util';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
 
@@ -62,6 +62,7 @@ interface DocumentStats {
     FormsModule,
     ReactiveFormsModule,
     MaterialModule,
+    RouterModule,
     TestAccountBadgeComponent
   ],
   templateUrl: './document-verification.component.html',

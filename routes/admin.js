@@ -281,8 +281,8 @@ router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
   }
 });
 
-// Get all students
-router.get('/students', verifyToken, isAdmin, async (req, res) => {
+// Get all students (admin, sub-admin with scope, and teachers assigned document-type tabs)
+router.get('/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     const toPositiveInt = (value, fallback) => {
       const parsed = parseInt(String(value), 10);

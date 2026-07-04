@@ -102,6 +102,11 @@ export class NavService {
       '/class-recordings/approval-requests',
       '/class-recordings/access-recording',
       '/class-recordings/self-pace'
+    ],
+    documents: [
+      '/admin/document-verification',
+      '/admin/university-applications',
+      '/admin/agreements'
     ]
   };
   private readonly TEACHER_ROUTE_ALIASES: Record<string, string[]> = {
@@ -550,6 +555,7 @@ export class NavService {
   private readonly LEGACY_PERMISSION_ALIASES: Record<string, string> = {
     'krish-dashboard': 'enrollment-overview',
     'enrollment-overdue': 'enrollment-overview',
+    'university-apps': 'documents',
   };
 
   normalizeSidebarPermissions(
