@@ -7,7 +7,6 @@ import { environment } from '../../../environments/environment';
 import { getAuthToken } from '../../services/auth.service';
 
 const apiUrl = environment.apiUrl;
-const RATES_STORAGE_KEY = 'ta_teacher_level_rates';
 const TDS_PERCENT = 10;
 
 interface MonthlyHourBreakdown {
@@ -45,6 +44,7 @@ interface MonthlyHoursData {
     email: string;
     medium: string;
     levels: string[];
+    levelHourlyRates?: Record<string, number>;
   };
   month: string;
   monthLabel: string;
@@ -82,12 +82,7 @@ export class TeacherMonthlyHoursComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private http: HttpClient,
-  ) {
-    const stored = localStorage.getItem(RATES_STORAGE_KEY);
-    if (stored) {
-      try { this.allLevelRates = JSON.parse(stored); } catch { this.allLevelRates = {}; }
-    }
-  }
+  ) {}
 
   ngOnInit(): void {
     this.teacherId = this.route.snapshot.paramMap.get('id') || '';
@@ -116,6 +111,10 @@ export class TeacherMonthlyHoursComponent implements OnInit {
           if (res?.success && res.data) {
             this.data = res.data;
             this.selectedMonth = res.data.month;
+            const teacherId = res.data.teacher?._id;
+            if (teacherId && res.data.teacher.levelHourlyRates) {
+              this.allLevelRates[teacherId] = { ...res.data.teacher.levelHourlyRates };
+            }
           } else {
             this.error = 'Unable to load monthly hour details.';
           }

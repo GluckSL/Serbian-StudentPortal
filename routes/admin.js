@@ -525,12 +525,14 @@ function indexStudentsByTeacher(students) {
   return { byTeacher, byTeacherBatch };
 }
 
-function indexMeetingsByTeacherAndBatch(meetings) {
+function indexMeetingsByTeacherAndBatch(meetings, batchToTeachers) {
   const byTeacher = new Map();
   const byTeacherBatch = new Map();
   for (const m of meetings) {
-    if (!m?.assignedTeacher) continue;
-    const tid = String(m.assignedTeacher);
+    const tid = m?.assignedTeacher
+      ? String(m.assignedTeacher)
+      : resolveMeetingTeacherId(m, batchToTeachers);
+    if (!tid) continue;
     if (!byTeacher.has(tid)) byTeacher.set(tid, []);
     byTeacher.get(tid).push(m);
     const batchKey = normTeacherBatch(m.batch);
@@ -541,6 +543,43 @@ function indexMeetingsByTeacherAndBatch(meetings) {
   return { byTeacher, byTeacherBatch };
 }
 
+function buildTeacherBatchOwnerMap(teachers) {
+  const batchToTeachers = new Map();
+  for (const teacher of teachers) {
+    const tid = String(teacher._id);
+    for (const batch of teacher.assignedBatches || []) {
+      const key = normTeacherBatch(batch);
+      if (!key) continue;
+      if (!batchToTeachers.has(key)) batchToTeachers.set(key, []);
+      batchToTeachers.get(key).push(tid);
+    }
+  }
+  return batchToTeachers;
+}
+
+function resolveMeetingTeacherId(meeting, batchToTeachers) {
+  if (meeting?.assignedTeacher) return String(meeting.assignedTeacher);
+  const owners = batchToTeachers.get(normTeacherBatch(meeting?.batch)) || [];
+  return owners.length === 1 ? owners[0] : null;
+}
+
+function normalizeLevelHourlyRates(raw) {
+  const out = {};
+  if (!raw) return out;
+  const entries = raw instanceof Map ? raw.entries() : Object.entries(raw);
+  for (const [level, rate] of entries) {
+    const n = Number(rate);
+    if (level && Number.isFinite(n) && n >= 0) out[String(level).toUpperCase()] = n;
+  }
+  return out;
+}
+
+function collectTeacherBatchNames(teachers) {
+  return [...new Set(
+    teachers.flatMap((t) => (t.assignedBatches || []).map((b) => String(b || '').trim()).filter(Boolean)),
+  )];
+}
+
 const TEACHER_ANALYTICS_OVERVIEW_CACHE_TTL_MS = 3 * 60 * 1000;
 const teacherAnalyticsOverviewCache = new Map();
 
@@ -549,26 +588,33 @@ async function buildTeacherAnalyticsOverview(monthFilter) {
   const now = new Date();
   const meetingUpperBound = getTeacherAnalyticsMeetingUpperBound(from, to, now);
 
-  const [teachers, allStudents, monthMeetings] = await Promise.all([
+  const [teachers, allStudents] = await Promise.all([
     User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
       .populate('assignedCourses', 'title')
-      .select('name regNo email medium assignedBatches assignedCourses')
+      .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
       .lean(),
     User.find({ role: 'STUDENT', assignedTeacher: { $exists: true, $ne: null } })
       .select('assignedTeacher batch level')
       .lean(),
-    MeetingLink.find({
-      assignedTeacher: { $exists: true, $ne: null },
-      startTime: { $gte: from, $lt: meetingUpperBound },
-    })
-      .select('assignedTeacher batch startTime duration attendance attendanceRecorded status')
-      .lean(),
   ]);
+
+  const batchToTeachers = buildTeacherBatchOwnerMap(teachers);
+  const teacherBatchNames = collectTeacherBatchNames(teachers);
+  const meetingQuery = {
+    startTime: { $gte: from, $lt: meetingUpperBound },
+    $or: [
+      { assignedTeacher: { $exists: true, $ne: null } },
+      ...(teacherBatchNames.length ? [{ batch: { $in: teacherBatchNames } }] : []),
+    ],
+  };
+  const monthMeetings = await MeetingLink.find(meetingQuery)
+    .select('assignedTeacher batch startTime duration attendance attendanceRecorded status')
+    .lean();
 
   const { byTeacher: studentsByTeacher, byTeacherBatch: studentsByTeacherBatch } =
     indexStudentsByTeacher(allStudents);
   const { byTeacher: meetingsByTeacher, byTeacherBatch: meetingsByTeacherBatch } =
-    indexMeetingsByTeacherAndBatch(monthMeetings);
+    indexMeetingsByTeacherAndBatch(monthMeetings, batchToTeachers);
 
   const batchRows = [];
   const teacherRows = [];
@@ -686,6 +732,7 @@ async function buildTeacherAnalyticsOverview(monthFilter) {
       tutorMinutes: teacherMinutes,
       attendance: attendancePct,
       batchBreakdown,
+      levelHourlyRates: normalizeLevelHourlyRates(teacher.levelHourlyRates),
     });
   }
 
@@ -733,16 +780,13 @@ router.get('/teachers/analytics-overview', verifyToken, isAdmin, async (req, res
   try {
     const monthFilter = getTeacherAnalyticsMonth(req.query.month);
     const cacheKey = monthFilter.month;
+    const skipCache = String(req.query.refresh || '') === '1';
     const now = Date.now();
-    const cached = teacherAnalyticsOverviewCache.get(cacheKey);
-    if (cached && now - cached.at < TEACHER_ANALYTICS_OVERVIEW_CACHE_TTL_MS) {
-      return res.json({
-        success: true,
-        data: {
-          ...cached.payload,
-          generatedAt: cached.payload.generatedAt,
-        },
-      });
+    if (!skipCache) {
+      const cached = teacherAnalyticsOverviewCache.get(cacheKey);
+      if (cached && now - cached.at < TEACHER_ANALYTICS_OVERVIEW_CACHE_TTL_MS) {
+        return res.json({ success: true, data: cached.payload });
+      }
     }
 
     const data = await buildTeacherAnalyticsOverview(monthFilter);
@@ -754,6 +798,48 @@ router.get('/teachers/analytics-overview', verifyToken, isAdmin, async (req, res
     return res.status(500).json({
       success: false,
       message: 'Failed to fetch teacher analytics overview',
+      error: err.message,
+    });
+  }
+});
+
+// Persist per-teacher level hourly rates (shared across all admin browsers)
+router.put('/teachers/:teacherId/level-rates', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      return res.status(400).json({ success: false, message: 'Invalid teacher ID' });
+    }
+
+    const rawRates = req.body?.rates && typeof req.body.rates === 'object' ? req.body.rates : {};
+    const levelHourlyRates = normalizeLevelHourlyRates(rawRates);
+
+    const teacher = await User.findOneAndUpdate(
+      { _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } },
+      { $set: { levelHourlyRates, updatedAt: new Date() } },
+      { new: true },
+    )
+      .select('name levelHourlyRates')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({ success: false, message: 'Teacher not found' });
+    }
+
+    teacherAnalyticsOverviewCache.clear();
+
+    return res.json({
+      success: true,
+      data: {
+        teacherId,
+        levelHourlyRates: normalizeLevelHourlyRates(teacher.levelHourlyRates),
+      },
+    });
+  } catch (err) {
+    console.error('Error saving teacher level rates:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to save teacher level rates',
       error: err.message,
     });
   }
@@ -780,7 +866,7 @@ router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (re
         role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
       })
         .populate('assignedCourses', 'title')
-        .select('name regNo email medium assignedBatches assignedCourses')
+        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
         .lean(),
       MeetingLink.find({
         assignedTeacher: teacherId,
@@ -941,7 +1027,8 @@ router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (re
           email: teacher.email || '',
           medium: teacher.medium || '',
           assignedBatches: teacher.assignedBatches || [],
-          levels: [...allLevelSet].sort()
+          levels: [...allLevelSet].sort(),
+          levelHourlyRates: normalizeLevelHourlyRates(teacher.levelHourlyRates),
         },
         month: monthFilter.month,
         monthLabel: monthFilter.monthLabel,
