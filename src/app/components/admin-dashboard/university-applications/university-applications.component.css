@@ -615,14 +615,15 @@
 .ua-form-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 10000;
   background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
+  height: 100dvh;
   padding: 24px 16px;
-  overflow-y: auto;
+  overflow-y: hidden;
   animation: uaFadeIn 0.2s ease;
 }
 

@@ -667,11 +667,11 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   }
 
   getUniversityProgressPct(app: UniversityApplication): number {
-    const current = app.currentStage || 1;
-    const total = (app.stages?.length || 5);
+    const total = app.stages?.length || 5;
     const completed = app.stages?.filter(s => s.status === 'completed').length || 0;
+    const active = app.stages?.some(s => s.status === 'in_progress') ? 0.5 : 0;
     if (completed >= total) return 100;
-    return Math.round(((current - 1) / (total - 1)) * 100);
+    return Math.min(100, Math.round(((completed + active) / total) * 100));
   }
 
   universityStatusLabel(status: string): string {
