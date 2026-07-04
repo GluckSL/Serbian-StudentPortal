@@ -23,6 +23,7 @@ export interface LeaderboardEntry {
   loggedToday: boolean;
   rank: number;
   engagementMinutes: number;
+  liveClassMinutes: number;
 }
 
 export interface TaskProgress {
