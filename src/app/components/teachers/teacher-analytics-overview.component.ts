@@ -3,10 +3,12 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { timeout } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { getAuthToken } from '../../services/auth.service';
 
 const apiUrl = environment.apiUrl;
+const OVERVIEW_CACHE_PREFIX = 'ta_teacher_analytics_overview_v1';
 
 export interface TeacherBatchRow {
   batch: string;
@@ -120,13 +122,21 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   }
 
   loadOverview(): void {
-    this.loading = true;
     this.error = '';
     this.closeDetail();
 
+    const month = this.selectedMonth;
+    const cached = this.readOverviewCache(month);
+    if (cached) {
+      this.applyOverviewData(cached);
+      this.loading = false;
+    } else {
+      this.loading = true;
+    }
+
     let url = `${apiUrl}/admin/teachers/analytics-overview`;
     const params: string[] = [];
-    if (this.selectedMonth) params.push(`month=${encodeURIComponent(this.selectedMonth)}`);
+    if (month) params.push(`month=${encodeURIComponent(month)}`);
     if (params.length) url += `?${params.join('&')}`;
 
     this.http
@@ -134,25 +144,58 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
         withCredentials: true,
         headers: this.authHeaders(),
       })
+      .pipe(timeout(60_000))
       .subscribe({
         next: (res) => {
           if (res?.success && res.data) {
-            this.teachers = res.data.teachers || res.data.rows || [];
-            this.totals = res.data.totals || null;
-            this.generatedAt = res.data.generatedAt || '';
-            this.selectedMonth = res.data.filters?.month || this.selectedMonth;
-            this.overviewMonthLabel = res.data.filters?.monthLabel || this.formatMonthLabel(this.selectedMonth);
-            this.applyFilters();
-          } else {
+            this.applyOverviewData(res.data);
+            this.writeOverviewCache(this.selectedMonth, res.data);
+          } else if (!cached) {
             this.error = 'Unable to load teacher analytics.';
           }
           this.loading = false;
         },
         error: (err) => {
-          this.error = err?.error?.message || 'Unable to load teacher analytics.';
+          if (!cached) {
+            this.error = err?.name === 'TimeoutError'
+              ? 'Analytics took too long to load. Please try again.'
+              : (err?.error?.message || 'Unable to load teacher analytics.');
+          }
           this.loading = false;
         },
       });
+  }
+
+  trackTeacher(_index: number, teacher: TeacherSummaryRow): string {
+    return teacher.teacherId;
+  }
+
+  private applyOverviewData(data: OverviewData): void {
+    this.teachers = data.teachers || data.rows || [];
+    this.totals = data.totals || null;
+    this.generatedAt = data.generatedAt || '';
+    this.selectedMonth = data.filters?.month || this.selectedMonth;
+    this.overviewMonthLabel = data.filters?.monthLabel || this.formatMonthLabel(this.selectedMonth);
+    this.applyFilters();
+  }
+
+  private readOverviewCache(month: string): OverviewData | null {
+    try {
+      const raw = sessionStorage.getItem(`${OVERVIEW_CACHE_PREFIX}:${month}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as OverviewData;
+      return parsed?.teachers?.length || parsed?.rows?.length ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeOverviewCache(month: string, data: OverviewData): void {
+    try {
+      sessionStorage.setItem(`${OVERVIEW_CACHE_PREFIX}:${month}`, JSON.stringify(data));
+    } catch {
+      // Ignore quota / private mode errors.
+    }
   }
 
   applyFilters(): void {

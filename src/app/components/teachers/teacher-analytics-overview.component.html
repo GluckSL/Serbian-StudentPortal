@@ -139,7 +139,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let teacher of filteredTeachers" class="tao-row">
+            <tr *ngFor="let teacher of filteredTeachers; trackBy: trackTeacher" class="tao-row">
               <td class="tao-tutor">
                 <div class="tao-avatar">{{ teacher.tutor.charAt(0) }}</div>
                 <div>
