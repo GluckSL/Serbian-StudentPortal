@@ -139,7 +139,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let teacher of filteredTeachers" class="tao-row">
+            <tr *ngFor="let teacher of filteredTeachers; trackBy: trackTeacher" class="tao-row">
               <td class="tao-tutor">
                 <div class="tao-avatar">{{ teacher.tutor.charAt(0) }}</div>
                 <div>
@@ -245,13 +245,15 @@
       <div class="tao-manager-info">
         <i class="fas fa-info-circle"></i>
         TDS is automatically calculated at <strong>10%</strong> of the total amount.
-        Final = Total − TDS.
+        Final = Total − TDS. Rates are saved to the server and shared with all admins.
       </div>
+      <p *ngIf="ratesError" class="tao-alert tao-alert--error tao-alert--inline">{{ ratesError }}</p>
     </div>
     <div class="tao-manager-modal__foot">
-      <button type="button" class="tao-btn tao-btn--outline" (click)="closeManager()">Cancel</button>
-      <button type="button" class="tao-btn tao-btn--solid" (click)="saveManagerRates()">
-        <i class="fas fa-save"></i> Save Rates
+      <button type="button" class="tao-btn tao-btn--outline" (click)="closeManager()" [disabled]="savingRates">Cancel</button>
+      <button type="button" class="tao-btn tao-btn--solid" (click)="saveManagerRates()" [disabled]="savingRates">
+        <i class="fas" [ngClass]="savingRates ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+        {{ savingRates ? 'Saving…' : 'Save Rates' }}
       </button>
     </div>
   </div>

@@ -3,6 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { timeout } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { getAuthToken } from '../../services/auth.service';
 
@@ -40,6 +41,7 @@ export interface TeacherSummaryRow {
   tutorMinutes: number;
   attendance: number | null;
   batchBreakdown: TeacherBatchRow[];
+  levelHourlyRates?: Record<string, number>;
 }
 
 interface OverviewTotals {
@@ -92,17 +94,14 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
 
   managerTeacher: TeacherSummaryRow | null = null;
   managerRates: LevelRate[] = [];
+  savingRates = false;
+  ratesError = '';
   private allLevelRates: Record<string, Record<string, number>> = {};
 
   constructor(
     private http: HttpClient,
     private router: Router,
-  ) {
-    const stored = localStorage.getItem(RATES_STORAGE_KEY);
-    if (stored) {
-      try { this.allLevelRates = JSON.parse(stored); } catch { this.allLevelRates = {}; }
-    }
-  }
+  ) {}
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
@@ -119,14 +118,16 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
     return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
   }
 
-  loadOverview(): void {
-    this.loading = true;
+  loadOverview(forceRefresh = false): void {
     this.error = '';
     this.closeDetail();
+    this.loading = true;
 
+    const month = this.selectedMonth;
     let url = `${apiUrl}/admin/teachers/analytics-overview`;
     const params: string[] = [];
-    if (this.selectedMonth) params.push(`month=${encodeURIComponent(this.selectedMonth)}`);
+    if (month) params.push(`month=${encodeURIComponent(month)}`);
+    if (forceRefresh) params.push('refresh=1');
     if (params.length) url += `?${params.join('&')}`;
 
     this.http
@@ -134,25 +135,81 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
         withCredentials: true,
         headers: this.authHeaders(),
       })
+      .pipe(timeout(60_000))
       .subscribe({
         next: (res) => {
           if (res?.success && res.data) {
-            this.teachers = res.data.teachers || res.data.rows || [];
-            this.totals = res.data.totals || null;
-            this.generatedAt = res.data.generatedAt || '';
-            this.selectedMonth = res.data.filters?.month || this.selectedMonth;
-            this.overviewMonthLabel = res.data.filters?.monthLabel || this.formatMonthLabel(this.selectedMonth);
-            this.applyFilters();
+            this.applyOverviewData(res.data);
+            this.syncLocalRatesToServerIfNeeded();
           } else {
             this.error = 'Unable to load teacher analytics.';
           }
           this.loading = false;
         },
         error: (err) => {
-          this.error = err?.error?.message || 'Unable to load teacher analytics.';
+          this.error = err?.name === 'TimeoutError'
+            ? 'Analytics took too long to load. Please try again.'
+            : (err?.error?.message || 'Unable to load teacher analytics.');
           this.loading = false;
         },
       });
+  }
+
+  trackTeacher(_index: number, teacher: TeacherSummaryRow): string {
+    return teacher.teacherId;
+  }
+
+  private applyOverviewData(data: OverviewData): void {
+    this.teachers = data.teachers || data.rows || [];
+    this.totals = data.totals || null;
+    this.generatedAt = data.generatedAt || '';
+    this.selectedMonth = data.filters?.month || this.selectedMonth;
+    this.overviewMonthLabel = data.filters?.monthLabel || this.formatMonthLabel(this.selectedMonth);
+    this.hydrateRatesFromTeachers();
+    this.applyFilters();
+  }
+
+  private hydrateRatesFromTeachers(): void {
+    for (const teacher of this.teachers) {
+      if (teacher.levelHourlyRates && Object.keys(teacher.levelHourlyRates).length) {
+        this.allLevelRates[teacher.teacherId] = { ...teacher.levelHourlyRates };
+      }
+    }
+  }
+
+  private readLegacyLocalRates(): Record<string, Record<string, number>> {
+    try {
+      const raw = localStorage.getItem(RATES_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private syncLocalRatesToServerIfNeeded(): void {
+    const legacy = this.readLegacyLocalRates();
+    for (const teacher of this.teachers) {
+      const local = legacy[teacher.teacherId];
+      const hasServer = teacher.levelHourlyRates && Object.keys(teacher.levelHourlyRates).length;
+      if (!local || !Object.keys(local).length || hasServer) continue;
+      this.http
+        .put<{ success: boolean; data: { levelHourlyRates: Record<string, number> } }>(
+          `${apiUrl}/admin/teachers/${teacher.teacherId}/level-rates`,
+          { rates: local },
+          { withCredentials: true, headers: this.authHeaders() },
+        )
+        .subscribe({
+          next: (res) => {
+            if (res?.success && res.data?.levelHourlyRates) {
+              teacher.levelHourlyRates = res.data.levelHourlyRates;
+              this.allLevelRates[teacher.teacherId] = { ...res.data.levelHourlyRates };
+            }
+          },
+        });
+    }
+    if (Object.keys(legacy).length) {
+      localStorage.removeItem(RATES_STORAGE_KEY);
+    }
   }
 
   applyFilters(): void {
@@ -180,7 +237,7 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   }
 
   applyMonthFilter(): void {
-    this.loadOverview();
+    this.loadOverview(true);
   }
 
   openDetail(teacher: TeacherSummaryRow): void {
@@ -256,15 +313,40 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   }
 
   saveManagerRates(): void {
-    if (!this.managerTeacher) return;
+    if (!this.managerTeacher || this.savingRates) return;
     const rateMap: Record<string, number> = {};
     for (const lr of this.managerRates) {
       const rate = Number(lr.rate);
       if (Number.isFinite(rate) && rate >= 0) rateMap[lr.level] = rate;
     }
-    this.allLevelRates[this.managerTeacher.teacherId] = rateMap;
-    localStorage.setItem(RATES_STORAGE_KEY, JSON.stringify(this.allLevelRates));
-    this.closeManager();
+
+    this.savingRates = true;
+    this.ratesError = '';
+    const teacherId = this.managerTeacher.teacherId;
+
+    this.http
+      .put<{ success: boolean; data: { levelHourlyRates: Record<string, number> } }>(
+        `${apiUrl}/admin/teachers/${teacherId}/level-rates`,
+        { rates: rateMap },
+        { withCredentials: true, headers: this.authHeaders() },
+      )
+      .subscribe({
+        next: (res) => {
+          this.savingRates = false;
+          if (res?.success && res.data?.levelHourlyRates) {
+            this.allLevelRates[teacherId] = { ...res.data.levelHourlyRates };
+            const row = this.teachers.find((t) => t.teacherId === teacherId);
+            if (row) row.levelHourlyRates = { ...res.data.levelHourlyRates };
+            this.closeManager();
+          } else {
+            this.ratesError = 'Unable to save rates. Please try again.';
+          }
+        },
+        error: (err) => {
+          this.savingRates = false;
+          this.ratesError = err?.error?.message || 'Unable to save rates. Please try again.';
+        },
+      });
   }
 
   private getTeacherLevels(_teacher: TeacherSummaryRow): string[] {
