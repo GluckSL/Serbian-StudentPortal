@@ -4,6 +4,7 @@
  */
 
 const User = require('../models/User');
+const { isOldBatchType } = require('../utils/batchType');
 
 const JOURNEY_LEVEL_RANGES = [
   { min: 1, max: 42, level: 'A1' },
@@ -90,16 +91,58 @@ function usesJourneyDayLevelSync(student) {
 
 /**
  * Merge `level` into an existing $set object for a journey-day update.
+ * Old batches never get `level` auto-derived here — it's set manually per batch
+ * (see applyManualLevelToBatch) and must stay untouched by journey-day advances.
  * @param {number} journeyDay
  * @param {object} [setFields]
- * @param {{ student?: object, force?: boolean }} [opts]
+ * @param {{ student?: object, force?: boolean, batchConfig?: object, batchType?: string }} [opts]
  */
 function withJourneyLevelInSet(journeyDay, setFields = {}, opts = {}) {
-  const { student, force = false } = opts;
+  const { student, force = false, batchConfig, batchType } = opts;
   if (!force && student && !usesJourneyDayLevelSync(student)) {
     return setFields;
   }
+  const effectiveBatchType = batchType || batchConfig?.batchType;
+  if (isOldBatchType(effectiveBatchType)) {
+    return setFields;
+  }
   return { ...setFields, level: levelForJourneyDay(journeyDay) };
+}
+
+/**
+ * Resolve the BatchConfig `batchType` for a student's primary batch (best-effort).
+ * Used where journey-day updates don't already have the batch config loaded.
+ */
+async function getBatchTypeForStudent(student) {
+  if (!student) return null;
+  const BatchConfig = require('../models/BatchConfig');
+  const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentBatch');
+  const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+  const keys = allStudentBatchStringsForContent(student);
+  const primary = primaryGoBatchFromKeys(keys) || keys[0];
+  if (!primary) return null;
+  const escaped = String(primary).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const cfg = await BatchConfig.findOne({ batchName: new RegExp(`^${escaped}$`, 'i') })
+    .select('batchType')
+    .lean();
+  return cfg?.batchType || null;
+}
+
+/**
+ * Apply a CEFR level to every student in a batch (old batch manual level control).
+ * @param {RegExp|string} batchQuery — value usable as User.batch match (regex recommended)
+ * @param {string} level
+ */
+async function applyManualLevelToBatch(batchQuery, level) {
+  const normalized = String(level || '').toUpperCase();
+  if (!JOURNEY_LEVEL_ORDER.includes(normalized)) {
+    throw new Error(`Invalid level: ${level}`);
+  }
+  const result = await User.updateMany(
+    { role: 'STUDENT', batch: batchQuery },
+    { $set: { level: normalized } }
+  );
+  return { updated: result.modifiedCount || 0, level: normalized };
 }
 
 /**
@@ -112,6 +155,8 @@ async function ensureStudentLevelMatchesJourneyDay(studentId) {
     .lean();
   if (!student || student.role !== 'STUDENT') return { synced: false };
   if (!usesJourneyDayLevelSync(student)) return { synced: false };
+  const batchType = await getBatchTypeForStudent(student);
+  if (isOldBatchType(batchType)) return { synced: false };
 
   const day = normalizeJourneyDay(student.currentCourseDay);
   const expected = levelForJourneyDay(day);
@@ -134,9 +179,13 @@ async function ensureStudentLevelMatchesJourneyDay(studentId) {
 
 /**
  * Fix stored levels for students in a batch whose level does not match currentCourseDay.
+ * No-ops for old batches — their level is set manually, not derived from journey day.
+ * @param {RegExp|string} batchRegex
+ * @param {{ batchType?: string }} [opts]
  * @returns {Promise<{ updated: number }>}
  */
-async function syncJourneyLevelsForBatch(batchRegex) {
+async function syncJourneyLevelsForBatch(batchRegex, opts = {}) {
+  if (isOldBatchType(opts.batchType)) return { updated: 0 };
   const students = await User.find({ role: 'STUDENT', batch: batchRegex })
     .select('_id currentCourseDay level')
     .lean();
@@ -166,6 +215,8 @@ module.exports = {
   buildAdminLevelJumpUpdate,
   usesJourneyDayLevelSync,
   withJourneyLevelInSet,
+  getBatchTypeForStudent,
+  applyManualLevelToBatch,
   ensureStudentLevelMatchesJourneyDay,
   syncJourneyLevelsForBatch
 };

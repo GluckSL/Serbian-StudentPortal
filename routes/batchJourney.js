@@ -30,7 +30,9 @@ const { EXCLUDE_TEST, EXCLUDE_TEST_LOOKUP } = require('../utils/analyticsFilters
 const {
   withJourneyLevelInSet,
   syncJourneyLevelsForBatch,
-  levelForJourneyDay
+  applyManualLevelToBatch,
+  levelForJourneyDay,
+  JOURNEY_LEVEL_ORDER
 } = require('../services/journeyLevelSync.service');
 const {
   BATCH_TYPE_NEW,
@@ -410,7 +412,9 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
       return {
         batchName: name,
         hasSavedConfig: !!savedCfg,
-        batchLevel: levelForJourneyDay(activeBatchDay),
+        batchLevel: isOldBatchType(cfg.batchType)
+          ? (cfg.oldBatchManualLevel || 'A1')
+          : levelForJourneyDay(activeBatchDay),
         journeyLength: cfg.journeyLength,
         batchCurrentDay: activeBatchDay,
         batchStartDate: cfg.batchStartDate || null,
@@ -418,6 +422,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         notes: cfg.notes || '',
         batchType: normalizeBatchType(cfg.batchType),
         oldBatchDgBotAccess: !!(cfg && cfg.oldBatchDgBotAccess),
+        oldBatchManualLevel: cfg.oldBatchManualLevel || 'A1',
         strictJourneyRule: !!cfg.strictJourneyRule,
         strictJourneyThresholdPercent:
           cfg.strictJourneyThresholdPercent != null ? cfg.strictJourneyThresholdPercent : 100,
@@ -586,7 +591,8 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
     const batchRx = batchNameRegex(batchName);
-    await syncJourneyLevelsForBatch(batchRx);
+    const cfgForSync = await getOrCreateConfig(batchName);
+    await syncJourneyLevelsForBatch(batchRx, { batchType: cfgForSync.batchType });
     const students = await User.find({ role: 'STUDENT', batch: batchRx })
       .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount batch')
       .sort({ name: 1 })
@@ -606,7 +612,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       teacherName = t?.name || null;
     }
 
-    const cfg = await getOrCreateConfig(batchName);
+    const cfg = cfgForSync;
     const activeBatchDay = computeBatchDay(cfg);
     const trial = !!cfg.trialDayEnabled;
 
@@ -638,6 +644,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         notes: cfg.notes,
         batchType: normalizeBatchType(cfg.batchType),
         oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
+        oldBatchManualLevel: cfg.oldBatchManualLevel || 'A1',
         trialDayEnabled: trial,
         trialAccessStartDate: cfg.trialAccessStartDate || null,
         strictJourneyRule: !!cfg.strictJourneyRule,
@@ -780,6 +787,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       notes,
       batchType,
       oldBatchDgBotAccess,
+      oldBatchManualLevel,
       createOnly,
       strictJourneyRule,
       strictJourneyThresholdPercent,
@@ -880,6 +888,17 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
         cfg.oldBatchDgBotAccess = false;
       }
     }
+    let applyManualLevelNow = false;
+    if (oldBatchManualLevel !== undefined) {
+      const normalizedLevel = String(oldBatchManualLevel).trim().toUpperCase();
+      if (!JOURNEY_LEVEL_ORDER.includes(normalizedLevel)) {
+        return res.status(400).json({ message: `oldBatchManualLevel must be one of ${JOURNEY_LEVEL_ORDER.join(', ')}` });
+      }
+      if (isOldBatchType(cfg.batchType)) {
+        applyManualLevelNow = cfg.oldBatchManualLevel !== normalizedLevel;
+        cfg.oldBatchManualLevel = normalizedLevel;
+      }
+    }
     if (strictJourneyRule !== undefined) {
       cfg.strictJourneyRule = !!strictJourneyRule;
     }
@@ -910,15 +929,23 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     }
     await cfg.save();
 
+    let studentsLevelUpdated;
+    if (applyManualLevelNow) {
+      const applied = await applyManualLevelToBatch(batchNameRegex(effectiveBatchName), cfg.oldBatchManualLevel);
+      studentsLevelUpdated = applied.updated;
+    }
+
     const activeBatchDay = computeBatchDay(cfg);
     res.json({
       message: createOnly ? 'Batch created' : 'Batch config updated',
       batchName: effectiveBatchName,
+      studentsLevelUpdated,
       config: {
         ...cfg.toObject(),
         batchName: effectiveBatchName,
         batchType: normalizeBatchType(cfg.batchType),
         oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
+        oldBatchManualLevel: cfg.oldBatchManualLevel || 'A1',
         batchCurrentDay: activeBatchDay,
         autoDay: !!cfg.batchStartDate,
         journeyActive: !!cfg.journeyActive,
@@ -973,7 +1000,7 @@ router.post('/:batchName/set-day', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
             pendingJourneyDayAdvance: false,
             pendingJourneyDayAdvanceForDay: null
           },
-          { force: true }
+          { force: true, batchConfig: cfg }
         )
       }
     );
@@ -1154,7 +1181,7 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
           pendingJourneyDayAdvance: false,
           pendingJourneyDayAdvanceForDay: null
         },
-        { student }
+        { student, batchConfig: cfg }
       )
     });
 
@@ -1188,14 +1215,15 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
     const batchName = String(existing.batch || '').trim();
     let trialDayEnabled = false;
     let maxDay = 200;
+    let batchCfg = null;
     if (batchName) {
-      const cfg = await BatchConfig.findOne({ batchName })
-        .select('trialDayEnabled journeyLength')
+      batchCfg = await BatchConfig.findOne({ batchName })
+        .select('trialDayEnabled journeyLength batchType')
         .lean();
-      if (cfg) {
-        trialDayEnabled = !!cfg.trialDayEnabled;
+      if (batchCfg) {
+        trialDayEnabled = !!batchCfg.trialDayEnabled;
         maxDay =
-          cfg.journeyLength >= 1 ? Math.min(Math.floor(cfg.journeyLength), 200) : 200;
+          batchCfg.journeyLength >= 1 ? Math.min(Math.floor(batchCfg.journeyLength), 200) : 200;
       }
     }
 
@@ -1221,7 +1249,7 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
             pendingJourneyDayAdvance: false,
             pendingJourneyDayAdvanceForDay: null
           },
-          { student: existing }
+          { student: existing, batchConfig: batchCfg }
         )
       },
       { new: true, select: 'name regNo batch currentCourseDay level' }
@@ -1460,11 +1488,13 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
     const batchCfg = await BatchConfig.findOne({ batchName: batchRegex })
-      .select('trialDayEnabled batchCurrentDay batchStartDate journeyLength')
+      .select('trialDayEnabled batchCurrentDay batchStartDate journeyLength batchType oldBatchManualLevel')
       .lean();
     const trial = !!batchCfg?.trialDayEnabled;
     const activeBatchDay = computeBatchDay(batchCfg || {});
-    const batchLevel = levelForJourneyDay(activeBatchDay);
+    const batchLevel = isOldBatchType(batchCfg?.batchType)
+      ? (batchCfg?.oldBatchManualLevel || 'A1')
+      : levelForJourneyDay(activeBatchDay);
     const lvRx = levelRegex(batchLevel);
     const metricsScope = String(req.query.metricsScope || 'current').trim().toLowerCase();
     const scopeAll = metricsScope === 'all';

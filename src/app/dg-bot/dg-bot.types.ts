@@ -81,6 +81,8 @@ export interface DgBeginnerMode {
   enabled: boolean;
   sessionIntro?: string;
   questions?: DgBeginnerQuestion[];
+  /** Minimum AI grade (0–100) required to accept a student answer. Default 75. */
+  gradingThresholdPercent?: number;
   /** @deprecated */
   contextImageUrl?: string;
   /** @deprecated */
@@ -260,6 +262,12 @@ export interface DgConversationResponse {
   questionSkipped?: boolean;
   /** Encouragement line shown before the next question when `questionSkipped` is true. */
   skipMessage?: string;
+  /** Beginner mode: AI grade for this answer (0–100). */
+  answerScore?: number;
+  /** Beginner mode: whether the answer met the pass threshold. */
+  answerPassed?: boolean;
+  /** Beginner mode: configured pass threshold (0–100). */
+  gradingThreshold?: number;
 }
 
 /** One entry in the chat history shown on screen. */
@@ -271,4 +279,8 @@ export interface DgChatMessage {
   translationEn?: string;
   /** Hint bubble: instructional line (always shown), separate from CC line translation. */
   instructionEn?: string;
+  /** Beginner mode: AI answer grade (0–100). */
+  answerScore?: number;
+  /** Beginner mode: whether answer passed the configured threshold. */
+  answerPassed?: boolean;
 }

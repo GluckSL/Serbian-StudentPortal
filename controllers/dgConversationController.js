@@ -329,7 +329,8 @@ exports.respond = async (req, res) => {
     }
 
     // ── German-only: hint instead of advancing when student used English ───────
-    if (shouldRequestGermanHint(userText, targetLang)) {
+    const lastAiForHint = _lastAiTextFromHistory(state.history);
+    if (shouldRequestGermanHint(userText, targetLang, { lastAiText: lastAiForHint })) {
       let hintDe;
       if (state.isBeginnerMode) {
         // Beginner mode: use the expected answer as the hint if available
@@ -413,6 +414,9 @@ exports.respond = async (req, res) => {
       beginnerQuestionIndex:  result.beginnerQuestionIndex ?? undefined,
       questionSkipped:        result.questionSkipped || undefined,
       skipMessage:            result.skipMessage || undefined,
+      answerScore:            result.answerScore ?? undefined,
+      answerPassed:           result.answerPassed ?? undefined,
+      gradingThreshold:       result.gradingThreshold ?? undefined,
       // legacy fields kept for backward compat
       turnNumber:             result.turnCount,
       sceneComplete:          result.complete,

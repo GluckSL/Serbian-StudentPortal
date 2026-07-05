@@ -659,14 +659,22 @@
     <div class="mc-day-sections" *ngIf="showJourneyArenaSection">
       <div class="mc-day-section mc-day-section-card mc-day-section-card--arena">
         <div class="mc-day-section__head">
-          <h4>GlückArena</h4>
+          <h4><span class="material-icons mc-day-section__head-icon">sports_esports</span> GlückArena</h4>
           <span class="mc-day-section__count" *ngIf="selectedDayGameSets.length">{{ selectedDayGameSets.length }}</span>
+          <button type="button" class="mc-day-section__browse-btn" (click)="navigateToArena()">
+            Browse all <span class="material-icons">arrow_forward</span>
+          </button>
         </div>
-        <p class="mc-day-section__intro">German game modules for journey day {{ selectedJourneyDay }} — play to earn XP.
-        </p>
-        <p class="mc-jc-empty mc-jc-empty--tight" *ngIf="!selectedDayGameSets.length">
-          No GlückArena games are assigned to day {{ selectedJourneyDay }} yet.
-        </p>
+        <p class="mc-day-section__intro">German game modules for journey day {{ selectedJourneyDay }} — play to earn XP.</p>
+        <ng-container *ngIf="!selectedDayGameSets.length">
+          <p class="mc-jc-empty mc-jc-empty--tight">No GlückArena games are assigned to day {{ selectedJourneyDay }} yet.</p>
+          <div class="mc-arena-browse-cta">
+            <button type="button" class="mc-arena-browse-cta__btn" (click)="navigateToArena()">
+              <span class="material-icons">sports_esports</span>
+              Go to GlückArena
+            </button>
+          </div>
+        </ng-container>
         <div class="mc-day-item" *ngFor="let game of selectedDayGameSets">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0"
             [title]="getGameSetHoverDetails(game)" (click)="openGameSet(game)" (keydown.enter)="openGameSet(game)">

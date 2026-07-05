@@ -68,6 +68,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
   catalogLoading = false;
   /** Latest status from resume API — used to avoid re-finalize when proof is already submitted. */
   applicationStatus: string | null = null;
+  applicationRejectionReason = '';
 
   paymentSubStep: 'choose-method' | 'ready' | 'proof-done' | 'payment-done' = 'choose-method';
   paymentMethodChoice: 'manual' | 'razorpay' | null = null;
@@ -127,11 +128,22 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
           }
           this.selectedSubscription = d.subscription || this.selectedSubscription;
           this.applicationStatus = d.status || null;
+          this.applicationRejectionReason = d.rejectionReason || '';
           if (d.status === 'proof_submitted') {
             this.currentStep = 3;
             this.paymentSubStep = 'proof-done';
             this.computedAmount = d.amount || 0;
             this.paymentFinalized = true;
+          } else if (d.status === 'rejected') {
+            this.currentStep = 2;
+            this.computedAmount = d.amount || 0;
+            this.paymentFinalized = true;
+            this.paymentMethodChoice = 'manual';
+            this.paymentSubStep = 'ready';
+            this.proofPaidAmount = d.proofPaidAmount ?? d.amount ?? null;
+            this.proofAccountHolderName = d.proofAccountHolderName || d.name || '';
+            this.proofPaymentDateTime = this.toDatetimeLocal(d.proofPaymentDateTime);
+            this.loadCatalog();
           } else if (d.status === 'documents_done' || d.status === 'payment_pending') {
             this.currentStep = 2;
             this.computedAmount = d.amount || 0;
@@ -497,6 +509,17 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
       this.paymentSubStep = 'proof-done';
       return;
     }
+    if (this.applicationStatus === 'rejected') {
+      this.error = '';
+      this.success = '';
+      this.currentStep = 2;
+      this.paymentSubStep = 'ready';
+      this.paymentMethodChoice = 'manual';
+      if (prepare) {
+        this.preparePaymentStep();
+      }
+      return;
+    }
     this.error = '';
     this.success = '';
     this.currentStep = 2;
@@ -534,6 +557,12 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
     if (this.applicationStatus === 'proof_submitted') {
       this.currentStep = 3;
       this.paymentSubStep = 'proof-done';
+      return;
+    }
+    if (this.applicationStatus === 'rejected') {
+      this.currentStep = 2;
+      this.paymentSubStep = 'ready';
+      this.paymentMethodChoice = 'manual';
       return;
     }
     if (this.paymentFinalized && this.computedAmount > 0) {
@@ -746,6 +775,7 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
         next: () => {
           this.loading = false;
           this.applicationStatus = 'proof_submitted';
+          this.applicationRejectionReason = '';
           this.paymentSubStep = 'proof-done';
           this.currentStep = 3;
           this.svc.clearToken();
@@ -780,5 +810,13 @@ export class PublicSignupWizardComponent implements OnInit, OnDestroy {
     } else {
       doUpload();
     }
+  }
+
+  private toDatetimeLocal(iso?: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 }

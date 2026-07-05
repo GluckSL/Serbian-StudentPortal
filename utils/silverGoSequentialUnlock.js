@@ -5,8 +5,14 @@
 
 const User = require('../models/User');
 const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
+const BatchConfig = require('../models/BatchConfig');
 const { allStudentBatchStringsForContent } = require('./effectiveStudentBatch');
-const { isSilverGoStudent, silverGoRecordingBatchKeys, SILVER_GO_STUDENT_SELECT } = require('./goSilverTrack');
+const {
+  isSilverGoStudent,
+  silverGoRecordingBatchKeys,
+  primaryGoBatchFromKeys,
+  SILVER_GO_STUDENT_SELECT
+} = require('./goSilverTrack');
 const { computeJourneyDayCompletion } = require('../services/journeyDayCompletion.service');
 const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
 const { isCourseDayAdminBlocked, getEffectiveAccessibleLevels } = require('./journeyContentBlock');
@@ -122,10 +128,17 @@ async function reconcileSilverGoCourseDay(studentId) {
     return { adjusted: false };
   }
 
-  const { maxUnlockedContentDay, currentCourseDay } = await resolveSilverGoContentUnlock(student);
+  const { maxUnlockedContentDay, currentCourseDay, batchKeys } = await resolveSilverGoContentUnlock(student);
   if (maxUnlockedContentDay >= currentCourseDay) {
     return { adjusted: false, maxUnlockedContentDay, currentCourseDay };
   }
+
+  const primaryKey = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
+  const cfgDoc = primaryKey
+    ? await BatchConfig.findOne({ batchName: new RegExp(`^${String(primaryKey).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') })
+        .select('batchType')
+        .lean()
+    : null;
 
   const result = await User.updateOne(
     { _id: studentId, role: 'STUDENT', currentCourseDay },
@@ -137,7 +150,7 @@ async function reconcileSilverGoCourseDay(studentId) {
           pendingJourneyDayAdvance: false,
           pendingJourneyDayAdvanceForDay: null
         },
-        { student }
+        { student, batchConfig: cfgDoc }
       )
     }
   );

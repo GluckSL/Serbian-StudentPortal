@@ -23,6 +23,8 @@ interface BatchSummary {
   batchType?: 'new' | 'old' | 'new2';
   /** When batchType is old: weekly DG Bot release (days 1–7, then 8–14, …). */
   oldBatchDgBotAccess?: boolean;
+  /** When batchType is old: CEFR level manually assigned to every student (not journey-day derived). */
+  oldBatchManualLevel?: string;
   /** When true, students need at least strictJourneyThresholdPercent of each day’s tasks to advance. */
   strictJourneyRule?: boolean;
   strictJourneyThresholdPercent?: number;
@@ -591,6 +593,13 @@ interface TimelineDay {
             <span class="j-ro-card-value">{{ editOldBatchDgBotAccess ? 'On — weekly release' : 'Off' }}</span>
           </div>
         </div>
+        <div class="j-ro-card j-ro-card--highlight" *ngIf="editBatchType === 'old'">
+          <div class="j-ro-card-icon j-ro-card-icon--green"><i class="fas fa-layer-group"></i></div>
+          <div class="j-ro-card-body">
+            <span class="j-ro-card-label">Level (manual)</span>
+            <span class="j-ro-card-value">{{ editOldBatchManualLevel }}</span>
+          </div>
+        </div>
         <div class="j-ro-card">
           <div class="j-ro-card-icon" [ngClass]="editAutoRecordingEnabled ? 'j-ro-card-icon--green' : 'j-ro-card-icon--muted'"><i class="fas fa-video"></i></div>
           <div class="j-ro-card-body">
@@ -674,7 +683,19 @@ interface TimelineDay {
                 <option value="old">Old batch (classes + recordings only)</option>
               </select>
             </div>
+            <div class="j-config-field j-config-field--batch-type" *ngIf="editBatchType === 'old'">
+              <label class="j-field-label" title="Old batches don't follow the journey day for level — pick it manually. Saving applies it to every student in this batch.">
+                Level (manual) <i class="fas fa-info-circle" style="opacity:.6"></i>
+              </label>
+              <select class="j-input j-input--compact" [(ngModel)]="editOldBatchManualLevel">
+                <option *ngFor="let lvl of oldBatchLevelOptions" [value]="lvl">{{ lvl }}</option>
+              </select>
+            </div>
           </div>
+          <p class="j-field-hint" *ngIf="editBatchType === 'old'">
+            Old batches don't move to the next level automatically by journey day. Pick the level above and hit
+            <strong>Save</strong> — every student currently in this batch will be set to it immediately.
+          </p>
           <div class="j-toggle-grid">
             <div class="j-toggle-card" [class.j-toggle-card--on]="editStrictJourneyRule">
               <div class="j-toggle-card-head">
@@ -4331,6 +4352,9 @@ export class JourneyManagementComponent implements OnInit {
   editBatchType: 'new' | 'old' | 'new2' = 'old';
   /** Old batch only: weekly DG Bot access. */
   editOldBatchDgBotAccess = false;
+  /** Old batch only: CEFR level manually assigned to every student (not journey-day derived). */
+  editOldBatchManualLevel = 'A1';
+  readonly oldBatchLevelOptions = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   /** When false, daily rollover advances students without requiring day tasks. */
   editStrictJourneyRule = false;
   /** 1–100; used when editStrictJourneyRule is true. */
@@ -5500,6 +5524,7 @@ export class JourneyManagementComponent implements OnInit {
     this.editNotes = b.notes;
     this.editBatchType = this.normalizeEditBatchType(b.batchType);
     this.editOldBatchDgBotAccess = !!b.oldBatchDgBotAccess;
+    this.editOldBatchManualLevel = b.oldBatchManualLevel || 'A1';
     this.editStrictJourneyRule = !!b.strictJourneyRule;
     this.editStrictThresholdPercent =
       b.strictJourneyThresholdPercent != null ? b.strictJourneyThresholdPercent : 100;
@@ -5586,6 +5611,8 @@ export class JourneyManagementComponent implements OnInit {
           this.selectedBatch.batchType = this.editBatchType;
           this.editOldBatchDgBotAccess = !!r.config.oldBatchDgBotAccess;
           this.selectedBatch.oldBatchDgBotAccess = this.editOldBatchDgBotAccess;
+          this.editOldBatchManualLevel = r.config.oldBatchManualLevel || 'A1';
+          this.selectedBatch.oldBatchManualLevel = this.editOldBatchManualLevel;
           this.editJourneyPaused = !!(r.config.journeyPaused && r.config.batchType !== 'old');
           this.selectedBatch.journeyPaused = this.editJourneyPaused;
           this.selectedBatch.journeyPausedFrozenDay = r.config.journeyPausedFrozenDay ?? null;
@@ -5609,6 +5636,23 @@ export class JourneyManagementComponent implements OnInit {
         return;
       }
     }
+    const levelChanging =
+      this.editBatchType === 'old' &&
+      this.editOldBatchManualLevel !== (this.selectedBatch.oldBatchManualLevel || 'A1');
+    if (levelChanging) {
+      this.notify.confirm(
+        'Set batch level',
+        `Set every student in "${this.selectedBatch.batchName}" to level ${this.editOldBatchManualLevel}?`
+      ).subscribe(ok => {
+        if (ok) this.doSaveConfig();
+      });
+      return;
+    }
+    this.doSaveConfig();
+  }
+
+  private doSaveConfig(): void {
+    if (!this.selectedBatch) return;
     this.savingConfig = true;
     const payload = this.buildConfigPayload();
     this.http.put<any>(`${this.apiUrl}/${encodeURIComponent(this.selectedBatch.batchName)}`,
@@ -5616,7 +5660,13 @@ export class JourneyManagementComponent implements OnInit {
       next: r => {
         this.syncSelectedBatchConfig(r?.config);
         this.savingConfig = false;
-        this.notify.success('Batch config saved.');
+        const levelNote = r?.studentsLevelUpdated != null
+          ? ` (${r.studentsLevelUpdated} student(s) set to ${this.editOldBatchManualLevel})`
+          : '';
+        this.notify.success(`Batch config saved.${levelNote}`);
+        if (this.selectedBatch?.batchName === this.studentsLoadedForBatch) {
+          this.loadStudents(this.selectedBatch.batchName);
+        }
       },
       error: e => { console.error(e); this.savingConfig = false; this.notify.error('Failed to save config.'); }
     });
@@ -5673,6 +5723,7 @@ export class JourneyManagementComponent implements OnInit {
       notes: this.editNotes,
       batchType: this.editBatchType,
       oldBatchDgBotAccess: this.editBatchType === 'old' ? !!this.editOldBatchDgBotAccess : false,
+      oldBatchManualLevel: this.editBatchType === 'old' ? this.editOldBatchManualLevel : undefined,
       strictJourneyRule: this.editStrictJourneyRule,
       strictJourneyThresholdPercent: this.editStrictThresholdPercent,
       autoRecordingEnabled: this.editAutoRecordingEnabled,
@@ -5700,6 +5751,8 @@ export class JourneyManagementComponent implements OnInit {
     this.editBatchType = this.normalizeEditBatchType(config.batchType);
     this.editOldBatchDgBotAccess = !!config.oldBatchDgBotAccess;
     this.selectedBatch.oldBatchDgBotAccess = this.editOldBatchDgBotAccess;
+    this.editOldBatchManualLevel = config.oldBatchManualLevel || 'A1';
+    this.selectedBatch.oldBatchManualLevel = this.editOldBatchManualLevel;
     this.editStrictThresholdPercent =
       config.strictJourneyThresholdPercent != null ? config.strictJourneyThresholdPercent : 100;
     this.editAutoRecordingEnabled = !!config.autoRecordingEnabled;

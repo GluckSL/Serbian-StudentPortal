@@ -58,6 +58,7 @@ export class DgAdminBeginnerModeComponent implements OnInit {
   messageType: 'error' | 'success' | 'info' = 'info';
 
   sessionIntro = '';
+  gradingThresholdPercent = 75;
   questions: DgBeginnerQuestion[] = [];
   uploadingIndex: number | null = null;
   batches: BatchSummary[] = [];
@@ -99,6 +100,7 @@ export class DgAdminBeginnerModeComponent implements OnInit {
       bm?.sessionIntro ||
       (bm?.contextText && !bm?.questions?.length ? bm.contextText : '') ||
       '';
+    this.gradingThresholdPercent = bm?.gradingThresholdPercent ?? 75;
     this.questions = normalizeQuestionsFromModule(bm);
   }
 
@@ -230,6 +232,7 @@ export class DgAdminBeginnerModeComponent implements OnInit {
       const beginnerMode: DgBeginnerMode = {
         enabled: true,
         sessionIntro: this.sessionIntro.trim(),
+        gradingThresholdPercent: Math.max(0, Math.min(100, Number(this.gradingThresholdPercent) || 75)),
         questions: validQuestions.map((q, i) => ({
           questionText: q.questionText.trim(),
           imageUrl: (q.imageUrl || '').trim(),

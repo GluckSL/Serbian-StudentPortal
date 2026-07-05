@@ -1170,3 +1170,32 @@
 @keyframes sw-spin {
   to { transform: rotate(360deg); }
 }
+
+.sw-reject-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.sw-reject-banner i {
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+.sw-reject-banner strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.sw-reject-banner p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #7f1d1d;
+}

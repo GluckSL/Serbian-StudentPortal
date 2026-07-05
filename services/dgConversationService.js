@@ -427,6 +427,90 @@ async function translateText(text, fromLang, toLang) {
   }
 }
 
+/**
+ * Score a beginner-mode student answer against the expected phrase (0–100).
+ * Uses local similarity first; optional AI refinement when OPENAI key is set.
+ */
+function scoreBeginnerAnswerLocally(said, expected) {
+  const norm = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[.,!?;:'"„"–—]/g, '')
+      .replace(/\s+/g, ' ');
+
+  const s = norm(said);
+  const e = norm(expected);
+
+  if (!s || !e) return 0;
+  if (s === e) return 100;
+  if (s.includes(e)) return 100;
+  if (e.includes(s) && s.length >= Math.max(3, e.length * 0.6)) return 95;
+
+  const eWords = e.split(' ').filter(Boolean);
+  const sWords = new Set(s.split(' ').filter(Boolean));
+  if (eWords.length === 0) return 0;
+
+  const matched = eWords.filter((w) =>
+    sWords.has(w) ||
+    [...sWords].some((sw) => (sw.length > 2 && w.startsWith(sw)) || (w.length > 2 && sw.startsWith(w)))
+  );
+  return Math.round((matched.length / eWords.length) * 100);
+}
+
+/**
+ * AI grade for beginner mode — compares student answer to expected answer.
+ * Returns { score: 0-100 } or null on failure.
+ */
+async function gradeBeginnerAnswerWithAI({ studentAnswer, expectedAnswer, questionText, language, nativeLanguage }) {
+  if (!process.env.DG_OPENAI_API_KEY) return null;
+  const said = String(studentAnswer || '').trim();
+  const expected = String(expectedAnswer || '').trim();
+  if (!said || !expected) return null;
+
+  try {
+    const openai = _makeOpenAI();
+    const completion = await Promise.race([
+      openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content:
+              `You grade ${language || 'German'} A1 beginner speaking answers. ` +
+              'Return JSON only: {"score": number 0-100}. ' +
+              'Score 100 for a correct answer in the target language. ' +
+              'Score 0 if the student answered entirely in the wrong language (e.g. English only, raw digits without German phrasing). ' +
+              'Give partial credit for close attempts with minor errors.',
+          },
+          {
+            role: 'user',
+            content:
+              `Question: ${questionText || '(not given)'}\n` +
+              `Expected answer (${language}): "${expected}"\n` +
+              `Student said: "${said}"\n` +
+              `Student native language: ${nativeLanguage || 'English'}\n` +
+              'Grade how well the student answer matches the expected answer in the target language.',
+          },
+        ],
+        max_completion_tokens: 80,
+        temperature: 0.1,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Beginner grading timeout')), 8000),
+      ),
+    ]);
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw);
+    const score = Math.max(0, Math.min(100, Math.round(Number(parsed.score) || 0)));
+    return { score };
+  } catch (err) {
+    console.warn('[dgConversationService] gradeBeginnerAnswerWithAI failed:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   buildDGPrompt,
   buildAllowedSet,
@@ -435,4 +519,6 @@ module.exports = {
   getBeginnerQuestions,
   translateToTamil,
   translateText,
+  scoreBeginnerAnswerLocally,
+  gradeBeginnerAnswerWithAI,
 };

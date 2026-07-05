@@ -99,6 +99,8 @@ const DgBeginnerModeSchema = new mongoose.Schema(
     contextText: { type: String, default: '' },
     /** @deprecated Legacy prompts — migrated to questions on read */
     dialoguePrompts: { type: [DgBeginnerDialoguePromptSchema], default: [] },
+    /** Minimum AI grade (0–100) required to accept a student answer in beginner mode. */
+    gradingThresholdPercent: { type: Number, default: 75, min: 0, max: 100 },
   },
   { _id: false }
 );

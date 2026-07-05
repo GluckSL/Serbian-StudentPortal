@@ -55,6 +55,16 @@ const BatchConfigSchema = new mongoose.Schema({
     default: false
   },
   /**
+   * Old batch type only: CEFR level manually assigned to every student in this batch.
+   * Old batches do NOT derive level from journey day like new/new2 batches — an admin
+   * picks the level here (Batch Settings) and it stays until changed.
+   */
+  oldBatchManualLevel: {
+    type: String,
+    enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+    default: 'A1'
+  },
+  /**
    * When trialDayEnabled: first calendar date students enter Trial (journey day 0).
    * If set with batchStartDate, batchStartDate is Day 1 (not trial).
    */

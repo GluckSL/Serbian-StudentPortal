@@ -14,6 +14,7 @@ import type {
   DgBeginnerQuestion,
   DgChatMessage,
   DgConversationMessage,
+  DgConversationResponse,
   DgGoalStep,
   DgPlayPayload,
   DgPlayerStatus,
@@ -544,6 +545,21 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       if (!el) return;
       el.scrollTop = el.scrollHeight;
     }, 0);
+  }
+
+  /** Attach beginner-mode AI grade to the most recent student bubble. */
+  private attachBeginnerGradeToLastStudent(response: DgConversationResponse): void {
+    if (!this.isBeginnerModeActive || response.answerScore == null) return;
+    for (let i = this.chatHistory.length - 1; i >= 0; i--) {
+      if (this.chatHistory[i].speaker === 'student') {
+        this.chatHistory[i] = {
+          ...this.chatHistory[i],
+          answerScore: response.answerScore,
+          answerPassed: response.answerPassed,
+        };
+        break;
+      }
+    }
   }
 
   /**
@@ -1270,6 +1286,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       } else {
         this.syncBeginnerQuestionIndex();
       }
+      this.attachBeginnerGradeToLastStudent(response);
 
       const skipMsg = (response.skipMessage || '').trim();
       const nextPrompt = (response.text || '').trim();

@@ -83,6 +83,11 @@ const SignupApplicationSchema = new mongoose.Schema({
   paymentRequestId: { type: mongoose.Schema.Types.ObjectId, default: null },
   submissionId:     { type: mongoose.Schema.Types.ObjectId, default: null },
 
+  // Admin rejection (bank-transfer proof path)
+  rejectionReason: { type: String, default: '' },
+  rejectedAt:        { type: Date, default: null },
+  rejectedBy:        { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+
   // ── lifecycle status ─────────────────────────────────────────────────────────
   status: {
     type: String,

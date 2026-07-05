@@ -30,6 +30,10 @@ import {
   SignupApprovalEditDialogComponent,
   SignupApprovalEditResult,
 } from './signup-approval-edit-dialog.component';
+import {
+  SignupRejectionDialogComponent,
+  SignupRejectionDialogResult,
+} from './signup-rejection-dialog.component';
 
 @Component({
   selector: 'app-payment-hub-request-payments',
@@ -668,6 +672,38 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         this.loadingSignupToken = null;
         this.snack.open(e?.error?.message || 'Could not approve signup', 'Dismiss', { duration: 5000 });
       },
+    });
+  }
+
+  rejectSignup(row: SignupPendingApplication, ev?: Event): void {
+    ev?.stopPropagation();
+    if (this.loadingSignupToken) return;
+
+    const ref = this.dialog.open(SignupRejectionDialogComponent, {
+      width: '520px',
+      maxWidth: '96vw',
+      panelClass: 'lm-dialog-panel',
+      autoFocus: false,
+      data: { application: row },
+    });
+
+    ref.afterClosed().subscribe((result: SignupRejectionDialogResult | undefined) => {
+      if (!result) return;
+      this.loadingSignupToken = row.applicationToken;
+      this.api.rejectSignupApplication(row.applicationToken, {
+        rejectionReason: result.rejectionReason,
+      }).subscribe({
+        next: (res) => {
+          this.loadingSignupToken = null;
+          this.snack.open(res.message || 'Signup rejected. The student has been notified by email.', 'OK', { duration: 5000 });
+          this.loadSignupApprovals();
+          this.refreshPendingQueueCount();
+        },
+        error: (e) => {
+          this.loadingSignupToken = null;
+          this.snack.open(e?.error?.message || 'Could not reject signup', 'Dismiss', { duration: 5000 });
+        },
+      });
     });
   }
 

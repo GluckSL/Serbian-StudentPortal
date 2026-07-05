@@ -11,6 +11,7 @@ const User = require('../../models/User');
 const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 
 const REMINDER_WINDOW_MINUTES = 30;
+const PORTAL_URL = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
 
 async function processClassReminders() {
   const batchSettings = await getBatchSettingsMap();
@@ -50,7 +51,7 @@ async function processClassReminders() {
     const topic = meeting.topic || 'Your class';
     const joinUrl = meeting.joinUrl || meeting.link || '';
 
-    // --- Notify each student ---
+    // --- Notify each student (portal only — no Zoom link in WhatsApp) ---
     for (const attendee of meeting.attendees) {
       const phone = attendee.whatsappNumber || attendee.phone || '';
       // Fetch fresh user data to get the whatsappNumber stored on User doc
@@ -64,13 +65,13 @@ async function processClassReminders() {
         phone: userPhone,
         name: attendee.name,
         type: NOTIFICATION_TYPES.CLASS_REMINDER,
-        message: `Hi ${attendee.name}, "${topic}" starts in ${minutesUntilStart} min. Join: ${joinUrl}`,
+        message: `Hi ${attendee.name}, "${topic}" starts in ${minutesUntilStart} min. Join via the Glück Global student portal: ${PORTAL_URL}/login — sign in, open My Class, and tap Join now when it is time.`,
         data: {
           meetingId: meeting._id,
           topic,
           startTime: meeting.startTime,
           batch: meeting.batch,
-          joinUrl,
+          portalUrl: `${PORTAL_URL}/login`,
         },
       });
     }

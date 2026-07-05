@@ -61,6 +61,12 @@ async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
 
   if (!completion.complete) return { advanced: false };
 
+  const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
+  const primaryKey = primaryGoBatchFromKeys(keys) || keys[0];
+  const cfgDoc = primaryKey
+    ? await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(primaryKey)}$`, 'i') }).select('batchType').lean()
+    : null;
+
   const nextDay = Math.min(200, currentDay + 1);
   const result = await User.updateOne(
     { _id: studentId, role: 'STUDENT', currentCourseDay: currentDay },
@@ -72,7 +78,7 @@ async function checkAndInstantlyAdvanceSilverGoStudent(studentId) {
           pendingJourneyDayAdvance: false,
           pendingJourneyDayAdvanceForDay: null
         },
-        { student }
+        { student, batchConfig: cfgDoc }
       )
     }
   );
@@ -160,7 +166,7 @@ async function checkAndInstantlyAdvancePlatinumStudent(studentId, meetingBatch, 
           pendingJourneyDayAdvance: false,
           pendingJourneyDayAdvanceForDay: null
         },
-        { student }
+        { student, batchConfig: cfgDoc }
       )
     }
   );
@@ -235,7 +241,7 @@ async function checkAndInstantlyAdvancePlatinumStrictStudent(studentId, completi
           pendingJourneyDayAdvance: false,
           pendingJourneyDayAdvanceForDay: null
         },
-        { student }
+        { student, batchConfig: cfgDoc }
       )
     }
   );
@@ -543,7 +549,7 @@ async function applyJourneyDayRollovers() {
               pendingJourneyDayAdvance: false,
               pendingJourneyDayAdvanceForDay: null
             },
-            { student: s }
+            { student: s, batchConfig: cfg }
           )
         }
       );

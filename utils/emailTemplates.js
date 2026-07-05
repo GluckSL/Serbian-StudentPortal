@@ -504,6 +504,67 @@ function buildJobApplicationReceivedAdminEmail({
   };
 }
 
+// ─── Signup: rejection email (bank-transfer proof not approved) ─────────────
+
+/**
+ * @param {object} params
+ * @param {string} params.name
+ * @param {string} params.email
+ * @param {number} [params.amount]
+ * @param {string} [params.currency]
+ * @param {string} [params.rejectionReason]
+ * @param {string} params.signupUrl — link to resume signup and re-upload proof
+ */
+function buildSignupRejectedEmail({ name, email, amount, currency, rejectionReason, signupUrl }) {
+  signupUrl = signupUrl || 'https://gluckstudentsportal.com/signup/apply';
+  const curr = String(currency || 'INR').toUpperCase();
+  const amt = Number(amount);
+  const amountLine =
+    Number.isFinite(amt) && amt > 0
+      ? `<tr style="background:#f8fafc;">
+          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Declared amount</td>
+          <td style="padding:10px 16px;color:#1e293b;font-size:15px;border-top:1px solid #e2e8f0;">${escapeHtml(curr)} ${amt.toLocaleString('en-IN')}</td>
+        </tr>`
+      : '';
+  const reasonBlock = rejectionReason?.trim()
+    ? `<div style="background:#fff5f5;border-left:4px solid #dc2626;border-radius:8px;padding:14px 18px;margin:0 0 20px;">
+        <p style="margin:0 0 6px;font-weight:700;color:#991b1b;font-size:14px;">Reason from our finance team</p>
+        <p style="margin:0;color:#444;font-size:15px;line-height:1.55;">${escapeHtml(rejectionReason.trim())}</p>
+      </div>`
+    : `<p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
+        Please review your payment details and upload a corrected screenshot using the link below.
+      </p>`;
+
+  return {
+    subject: 'Signup Payment Update — Glück Global',
+    html: emailHeader('Payment Not Approved') + `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
+        Hello <strong>${escapeHtml(name)}</strong>,
+      </p>
+      <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
+        Thank you for registering with Glück Global. After reviewing your payment proof, we were unable to approve your signup at this time.
+      </p>
+      <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0 0 20px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
+        <tr style="background:#f8fafc;">
+          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;width:140px;">Email</td>
+          <td style="padding:10px 16px;color:#1e293b;font-size:15px;">${escapeHtml(email)}</td>
+        </tr>
+        ${amountLine}
+      </table>
+      ${reasonBlock}
+      <p style="margin:0 0 8px;color:#444;font-size:14px;">You can return to the signup page, correct your payment details, and submit a new proof:</p>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        <tr><td align="center" style="padding:12px 0 28px;">
+          <a href="${signupUrl}" style="display:inline-block;background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
+            Re-submit payment proof →
+          </a>
+        </td></tr>
+      </table>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">If you believe this is a mistake, contact us at info@gluckglobal.com.</p>
+    ` + emailFooter(),
+  };
+}
+
 // ─── Signup: welcome email after approval ────────────────────────────────────
 
 /**
@@ -1846,6 +1907,7 @@ module.exports = {
   buildSignupProofReceivedAdminEmail,
   buildJobApplicationReceivedAdminEmail,
   buildSignupApprovedWelcomeEmail,
+  buildSignupRejectedEmail,
   buildDailyTaskReminderEmail,
   buildJourneyDayReminderEmail,
   buildJourneyWeekReminderEmail,

@@ -275,7 +275,7 @@
             <span class="ap-signup-section__icon"><mat-icon>person_add</mat-icon></span>
             <div>
               <h4 class="ap-signup-section__title">New student signups</h4>
-              <p class="ap-signup-section__sub">Bank-transfer proofs from the public registration form — approving creates the student account and sends the welcome email.</p>
+              <p class="ap-signup-section__sub">Bank-transfer proofs from the public registration form — approving creates the student account and sends the welcome email. Reject if details are wrong; the student can re-submit proof.</p>
             </div>
           </div>
           <mat-form-field appearance="outline" class="ap-signup-batch-field" *ngIf="signupRows.length > 0">
@@ -357,6 +357,14 @@
                         <mat-spinner *ngIf="loadingSignupToken === row.applicationToken" diameter="14" class="ap-action-spinner"></mat-spinner>
                         <mat-icon *ngIf="loadingSignupToken !== row.applicationToken">check_circle</mat-icon>
                         Approve
+                      </button>
+                      <button
+                        type="button"
+                        class="ap-action-btn ap-action-btn--reject"
+                        [disabled]="loadingSignupToken === row.applicationToken"
+                        (click)="rejectSignup(row, $event)">
+                        <mat-icon>close</mat-icon>
+                        Reject
                       </button>
                     </div>
                   </td>

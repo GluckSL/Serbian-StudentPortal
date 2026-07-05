@@ -1,7 +1,7 @@
 'use strict';
 
 const OpenAI = require('openai');
-const { translateToTamil } = require('./dgConversationService');
+const { translateToTamil, scoreBeginnerAnswerLocally, gradeBeginnerAnswerWithAI } = require('./dgConversationService');
 
 // ─── In-memory session store (keyed by sessionId, TTL 2 h) ───────────────────
 const _sessions = new Map();
@@ -122,6 +122,10 @@ function startConversation(sessionId, moduleData) {
     beginnerAwaitingRepeat: false,
     /** Consecutive wrong attempts on the current beginner question (skip after 3). */
     beginnerConsecutiveFailures: 0,
+    /** Admin-configured pass threshold for beginner answer grading (0–100). */
+    beginnerGradingThreshold: isBeginnerMode
+      ? Math.max(0, Math.min(100, Number(bm.gradingThresholdPercent ?? 75)))
+      : 75,
 
     createdAt: Date.now(),
   };
@@ -262,48 +266,37 @@ async function generateOpeningMessage(state) {
 
 /**
  * Compare what the student said against the expected answer.
- * Returns true only when the content is genuinely close — never based on
- * pronunciation score alone (which is always high for clear speech even if the
- * words are wrong).
- *
- * Rules:
- *   1. Normalize both strings (lowercase, strip punctuation, collapse whitespace).
- *   2. Exact match or student's text contains the full expected phrase → correct.
- *   3. Expected contains student's text AND student said ≥ 60 % of expected length → correct.
- *   4. Word-level overlap: ≥ 75 % of expected words found in student speech → correct.
+ * Returns a score 0–100 using local similarity (sync fallback).
  */
-function _isBeginnerAnswerCorrect(said, expected) {
-  const norm = (s) =>
-    String(s || '')
-      .toLowerCase()
-      .trim()
-      .replace(/[.,!?;:'"„"–—]/g, '')
-      .replace(/\s+/g, ' ');
+function _scoreBeginnerAnswerLocally(said, expected) {
+  return scoreBeginnerAnswerLocally(said, expected);
+}
 
-  const s = norm(said);
-  const e = norm(expected);
+async function _gradeBeginnerAnswer(state, said, expected, questionText) {
+  const threshold = state.beginnerGradingThreshold ?? 75;
+  const ctx = state.moduleContext || {};
+  let score = _scoreBeginnerAnswerLocally(said, expected);
 
-  if (!s || !e) return false;
+  const aiGrade = await gradeBeginnerAnswerWithAI({
+    studentAnswer: said,
+    expectedAnswer: expected,
+    questionText,
+    language: ctx.language || 'German',
+    nativeLanguage: ctx.nativeLanguage || 'English',
+  });
+  if (aiGrade && Number.isFinite(aiGrade.score)) {
+    score = aiGrade.score;
+  }
 
-  // Exact match
-  if (s === e) return true;
+  return {
+    score,
+    threshold,
+    passed: score >= threshold,
+  };
+}
 
-  // Student said something that fully contains the expected phrase
-  if (s.includes(e)) return true;
-
-  // Expected contains what student said AND it's a substantial portion (≥ 60 %)
-  if (e.includes(s) && s.length >= Math.max(3, e.length * 0.6)) return true;
-
-  // Word-level overlap ≥ 75 %
-  const eWords = e.split(' ').filter(Boolean);
-  const sWords = new Set(s.split(' ').filter(Boolean));
-  if (eWords.length === 0) return false;
-
-  const matched = eWords.filter((w) =>
-    sWords.has(w) ||
-    [...sWords].some((sw) => (sw.length > 2 && w.startsWith(sw)) || (w.length > 2 && sw.startsWith(w)))
-  );
-  return matched.length / eWords.length >= 0.75;
+function _isBeginnerAnswerCorrect(said, expected, threshold = 75) {
+  return _scoreBeginnerAnswerLocally(said, expected) >= threshold;
 }
 
 const BEGINNER_SKIP_MESSAGE = "That's okay! It will come with time. Let's move on to the next.";
@@ -357,17 +350,24 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
   let questionSkipped = false;
   let skipMessage = '';
   let nextFailures = state.beginnerConsecutiveFailures || 0;
+  let answerScore = null;
+  let answerPassed = null;
 
   const FEEDBACKS = ['Super!', 'Sehr gut!', 'Prima!', 'Bravo!', 'Wunderbar!'];
   const randFeedback = () => FEEDBACKS[Math.floor(Math.random() * FEEDBACKS.length)];
 
   if (state.beginnerAwaitingRepeat) {
     // Student was shown the target phrase as a hint and should now repeat it.
-    // Accept only if they actually said something close to the target.
     const target = (currentQ?.targetAnswer || '').trim();
-    const repeatOk = target
-      ? _isBeginnerAnswerCorrect(transcript, target)
-      : transcript.trim().length > 0;
+    let repeatOk = false;
+    if (target) {
+      const grade = await _gradeBeginnerAnswer(state, transcript, target, currentQ?.questionText || '');
+      answerScore = grade.score;
+      answerPassed = grade.passed;
+      repeatOk = grade.passed;
+    } else {
+      repeatOk = transcript.trim().length > 0;
+    }
 
     if (repeatOk) {
       nextFailures = 0;
@@ -402,8 +402,15 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
     let isCorrect = false;
 
     if (currentQ?.targetAnswer?.trim()) {
-      // Expected answer set → use text-similarity only (never rely on pronunciation score)
-      isCorrect = _isBeginnerAnswerCorrect(transcript, currentQ.targetAnswer);
+      const grade = await _gradeBeginnerAnswer(
+        state,
+        transcript,
+        currentQ.targetAnswer,
+        currentQ.questionText || '',
+      );
+      answerScore = grade.score;
+      answerPassed = grade.passed;
+      isCorrect = grade.passed;
     } else {
       // No expected answer → open question; accept any non-empty response
       isCorrect = transcript.trim().length > 0;
@@ -487,6 +494,9 @@ async function _processBeginnerTurn(sessionId, state, transcript, pronunciationS
     beginnerQuestionIndex: nextIdx,
     questionSkipped: questionSkipped || undefined,
     skipMessage: skipMessage || undefined,
+    answerScore: answerScore ?? undefined,
+    answerPassed: answerPassed ?? undefined,
+    gradingThreshold: state.beginnerGradingThreshold ?? 75,
   };
 }
 

@@ -1566,7 +1566,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   get showJourneyArenaSection(): boolean {
-    return this.hasJourneyArenaAccess || this.journeyDayGameSets.length > 0;
+    return this.allowsLearningContent;
   }
 
   get selectedDayGameSets(): GameSet[] {
@@ -1826,6 +1826,10 @@ export class MyCourseComponent implements OnInit {
   openGameSet(set: GameSet): void {
     if (!set?._id) return;
     this.router.navigate(['/glueck-arena', set._id]);
+  }
+
+  navigateToArena(): void {
+    this.router.navigate(['/glueck-arena']);
   }
 
   getGameSetHoverDetails(set: GameSet): string {

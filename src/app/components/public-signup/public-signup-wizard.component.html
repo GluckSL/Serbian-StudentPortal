@@ -216,6 +216,15 @@
       </div>
     </header>
 
+    <div *ngIf="applicationStatus === 'rejected'" class="sw-reject-banner" role="alert">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div>
+        <strong>Your previous payment proof was not approved.</strong>
+        <p *ngIf="applicationRejectionReason">Reason: {{ applicationRejectionReason }}</p>
+        <p *ngIf="!applicationRejectionReason">Please review your payment details and upload a corrected screenshot below.</p>
+      </div>
+    </div>
+
     <div class="sw-pay-layout">
       <div class="sw-bank-card">
         <div class="sw-bank-card__head">

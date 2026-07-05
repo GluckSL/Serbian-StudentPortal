@@ -159,7 +159,7 @@ function blocksPublicSignupStart(user) {
   return user.isActive !== false;
 }
 
-const RESUMABLE_APP_STATUSES = ['draft', 'email_verified', 'documents_done', 'payment_pending', 'proof_submitted'];
+const RESUMABLE_APP_STATUSES = ['draft', 'email_verified', 'documents_done', 'payment_pending', 'proof_submitted', 'rejected'];
 
 /** Infer INR vs LKR from phone / WhatsApp on the application. */
 function detectCurrencyFromPhone(phone, whatsapp) {
@@ -603,7 +603,9 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
     if (app.status === 'proof_submitted') {
       return res.status(400).json({ msg: 'Payment proof already submitted. Please wait for admin approval.' });
     }
-    if (app.status !== 'payment_pending') return res.status(400).json({ msg: 'Please complete previous steps first.' });
+    if (app.status !== 'payment_pending' && app.status !== 'rejected') {
+      return res.status(400).json({ msg: 'Please complete previous steps first.' });
+    }
 
     const exists = await findUserByEmail(app.email);
     if (exists && blocksPublicSignupStart(exists)) {
@@ -638,6 +640,9 @@ router.post('/payment-proof', handleProofUpload, async (req, res) => {
     app.proofSubmittedAt = new Date();
     app.paymentMethod = 'proof';
     app.status = 'proof_submitted';
+    app.rejectionReason = '';
+    app.rejectedAt = null;
+    app.rejectedBy = null;
     await app.save();
 
     const adminUrl = `${process.env.FRONTEND_URL || 'https://gluckstudentsportal.com'}/admin/payment-request?tab=approvals`;

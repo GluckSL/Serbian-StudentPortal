@@ -21,20 +21,35 @@ function _normLang(lang) {
   return String(lang || '').toLowerCase().replace(/\s+/g, '');
 }
 
+/** True when the last bot line was asking for a phone / mobile number. */
+function _isPhoneNumberQuestion(lastAiText) {
+  return /\b(handy|handynummer|telefon|telefonnummer|nummer|phone|mobile)\b/i.test(
+    String(lastAiText || ''),
+  );
+}
+
 /**
  * True when we should show a "say this in German" hint instead of advancing the AI turn.
  * German-only applies when the module target language is German.
+ *
+ * @param {string} userText
+ * @param {string} moduleLanguage
+ * @param {{ lastAiText?: string }} [context]
  */
-function shouldRequestGermanHint(userText, moduleLanguage) {
+function shouldRequestGermanHint(userText, moduleLanguage, context = {}) {
   const lang = _normLang(moduleLanguage);
   if (lang !== 'german' && lang !== 'deutsch' && lang !== 'de') return false;
   const t = String(userText || '').trim();
   if (!t) return false;
+  const lastAi = String(context.lastAiText || '').trim();
   // Already contains clear German learner markers → allow through
   if (GERMAN_MARKERS.test(t)) return false;
-  // Digits-only (phone) or letter-spelling pattern
-  if (/^[\d\s.\-+]+$/.test(t)) return false;
-  if (/^[a-z](-[a-z])+$/i.test(t.replace(/\s+/g, ''))) return false;
+  // Raw digits (e.g. phone number spoken in English) — require German phrasing
+  if (/^[\d\s.\-+]+$/.test(t)) {
+    return _isPhoneNumberQuestion(lastAi) || true;
+  }
+  // Letter-spelling without German context (e.g. "a-b-c") — still needs German
+  if (/^[a-z](-[a-z])+$/i.test(t.replace(/\s+/g, ''))) return true;
   if (ENGLISH_MARKERS.test(t)) return true;
   // Single-word English location name (country/city) — needs German hint
   if (ENGLISH_LOCATIONS.test(t)) return true;
@@ -118,6 +133,13 @@ function _fallbackGermanLine(said, lastAi) {
   }
   if (/wie heißen|wie heisst|ihr name|wie ist ihr name|nachname|vorname/i.test(lastAi)) {
     return 'Guten Tag, mein Name ist …';
+  }
+  if (_isPhoneNumberQuestion(lastAi)) {
+    const digits = said.replace(/\D/g, '');
+    if (digits) {
+      return `Meine Handynummer ist ${digits.split('').join(' ')}.`;
+    }
+    return 'Meine Handynummer ist …';
   }
   // Location/origin answer
   if (ENGLISH_LOCATIONS.test(said.trim())) {

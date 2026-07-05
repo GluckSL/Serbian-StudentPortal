@@ -27,7 +27,7 @@ const {
   backfillPhoneCountries,
   STUDENT_COUNTRY_FILTER_OPTIONS,
 } = require('../utils/studentCountry');
-const { approvePublicSignupApplication } = require('../utils/signupActivation');
+const { approvePublicSignupApplication, rejectPublicSignupApplication } = require('../utils/signupActivation');
 
 const FILTER_OPTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
 let filterOptionsCache = { at: 0, payload: null };
@@ -1511,6 +1511,9 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       updateData.batch = updates.batch;
     }
 
+    const beforeStudents = await User.find({ _id: { $in: studentIds }, role: 'STUDENT' }).lean();
+
+    let oldBatchStudentIds = [];
     if (updates.currentCourseDay !== undefined && updates.currentCourseDay !== null) {
       const d = parseInt(String(updates.currentCourseDay), 10);
       if (!Number.isFinite(d) || d < 1 || d > 200) {
@@ -1520,6 +1523,25 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
         });
       }
       const { withJourneyLevelInSet } = require('../services/journeyLevelSync.service');
+      const { isOldBatchType } = require('../utils/batchType');
+
+      // Old batches never get `level` auto-derived from currentCourseDay — resolve
+      // which of the selected students are in an old batch so we can exclude them.
+      const batchNames = [...new Set(beforeStudents.map((s) => s.batch).filter(Boolean))];
+      const batchConfigs = batchNames.length
+        ? await BatchConfig.find({
+            batchName: { $in: batchNames.map((b) => new RegExp(`^${b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) }
+          })
+            .select('batchName batchType')
+            .lean()
+        : [];
+      const oldBatchNames = new Set(
+        batchConfigs.filter((c) => isOldBatchType(c.batchType)).map((c) => String(c.batchName).toLowerCase())
+      );
+      oldBatchStudentIds = beforeStudents
+        .filter((s) => s.batch && oldBatchNames.has(String(s.batch).toLowerCase()))
+        .map((s) => String(s._id));
+
       Object.assign(
         updateData,
         withJourneyLevelInSet(d, {
@@ -1530,13 +1552,27 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       );
     }
 
-    const beforeStudents = await User.find({ _id: { $in: studentIds }, role: 'STUDENT' }).lean();
-
     // Update all selected students
-    const result = await User.updateMany(
-      { _id: { $in: studentIds }, role: 'STUDENT' },
-      { $set: updateData }
-    );
+    let result;
+    if (oldBatchStudentIds.length) {
+      const { level: _omitLevel, ...updateDataNoLevel } = updateData;
+      const [oldRes, restRes] = await Promise.all([
+        User.updateMany(
+          { _id: { $in: oldBatchStudentIds }, role: 'STUDENT' },
+          { $set: updateDataNoLevel }
+        ),
+        User.updateMany(
+          { _id: { $in: studentIds.filter((id) => !oldBatchStudentIds.includes(String(id))) }, role: 'STUDENT' },
+          { $set: updateData }
+        )
+      ]);
+      result = { modifiedCount: (oldRes.modifiedCount || 0) + (restRes.modifiedCount || 0) };
+    } else {
+      result = await User.updateMany(
+        { _id: { $in: studentIds }, role: 'STUDENT' },
+        { $set: updateData }
+      );
+    }
 
     const afterStudents = await User.find({ _id: { $in: studentIds }, role: 'STUDENT' }).lean();
     await recordBulkStudentChanges({
@@ -2007,6 +2043,51 @@ router.patch('/signup-applications/:applicationToken', verifyToken, isAdmin, asy
   } catch (err) {
     console.error('[PATCH /admin/signup-applications/:token]', err);
     return res.status(500).json({ success: false, message: err.message || 'Failed to update signup application.' });
+  }
+});
+
+router.post('/signup-applications/:applicationToken/reject', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const applicationToken = String(req.params.applicationToken || '').trim();
+    if (!applicationToken) {
+      return res.status(400).json({ success: false, message: 'Application token is required.' });
+    }
+
+    const rejectionReason = req.body?.rejectionReason != null
+      ? String(req.body.rejectionReason).trim()
+      : '';
+
+    const result = await rejectPublicSignupApplication(applicationToken, {
+      rejectionReason,
+      adminId: req.user?.id || req.user?._id,
+    });
+    if (!result.ok) {
+      const status =
+        result.reason === 'application_not_found' ? 404
+          : result.reason === 'already_approved' ? 409
+            : 400;
+      return res.status(status).json({
+        success: false,
+        message:
+          result.reason === 'invalid_status'
+            ? `Cannot reject application in status "${result.status}".`
+            : result.reason === 'already_approved'
+              ? 'This signup is already approved.'
+              : 'Could not reject signup application.',
+        reason: result.reason,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: rejectionReason
+        ? 'Signup rejected. The student has been emailed with your reason.'
+        : 'Signup rejected. The student has been notified by email.',
+      rejectionReason: result.rejectionReason,
+    });
+  } catch (err) {
+    console.error('[POST /admin/signup-applications/:token/reject]', err);
+    return res.status(500).json({ success: false, message: err.message || 'Failed to reject signup.' });
   }
 });
 

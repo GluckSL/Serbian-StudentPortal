@@ -1116,4 +1116,14 @@ export class PaymentHubApiService {
       body || {},
     );
   }
+
+  rejectSignupApplication(
+    applicationToken: string,
+    body?: { rejectionReason?: string },
+  ): Observable<{ success: boolean; message?: string; rejectionReason?: string }> {
+    return this.http.post<{ success: boolean; message?: string; rejectionReason?: string }>(
+      `${environment.apiUrl}/admin/signup-applications/${encodeURIComponent(applicationToken)}/reject`,
+      body || {},
+    );
+  }
 }

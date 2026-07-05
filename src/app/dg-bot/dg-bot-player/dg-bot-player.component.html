@@ -300,6 +300,14 @@
               <div class="dg-conv__msg-bubble" [class.dg-conv__msg-bubble--hint]="msg.speaker === 'hint'">
                 <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'ai'" [innerHTML]="highlightStartCue(msg.text)"></span>
                 <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'student'">{{ msg.text }}</span>
+                <span
+                  class="dg-conv__msg-score"
+                  *ngIf="msg.speaker === 'student' && msg.answerScore != null"
+                  [class.dg-conv__msg-score--pass]="msg.answerPassed"
+                  [class.dg-conv__msg-score--fail]="msg.answerPassed === false"
+                >
+                  Grade: {{ msg.answerScore }}%
+                </span>
                 <div class="dg-conv__hint-de-row" *ngIf="msg.speaker === 'hint'">
                   <span class="dg-conv__msg-text dg-conv__msg-text--hint-de">{{ msg.text }}</span>
                   <button

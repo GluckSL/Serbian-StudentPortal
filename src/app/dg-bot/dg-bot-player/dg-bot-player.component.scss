@@ -1568,6 +1568,16 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
+.dg-conv__msg-score--pass {
+  color: #86efac !important;
+  font-weight: 600;
+}
+
+.dg-conv__msg-score--fail {
+  color: #fca5a5 !important;
+  font-weight: 600;
+}
+
 .dg-conv__waiting {
   font-size: 0.84rem;
   color: #64748b;

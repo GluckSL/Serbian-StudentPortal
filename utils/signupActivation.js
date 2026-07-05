@@ -14,7 +14,7 @@ const transporter = require('../config/emailConfig');
 const { generateRegNo } = require('./userRegistration');
 const { decryptPassword } = require('./passwordRecoverable');
 const { setUserPassword } = require('./setUserPassword');
-const { buildSignupApprovedWelcomeEmail } = require('./emailTemplates');
+const { buildSignupApprovedWelcomeEmail, buildSignupRejectedEmail } = require('./emailTemplates');
 
 function toObjectId(id) {
   if (id == null || id === '') return null;
@@ -298,6 +298,59 @@ async function approvePublicSignupApplication(applicationToken, opts = {}) {
   };
 }
 
+async function sendPublicSignupRejectionEmail(app, rejectionReason) {
+  const frontendUrl = process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
+  const signupUrl = `${frontendUrl}/signup/apply?token=${app.applicationToken}`;
+  const mail = buildSignupRejectedEmail({
+    name: app.name,
+    email: app.email,
+    amount: app.proofPaidAmount ?? app.amount,
+    currency: app.currency || 'INR',
+    rejectionReason,
+    signupUrl,
+  });
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: app.email,
+    subject: mail.subject,
+    html: mail.html,
+  });
+}
+
+/**
+ * Reject a signup application (bank transfer proof path): notify student by email.
+ * @param {string} applicationToken
+ * @param {{ rejectionReason?: string, adminId?: import('mongoose').Types.ObjectId }} [opts]
+ */
+async function rejectPublicSignupApplication(applicationToken, opts = {}) {
+  const app = await SignupApplication.findOne({ applicationToken });
+  if (!app) {
+    return { ok: false, reason: 'application_not_found' };
+  }
+  if (app.status === 'approved') {
+    return { ok: false, reason: 'already_approved', status: app.status };
+  }
+  if (app.status !== 'proof_submitted') {
+    return { ok: false, reason: 'invalid_status', status: app.status };
+  }
+
+  const rejectionReason = String(opts.rejectionReason || '').trim();
+  app.status = 'rejected';
+  app.rejectionReason = rejectionReason;
+  app.rejectedAt = new Date();
+  app.rejectedBy = opts.adminId || null;
+  await app.save();
+
+  await sendPublicSignupRejectionEmail(app.toObject(), rejectionReason);
+
+  return {
+    ok: true,
+    emailSent: true,
+    rejectionReason: rejectionReason || undefined,
+  };
+}
+
 /**
  * Activate student (if needed) and send welcome email with regNo + password.
  * Used after Razorpay verify or Payment Hub approval (legacy rows with userId).
@@ -363,6 +416,7 @@ async function activatePublicSignupAfterRazorpay(applicationToken) {
 
 module.exports = {
   approvePublicSignupApplication,
+  rejectPublicSignupApplication,
   activatePublicSignupAfterRazorpay,
   activatePublicSignupStudent,
   provisionPublicSignupUser,
@@ -371,4 +425,5 @@ module.exports = {
   resolveSignupPlainPassword,
   resolvePasswordForWelcomeEmail,
   sendPublicSignupWelcomeEmail,
+  sendPublicSignupRejectionEmail,
 };
