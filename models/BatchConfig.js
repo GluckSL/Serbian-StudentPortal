@@ -30,6 +30,28 @@ const BatchConfigSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  /**
+   * Optional calendar overrides per CEFR level (display / admin corrections).
+   * When set, dashboards use these instead of deriving from batchStartDate + journey day ranges.
+   */
+  levelCalendarDates: {
+    A1: {
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null }
+    },
+    A2: {
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null }
+    },
+    B1: {
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null }
+    },
+    B2: {
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null }
+    }
+  },
   notes: {
     type: String,
     default: ''

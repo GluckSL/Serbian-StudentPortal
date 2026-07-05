@@ -1329,9 +1329,10 @@ export class MyCourseComponent implements OnInit {
     return this.isNew2BatchStudent ? 'Gluck Buddy 2.0' : 'Gluck Buddy';
   }
 
-  /** Exercises tab — new-batch students with learning content only. */
+  /** Exercises tab — new-batch students with learning content only. Show optimistically before journey loads; hide only after confirmed old-batch or no learning content. */
   get showExercisesTab(): boolean {
-    return this.journeyProfileLoaded && !this.isOldBatchStudent && this.profile?.learningContentEnabled === true;
+    if (!this.journeyProfileLoaded) return true;
+    return !this.isOldBatchStudent && this.profile?.learningContentEnabled === true;
   }
 
   /** Old batches with admin DG Bot toggle, or any batch with full learning content. */

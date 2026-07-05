@@ -1,5 +1,6 @@
 import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin, of, Subscription } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -7,6 +8,7 @@ import { environment } from '../../../environments/environment';
 import { fmtPaymentAmount } from '../payment-hub-v2/payment-currency.util';
 import { AuthService } from '../../services/auth.service';
 import { NavService } from '../../shared/services/nav.service';
+import { NotificationService } from '../../services/notification.service';
 
 // ── Minimum batch number to include (35 → shows 35,36,…46,47 automatically) ──
 const MIN_BATCH_NUMBER = 35;
@@ -17,6 +19,13 @@ const EXCLUDED_BATCH_KEYS = new Set([
   'batch-2024-a',
   'test batch',
 ]);
+
+interface LevelCalendarDates {
+  A1?: { startDate?: string | null; endDate?: string | null };
+  A2?: { startDate?: string | null; endDate?: string | null };
+  B1?: { startDate?: string | null; endDate?: string | null };
+  B2?: { startDate?: string | null; endDate?: string | null };
+}
 
 interface BatchRow {
   batchName: string;
@@ -29,6 +38,7 @@ interface BatchRow {
   teacherName: string | null;
   journeyActive: boolean;
   batchStartDate: string | null;
+  levelCalendarDates: LevelCalendarDates | null;
   // payment
   paidLKR: number;
   paidINR: number;
@@ -79,7 +89,7 @@ interface PaymentBatchRow {
 @Component({
   selector: 'app-admin-hub-overview',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
 <div class="ov">
 
@@ -233,13 +243,21 @@ interface PaymentBatchRow {
               </td>
 
               <td class="ov-td-dates">
-                <div class="ov-dates-batch">{{ fmtShortDate(b.batchStartDate) }}</div>
-                <div class="ov-dates-level" *ngIf="b.batchStartDate">
-                  <span class="ov-dates-range">{{ levelStartDate(b) }}</span>
-                  <span class="ov-dates-sep">/</span>
-                  <span class="ov-dates-range">{{ levelEndDate(b) }}</span>
-                </div>
-                <div class="ov-dates-empty" *ngIf="!b.batchStartDate">—</div>
+                <button
+                  type="button"
+                  class="ov-dates-btn"
+                  [class.ov-dates-btn--readonly]="!canEditBatchDates"
+                  (click)="openDateModal(b, $event)"
+                  [attr.title]="canEditBatchDates ? 'Click to edit batch dates' : 'Batch dates'"
+                >
+                  <div class="ov-dates-batch">{{ fmtShortDate(b.batchStartDate) }}</div>
+                  <div class="ov-dates-level" *ngIf="b.batchStartDate || levelStartIso(b) || levelEndIso(b)">
+                    <span class="ov-dates-range">{{ levelStartDate(b) }}</span>
+                    <span class="ov-dates-sep">/</span>
+                    <span class="ov-dates-range">{{ levelEndDate(b) }}</span>
+                  </div>
+                  <div class="ov-dates-empty" *ngIf="!b.batchStartDate && !levelStartIso(b) && !levelEndIso(b)">—</div>
+                </button>
               </td>
 
               <td class="ov-td-num">
@@ -315,6 +333,42 @@ interface PaymentBatchRow {
       <span class="ov-metric-sk ov-metric-sk--wide"></span>
     </ng-template>
   </ng-container>
+
+  <!-- Date edit modal -->
+  <div class="ov-modal-backdrop" *ngIf="dateModalOpen" (click)="closeDateModal()"></div>
+  <div class="ov-modal" *ngIf="dateModalOpen" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <div class="ov-modal__head">
+      <div>
+        <h3 class="ov-modal__title">Edit batch dates</h3>
+        <p class="ov-modal__sub" *ngIf="dateModalBatch">Batch {{ dateModalBatch.batchName }} · {{ (dateModalBatch.batchLevel || '—') | uppercase }}</p>
+      </div>
+      <button type="button" class="ov-modal__close" (click)="closeDateModal()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+    <div class="ov-modal__body">
+      <label class="ov-modal-field">
+        <span class="ov-modal-field__label">Batch start date</span>
+        <input type="date" class="ov-modal-field__input" [(ngModel)]="dateModalBatchStart" [disabled]="dateModalSaving || !canEditBatchDates">
+      </label>
+      <label class="ov-modal-field">
+        <span class="ov-modal-field__label">{{ (dateModalBatch?.batchLevel || 'Level') | uppercase }} start date</span>
+        <input type="date" class="ov-modal-field__input" [(ngModel)]="dateModalLevelStart" [disabled]="dateModalSaving || !canEditBatchDates">
+      </label>
+      <label class="ov-modal-field">
+        <span class="ov-modal-field__label">{{ (dateModalBatch?.batchLevel || 'Level') | uppercase }} end date</span>
+        <input type="date" class="ov-modal-field__input" [(ngModel)]="dateModalLevelEnd" [disabled]="dateModalSaving || !canEditBatchDates">
+      </label>
+      <p class="ov-modal-hint">Saved dates are shown to all admins on this dashboard.</p>
+      <p class="ov-modal-error" *ngIf="dateModalError">{{ dateModalError }}</p>
+    </div>
+    <div class="ov-modal__foot">
+      <button type="button" class="ov-action-btn" (click)="closeDateModal()" [disabled]="dateModalSaving">Cancel</button>
+      <button type="button" class="ov-action-btn ov-action-btn--save" (click)="saveDateModal()" [disabled]="dateModalSaving || !canEditBatchDates">
+        {{ dateModalSaving ? 'Saving…' : 'Save dates' }}
+      </button>
+    </div>
+  </div>
 </div>
   `,
   styles: [`
@@ -499,6 +553,59 @@ interface PaymentBatchRow {
   font-size: 0.67rem; color: #cbd5e1; font-weight: 600;
 }
 .ov-dates-empty { color: #cbd5e1; font-size: 0.8rem; }
+.ov-dates-btn {
+  display: block; width: 100%; padding: 0; margin: 0; border: 0; background: transparent;
+  text-align: left; cursor: pointer; font: inherit; border-radius: 8px;
+  transition: background .15s ease, box-shadow .15s ease;
+}
+.ov-dates-btn:hover:not(.ov-dates-btn--readonly) {
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px #bfdbfe;
+}
+.ov-dates-btn--readonly { cursor: default; }
+
+/* Date edit modal */
+.ov-modal-backdrop {
+  position: fixed; inset: 0; z-index: 1040;
+  background: rgba(15, 23, 42, 0.45);
+}
+.ov-modal {
+  position: fixed; z-index: 1050; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 24px));
+  background: #fff; border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  border: 1px solid #e2e8f0;
+}
+.ov-modal__head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 16px 18px 10px; border-bottom: 1px solid #f1f5f9;
+}
+.ov-modal__title { margin: 0; font-size: 1rem; font-weight: 800; color: #0f172a; }
+.ov-modal__sub { margin: 4px 0 0; font-size: 0.72rem; color: #64748b; font-weight: 600; }
+.ov-modal__close {
+  border: 0; background: transparent; color: #64748b; cursor: pointer;
+  padding: 2px; border-radius: 8px;
+}
+.ov-modal__close:hover { background: #f1f5f9; color: #0f172a; }
+.ov-modal__body { padding: 14px 18px 6px; display: flex; flex-direction: column; gap: 12px; }
+.ov-modal-field { display: flex; flex-direction: column; gap: 6px; }
+.ov-modal-field__label { font-size: 0.72rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
+.ov-modal-field__input {
+  width: 100%; box-sizing: border-box; padding: 9px 11px;
+  border: 1px solid #cbd5e1; border-radius: 10px; font-size: 0.85rem; color: #0f172a;
+}
+.ov-modal-field__input:focus { outline: none; border-color: #005b96; box-shadow: 0 0 0 3px rgba(0, 91, 150, 0.12); }
+.ov-modal-hint { margin: 0; font-size: 0.68rem; color: #94a3b8; }
+.ov-modal-error { margin: 0; font-size: 0.75rem; color: #dc2626; font-weight: 600; }
+.ov-modal__foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 18px 16px; border-top: 1px solid #f1f5f9;
+}
+.ov-action-btn--save {
+  background: #005b96; color: #fff; border-color: #005b96;
+}
+.ov-action-btn--save:hover:not(:disabled) { background: #004a7a; border-color: #004a7a; color: #fff; }
 .ov-batch-name {
   font-size: 0.9rem; font-weight: 800; color: #0f172a;
   letter-spacing: -0.02em; line-height: 1.2;
@@ -690,7 +797,15 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
   loading = true;
   error = '';
   canViewFinance = false;
+  canEditBatchDates = false;
   batches: BatchRow[] = [];
+  dateModalOpen = false;
+  dateModalBatch: BatchRow | null = null;
+  dateModalBatchStart = '';
+  dateModalLevelStart = '';
+  dateModalLevelEnd = '';
+  dateModalSaving = false;
+  dateModalError = '';
   private userSub?: Subscription;
   private dataLoaded = false;
   private profileRefreshRequested = false;
@@ -836,6 +951,7 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private authService: AuthService,
     private navService: NavService,
+    private notify: NotificationService,
   ) {}
 
   ngOnInit(): void {
@@ -868,6 +984,7 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
       user.teacherTabPermissions || [],
       user.teacherTabAccessLevels || {},
     );
+    this.canEditBatchDates = user.role === 'ADMIN' || user.role === 'TEACHER_ADMIN';
 
     if (!this.dataLoaded) {
       this.dataLoaded = true;
@@ -967,6 +1084,7 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
           teacherName: b.teacherName ?? null,
           journeyActive: !!b.journeyActive,
           batchStartDate: b.batchStartDate ? String(b.batchStartDate) : null,
+          levelCalendarDates: this.normalizeLevelCalendarDates(b.levelCalendarDates),
           paidLKR,
           paidINR,
           paidUSD,
@@ -1099,24 +1217,150 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
     } catch { return '—'; }
   }
 
-  levelStartDate(b: BatchRow): string {
-    if (!b.batchStartDate) return '—';
+  private toInputDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().slice(0, 10);
+    } catch { return ''; }
+  }
+
+  private normalizeLevelCalendarDates(raw: unknown): LevelCalendarDates | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const src = raw as Record<string, { startDate?: string | Date | null; endDate?: string | Date | null }>;
+    const out: LevelCalendarDates = {};
+    for (const level of ['A1', 'A2', 'B1', 'B2'] as const) {
+      const row = src[level];
+      if (!row) continue;
+      out[level] = {
+        startDate: row.startDate ? String(row.startDate) : null,
+        endDate: row.endDate ? String(row.endDate) : null,
+      };
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  private levelOverrideIso(b: BatchRow, field: 'startDate' | 'endDate'): string | null {
+    const lv = String(b.batchLevel || '').toUpperCase() as keyof LevelCalendarDates;
+    const row = b.levelCalendarDates?.[lv];
+    const value = row?.[field];
+    return value ? String(value) : null;
+  }
+
+  private computedLevelStartIso(b: BatchRow): string | null {
+    if (!b.batchStartDate) return null;
     const range = this.LEVEL_RANGES.find(r => r.level === b.batchLevel);
-    if (!range) return '—';
+    if (!range) return null;
     const d = new Date(b.batchStartDate);
-    if (isNaN(d.getTime())) return '—';
+    if (isNaN(d.getTime())) return null;
     d.setDate(d.getDate() + (range.dayStart - 1));
-    return this.fmtShortDate(d.toISOString());
+    return d.toISOString();
+  }
+
+  private computedLevelEndIso(b: BatchRow): string | null {
+    if (!b.batchStartDate) return null;
+    const range = this.LEVEL_RANGES.find(r => r.level === b.batchLevel);
+    if (!range) return null;
+    const d = new Date(b.batchStartDate);
+    if (isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() + (range.dayEnd - 1));
+    return d.toISOString();
+  }
+
+  levelStartIso(b: BatchRow): string | null {
+    return this.levelOverrideIso(b, 'startDate') ?? this.computedLevelStartIso(b);
+  }
+
+  levelEndIso(b: BatchRow): string | null {
+    return this.levelOverrideIso(b, 'endDate') ?? this.computedLevelEndIso(b);
+  }
+
+  levelStartDate(b: BatchRow): string {
+    return this.fmtShortDate(this.levelStartIso(b));
   }
 
   levelEndDate(b: BatchRow): string {
-    if (!b.batchStartDate) return '—';
-    const range = this.LEVEL_RANGES.find(r => r.level === b.batchLevel);
-    if (!range) return '—';
-    const d = new Date(b.batchStartDate);
-    if (isNaN(d.getTime())) return '—';
-    d.setDate(d.getDate() + (range.dayEnd - 1));
-    return this.fmtShortDate(d.toISOString());
+    return this.fmtShortDate(this.levelEndIso(b));
+  }
+
+  openDateModal(b: BatchRow, event: Event): void {
+    event.stopPropagation();
+    if (!this.canEditBatchDates) return;
+    this.dateModalBatch = b;
+    this.dateModalBatchStart = this.toInputDate(b.batchStartDate);
+    this.dateModalLevelStart = this.toInputDate(this.levelStartIso(b));
+    this.dateModalLevelEnd = this.toInputDate(this.levelEndIso(b));
+    this.dateModalError = '';
+    this.dateModalOpen = true;
+  }
+
+  closeDateModal(): void {
+    if (this.dateModalSaving) return;
+    this.dateModalOpen = false;
+    this.dateModalBatch = null;
+    this.dateModalError = '';
+  }
+
+  saveDateModal(): void {
+    if (!this.dateModalBatch || !this.canEditBatchDates || this.dateModalSaving) return;
+    const level = String(this.dateModalBatch.batchLevel || '').toUpperCase();
+    if (!level) {
+      this.dateModalError = 'Batch level is missing — cannot save level dates.';
+      return;
+    }
+
+    this.dateModalSaving = true;
+    this.dateModalError = '';
+
+    const levelDatesUpdate: LevelCalendarDates = {
+      [level]: {
+        startDate: this.dateModalLevelStart || null,
+        endDate: this.dateModalLevelEnd || null,
+      },
+    };
+
+    const payload = {
+      batchStartDate: this.dateModalBatchStart || null,
+      levelCalendarDates: levelDatesUpdate,
+    };
+
+    this.http.put<{ config?: { batchStartDate?: string | null; batchCurrentDay?: number; levelCalendarDates?: LevelCalendarDates } }>(
+      `${this.api}/batch-journey/${encodeURIComponent(this.dateModalBatch.batchName)}`,
+      payload,
+      { withCredentials: true }
+    ).subscribe({
+      next: (res) => {
+        const cfg = res.config;
+        const idx = this.batches.findIndex(row => row.batchName === this.dateModalBatch!.batchName);
+        if (idx >= 0) {
+          const updated = { ...this.batches[idx] };
+          if (cfg?.batchStartDate !== undefined) {
+            updated.batchStartDate = cfg.batchStartDate ? String(cfg.batchStartDate) : null;
+          } else {
+            updated.batchStartDate = this.dateModalBatchStart || null;
+          }
+          if (cfg?.batchCurrentDay != null) {
+            updated.batchCurrentDay = cfg.batchCurrentDay;
+          }
+          const mergedDates = this.normalizeLevelCalendarDates({
+            ...(updated.levelCalendarDates || {}),
+            ...(cfg?.levelCalendarDates || levelDatesUpdate),
+          });
+          updated.levelCalendarDates = mergedDates;
+          this.batches[idx] = updated;
+        }
+        this.dateModalSaving = false;
+        this.dateModalOpen = false;
+        this.dateModalBatch = null;
+        this.notify.success('Batch dates saved');
+      },
+      error: (err) => {
+        this.dateModalSaving = false;
+        this.dateModalError = err.error?.message || 'Failed to save dates';
+        this.notify.error(this.dateModalError);
+      },
+    });
   }
 
   engColor(pct: number): string {

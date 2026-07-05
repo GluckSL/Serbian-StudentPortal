@@ -75,6 +75,54 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function parseOptionalDate(value, fieldLabel) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const parsed = new Date(value);
+  if (isNaN(parsed.getTime())) {
+    const err = new Error(`Invalid ${fieldLabel}`);
+    err.status = 400;
+    throw err;
+  }
+  return parsed;
+}
+
+function levelCalendarDatesForApi(cfg) {
+  const src = cfg?.levelCalendarDates || {};
+  const out = {};
+  for (const level of JOURNEY_LEVEL_ORDER) {
+    const row = src[level];
+    if (!row) continue;
+    const startDate = row.startDate || null;
+    const endDate = row.endDate || null;
+    if (!startDate && !endDate) continue;
+    out[level] = { startDate, endDate };
+  }
+  return out;
+}
+
+function applyLevelCalendarDatesUpdate(cfg, levelCalendarDates) {
+  if (levelCalendarDates === undefined) return;
+  if (!levelCalendarDates || typeof levelCalendarDates !== 'object') {
+    const err = new Error('levelCalendarDates must be an object');
+    err.status = 400;
+    throw err;
+  }
+  if (!cfg.levelCalendarDates) cfg.levelCalendarDates = {};
+  for (const [level, dates] of Object.entries(levelCalendarDates)) {
+    const lv = String(level || '').trim().toUpperCase();
+    if (!JOURNEY_LEVEL_ORDER.includes(lv)) continue;
+    if (!dates || typeof dates !== 'object') continue;
+    const existing = cfg.levelCalendarDates[lv] || {};
+    const startDate = parseOptionalDate(dates.startDate, `${lv} startDate`);
+    const endDate = parseOptionalDate(dates.endDate, `${lv} endDate`);
+    if (startDate !== undefined) existing.startDate = startDate;
+    if (endDate !== undefined) existing.endDate = endDate;
+    cfg.levelCalendarDates[lv] = existing;
+  }
+  cfg.markModified('levelCalendarDates');
+}
+
 function levelRegex(level) {
   return new RegExp(`^${escapeRegExp(String(level || 'A1').trim())}$`, 'i');
 }
@@ -418,6 +466,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         journeyLength: cfg.journeyLength,
         batchCurrentDay: activeBatchDay,
         batchStartDate: cfg.batchStartDate || null,
+        levelCalendarDates: levelCalendarDatesForApi(cfg),
         autoDay: !!cfg.batchStartDate,
         notes: cfg.notes || '',
         batchType: normalizeBatchType(cfg.batchType),
@@ -796,7 +845,8 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       journeyPaused,
       trialDayEnabled,
       trialAccessStartDate,
-      newBatchName
+      newBatchName,
+      levelCalendarDates
     } = req.body || {};
 
     const bn = String(batchName || '').trim();
@@ -927,6 +977,14 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
         applyJourneyPauseToggle(cfg, !!journeyPaused);
       }
     }
+    try {
+      applyLevelCalendarDatesUpdate(cfg, levelCalendarDates);
+    } catch (dateErr) {
+      if (dateErr.status === 400) {
+        return res.status(400).json({ message: dateErr.message });
+      }
+      throw dateErr;
+    }
     await cfg.save();
 
     let studentsLevelUpdated;
@@ -948,6 +1006,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
         oldBatchManualLevel: cfg.oldBatchManualLevel || 'A1',
         batchCurrentDay: activeBatchDay,
         autoDay: !!cfg.batchStartDate,
+        levelCalendarDates: levelCalendarDatesForApi(cfg),
         journeyActive: !!cfg.journeyActive,
         ...journeyPauseFieldsForApi(cfg)
       }
