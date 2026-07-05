@@ -18,7 +18,10 @@ const {
 
 // ─── Recipients ───────────────────────────────────────────────────────────────
 const TO_ADDRESS = 'lawson@gluckglobal.com';
-const CC_ADDRESSES = 'ceo@gluckglobal.com,admissions@gluckglobal.com,sourav@gluckglobal.com';
+// admissions@ is intentionally omitted — it already receives this report via the
+// ceo@ distribution list (and/or lawson@ forwarding). Listing it again caused
+// duplicate evening/morning emails in the admissions inbox.
+const CC_ADDRESSES = 'ceo@gluckglobal.com,sourav@gluckglobal.com';
 
 // ─── Mailer ────────────────────────────────────────────────────────────────────
 let _transporter = null;
@@ -781,7 +784,15 @@ async function sendEveningReport({ force = false } = {}) {
 }
 
 // ─── Scheduler ────────────────────────────────────────────────────────────────
+let _financeReportsScheduled = false;
+
 function scheduleFinanceDailyReports() {
+  if (_financeReportsScheduled) {
+    console.log('[FinanceReport] Scheduler already registered — skipping duplicate.');
+    return;
+  }
+  _financeReportsScheduled = true;
+
   const cron = require('node-cron');
 
   // node-cron v4 uses the system's local timezone by default, so we always
