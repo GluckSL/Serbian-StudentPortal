@@ -1151,6 +1151,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   generateMissingAnswers(): void {
     // Collect questions that are missing answers
     const candidates: Array<{ index: number; q: ReviewQuestion }> = [];
+    const sqLookup = new Map<number, { parentIndex: number; subIndex: number }>();
     this.reviewQuestions.forEach((q, i) => {
       if (q.type === 'fill-blank') {
         const blankRuns = countFillBlankRuns((q as any).sentence || '');
@@ -1165,6 +1166,30 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         if (!hasSample) candidates.push({ index: i, q });
       } else if ((q.type as any) === 'jumble-word') {
         if (!String((q as any).expectedWord || '').trim()) candidates.push({ index: i, q });
+      }
+
+      if (Array.isArray((q as any).subQuestions)) {
+        ((q as any).subQuestions as any[]).forEach((sq: any, si: number) => {
+          if (sq.type === 'fill-blank') {
+            const blankRuns = countFillBlankRuns(sq.sentence || '');
+            if (blankRuns < 1) return;
+            const raw = Array.isArray(sq.answers) ? sq.answers : [];
+            const padded = [...raw];
+            while (padded.length < blankRuns) padded.push('');
+            const anyMissing = padded.slice(0, blankRuns).some((a: string) => !String(a ?? '').trim());
+            if (!anyMissing) return;
+          } else if (sq.type === 'question-answer') {
+            const hasSample = Array.isArray(sq.sampleAnswers) && sq.sampleAnswers.some((a: string) => String(a || '').trim());
+            if (hasSample) return;
+          } else if (sq.type === 'jumble-word') {
+            if (String(sq.expectedWord || '').trim()) return;
+          } else {
+            return;
+          }
+          const fi = this.reviewQuestions.length + sqLookup.size;
+          sqLookup.set(fi, { parentIndex: i, subIndex: si });
+          candidates.push({ index: fi, q: sq as ReviewQuestion });
+        });
       }
     });
 
@@ -1198,7 +1223,37 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
         const touched = new Set<number>();
         (res.results || []).forEach((r: any) => {
           const idx = Number(r?.index);
-          if (!Number.isFinite(idx) || idx < 0 || idx >= this.reviewQuestions.length) return;
+          if (!Number.isFinite(idx)) return;
+
+          const sqm = sqLookup.get(idx);
+          if (sqm) {
+            const parentQ = this.reviewQuestions[sqm.parentIndex] as any;
+            if (!parentQ) return;
+            const sq = parentQ.subQuestions?.[sqm.subIndex];
+            if (!sq) return;
+            if (sq.type === 'fill-blank' && Array.isArray(r.answers) && r.answers.length) {
+              const n = countFillBlankRuns(String(sq.sentence || ''));
+              const merged: string[] = [];
+              for (let j = 0; j < Math.max(n, 1); j++) {
+                const ai = String(r.answers[j] ?? '').trim();
+                const prev = String((sq.answers && sq.answers[j]) ?? '').trim();
+                merged.push(ai || prev);
+              }
+              sq.answers = merged;
+              if (merged.some((x) => String(x || '').trim())) touched.add(sqm.parentIndex);
+            }
+            if (sq.type === 'question-answer' && Array.isArray(r.sampleAnswers) && r.sampleAnswers.length) {
+              sq.sampleAnswers = r.sampleAnswers;
+              touched.add(sqm.parentIndex);
+            }
+            if (sq.type === 'jumble-word' && r.expectedWord) {
+              sq.expectedWord = String(r.expectedWord).trim();
+              touched.add(sqm.parentIndex);
+            }
+            return;
+          }
+
+          if (idx < 0 || idx >= this.reviewQuestions.length) return;
           const q = this.reviewQuestions[idx] as any;
           if (!q) return;
           if (q.type === 'fill-blank' && Array.isArray(r.answers) && r.answers.length) {

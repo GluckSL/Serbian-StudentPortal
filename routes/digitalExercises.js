@@ -584,7 +584,7 @@ function gradeFillBlankRawScore(q, fillBlankResponses) {
   return { rawScore, correctAnswer: { answers: sanitizedAnswers } };
 }
 
-function gradeSubQuestionPart(sq, subResp) {
+function gradeSubQuestionPart(sq, subResp, aiScore) {
   const sub = subResp || {};
   if (sq.type === 'fill-blank') {
     return gradeFillBlankRawScore(sq, sub.fillBlankResponses);
@@ -609,6 +609,10 @@ function gradeSubQuestionPart(sq, subResp) {
       return { rawScore, correctAnswer: { sampleAnswers: samples } };
     }
     const filtered = samples.filter(Boolean);
+    if (isAdvancedGradingEnabled(sq) && aiScore !== undefined) {
+      const score = Number(aiScore?.score ?? aiScore);
+      return { rawScore: Math.max(0, Math.min(100, score || 0)), correctAnswer: { sampleAnswers: filtered } };
+    }
     const normalizedStudent = normalizeTextForExactCompare(studentAns);
     const exact = filtered.some((s) => normalizeTextForExactCompare(s) === normalizedStudent);
     return { rawScore: exact ? 100 : 0, correctAnswer: { sampleAnswers: filtered } };
@@ -726,7 +730,7 @@ function gradeSubQuestionPart(sq, subResp) {
 }
 
 /** Grade sub-questions attached to a parent; each part earns its own points independently. */
-function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned, parentCorrectAnswer) {
+function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned, parentCorrectAnswer, subQaScoreMap = {}) {
   let pointsEarned = parentPointsEarned;
   let correctAnswer = parentCorrectAnswer;
   const subResults = [];
@@ -746,7 +750,7 @@ function gradeAttachedSubQuestions(q, resp, parentIsCorrect, parentPointsEarned,
   for (let si = 0; si < subs.length; si++) {
     const sq = subs[si];
     const subResp = findSubQuestionResponse(subResps, si) || { questionIndex: si };
-    const { rawScore, correctAnswer: subCorrectAnswer } = gradeSubQuestionPart(sq, subResp);
+    const { rawScore, correctAnswer: subCorrectAnswer } = gradeSubQuestionPart(sq, subResp, subQaScoreMap?.[si]);
     let subIsCorrect;
     let subPoints;
     let subCorrectOut = subCorrectAnswer;
@@ -897,7 +901,7 @@ function migrateAttemptFillBlankResponses(exercise, responses) {
 }
 
 /** Grade one question response (same rules as POST /submit). */
-function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap, exercise = null) {
+function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap, exercise = null, subQaScoreMap = {}) {
   const useAdvancedGrading = isAdvancedGradingEnabled(q);
   let isCorrect = false;
   let pointsEarned = 0;
@@ -1071,7 +1075,7 @@ function gradeQuestionResponseCore(q, resp, questionIndex, qaScoreMap, exercise 
     pointsEarned,
     correctAnswer,
     subQuestionGrades
-  } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
+  } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer, subQaScoreMap));
 
   if (Array.isArray(q.subQuestions) && q.subQuestions.length) {
     subQuestionGrades = (subQuestionGrades || []).map((g) => {
@@ -1472,13 +1476,41 @@ async function regradeCompletedAttempt(exercise, attemptDoc) {
   });
   await Promise.all(qaPromises);
 
+  // ── Pre-compute AI scores for sub-question question-answer types ─────────
+  const subQaScoreMap = {};
+  const subQaPromises = [];
+  exercise.questions.forEach((q, qi) => {
+    const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+    subs.forEach((sq, si) => {
+      if (sq.type !== 'question-answer') return;
+      if (!isAdvancedGradingEnabled(sq)) return;
+      const samples = Array.isArray(sq.sampleAnswers) ? sq.sampleAnswers : [];
+      const expectedRaw = samples.find((s) => parseTrueFalse(s) !== null) ?? null;
+      if (sq.worksheetKind === 'true-false' || expectedRaw !== null) return;
+      const resp = migrated.find((r) => Number(r.questionIndex) === qi) || {};
+      const subResp = findSubQuestionResponse(resp.subQuestionResponses, si) || {};
+      const studentAns = String(subResp.textAnswer ?? subResp.qaResponse ?? '').trim();
+      if (!studentAns) return;
+      const key = `${qi}_${si}`;
+      subQaPromises.push(
+        aiGradeAnswer(sq.prompt || '', samples.filter(Boolean), studentAns)
+          .then((result) => { subQaScoreMap[key] = result; })
+      );
+    });
+  });
+  await Promise.all(subQaPromises);
+
   let earnedPoints = 0;
   const gradedResponses = [];
 
   for (let i = 0; i < exercise.questions.length; i++) {
     const q = exercise.questions[i];
     const resp = migrated.find((r) => Number(r.questionIndex) === i) || { questionIndex: i };
-    const graded = gradeQuestionResponseCore(q, resp, i, qaScoreMap, exercise);
+    const qSqMap = {};
+    for (const [k, v] of Object.entries(subQaScoreMap)) {
+      if (k.startsWith(i + '_')) qSqMap[Number(k.slice(k.indexOf('_') + 1))] = v;
+    }
+    const graded = gradeQuestionResponseCore(q, resp, i, qaScoreMap, exercise, qSqMap);
     earnedPoints += graded.pointsEarned;
     gradedResponses.push(graded.gradedResp);
   }
@@ -3670,12 +3702,30 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
     }
 
     let subQuestionGrades = [];
+    const subSqScoreMap = {};
+    const subSqPromises = [];
+    const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+    subs.forEach((sq, si) => {
+      if (sq.type !== 'question-answer') return;
+      if (!isAdvancedGradingEnabled(sq)) return;
+      const samples = Array.isArray(sq.sampleAnswers) ? sq.sampleAnswers : [];
+      const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+      if (sq.worksheetKind === 'true-false' || expectedRaw !== null) return;
+      const subResp = findSubQuestionResponse(resp.subQuestionResponses, si) || {};
+      const studentAns = String(subResp.textAnswer ?? subResp.qaResponse ?? '').trim();
+      if (!studentAns) return;
+      subSqPromises.push(
+        aiGradeAnswer(sq.prompt || '', samples.filter(Boolean), studentAns)
+          .then(result => { subSqScoreMap[si] = result; })
+      );
+    });
+    if (subSqPromises.length) await Promise.all(subSqPromises);
     ({
       isCorrect,
       pointsEarned,
       correctAnswer,
       subQuestionGrades
-    } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
+    } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer, subSqScoreMap));
 
     ({
       isCorrect,
@@ -3823,6 +3873,30 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
         .then(result => { qaScoreMap[i] = result; });
     });
     await Promise.all(qaPromises);
+
+    // ── Pre-compute AI scores for sub-question question-answer types ─────────
+    const subQaScoreMap = {};
+    const subQaPromises = [];
+    exercise.questions.forEach((q, qi) => {
+      const subs = Array.isArray(q.subQuestions) ? q.subQuestions : [];
+      subs.forEach((sq, si) => {
+        if (sq.type !== 'question-answer') return;
+        if (!isAdvancedGradingEnabled(sq)) return;
+        const samples = Array.isArray(sq.sampleAnswers) ? sq.sampleAnswers : [];
+        const expectedRaw = samples.find(s => parseTrueFalse(s) !== null) ?? null;
+        if (sq.worksheetKind === 'true-false' || expectedRaw !== null) return;
+        const resp = (responses || []).find(r => Number(r.questionIndex) === qi) || {};
+        const subResp = findSubQuestionResponse(resp.subQuestionResponses, si) || {};
+        const studentAns = String(subResp.textAnswer ?? subResp.qaResponse ?? '').trim();
+        if (!studentAns) return;
+        const key = `${qi}_${si}`;
+        subQaPromises.push(
+          aiGradeAnswer(sq.prompt || '', samples.filter(Boolean), studentAns)
+            .then(result => { subQaScoreMap[key] = result; })
+        );
+      });
+    });
+    await Promise.all(subQaPromises);
 
     // ── Grade each response (now synchronous — AI results already in map) ───
     let earnedPoints = 0;
@@ -4004,12 +4078,16 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
       }
 
       let subQuestionGrades = [];
+      const qSqMap = {};
+      for (const [k, v] of Object.entries(subQaScoreMap)) {
+        if (k.startsWith(i + '_')) qSqMap[Number(k.slice(k.indexOf('_') + 1))] = v;
+      }
       ({
         isCorrect,
         pointsEarned,
         correctAnswer,
         subQuestionGrades
-      } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer));
+      } = gradeAttachedSubQuestions(q, resp, isCorrect, pointsEarned, correctAnswer, qSqMap));
 
       ({
         isCorrect,

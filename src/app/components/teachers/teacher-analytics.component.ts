@@ -159,8 +159,14 @@ export class TeacherAnalyticsComponent implements OnInit {
     const token = getAuthToken();
     const headers = token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : undefined;
 
+    const currentUser = this.authService.getSnapshotUser();
+    const isTeacherSelf = currentUser?._id === teacherId && (currentUser?.role === 'TEACHER' || currentUser?.role === 'TEACHER_ADMIN');
+    const url = isTeacherSelf
+      ? `${apiUrl}/teacher/report`
+      : `${apiUrl}/admin/teachers/${teacherId}/report`;
+
     this.http
-      .get<{ success: boolean; data: TeacherReportData }>(`${apiUrl}/admin/teachers/${teacherId}/report`, {
+      .get<{ success: boolean; data: TeacherReportData }>(url, {
         withCredentials: true,
         headers
       })
