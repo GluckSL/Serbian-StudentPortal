@@ -28,6 +28,7 @@ interface BatchRow {
   studentsBehindCount: number;
   teacherName: string | null;
   journeyActive: boolean;
+  batchStartDate: string | null;
   // payment
   paidLKR: number;
   paidINR: number;
@@ -203,6 +204,7 @@ interface PaymentBatchRow {
             <tr>
               <th class="ov-th-batch">Batch</th>
               <th class="ov-th-journey">Journey</th>
+              <th class="ov-th-dates">Dates</th>
               <th class="ov-th-num">Students</th>
               <th class="ov-th-pct" title="Avg attendance per completed class (same as Zoom Reports)">Classes %</th>
               <th class="ov-th-pct" title="Distinct exercises completed vs total available up to student day">Exercises %</th>
@@ -228,6 +230,16 @@ interface PaymentBatchRow {
                   <span class="ov-journey-badge ov-journey-badge--day">{{ b.batchCurrentDay }}</span>
                   <span class="ov-journey-badge ov-journey-badge--level">{{ (b.batchLevel || '—') | lowercase }}</span>
                 </div>
+              </td>
+
+              <td class="ov-td-dates">
+                <div class="ov-dates-batch">{{ fmtShortDate(b.batchStartDate) }}</div>
+                <div class="ov-dates-level" *ngIf="b.batchStartDate">
+                  <span class="ov-dates-range">{{ levelStartDate(b) }}</span>
+                  <span class="ov-dates-sep">/</span>
+                  <span class="ov-dates-range">{{ levelEndDate(b) }}</span>
+                </div>
+                <div class="ov-dates-empty" *ngIf="!b.batchStartDate">—</div>
               </td>
 
               <td class="ov-td-num">
@@ -435,7 +447,7 @@ interface PaymentBatchRow {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
-  min-width: 1080px;
+  min-width: 1220px;
 }
 .ov-table thead th {
   background: #03396c;
@@ -466,9 +478,27 @@ interface PaymentBatchRow {
 .ov-th-health, .ov-td-health { min-width: 120px; }
 .ov-th-batch { min-width: 160px; }
 .ov-th-journey { min-width: 130px; }
+.ov-th-dates, .ov-td-dates { min-width: 130px; }
 .ov-th-engpct { min-width: 200px; }
 
 .ov-td-batch { min-width: 160px; max-width: 220px; }
+
+/* Dates column */
+.ov-td-dates { vertical-align: middle; }
+.ov-dates-batch {
+  font-size: 0.78rem; font-weight: 700; color: #0f172a;
+  letter-spacing: -0.01em; line-height: 1.3;
+}
+.ov-dates-level {
+  display: flex; align-items: center; gap: 3px; margin-top: 4px; flex-wrap: wrap;
+}
+.ov-dates-range {
+  font-size: 0.67rem; font-weight: 600; color: #475569;
+}
+.ov-dates-sep {
+  font-size: 0.67rem; color: #cbd5e1; font-weight: 600;
+}
+.ov-dates-empty { color: #cbd5e1; font-size: 0.8rem; }
 .ov-batch-name {
   font-size: 0.9rem; font-weight: 800; color: #0f172a;
   letter-spacing: -0.02em; line-height: 1.2;
@@ -936,6 +966,7 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
           studentsBehindCount: b.studentsBehindCount ?? 0,
           teacherName: b.teacherName ?? null,
           journeyActive: !!b.journeyActive,
+          batchStartDate: b.batchStartDate ? String(b.batchStartDate) : null,
           paidLKR,
           paidINR,
           paidUSD,
@@ -1052,6 +1083,42 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
     return this.short(n, prefix);
   }
 
+  private readonly LEVEL_RANGES = [
+    { level: 'A1', dayStart: 1,   dayEnd: 42  },
+    { level: 'A2', dayStart: 43,  dayEnd: 84  },
+    { level: 'B1', dayStart: 85,  dayEnd: 145 },
+    { level: 'B2', dayStart: 146, dayEnd: 200 },
+  ];
+
+  fmtShortDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    } catch { return '—'; }
+  }
+
+  levelStartDate(b: BatchRow): string {
+    if (!b.batchStartDate) return '—';
+    const range = this.LEVEL_RANGES.find(r => r.level === b.batchLevel);
+    if (!range) return '—';
+    const d = new Date(b.batchStartDate);
+    if (isNaN(d.getTime())) return '—';
+    d.setDate(d.getDate() + (range.dayStart - 1));
+    return this.fmtShortDate(d.toISOString());
+  }
+
+  levelEndDate(b: BatchRow): string {
+    if (!b.batchStartDate) return '—';
+    const range = this.LEVEL_RANGES.find(r => r.level === b.batchLevel);
+    if (!range) return '—';
+    const d = new Date(b.batchStartDate);
+    if (isNaN(d.getTime())) return '—';
+    d.setDate(d.getDate() + (range.dayEnd - 1));
+    return this.fmtShortDate(d.toISOString());
+  }
+
   engColor(pct: number): string {
     if (pct >= 70) return '#22c55e';
     if (pct >= 40) return '#f59e0b';
@@ -1106,7 +1173,7 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
     if (!rows.length) return;
 
     const headers = [
-      'Batch', 'Teacher', 'Journey', 'Students',
+      'Batch', 'Teacher', 'Journey', 'Batch Start Date', 'Level Start Date', 'Level End Date', 'Students',
       'Classes %', 'Exercises %', 'DG %', 'Arena %', 'Engagement %', 'Engagement min/wk',
       ...(this.canViewFinance ? ['Received LKR', 'Pending LKR', 'Received INR', 'Pending INR'] : []),
       'Health %', 'Health Status'
@@ -1116,6 +1183,9 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
       b.batchName,
       b.teacherName || '',
       `${b.batchCurrentDay} ${(b.batchLevel || '').toLowerCase()}`,
+      this.fmtShortDate(b.batchStartDate),
+      this.levelStartDate(b),
+      this.levelEndDate(b),
       b.studentCount,
       b.progressLoaded ? b.classAttendancePct : '',
       b.progressLoaded ? b.exerciseCompletionPct : '',
