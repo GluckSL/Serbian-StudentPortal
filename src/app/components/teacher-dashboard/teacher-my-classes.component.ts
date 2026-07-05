@@ -430,6 +430,16 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length || !this.resourceMeeting) return;
     const files = Array.from(input.files);
+
+    const MAX_FILE_BYTES = 50 * 1024 * 1024;
+    const oversized = files.filter(f => f.size > MAX_FILE_BYTES);
+    if (oversized.length > 0) {
+      const names = oversized.map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`).join(', ');
+      this.notify.error(`File too large (max 50 MB each): ${names}`);
+      input.value = '';
+      return;
+    }
+
     this.uploadingFiles = true;
     this.resourceService.upload(this.resourceMeeting._id, files).subscribe({
       next: (res) => {
@@ -441,7 +451,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.uploadingFiles = false;
-        this.notify.error(err?.error?.message || 'Upload failed.');
+        this.notify.error(err?.error?.message || 'Upload failed. If the file is large, try again on a faster connection.');
       }
     });
   }
