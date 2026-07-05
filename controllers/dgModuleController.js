@@ -647,6 +647,7 @@ exports.getPlay = async (req, res) => {
         allowedGrammar: mod.allowedGrammar,
         conversationFlow: mod.conversationFlow,
         beginnerMode: mod.beginnerMode,
+        gradingThresholdPercent: mod.gradingThresholdPercent,
       },
       character,
     });

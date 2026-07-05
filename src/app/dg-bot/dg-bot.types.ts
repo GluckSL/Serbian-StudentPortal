@@ -136,6 +136,8 @@ export interface DgModuleSummary {
   allowedGrammar?: DgGrammarEntry[];
   conversationFlow?: DgConversationFlowStage[];
   beginnerMode?: DgBeginnerMode;
+  /** Minimum AI grade (0–100) to accept a student answer. Default 75. */
+  gradingThresholdPercent?: number;
 }
 
 export interface DgPlayPayload {
@@ -157,6 +159,7 @@ export interface DgPlayPayload {
     allowedGrammar?: DgGrammarEntry[];
     conversationFlow?: DgConversationFlowStage[];
     beginnerMode?: DgBeginnerMode;
+    gradingThresholdPercent?: number;
   };
   character: DgCharacterDoc;
 }

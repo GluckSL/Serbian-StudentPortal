@@ -33,6 +33,45 @@ const FAREWELL_FRAGMENTS = [
   'take care', 'farewell', 'all the best',
 ];
 
+// ─── Beginner mode helpers ───────────────────────────────────────────────────
+
+function _questionsFromScenes(moduleData) {
+  return (moduleData.scenes || [])
+    .filter(
+      (s) =>
+        s &&
+        ['practice', 'teach'].includes(String(s.type || '').toLowerCase()) &&
+        String(s.expectedAnswer || '').trim(),
+    )
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((s, i) => ({
+      questionText: String(s.text || '').trim(),
+      targetAnswer: String(s.expectedAnswer || '').trim(),
+      hint: String(s.hint || '').trim(),
+      imageUrl: String(s.imageUrl || '').trim(),
+      order: i,
+    }))
+    .filter((q) => q.questionText || q.targetAnswer);
+}
+
+function _resolveBeginnerQuestions(moduleData) {
+  const bm = moduleData.beginnerMode || {};
+  const bmQuestions =
+    bm.enabled && Array.isArray(bm.questions) && bm.questions.length
+      ? [...bm.questions]
+          .filter((q) => q && (q.questionText || '').trim())
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      : [];
+  if (bmQuestions.length) return bmQuestions;
+  return _questionsFromScenes(moduleData);
+}
+
+function _resolveGradingThreshold(moduleData) {
+  const bm = moduleData.beginnerMode || {};
+  const raw = moduleData.gradingThresholdPercent ?? bm.gradingThresholdPercent ?? 75;
+  return Math.max(0, Math.min(100, Number(raw) || 75));
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -60,14 +99,11 @@ function startConversation(sessionId, moduleData) {
   const scenario = moduleData.rolePlayScenario || {};
   const timing = _resolvePracticeWindow(moduleData);
 
-  // ── Beginner mode ─────────────────────────────────────────────────────────
+  // ── Beginner mode / scene-graded practice ─────────────────────────────────
   const bm = moduleData.beginnerMode || {};
-  const isBeginnerMode = !!(bm.enabled && Array.isArray(bm.questions) && bm.questions.length);
-  const beginnerQuestions = isBeginnerMode
-    ? [...bm.questions]
-        .filter(q => q && (q.questionText || '').trim())
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    : [];
+  const beginnerQuestions = _resolveBeginnerQuestions(moduleData);
+  const isBeginnerMode = beginnerQuestions.length > 0;
+  const gradingThreshold = _resolveGradingThreshold(moduleData);
 
   const state = {
     sessionId,
@@ -123,9 +159,7 @@ function startConversation(sessionId, moduleData) {
     /** Consecutive wrong attempts on the current beginner question (skip after 3). */
     beginnerConsecutiveFailures: 0,
     /** Admin-configured pass threshold for beginner answer grading (0–100). */
-    beginnerGradingThreshold: isBeginnerMode
-      ? Math.max(0, Math.min(100, Number(bm.gradingThresholdPercent ?? 75)))
-      : 75,
+    beginnerGradingThreshold: gradingThreshold,
 
     createdAt: Date.now(),
   };

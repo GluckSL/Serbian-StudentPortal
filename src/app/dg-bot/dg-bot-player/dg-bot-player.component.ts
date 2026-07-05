@@ -364,12 +364,28 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     return n || 'Lumo';
   }
 
-  /** True when this module runs structured beginner questions (not free conversation). */
+  /** True when live practice uses graded steps (beginner questions or scene expected answers). */
   get isBeginnerModeActive(): boolean {
-    return !!(
-      this.payload?.module?.beginnerMode?.enabled &&
-      this.beginnerQuestions.length > 0
-    );
+    return this.beginnerQuestions.length > 0;
+  }
+
+  /** Practice/teach scenes with an expected answer — used for AI grading during live session. */
+  get sceneGradedQuestions(): DgBeginnerQuestion[] {
+    const scenes = this.payload?.module?.scenes ?? [];
+    return scenes
+      .filter(
+        (s) =>
+          (s.type === 'practice' || s.type === 'teach') &&
+          !!(s.expectedAnswer || '').trim(),
+      )
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((s, i) => ({
+        imageUrl: s.imageUrl || '',
+        questionText: s.text || '',
+        targetAnswer: s.expectedAnswer || '',
+        hint: s.hint || '',
+        order: i,
+      }));
   }
 
   /** Beginner mode or scene: show image/text panel above Olly. */
@@ -391,20 +407,22 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   get beginnerQuestions(): DgBeginnerQuestion[] {
     const bm = this.payload?.module?.beginnerMode;
-    if (!bm?.enabled) return [];
-    if (Array.isArray(bm.questions) && bm.questions.length) {
+    if (bm?.enabled && Array.isArray(bm.questions) && bm.questions.length) {
       return [...bm.questions]
         .filter((q) => q.questionText?.trim())
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
-    const legacy = bm.dialoguePrompts || [];
-    return legacy.map((p, i) => ({
-      imageUrl: i === 0 ? bm.contextImageUrl || '' : '',
-      questionText: p.promptText || '',
-      targetAnswer: p.targetAnswer,
-      hint: p.hint,
-      order: i,
-    }));
+    const legacy = bm?.dialoguePrompts || [];
+    if (legacy.length) {
+      return legacy.map((p, i) => ({
+        imageUrl: i === 0 ? bm?.contextImageUrl || '' : '',
+        questionText: p.promptText || '',
+        targetAnswer: p.targetAnswer,
+        hint: p.hint,
+        order: i,
+      }));
+    }
+    return this.sceneGradedQuestions;
   }
 
   get currentBeginnerQuestion(): DgBeginnerQuestion | null {
@@ -549,7 +567,11 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   /** Attach beginner-mode AI grade to the most recent student bubble. */
   private attachBeginnerGradeToLastStudent(response: DgConversationResponse): void {
-    if (!this.isBeginnerModeActive || response.answerScore == null) return;
+    const gradedActive =
+      this.isBeginnerModeActive ||
+      this.sceneGradedQuestions.length > 0 ||
+      response.answerScore != null;
+    if (!gradedActive || response.answerScore == null) return;
     for (let i = this.chatHistory.length - 1; i >= 0; i--) {
       if (this.chatHistory[i].speaker === 'student') {
         this.chatHistory[i] = {

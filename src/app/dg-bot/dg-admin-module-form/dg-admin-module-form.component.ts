@@ -116,6 +116,8 @@ export class DgAdminModuleFormComponent implements OnInit {
 
   /** Count of beginner-mode questions (for header badge). */
   beginnerQuestionCount = 0;
+  /** Minimum AI grade (0–100) to accept student answers during practice. */
+  editGradingThresholdPercent = 75;
   /** Index of scene row currently uploading an image. */
   sceneImageUploadingIndex: number | null = null;
 
@@ -292,6 +294,8 @@ export class DgAdminModuleFormComponent implements OnInit {
     }
     this.loadTeachingFromModule(row);
     this.syncBeginnerQuestionCount(row);
+    this.editGradingThresholdPercent =
+      row.gradingThresholdPercent ?? row.beginnerMode?.gradingThresholdPercent ?? 75;
   }
 
   private initNewModule(): void {
@@ -321,6 +325,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     ];
     this.loadTeachingFromModule(null);
     this.beginnerQuestionCount = 0;
+    this.editGradingThresholdPercent = 75;
   }
 
   private loadTeachingFromModule(row: DgModuleSummary | null): void {
@@ -748,6 +753,10 @@ export class DgAdminModuleFormComponent implements OnInit {
       aiTutorVocabulary: this.aiTutorVocabulary,
       allowedGrammar: this.allowedGrammar,
       conversationFlow: this.conversationFlow,
+      gradingThresholdPercent: Math.max(
+        0,
+        Math.min(100, Number(this.editGradingThresholdPercent) || 75),
+      ),
       scenes: this.editScenes.map((s) => ({
         _id: s._id,
         type: s.type,

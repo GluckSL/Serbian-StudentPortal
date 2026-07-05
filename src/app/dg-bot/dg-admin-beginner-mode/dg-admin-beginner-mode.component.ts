@@ -100,7 +100,7 @@ export class DgAdminBeginnerModeComponent implements OnInit {
       bm?.sessionIntro ||
       (bm?.contextText && !bm?.questions?.length ? bm.contextText : '') ||
       '';
-    this.gradingThresholdPercent = bm?.gradingThresholdPercent ?? 75;
+    this.gradingThresholdPercent = bm?.gradingThresholdPercent ?? mod?.gradingThresholdPercent ?? 75;
     this.questions = normalizeQuestionsFromModule(bm);
   }
 
@@ -244,6 +244,7 @@ export class DgAdminBeginnerModeComponent implements OnInit {
       await firstValueFrom(
         this.dgApi.updateModule(this.moduleId, {
           beginnerMode,
+          gradingThresholdPercent: Math.max(0, Math.min(100, Number(this.gradingThresholdPercent) || 75)),
           targetBatches: this.targetBatches,
         } as Partial<DgModuleSummary>),
       );

@@ -154,6 +154,9 @@ const DGModuleSchema = new mongoose.Schema(
     /** Beginner mode: teacher attaches an image/text context and configures dialogue prompts for Olly. */
     beginnerMode: { type: DgBeginnerModeSchema, default: () => ({}) },
 
+    /** Minimum AI grade (0–100) required to accept student answers (scenes + beginner mode). */
+    gradingThresholdPercent: { type: Number, default: 75, min: 0, max: 100 },
+
     /**
      * v1 = original DG Bot Modules (default for all existing documents).
      * v2 = DG Bot Modules 2.0 — batch-specific modules for newer batches.

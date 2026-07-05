@@ -129,7 +129,13 @@ exports.start = async (req, res) => {
 
     const scenario = modData.rolePlayScenario || {};
     const bm = modData.beginnerMode || {};
-    const isBeginnerMode = !!(bm.enabled && Array.isArray(bm.questions) && bm.questions.length);
+    const hasBmQuestions = !!(bm.enabled && Array.isArray(bm.questions) && bm.questions.length);
+    const hasSceneGradedSteps = (modData.scenes || []).some(
+      (s) =>
+        ['practice', 'teach'].includes(String(s.type || '').toLowerCase()) &&
+        String(s.expectedAnswer || '').trim(),
+    );
+    const isBeginnerMode = hasBmQuestions || hasSceneGradedSteps;
 
     // For beginner mode: use the sessionIntro if set, otherwise empty (frontend fills in "I am Ooly")
     // For normal mode: use studentGuidance or role description
