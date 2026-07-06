@@ -1,0 +1,68 @@
+<div class="rv-overlay" *ngIf="visible" (click)="close()">
+  <div class="rv-modal" (click)="$event.stopPropagation()" (contextmenu)="onContextMenu($event)">
+
+    <div class="rv-header">
+      <div class="rv-header-info">
+        <div class="rv-title">{{ resource?.originalName || 'Resource' }}</div>
+        <div class="rv-badge" *ngIf="type !== 'unsupported'">{{ type | uppercase }}</div>
+      </div>
+      <button type="button" class="rv-close" (click)="close()" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="rv-body">
+
+      <div class="rv-loading" *ngIf="loading">
+        <div class="rv-spinner"></div>
+        <p>Loading…</p>
+      </div>
+
+      <div class="rv-error" *ngIf="error && !loading">
+        <span class="rv-error-icon">!</span>
+        <p>{{ error }}</p>
+      </div>
+
+      <div class="rv-unsupported" *ngIf="type === 'unsupported' && !loading && !error">
+        <span class="rv-unsupported-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        </span>
+        <p>Preview not available for this file type.</p>
+      </div>
+
+      <div class="rv-content" *ngIf="type === 'image' && loaded && !loading" (contextmenu)="$event.preventDefault()">
+        <img [src]="url" alt="Image preview" class="rv-image-el" draggable="false" />
+      </div>
+
+      <div class="rv-content rv-content--media" *ngIf="type === 'audio' && loaded && !loading" (contextmenu)="$event.preventDefault()">
+        <audio [src]="url" controls controlsList="nodownload noremoteplayback" disablePictureInPicture class="rv-audio-el"></audio>
+      </div>
+
+      <div class="rv-content rv-content--media" *ngIf="type === 'video' && loaded && !loading" (contextmenu)="$event.preventDefault()">
+        <video [src]="url" controls controlsList="nodownload noremoteplayback" disablePictureInPicture class="rv-video-el"></video>
+      </div>
+
+      <div class="rv-content rv-content--text" *ngIf="type === 'text' && loaded && !loading">
+        <iframe [src]="safeUrl" sandbox="allow-same-origin" class="rv-text-iframe"></iframe>
+      </div>
+
+      <div class="rv-content" *ngIf="type === 'pdf' && loaded && !loading" (contextmenu)="$event.preventDefault()">
+        <div class="rv-page-controls" *ngIf="totalPages > 1">
+          <button type="button" class="rv-page-btn" (click)="prevPdfPage()" [disabled]="currentPage <= 1" aria-label="Previous page">&#8249;</button>
+          <span class="rv-page-label">{{ currentPage }} / {{ totalPages }}</span>
+          <button type="button" class="rv-page-btn" (click)="nextPdfPage()" [disabled]="currentPage >= totalPages" aria-label="Next page">&#8250;</button>
+        </div>
+        <div #pdfContainer class="rv-pdf-container"></div>
+      </div>
+
+      <div class="rv-content" *ngIf="type === 'pptx' && loaded && !loading" (contextmenu)="$event.preventDefault()">
+        <div class="rv-page-controls" *ngIf="totalSlides > 1">
+          <button type="button" class="rv-page-btn" (click)="prevSlide()" [disabled]="currentSlide <= 1" aria-label="Previous slide">&#8249;</button>
+          <span class="rv-page-label">{{ currentSlide }} / {{ totalSlides }}</span>
+          <button type="button" class="rv-page-btn" (click)="nextSlide()" [disabled]="currentSlide >= totalSlides" aria-label="Next slide">&#8250;</button>
+        </div>
+        <div #pptxContainer class="rv-slide-container"></div>
+      </div>
+
+    </div>
+
+  </div>
+</div>

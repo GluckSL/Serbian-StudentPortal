@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const { GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3Client = require('../config/s3');
 const ClassResource = require('../models/ClassResource');
@@ -60,14 +60,26 @@ router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_AD
     const meeting = await MeetingLink.findById(req.params.meetingId);
     if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
 
-    const docs = (req.files || []).map(f => ({
-      meetingId: meeting._id,
-      uploadedBy: req.user.id,
-      fileName: f.key || f.filename,
-      originalName: f.originalname,
-      fileUrl: f.location || f.path,
-      fileSize: f.size,
-      mimeType: f.mimetype
+    const docs = await Promise.all((req.files || []).map(async (f) => {
+      let fileSize = f.size;
+      if (!fileSize) {
+        try {
+          const head = await s3Client.send(new HeadObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: f.key,
+          }));
+          fileSize = head.ContentLength;
+        } catch (_) {}
+      }
+      return {
+        meetingId: meeting._id,
+        uploadedBy: req.user.id,
+        fileName: f.key || f.filename,
+        originalName: f.originalname,
+        fileUrl: f.location || f.path,
+        fileSize,
+        mimeType: f.mimetype,
+      };
     }));
 
     const saved = await ClassResource.insertMany(docs);
@@ -186,6 +198,31 @@ router.delete('/:resourceId', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN'
     res.json({ success: true, message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Delete failed', error: err.message });
+  }
+});
+
+// GET /:resourceId/file — stream raw file bytes through the API (avoids S3 CORS issues for pptx-viewer fetch)
+router.get('/:resourceId/file', verifyToken, async (req, res) => {
+  try {
+    const { resourceId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(resourceId)) {
+      return res.status(400).json({ success: false, message: 'Invalid resource id' });
+    }
+    const resource = await ClassResource.findById(resourceId).lean();
+    if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: resource.fileName,
+    });
+    const { Body, ContentType } = await s3Client.send(command);
+
+    res.setHeader('Content-Type', ContentType || resource.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${resource.originalName}"`);
+    Body.pipe(res);
+  } catch (err) {
+    console.error('classResources GET /:resourceId/file', err);
+    res.status(500).json({ success: false, message: 'Failed to serve file' });
   }
 });
 

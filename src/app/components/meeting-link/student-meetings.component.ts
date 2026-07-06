@@ -11,6 +11,7 @@ import { ClassSubmissionService } from '../../services/class-submission.service'
 import { JoinClassFlowService } from '../../services/join-class-flow.service';
 import { ClassFeedbackService } from '../../services/class-feedback.service';
 import { ClassFeedbackModalComponent } from '../class-feedback-modal/class-feedback-modal.component';
+import { ResourceViewerComponent } from '../resource-viewer/resource-viewer.component';
 
 interface StudentMeeting {
   _id: string;
@@ -41,7 +42,7 @@ type ClassTab = 'upcoming' | 'live' | 'attempted';
 @Component({
   selector: 'app-student-meetings',
   standalone: true,
-  imports: [CommonModule, FormsModule, MaterialModule, ClassFeedbackModalComponent],
+  imports: [CommonModule, FormsModule, MaterialModule, ClassFeedbackModalComponent, ResourceViewerComponent],
   templateUrl: './student-meetings.component.html',
   styleUrls: ['./student-meetings.component.css']
 })
@@ -80,6 +81,10 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   resourceMeeting: StudentMeeting | null = null;
   resources: any[] = [];
   loadingResources = false;
+
+  // Resource viewer modal
+  showViewer = false;
+  viewerResource: any = null;
 
   // Doubts modal
   showDoubtModal = false;
@@ -439,16 +444,18 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   closeResourceModal(): void { this.showResourceModal = false; this.resourceMeeting = null; this.resources = []; }
 
-  viewResource(r: { _id?: string; fileUrl?: string; originalName?: string; mimeType?: string }): void {
-    this.resourceService.viewClassResource(r);
+  viewResource(r: any): void {
+    this.viewerResource = r;
+    this.showViewer = true;
   }
 
-  downloadResource(r: { _id?: string; fileUrl?: string; originalName?: string }): void {
-    this.resourceService.downloadClassResource(r);
+  closeViewer(): void {
+    this.showViewer = false;
+    this.viewerResource = null;
   }
 
   formatFileSize(bytes: number): string {
-    if (!bytes) return '—';
+    if (bytes == null || Number.isNaN(bytes)) return '—';
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
