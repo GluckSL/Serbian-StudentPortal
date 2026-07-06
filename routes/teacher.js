@@ -154,7 +154,7 @@ router.get('/monthly-hours', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']
         role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
       })
         .populate('assignedCourses', 'title')
-        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
+        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates noTds')
         .lean(),
       MeetingLink.find({
         assignedTeacher: teacherId,
@@ -314,7 +314,8 @@ router.get('/monthly-hours', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN']
           medium: teacher.medium || '',
           assignedBatches: teacher.assignedBatches || [],
           levels: [...allLevelSet].sort(),
-          levelHourlyRates: teacher.levelHourlyRates || {}
+          levelHourlyRates: teacher.levelHourlyRates || {},
+          noTds: teacher.noTds === true,
         },
         month: monthFilter.month,
         monthLabel: monthFilter.monthLabel,

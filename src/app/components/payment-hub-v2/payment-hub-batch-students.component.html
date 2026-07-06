@@ -164,6 +164,16 @@
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-pending-totals>
+                  <button
+                    type="button"
+                    class="ph-pending-incl-badge"
+                    [class.ph-pending-incl-badge--off]="isStudentPendingExcluded(r.studentId)"
+                    (click)="toggleStudentPendingExclusion(r.studentId)"
+                    [matTooltip]="isStudentPendingExcluded(r.studentId) ? 'Excluded from balance card · tap to include' : 'Included in balance card · tap to exclude'"
+                  >
+                    <mat-icon>{{ isStudentPendingExcluded(r.studentId) ? 'do_not_disturb_on' : 'check_circle' }}</mat-icon>
+                    {{ isStudentPendingExcluded(r.studentId) ? 'excl.' : 'incl.' }}
+                  </button>
                 </td>
                 <td>
                   <span class="ph-pill" [ngClass]="languageFeePillClass(r)">{{ languageFeeStatusLabel(r) }}</span>

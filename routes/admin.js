@@ -591,7 +591,7 @@ async function buildTeacherAnalyticsOverview(monthFilter) {
   const [teachers, allStudents] = await Promise.all([
     User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
       .populate('assignedCourses', 'title')
-      .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
+      .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates noTds')
       .lean(),
     User.find({ role: 'STUDENT', assignedTeacher: { $exists: true, $ne: null } })
       .select('assignedTeacher batch level')
@@ -733,6 +733,7 @@ async function buildTeacherAnalyticsOverview(monthFilter) {
       attendance: attendancePct,
       batchBreakdown,
       levelHourlyRates: normalizeLevelHourlyRates(teacher.levelHourlyRates),
+      noTds: teacher.noTds === true,
     });
   }
 
@@ -845,6 +846,34 @@ router.put('/teachers/:teacherId/level-rates', verifyToken, isAdmin, async (req,
   }
 });
 
+// Toggle TDS exemption for a teacher
+router.put('/teachers/:teacherId/toggle-tds', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      return res.status(400).json({ success: false, message: 'Invalid teacher ID' });
+    }
+
+    const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
+      .select('name noTds')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({ success: false, message: 'Teacher not found' });
+    }
+
+    const newNoTds = !teacher.noTds;
+    await User.updateOne({ _id: teacherId }, { $set: { noTds: newNoTds, updatedAt: new Date() } });
+
+    teacherAnalyticsOverviewCache.clear();
+
+    return res.json({ success: true, data: { teacherId, noTds: newNoTds } });
+  } catch (err) {
+    console.error('Error toggling teacher TDS exemption:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update TDS exemption', error: err.message });
+  }
+});
+
 // Monthly teaching-hours audit for one teacher
 router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (req, res) => {
   try {
@@ -866,7 +895,7 @@ router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (re
         role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
       })
         .populate('assignedCourses', 'title')
-        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
+        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates noTds')
         .lean(),
       MeetingLink.find({
         assignedTeacher: teacherId,
@@ -1029,6 +1058,7 @@ router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (re
           assignedBatches: teacher.assignedBatches || [],
           levels: [...allLevelSet].sort(),
           levelHourlyRates: normalizeLevelHourlyRates(teacher.levelHourlyRates),
+          noTds: teacher.noTds === true,
         },
         month: monthFilter.month,
         monthLabel: monthFilter.monthLabel,

@@ -470,6 +470,16 @@
                     [compact]="true"
                     [hideZero]="true"
                   ></app-payment-currency-pending-totals>
+                  <button
+                    type="button"
+                    class="ph-pending-incl-badge"
+                    [class.ph-pending-incl-badge--off]="isBatchPendingExcluded(r.batch)"
+                    (click)="toggleBatchPendingExclusion(r.batch)"
+                    [matTooltip]="isBatchPendingExcluded(r.batch) ? 'Excluded from pending cards · tap to include' : 'Included in pending cards · tap to exclude'"
+                  >
+                    <mat-icon>{{ isBatchPendingExcluded(r.batch) ? 'do_not_disturb_on' : 'check_circle' }}</mat-icon>
+                    {{ isBatchPendingExcluded(r.batch) ? 'excl.' : 'incl.' }}
+                  </button>
                 </td>
                 <td class="ph-num ph-col-overdue">
                   <ng-container *ngIf="rowHasOverdue(r); else noOverdue">
