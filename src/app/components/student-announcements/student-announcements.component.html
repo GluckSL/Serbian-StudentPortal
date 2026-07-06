@@ -9,63 +9,49 @@
     </div>
   </header>
 
-  <div *ngIf="loading" class="sa-skeleton">
-    <div class="sa-skeleton__card" *ngFor="let i of [1,2,3]">
-      <div class="sa-skeleton__stripe"></div>
-      <div class="sa-skeleton__inner">
-        <div class="sa-skeleton__top">
-          <div class="sa-skeleton__badge"></div>
-          <div class="sa-skeleton__date"></div>
-        </div>
-        <div class="sa-skeleton__title"></div>
-        <div class="sa-skeleton__body"></div>
-        <div class="sa-skeleton__body sa-skeleton__body--short"></div>
-      </div>
-    </div>
+  <div class="sa-loading-bar" *ngIf="loading">
+    <div class="sa-loading-bar__inner"></div>
   </div>
 
-  <div *ngIf="!loading && announcements.length === 0" class="sa-empty sa-empty--card">
+  <div *ngIf="!loading && announcements.length === 0" class="sa-empty">
     <span class="material-icons sa-empty__icon" aria-hidden="true">notifications_none</span>
     <p class="sa-empty__title">No announcements yet</p>
     <p class="sa-empty__text">When your batch receives an update, it will show up here.</p>
   </div>
 
-  <div *ngIf="!loading && announcements.length > 0 && filteredAnnouncements.length === 0" class="sa-empty sa-empty--card">
+  <div *ngIf="!loading && announcements.length > 0 && filteredAnnouncements.length === 0" class="sa-empty">
     <p class="sa-empty__title">Nothing in this view</p>
     <p class="sa-empty__text">Try another filter above.</p>
   </div>
 
-  <!-- BEFORE: announcement cards and attachment chips had compact mobile text/tap targets and long filenames could crowd the card. -->
-  <div class="sa-list" *ngIf="!loading && filteredAnnouncements.length > 0">
-    <article class="sa-card" *ngFor="let item of filteredAnnouncements" (click)="openAnnouncement(item)" tabindex="0">
-      <div class="sa-card__stripe" [class.sa-card__stripe--email]="item.deliveryType === 'website_email'" aria-hidden="true"></div>
-
-      <div class="sa-card__inner">
-        <div class="sa-card__top">
-          <span class="sa-card__badge" *ngIf="item.deliveryType">{{ deliveryLabel(item.deliveryType) }}</span>
-          <time class="sa-card__date" [attr.datetime]="item.createdAt">{{ item.createdAt | date:'medium' }}</time>
-        </div>
-
-        <h2 class="sa-card__title">{{ item.title }}</h2>
-        <div class="sa-card__preview">Tap to read more</div>
-
-        <div class="sa-card__files" *ngIf="item.attachments?.length">
-          <div class="sa-card__filesTitle">Attachments</div>
-          <div class="sa-card__fileRow">
-            <a
-              *ngFor="let file of item.attachments"
-              class="sa-chip"
-              [href]="file.fileUrl"
-              target="_blank"
-              rel="noreferrer"
-              (click)="$event.stopPropagation()"
-            >
-              <span class="material-icons sa-chip__icon" aria-hidden="true">attach_file</span>
-              {{ file.fileName }}
-            </a>
-          </div>
-        </div>
-      </div>
-    </article>
+  <div class="sa-table-wrap" *ngIf="!loading && filteredAnnouncements.length > 0">
+    <table class="sa-table">
+      <thead>
+        <tr>
+          <th class="sa-table__col-date">Date &amp; Time</th>
+          <th class="sa-table__col-badge">Type</th>
+          <th class="sa-table__col-title">Title</th>
+          <th class="sa-table__col-action"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="sa-row" *ngFor="let item of filteredAnnouncements">
+          <td class="sa-row__date">
+            <time [attr.datetime]="item.createdAt">{{ item.createdAt | date:'medium' }}</time>
+          </td>
+          <td class="sa-row__badge">
+            <span class="sa-badge" [class.sa-badge--email]="item.deliveryType === 'website_email'">
+              {{ deliveryLabel(item.deliveryType) }}
+            </span>
+          </td>
+          <td class="sa-row__title">{{ item.title }}</td>
+          <td class="sa-row__action">
+            <button class="sa-view-btn" (click)="openAnnouncement(item)" title="View announcement">
+              <span class="material-icons">visibility</span>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>

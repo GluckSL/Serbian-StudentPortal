@@ -110,6 +110,7 @@ const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
 const ollyRoutes = require('./routes/olly');
 const announcementRoutes = require('./routes/announcements');
+const announcementCommentRoutes = require('./routes/announcementComments');
 const jobOpeningsRoutes = require('./routes/jobOpenings');
 const crmPortalRoutes = require('./routes/crmPortal');
 const crmPortalProxyRoutes = require('./routes/crmPortalProxy');
@@ -154,6 +155,7 @@ const { scheduleWeeklyMilestoneChecks } = require('./jobs/weeklyMilestoneChecks'
 const { scheduleLateJoinEarlyExitAlerts } = require('./jobs/lateJoinEarlyExitAlert');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 const { scheduleFeedbackNotifications } = require('./jobs/classFeedbackNotification');
+const { schedulePendingTracker } = require('./jobs/pendingTracker');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -395,6 +397,7 @@ app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 app.use('/api/support', supportTicketRoutes);
 app.use('/api/olly', ollyRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api', announcementCommentRoutes);
 app.use('/api/job-openings', jobOpeningsRoutes);
 app.use('/api/crm', crmPortalRoutes);
 app.use('/api/crm-portal', auth.verifyToken, crmPortalProxyRoutes);
@@ -655,6 +658,7 @@ connectMongoDb()
       scheduleWeeklyMilestoneChecks();
       scheduleLateJoinEarlyExitAlerts();
       scheduleFeedbackNotifications();
+      schedulePendingTracker();
 
       const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
       const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
