@@ -53,13 +53,8 @@
         <div #pdfContainer class="rv-pdf-container"></div>
       </div>
 
-      <div class="rv-content" *ngIf="type === 'pptx' && loaded && !loading" (contextmenu)="$event.preventDefault()">
-        <div class="rv-page-controls" *ngIf="totalSlides > 1">
-          <button type="button" class="rv-page-btn" (click)="prevSlide()" [disabled]="currentSlide <= 1" aria-label="Previous slide">&#8249;</button>
-          <span class="rv-page-label">{{ currentSlide }} / {{ totalSlides }}</span>
-          <button type="button" class="rv-page-btn" (click)="nextSlide()" [disabled]="currentSlide >= totalSlides" aria-label="Next slide">&#8250;</button>
-        </div>
-        <div #pptxContainer class="rv-slide-container"></div>
+      <div class="rv-content rv-content--pptx" *ngIf="type === 'pptx' && loaded && !loading" (contextmenu)="$event.preventDefault()">
+        <iframe *ngIf="pptxViewerUrl" [src]="pptxViewerUrl" class="rv-pptx-iframe" frameborder="0" allowfullscreen sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
       </div>
 
     </div>

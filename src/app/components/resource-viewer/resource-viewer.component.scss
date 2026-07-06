@@ -125,12 +125,10 @@
 }
 .rv-pdf-container canvas { display: block; }
 
-.rv-slide-container {
-  flex: 1; min-height: 0; width: 100%; overflow: auto; display: flex;
-  justify-content: center; align-items: flex-start;
-  background: #1e293b; border-radius: 8px; padding: 8px;
+.rv-content--pptx { padding: 0; background: #1e293b; }
+.rv-pptx-iframe {
+  width: 100%; height: 100%; border: none; border-radius: 0;
 }
-.rv-slide-container svg { display: block; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

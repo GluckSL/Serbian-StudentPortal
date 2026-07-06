@@ -5,7 +5,6 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { environment } from '../../../environments/environment';
 import { getAuthToken } from '../../services/auth.service';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import { loadPresentation, renderSlideToElement } from 'pptx-viewer';
 
 GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs';
 
@@ -37,11 +36,11 @@ export class ResourceViewerComponent implements OnDestroy {
   @Output() closed = new EventEmitter<void>();
 
   @ViewChild('pdfContainer') pdfContainer!: ElementRef;
-  @ViewChild('pptxContainer') pptxContainer!: ElementRef;
 
   type: ViewerType = 'unsupported';
   url: string | null = null;
   safeUrl: SafeResourceUrl | null = null;
+  pptxViewerUrl: SafeResourceUrl | null = null;
   loading = false;
   loaded = false;
   error: string | null = null;
@@ -50,10 +49,6 @@ export class ResourceViewerComponent implements OnDestroy {
   currentPage = 1;
   totalPages = 0;
   pdfScale = 1.5;
-
-  pptxPresentation: any = null;
-  currentSlide = 1;
-  totalSlides = 0;
 
   constructor(
     private http: HttpClient,
@@ -185,57 +180,10 @@ export class ResourceViewerComponent implements OnDestroy {
   }
 
   async renderPptx(): Promise<void> {
-    try {
-      const id = this._resource?._id || '';
-      let buffer: ArrayBuffer;
-      if (id) {
-        const url = `${environment.apiUrl}/class-resources/${id}/file`;
-        const resp = await fetch(url, { headers: this.authHeaders() });
-        if (!resp.ok) throw new Error(`Failed to fetch PPTX file (${resp.status})`);
-        buffer = await resp.arrayBuffer();
-      } else if (this.url) {
-        const resp = await fetch(this.url, { headers: this.authHeaders() });
-        if (!resp.ok) throw new Error(`Failed to fetch PPTX file (${resp.status})`);
-        buffer = await resp.arrayBuffer();
-      } else {
-        throw new Error('No URL or ID available');
-      }
-      const presentation = await loadPresentation(buffer);
-      presentation.slideMasters.forEach(m => { m.elements = []; });
-      this.pptxPresentation = presentation;
-      this.totalSlides = presentation.slides.length;
-      this.currentSlide = 1;
-      this.loaded = true;
-      this.loading = false;
-      setTimeout(() => this.renderPptxSlide(1), 0);
-    } catch (e: any) {
-      this.error = e?.message || 'Failed to render presentation';
-      this.loading = false;
-    }
-  }
-
-  renderPptxSlide(slideNum: number): void {
-    const container = this.pptxContainer?.nativeElement;
-    if (!container || !this.pptxPresentation) return;
-    const rect = container.getBoundingClientRect();
-    const w = rect.width || container.clientWidth || 800;
-    const h = rect.height || container.clientHeight || 600;
-    container.innerHTML = '';
-    renderSlideToElement(this.pptxPresentation, slideNum - 1, container, { width: w, height: h });
-  }
-
-  prevSlide(): void {
-    if (this.currentSlide > 1) {
-      this.currentSlide--;
-      this.renderPptxSlide(this.currentSlide);
-    }
-  }
-
-  nextSlide(): void {
-    if (this.currentSlide < this.totalSlides) {
-      this.currentSlide++;
-      this.renderPptxSlide(this.currentSlide);
-    }
+    if (!this.url) { this.error = 'No URL available'; this.loading = false; return; }
+    const msUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(this.url)}&wdDownloadButton=0&wdPrintButton=0`;
+    this.pptxViewerUrl = this.sanitizer.bypassSecurityTrustResourceUrl(msUrl);
+    this.loaded = true;
   }
 
   close(): void {
@@ -243,19 +191,16 @@ export class ResourceViewerComponent implements OnDestroy {
   }
 
   private cleanup(): void {
-    if (this.pptxPresentation?.cleanup) this.pptxPresentation.cleanup();
-    this.pptxPresentation = null;
     if (this.pdfDoc?.destroy) this.pdfDoc.destroy();
     this.pdfDoc = null;
     this.url = null;
     this.safeUrl = null;
+    this.pptxViewerUrl = null;
     this.loaded = false;
     this.loading = false;
     this.error = null;
     this.currentPage = 1;
     this.totalPages = 0;
-    this.currentSlide = 1;
-    this.totalSlides = 0;
   }
 
   ngOnDestroy(): void {
