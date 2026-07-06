@@ -1,5 +1,5 @@
 /**
- * Sends class reminder emails ~10 minutes before start (portal instructions, no Zoom links).
+ * Sends class reminder emails ~30 minutes before start (portal instructions, no Zoom links).
  * Runs every minute via node-cron.
  */
 const cron = require('node-cron');

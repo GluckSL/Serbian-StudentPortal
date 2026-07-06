@@ -1117,16 +1117,33 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
  * Morning digest for Language Team — students who missed 2+ live classes in the last 10 days.
  * @param {object} params
  * @param {Array<{ name: string, batch: string, missedCount: number, missedDates: Date[] }>} params.flaggedStudents
+ * @param {Array<{ name: string, batch: string, batchClassDays: number }>} [params.unscheduledStudents]
+ *        Active students whose batch held classes but who were on none of the rosters.
  * @param {string} params.reportDate
  * @param {number} [params.lookbackDays=10]
  */
-function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDate, lookbackDays = 10 }) {
+function buildMissedLiveClassMorningReportEmail({
+  flaggedStudents = [],
+  unscheduledStudents = [],
+  reportDate,
+  lookbackDays = 10,
+}) {
   const dateLabel = escapeHtml(reportDate || new Date().toDateString());
 
   const tableRows = flaggedStudents
     .map((s, idx) => {
       const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8f5ff';
       const countColor = s.missedCount >= 5 ? '#dc2626' : s.missedCount >= 3 ? '#d97706' : '#6c3fc5';
+      const lastTwoMissed = (s.missedDates || [])
+        .slice(0, 2)
+        .map((d) =>
+          new Date(d).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            timeZone: 'Asia/Colombo',
+          })
+        )
+        .join(' · ');
 
       return `
       <tr style="background:${rowBg};">
@@ -1141,11 +1158,42 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
             ${s.missedCount}
           </span>
         </td>
+        <td style="padding:11px 14px;font-size:13px;color:#374151;border-bottom:1px solid #ede9fe;text-align:center;white-space:nowrap;">
+          ${escapeHtml(lastTwoMissed || '—')}
+        </td>
       </tr>`;
     })
     .join('');
 
   const totalCount = flaggedStudents.length;
+
+  const unscheduledSection = unscheduledStudents.length
+    ? `
+          <tr>
+            <td style="padding:0 32px 28px;">
+              <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:16px 18px;">
+                <p style="margin:0 0 10px;color:#92400e;font-size:13px;font-weight:700;">
+                  ⚠️ ${unscheduledStudents.length} active student${unscheduledStudents.length !== 1 ? 's' : ''} not on any class roster
+                </p>
+                <p style="margin:0 0 12px;color:#92400e;font-size:12px;line-height:1.5;">
+                  These students' batches held live classes in the last ${lookbackDays} days, but they were not scheduled into any of them — please check their class assignments.
+                </p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                  ${unscheduledStudents
+                    .map(
+                      (s) => `
+                  <tr>
+                    <td style="padding:6px 8px;font-size:13px;color:#78350f;border-bottom:1px solid #fde68a;font-weight:600;">${escapeHtml(s.name)}</td>
+                    <td style="padding:6px 8px;font-size:12px;color:#92400e;border-bottom:1px solid #fde68a;text-align:center;">Batch ${escapeHtml(String(s.batch || '—'))}</td>
+                    <td style="padding:6px 8px;font-size:12px;color:#92400e;border-bottom:1px solid #fde68a;text-align:right;">${s.batchClassDays} class day${s.batchClassDays !== 1 ? 's' : ''} held</td>
+                  </tr>`
+                    )
+                    .join('')}
+                </table>
+              </div>
+            </td>
+          </tr>`
+    : '';
 
   return {
     subject: `[Morning Report] ${totalCount} Student${totalCount !== 1 ? 's' : ''} with 2+ Missed Live Classes (Last ${lookbackDays} Days) — ${dateLabel}`,
@@ -1196,12 +1244,13 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
                     <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student Name</th>
                     <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
                     <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Classes Missed</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Last Missed Classes</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${tableRows || `
                   <tr>
-                    <td colspan="3" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
+                    <td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
                       No students with 2+ missed live classes in the last ${lookbackDays} days today. 🎉
                     </td>
                   </tr>`}
@@ -1209,12 +1258,12 @@ function buildMissedLiveClassMorningReportEmail({ flaggedStudents = [], reportDa
               </table>
             </td>
           </tr>
-
+${unscheduledSection}
           <tr>
             <td style="padding:0 32px 28px;">
               <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:16px;">
                 This report is auto-generated every morning at 10:00 AM IST by the Glück Global Student Portal.<br/>
-                Only live classes from the last ${lookbackDays} days are counted. A class counts as missed when attendance was recorded and the student was fully absent (0% participation).
+                Only live classes from the last ${lookbackDays} days are counted. A class counts as missed when the student was scheduled for it, attendance was recorded, and the student was fully absent (0% participation). At most one missed class is counted per day.
               </p>
             </td>
           </tr>
