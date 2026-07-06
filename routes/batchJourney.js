@@ -524,6 +524,7 @@ router.get('/active-platinum-students', verifyToken, checkRole(['ADMIN', 'TEACHE
     const students = await User.find({
       role: 'STUDENT',
       $or: batchOr,
+      studentStatus: 'ONGOING',
       ...EXCLUDE_TEST
     })
       .select('name regNo email level studentStatus currentCourseDay batch enrollmentDate')
@@ -642,7 +643,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     const batchRx = batchNameRegex(batchName);
     const cfgForSync = await getOrCreateConfig(batchName);
     await syncJourneyLevelsForBatch(batchRx, { batchType: cfgForSync.batchType });
-    const students = await User.find({ role: 'STUDENT', batch: batchRx })
+    const students = await User.find({ role: 'STUDENT', batch: batchRx, studentStatus: 'ONGOING' })
       .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount batch')
       .sort({ name: 1 })
       .lean();
@@ -676,7 +677,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
             tryInstantJourneyAdvanceAfterTask(id).catch(() => ({ advanced: false }))
           )
         );
-        studentRows = await User.find({ role: 'STUDENT', batch: batchRx })
+        studentRows = await User.find({ role: 'STUDENT', batch: batchRx, studentStatus: 'ONGOING' })
           .select('name regNo email level studentStatus currentCourseDay enrollmentDate createdAt isTestAccount batch')
           .sort({ name: 1 })
           .lean();

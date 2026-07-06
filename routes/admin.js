@@ -1592,6 +1592,24 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
       } catch (_) { /* payment module optional */ }
     }
 
+    // Auto-remove students from future scheduled meetings when status changes to UNCERTAIN or WITHDREW
+    if (updates.studentStatus === 'UNCERTAIN' || updates.studentStatus === 'WITHDREW') {
+      try {
+        const objectIds = studentIds.map((id) => new mongoose.Types.ObjectId(String(id)));
+        await MeetingLink.updateMany(
+          {
+            status: 'scheduled',
+            'attendees.studentId': { $in: objectIds }
+          },
+          {
+            $pull: { attendees: { studentId: { $in: objectIds } } }
+          }
+        );
+      } catch (autoRemoveErr) {
+        console.error('Auto-remove from scheduled meetings error:', autoRemoveErr);
+      }
+    }
+
     res.json({ 
       success: true, 
       message: `Successfully updated ${result.modifiedCount} student(s)`,

@@ -204,10 +204,10 @@ export class BulkJourneyMeetingComponent implements OnInit {
     return WEEKDAY_META.find((d) => d.sun0 === n)?.label ?? String(v);
   }
 
-  onFirstClassWeekdayChange(ev: Event): void {
-    const el = ev.target as HTMLSelectElement | null;
-    const value = el?.value ?? 'auto';
-    this.basicForm.get('firstClassWeekday')?.setValue(value);
+  onFirstClassWeekdayChange(_ev: Event): void {
+    // The reactive form (formControlName + [ngValue]) already updates the control value.
+    // Reading el.value from the native element returns Angular's internal serialized key,
+    // not the actual option value, so we must not call setValue here.
     this.refreshZoomBusyHint();
   }
 

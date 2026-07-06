@@ -439,6 +439,18 @@ export class ZoomService {
     });
   }
 
+  addParticipantToEndedMeeting(meetingId: string, studentId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/add-participant`, { studentId }, {
+      withCredentials: true
+    });
+  }
+
+  removeParticipantFromEndedMeeting(meetingId: string, studentId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/meeting/${meetingId}/attendance/remove-participant`, { studentId }, {
+      withCredentials: true
+    });
+  }
+
   /** Join status for live class reminder modal (ongoing meetings). */
   getJoinReminderPreview(meetingId: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/meeting/${meetingId}/join-reminder-preview`, {

@@ -151,9 +151,11 @@ const { scheduleCrucialStudentsReport } = require('./services/crucialStudentsEma
 const { scheduleBatchDay1Reminders } = require('./jobs/batchDay1Reminder');
 const { scheduleMilestoneAbsenceAlerts, scheduleWeeklyAbsenceSummary } = require('./jobs/absenceNotifications');
 const { scheduleWeeklyMilestoneChecks } = require('./jobs/weeklyMilestoneChecks');
+const { scheduleWeeklyTestIncompleteReminder } = require('./jobs/weeklyTestIncompleteReminder');
 const { scheduleLateJoinEarlyExitAlerts } = require('./jobs/lateJoinEarlyExitAlert');
 const { portalRouter, analyticsRouter } = require('./routes/portalAnalytics.routes');
 const { scheduleFeedbackNotifications } = require('./jobs/classFeedbackNotification');
+const { scheduleWeeklyScheduleNotification } = require('./jobs/weeklyScheduleNotification');
 
 // Multer setup for file uploads
 const multer = require('multer');
@@ -653,8 +655,10 @@ connectMongoDb()
       scheduleMilestoneAbsenceAlerts();
       scheduleWeeklyAbsenceSummary();
       scheduleWeeklyMilestoneChecks();
+      scheduleWeeklyTestIncompleteReminder();
       scheduleLateJoinEarlyExitAlerts();
       scheduleFeedbackNotifications();
+      scheduleWeeklyScheduleNotification();
 
       const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
       const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');

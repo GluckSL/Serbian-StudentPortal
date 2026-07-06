@@ -1554,7 +1554,8 @@ router.get('/students', verifyToken, async (req, res) => {
     const { batch, level, subscription } = req.query;
     
     const query = {
-      role: 'STUDENT'
+      role: 'STUDENT',
+      studentStatus: 'ONGOING'
     };
 
     if (batch) query.batch = batch;
@@ -2649,6 +2650,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
         topic: meeting.topic,
         startTime: meeting.startTime,
         duration: meeting.duration,
+        batch: meeting.batch,
         totalStudents: meeting.attendees.length,
         attendedCount: attendanceData.filter(a => a.attended).length,
         absentCount: attendanceData.filter(a => !a.attended).length,
@@ -2972,6 +2974,110 @@ router.post('/meeting/:id/attendance/manual-mark-all', verifyToken, checkRole(['
     res.status(500).json({ success: false, message: 'Failed to mark all attendance' });
   }
 });
+
+/**
+ * Add a student (from the batch) to an ended meeting's attendance list.
+ * Adds them to both attendees and attendance (with absent status) if not already present.
+ * POST /api/zoom/meeting/:id/attendance/add-participant
+ */
+router.post('/meeting/:id/attendance/add-participant', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({ success: false, message: 'studentId is required' });
+    }
+
+    const meeting = await MeetingLink.findById(id);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const student = await User.findOne({ _id: studentId, role: 'STUDENT' }).select('name email').lean();
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    // Add to attendees if not already present
+    const alreadyAttendee = meeting.attendees.some(a => a.studentId && a.studentId.toString() === studentId.toString());
+    if (!alreadyAttendee) {
+      meeting.attendees.push({
+        studentId: student._id,
+        name: student.name,
+        email: student.email,
+        joinUrl: meeting.joinUrl || ''
+      });
+    }
+
+    // Add absent attendance record if not already present
+    const alreadyInAttendance = meeting.attendance.some(a => a.studentId && a.studentId.toString() === studentId.toString());
+    if (!alreadyInAttendance) {
+      meeting.attendance.push({
+        studentId: student._id,
+        name: student.name,
+        email: student.email,
+        attended: false,
+        confidence: 0,
+        finalConfidence: 0,
+        matchMethod: 'manual_add',
+        status: 'absent',
+        needsReview: false,
+        clickedJoin: false,
+        appearedInZoom: false,
+        durationMinutes: 0,
+        duration: 0,
+        attendancePercent: 0
+      });
+    }
+
+    await meeting.save();
+
+    res.status(200).json({
+      success: true,
+      message: `${student.name} added to attendance list`,
+      data: { studentId: student._id, name: student.name, email: student.email }
+    });
+  } catch (error) {
+    console.error('Error adding participant to attendance:', error);
+    res.status(500).json({ success: false, message: 'Failed to add participant' });
+  }
+});
+
+/**
+ * Remove a student from an ended meeting's attendance and attendees list.
+ * POST /api/zoom/meeting/:id/attendance/remove-participant
+ */
+router.post('/meeting/:id/attendance/remove-participant', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({ success: false, message: 'studentId is required' });
+    }
+
+    const meeting = await MeetingLink.findById(id);
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    const sidStr = studentId.toString();
+    meeting.attendees = meeting.attendees.filter(a => !a.studentId || a.studentId.toString() !== sidStr);
+    meeting.attendance = meeting.attendance.filter(a => !a.studentId || a.studentId.toString() !== sidStr);
+
+    await meeting.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Student removed from attendance list'
+    });
+  } catch (error) {
+    console.error('Error removing participant from attendance:', error);
+    res.status(500).json({ success: false, message: 'Failed to remove participant' });
+  }
+});
+
 
 /**
  * Get participant engagement metrics (camera/mic usage)
