@@ -76,6 +76,9 @@ export class TeachersComponent implements OnInit {
     error: '',
   };
 
+  /** teacherId → true while share-timetable request is in flight */
+  sharingTimetableIds = new Set<string>();
+
   constructor(
     private authService: AuthService,
     private router: Router,
@@ -255,6 +258,62 @@ export class TeachersComponent implements OnInit {
 
   trackById(index: number, teacher: Teacher): string {
     return teacher._id;
+  }
+
+  isSharingTimetable(teacherId: string): boolean {
+    return this.sharingTimetableIds.has(teacherId);
+  }
+
+  shareTimetable(teacher: Teacher): void {
+    if (this.isSharingTimetable(teacher._id)) return;
+
+    this.notify
+      .confirm(
+        'Share Weekly Timetable',
+        `Send this week's live class schedule (Monday–Sunday) to ${teacher.name} via email and WhatsApp?`,
+        'Yes, Share',
+        'Cancel'
+      )
+      .subscribe((ok) => {
+        if (!ok) return;
+
+        this.sharingTimetableIds.add(teacher._id);
+        this.http
+          .post<{ success: boolean; message?: string; data?: any }>(
+            `${apiUrl}/admin/teachers/${teacher._id}/share-timetable`,
+            {},
+            { withCredentials: true, headers: this.authHeaders() }
+          )
+          .subscribe({
+            next: (res) => {
+              this.sharingTimetableIds.delete(teacher._id);
+              if (!res.success) {
+                this.notify.error(res.message || 'Failed to share timetable.');
+                return;
+              }
+
+              const d = res.data || {};
+              const parts: string[] = [];
+              if (d.emailSent) parts.push('email');
+              if (d.whatsappSent) parts.push('WhatsApp');
+              const channels = parts.length ? parts.join(' & ') : 'no channel (check email/phone)';
+              const count = d.meetingCount ?? 0;
+              const week = d.weekLabel ? ` (${d.weekLabel})` : '';
+
+              if (count === 0) {
+                this.notify.info(`No live classes this week${week}. Empty timetable still sent by email if configured.`);
+              } else {
+                this.notify.success(
+                  `Timetable shared with ${teacher.name}${week}: ${count} class(es) via ${channels}.`
+                );
+              }
+            },
+            error: (err) => {
+              this.sharingTimetableIds.delete(teacher._id);
+              this.notify.error(err.error?.message || 'Failed to share timetable. Please try again.');
+            },
+          });
+      });
   }
 
 }

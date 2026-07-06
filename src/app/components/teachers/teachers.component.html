@@ -185,6 +185,14 @@
                       >
                         <i class="fas fa-chart-line"></i>
                       </button>
+                      <button
+                        class="btn btn-sm btn-share-timetable me-1"
+                        (click)="shareTimetable(teacher)"
+                        [disabled]="isSharingTimetable(teacher._id)"
+                        title="Share weekly timetable (Mon–Sun) via email & WhatsApp"
+                      >
+                        <i class="fas" [ngClass]="isSharingTimetable(teacher._id) ? 'fa-spinner fa-spin' : 'fa-calendar-week'"></i>
+                      </button>
                       <button 
                         class="btn btn-sm btn-outline-primary me-1"
                         [routerLink]="['/signup', teacher._id]"
