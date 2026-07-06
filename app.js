@@ -149,6 +149,7 @@ const { scheduleStudentDetailChangesReport } = require('./jobs/studentDetailChan
 const { scheduleNeverLoggedInReport } = require('./jobs/neverLoggedInReport');
 const { scheduleCrucialStudentsReport } = require('./services/crucialStudentsEmailService');
 const { scheduleBatchDay1Reminders } = require('./jobs/batchDay1Reminder');
+const { scheduleClassDayReminders } = require('./jobs/classDayReminder');
 const { scheduleMilestoneAbsenceAlerts, scheduleWeeklyAbsenceSummary } = require('./jobs/absenceNotifications');
 const { scheduleWeeklyMilestoneChecks } = require('./jobs/weeklyMilestoneChecks');
 const { scheduleLateJoinEarlyExitAlerts } = require('./jobs/lateJoinEarlyExitAlert');
@@ -650,6 +651,7 @@ connectMongoDb()
       scheduleCrucialStudentsReport();
       scheduleNeverLoggedInReport();
       scheduleBatchDay1Reminders();
+      scheduleClassDayReminders();
       scheduleMilestoneAbsenceAlerts();
       scheduleWeeklyAbsenceSummary();
       scheduleWeeklyMilestoneChecks();

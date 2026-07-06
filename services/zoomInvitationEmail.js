@@ -1,5 +1,5 @@
 /**
- * HTML + send helpers for class reminder emails (~10 min before start via cron).
+ * HTML + send helpers for class reminder emails (~30 min before start via cron).
  * Join happens only through the student portal — no Zoom links or passwords in email.
  */
 
@@ -102,7 +102,7 @@ function buildInvitationHtml({
 async function sendInvitationEmailsToAttendees(meeting, transporter, options = {}) {
   const intro =
     options.introParagraph ||
-    'Your German class starts in about <strong>10 minutes</strong>. Please join through the student portal — follow the steps below (no join link is sent by email).';
+    'Your German class starts in about <strong>30 minutes</strong>. Please join through the student portal — follow the steps below (no join link is sent by email).';
 
   const emailResults = {
     attempted: 0,
@@ -141,7 +141,7 @@ async function sendInvitationEmailsToAttendees(meeting, transporter, options = {
       await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
-        subject: options.subject || '🎓 Class starting in ~10 minutes — join via portal (Glück Global)',
+        subject: options.subject || '🎓 Class starting in ~30 minutes — join via portal (Glück Global)',
         html
       });
       emailResults.successful++;
@@ -157,5 +157,5 @@ async function sendInvitationEmailsToAttendees(meeting, transporter, options = {
 module.exports = {
   buildInvitationHtml,
   sendInvitationEmailsToAttendees,
-  DEFAULT_REMINDER_MINUTES_BEFORE: 10
+  DEFAULT_REMINDER_MINUTES_BEFORE: 30
 };

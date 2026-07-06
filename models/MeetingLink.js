@@ -115,9 +115,13 @@ const meetingLinkSchema = new mongoose.Schema({
   attendanceRetries: { type: Number, default: 0 },
   attendanceError: { type: String, default: '' },
   
-  // Reminder emails (~10 min before start) — not sent at schedule time
+  // Reminder emails (~30 min before start) — not sent at schedule time
   reminderEmailSent: { type: Boolean, default: false },
   reminderEmailSentAt: Date,
+
+  // Day-of-class morning reminder (6 AM IST, WhatsApp + email)
+  morningReminderSent: { type: Boolean, default: false },
+  morningReminderSentAt: Date,
 
   // WhatsApp CRM notification flags
   reminderWhatsappSent: { type: Boolean, default: false },
