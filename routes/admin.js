@@ -6,6 +6,7 @@ const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
 const StudentChangeHistory = require('../models/StudentChangeHistory');
+const UserAuditLog = require('../models/UserAuditLog');
 const SignupApplication = require('../models/StudentSignupApplication');
 const MeetingLink = require('../models/MeetingLink');
 const Course = require('../models/Course');
@@ -408,6 +409,73 @@ router.get('/students/:studentId/change-history', verifyToken, isAdmin, async (r
   } catch (err) {
     console.error('Error fetching student change history:', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch student change history' });
+  }
+});
+
+// Account audit log — who created/updated/deleted any portal user (all roles)
+router.get('/user-audit-logs', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const page = Math.max(parseInt(String(req.query.page || '1'), 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1), 200);
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (req.query.targetUserId && mongoose.Types.ObjectId.isValid(String(req.query.targetUserId))) {
+      query.targetUserId = req.query.targetUserId;
+    }
+    if (req.query.actorId && mongoose.Types.ObjectId.isValid(String(req.query.actorId))) {
+      query.actorId = req.query.actorId;
+    }
+    if (req.query.action) {
+      query.action = String(req.query.action).toUpperCase();
+    }
+    if (req.query.targetUserRole) {
+      query.targetUserRole = String(req.query.targetUserRole).toUpperCase();
+    }
+    if (req.query.q) {
+      const q = String(req.query.q).trim();
+      if (q) {
+        query.$or = [
+          { targetUserName: new RegExp(q, 'i') },
+          { targetUserEmail: new RegExp(q, 'i') },
+          { targetUserRegNo: new RegExp(q, 'i') },
+          { actorName: new RegExp(q, 'i') },
+        ];
+      }
+    }
+    if (req.query.from || req.query.to) {
+      query.occurredAt = {};
+      if (req.query.from) {
+        const from = new Date(req.query.from);
+        if (!Number.isNaN(from.getTime())) query.occurredAt.$gte = from;
+      }
+      if (req.query.to) {
+        const to = new Date(req.query.to);
+        if (!Number.isNaN(to.getTime())) query.occurredAt.$lte = to;
+      }
+      if (!Object.keys(query.occurredAt).length) delete query.occurredAt;
+    }
+
+    const [total, rows] = await Promise.all([
+      UserAuditLog.countDocuments(query),
+      UserAuditLog.find(query)
+        .sort({ occurredAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    return res.json({
+      success: true,
+      count: rows.length,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      data: rows,
+    });
+  } catch (err) {
+    console.error('Error fetching user audit logs:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch user audit logs' });
   }
 });
 

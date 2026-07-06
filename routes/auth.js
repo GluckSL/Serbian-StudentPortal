@@ -58,6 +58,12 @@ const {
   setupSetPasswordLimiter,
 } = require('../middleware/authRateLimit');
 const { recordStudentChange } = require('../services/studentChangeHistory.service');
+const {
+  recordUserAudit,
+  recordUserDeletion,
+  recordUserCreation,
+  recordPasswordReset,
+} = require('../services/userAuditLog.service');
 
 function signPasswordSetupToken(userId) {
   return jwt.sign(
@@ -112,7 +118,7 @@ function loginRequestMeta(req) {
 }
 
 //const auth = require("../middleware/auth");
-const { verifyToken, isAdmin, extractBearerToken } = require('../middleware/auth');
+const { verifyToken, isAdmin, extractBearerToken, optionalVerifyToken } = require('../middleware/auth');
 const checkRole = require("../middleware/checkRole");
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -1256,7 +1262,7 @@ router.get("/teachersByMedium", async (req, res) => {
 
 
 // âœ… Signup
-router.post("/signup", async (req, res) => {
+router.post("/signup", optionalVerifyToken, async (req, res) => {
   try {
     const {
       name,
@@ -1481,6 +1487,12 @@ router.post("/signup", async (req, res) => {
         metaOverrides: { syncMode: "live" }
       });
     }
+
+    await recordUserCreation({
+      createdUser: user,
+      req,
+      source: 'auth_signup',
+    });
 
     res.status(201).json(responsePayload);
   } catch (err) {
@@ -2116,6 +2128,12 @@ router.put("/admin-set-password/:id", verifyToken, checkRole(['ADMIN']), async (
     user.mustChangePassword = false;
     user.passwordChangedAt = new Date();
     await user.save();
+    await recordPasswordReset({
+      user,
+      req,
+      source: 'auth_admin_set_password',
+      emailed: false,
+    });
     res.status(200).json({ success: true, message: "Password updated successfully." });
   } catch (error) {
     console.error("Error changing password (admin):", error);
@@ -2141,6 +2159,12 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
     user.mustChangePassword = false;
     user.passwordChangedAt = new Date();
     await user.save();
+    await recordPasswordReset({
+      user,
+      req,
+      source: 'auth_admin_set_password_and_email',
+      emailed: true,
+    });
     console.log(`📧 Sending admin password email with App ID template for user ${user._id} (${user.regNo})`);
 
     const mailOptions = {
@@ -2228,7 +2252,7 @@ router.get("/teachers-by-batch/:batch", async (req, res) => {
 
 
 // Update assigned teacher by batch
-router.put("/update-teacher-by-batch", async (req, res) => {
+router.put("/update-teacher-by-batch", verifyToken, isAdmin, async (req, res) => {
   try {
     const { batch, newTeacherId } = req.body;
 
@@ -2249,6 +2273,8 @@ router.put("/update-teacher-by-batch", async (req, res) => {
       });
     }
 
+    const newTeacher = await User.findById(newTeacherId).select('name regNo role').lean();
+
     const logs = students.map(student => ({
       action: "UPDATE",
       studentId: student._id,
@@ -2268,8 +2294,23 @@ router.put("/update-teacher-by-batch", async (req, res) => {
       { assignedTeacher: newTeacherId }
     );
 
+    await recordUserAudit({
+      action: 'BULK_UPDATE',
+      beforeDoc: null,
+      afterDoc: null,
+      req,
+      source: 'auth_update_teacher_by_batch',
+      metadata: {
+        batch,
+        newTeacherId,
+        newTeacherName: newTeacher?.name || '',
+        newTeacherRegNo: newTeacher?.regNo || '',
+        studentsAffected: result.modifiedCount ?? result.nModified ?? students.length,
+      },
+    });
+
     res.status(200).json({
-      message: `Assigned teacher updated for ${result.nModified} students.`
+      message: `Assigned teacher updated for ${result.modifiedCount ?? result.nModified ?? students.length} students.`
     });
 
   } catch (error) {
@@ -2495,6 +2536,15 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       source: 'auth_update_user'
     });
 
+    await recordUserAudit({
+      action: 'UPDATE',
+      beforeDoc: existingUser,
+      afterDoc: updatedUser,
+      fields: Object.keys(updateData),
+      req,
+      source: 'auth_update_user',
+    });
+
     if (existingUser.role === "STUDENT" && level && level !== existingUser.level) {
       try {
         const SilverGoUnlockCache = require('../models/SilverGoUnlockCache');
@@ -2533,13 +2583,19 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
 
 
 // âœ… Delete user by ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const deletedUser = await User.findByIdAndDelete(req.params.id);
 
     if (!deletedUser) {
       return res.status(404).json({ message: "User not found." });
     }
+
+    await recordUserDeletion({
+      deletedUser,
+      req,
+      source: 'auth_delete_user',
+    });
 
     const deletedEvent = userEventForRole(deletedUser.role, "DELETED");
     if (deletedEvent) {

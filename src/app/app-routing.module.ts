@@ -109,6 +109,14 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
+  {
+    path: 'account-audit-log',
+    loadComponent: () => import('./components/admin-dashboard/account-audit-log.component')
+      .then(m => m.AccountAuditLogComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
+  },
+
 
   // ✅ NEW: AI Usage Analytics route
   {

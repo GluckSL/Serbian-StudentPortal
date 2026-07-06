@@ -129,6 +129,12 @@
           <i class="fas fa-user-shield"></i> User Roles
         </a>
       </li>
+      <li *ngIf="isLoggedIn() && (userRole === 'ADMIN' || userRole === 'TEACHER_ADMIN' || userRole === 'SUB_ADMIN')">
+        <a (click)="navigateTo('/account-audit-log'); closeMenu()"
+           [class.active]="isCurrentRoute('/account-audit-log')">
+          <i class="fas fa-clipboard-list"></i> Account Audit Log
+        </a>
+      </li>
       <li *ngIf="isLoggedIn() && (userRole === 'ADMIN' || userRole === 'TEACHER_ADMIN')">
         <a (click)="navigateTo('/courses'); closeMenu()" 
            [class.active]="isCurrentRoute('/courses')">

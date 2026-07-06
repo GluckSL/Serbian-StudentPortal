@@ -20,6 +20,7 @@ const ROUTE_LOADER: Record<string, () => Promise<Type<any>>> = {
   '/admin/students':            () => import('../admin-dashboard/admin-dashboard.component').then(m => m.AdminDashboardComponent),
   '/teachers':                  () => import('../teachers/teachers.component').then(m => m.TeachersComponent),
   '/user-roles':                () => import('../admin-dashboard/user-roles.component').then(m => m.UserRolesComponent),
+  '/account-audit-log':         () => import('../admin-dashboard/account-audit-log.component').then(m => m.AccountAuditLogComponent),
   '/time-table-view-admin':     () => import('../time-table/time-table-view.component').then(m => m.TimeTableViewComponent),
   '/teacher/meetings':          () => import('../meeting-link/meetings-list.component').then(m => m.MeetingsListComponent),
   '/gluck-room':                () => import('../gluck-room-list/gluck-room-list.component').then(m => m.GluckRoomListComponent),
