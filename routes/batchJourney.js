@@ -57,7 +57,8 @@ const {
   journeyDayRangeStart,
   isValidJourneyDay,
   utcMidnightMs,
-  MS_PER_DAY
+  MS_PER_DAY,
+  TRIAL_JOURNEY_DAY
 } = require('../utils/journeyDay');
 
 function clampDay(d, max = 200, trialDayEnabled = false) {
@@ -876,13 +877,18 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
     if (journeyLength !== undefined) {
       cfg.journeyLength = Math.min(200, Math.max(1, clampDay(journeyLength)));
     }
+    let applyTrialDayZero = false;
     if (trialDayEnabled !== undefined) {
+      const wasTrialEnabled = !!cfg.trialDayEnabled;
+      applyTrialDayZero = !!trialDayEnabled && !wasTrialEnabled;
       cfg.trialDayEnabled = !!trialDayEnabled;
       if (!cfg.trialDayEnabled) {
         cfg.trialAccessStartDate = null;
       }
       if (cfg.batchStartDate) {
         cfg.batchCurrentDay = computeBatchDay(cfg);
+      } else if (cfg.trialDayEnabled) {
+        cfg.batchCurrentDay = TRIAL_JOURNEY_DAY;
       }
     }
     if (trialAccessStartDate !== undefined) {
@@ -994,11 +1000,35 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
       studentsLevelUpdated = applied.updated;
     }
 
+    let studentsDayUpdated;
+    if (applyTrialDayZero && cfg.trialDayEnabled && isLearningEnabled(cfg.batchType)) {
+      const result = await User.updateMany(
+        { role: 'STUDENT', batch: batchNameRegex(effectiveBatchName) },
+        {
+          $set: withJourneyLevelInSet(
+            TRIAL_JOURNEY_DAY,
+            {
+              currentCourseDay: TRIAL_JOURNEY_DAY,
+              pendingJourneyDayAdvance: false,
+              pendingJourneyDayAdvanceForDay: null
+            },
+            { force: true, batchConfig: cfg }
+          )
+        }
+      );
+      studentsDayUpdated = result.modifiedCount;
+      if (isNewBatchPaused(cfg)) {
+        cfg.journeyPausedFrozenDay = TRIAL_JOURNEY_DAY;
+        await cfg.save();
+      }
+    }
+
     const activeBatchDay = computeBatchDay(cfg);
     res.json({
       message: createOnly ? 'Batch created' : 'Batch config updated',
       batchName: effectiveBatchName,
       studentsLevelUpdated,
+      studentsDayUpdated,
       config: {
         ...cfg.toObject(),
         batchName: effectiveBatchName,
