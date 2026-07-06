@@ -6,6 +6,7 @@ const router = express.Router();
 const Subscription = require('../models/subscriptions');
 const User = require('../models/User');
 const StudentChangeHistory = require('../models/StudentChangeHistory');
+const UserAuditLog = require('../models/UserAuditLog');
 const SignupApplication = require('../models/StudentSignupApplication');
 const MeetingLink = require('../models/MeetingLink');
 const Course = require('../models/Course');
@@ -28,6 +29,7 @@ const {
   STUDENT_COUNTRY_FILTER_OPTIONS,
 } = require('../utils/studentCountry');
 const { approvePublicSignupApplication, rejectPublicSignupApplication } = require('../utils/signupActivation');
+const { batchMatchFilters } = require('../utils/analyticsFilters');
 
 const FILTER_OPTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
 let filterOptionsCache = { at: 0, payload: null };
@@ -271,6 +273,25 @@ router.get('/students/distinct/:fieldKey', verifyToken, isAdmin, async (req, res
 });
 
 // Students with data-quality issues (duplicate email, portal-only vs CRM, etc.)
+router.get('/students/uncertain-engagement-report', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { getUncertainStudentsEngagementReport } = require('../services/uncertainStudentsReport.service');
+    const batchFrom = parseInt(String(req.query.batchFrom || '35'), 10);
+    const batchTo = parseInt(String(req.query.batchTo || '45'), 10);
+    const report = await getUncertainStudentsEngagementReport({
+      batchFrom: Number.isFinite(batchFrom) ? batchFrom : 35,
+      batchTo: Number.isFinite(batchTo) ? batchTo : 45,
+    });
+    return noStoreJson(res, { success: true, ...report });
+  } catch (err) {
+    console.error('[admin] GET /students/uncertain-engagement-report', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to build uncertain students engagement report',
+    });
+  }
+});
+
 router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
   try {
     const result = await computeStudentDataIssues();
@@ -315,7 +336,8 @@ router.get('/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACH
 
     if (level) query.level = String(level).trim();
     if (plan) query.subscription = String(plan).trim().toUpperCase();
-    if (batch) query.batch = String(batch).trim();
+    const batchFilter = batchMatchFilters(batch);
+    if (batchFilter) query.batch = batchFilter;
     if (studentStatus) query.studentStatus = String(studentStatus).trim().toUpperCase();
     applyStudentNameFilter(query, studentName);
     if (servicesOpted) query.servicesOpted = String(servicesOpted).trim();
@@ -408,6 +430,73 @@ router.get('/students/:studentId/change-history', verifyToken, isAdmin, async (r
   } catch (err) {
     console.error('Error fetching student change history:', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch student change history' });
+  }
+});
+
+// Account audit log — who created/updated/deleted any portal user (all roles)
+router.get('/user-audit-logs', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const page = Math.max(parseInt(String(req.query.page || '1'), 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1), 200);
+    const skip = (page - 1) * limit;
+
+    const query = {};
+    if (req.query.targetUserId && mongoose.Types.ObjectId.isValid(String(req.query.targetUserId))) {
+      query.targetUserId = req.query.targetUserId;
+    }
+    if (req.query.actorId && mongoose.Types.ObjectId.isValid(String(req.query.actorId))) {
+      query.actorId = req.query.actorId;
+    }
+    if (req.query.action) {
+      query.action = String(req.query.action).toUpperCase();
+    }
+    if (req.query.targetUserRole) {
+      query.targetUserRole = String(req.query.targetUserRole).toUpperCase();
+    }
+    if (req.query.q) {
+      const q = String(req.query.q).trim();
+      if (q) {
+        query.$or = [
+          { targetUserName: new RegExp(q, 'i') },
+          { targetUserEmail: new RegExp(q, 'i') },
+          { targetUserRegNo: new RegExp(q, 'i') },
+          { actorName: new RegExp(q, 'i') },
+        ];
+      }
+    }
+    if (req.query.from || req.query.to) {
+      query.occurredAt = {};
+      if (req.query.from) {
+        const from = new Date(req.query.from);
+        if (!Number.isNaN(from.getTime())) query.occurredAt.$gte = from;
+      }
+      if (req.query.to) {
+        const to = new Date(req.query.to);
+        if (!Number.isNaN(to.getTime())) query.occurredAt.$lte = to;
+      }
+      if (!Object.keys(query.occurredAt).length) delete query.occurredAt;
+    }
+
+    const [total, rows] = await Promise.all([
+      UserAuditLog.countDocuments(query),
+      UserAuditLog.find(query)
+        .sort({ occurredAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    return res.json({
+      success: true,
+      count: rows.length,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      data: rows,
+    });
+  } catch (err) {
+    console.error('Error fetching user audit logs:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch user audit logs' });
   }
 });
 
@@ -591,7 +680,7 @@ async function buildTeacherAnalyticsOverview(monthFilter) {
   const [teachers, allStudents] = await Promise.all([
     User.find({ role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
       .populate('assignedCourses', 'title')
-      .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
+      .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates noTds')
       .lean(),
     User.find({ role: 'STUDENT', assignedTeacher: { $exists: true, $ne: null } })
       .select('assignedTeacher batch level')
@@ -733,6 +822,7 @@ async function buildTeacherAnalyticsOverview(monthFilter) {
       attendance: attendancePct,
       batchBreakdown,
       levelHourlyRates: normalizeLevelHourlyRates(teacher.levelHourlyRates),
+      noTds: teacher.noTds === true,
     });
   }
 
@@ -845,6 +935,34 @@ router.put('/teachers/:teacherId/level-rates', verifyToken, isAdmin, async (req,
   }
 });
 
+// Toggle TDS exemption for a teacher
+router.put('/teachers/:teacherId/toggle-tds', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(teacherId)) {
+      return res.status(400).json({ success: false, message: 'Invalid teacher ID' });
+    }
+
+    const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
+      .select('name noTds')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({ success: false, message: 'Teacher not found' });
+    }
+
+    const newNoTds = !teacher.noTds;
+    await User.updateOne({ _id: teacherId }, { $set: { noTds: newNoTds, updatedAt: new Date() } });
+
+    teacherAnalyticsOverviewCache.clear();
+
+    return res.json({ success: true, data: { teacherId, noTds: newNoTds } });
+  } catch (err) {
+    console.error('Error toggling teacher TDS exemption:', err);
+    return res.status(500).json({ success: false, message: 'Failed to update TDS exemption', error: err.message });
+  }
+});
+
 // Monthly teaching-hours audit for one teacher
 router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (req, res) => {
   try {
@@ -866,7 +984,7 @@ router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (re
         role: { $in: ['TEACHER', 'TEACHER_ADMIN'] }
       })
         .populate('assignedCourses', 'title')
-        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates')
+        .select('name regNo email medium assignedBatches assignedCourses levelHourlyRates noTds')
         .lean(),
       MeetingLink.find({
         assignedTeacher: teacherId,
@@ -1029,6 +1147,7 @@ router.get('/teachers/:teacherId/monthly-hours', verifyToken, isAdmin, async (re
           assignedBatches: teacher.assignedBatches || [],
           levels: [...allLevelSet].sort(),
           levelHourlyRates: normalizeLevelHourlyRates(teacher.levelHourlyRates),
+          noTds: teacher.noTds === true,
         },
         month: monthFilter.month,
         monthLabel: monthFilter.monthLabel,
@@ -1590,6 +1709,24 @@ router.post('/bulk-update', verifyToken, isAdmin, async (req, res) => {
           journeyDue.syncForStudent(sid).catch(() => {});
         }
       } catch (_) { /* payment module optional */ }
+    }
+
+    // Auto-remove students from future scheduled meetings when status changes to UNCERTAIN or WITHDREW
+    if (updates.studentStatus === 'UNCERTAIN' || updates.studentStatus === 'WITHDREW') {
+      try {
+        const objectIds = studentIds.map((id) => new mongoose.Types.ObjectId(String(id)));
+        await MeetingLink.updateMany(
+          {
+            status: 'scheduled',
+            'attendees.studentId': { $in: objectIds }
+          },
+          {
+            $pull: { attendees: { studentId: { $in: objectIds } } }
+          }
+        );
+      } catch (autoRemoveErr) {
+        console.error('Auto-remove from scheduled meetings error:', autoRemoveErr);
+      }
     }
 
     res.json({ 

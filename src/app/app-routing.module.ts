@@ -109,6 +109,14 @@ export const routes: Routes = [
     data: { role: ['ADMIN', 'TEACHER_ADMIN'] }
   },
 
+  {
+    path: 'account-audit-log',
+    loadComponent: () => import('./components/admin-dashboard/account-audit-log.component')
+      .then(m => m.AccountAuditLogComponent),
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] }
+  },
+
 
   // ✅ NEW: AI Usage Analytics route
   {
@@ -230,6 +238,7 @@ export const routes: Routes = [
 
   // Admin Zoom Reports
   { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+  { path: 'admin/attendance-dashboard', loadComponent: () => import('./components/admin-dashboard/attendance-dashboard.component').then(m => m.AttendanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
 
 
   // Class Recordings — Teacher/Admin manage

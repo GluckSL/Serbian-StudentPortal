@@ -1,0 +1,123 @@
+<div class="audit-page">
+  <div class="page-header">
+    <div>
+      <h1><i class="fas fa-clipboard-list"></i> Account Audit Log</h1>
+      <p>Track who created, updated, deleted, or reset passwords for any portal account.</p>
+    </div>
+    <div class="total-badge">{{ total }} events</div>
+  </div>
+
+  <div class="filters card-panel">
+    <div class="filter-grid">
+      <label>
+        Search
+        <input type="text" [(ngModel)]="filters.q" placeholder="Name, email, reg no, actor..." />
+      </label>
+      <label>
+        Action
+        <select [(ngModel)]="filters.action">
+          <option *ngFor="let a of actions" [value]="a">{{ a || 'All actions' }}</option>
+        </select>
+      </label>
+      <label>
+        Target role
+        <select [(ngModel)]="filters.targetUserRole">
+          <option *ngFor="let r of roles" [value]="r">{{ r || 'All roles' }}</option>
+        </select>
+      </label>
+      <label>
+        From
+        <input type="date" [(ngModel)]="filters.from" />
+      </label>
+      <label>
+        To
+        <input type="date" [(ngModel)]="filters.to" />
+      </label>
+    </div>
+    <div class="filter-actions">
+      <button type="button" class="btn-primary" (click)="applyFilters()">Apply</button>
+      <button type="button" class="btn-secondary" (click)="clearFilters()">Clear</button>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="state-msg">Loading audit logs...</div>
+  <div *ngIf="error" class="state-msg error">{{ error }}</div>
+
+  <div class="card-panel" *ngIf="!loading && !error">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Action</th>
+            <th>Target account</th>
+            <th>Performed by</th>
+            <th>Source</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let row of rows">
+            <tr>
+              <td>{{ formatWhen(row.occurredAt) }}</td>
+              <td><span class="action-pill" [attr.data-action]="row.action">{{ row.action }}</span></td>
+              <td>
+                <div class="target-name">{{ row.targetUserName || '—' }}</div>
+                <div class="target-meta">{{ targetLabel(row) }}</div>
+              </td>
+              <td>
+                <div>{{ actorLabel(row) }}</div>
+                <div class="target-meta" *ngIf="row.actorIp">{{ row.actorIp }}</div>
+              </td>
+              <td>{{ row.source || '—' }}</td>
+              <td>
+                <button type="button" class="btn-link" (click)="toggleExpand(row._id)">
+                  {{ expandedId === row._id ? 'Hide' : 'Details' }}
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="expandedId === row._id" class="detail-row">
+              <td colspan="6">
+                <div class="detail-block" *ngIf="row.changedFields?.length">
+                  <h4>Field changes</h4>
+                  <table class="inner-table">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Old</th>
+                        <th>New</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let c of row.changedFields">
+                        <td>{{ c.field }}</td>
+                        <td>{{ formatValue(c.oldValue) }}</td>
+                        <td>{{ formatValue(c.newValue) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="detail-block" *ngIf="row.metadata">
+                  <h4>Metadata</h4>
+                  <pre>{{ formatValue(row.metadata) }}</pre>
+                </div>
+
+                <div class="detail-block" *ngIf="row.userSnapshot">
+                  <h4>Account snapshot</h4>
+                  <pre>{{ formatValue(row.userSnapshot) }}</pre>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pager" *ngIf="pages > 1">
+      <button type="button" [disabled]="page <= 1" (click)="fetchLogs(page - 1)">Previous</button>
+      <span>Page {{ page }} of {{ pages }}</span>
+      <button type="button" [disabled]="page >= pages" (click)="fetchLogs(page + 1)">Next</button>
+    </div>
+  </div>
+</div>

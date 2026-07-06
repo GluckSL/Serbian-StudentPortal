@@ -398,6 +398,11 @@ export class ZoomReportsComponent implements OnInit {
   }
 
   viewMeetingDetails(id: string): void { this.router.navigate(['/teacher/meetings', id]); }
+
+  openAttendanceDashboard(): void {
+    this.router.navigate(['/admin/attendance-dashboard']);
+  }
+
   viewAttendance(id: string): void {
     const url = this.router.serializeUrl(
       this.router.createUrlTree(['/teacher/meetings', id, 'attendance'])

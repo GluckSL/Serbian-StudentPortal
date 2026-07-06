@@ -494,8 +494,8 @@ export class CreateZoomMeetingComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.allStudents = response.data;
-          this.filteredStudents = [...this.allStudents];
           this.batches = [...new Set(this.allStudents.map(s => s.batch))].sort();
+          this.filterStudents();
         }
         this.isLoading = false;
       },

@@ -178,14 +178,77 @@ import { ZoomService } from '../../services/zoom.service';
                   <h3>Detailed Attendance</h3>
                   <p class="section-head__hint">Per-student status, match quality, and manual overrides</p>
                 </div>
-                <button
-                  class="action-btn action-btn--outline"
-                  (click)="markAllStudentsAttended()"
-                  [disabled]="manualMarkingAll || !hasAbsentStudents()">
-                  <mat-icon>{{ manualMarkingAll ? 'hourglass_empty' : 'done_all' }}</mat-icon>
-                  {{ manualMarkingAll ? 'Marking...' : 'Mark All' }}
-                </button>
+                <div class="attendance-actions-group">
+                  <button
+                    class="action-btn action-btn--outline"
+                    (click)="markAllStudentsAttended()"
+                    [disabled]="manualMarkingAll || !hasAbsentStudents()">
+                    <mat-icon>{{ manualMarkingAll ? 'hourglass_empty' : 'done_all' }}</mat-icon>
+                    {{ manualMarkingAll ? 'Marking...' : 'Mark All' }}
+                  </button>
+                  <button
+                    class="action-btn action-btn--add"
+                    (click)="toggleAddPanel()">
+                    <mat-icon>{{ showAddPanel ? 'expand_less' : 'person_add' }}</mat-icon>
+                    {{ showAddPanel ? 'Close' : 'Add Participants' }}
+                  </button>
+                </div>
               </div>
+
+              <!-- Add Participants Panel -->
+              <div *ngIf="showAddPanel" class="add-participants-panel">
+                <div class="add-panel-inner">
+                  <div class="add-panel-title">
+                    <mat-icon>group_add</mat-icon>
+                    <span>Add students from batch <strong>{{ attendanceData.batch }}</strong></span>
+                  </div>
+
+                  <div *ngIf="loadingBatchStudents" class="add-panel-loading">
+                    <div class="loading-spinner" style="width:20px;height:20px;border-width:2px;"></div>
+                    <span>Loading batch students...</span>
+                  </div>
+
+                  <ng-container *ngIf="!loadingBatchStudents">
+                    <mat-form-field appearance="outline" class="add-panel-search">
+                      <mat-label>Search by name or email</mat-label>
+                      <mat-icon matPrefix>search</mat-icon>
+                      <input matInput [(ngModel)]="participantSearch"
+                             (ngModelChange)="filterBatchStudents()"
+                             placeholder="Type to filter...">
+                      <button *ngIf="participantSearch" matSuffix mat-icon-button (click)="participantSearch=''; filterBatchStudents()">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </mat-form-field>
+
+                    <div class="batch-student-list">
+                      <div *ngFor="let student of filteredBatchStudents" class="batch-student-row">
+                        <div class="batch-student-info">
+                          <span class="batch-student-name">{{ student.name }}</span>
+                          <span class="batch-student-email">{{ student.email }}</span>
+                        </div>
+                        <ng-container *ngIf="isStudentAlreadyAdded(student); else addBtn">
+                          <span class="already-added-badge">
+                            <mat-icon>check_circle</mat-icon> Already in list
+                          </span>
+                        </ng-container>
+                        <ng-template #addBtn>
+                          <button mat-stroked-button class="add-student-btn"
+                            (click)="addParticipant(student)"
+                            [disabled]="addingParticipantId === student._id">
+                            <mat-icon>{{ addingParticipantId === student._id ? 'hourglass_empty' : 'person_add' }}</mat-icon>
+                            {{ addingParticipantId === student._id ? 'Adding...' : 'Add' }}
+                          </button>
+                        </ng-template>
+                      </div>
+                      <div *ngIf="filteredBatchStudents.length === 0 && !loadingBatchStudents" class="no-students-hint">
+                        <mat-icon>search_off</mat-icon>
+                        <span>No students found{{ participantSearch ? ' matching "' + participantSearch + '"' : '' }}</span>
+                      </div>
+                    </div>
+                  </ng-container>
+                </div>
+              </div>
+
               <div class="table-wrap">
               <table mat-table [dataSource]="attendanceData.attendance" class="attendance-table">
                 <ng-container matColumnDef="name">
@@ -269,16 +332,26 @@ import { ZoomService } from '../../services/zoom.service';
                 </ng-container>
 
                 <ng-container matColumnDef="manualMark">
-                  <th mat-header-cell *matHeaderCellDef>Manual Mark</th>
+                  <th mat-header-cell *matHeaderCellDef>Actions</th>
                   <td mat-cell *matCellDef="let record">
-                    <button
-                      mat-stroked-button
-                      color="primary"
-                      (click)="markStudentAttended(record)"
-                      [disabled]="isMarkingStudent(record) || isAttendedByDuration(record)">
-                      <mat-icon>{{ isMarkingStudent(record) ? 'hourglass_empty' : 'check_circle' }}</mat-icon>
-                      {{ isAttendedByDuration(record) ? 'Marked' : (isMarkingStudent(record) ? 'Marking...' : 'Mark') }}
-                    </button>
+                    <div class="row-actions">
+                      <button
+                        mat-stroked-button
+                        color="primary"
+                        (click)="markStudentAttended(record)"
+                        [disabled]="isMarkingStudent(record) || isAttendedByDuration(record)">
+                        <mat-icon>{{ isMarkingStudent(record) ? 'hourglass_empty' : 'check_circle' }}</mat-icon>
+                        {{ isAttendedByDuration(record) ? 'Marked' : (isMarkingStudent(record) ? 'Marking...' : 'Mark') }}
+                      </button>
+                      <button
+                        mat-icon-button
+                        class="remove-student-btn"
+                        (click)="removeParticipant(record)"
+                        [disabled]="removingParticipantId === record.studentId?.toString()"
+                        matTooltip="Remove from attendance list">
+                        <mat-icon>{{ removingParticipantId === record.studentId?.toString() ? 'hourglass_empty' : 'person_remove' }}</mat-icon>
+                      </button>
+                    </div>
                   </td>
                 </ng-container>
 
@@ -1213,6 +1286,191 @@ import { ZoomService } from '../../services/zoom.service';
       box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     }
 
+    /* ── Attendance Actions Group ── */
+    .attendance-actions-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .action-btn--add {
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+    .action-btn--add:hover { background: #dcfce7; border-color: #86efac; }
+
+    /* ── Add Participants Panel ── */
+    .add-participants-panel {
+      margin: 0 0 16px 0;
+      border-radius: 12px;
+      border: 1.5px solid #bbf7d0;
+      background: linear-gradient(135deg, #f0fdf4 0%, #fff 100%);
+      overflow: hidden;
+      animation: slideDown 0.2s ease-out;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .add-panel-inner {
+      padding: 16px 20px;
+    }
+
+    .add-panel-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #166534;
+      margin-bottom: 14px;
+    }
+
+    .add-panel-title mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: #16a34a;
+    }
+
+    .add-panel-loading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #64748b;
+      font-size: 13px;
+      padding: 8px 0;
+    }
+
+    .add-panel-search {
+      width: 100%;
+      max-width: 420px;
+      margin-bottom: 4px;
+    }
+
+    :host ::ng-deep .add-panel-search .mat-mdc-form-field-subscript-wrapper { display: none; }
+    :host ::ng-deep .add-panel-search .mat-mdc-text-field-wrapper { background: #fff; }
+
+    .batch-student-list {
+      max-height: 320px;
+      overflow-y: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #fff;
+      margin-top: 10px;
+    }
+
+    .batch-student-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      gap: 12px;
+      transition: background 0.1s;
+    }
+
+    .batch-student-row:last-child { border-bottom: none; }
+    .batch-student-row:hover { background: #f8fafc; }
+
+    .batch-student-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .batch-student-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .batch-student-email {
+      font-size: 11px;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .add-student-btn {
+      flex-shrink: 0;
+      font-size: 12px;
+      padding: 0 12px;
+      height: 32px;
+      line-height: 32px;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+
+    .add-student-btn mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .already-added-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #16a34a;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      padding: 3px 10px;
+      flex-shrink: 0;
+    }
+
+    .already-added-badge mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
+    .no-students-hint {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 16px;
+      gap: 8px;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    .no-students-hint mat-icon {
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+    }
+
+    /* ── Row Actions ── */
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .remove-student-btn {
+      color: #dc2626 !important;
+      opacity: 0.75;
+      transition: opacity 0.15s;
+    }
+
+    .remove-student-btn:hover:not(:disabled) { opacity: 1; }
+    .remove-student-btn:disabled { opacity: 0.35; }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .summary-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1225,6 +1483,8 @@ import { ZoomService } from '../../services/zoom.service';
       .stat-card__val { font-size: 22px; }
       .meeting-info-header { flex-direction: column; }
       .refetch-btn { width: 100%; justify-content: center; }
+      .attendance-actions-group { flex-direction: column; width: 100%; }
+      .attendance-actions-group .action-btn { width: 100%; justify-content: center; }
     }
   `]
 })
@@ -1248,6 +1508,15 @@ export class MeetingAttendanceComponent implements OnInit {
   manualMarkingStudentId: string = '';
   manualMarkingAll: boolean = false;
   refetching: boolean = false;
+
+  // Add Participants panel state
+  showAddPanel: boolean = false;
+  loadingBatchStudents: boolean = false;
+  batchStudents: any[] = [];
+  filteredBatchStudents: any[] = [];
+  participantSearch: string = '';
+  addingParticipantId: string = '';
+  removingParticipantId: string = '';
 
   constructor(
     private route: ActivatedRoute,
@@ -1405,6 +1674,90 @@ export class MeetingAttendanceComponent implements OnInit {
     return (this.attendanceData?.attendance || []).some((r: any) => !this.isAttendedByDuration(r));
   }
 
+  // --- Add / Remove Participants ---
+
+  toggleAddPanel(): void {
+    this.showAddPanel = !this.showAddPanel;
+    if (this.showAddPanel && this.batchStudents.length === 0) {
+      this.loadBatchStudents();
+    }
+  }
+
+  loadBatchStudents(): void {
+    const batch = this.attendanceData?.batch;
+    if (!batch) return;
+    this.loadingBatchStudents = true;
+    this.zoomService.getStudentsByBatch(batch).subscribe({
+      next: (res) => {
+        this.batchStudents = res.students || res.data || res || [];
+        this.filterBatchStudents();
+        this.loadingBatchStudents = false;
+      },
+      error: () => {
+        this.loadingBatchStudents = false;
+      }
+    });
+  }
+
+  filterBatchStudents(): void {
+    const q = (this.participantSearch || '').toLowerCase().trim();
+    this.filteredBatchStudents = this.batchStudents.filter((s: any) => {
+      if (!q) return true;
+      return (s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q);
+    });
+  }
+
+  isStudentAlreadyAdded(student: any): boolean {
+    return (this.attendanceData?.attendance || []).some(
+      (r: any) => r.studentId && (
+        r.studentId === student._id ||
+        r.studentId.toString() === student._id?.toString() ||
+        (r.email && student.email && r.email.toLowerCase() === student.email.toLowerCase())
+      )
+    );
+  }
+
+  addParticipant(student: any): void {
+    if (!student?._id || !this.meetingId) return;
+    this.addingParticipantId = student._id;
+    this.mapMessage = '';
+
+    this.zoomService.addParticipantToEndedMeeting(this.meetingId, student._id).subscribe({
+      next: (res) => {
+        this.mapSuccess = true;
+        this.mapMessage = res.message || `${student.name} added to attendance list`;
+        this.addingParticipantId = '';
+        this.loadAttendance();
+      },
+      error: (err) => {
+        this.mapSuccess = false;
+        this.mapMessage = err.error?.message || 'Failed to add participant';
+        this.addingParticipantId = '';
+      }
+    });
+  }
+
+  removeParticipant(record: any): void {
+    const sid = String(record?.studentId || '');
+    if (!sid || !this.meetingId) return;
+    this.removingParticipantId = sid;
+    this.mapMessage = '';
+
+    this.zoomService.removeParticipantFromEndedMeeting(this.meetingId, sid).subscribe({
+      next: (res) => {
+        this.mapSuccess = true;
+        this.mapMessage = res.message || `${record.name} removed from attendance list`;
+        this.removingParticipantId = '';
+        this.loadAttendance();
+      },
+      error: (err) => {
+        this.mapSuccess = false;
+        this.mapMessage = err.error?.message || 'Failed to remove participant';
+        this.removingParticipantId = '';
+      }
+    });
+  }
+
   isMarkingStudent(record: any): boolean {
     return this.manualMarkingStudentId !== '' && String(record?.studentId || '') === this.manualMarkingStudentId;
   }
@@ -1446,6 +1799,10 @@ export class MeetingAttendanceComponent implements OnInit {
       'fuzzy_name': 'Similar Name',
       'containment': 'Name Match (partial)',
       'single_participant': 'Single participant (review)',
+      'manual_add': 'Manually Added',
+      'manual_mark': 'Manually Marked',
+      'manual_mark_all': 'Manually Marked (all)',
+      'manual_map': 'Manually Mapped',
       'no_match': 'No Match'
     };
     return labels[method] || method;

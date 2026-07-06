@@ -62,10 +62,18 @@
             </div>
           </div>
           <div class="tmc-analytics-stat">
-            <span class="tmc-analytics-icon tmc-analytics-icon--amber"><i class="fas fa-gift"></i></span>
+            <span class="tmc-analytics-icon tmc-analytics-icon--amber"><i class="fas fa-rupee-sign"></i></span>
             <div>
-              <small>Total</small>
-              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">{{ hasRates ? formatCurrency(computeBaseTotal()) : '—' }}</strong>
+              <small>{{ isNoTds ? 'Total' : 'Payable (after TDS)' }}</small>
+              <strong *ngIf="!loadingMonthlyAnalytics; else analyticsLoading">
+                {{ hasRates ? formatCurrency(isNoTds ? computeBaseTotal() : computeFinal()) : '—' }}
+              </strong>
+              <span class="tmc-analytics-sub" *ngIf="!loadingMonthlyAnalytics && hasRates && !isNoTds">
+                Gross {{ formatCurrency(computeBaseTotal()) }} · TDS 10% {{ formatCurrency(computeTDS()) }}
+              </span>
+              <span class="tmc-analytics-sub tmc-analytics-sub--exempt" *ngIf="!loadingMonthlyAnalytics && hasRates && isNoTds">
+                No TDS deducted
+              </span>
             </div>
           </div>
         </div>

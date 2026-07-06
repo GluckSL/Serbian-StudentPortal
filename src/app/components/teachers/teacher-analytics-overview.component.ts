@@ -42,6 +42,7 @@ export interface TeacherSummaryRow {
   attendance: number | null;
   batchBreakdown: TeacherBatchRow[];
   levelHourlyRates?: Record<string, number>;
+  noTds?: boolean;
 }
 
 interface OverviewTotals {
@@ -97,6 +98,7 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   savingRates = false;
   ratesError = '';
   private allLevelRates: Record<string, Record<string, number>> = {};
+  togglingTdsId: string | null = null;
 
   constructor(
     private http: HttpClient,
@@ -365,11 +367,35 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   }
 
   computeTDS(teacher: TeacherSummaryRow): number {
+    if (teacher.noTds) return 0;
     return this.computeTotal(teacher) * TDS_PERCENT / 100;
   }
 
   computeFinal(teacher: TeacherSummaryRow): number {
     return this.computeTotal(teacher) - this.computeTDS(teacher);
+  }
+
+  toggleNoTds(teacher: TeacherSummaryRow, event: Event): void {
+    event.stopPropagation();
+    if (this.togglingTdsId === teacher.teacherId) return;
+    this.togglingTdsId = teacher.teacherId;
+    this.http
+      .put<{ success: boolean; data: { teacherId: string; noTds: boolean } }>(
+        `${apiUrl}/admin/teachers/${teacher.teacherId}/toggle-tds`,
+        {},
+        { withCredentials: true, headers: this.authHeaders() },
+      )
+      .subscribe({
+        next: (res) => {
+          this.togglingTdsId = null;
+          if (res?.success) {
+            teacher.noTds = res.data.noTds;
+            const inFiltered = this.filteredTeachers.find(t => t.teacherId === teacher.teacherId);
+            if (inFiltered) inFiltered.noTds = res.data.noTds;
+          }
+        },
+        error: () => { this.togglingTdsId = null; },
+      });
   }
 
   getRateDisplay(teacher: TeacherSummaryRow): string {

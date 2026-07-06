@@ -392,6 +392,23 @@
   cursor: not-allowed;
 }
 
+.btn-action--uncertain {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  font-weight: 600;
+}
+
+.btn-action--uncertain:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fb923c;
+}
+
+.btn-action--uncertain:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .issues-badge {
   display: inline-flex;
   align-items: center;
@@ -806,6 +823,78 @@
   box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.12);
   background: #fff;
   outline: none;
+}
+
+.student-batch-multi {
+  position: relative;
+}
+
+.student-batch-multi__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.student-batch-multi__trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.student-batch-multi__arrow {
+  font-size: 10px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.student-batch-multi__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  padding: 6px 0;
+}
+
+.student-batch-multi__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  margin: 0;
+}
+
+.student-batch-multi__item:hover {
+  background: #f8fafc;
+}
+
+.student-batch-multi__item input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.student-batch-multi__item--all {
+  font-weight: 600;
+}
+
+.student-batch-multi__divider {
+  height: 1px;
+  background: #e8ecf4;
+  margin: 4px 0;
 }
 
 .filter-actions-bar {

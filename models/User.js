@@ -67,6 +67,8 @@ const UserSchema = new mongoose.Schema({
     of: Number,
     default: () => new Map(),
   },
+  /** When true, TDS is not deducted and the teacher receives the full base amount. */
+  noTds: { type: Boolean, default: false },
   assignedTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, function() { return this.role === "STUDENT"; } }, // Teacher assigned to the student
   isActive: { type: Boolean, default: true },
   profilePic: { type: String, default: "" },
