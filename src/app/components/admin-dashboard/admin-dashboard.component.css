@@ -392,6 +392,23 @@
   cursor: not-allowed;
 }
 
+.btn-action--uncertain {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  font-weight: 600;
+}
+
+.btn-action--uncertain:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fb923c;
+}
+
+.btn-action--uncertain:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .issues-badge {
   display: inline-flex;
   align-items: center;

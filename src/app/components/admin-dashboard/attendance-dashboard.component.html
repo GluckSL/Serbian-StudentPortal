@@ -1,0 +1,348 @@
+<div class="ad">
+
+  <div class="ad-header">
+    <div class="ad-header__left">
+      <button class="ad-back" type="button" (click)="goBack()">
+        <i class="fa fa-arrow-left"></i> Zoom Reports
+      </button>
+      <div>
+        <h2 class="ad-header__title">Attendance Dashboard</h2>
+        <p class="ad-header__sub">Completed classes — student attendance scores (e.g. attended 6 of 7) and average %</p>
+      </div>
+    </div>
+    <div class="ad-header__actions">
+      <button class="ad-btn ad-btn--ghost" type="button" (click)="loadDashboard()" [disabled]="loading || loadingPage">
+        <i class="fa fa-rotate-right" [class.fa-spin]="loadingPage"></i> Refresh
+      </button>
+      <button class="ad-btn ad-btn--secondary" type="button" (click)="exportMeetingsCsv()" [disabled]="!meetings.length || loading">
+        <i class="fa fa-table"></i> Export Classes
+      </button>
+      <button class="ad-btn ad-btn--secondary" type="button" (click)="exportStudentsCsv()" [disabled]="!students.length || loading">
+        <i class="fa fa-users"></i> Export Students
+      </button>
+      <button class="ad-btn ad-btn--primary" type="button" (click)="exportDetailCsv()" [disabled]="!selectedStudent?.classes?.length">
+        <i class="fa fa-download"></i> Export Student Detail
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="ad-stats" *ngIf="!loading; else statsSkeleton">
+    <div class="ad-stat ad-stat--blue">
+      <div class="ad-stat__val">{{ summary.totalMeetings }}</div>
+      <div class="ad-stat__lbl">Completed Classes</div>
+    </div>
+    <div class="ad-stat ad-stat--green">
+      <div class="ad-stat__val">{{ summary.totalStudents }}</div>
+      <div class="ad-stat__lbl">Students</div>
+    </div>
+    <div class="ad-stat ad-stat--purple">
+      <div class="ad-stat__val">{{ summary.avgAttendanceRate }}%</div>
+      <div class="ad-stat__lbl">Avg Attendance Rate</div>
+    </div>
+    <div class="ad-stat ad-stat--teal">
+      <div class="ad-stat__val">{{ summary.avgStudentScore }}%</div>
+      <div class="ad-stat__lbl">Avg Student Score</div>
+    </div>
+    <div class="ad-stat ad-stat--orange">
+      <div class="ad-stat__val">{{ summary.studentsBelow75 }}</div>
+      <div class="ad-stat__lbl">Below 75%</div>
+    </div>
+  </div>
+  <ng-template #statsSkeleton>
+    <div class="ad-stats">
+      <div class="ad-stat ad-stat--skel" *ngFor="let _ of skeletonStatCount">
+        <div class="ad-skel ad-skel--val"></div>
+        <div class="ad-skel ad-skel--lbl"></div>
+      </div>
+    </div>
+  </ng-template>
+
+  <div class="ad-filters-wrap">
+    <div class="ad-filters-head">
+      <span class="ad-filters-title">Filters</span>
+      <button class="ad-btn-clear" type="button" (click)="clearFilters()">Clear</button>
+    </div>
+    <div class="ad-filters">
+      <input class="ad-input ad-input--search" type="text"
+             placeholder="Search class topic, teacher, batch…"
+             [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()">
+
+      <input class="ad-input ad-input--search" type="text"
+             placeholder="Search student name or email…"
+             [(ngModel)]="studentSearch" (ngModelChange)="onStudentSearchChange()">
+
+      <select class="ad-select" [(ngModel)]="teacherFilter" (ngModelChange)="onFilterChange()" *ngIf="!isTeacherRole">
+        <option value="all">All Teachers</option>
+        <option *ngFor="let t of teacherOptions" [value]="t">{{ t }}</option>
+      </select>
+
+      <div class="ad-multi-select" (click)="$event.stopPropagation()">
+        <button type="button"
+                class="ad-multi-select__trigger ad-select"
+                (click)="toggleBatchDropdown($event)"
+                [disabled]="!journeyBatchNames.length">
+          <span>{{ batchFilterLabel }}</span>
+          <i class="fa fa-chevron-down ad-multi-select__arrow"></i>
+        </button>
+        <div class="ad-multi-select__panel" *ngIf="batchDropdownOpen">
+          <label class="ad-multi-select__item ad-multi-select__item--all">
+            <input type="checkbox" [checked]="allBatchesSelected" (change)="selectAllBatches($event)">
+            <span>All Batches</span>
+          </label>
+          <div class="ad-multi-select__divider"></div>
+          <label class="ad-multi-select__item" *ngFor="let b of journeyBatchNames">
+            <input type="checkbox" [checked]="isBatchChecked(b)" (change)="toggleBatchSelection(b, $event)">
+            <span>{{ b }}</span>
+          </label>
+        </div>
+      </div>
+
+      <select class="ad-select" [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()">
+        <option value="all">All Time</option>
+        <option value="today">Today</option>
+        <option value="week">Last 7 Days</option>
+        <option value="month">Last 30 Days</option>
+        <option value="custom">Custom Range</option>
+      </select>
+
+      <select class="ad-select" [(ngModel)]="scoreFilter" (ngModelChange)="onScoreFilterChange()">
+        <option value="all">All Scores</option>
+        <option value="below75">Below 75%</option>
+        <option value="above75">75% and above</option>
+      </select>
+
+      <ng-container *ngIf="dateFilter === 'custom'">
+        <input class="ad-select" type="date" [(ngModel)]="customDateFrom" (ngModelChange)="onFilterChange()">
+        <input class="ad-select" type="date" [(ngModel)]="customDateTo" (ngModelChange)="onFilterChange()">
+      </ng-container>
+    </div>
+  </div>
+
+  <div class="ad-tabs">
+    <button type="button" [class.active]="viewTab === 'students'" (click)="viewTab = 'students'">
+      <i class="fa fa-users"></i> Students
+    </button>
+    <button type="button" [class.active]="viewTab === 'classes'" (click)="viewTab = 'classes'">
+      <i class="fa fa-chalkboard"></i> Classes
+    </button>
+  </div>
+
+  <div *ngIf="error && !loading" class="ad-error">
+    <i class="fa fa-circle-exclamation"></i>
+    <p>{{ error }}</p>
+    <button class="ad-btn ad-btn--primary" type="button" (click)="loadDashboard()">Retry</button>
+  </div>
+
+  <div class="ad-layout" *ngIf="!error && viewTab === 'students'">
+    <section class="ad-panel" [class.ad-panel--loading]="loadingPage">
+      <div class="ad-panel__head">
+        <h3>Student Attendance</h3>
+        <span class="ad-count" *ngIf="!loading">{{ totalItems }} students</span>
+      </div>
+
+      <!-- Table skeleton -->
+      <div *ngIf="loading" class="ad-table-skeleton">
+        <div class="ad-table-skeleton__head">
+          <div class="ad-skel" *ngFor="let _ of [1,2,3,4,5,6]"></div>
+        </div>
+        <div class="ad-table-skeleton__row" *ngFor="let _ of skeletonRowCount">
+          <div class="ad-skel ad-skel--name"></div>
+          <div class="ad-skel ad-skel--short"></div>
+          <div class="ad-skel ad-skel--bar"></div>
+          <div class="ad-skel ad-skel--pill"></div>
+          <div class="ad-skel ad-skel--short"></div>
+          <div class="ad-skel ad-skel--short"></div>
+        </div>
+      </div>
+
+      <div *ngIf="!loading && !loadingPage && !students.length" class="ad-empty">
+        <i class="fa fa-user-slash"></i>
+        <h4>No students found</h4>
+        <p>Adjust filters or ensure completed classes have attendance data.</p>
+      </div>
+
+      <div class="ad-table-wrap" *ngIf="!loading && students.length">
+        <table class="ad-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Batch</th>
+              <th>Attended</th>
+              <th>Score</th>
+              <th>Avg %</th>
+              <th>Minutes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of students; trackBy: trackStudent"
+                class="ad-row"
+                [class.ad-row--active]="selectedStudent?.studentId === s.studentId"
+                (click)="selectStudent(s)">
+              <td>
+                <div class="ad-student-name">{{ s.name }}</div>
+                <div class="ad-student-email">{{ s.email }}</div>
+              </td>
+              <td class="ad-td-muted">{{ s.batch || '—' }}</td>
+              <td>
+                <span class="ad-progress">{{ s.progressText }}</span>
+                <div class="ad-bar">
+                  <div class="ad-bar__fill" [style.width.%]="s.attendanceScore"></div>
+                </div>
+              </td>
+              <td>
+                <span [ngClass]="scoreClass(s.attendanceScore)">{{ s.attendanceScore }}%</span>
+              </td>
+              <td class="ad-td-strong">{{ s.avgAttendancePercent }}%</td>
+              <td class="ad-td-muted">{{ s.attendedMinutes }}/{{ s.totalMinutes }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ad-pagination" *ngIf="!loading && totalItems > 0">
+        <div class="ad-pagination__info">
+          <span class="ad-pagination__range">
+            <strong>{{ pageStartIndex }}–{{ pageEndIndex }}</strong> of <strong>{{ totalItems }}</strong> students
+          </span>
+        </div>
+        <div class="ad-pagination__controls">
+          <label class="ad-pagination__label">
+            Rows
+            <select class="ad-pagination__select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange()">
+              <option *ngFor="let n of pageSizeOptions" [ngValue]="n">{{ n }}</option>
+            </select>
+          </label>
+          <span class="ad-pagination__page">Page {{ currentPage }} / {{ totalPages }}</span>
+          <button type="button" class="ad-page-btn" (click)="goToPrevPage()" [disabled]="currentPage <= 1 || loadingPage">
+            <i class="fa fa-chevron-left"></i> Prev
+          </button>
+          <button type="button" class="ad-page-btn" (click)="goToNextPage()" [disabled]="currentPage >= totalPages || loadingPage">
+            Next <i class="fa fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ad-panel ad-panel--detail">
+      <div *ngIf="detailLoading" class="ad-detail-skeleton">
+        <div class="ad-skel ad-skel--title"></div>
+        <div class="ad-skel ad-skel--sub"></div>
+        <div class="ad-detail-skeleton__stats">
+          <div class="ad-skel" *ngFor="let _ of [1,2,3]"></div>
+        </div>
+        <div class="ad-skel ad-skel--row" *ngFor="let _ of [1,2,3,4]"></div>
+      </div>
+
+      <ng-container *ngIf="!detailLoading && selectedStudent">
+        <div class="ad-panel__head ad-panel__head--detail">
+          <div>
+            <h3>{{ selectedStudent.name }}</h3>
+            <p>{{ selectedStudent.email }} · Batch {{ selectedStudent.batch || '—' }}</p>
+          </div>
+          <div class="ad-detail-badges">
+            <span [ngClass]="scoreClass(selectedStudent.attendanceScore)">
+              {{ selectedStudent.progressText }} · {{ selectedStudent.attendanceScore }}%
+            </span>
+            <span class="ad-pill ad-pill--info">Avg class {{ selectedStudent.avgAttendancePercent }}%</span>
+          </div>
+        </div>
+
+        <div class="ad-detail-summary">
+          <div class="ad-detail-chip ad-detail-chip--ok">
+            <strong>{{ selectedStudent.attendedClasses }}</strong> attended
+          </div>
+          <div class="ad-detail-chip ad-detail-chip--miss">
+            <strong>{{ selectedStudent.absentClasses }}</strong> missed
+          </div>
+          <div class="ad-detail-chip">
+            <strong>{{ selectedStudent.totalClasses }}</strong> total
+          </div>
+        </div>
+
+        <div class="ad-table-wrap ad-table-wrap--detail">
+          <table class="ad-table ad-table--compact">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Class</th>
+                <th>Status</th>
+                <th>%</th>
+                <th>Min</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of selectedStudent.classes; trackBy: trackClass"
+                  [class.ad-row--attended]="c.attended"
+                  [class.ad-row--missed]="!c.attended">
+                <td class="ad-td-muted">{{ formatDateTime(c.startTime) }}</td>
+                <td>
+                  <div class="ad-class-topic">{{ c.topic }}</div>
+                  <div class="ad-class-meta">Batch {{ c.batch }} · {{ c.teacherName }}</div>
+                </td>
+                <td>
+                  <span class="ad-pill" [class.ad-pill--good]="c.attended" [class.ad-pill--low]="!c.attended">
+                    {{ c.status }}
+                  </span>
+                </td>
+                <td class="ad-td-strong">{{ c.attendancePercent }}%</td>
+                <td class="ad-td-muted">{{ c.attendedMinutes }}/{{ c.duration }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </ng-container>
+
+      <div *ngIf="!detailLoading && !selectedStudent" class="ad-empty ad-empty--detail">
+        <i class="fa fa-hand-pointer"></i>
+        <h4>Select a student</h4>
+        <p>Click any row to see class-by-class attendance — who attended each session and their %.</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="ad-panel" *ngIf="!error && viewTab === 'classes'">
+    <div class="ad-panel__head">
+      <h3>Completed Classes</h3>
+      <span class="ad-count" *ngIf="!loading">{{ meetings.length }} classes</span>
+    </div>
+
+    <div *ngIf="loading" class="ad-table-skeleton ad-table-skeleton--classes">
+      <div class="ad-table-skeleton__row" *ngFor="let _ of [1,2,3,4,5]">
+        <div class="ad-skel" *ngFor="let _ of [1,2,3,4,5,6,7]"></div>
+      </div>
+    </div>
+
+    <div class="ad-table-wrap" *ngIf="!loading">
+      <table class="ad-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Topic</th>
+            <th>Teacher</th>
+            <th>Batch</th>
+            <th>Duration</th>
+            <th>Attendance</th>
+            <th>Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let m of meetings; trackBy: trackMeeting">
+            <td class="ad-td-muted">{{ formatDateTime(m.startTime) }}</td>
+            <td class="ad-td-strong">{{ m.topic }}</td>
+            <td>{{ m.teacherName }}</td>
+            <td class="ad-td-muted">{{ m.batch }}</td>
+            <td class="ad-td-muted">{{ formatDuration(m.duration) }}</td>
+            <td>{{ m.attended }}/{{ m.totalStudents }}</td>
+            <td>
+              <span [ngClass]="scoreClass(m.attendanceRate)">{{ m.attendanceRate }}%</span>
+            </td>
+          </tr>
+          <tr *ngIf="!meetings.length">
+            <td colspan="7" class="ad-table-empty">No completed classes match your filters.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

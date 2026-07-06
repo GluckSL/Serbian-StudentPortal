@@ -451,6 +451,39 @@ export class ZoomService {
     });
   }
 
+  /** Completed-class attendance dashboard — per-student attended X/Y and average %. */
+  getAttendanceDashboard(filters?: {
+    search?: string;
+    teacherName?: string;
+    batch?: string;
+    datePreset?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number;
+    limit?: number;
+    studentSearch?: string;
+    studentId?: string;
+    scoreFilter?: string;
+  }): Observable<any> {
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.teacherName) params.append('teacherName', filters.teacherName);
+    if (filters?.batch) params.append('batch', filters.batch);
+    if (filters?.datePreset) params.append('datePreset', filters.datePreset);
+    if (filters?.dateFrom) params.append('dateFrom', filters.dateFrom);
+    if (filters?.dateTo) params.append('dateTo', filters.dateTo);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.studentSearch) params.append('studentSearch', filters.studentSearch);
+    if (filters?.studentId) params.append('studentId', filters.studentId);
+    if (filters?.scoreFilter && filters.scoreFilter !== 'all') {
+      params.append('scoreFilter', filters.scoreFilter);
+    }
+    const qs = params.toString();
+    const url = qs ? `${this.apiUrl}/attendance-dashboard?${qs}` : `${this.apiUrl}/attendance-dashboard`;
+    return this.http.get(url, { withCredentials: true });
+  }
+
   /** Join status for live class reminder modal (ongoing meetings). */
   getJoinReminderPreview(meetingId: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/meeting/${meetingId}/join-reminder-preview`, {

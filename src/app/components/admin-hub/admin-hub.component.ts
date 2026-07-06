@@ -25,6 +25,7 @@ const ROUTE_LOADER: Record<string, () => Promise<Type<any>>> = {
   '/teacher/meetings':          () => import('../meeting-link/meetings-list.component').then(m => m.MeetingsListComponent),
   '/gluck-room':                () => import('../gluck-room-list/gluck-room-list.component').then(m => m.GluckRoomListComponent),
   '/admin/zoom-reports':        () => import('../admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent),
+  '/admin/attendance-dashboard': () => import('../admin-dashboard/attendance-dashboard.component').then(m => m.AttendanceDashboardComponent),
   '/class-recordings':          () => import('../class-recordings/manage-recordings/manage-recordings.component').then(m => m.ManageRecordingsComponent),
   '/admin/dg-modules':          () => import('../../dg-bot/dg-admin-modules/dg-admin-modules.component').then(m => m.DgAdminModulesComponent),
   '/admin/sprechen-exam':       () => import('../../sprechen-exam/sprechen-admin-modules/sprechen-admin-modules.component').then(m => m.SprechenAdminModulesComponent),

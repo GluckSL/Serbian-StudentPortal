@@ -80,6 +80,27 @@ interface FeedbackEntry {
   suggestedImprovement: string;
 }
 
+interface UncertainEngagementStudent {
+  regNo?: string;
+  name?: string;
+  email?: string;
+  batch?: string;
+  level?: string;
+  plan?: string;
+  status?: string;
+  lastJourneyDay?: string | number;
+  assignedTeacher?: string;
+  lastLoginDate?: string;
+  pendingAmount?: string;
+  classesAttended?: string;
+  exercisesCompleted?: string;
+  avgExerciseScore?: number;
+  dgBotSessions?: string;
+  totalHoursSpent?: number;
+  avgMinutesPerActivity?: number;
+  lastActivityDate?: string;
+}
+
 interface TeacherResponse {
   success: boolean;
   data: any[];
@@ -184,6 +205,7 @@ export class AdminDashboardComponent implements OnInit {
   /** Tracks which student rows have their password revealed */
   loading = true;
   exportingAll = false;
+  exportingUncertainReport = false;
   sendingChangesReport = false;
   readonly skeletonActionPills = [0, 1, 2];
   readonly skeletonFilterFields = [0, 1, 2, 3, 4, 5];
@@ -1335,6 +1357,90 @@ export class AdminDashboardComponent implements OnInit {
         this.inviteError = err?.error?.msg || err?.error?.message || 'Failed to send invite. Please try again.';
       },
     });
+  }
+
+  private readonly uncertainReportHeaders = [
+    'Reg No',
+    'Name',
+    'Email',
+    'Batch',
+    'Level',
+    'Plan',
+    'Status',
+    'Last Journey Day',
+    'Assigned Teacher',
+    'Last Login Date',
+    'Pending Amount',
+    'Classes Attended',
+    'Exercises Completed',
+    'Avg Exercise Score (%)',
+    'DG Bot Sessions',
+    'Total Hours Spent',
+    'Avg Minutes Per Activity',
+    'Last Activity Date',
+  ] as const;
+
+  exportUncertainEngagementReport(): void {
+    if (this.exportingUncertainReport) return;
+    this.exportingUncertainReport = true;
+
+    this.http
+      .get<{
+        success: boolean;
+        students?: UncertainEngagementStudent[];
+        totalStudents?: number;
+        message?: string;
+      }>(`${apiUrl}/admin/students/uncertain-engagement-report`, {
+        params: { batchFrom: '35', batchTo: '45' },
+        withCredentials: true,
+      })
+      .subscribe({
+        next: (res) => {
+          this.exportingUncertainReport = false;
+          if (!res.success || !Array.isArray(res.students)) {
+            this.notify.error(res.message || 'Failed to generate uncertain students report');
+            return;
+          }
+          if (res.students.length === 0) {
+            this.notify.warning('No uncertain or withdrew students found in batches 35–45');
+            return;
+          }
+
+          const rows = res.students.map((student) => ({
+            'Reg No': student.regNo ?? '',
+            Name: student.name ?? '',
+            Email: student.email ?? '',
+            Batch: student.batch ?? '',
+            Level: student.level ?? '',
+            Plan: student.plan ?? '',
+            Status: student.status ?? '',
+            'Last Journey Day': student.lastJourneyDay ?? '',
+            'Assigned Teacher': student.assignedTeacher ?? '',
+            'Last Login Date': student.lastLoginDate ?? '',
+            'Pending Amount': student.pendingAmount ?? '',
+            'Classes Attended': student.classesAttended ?? '0/0',
+            'Exercises Completed': student.exercisesCompleted ?? '0/0',
+            'Avg Exercise Score (%)': student.avgExerciseScore ?? 0,
+            'DG Bot Sessions': student.dgBotSessions ?? '0/0',
+            'Total Hours Spent': student.totalHoursSpent ?? 0,
+            'Avg Minutes Per Activity': student.avgMinutesPerActivity ?? 0,
+            'Last Activity Date': student.lastActivityDate ?? '',
+          }));
+
+          const ws = XLSX.utils.json_to_sheet(rows, { header: [...this.uncertainReportHeaders] });
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Uncertain B35-45');
+          const timestamp = new Date().toISOString().split('T')[0];
+          XLSX.writeFile(wb, `uncertain_students_batch_35_45_${timestamp}.xlsx`);
+          this.notify.success(`Exported ${res.students.length} student(s) to Excel`);
+        },
+        error: (err) => {
+          this.exportingUncertainReport = false;
+          this.notify.error(
+            err?.error?.message || 'Failed to generate uncertain students report. Please try again.',
+          );
+        },
+      });
   }
 
   sendChangesReport(): void {

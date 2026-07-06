@@ -272,6 +272,25 @@ router.get('/students/distinct/:fieldKey', verifyToken, isAdmin, async (req, res
 });
 
 // Students with data-quality issues (duplicate email, portal-only vs CRM, etc.)
+router.get('/students/uncertain-engagement-report', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const { getUncertainStudentsEngagementReport } = require('../services/uncertainStudentsReport.service');
+    const batchFrom = parseInt(String(req.query.batchFrom || '35'), 10);
+    const batchTo = parseInt(String(req.query.batchTo || '45'), 10);
+    const report = await getUncertainStudentsEngagementReport({
+      batchFrom: Number.isFinite(batchFrom) ? batchFrom : 35,
+      batchTo: Number.isFinite(batchTo) ? batchTo : 45,
+    });
+    return noStoreJson(res, { success: true, ...report });
+  } catch (err) {
+    console.error('[admin] GET /students/uncertain-engagement-report', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to build uncertain students engagement report',
+    });
+  }
+});
+
 router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
   try {
     const result = await computeStudentDataIssues();

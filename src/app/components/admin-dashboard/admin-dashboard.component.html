@@ -193,6 +193,16 @@
               <i class="fas" [class.fa-paper-plane]="!sendingChangesReport" [class.fa-spinner]="sendingChangesReport" [class.fa-spin]="sendingChangesReport"></i>
               {{ sendingChangesReport ? 'Sending…' : 'Send Update Report' }}
             </button>
+            <button
+              type="button"
+              class="btn btn-action btn-action--uncertain"
+              (click)="exportUncertainEngagementReport()"
+              [disabled]="exportingUncertainReport"
+              title="Download Excel: batches 35–45, Uncertain &amp; Withdrew — classes, exercises, DG bot, minutes, last activity"
+            >
+              <i class="fas" [class.fa-file-excel]="!exportingUncertainReport" [class.fa-spinner]="exportingUncertainReport" [class.fa-spin]="exportingUncertainReport"></i>
+              {{ exportingUncertainReport ? 'Generating…' : 'Uncertain' }}
+            </button>
           </div>
         </div>
 

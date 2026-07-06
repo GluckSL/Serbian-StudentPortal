@@ -987,6 +987,376 @@ router.get('/meetings', verifyToken, async (req, res) => {
   }
 });
 
+function attendanceRowForStudent(meeting, sid, email) {
+  const list = Array.isArray(meeting.attendance) ? meeting.attendance : [];
+  const idStr = sid ? String(sid) : '';
+  let row = list.find(
+    (a) => a && a.studentId && String(a.studentId._id || a.studentId) === idStr
+  );
+  if (!row && email) {
+    const em = String(email).toLowerCase().trim();
+    row = list.find(
+      (a) => a && a.email && String(a.email).toLowerCase().trim() === em
+    );
+  }
+  return row || null;
+}
+
+function classAttendancePct(attRow, durationMin) {
+  const dur = Number(durationMin) || 0;
+  if (!attRow || !attRow.attended) return 0;
+  if (attRow.attendancePercent != null) {
+    return Math.min(Math.round(Number(attRow.attendancePercent)), 100);
+  }
+  const rawDurMin =
+    attRow.durationMinutes != null
+      ? Number(attRow.durationMinutes)
+      : attRow.duration
+        ? Math.round(Number(attRow.duration) / 60)
+        : 0;
+  const attendedMin = rawDurMin || dur;
+  if (dur > 0) return Math.min(Math.round((attendedMin / dur) * 100), 100);
+  return 100;
+}
+
+async function buildReportsMeetingAndClauses(req, user, userId) {
+  const andClauses = [];
+  const { batch, date } = req.query;
+
+  if (user.role === 'TEACHER' || user.role === 'TEACHER_ADMIN') {
+    andClauses.push({
+      $or: [{ createdBy: userId }, { assignedTeacher: userId }],
+    });
+  }
+
+  const batchList = parseBatchList(batch);
+  if (batchList.length) {
+    const batchClauses = batchList.map((b) => {
+      const asNum = Number(b);
+      const topicBatchClause = {
+        topic: new RegExp(`\\bbatch\\s*[-#:]*\\s*${escapeRegex(b)}\\b`, 'i'),
+      };
+      if (Number.isFinite(asNum) && String(asNum) === b) {
+        return { $or: [{ batch: b }, { batch: asNum }, topicBatchClause] };
+      }
+      return { $or: [{ batch: b }, topicBatchClause] };
+    });
+    andClauses.push(batchClauses.length === 1 ? batchClauses[0] : { $or: batchClauses });
+  }
+
+  const teacherNameParam = String(req.query.teacherName || '').trim();
+  if (
+    teacherNameParam &&
+    teacherNameParam.toLowerCase() !== 'all' &&
+    (user.role === 'ADMIN' || user.role === 'SUB_ADMIN' || user.role === 'TEACHER_ADMIN')
+  ) {
+    const teacherDocs = await User.find({
+      name: teacherNameParam,
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+    })
+      .select('_id')
+      .lean();
+    const tids = teacherDocs.map((t) => t._id);
+    if (!tids.length) {
+      andClauses.push({ _id: { $in: [] } });
+    } else {
+      andClauses.push({
+        $or: [{ assignedTeacher: { $in: tids } }, { createdBy: { $in: tids } }],
+      });
+    }
+  }
+
+  const searchRaw = String(req.query.search || '').trim();
+  if (searchRaw) {
+    const rx = new RegExp(escapeRegex(searchRaw), 'i');
+    const teacherHits = await User.find({
+      role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
+      name: rx,
+    })
+      .select('_id')
+      .lean();
+    const searchTeacherIds = teacherHits.map((u) => u._id);
+    const searchOr = [{ topic: rx }, { agenda: rx }];
+    if (searchTeacherIds.length) {
+      searchOr.push({ assignedTeacher: { $in: searchTeacherIds } });
+      searchOr.push({ createdBy: { $in: searchTeacherIds } });
+    }
+    searchOr.push({
+      $expr: {
+        $regexMatch: {
+          input: { $toString: '$batch' },
+          regex: escapeRegex(searchRaw),
+          options: 'i',
+        },
+      },
+    });
+    andClauses.push({ $or: searchOr });
+  }
+
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(String(date).trim())) {
+    const ymd = String(date).trim();
+    const dayStartColombo = new Date(`${ymd}T00:00:00.000+05:30`);
+    const nextDayStart = new Date(dayStartColombo.getTime() + 24 * 60 * 60 * 1000);
+    andClauses.push({
+      startTime: { $gte: dayStartColombo, $lt: nextDayStart },
+    });
+  }
+
+  const datePreset = String(req.query.datePreset || '').trim().toLowerCase();
+  const df = String(req.query.dateFrom || '').trim();
+  const dt = String(req.query.dateTo || '').trim();
+
+  if (!date && datePreset && datePreset !== 'all') {
+    const now = new Date();
+    if (datePreset === 'today') {
+      const ymd = istYmdFromDate(now);
+      const start = new Date(`${ymd}T00:00:00.000+05:30`);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      andClauses.push({ startTime: { $gte: start, $lt: end } });
+    } else if (datePreset === 'week') {
+      const todayStart = istMidnightUtcMsFromYmd(istYmdFromDate(now));
+      const weekAgo = todayStart - 7 * 24 * 60 * 60 * 1000;
+      andClauses.push({ startTime: { $gte: new Date(weekAgo), $lte: now } });
+    } else if (datePreset === 'month') {
+      const todayStart = istMidnightUtcMsFromYmd(istYmdFromDate(now));
+      const monthAgo = todayStart - 30 * 24 * 60 * 60 * 1000;
+      andClauses.push({ startTime: { $gte: new Date(monthAgo), $lte: now } });
+    } else if (datePreset === 'custom') {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(df)) {
+        const start = new Date(`${df}T00:00:00.000+05:30`);
+        andClauses.push({ startTime: { $gte: start } });
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+        const end = new Date(`${dt}T23:59:59.999+05:30`);
+        andClauses.push({ startTime: { $lte: end } });
+      }
+    }
+  }
+
+  andClauses.push({
+    $expr: {
+      $lt: [
+        {
+          $dateAdd: {
+            startDate: '$startTime',
+            unit: 'minute',
+            amount: { $ifNull: ['$duration', 0] },
+          },
+        },
+        '$$NOW',
+      ],
+    },
+  });
+
+  return andClauses;
+}
+
+/**
+ * GET /api/zoom/attendance-dashboard
+ * Completed classes — per-student attendance (e.g. attended 6 of 7) and average %.
+ */
+router.get(
+  '/attendance-dashboard',
+  verifyToken,
+  checkRole(['ADMIN', 'SUB_ADMIN', 'TEACHER', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      const userId = req.user.id || req.user.userId || req.user._id;
+      const user = await User.findById(userId).select('role assignedBatches').lean();
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'User not found' });
+      }
+
+      const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const pageSize = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 200);
+      const studentSearch = String(req.query.studentSearch || '').trim().toLowerCase();
+      const detailStudentId = String(req.query.studentId || '').trim();
+
+      const andClauses = await buildReportsMeetingAndClauses(req, user, userId);
+      const query = andClauses.length ? { $and: andClauses } : {};
+
+      const meetings = await MeetingLink.find(query)
+        .populate('assignedTeacher', 'name email')
+        .populate('createdBy', 'name email')
+        .sort({ startTime: -1 })
+        .lean();
+
+      const studentMap = new Map();
+
+      for (const meeting of meetings) {
+        const duration = Number(meeting.duration) || 0;
+        const teacherName =
+          meeting.assignedTeacher?.name || meeting.createdBy?.name || 'Unknown';
+        const classMeta = {
+          meetingId: String(meeting._id),
+          topic: meeting.topic,
+          batch: meeting.batch,
+          startTime: meeting.startTime,
+          duration,
+          teacherName,
+        };
+
+        for (const attendee of meeting.attendees || []) {
+          const sid = attendee.studentId
+            ? String(attendee.studentId._id || attendee.studentId)
+            : '';
+          const email = attendee.email || '';
+          const key = sid || email.toLowerCase() || attendee.name || 'unknown';
+          const attRow = attendanceRowForStudent(meeting, sid, email);
+          const attended = !!(attRow && attRow.attended);
+          const classPct = classAttendancePct(attRow, duration);
+          const attendedMin = attended
+            ? attRow?.durationMinutes != null
+              ? Number(attRow.durationMinutes)
+              : duration
+            : 0;
+
+          if (!studentMap.has(key)) {
+            studentMap.set(key, {
+              studentId: sid,
+              name: attendee.name || 'Student',
+              email,
+              batch: String(meeting.batch || ''),
+              totalClasses: 0,
+              attendedClasses: 0,
+              absentClasses: 0,
+              pctSum: 0,
+              attendedMinutes: 0,
+              totalMinutes: 0,
+              classes: [],
+            });
+          }
+
+          const entry = studentMap.get(key);
+          if (!entry.batch && meeting.batch) entry.batch = String(meeting.batch);
+          entry.totalClasses += 1;
+          entry.totalMinutes += duration;
+          entry.attendedMinutes += attendedMin;
+          entry.pctSum += classPct;
+          if (attended) entry.attendedClasses += 1;
+          else entry.absentClasses += 1;
+          entry.classes.push({
+            ...classMeta,
+            attended,
+            attendancePercent: classPct,
+            attendedMinutes: attendedMin,
+            status: attended ? 'Attended' : 'Absent',
+          });
+        }
+      }
+
+      let students = Array.from(studentMap.values()).map((s) => ({
+        ...s,
+        attendanceScore:
+          s.totalClasses > 0 ? Math.round((s.attendedClasses / s.totalClasses) * 100) : 0,
+        avgAttendancePercent:
+          s.totalClasses > 0 ? Math.round(s.pctSum / s.totalClasses) : 0,
+        progressText: `${s.attendedClasses}/${s.totalClasses}`,
+      }));
+
+      if (studentSearch) {
+        students = students.filter(
+          (s) =>
+            s.name.toLowerCase().includes(studentSearch) ||
+            s.email.toLowerCase().includes(studentSearch) ||
+            s.batch.toLowerCase().includes(studentSearch)
+        );
+      }
+
+      const scoreFilter = String(req.query.scoreFilter || 'all').trim().toLowerCase();
+      if (scoreFilter === 'below75') {
+        students = students.filter((s) => s.totalClasses > 0 && s.attendanceScore < 75);
+      } else if (scoreFilter === 'above75') {
+        students = students.filter((s) => s.totalClasses > 0 && s.attendanceScore >= 75);
+      }
+
+      students.sort((a, b) => {
+        if (b.attendanceScore !== a.attendanceScore) {
+          return a.attendanceScore - b.attendanceScore;
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+      const totalStudents = students.length;
+      const totalPages = Math.max(Math.ceil(totalStudents / pageSize), 1);
+      const skip = (pageNum - 1) * pageSize;
+      const studentsPage = students.slice(skip, skip + pageSize).map((s) => {
+        const row = { ...s };
+        if (!detailStudentId || detailStudentId !== s.studentId) {
+          delete row.classes;
+        }
+        return row;
+      });
+
+      let totalClassSlots = 0;
+      let totalAttendedSlots = 0;
+      let pctSumAll = 0;
+      let below75 = 0;
+      for (const s of students) {
+        totalClassSlots += s.totalClasses;
+        totalAttendedSlots += s.attendedClasses;
+        pctSumAll += s.avgAttendancePercent;
+        if (s.totalClasses > 0 && s.attendanceScore < 75) below75 += 1;
+      }
+
+      const meetingSummaries = meetings.map((m) => {
+        const total = (m.attendees || []).length;
+        const attended =
+          (m.attendance || []).filter((a) => a && a.attended).length || 0;
+        return {
+          _id: m._id,
+          topic: m.topic,
+          batch: m.batch,
+          startTime: m.startTime,
+          duration: m.duration || 0,
+          teacherName: m.assignedTeacher?.name || m.createdBy?.name || 'Unknown',
+          totalStudents: total,
+          attended,
+          absent: Math.max(total - attended, 0),
+          attendanceRate: total > 0 ? Math.round((attended / total) * 100) : 0,
+        };
+      });
+
+      let selectedStudent = null;
+      if (detailStudentId) {
+        selectedStudent = students.find((s) => s.studentId === detailStudentId) || null;
+      }
+
+      return res.status(200).json({
+        success: true,
+        summary: {
+          totalMeetings: meetings.length,
+          totalStudents,
+          totalClassSlots,
+          totalAttendedSlots,
+          avgAttendanceRate:
+            totalClassSlots > 0
+              ? Math.round((totalAttendedSlots / totalClassSlots) * 100)
+              : 0,
+          avgStudentScore:
+            totalStudents > 0 ? Math.round(pctSumAll / totalStudents) : 0,
+          studentsBelow75: below75,
+        },
+        meetings: meetingSummaries,
+        students: studentsPage,
+        selectedStudent,
+        pagination: {
+          page: pageNum,
+          limit: pageSize,
+          totalItems: totalStudents,
+          totalPages,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1,
+        },
+      });
+    } catch (error) {
+      console.error('❌ attendance-dashboard error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to load attendance dashboard' });
+    }
+  }
+);
+
 /**
  * Get single meeting details
  * GET /api/zoom/meeting/:id

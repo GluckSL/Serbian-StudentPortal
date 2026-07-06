@@ -8,6 +8,9 @@
       <p class="zr-header__sub">Completed class sessions &amp; attendance analytics</p>
     </div>
     <div class="zr-header__actions">
+      <button class="zr-btn zr-btn--dashboard" (click)="openAttendanceDashboard()" title="Student attendance analytics — attended X of Y classes and average %">
+        <i class="fa fa-chart-pie"></i> Attendance Dashboard
+      </button>
       <button class="zr-btn zr-btn--analytics" (click)="generateAnalytics()" title="Select classes using checkboxes then click to export analytics">
         <i class="fa fa-chart-line"></i> Generate Analytics
         <span class="zr-sel-badge" *ngIf="selectedCount > 0">{{ selectedCount }}</span>
