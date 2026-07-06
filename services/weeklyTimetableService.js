@@ -91,68 +91,95 @@ function groupMeetingsByBatch(meetings) {
   return byBatch;
 }
 
-function formatClassLine(m) {
-  const title = m.topic || 'Live Class';
-  const duration = m.duration ? `${m.duration} min` : '';
-  const when = `${fmtDateLong(m.startTime)} at ${fmtTime(m.startTime)}`;
-  return duration ? `${when} — ${title} — ${duration}` : `${when} — ${title}`;
+const DAY_ORDER = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 };
+
+function fmtWeekdayShort(d) {
+  const raw = new Date(d).toLocaleDateString('en-US', { timeZone: 'Asia/Colombo', weekday: 'short' }).toLowerCase();
+  return raw.slice(0, 3); // mon, tue, wed …
 }
 
-/** One WhatsApp message for a single batch schedule. */
-function buildWhatsappBatchScheduleMessage(recipientName, batch, meetings, weekStart, weekEnd) {
-  const label = weekLabel(weekStart, weekEnd);
-  const firstName = String(recipientName || '').trim().split(/\s+/)[0] || 'there';
-
-  if (!meetings.length) {
-    return (
-      `Hi ${firstName}, this is your schedule for Batch ${batch} (${label}).\n\n` +
-      `No live classes are scheduled this week.\n\n— Glück Global`
-    );
-  }
-
-  const classLines = meetings.map(formatClassLine).join('\n');
-
-  return (
-    `Hi ${firstName}, this is your schedule for Batch ${batch} (${label}):\n\n` +
-    `${classLines}\n\n` +
-    `Please join on time. — Glück Global`
-  );
+function fmtTimeCompact(d) {
+  return new Date(d)
+    .toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Colombo',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    .toLowerCase()
+    .replace(/\s/g, ''); // "8:30 pm" → "8:30pm"
 }
 
-/**
- * Build WhatsApp message(s). Teachers/admins with multiple batches get one message per batch.
- * Students get a single message for their batch.
- */
-function buildWhatsappMessages(recipientName, meetings, weekStart, weekEnd, { splitByBatch = false } = {}) {
-  if (!meetings.length) {
-    return [
-      `Hi ${recipientName}, no live classes are scheduled for this week (${weekLabel(weekStart, weekEnd)}). — Glück Global`,
-    ];
-  }
-
-  const byBatch = groupMeetingsByBatch(meetings);
-  const batchKeys = Object.keys(byBatch).sort((a, b) => {
+function sortBatchKeys(keys) {
+  return keys.sort((a, b) => {
     const na = Number(a);
     const nb = Number(b);
     if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
     return a.localeCompare(b);
   });
+}
 
-  if (!splitByBatch || batchKeys.length <= 1) {
-    const batch = batchKeys[0] || '';
-    return [buildWhatsappBatchScheduleMessage(recipientName, batch, byBatch[batch] || meetings, weekStart, weekEnd)];
+function sortWeekdays(days) {
+  return [...days].sort((a, b) => (DAY_ORDER[a] || 99) - (DAY_ORDER[b] || 99));
+}
+
+/**
+ * Compact WhatsApp schedule — batch, days, and time only (no class titles).
+ *
+ * Hi SHANGAVI, this is your schedule class for upcoming week
+ *
+ * for batch 36 (mon, fri) 8:30pm
+ * for batch 39 (tue) 7pm
+ *
+ * Please join on time. — Glück Global
+ */
+function buildWhatsappCompactSchedule(recipientName, meetings) {
+  const firstName = String(recipientName || '').trim().split(/\s+/)[0] || 'there';
+
+  if (!meetings.length) {
+    return (
+      `Hi ${firstName}, this is your schedule class for upcoming week.\n\n` +
+      `No live classes scheduled.\n\n` +
+      `Please join on time. — Glück Global`
+    );
   }
 
-  return batchKeys.map((batch) =>
-    buildWhatsappBatchScheduleMessage(recipientName, batch, byBatch[batch], weekStart, weekEnd)
+  const byBatch = groupMeetingsByBatch(meetings);
+  const batchLines = [];
+
+  for (const batch of sortBatchKeys(Object.keys(byBatch))) {
+    const batchMeetings = byBatch[batch];
+    const byTime = {};
+
+    for (const m of batchMeetings) {
+      const time = fmtTimeCompact(m.startTime);
+      (byTime[time] = byTime[time] || []).push(m);
+    }
+
+    for (const [time, list] of Object.entries(byTime)) {
+      const days = sortWeekdays(
+        new Set(list.map((m) => fmtWeekdayShort(m.startTime)))
+      );
+      batchLines.push(`for batch ${batch} (${days.join(', ')}) ${time}`);
+    }
+  }
+
+  return (
+    `Hi ${firstName}, this is your schedule class for upcoming week\n\n` +
+    `${batchLines.join('\n')}\n\n` +
+    `Please join on time. — Glück Global`
   );
 }
 
-/** @deprecated Use buildWhatsappMessages — kept for single-message callers */
-function buildWhatsappMessage(recipientName, meetings, weekStart, weekEnd, { includeBatch = true } = {}) {
-  const splitByBatch = includeBatch && new Set(meetings.map((m) => m.batch)).size > 1;
-  const messages = buildWhatsappMessages(recipientName, meetings, weekStart, weekEnd, { splitByBatch });
-  return messages.join('\n\n---\n\n');
+/** Returns a single compact WhatsApp message (array for send helpers). */
+function buildWhatsappMessages(recipientName, meetings, weekStart, weekEnd) {
+  void weekStart;
+  void weekEnd;
+  return [buildWhatsappCompactSchedule(recipientName, meetings)];
+}
+
+function buildWhatsappMessage(recipientName, meetings, weekStart, weekEnd) {
+  return buildWhatsappCompactSchedule(recipientName, meetings);
 }
 
 function buildMeetingRows(meetings, includesBatch = false) {
@@ -384,7 +411,7 @@ async function shareTeacherWeeklyTimetable(teacherId) {
     includesBatch: includesBatch || batches.length > 0,
     recipientRole: 'teacher',
   });
-  const waMessages = buildWhatsappMessages(teacher.name, meetings, weekStart, weekEnd, { splitByBatch: true });
+  const waMessages = buildWhatsappMessages(teacher.name, meetings, weekStart, weekEnd);
   const phone = teacher.whatsappNumber || teacher.phoneNumber || '';
 
   const [emailOk, waResult] = await Promise.all([
@@ -411,7 +438,7 @@ module.exports = {
   getUpcomingWeekBoundaries,
   buildWhatsappMessage,
   buildWhatsappMessages,
-  buildWhatsappBatchScheduleMessage,
+  buildWhatsappCompactSchedule,
   buildEmailHtml,
   sendEmailNotification,
   sendWhatsappAutomated,

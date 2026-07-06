@@ -101,7 +101,7 @@ async function processWeeklyScheduleNotifications() {
       includesBatch: batches.filter((b) => byBatch[b]).length > 1,
       recipientRole: 'teacher',
     });
-    const waMessages = buildWhatsappMessages(teacher.name, meetings, weekStart, weekEnd, { splitByBatch: true });
+    const waMessages = buildWhatsappMessages(teacher.name, meetings, weekStart, weekEnd);
     const phone = teacher.whatsappNumber || teacher.phoneNumber || '';
 
     const [eOk, waResult] = await Promise.all([
@@ -134,7 +134,7 @@ async function processWeeklyScheduleNotifications() {
       includesBatch: true,
       recipientRole: 'admin',
     });
-    const waMessages = buildWhatsappMessages(admin.name, allMeetings, weekStart, weekEnd, { splitByBatch: true });
+    const waMessages = buildWhatsappMessages(admin.name, allMeetings, weekStart, weekEnd);
     const phone = admin.whatsappNumber || admin.phoneNumber || '';
 
     const [eOk, waResult] = await Promise.all([
