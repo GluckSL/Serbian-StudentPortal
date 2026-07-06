@@ -616,10 +616,21 @@
   color: #991b1b;
 }
 
+.ann-action--comments {
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+.ann-action--comments:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+}
+
 .ann-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(15, 39, 68, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
   z-index: 2000;

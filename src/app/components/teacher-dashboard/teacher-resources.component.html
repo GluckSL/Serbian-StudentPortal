@@ -101,7 +101,7 @@
     </div>
 
     <div *ngIf="activePreviewIsAudio" class="preview-audio-wrap">
-      <audio controls [src]="activePreviewRawUrl" style="width:100%;max-width:600px;">
+      <audio controls controlsList="nodownload noremoteplayback" disablePictureInPicture [src]="activePreviewRawUrl" style="width:100%;max-width:600px;">
         Your browser does not support the audio element.
       </audio>
     </div>
@@ -109,6 +109,8 @@
     <video
       *ngIf="activePreviewIsVideo"
       controls
+      controlsList="nodownload noremoteplayback"
+      disablePictureInPicture
       [src]="activePreviewRawUrl"
       style="max-width:100%;max-height:calc(100vh - 110px);"
     >

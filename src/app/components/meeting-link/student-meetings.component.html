@@ -326,7 +326,6 @@
           </div>
           <div class="res-actions">
             <button type="button" class="sm-pill sm-pill--view" (click)="viewResource(r)" title="View">View</button>
-            <button type="button" class="sm-pill sm-pill--res" (click)="downloadResource(r)" title="Download">Download</button>
           </div>
         </div>
       </div>
@@ -534,3 +533,10 @@
   (closed)="closeFeedbackModal()"
   (submitted)="onFeedbackSubmitted()">
 </app-class-feedback-modal>
+
+<!-- Resource Viewer Modal -->
+<app-resource-viewer
+  [resource]="viewerResource"
+  [visible]="showViewer"
+  (closed)="closeViewer()">
+</app-resource-viewer>

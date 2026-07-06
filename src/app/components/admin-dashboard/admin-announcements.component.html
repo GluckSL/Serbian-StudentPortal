@@ -194,6 +194,13 @@
       <div class="ann-actions">
         <button
           type="button"
+          class="ann-action ann-action--comments"
+          (click)="openCommentsDialog(item)"
+        >
+          Comments
+        </button>
+        <button
+          type="button"
           class="ann-action ann-action--edit"
           [disabled]="actionAnnouncementId === item._id"
           (click)="editAnnouncement(item)"
@@ -233,6 +240,13 @@
       </button>
     </div>
   </section>
+
+  <div class="ann-modal-backdrop" *ngIf="commentsModalOpen && selectedCommentsItem" (click)="closeCommentsDialog()">
+    <app-admin-announcement-comments
+      [announcement]="selectedCommentsItem"
+      (closePanel)="closeCommentsDialog()"
+    ></app-admin-announcement-comments>
+  </div>
 
   <div class="ann-modal-backdrop" *ngIf="editModalOpen">
     <div class="ann-modal" role="dialog" aria-modal="true" aria-label="Edit Announcement">
