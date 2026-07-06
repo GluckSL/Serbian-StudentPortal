@@ -2932,6 +2932,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     let currentSectionTitle = '';
     let currentAttachmentUrls = [];
     let currentExample = '';
+    let currentAttachmentAudioMaxPlaysPerAttempt = null;
 
     const questions = [];
 
@@ -2942,6 +2943,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
         currentSectionTitle = item.sectionTitle || '';
         currentAttachmentUrls = item.attachmentUrls || [];
         currentExample = item.example || '';
+        currentAttachmentAudioMaxPlaysPerAttempt = item.attachmentAudioMaxPlaysPerAttempt ?? null;
       } else if (item.kind === 'question' && item.type) {
         const question = {
           type: item.type,
@@ -2950,6 +2952,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
           sectionTitle: currentSectionTitle || null,
           attachmentUrls: currentAttachmentUrls,
           attachmentUrl: (currentAttachmentUrls[0] || ''),
+          attachmentAudioMaxPlaysPerAttempt: currentAttachmentAudioMaxPlaysPerAttempt,
           example: currentExample,
           answerExplanation: item.answerExplanation || '',
           points: item.points ?? 1,
@@ -3084,6 +3087,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     let currentSectionTitle = '';
     let currentAttachmentUrls = [];
     let currentExample = '';
+    let currentAttachmentAudioMaxPlaysPerAttempt = null;
 
     const questions = [];
 
@@ -3094,6 +3098,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
         currentSectionTitle = item.sectionTitle || '';
         currentAttachmentUrls = item.attachmentUrls || [];
         currentExample = item.example || '';
+        currentAttachmentAudioMaxPlaysPerAttempt = item.attachmentAudioMaxPlaysPerAttempt ?? null;
       } else if (item.kind === 'question' && item.type) {
         const question = {
           type: item.type,
@@ -3102,6 +3107,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
           sectionTitle: currentSectionTitle || null,
           attachmentUrls: currentAttachmentUrls,
           attachmentUrl: (currentAttachmentUrls[0] || ''),
+          attachmentAudioMaxPlaysPerAttempt: currentAttachmentAudioMaxPlaysPerAttempt,
           example: currentExample,
           answerExplanation: item.answerExplanation || '',
           points: item.points ?? 1,
