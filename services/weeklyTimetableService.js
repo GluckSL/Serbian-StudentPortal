@@ -79,33 +79,80 @@ function getUpcomingWeekBoundaries() {
   return { start, end };
 }
 
-function buildWhatsappMessage(recipientName, meetings, weekStart, weekEnd, { includeBatch = true } = {}) {
+function groupMeetingsByBatch(meetings) {
+  const byBatch = {};
+  for (const m of meetings) {
+    const batch = String(m.batch || 'Unknown');
+    (byBatch[batch] = byBatch[batch] || []).push(m);
+  }
+  for (const batch of Object.keys(byBatch)) {
+    byBatch[batch].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  }
+  return byBatch;
+}
+
+function formatClassLine(m) {
+  const title = m.topic || 'Live Class';
+  const duration = m.duration ? `${m.duration} min` : '';
+  const when = `${fmtDateLong(m.startTime)} at ${fmtTime(m.startTime)}`;
+  return duration ? `${when} — ${title} — ${duration}` : `${when} — ${title}`;
+}
+
+/** One WhatsApp message for a single batch schedule. */
+function buildWhatsappBatchScheduleMessage(recipientName, batch, meetings, weekStart, weekEnd) {
   const label = weekLabel(weekStart, weekEnd);
+  const firstName = String(recipientName || '').trim().split(/\s+/)[0] || 'there';
 
   if (!meetings.length) {
     return (
-      `Hi ${recipientName}! No live classes are scheduled for this week ` +
-      `(${label}). — Glück Global`
+      `Hi ${firstName}, this is your schedule for Batch ${batch} (${label}).\n\n` +
+      `No live classes are scheduled this week.\n\n— Glück Global`
     );
   }
 
-  const MAX_SHOW = 4;
-  const shown = meetings.slice(0, MAX_SHOW);
-  const more  = meetings.length - MAX_SHOW;
-
-  const classSummary = shown
-    .map((m) => {
-      const batchPart = includeBatch && m.batch ? `Batch ${m.batch} — ` : '';
-      return `${fmtDateLong(m.startTime)} at ${fmtTime(m.startTime)} — ${batchPart}${m.topic || 'Live Class'}`;
-    })
-    .join(' | ');
-
-  const suffix = more > 0 ? ` (+${more} more class${more > 1 ? 'es' : ''})` : '';
+  const classLines = meetings.map(formatClassLine).join('\n');
 
   return (
-    `Hi ${recipientName}! This week (${label}) your live classes: ` +
-    `${classSummary}${suffix}. Join on time! — Glück Global`
+    `Hi ${firstName}, this is your schedule for Batch ${batch} (${label}):\n\n` +
+    `${classLines}\n\n` +
+    `Please join on time. — Glück Global`
   );
+}
+
+/**
+ * Build WhatsApp message(s). Teachers/admins with multiple batches get one message per batch.
+ * Students get a single message for their batch.
+ */
+function buildWhatsappMessages(recipientName, meetings, weekStart, weekEnd, { splitByBatch = false } = {}) {
+  if (!meetings.length) {
+    return [
+      `Hi ${recipientName}, no live classes are scheduled for this week (${weekLabel(weekStart, weekEnd)}). — Glück Global`,
+    ];
+  }
+
+  const byBatch = groupMeetingsByBatch(meetings);
+  const batchKeys = Object.keys(byBatch).sort((a, b) => {
+    const na = Number(a);
+    const nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+
+  if (!splitByBatch || batchKeys.length <= 1) {
+    const batch = batchKeys[0] || '';
+    return [buildWhatsappBatchScheduleMessage(recipientName, batch, byBatch[batch] || meetings, weekStart, weekEnd)];
+  }
+
+  return batchKeys.map((batch) =>
+    buildWhatsappBatchScheduleMessage(recipientName, batch, byBatch[batch], weekStart, weekEnd)
+  );
+}
+
+/** @deprecated Use buildWhatsappMessages — kept for single-message callers */
+function buildWhatsappMessage(recipientName, meetings, weekStart, weekEnd, { includeBatch = true } = {}) {
+  const splitByBatch = includeBatch && new Set(meetings.map((m) => m.batch)).size > 1;
+  const messages = buildWhatsappMessages(recipientName, meetings, weekStart, weekEnd, { splitByBatch });
+  return messages.join('\n\n---\n\n');
 }
 
 function buildMeetingRows(meetings, includesBatch = false) {
@@ -239,11 +286,47 @@ async function sendWhatsappAutomated(phone, name, message) {
   return { sent: ok, reason: ok ? null : 'send_failed' };
 }
 
+async function sendWhatsappAutomatedMultiple(phone, name, messages) {
+  const raw = (phone || '').toString().trim();
+  if (!raw) return { sent: 0, failed: messages.length, reason: 'no_phone' };
+
+  let sent = 0;
+  let failed = 0;
+  for (const message of messages) {
+    const result = await sendWhatsappAutomated(raw, name, message);
+    if (result.sent) sent++;
+    else failed++;
+  }
+  return {
+    sent,
+    failed,
+    reason: sent === 0 && messages.length ? 'send_failed' : null,
+  };
+}
+
 async function sendWhatsappManual(phone, name, message) {
   const raw = (phone || '').toString().trim();
   if (!raw) return { sent: false, reason: 'no_phone' };
   const result = await sendManualWhatsappMessage({ phone_number: raw, message, department: 'Language' });
   return { sent: !!result.ok, reason: result.ok ? null : result.error?.message || 'send_failed' };
+}
+
+async function sendWhatsappManualMultiple(phone, name, messages) {
+  const raw = (phone || '').toString().trim();
+  if (!raw) return { sent: 0, failed: messages.length, reason: 'no_phone' };
+
+  let sent = 0;
+  let failed = 0;
+  for (const message of messages) {
+    const result = await sendWhatsappManual(raw, name, message);
+    if (result.sent) sent++;
+    else failed++;
+  }
+  return {
+    sent,
+    failed,
+    reason: sent === 0 && messages.length ? 'send_failed' : null,
+  };
 }
 
 function teacherMeetingsForWeek(allMeetings, teacher) {
@@ -301,12 +384,12 @@ async function shareTeacherWeeklyTimetable(teacherId) {
     includesBatch: includesBatch || batches.length > 0,
     recipientRole: 'teacher',
   });
-  const waMsg = buildWhatsappMessage(teacher.name, meetings, weekStart, weekEnd, { includeBatch: true });
+  const waMessages = buildWhatsappMessages(teacher.name, meetings, weekStart, weekEnd, { splitByBatch: true });
   const phone = teacher.whatsappNumber || teacher.phoneNumber || '';
 
   const [emailOk, waResult] = await Promise.all([
     sendEmailNotification({ to: teacher.email, name: teacher.name, subject, html }),
-    sendWhatsappManual(phone, teacher.name, waMsg),
+    sendWhatsappManualMultiple(phone, teacher.name, waMessages),
   ]);
 
   return {
@@ -315,7 +398,9 @@ async function shareTeacherWeeklyTimetable(teacherId) {
     weekLabel: label,
     meetingCount: meetings.length,
     emailSent: emailOk,
-    whatsappSent: waResult.sent,
+    whatsappSent: waResult.sent > 0,
+    whatsappMessagesSent: waResult.sent,
+    whatsappMessagesFailed: waResult.failed,
     whatsappSkippedReason: waResult.reason,
   };
 }
@@ -325,9 +410,13 @@ module.exports = {
   getCalendarWeekBoundaries,
   getUpcomingWeekBoundaries,
   buildWhatsappMessage,
+  buildWhatsappMessages,
+  buildWhatsappBatchScheduleMessage,
   buildEmailHtml,
   sendEmailNotification,
   sendWhatsappAutomated,
+  sendWhatsappAutomatedMultiple,
+  sendWhatsappManualMultiple,
   teacherMeetingsForWeek,
   shareTeacherWeeklyTimetable,
   weekLabel,

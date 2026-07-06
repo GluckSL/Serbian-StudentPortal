@@ -13,10 +13,10 @@ const User = require('../models/User');
 const { isWhatsappAutomatedJobsEnabled } = require('../services/whatsappCrmService');
 const {
   getUpcomingWeekBoundaries,
-  buildWhatsappMessage,
+  buildWhatsappMessages,
   buildEmailHtml,
   sendEmailNotification,
-  sendWhatsappAutomated,
+  sendWhatsappAutomatedMultiple,
   teacherMeetingsForWeek,
   weekLabel,
 } = require('../services/weeklyTimetableService');
@@ -64,16 +64,18 @@ async function processWeeklyScheduleNotifications() {
       weekEnd,
       recipientRole: 'student',
     });
-    const waMsg = buildWhatsappMessage(student.name, meetings, weekStart, weekEnd);
+    const waMessages = buildWhatsappMessages(student.name, meetings, weekStart, weekEnd);
     const phone = student.whatsappNumber || student.phoneNumber || '';
 
-    const [eOk, wOk] = await Promise.all([
+    const [eOk, waResult] = await Promise.all([
       sendEmailNotification({ to: student.email, name: student.name, subject: weekSubject, html }),
-      waEnabled ? sendWhatsappAutomated(phone, student.name, waMsg).then((r) => r.sent) : Promise.resolve(false),
+      waEnabled
+        ? sendWhatsappAutomatedMultiple(phone, student.name, waMessages)
+        : Promise.resolve({ sent: 0 }),
     ]);
 
     eOk ? emailSent++ : emailFailed++;
-    wOk ? waSent++ : waFailed++;
+    waResult.sent > 0 ? waSent++ : waFailed++;
   }
 
   // Teachers
@@ -99,16 +101,18 @@ async function processWeeklyScheduleNotifications() {
       includesBatch: batches.filter((b) => byBatch[b]).length > 1,
       recipientRole: 'teacher',
     });
-    const waMsg = buildWhatsappMessage(teacher.name, meetings, weekStart, weekEnd, { includeBatch: true });
+    const waMessages = buildWhatsappMessages(teacher.name, meetings, weekStart, weekEnd, { splitByBatch: true });
     const phone = teacher.whatsappNumber || teacher.phoneNumber || '';
 
-    const [eOk, wOk] = await Promise.all([
+    const [eOk, waResult] = await Promise.all([
       sendEmailNotification({ to: teacher.email, name: teacher.name, subject: weekSubject, html }),
-      waEnabled ? sendWhatsappAutomated(phone, teacher.name, waMsg).then((r) => r.sent) : Promise.resolve(false),
+      waEnabled
+        ? sendWhatsappAutomatedMultiple(phone, teacher.name, waMessages)
+        : Promise.resolve({ sent: 0 }),
     ]);
 
     eOk ? emailSent++ : emailFailed++;
-    wOk ? waSent++ : waFailed++;
+    waResult.sent > 0 ? waSent++ : waFailed++;
   }
 
   // Admins
@@ -130,16 +134,18 @@ async function processWeeklyScheduleNotifications() {
       includesBatch: true,
       recipientRole: 'admin',
     });
-    const waMsg = buildWhatsappMessage(admin.name, allMeetings, weekStart, weekEnd);
+    const waMessages = buildWhatsappMessages(admin.name, allMeetings, weekStart, weekEnd, { splitByBatch: true });
     const phone = admin.whatsappNumber || admin.phoneNumber || '';
 
-    const [eOk, wOk] = await Promise.all([
+    const [eOk, waResult] = await Promise.all([
       sendEmailNotification({ to: admin.email, name: admin.name, subject: adminSubject, html }),
-      waEnabled ? sendWhatsappAutomated(phone, admin.name, waMsg).then((r) => r.sent) : Promise.resolve(false),
+      waEnabled
+        ? sendWhatsappAutomatedMultiple(phone, admin.name, waMessages)
+        : Promise.resolve({ sent: 0 }),
     ]);
 
     eOk ? emailSent++ : emailFailed++;
-    wOk ? waSent++ : waFailed++;
+    waResult.sent > 0 ? waSent++ : waFailed++;
   }
 
   console.log(

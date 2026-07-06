@@ -263,10 +263,14 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
     const idStr = String(m._id);
     const req_ = requestMap[idStr];
     const zoomRec = recordingMap[idStr];
+    const attendanceStatus = attendanceForStudent(m, studentId, student.email);
     const isAlreadyPublished = zoomRec && zoomRec.isPublished !== false;
     const requestStatus = req_?.status || null;
+    // Missed classes with a published recording already grant access (green check).
+    // Attended classes may still request access even when the recording is published.
+    const accessGrantedWithoutRequest = isAlreadyPublished && attendanceStatus !== 'Attended';
     const canRequest =
-      !isAlreadyPublished &&
+      !accessGrantedWithoutRequest &&
       requestStatus !== 'PENDING' &&
       requestStatus !== 'APPROVED' &&
       quota.remaining > 0 &&
@@ -279,7 +283,7 @@ async function getEligibleClassesPage(student, studentId, page = 1, pageSize = D
       startTime: m.startTime,
       duration: m.duration,
       teacherName: m.teacherName || 'Teacher',
-      attendanceStatus: attendanceForStudent(m, studentId, student.email),
+      attendanceStatus,
       hasRecording: !!zoomRec,
       isAlreadyPublished,
       requestStatus,

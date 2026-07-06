@@ -12,6 +12,7 @@ const ZoomRecordingView = require('../models/ZoomRecordingView');
 const MeetingLink = require('../models/MeetingLink');
 const DGSession = require('../models/DGSession');
 const { totalSessionMinutes, extractChatTurns, effectiveSessionScore } = require('../utils/dgSessionMetrics');
+const { touchStudentLastLogin } = require('../utils/studentCountry');
 
 /** Max seconds credited per heartbeat (tab sends ~every 10s when active). */
 const MAX_CREDIT_PER_HEARTBEAT_SEC = 30;
@@ -269,6 +270,8 @@ async function startSession(studentId, rawUserAgent = '') {
     startTime: doc.startTime
   });
 
+  touchStudentLastLogin(sid);
+
   return { sessionId: doc.sessionId, startTime: doc.startTime };
 }
 
@@ -341,6 +344,8 @@ async function heartbeat(studentId, sessionId, page) {
       creditedSeconds: add
     });
   }
+
+  touchStudentLastLogin(sid);
 
   return { ok: true, creditedSeconds: add, lastHeartbeatAt: now };
 }

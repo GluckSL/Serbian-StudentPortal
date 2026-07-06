@@ -295,7 +295,10 @@ export class TeachersComponent implements OnInit {
               const d = res.data || {};
               const parts: string[] = [];
               if (d.emailSent) parts.push('email');
-              if (d.whatsappSent) parts.push('WhatsApp');
+              if (d.whatsappSent) {
+                const waCount = d.whatsappMessagesSent || 1;
+                parts.push(waCount > 1 ? `${waCount} WhatsApp messages` : 'WhatsApp');
+              }
               const channels = parts.length ? parts.join(' & ') : 'no channel (check email/phone)';
               const count = d.meetingCount ?? 0;
               const week = d.weekLabel ? ` (${d.weekLabel})` : '';
