@@ -37,6 +37,10 @@ function escapeRegExp(str) {
 function batchMatchFilter(batchVal) {
   const bn = String(batchVal || '').trim();
   if (!bn) return null;
+  // Numeric roster slots: match "35", "Batch 35", "batch 35", etc.
+  if (/^\d+$/.test(bn)) {
+    return new RegExp(`^\\s*(?:batch\\s*)?${escapeRegExp(bn)}\\s*$`, 'i');
+  }
   return new RegExp(`^\\s*${escapeRegExp(bn)}\\s*$`, 'i');
 }
 
