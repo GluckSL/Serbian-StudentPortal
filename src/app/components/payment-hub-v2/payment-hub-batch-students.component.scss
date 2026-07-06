@@ -465,3 +465,39 @@
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+.ph-pending-incl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 5px;
+  padding: 2px 7px 2px 4px;
+  border: 1.5px solid #6ee7b7;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+  line-height: 1;
+
+  mat-icon {
+    font-size: 11px;
+    width: 11px;
+    height: 11px;
+    line-height: 11px;
+  }
+
+  &:hover {
+    filter: brightness(0.94);
+  }
+
+  &--off {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #94a3b8;
+    opacity: 0.85;
+  }
+}

@@ -173,7 +173,12 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
     return allRates.length ? allRates.reduce((sum: number, rate: number) => sum + rate, 0) / allRates.length : 0;
   }
 
+  get isNoTds(): boolean {
+    return this.monthlyAnalytics?.teacher?.noTds === true;
+  }
+
   computeTDS(): number {
+    if (this.isNoTds) return 0;
     return this.computeBaseTotal() * 10 / 100;
   }
 

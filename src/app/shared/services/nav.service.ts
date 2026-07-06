@@ -124,6 +124,7 @@ export class NavService {
         { id: 'students',   label: 'Students',  icon: 'school',    route: '/admin/students',  subGroup: 'Student Management' },
         { id: 'teachers',   label: 'Teachers',  icon: 'group',     route: '/teachers',        subGroup: 'Teacher Management' },
         { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null },
+        { id: 'account-audit-log', label: 'Account Audit Log', icon: 'history', route: '/account-audit-log', subGroup: null },
         { id: 'crm',        label: 'CRM',        icon: 'hub',       route: '/admin/crm',       subGroup: null }
       ]
     },

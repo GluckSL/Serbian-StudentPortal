@@ -45,6 +45,7 @@ interface MonthlyHoursData {
     medium: string;
     levels: string[];
     levelHourlyRates?: Record<string, number>;
+    noTds?: boolean;
   };
   month: string;
   monthLabel: string;
@@ -166,7 +167,12 @@ export class TeacherMonthlyHoursComponent implements OnInit {
   }
 
   computeTDS(): number {
+    if (this.data?.teacher?.noTds) return 0;
     return this.computeBaseTotal() * TDS_PERCENT / 100;
+  }
+
+  get isNoTds(): boolean {
+    return this.data?.teacher?.noTds === true;
   }
 
   computeFinal(): number {

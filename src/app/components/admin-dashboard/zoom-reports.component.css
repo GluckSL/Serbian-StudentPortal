@@ -65,6 +65,8 @@
 .zr-btn--secondary:hover { background: #005b96; }
 .zr-btn--analytics { background: #16a34a; color: #fff; position: relative; }
 .zr-btn--analytics:hover { background: #15803d; }
+.zr-btn--dashboard { background: #7c3aed; color: #fff; }
+.zr-btn--dashboard:hover { background: #6d28d9; }
 
 .zr-sel-badge {
   display: inline-flex;

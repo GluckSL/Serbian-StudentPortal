@@ -735,6 +735,7 @@ interface TimelineDay {
                 </label>
               </div>
               <p class="j-field-hint j-field-hint--toggle" *ngIf="editTrialDayEnabled">
+                Saving turns this on for all students at <strong>Day 0 (Trial)</strong>.
                 Set <strong>Trial access starts</strong> for orientation (e.g. 7 Jun). Set <strong>Day 1 starts</strong> for the first journey day (e.g. 10 Jun).
                 Tag trial recordings, exercises, and games as journey day <strong>0</strong>.
               </p>
@@ -5663,7 +5664,10 @@ export class JourneyManagementComponent implements OnInit {
         const levelNote = r?.studentsLevelUpdated != null
           ? ` (${r.studentsLevelUpdated} student(s) set to ${this.editOldBatchManualLevel})`
           : '';
-        this.notify.success(`Batch config saved.${levelNote}`);
+        const trialNote = r?.studentsDayUpdated != null
+          ? ` (${r.studentsDayUpdated} student(s) set to Trial / Day 0)`
+          : '';
+        this.notify.success(`Batch config saved.${levelNote}${trialNote}`);
         if (this.selectedBatch?.batchName === this.studentsLoadedForBatch) {
           this.loadStudents(this.selectedBatch.batchName);
         }

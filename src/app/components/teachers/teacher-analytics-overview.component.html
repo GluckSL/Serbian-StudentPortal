@@ -179,7 +179,10 @@
                 <ng-template #dash1><span class="tao-muted">—</span></ng-template>
               </td>
               <td class="tao-num tao-tds-cell">
-                <span *ngIf="hasRates(teacher); else dash2">{{ computeTDS(teacher) | number:'1.0-0' }}</span>
+                <ng-container *ngIf="hasRates(teacher); else dash2">
+                  <span *ngIf="!teacher.noTds">{{ computeTDS(teacher) | number:'1.0-0' }}</span>
+                  <span *ngIf="teacher.noTds" class="tao-notds-badge">No TDS</span>
+                </ng-container>
                 <ng-template #dash2><span class="tao-muted">—</span></ng-template>
               </td>
               <td class="tao-num tao-final-cell">
@@ -195,6 +198,17 @@
                 </button>
                 <button type="button" class="tao-action-btn tao-action-btn--manager" (click)="openManager(teacher)">
                   <i class="fas fa-dollar-sign"></i> Manager
+                </button>
+                <button
+                  type="button"
+                  class="tao-action-btn"
+                  [class.tao-action-btn--notds-active]="teacher.noTds"
+                  [class.tao-action-btn--notds]="!teacher.noTds"
+                  (click)="toggleNoTds(teacher, $event)"
+                  [disabled]="togglingTdsId === teacher.teacherId"
+                  [title]="teacher.noTds ? 'TDS Exempt — click to re-enable TDS' : 'Click to mark as No TDS'"
+                >
+                  <i class="fas fa-ban"></i> {{ teacher.noTds ? 'TDS On' : 'No TDS' }}
                 </button>
               </td>
             </tr>

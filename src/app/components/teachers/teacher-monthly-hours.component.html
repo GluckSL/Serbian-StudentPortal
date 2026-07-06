@@ -83,7 +83,12 @@
         <span class="tao-kpi__icon tao-kpi__icon--amber"><i class="fas fa-percent"></i></span>
         <div>
           <span class="tao-kpi__label">TDS (10%)</span>
-          <strong class="tao-kpi__value">{{ hasSavedRates() ? formatCurrency(computeTDS()) : '—' }}</strong>
+          <ng-container *ngIf="!isNoTds">
+            <strong class="tao-kpi__value">{{ hasSavedRates() ? formatCurrency(computeTDS()) : '—' }}</strong>
+          </ng-container>
+          <ng-container *ngIf="isNoTds">
+            <strong class="tao-kpi__value" style="color:#16a34a">₹0 &nbsp;<span class="tao-notds-badge">Exempt</span></strong>
+          </ng-container>
         </div>
       </article>
       <article class="tao-kpi">

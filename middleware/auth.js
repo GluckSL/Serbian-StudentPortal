@@ -161,10 +161,26 @@ const checkRole = (roles) => {
 };
 
 
+/** Attach req.user when a valid Bearer token is present; never rejects. */
+async function optionalVerifyToken(req, res, next) {
+  const token = extractBearerToken(req);
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const sessionOk = await assertTokenSessionValid(decoded);
+    if (sessionOk) req.user = decoded;
+  } catch (_) {
+    /* ignore invalid optional token */
+  }
+  next();
+}
+
+
 // ✅ Export all middleware
 module.exports = {
   verifyToken,
   verifyMediaToken,
+  optionalVerifyToken,
   isAdmin,
   requireFullAdmin,
   checkRole,

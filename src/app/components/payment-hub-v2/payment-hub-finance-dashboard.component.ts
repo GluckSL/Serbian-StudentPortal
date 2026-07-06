@@ -189,6 +189,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   /** Catalog per-level fees (LKR/INR) for projected next-level collection. */
   private catalogFeesByLevel = new Map<string, { lkr: number; inr: number }>();
 
+  /** Batches excluded from the outlook pending cards (user-toggled). Persisted to localStorage. */
+  excludedPendingBatches = new Set<string>();
+  private readonly EXCL_BATCHES_KEY = 'ph_excl_pending_batches';
+
   constructor(
     private readonly api: PaymentHubApiService,
     private readonly router: Router,
@@ -197,6 +201,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.loadExcludedPendingBatches();
     this.loadCatalogFees();
     this.route.queryParamMap.subscribe((params) => {
       this.isLanguageMode = params.get('mode') === 'language';
@@ -764,6 +769,31 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     return this.scopeTotalsFromRow(r).overdue;
   }
 
+  isBatchPendingExcluded(batch: string): boolean {
+    return this.excludedPendingBatches.has(batch);
+  }
+
+  toggleBatchPendingExclusion(batch: string): void {
+    if (this.excludedPendingBatches.has(batch)) {
+      this.excludedPendingBatches.delete(batch);
+    } else {
+      this.excludedPendingBatches.add(batch);
+    }
+    this.excludedPendingBatches = new Set(this.excludedPendingBatches);
+    try {
+      localStorage.setItem(this.EXCL_BATCHES_KEY, JSON.stringify([...this.excludedPendingBatches]));
+    } catch {}
+  }
+
+  private loadExcludedPendingBatches(): void {
+    try {
+      const saved = localStorage.getItem(this.EXCL_BATCHES_KEY);
+      if (saved) {
+        this.excludedPendingBatches = new Set(JSON.parse(saved));
+      }
+    } catch {}
+  }
+
   private readonly PREV_LEVEL_ORDER: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
 
   /** Ongoing / last-level / commencement totals — matches 10 AM finance email report. */
@@ -787,6 +817,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     let commCount = 0;
 
     for (const r of rows) {
+      if (this.excludedPendingBatches.has(r.batch)) continue;
+
       const ongoing = this.rowCurrentLevelPending(r);
       ongoingLkr += ongoing.lkr;
       ongoingInr += ongoing.inr;
