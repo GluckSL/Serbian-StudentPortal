@@ -29,6 +29,7 @@ const {
   STUDENT_COUNTRY_FILTER_OPTIONS,
 } = require('../utils/studentCountry');
 const { approvePublicSignupApplication, rejectPublicSignupApplication } = require('../utils/signupActivation');
+const { batchMatchFilters } = require('../utils/analyticsFilters');
 
 const FILTER_OPTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
 let filterOptionsCache = { at: 0, payload: null };
@@ -335,7 +336,8 @@ router.get('/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACH
 
     if (level) query.level = String(level).trim();
     if (plan) query.subscription = String(plan).trim().toUpperCase();
-    if (batch) query.batch = String(batch).trim();
+    const batchFilter = batchMatchFilters(batch);
+    if (batchFilter) query.batch = batchFilter;
     if (studentStatus) query.studentStatus = String(studentStatus).trim().toUpperCase();
     applyStudentNameFilter(query, studentName);
     if (servicesOpted) query.servicesOpted = String(servicesOpted).trim();

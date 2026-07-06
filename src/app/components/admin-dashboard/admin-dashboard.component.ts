@@ -1,6 +1,6 @@
 //src/app/components/admin-dashboard/admin-dashboard.component.ts
 
-import { Component, OnInit, TrackByFunction } from '@angular/core';
+import { Component, HostListener, OnInit, TrackByFunction } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router, RouterModule } from '@angular/router';
 import { jwtDecode } from 'jwt-decode';
@@ -212,10 +212,13 @@ export class AdminDashboardComponent implements OnInit {
   readonly skeletonTableRows = [0, 1, 2, 3, 4, 5, 6, 7];
   readonly skeletonTableCols = [0, 1, 2, 3, 4, 5, 6, 7, 8];
   error = '';
+  selectedBatches: string[] = [];
+  allBatchesSelected = true;
+  batchDropdownOpen = false;
+
   filters = {
     level: '',
     plan: '',
-    batch: '',
     assignedTeacher: '',
     studentStatus: '',
     studentName: '',
@@ -379,7 +382,9 @@ export class AdminDashboardComponent implements OnInit {
 
     if (this.filters.level) params = params.set('level', this.filters.level);
     if (this.filters.plan) params = params.set('plan', this.filters.plan);
-    if (this.filters.batch) params = params.set('batch', String(this.filters.batch));
+    if (!this.allBatchesSelected && this.selectedBatches.length) {
+      params = params.set('batch', this.selectedBatches.join(','));
+    }
     if (this.filters.studentStatus) params = params.set('studentStatus', this.filters.studentStatus);
     if (this.filters.studentName) params = params.set('studentName', this.filters.studentName);
     if (this.filters.teacherName) params = params.set('teacherName', this.filters.teacherName);
@@ -578,10 +583,12 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   clearFilters() {
+    this.allBatchesSelected = true;
+    this.selectedBatches = [];
+    this.batchDropdownOpen = false;
     this.filters = {
       level: '',
       plan: '',
-      batch: '',
       assignedTeacher: '',
       studentStatus: '',
       studentName: '',
@@ -599,11 +606,61 @@ export class AdminDashboardComponent implements OnInit {
 
   hasActiveStudentFilters(): boolean {
     const f = this.filters;
+    const batchActive = !this.allBatchesSelected && this.selectedBatches.length > 0;
     return !!(
-      f.level || f.plan || f.batch || f.studentStatus || f.studentName || f.teacherName ||
+      f.level || f.plan || batchActive || f.studentStatus || f.studentName || f.teacherName ||
       f.servicesOpted || f.qualifications || f.languageLevelOpted ||
       f.phoneCountry || f.loginCountry
     );
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.batchDropdownOpen = false;
+  }
+
+  get batchFilterLabel(): string {
+    if (this.allBatchesSelected) return 'All batches';
+    if (this.selectedBatches.length === 1) return this.selectedBatches[0];
+    if (!this.selectedBatches.length) return 'Select batches…';
+    return `${this.selectedBatches.length} batches`;
+  }
+
+  toggleBatchDropdown(event: Event): void {
+    event.stopPropagation();
+    this.batchDropdownOpen = !this.batchDropdownOpen;
+  }
+
+  isBatchChecked(batch: string): boolean {
+    return this.allBatchesSelected || this.selectedBatches.includes(batch);
+  }
+
+  selectAllBatches(event: Event): void {
+    event.stopPropagation();
+    this.allBatchesSelected = true;
+    this.selectedBatches = [];
+  }
+
+  toggleBatchSelection(batch: string, event: Event): void {
+    event.stopPropagation();
+    if (this.allBatchesSelected) {
+      this.allBatchesSelected = false;
+      this.selectedBatches = [batch];
+      return;
+    }
+
+    const idx = this.selectedBatches.indexOf(batch);
+    if (idx >= 0) {
+      this.selectedBatches = this.selectedBatches.filter((b) => b !== batch);
+      if (!this.selectedBatches.length) this.allBatchesSelected = true;
+    } else {
+      this.selectedBatches = [...this.selectedBatches, batch].sort((a, b) => {
+        const na = parseInt(a, 10);
+        const nb = parseInt(b, 10);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.localeCompare(b, undefined, { numeric: true });
+      });
+    }
   }
 
   countryCellDisplay(student: any, field: 'phoneCountry' | 'lastLoginCountry'): string {
@@ -1288,6 +1345,8 @@ export class AdminDashboardComponent implements OnInit {
     'Batch',
     'Status',
     'Medium',
+    'Credentials Sent',
+    'Last Login',
   ] as const;
 
   private studentToExportRow(student: Student): Record<(typeof this.studentExportHeaders)[number], string> {
@@ -1310,6 +1369,8 @@ export class AdminDashboardComponent implements OnInit {
       Batch: raw.batch || '',
       Status: this.formatStudentStatus(raw.studentStatus) || raw.studentStatus || '',
       Medium: medium,
+      'Credentials Sent': this.formatDate(raw.lastCredentialsEmailSent),
+      'Last Login': this.formatLastLogin(raw.lastLogin),
     };
   }
 
