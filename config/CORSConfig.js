@@ -1,4 +1,4 @@
-const allowedOrigins = ["http://localhost:4200", "http://16.170.204.125", "http://13.62.216.210", "https://13.62.216.210", "https://gluckstudentsportal.com"];
+const allowedOrigins = ["http://localhost:4200", "http://16.170.204.125", "http://13.62.216.210", "https://13.62.216.210", "https://gluckstudentsportal.com", "https://www.gluckstudentsportal.com"];
 
 app.use(cors({
   origin: function(origin, callback) {

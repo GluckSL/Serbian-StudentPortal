@@ -90,7 +90,7 @@ export class TeacherResourcesService {
       }));
     }
 
-    // Direct S3 PUT bypasses nginx client_max_body_size limits on production.
+    // Direct R2 PUT bypasses nginx client_max_body_size limits on production.
     return forkJoin(payload.files.map((file) => this.presignAndPut(file))).pipe(
       switchMap((files) =>
         this.http.post(
@@ -183,25 +183,29 @@ export class TeacherResourcesService {
     const contentType = file.type || 'application/octet-stream';
     return this.http
       .post<{
-        success: boolean;
         uploadUrl: string;
-        key: string;
         fileUrl: string;
-        message?: string;
+        key?: string;
+        error?: string;
       }>(
-        `${this.baseUrl}/presign-upload`,
+        `${environment.apiUrl}/r2/generate-upload-url`,
         {
           filename: file.name,
           contentType,
-          fileSize: file.size
+          prefix: 'teacher-resources',
         },
         { withCredentials: true }
       )
       .pipe(
         switchMap((res) => {
-          if (!res?.uploadUrl || !res?.key) {
+          const key =
+            res?.key ||
+            (res?.fileUrl?.includes('teacher-resources/')
+              ? res.fileUrl.slice(res.fileUrl.indexOf('teacher-resources/'))
+              : '');
+          if (!res?.uploadUrl || !res?.fileUrl || !key) {
             return throwError(() => ({
-              error: { message: res?.message || 'Failed to prepare upload' }
+              error: { message: res?.error || 'Failed to prepare upload' }
             }));
           }
           return from(
@@ -209,6 +213,8 @@ export class TeacherResourcesService {
               method: 'PUT',
               headers: { 'Content-Type': contentType },
               body: file
+            }).catch(() => {
+              throw new Error('Cloud storage upload failed. Check R2 CORS and try again.');
             })
           ).pipe(
             switchMap((response) => {
@@ -220,7 +226,7 @@ export class TeacherResourcesService {
                 }));
               }
               return of({
-                key: res.key,
+                key,
                 fileUrl: res.fileUrl,
                 originalName: file.name,
                 mimeType: contentType,

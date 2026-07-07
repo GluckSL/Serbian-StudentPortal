@@ -1405,11 +1405,7 @@
               <td class="mc-req-table__action-col">
                 <div class="mc-req-table__actions">
                   <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
-                    *ngIf="cls.isAlreadyPublished && cls.attendanceStatus !== 'Attended'" title="Access granted" aria-label="Access granted">
-                    <span class="material-icons">check_circle</span>
-                  </span>
-                  <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
-                    *ngIf="!cls.isAlreadyPublished && cls.requestStatus === 'APPROVED'" title="Approved"
+                    *ngIf="cls.requestStatus === 'APPROVED'" title="Approved"
                     aria-label="Approved">
                     <span class="material-icons">verified</span>
                   </span>
@@ -1432,7 +1428,7 @@
                     <span class="material-icons">playlist_add</span>
                   </button>
                   <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--muted"
-                    *ngIf="cls.requestStatus !== 'APPROVED' && cls.requestStatus !== 'PENDING' && !cls.canRequest && !(cls.isAlreadyPublished && cls.attendanceStatus !== 'Attended')"
+                    *ngIf="cls.requestStatus !== 'APPROVED' && cls.requestStatus !== 'PENDING' && !cls.canRequest"
                     title="Quota full" aria-label="Quota full">
                     <span class="material-icons">block</span>
                   </span>

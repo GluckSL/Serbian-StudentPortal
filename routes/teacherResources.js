@@ -1,38 +1,91 @@
 const express = require('express');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const s3Client = require('../config/s3');
 const TeacherResource = require('../models/TeacherResource');
 const User = require('../models/User');
 const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
-const { presignStoredS3Url, presignS3InlineUrl } = require('../config/presign');
+const { presignMediaUrl, presignStoredS3Url, presignS3InlineUrl } = require('../config/presign');
+const {
+  isExerciseR2Configured,
+  getExerciseR2Config,
+  publicUrlForKey,
+  getExerciseMediaBuffer,
+  extractMediaKeyFromUrl,
+  isExerciseR2Url,
+} = require('../services/exerciseMediaR2');
 
 const router = express.Router();
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const MAX_FILES = 20;
+const R2_KEY_PREFIX = 'teacher-resources/';
 
-function buildTeacherResourceKey(originalName) {
-  const prefix = process.env.S3_PREFIX || 'uploads';
-  const safe = String(originalName || 'file').replace(/[^\w.\-]/g, '_');
-  const uniqueName = `${Date.now()}_${Math.round(Math.random() * 1e9)}_${safe}`;
-  return `${prefix}/teacher-resources/${uniqueName}`;
+function isTeacherResourceR2Key(key) {
+  const normalized = String(key || '').replace(/^\/+/, '');
+  return normalized.startsWith(R2_KEY_PREFIX);
 }
 
-function buildS3ObjectUrl(key) {
-  const bucket = process.env.S3_BUCKET;
-  const region = process.env.AWS_REGION || 'us-east-1';
-  const host =
-    region === 'us-east-1' ? `${bucket}.s3.amazonaws.com` : `${bucket}.s3.${region}.amazonaws.com`;
-  return `https://${host}/${key}`;
+function isTeacherResourceS3Key(key) {
+  const prefix = process.env.S3_PREFIX || 'uploads';
+  const normalized = String(key || '').replace(/^\/+/, '');
+  return normalized.startsWith(`${prefix}/teacher-resources/`);
 }
 
 function isTeacherResourceKey(key) {
-  const prefix = process.env.S3_PREFIX || 'uploads';
-  const normalized = String(key || '').replace(/^\//, '');
-  return normalized.startsWith(`${prefix}/teacher-resources/`);
+  return isTeacherResourceR2Key(key) || isTeacherResourceS3Key(key);
+}
+
+function isR2TeacherResource(row) {
+  const key = String(row?.fileName || '').replace(/^\/+/, '');
+  if (isTeacherResourceR2Key(key)) return true;
+  return isExerciseR2Url(row?.fileUrl);
+}
+
+async function headTeacherResourceR2(key) {
+  const cfg = getExerciseR2Config();
+  if (!cfg) return null;
+  try {
+    return await cfg.client.send(new HeadObjectCommand({ Bucket: cfg.bucket, Key: key }));
+  } catch {
+    return null;
+  }
+}
+
+async function deleteTeacherResourceStorage(key) {
+  const normalized = String(key || '').replace(/^\/+/, '').trim();
+  if (!normalized) return;
+
+  if (isTeacherResourceR2Key(normalized)) {
+    const cfg = getExerciseR2Config();
+    if (!cfg) return;
+    try {
+      await cfg.client.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: normalized }));
+    } catch (_) {
+      // best effort
+    }
+    return;
+  }
+
+  if (process.env.S3_BUCKET) {
+    try {
+      await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: normalized }));
+    } catch (_) {
+      // best effort
+    }
+  }
+}
+
+async function resolveTeacherResourceUrls(row) {
+  if (isR2TeacherResource(row)) {
+    const url = row.fileUrl || publicUrlForKey(row.fileName);
+    row.fileUrl = await presignMediaUrl(url);
+    row.previewUrl = row.fileUrl;
+    return;
+  }
+  row.fileUrl = await presignStoredS3Url(row.fileName, row.fileUrl);
+  row.previewUrl = await presignS3InlineUrl(row.fileName, row.fileUrl, row.originalName, row.mimeType);
 }
 
 const upload = multer({
@@ -108,9 +161,42 @@ async function validateTeacherIds(teacherIds) {
 
 async function verifyUploadedTeacherResourceFile(fileMeta) {
   const key = String(fileMeta?.key || '').replace(/^\//, '').trim();
-  if (!key || !isTeacherResourceKey(key) || !process.env.S3_BUCKET) {
+  if (!key || !isTeacherResourceKey(key)) {
     const err = new Error('Invalid storage key');
     err.status = 400;
+    throw err;
+  }
+
+  if (isTeacherResourceR2Key(key)) {
+    if (!isExerciseR2Configured()) {
+      const err = new Error('R2 is not configured');
+      err.status = 500;
+      throw err;
+    }
+    const head = await headTeacherResourceR2(key);
+    if (!head) {
+      const err = new Error('Uploaded file not found in storage. Try uploading again.');
+      err.status = 400;
+      throw err;
+    }
+    const size = Number(head.ContentLength || 0);
+    if (!size || size > MAX_FILE_SIZE) {
+      const err = new Error('Uploaded file is missing or exceeds the 50 MB limit');
+      err.status = 400;
+      throw err;
+    }
+    return {
+      key,
+      fileUrl: String(fileMeta.fileUrl || publicUrlForKey(key) || '').trim(),
+      originalName: String(fileMeta.originalName || '').trim() || key.split('/').pop(),
+      mimeType: String(fileMeta.mimeType || head.ContentType || 'application/octet-stream').trim(),
+      fileSize: size
+    };
+  }
+
+  if (!process.env.S3_BUCKET) {
+    const err = new Error('File storage is not configured');
+    err.status = 500;
     throw err;
   }
 
@@ -127,9 +213,15 @@ async function verifyUploadedTeacherResourceFile(fileMeta) {
     throw err;
   }
 
+  const region = process.env.AWS_REGION || 'us-east-1';
+  const host =
+    region === 'us-east-1'
+      ? `${process.env.S3_BUCKET}.s3.amazonaws.com`
+      : `${process.env.S3_BUCKET}.s3.${region}.amazonaws.com`;
+
   return {
     key,
-    fileUrl: String(fileMeta.fileUrl || buildS3ObjectUrl(key)).trim(),
+    fileUrl: String(fileMeta.fileUrl || `https://${host}/${key}`).trim(),
     originalName: String(fileMeta.originalName || '').trim() || key.split('/').pop(),
     mimeType: String(fileMeta.mimeType || head.ContentType || 'application/octet-stream').trim(),
     fileSize: size
@@ -179,46 +271,11 @@ async function createTeacherResourceDocs({
   return Promise.all(
     docs.map(async (doc) => {
       const o = doc.toObject();
-      o.fileUrl = await presignStoredS3Url(o.fileName, o.fileUrl);
+      await resolveTeacherResourceUrls(o);
       return o;
     })
   );
 }
-
-router.post('/presign-upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
-  try {
-    if (!process.env.S3_BUCKET) {
-      return res.status(500).json({ success: false, message: 'File storage is not configured' });
-    }
-
-    const filename = String(req.body?.filename || '').trim();
-    const contentType = String(req.body?.contentType || '').trim();
-    const fileSize = Number(req.body?.fileSize || 0);
-    if (!filename) return res.status(400).json({ success: false, message: 'filename is required' });
-    if (!contentType) return res.status(400).json({ success: false, message: 'contentType is required' });
-    if (!fileSize || fileSize > MAX_FILE_SIZE) {
-      return res.status(400).json({ success: false, message: 'File exceeds the 50 MB limit' });
-    }
-
-    const key = buildTeacherResourceKey(filename);
-    const command = new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET,
-      Key: key,
-      ContentType: contentType
-    });
-    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
-
-    res.json({
-      success: true,
-      uploadUrl,
-      key,
-      fileUrl: buildS3ObjectUrl(key)
-    });
-  } catch (err) {
-    console.error('teacherResources presign-upload error:', err);
-    res.status(500).json({ success: false, message: 'Failed to prepare upload', error: err.message });
-  }
-});
 
 router.post('/register-upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   const uploadedKeys = [];
@@ -244,6 +301,9 @@ router.post('/register-upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
     if (files.length > MAX_FILES) {
       return res.status(400).json({ success: false, message: `Up to ${MAX_FILES} files are allowed per upload` });
     }
+    if (!isExerciseR2Configured()) {
+      return res.status(503).json({ success: false, message: 'R2 storage is not configured for teacher resource uploads' });
+    }
 
     for (const f of files) {
       const key = String(f?.key || '').replace(/^\//, '').trim();
@@ -266,12 +326,8 @@ router.post('/register-upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
 
     res.status(201).json({ success: true, data: out });
   } catch (err) {
-    if (uploadedKeys.length && process.env.S3_BUCKET) {
-      await Promise.allSettled(
-        uploadedKeys.map((key) =>
-          s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }))
-        )
-      );
+    if (uploadedKeys.length) {
+      await Promise.allSettled(uploadedKeys.map((key) => deleteTeacherResourceStorage(key)));
     }
     console.error('teacherResources register-upload error:', err);
     res.status(err.status || 500).json({ success: false, message: err.message || 'Upload failed' });
@@ -348,12 +404,8 @@ router.post(
 
       res.status(201).json({ success: true, data: out });
     } catch (err) {
-      if (uploadedKeys.length && process.env.S3_BUCKET) {
-        await Promise.allSettled(
-          uploadedKeys.map((key) =>
-            s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }))
-          )
-        );
+      if (uploadedKeys.length) {
+        await Promise.allSettled(uploadedKeys.map((key) => deleteTeacherResourceStorage(key)));
       }
       console.error('teacherResources upload error:', err);
       res.status(500).json({ success: false, message: 'Upload failed', error: err.message });
@@ -387,12 +439,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
       .sort({ uploadedAt: -1 })
       .lean();
 
-    await Promise.all(
-      rows.map(async (row) => {
-        row.fileUrl = await presignStoredS3Url(row.fileName, row.fileUrl);
-        row.previewUrl = await presignS3InlineUrl(row.fileName, row.fileUrl, row.originalName);
-      })
-    );
+    await Promise.all(rows.map((row) => resolveTeacherResourceUrls(row)));
 
     // Build dropdown options from both uploaded resource metadata and teacher's class/student metadata.
     // This ensures filters are populated even when older resources were uploaded without batch/level/plan.
@@ -447,27 +494,37 @@ router.get('/:id/preview', verifyMediaToken, checkRole(['ADMIN', 'TEACHER_ADMIN'
     }
 
     const key = (row.fileName || '').replace(/^\//, '').trim();
-    if (!key || !process.env.S3_BUCKET) {
+    if (!key) {
       return res.status(400).json({ success: false, message: 'Invalid storage object' });
     }
 
     const fileName = String(row.originalName || 'preview').replace(/["\r\n]/g, '_');
-    const command = new GetObjectCommand({
-      Bucket: process.env.S3_BUCKET,
-      Key: key
-    });
-    const out = await s3Client.send(command);
-
     const originalName = String(row.originalName || '').toLowerCase();
     const forceHtml = originalName.endsWith('.html') || originalName.endsWith('.htm');
     const contentType = forceHtml
       ? 'text/html; charset=utf-8'
-      : (row.mimeType || out.ContentType || 'application/octet-stream');
+      : (row.mimeType || 'application/octet-stream');
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-popups");
     res.setHeader('Cache-Control', 'private, max-age=300');
+
+    if (isR2TeacherResource(row)) {
+      const r2Key = extractMediaKeyFromUrl(row.fileUrl) || key;
+      const buffer = await getExerciseMediaBuffer(r2Key);
+      return res.send(buffer);
+    }
+
+    if (!process.env.S3_BUCKET) {
+      return res.status(400).json({ success: false, message: 'Invalid storage object' });
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: key
+    });
+    const out = await s3Client.send(command);
 
     if (!out.Body) {
       return res.status(500).json({ success: false, message: 'Preview stream is empty' });
@@ -532,25 +589,16 @@ router.patch(
 
         await row.save();
 
-        if (previousFileName && process.env.S3_BUCKET && previousFileName !== row.fileName) {
-          try {
-            await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: previousFileName }));
-          } catch (_) {
-            // best effort cleanup of replaced file
-          }
+        if (previousFileName && previousFileName !== row.fileName) {
+          await deleteTeacherResourceStorage(previousFileName);
         }
 
         const out = row.toObject();
-        out.fileUrl = await presignStoredS3Url(out.fileName, out.fileUrl);
-        out.previewUrl = await presignS3InlineUrl(out.fileName, out.fileUrl, out.originalName);
+        await resolveTeacherResourceUrls(out);
         return res.json({ success: true, data: out });
       } catch (err) {
-        if (uploadedKey && process.env.S3_BUCKET) {
-          try {
-            await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: uploadedKey }));
-          } catch (_) {
-            // best effort rollback for newly uploaded replacement file
-          }
+        if (uploadedKey) {
+          await deleteTeacherResourceStorage(uploadedKey);
         }
         console.error('teacherResources update (presigned) error:', err);
         return res.status(err.status || 500).json({ success: false, message: err.message || 'Update failed' });
@@ -618,25 +666,16 @@ router.patch(
 
       await row.save();
 
-      if (req.file && previousFileName && process.env.S3_BUCKET && previousFileName !== row.fileName) {
-        try {
-          await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: previousFileName }));
-        } catch (_) {
-          // best effort cleanup of replaced file
-        }
+      if (req.file && previousFileName && previousFileName !== row.fileName) {
+        await deleteTeacherResourceStorage(previousFileName);
       }
 
       const out = row.toObject();
-      out.fileUrl = await presignStoredS3Url(out.fileName, out.fileUrl);
-      out.previewUrl = await presignS3InlineUrl(out.fileName, out.fileUrl, out.originalName);
+      await resolveTeacherResourceUrls(out);
       res.json({ success: true, data: out });
     } catch (err) {
-      if (uploadedKey && process.env.S3_BUCKET) {
-        try {
-          await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: uploadedKey }));
-        } catch (_) {
-          // best effort rollback for newly uploaded replacement file
-        }
+      if (uploadedKey) {
+        await deleteTeacherResourceStorage(uploadedKey);
       }
       console.error('teacherResources update error:', err);
       res.status(500).json({ success: false, message: 'Update failed', error: err.message });
@@ -649,12 +688,8 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
     const row = await TeacherResource.findById(req.params.id);
     if (!row) return res.status(404).json({ success: false, message: 'Resource not found' });
 
-    if (row.fileName && process.env.S3_BUCKET) {
-      try {
-        await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: row.fileName }));
-      } catch (_) {
-        // best effort
-      }
+    if (row.fileName) {
+      await deleteTeacherResourceStorage(row.fileName);
     }
 
     await TeacherResource.findByIdAndDelete(row._id);

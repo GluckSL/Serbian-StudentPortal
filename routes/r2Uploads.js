@@ -47,6 +47,7 @@ router.post(
         'listening-media',
         'exercise-attachments',
         'pdf-exercises',
+        'teacher-resources',
         'glueck-arena/game-audio',
         'glueck-arena/game-images',
         'glueck-arena/game-thumbnails',
@@ -83,7 +84,7 @@ router.post(
         fileUrl
       );
 
-      return res.json({ uploadUrl, fileUrl });
+      return res.json({ uploadUrl, fileUrl, key });
     } catch (err) {
       console.error('R2 presign generation failed:', err);
       return res.status(500).json({ error: err.message || 'Failed to generate upload URL' });
