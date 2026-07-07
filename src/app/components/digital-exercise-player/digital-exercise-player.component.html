@@ -3239,8 +3239,7 @@
               <div
                 cdkDropList
                 class="rearrange-drop"
-                cdkDropListOrientation="horizontal"
-                [cdkDropListSortingDisabled]="false"
+                [cdkDropListSortingDisabled]="true"
                 [cdkDropListData]="currentQuestion.rearrangeTokens"
                 [class.disabled]="hasCurrentSubmitted"
                 (cdkDropListDropped)="onRearrangeDrop(currentQuestion, $event)"
@@ -3249,9 +3248,9 @@
                   class="rearrange-token"
                   *ngFor="
                     let t of currentQuestion.rearrangeTokens;
-                    let ti = index;
-                    trackBy: trackByIndex
+                    let ti = index
                   "
+                  [attr.data-index]="ti"
                   cdkDrag
                   [cdkDragDisabled]="hasCurrentSubmitted"
                   (cdkDragStarted)="
@@ -4381,13 +4380,16 @@
                       <p class="sub-q-text" [innerHTML]="sq.rearrangePrompt | safeHtml"></p>
                       <div class="rearrange-tokens-wrap" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.length">
                         <div class="rearrange-label">Drag to rearrange:</div>
-                        <div class="rearrange-drop" cdkDropList cdkDropListOrientation="horizontal"
+                        <div class="rearrange-drop" cdkDropList
                           [cdkDropListData]="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)"
-                          [cdkDropListSortingDisabled]="hasCurrentSubmitted"
+                          [cdkDropListSortingDisabled]="true"
                           [class.disabled]="hasCurrentSubmitted"
                           (cdkDropListDropped)="onSubQuestionRearrangeDrop(currentQuestion, sqIndex, $event)">
                           <div class="rearrange-token" *ngFor="let t of getSubQuestionRearrangeTokens(currentQuestion, sqIndex); let ti = index"
-                            cdkDrag [cdkDragDisabled]="hasCurrentSubmitted">
+                            [attr.data-index]="ti"
+                            cdkDrag [cdkDragDisabled]="hasCurrentSubmitted"
+                            (cdkDragStarted)="onSubQuestionRearrangeDragStarted()"
+                            (cdkDragEnded)="onSubQuestionRearrangeDragEnded()">
                             {{ t }}
                           </div>
                         </div>
