@@ -72,6 +72,16 @@
           <div class="phc-card__count">{{ fullPaidCount }}</div>
           <div class="phc-card__label">Full Paid</div>
           <div class="phc-card__hint">No balance remaining</div>
+          <div class="phc-card__pending phc-card__pending--paid" *ngIf="hasPaidTotal(fullPaidPaidTotal)">
+            <span class="phc-card__pending-label">Total paid</span>
+            <app-payment-currency-totals
+              [lkr]="fullPaidPaidTotal.lkr"
+              [inr]="fullPaidPaidTotal.inr"
+              [usd]="fullPaidPaidTotal.usd"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-totals>
+          </div>
         </button>
 
         <!-- Pending -->
@@ -87,6 +97,16 @@
           <div class="phc-card__count">{{ pendingCount }}</div>
           <div class="phc-card__label">Pending</div>
           <div class="phc-card__hint">Have outstanding balance</div>
+          <div class="phc-card__pending" *ngIf="hasPendingTotal(pendingCardTotal)">
+            <span class="phc-card__pending-label">Total pending</span>
+            <app-payment-currency-pending-totals
+              [lkr]="pendingCardTotal.lkr"
+              [inr]="pendingCardTotal.inr"
+              [usd]="pendingCardTotal.usd"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-pending-totals>
+          </div>
         </button>
 
         <!-- Green -->

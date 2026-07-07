@@ -300,6 +300,14 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
     return this.sumPendingForHealthColor('red');
   }
 
+  get pendingCardTotal(): StudentCurrencyTotals {
+    return this.sumPendingForRows(this.allRows.filter((r) => !this.isFullPaid(r)));
+  }
+
+  get fullPaidPaidTotal(): StudentCurrencyTotals {
+    return this.sumPaidForRows(this.allRows.filter((r) => this.isFullPaid(r)));
+  }
+
   private sumPendingForHealthColor(color: HealthColor): StudentCurrencyTotals {
     return this.sumPendingForRows(this.allRows.filter((r) => r.healthColor === color));
   }
@@ -318,7 +326,25 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
     );
   }
 
+  private sumPaidForRows(rows: HealthStudentRow[]): StudentCurrencyTotals {
+    return rows.reduce(
+      (acc, row) => {
+        const p = this.rowPaid(row);
+        return {
+          lkr: acc.lkr + p.lkr,
+          inr: acc.inr + p.inr,
+          usd: acc.usd + p.usd,
+        };
+      },
+      { lkr: 0, inr: 0, usd: 0 },
+    );
+  }
+
   hasPendingTotal(totals: StudentCurrencyTotals): boolean {
+    return totals.lkr > 0 || totals.inr > 0 || totals.usd > 0;
+  }
+
+  hasPaidTotal(totals: StudentCurrencyTotals): boolean {
     return totals.lkr > 0 || totals.inr > 0 || totals.usd > 0;
   }
 
