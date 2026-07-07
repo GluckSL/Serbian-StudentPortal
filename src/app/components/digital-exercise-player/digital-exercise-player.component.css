@@ -3624,6 +3624,7 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 8px;
+  touch-action: manipulation;
   background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 70%);
   border: 1.5px dashed #a5b4fc;
   border-radius: 12px;

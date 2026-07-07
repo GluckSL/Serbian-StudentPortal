@@ -1050,11 +1050,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!event?.isPointerOverContainer) return;
     if (!Array.isArray(pq.rearrangeTokens)) return;
     const arr = pq.rearrangeTokens;
-    const prev = event.previousIndex;
-    const curr = this.computeDropIndex(event);
-    if (!Number.isFinite(prev) || !Number.isFinite(curr)) return;
-    if (prev === curr) return;
-    moveItemInArray(arr, prev, curr);
+    const from = event.previousIndex;
+    const to = this.findSwapTarget(event);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+    if (from === to) return;
+    [arr[from], arr[to]] = [arr[to], arr[from]];
+    pq.rearrangeTokens = [...arr];
     this.markAttempted(pq);
   }
 
@@ -1086,51 +1087,39 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     return i;
   }
 
-  private computeDropIndex(event: any): number {
-    const point = event.event as PointerEvent | TouchEvent;
-    const clientX = 'touches' in point ? point.touches[0].clientX : point.clientX;
-    const clientY = 'touches' in point ? point.touches[0].clientY : point.clientY;
+  private findSwapTarget(event: any): number {
+    const point = event.event;
+    const clientX = point.clientX ?? point.changedTouches?.[0]?.clientX ?? point.touches?.[0]?.clientX;
+    const clientY = point.clientY ?? point.changedTouches?.[0]?.clientY ?? point.touches?.[0]?.clientY;
     if (clientX == null || clientY == null) return event.currentIndex;
 
     const containerEl = event.container.element.nativeElement as HTMLElement;
-    const itemEls = containerEl.querySelectorAll<HTMLElement>('.rearrange-token');
+    const itemEls = containerEl.querySelectorAll<HTMLElement>('.rearrange-token:not(.cdk-drag-dragging)');
 
-    // Build rects with their array index from data-index attribute
-    const rects = Array.from(itemEls).map(el => ({
-      index: parseInt(el.getAttribute('data-index') ?? '', 10),
-      rect: el.getBoundingClientRect(),
-    }));
+    let bestIndex = -1;
+    let bestDist = Infinity;
 
-    if (rects.length === 0) return 0;
+    for (const el of Array.from(itemEls)) {
+      const idx = parseInt(el.getAttribute('data-index') ?? '', 10);
+      if (!Number.isFinite(idx)) continue;
+      const r = el.getBoundingClientRect();
 
-    // Find which row the pointer belongs to by y-overlap
-    const rowTolerance = 20;
-    let rowRects = rects.filter(
-      r => clientY >= r.rect.top - rowTolerance && clientY <= r.rect.bottom + rowTolerance
-    );
+      // If pointer is inside this token's bounding box, swap with it
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+        return idx;
+      }
 
-    if (rowRects.length === 0) {
-      // Pointer not on any row — find nearest
-      rowRects = [rects.reduce((a, b) => {
-        const da = Math.abs(clientY - (a.rect.top + a.rect.height / 2));
-        const db = Math.abs(clientY - (b.rect.top + b.rect.height / 2));
-        return da < db ? a : b;
-      })];
-    }
-
-    // Sort row items by x position (visual left-to-right)
-    rowRects.sort((a, b) => a.rect.left - b.rect.left);
-
-    // Find insertion index by x-coordinate
-    for (const r of rowRects) {
-      const cx = r.rect.left + r.rect.width / 2;
-      if (clientX < cx) {
-        return r.index;
+      // Track nearest center distance as fallback
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const d = Math.hypot(clientX - cx, clientY - cy);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIndex = idx;
       }
     }
 
-    // After the last item on the row
-    return rowRects[rowRects.length - 1].index + 1;
+    return bestIndex;
   }
 
   getRearrangePreviewText(pq: PlayerQuestion): string {
@@ -3016,11 +3005,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.state === 'submitted') return;
     if (!event?.isPointerOverContainer) return;
     const tokens = this.getSubQuestionRearrangeTokens(pq, subIndex);
-    const prev = event.previousIndex;
-    const curr = this.computeDropIndex(event);
-    if (!Number.isFinite(prev) || !Number.isFinite(curr)) return;
-    if (prev === curr) return;
-    moveItemInArray(tokens, prev, curr);
+    const from = event.previousIndex;
+    const to = this.findSwapTarget(event);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+    if (from === to) return;
+    [tokens[from], tokens[to]] = [tokens[to], tokens[from]];
     this.markAttempted(pq);
   }
 

@@ -3239,7 +3239,7 @@
               <div
                 cdkDropList
                 class="rearrange-drop"
-                [cdkDropListSortingDisabled]="false"
+                [cdkDropListSortingDisabled]="true"
                 [cdkDropListData]="currentQuestion.rearrangeTokens"
                 [class.disabled]="hasCurrentSubmitted"
                 (cdkDropListDropped)="onRearrangeDrop(currentQuestion, $event)"
@@ -4382,7 +4382,7 @@
                         <div class="rearrange-label">Drag to rearrange:</div>
                         <div class="rearrange-drop" cdkDropList
                           [cdkDropListData]="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)"
-                          [cdkDropListSortingDisabled]="hasCurrentSubmitted"
+                          [cdkDropListSortingDisabled]="true"
                           [class.disabled]="hasCurrentSubmitted"
                           (cdkDropListDropped)="onSubQuestionRearrangeDrop(currentQuestion, sqIndex, $event)">
                           <div class="rearrange-token" *ngFor="let t of getSubQuestionRearrangeTokens(currentQuestion, sqIndex); let ti = index"
