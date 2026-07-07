@@ -1,7 +1,8 @@
 const express = require('express');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
-const { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
+const { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const s3Client = require('../config/s3');
 const TeacherResource = require('../models/TeacherResource');
 const User = require('../models/User');
@@ -21,6 +22,13 @@ const router = express.Router();
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const MAX_FILES = 20;
 const R2_KEY_PREFIX = 'teacher-resources/';
+
+function sanitizeFilename(name) {
+  return String(name || 'file.bin')
+    .replace(/[^\w.\-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
 
 function isTeacherResourceR2Key(key) {
   const normalized = String(key || '').replace(/^\/+/, '');
@@ -276,6 +284,39 @@ async function createTeacherResourceDocs({
     })
   );
 }
+
+/** Backward-compatible presign endpoint (older frontends). Uploads go to R2. */
+router.post('/presign-upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
+  try {
+    if (!isExerciseR2Configured()) {
+      return res.status(503).json({ success: false, message: 'R2 is not configured for teacher resource uploads' });
+    }
+
+    const cfg = getExerciseR2Config();
+    const filename = sanitizeFilename(req.body?.filename);
+    const contentType = String(req.body?.contentType || '').trim();
+    const fileSize = Number(req.body?.fileSize || 0);
+    if (!filename) return res.status(400).json({ success: false, message: 'filename is required' });
+    if (!contentType) return res.status(400).json({ success: false, message: 'contentType is required' });
+    if (!fileSize || fileSize > MAX_FILE_SIZE) {
+      return res.status(400).json({ success: false, message: 'File exceeds the 50 MB limit' });
+    }
+
+    const key = `${R2_KEY_PREFIX}${Date.now()}-${filename}`;
+    const command = new PutObjectCommand({
+      Bucket: cfg.bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+    const uploadUrl = await getSignedUrl(cfg.client, command, { expiresIn: 900 });
+    const fileUrl = publicUrlForKey(key);
+
+    res.json({ success: true, uploadUrl, key, fileUrl });
+  } catch (err) {
+    console.error('teacherResources presign-upload error:', err);
+    res.status(500).json({ success: false, message: 'Failed to prepare upload', error: err.message });
+  }
+});
 
 router.post('/register-upload', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async (req, res) => {
   const uploadedKeys = [];
