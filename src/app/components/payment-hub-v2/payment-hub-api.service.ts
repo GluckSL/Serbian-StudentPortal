@@ -439,11 +439,22 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   docsPaidFull?: boolean;
   levelSlots?: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
   allLanguageFees?: BatchLevelSlotTotals;
+  /** Canonical insight flags — same rules as finance dashboard / aggregator. */
+  insightFlags?: Partial<Record<'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa', boolean>>;
 }
 
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];
+  batchSummary?: BatchPaymentSummaryRow | null;
+  insightCounts?: {
+    all: number;
+    paid_full: number;
+    have_balance: number;
+    overdue: number;
+    paid_docs: number;
+    paid_visa: number;
+  };
 }
 
 export interface InsightCurrencyTotals {

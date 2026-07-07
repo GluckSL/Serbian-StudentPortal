@@ -6,7 +6,7 @@
         Back to finance dashboard
       </a>
       <h1 class="ph-insights-title">Batch {{ batch }} — students</h1>
-      <p class="ph-insights-sub">Ongoing students only — click a card below to filter the table.</p>
+      <p class="ph-insights-sub">All students in this batch — click a card below to filter the table.</p>
     </div>
   </div>
 
@@ -58,7 +58,7 @@
               </div>
               <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In this batch</span>
               <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
-                {{ studentPct(insightCount(opt.key), rows.length) }} of students
+                {{ studentPct(insightCount(opt.key), insightCount('all')) }} of students
               </span>
             </div>
             <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>

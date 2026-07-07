@@ -62,6 +62,7 @@ const {
   VALID_STUDENT_INSIGHTS,
   filterStudentsByInsight,
   overdueSinceForStudent,
+  studentMatchesInsight,
 } = require('../helpers/paymentHubStatsAggregator');
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -1140,21 +1141,49 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Batch name is required' });
     }
 
+    const batchFilters = parseHubFilters(req.query);
     const User = mongoose.model('User');
     const PaymentFlowSubmission = require('../models/PaymentSubmission');
     const batchRegex = new RegExp(`^${batchRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
 
-    const students = await User.find({
-      role: 'STUDENT',
-      batch: batchRegex,
-      studentStatus: 'ONGOING',
-    })
-      .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates subscription studentStatus')
-      .sort({ name: 1 })
-      .lean();
+    const userQuery = applyTestAccountFilter({ role: 'STUDENT', batch: batchRegex }, batchFilters);
+    if (batchFilters.studentStatus) {
+      userQuery.studentStatus = batchFilters.studentStatus;
+    }
+
+    const [students, batchInsights] = await Promise.all([
+      User.find(userQuery)
+        .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates subscription studentStatus')
+        .sort({ name: 1 })
+        .lean(),
+      aggregateBatchPaymentInsights({
+        batch: batchRaw,
+        studentStatus: batchFilters.studentStatus || undefined,
+        includeTestAccounts: batchFilters.includeTestAccounts,
+      }),
+    ]);
+
+    const batchSummary = (batchInsights.batches || []).find(
+      (row) => String(row.batch || '').trim().toLowerCase() === batchRaw.toLowerCase(),
+    ) || null;
 
     if (!students.length) {
-      return res.json({ success: true, data: { batch: batchRaw, students: [] } });
+      return res.json({
+        success: true,
+        data: {
+          batch: batchRaw,
+          students: [],
+          batchSummary,
+          insightCounts: {
+            all: 0,
+            paid_full: batchSummary?.fullyPaidStudents ?? 0,
+            have_balance: batchSummary?.balanceStudents ?? 0,
+            overdue: batchSummary?.overdueStudents ?? 0,
+            paid_docs: batchSummary?.docsPaidStudents ?? 0,
+            paid_visa: batchSummary?.visaPaidStudents ?? 0,
+          },
+        },
+      });
     }
 
     const studentIds = students.map((s) => s._id);
@@ -1300,6 +1329,20 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         levelPriceMap,
       );
 
+      const insightFlags = Object.fromEntries(
+        VALID_STUDENT_INSIGHTS.map((key) => [
+          key,
+          studentMatchesInsight(
+            student,
+            studentRequests,
+            studentSubs,
+            studentPendingSubs,
+            levelPriceMap,
+            key,
+          ),
+        ]),
+      );
+
       return {
         studentId: sid,
         name: student.name,
@@ -1335,14 +1378,26 @@ const getBatchStudentsPaymentDetail = async (req, res) => {
         lastPaymentCurrency,
         inferredCurrency: inferCurrencyFromPhone(student.phoneNumber),
         openRequestCount: studentRequests.filter((r) => !['PAID', 'CANCELLED'].includes(String(r.status))).length,
+        insightFlags,
       };
     });
+
+    const insightCounts = {
+      all: rows.length,
+      paid_full: rows.filter((r) => r.insightFlags?.paid_full).length,
+      have_balance: rows.filter((r) => r.insightFlags?.have_balance).length,
+      overdue: rows.filter((r) => r.insightFlags?.overdue).length,
+      paid_docs: rows.filter((r) => r.insightFlags?.paid_docs).length,
+      paid_visa: rows.filter((r) => r.insightFlags?.paid_visa).length,
+    };
 
     res.json({
       success: true,
       data: {
         batch: batchRaw,
         students: rows,
+        batchSummary,
+        insightCounts,
       },
     });
   } catch (e) {
