@@ -1,0 +1,301 @@
+<div class="phc-page">
+
+  <!-- ── Header ────────────────────────────────────────────────────────────── -->
+  <div class="phc-header">
+    <div class="phc-header-inner">
+      <div class="phc-header-left">
+        <div class="phc-header-icon">
+          <mat-icon>monitor_heart</mat-icon>
+        </div>
+        <div>
+          <h1 class="phc-title">Payment Health Checkup</h1>
+          <p class="phc-subtitle">
+            Pending balance urgency for students in batches 35 to 46
+          </p>
+        </div>
+      </div>
+      <div class="phc-header-right">
+        <div class="phc-header-total">
+          <span class="phc-header-total__count">{{ loading ? '…' : totalCount }}</span>
+          <span class="phc-header-total__label">students</span>
+          <span class="phc-header-total__hint">Batches 35–46</span>
+        </div>
+        <div class="phc-header-legend">
+          <span class="phc-legend-item phc-legend-item--green">
+            <span class="phc-legend-dot"></span>
+            Days 1–5 of level (safe)
+          </span>
+          <span class="phc-legend-item phc-legend-item--yellow">
+            <span class="phc-legend-dot"></span>
+            Days 6–8 (follow up)
+          </span>
+          <span class="phc-legend-item phc-legend-item--red">
+            <span class="phc-legend-dot"></span>
+            Day 9+ (urgent call)
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phc-body">
+    <ng-container *ngIf="!loading; else loadingTpl">
+
+      <!-- ── 6 Filter Cards ─────────────────────────────────────────────────── -->
+      <div class="phc-cards">
+
+        <!-- All Students -->
+        <button
+          type="button"
+          class="phc-card phc-card--all-students"
+          [class.phc-card--active]="activeFilter === 'all_students'"
+          (click)="setFilter('all_students')"
+        >
+          <div class="phc-card__icon">
+            <mat-icon>groups</mat-icon>
+          </div>
+          <div class="phc-card__count">{{ totalCount }}</div>
+          <div class="phc-card__label">All Students</div>
+          <div class="phc-card__hint">All students · batches 35–46</div>
+        </button>
+
+        <!-- Full Paid -->
+        <button
+          type="button"
+          class="phc-card phc-card--full-paid"
+          [class.phc-card--active]="activeFilter === 'full_paid'"
+          (click)="setFilter('full_paid')"
+        >
+          <div class="phc-card__icon">
+            <mat-icon>check_circle</mat-icon>
+          </div>
+          <div class="phc-card__count">{{ fullPaidCount }}</div>
+          <div class="phc-card__label">Full Paid</div>
+          <div class="phc-card__hint">No balance remaining</div>
+        </button>
+
+        <!-- Pending -->
+        <button
+          type="button"
+          class="phc-card phc-card--pending"
+          [class.phc-card--active]="activeFilter === 'pending'"
+          (click)="setFilter('pending')"
+        >
+          <div class="phc-card__icon">
+            <mat-icon>account_balance_wallet</mat-icon>
+          </div>
+          <div class="phc-card__count">{{ pendingCount }}</div>
+          <div class="phc-card__label">Pending</div>
+          <div class="phc-card__hint">Have outstanding balance</div>
+        </button>
+
+        <!-- Green -->
+        <button
+          type="button"
+          class="phc-card phc-card--green"
+          [class.phc-card--active]="activeFilter === 'green'"
+          (click)="setFilter('green')"
+        >
+          <div class="phc-card__icon">
+            <mat-icon>eco</mat-icon>
+          </div>
+          <div class="phc-card__count">{{ greenCount }}</div>
+          <div class="phc-card__label">Green</div>
+          <div class="phc-card__hint">Days 1–5 of level · will pay</div>
+        </button>
+
+        <!-- Yellow -->
+        <button
+          type="button"
+          class="phc-card phc-card--yellow"
+          [class.phc-card--active]="activeFilter === 'yellow'"
+          (click)="setFilter('yellow')"
+        >
+          <div class="phc-card__icon">
+            <mat-icon>schedule</mat-icon>
+          </div>
+          <div class="phc-card__count">{{ yellowCount }}</div>
+          <div class="phc-card__label">Yellow</div>
+          <div class="phc-card__hint">Days 6–8 · remind to pay</div>
+        </button>
+
+        <!-- Red -->
+        <button
+          type="button"
+          class="phc-card phc-card--red"
+          [class.phc-card--active]="activeFilter === 'red'"
+          (click)="setFilter('red')"
+        >
+          <div class="phc-card__icon">
+            <mat-icon>local_fire_department</mat-icon>
+          </div>
+          <div class="phc-card__count">{{ redCount }}</div>
+          <div class="phc-card__label">Red</div>
+          <div class="phc-card__hint">Day 9+ · urgent call needed</div>
+        </button>
+
+      </div>
+
+      <!-- ── Search + Table ─────────────────────────────────────────────────── -->
+      <div class="phc-table-section">
+        <div class="phc-table-toolbar">
+          <div class="phc-search-wrap">
+            <mat-icon class="phc-search-icon">search</mat-icon>
+            <input
+              type="text"
+              class="phc-search"
+              placeholder="Search by name, email or batch…"
+              [(ngModel)]="searchQuery"
+              (ngModelChange)="onSearchChange()"
+              autocomplete="off"
+            />
+          </div>
+          <span class="phc-row-count">
+            {{ filteredRows.length }} student{{ filteredRows.length !== 1 ? 's' : '' }}
+            <ng-container *ngIf="filteredRows.length > pageSize">
+              · {{ pageStart }}–{{ pageEnd }}
+            </ng-container>
+          </span>
+          <button
+            type="button"
+            class="phc-export-btn"
+            (click)="exportCsv()"
+            [disabled]="exporting || !filteredRows.length"
+          >
+            <mat-icon>download</mat-icon>
+            <span>{{ exporting ? 'Exporting…' : 'Export' }}</span>
+          </button>
+        </div>
+
+        <div class="phc-table-wrap">
+          <table class="phc-table" *ngIf="displayRows.length; else emptyTpl">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Student</th>
+                <th>Batch</th>
+                <th>Level</th>
+                <th>Journey Day</th>
+                <th class="phc-td-amount">Total</th>
+                <th class="phc-td-amount">Paid</th>
+                <th class="phc-td-amount">Pending</th>
+                <th>Health</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let row of displayRows; let i = index; trackBy: trackByStudentId"
+                [class.phc-row--green]="row.healthColor === 'green'"
+                [class.phc-row--yellow]="row.healthColor === 'yellow'"
+                [class.phc-row--red]="row.healthColor === 'red'"
+                [class.phc-row--paid]="!row.healthColor"
+              >
+                <td class="phc-td-num">{{ rowNumber(i) }}</td>
+                <td class="phc-td-name">
+                  <a
+                    class="phc-student-link"
+                    [routerLink]="['/admin/payment-hub/student', row.studentId]"
+                    target="_blank"
+                    rel="noopener"
+                    [matTooltip]="row.email"
+                  >
+                    {{ row.name }}
+                  </a>
+                </td>
+                <td>
+                  <span class="phc-badge phc-badge--batch">{{ row.batch || '—' }}</span>
+                </td>
+                <td>
+                  <span class="phc-badge">{{ levelForDay(row.currentJourneyDay) }}</span>
+                </td>
+                <td class="phc-td-center">
+                  {{ row.currentJourneyDay ?? '—' }}
+                </td>
+                <td class="phc-td-amount phc-td-amount--total">
+                  <app-payment-currency-totals
+                    [lkr]="rowTotal(row).lkr"
+                    [inr]="rowTotal(row).inr"
+                    [usd]="rowTotal(row).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
+                <td class="phc-td-amount phc-td-amount--paid">
+                  <app-payment-currency-totals
+                    [lkr]="rowPaid(row).lkr"
+                    [inr]="rowPaid(row).inr"
+                    [usd]="rowPaid(row).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-totals>
+                </td>
+                <td class="phc-td-amount phc-td-amount--pending">
+                  <app-payment-currency-pending-totals
+                    [lkr]="rowPending(row).lkr"
+                    [inr]="rowPending(row).inr"
+                    [usd]="rowPending(row).usd"
+                    [compact]="true"
+                    [hideZero]="true"
+                  ></app-payment-currency-pending-totals>
+                </td>
+                <td>
+                  <span
+                    class="phc-health-badge"
+                    [class.phc-health-badge--paid]="!row.healthColor"
+                    [class.phc-health-badge--green]="row.healthColor === 'green'"
+                    [class.phc-health-badge--yellow]="row.healthColor === 'yellow'"
+                    [class.phc-health-badge--red]="row.healthColor === 'red'"
+                    [matTooltip]="healthLabel(row)"
+                  >
+                    <mat-icon *ngIf="!row.healthColor">check_circle</mat-icon>
+                    <mat-icon *ngIf="row.healthColor === 'green'">eco</mat-icon>
+                    <mat-icon *ngIf="row.healthColor === 'yellow'">schedule</mat-icon>
+                    <mat-icon *ngIf="row.healthColor === 'red'">local_fire_department</mat-icon>
+                    <span>{{ healthLabel(row) }}</span>
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <ng-template #emptyTpl>
+            <div class="phc-empty">
+              <mat-icon>search_off</mat-icon>
+              <p>No students match the current filter.</p>
+            </div>
+          </ng-template>
+        </div>
+
+        <div class="phc-pagination" *ngIf="filteredRows.length > pageSize">
+          <button
+            type="button"
+            class="phc-pagination__btn"
+            (click)="goToPage(page - 1)"
+            [disabled]="page <= 1"
+          >
+            <mat-icon>chevron_left</mat-icon>
+            Previous
+          </button>
+          <span class="phc-pagination__info">Page {{ page }} of {{ totalPages }}</span>
+          <button
+            type="button"
+            class="phc-pagination__btn"
+            (click)="goToPage(page + 1)"
+            [disabled]="page >= totalPages"
+          >
+            Next
+            <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </div>
+
+    </ng-container>
+
+    <ng-template #loadingTpl>
+      <div class="phc-loading">
+        <mat-spinner diameter="48"></mat-spinner>
+        <p>Loading health data for batches 35–46…</p>
+      </div>
+    </ng-template>
+  </div>
+</div>

@@ -11,6 +11,47 @@
   gap: 20px;
 }
 
+.ph-finance-overview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ph-finance-health-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #0f172a;
+  border: none;
+  color: #f0fdf4;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
+
+  mat-icon {
+    font-size: 19px;
+    width: 19px;
+    height: 19px;
+    color: #4ade80;
+  }
+
+  &:hover {
+    background: #1e293b;
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.35);
+  }
+}
+
 .ph-finance-overview-add-batch {
   display: inline-flex;
   align-items: center;

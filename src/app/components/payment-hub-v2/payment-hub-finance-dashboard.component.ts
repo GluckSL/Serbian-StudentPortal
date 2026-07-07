@@ -242,7 +242,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
       this.cohort = parsed.cohort;
       this.urlCohortStatus = parsed.status;
       if (!this.levelStatusFilter) {
-        this.cohortStatus = parsed.status;
+        this.cohortStatus = parsed.status || (this.isLanguageMode ? 'ONGOING' : '');
       }
       this.syncLevelStatusFilterFromState();
       this.load();
@@ -333,7 +333,12 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   }
 
   get pageTitle(): string {
-    if (this.isLanguageMode) return 'Language Payment';
+    if (this.isLanguageMode) {
+      if (this.cohortStatus) {
+        return `Language Payment · ${formatStudentStatusLabel(this.cohortStatus)}`;
+      }
+      return 'Language Payment';
+    }
     if (!this.hasCohortFilter && !this.filterLevel) return 'Finance Dashboard';
     if (this.filterLevel && this.cohortStatus) {
       return `${this.filterLevel} · ${formatStudentStatusLabel(this.cohortStatus)}`;
@@ -345,7 +350,8 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
 
   get pageSubtitle(): string {
     if (this.isLanguageMode) {
-      return `Payment breakdown for ${this.cardTotals.studentCount} student(s) across ${this.languageBatches.length} language batch(es).`;
+      const statusLabel = this.cohortStatus ? formatStudentStatusLabel(this.cohortStatus).toLowerCase() : 'ongoing';
+      return `Payment breakdown for ${this.cardTotals.studentCount} ${statusLabel} student(s) across ${this.languageBatches.length} language batch(es).`;
     }
     if (!this.hasCohortFilter) {
       return 'Add batches to control what appears here for all admins and sub-admins. Payment totals and the table only include batches you add.';

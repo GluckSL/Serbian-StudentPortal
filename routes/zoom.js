@@ -1264,6 +1264,45 @@ router.get(
         );
       }
 
+      const levelParam = String(req.query.level || '').trim();
+      const studentStatusParam = String(req.query.studentStatus || '').trim().toUpperCase();
+      if (levelParam || studentStatusParam) {
+        const ids = students.map((s) => s.studentId).filter(Boolean);
+        const emails = students.map((s) => s.email).filter(Boolean);
+        const userOr = [];
+        if (ids.length) userOr.push({ _id: { $in: ids } });
+        if (emails.length) userOr.push({ email: { $in: emails } });
+
+        if (!userOr.length) {
+          students = [];
+        } else {
+          const users = await User.find({ role: 'STUDENT', $or: userOr })
+            .select('_id email level studentStatus')
+            .lean();
+          const userById = new Map();
+          const userByEmail = new Map();
+          for (const u of users) {
+            userById.set(String(u._id), u);
+            if (u.email) userByEmail.set(String(u.email).toLowerCase(), u);
+          }
+
+          students = students.filter((s) => {
+            const u =
+              (s.studentId && userById.get(s.studentId)) ||
+              (s.email && userByEmail.get(String(s.email).toLowerCase()));
+            if (!u) return false;
+            if (levelParam && String(u.level || '') !== levelParam) return false;
+            if (
+              studentStatusParam &&
+              String(u.studentStatus || '').toUpperCase() !== studentStatusParam
+            ) {
+              return false;
+            }
+            return true;
+          });
+        }
+      }
+
       const scoreFilter = String(req.query.scoreFilter || 'all').trim().toLowerCase();
       if (scoreFilter === 'below75') {
         students = students.filter((s) => s.totalClasses > 0 && s.attendanceScore < 75);
@@ -2899,7 +2938,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       const participantDuration = matchResult.match?.durationMinutes || 0;
       const meetingDuration = meeting.duration || 60;
       const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
+      const meetsThreshold = !!matchResult.match && attendancePercent >= 60;
 
       if (attendanceDebugEnabled()) {
         attendanceDebug('ATTENDANCE_MATCH', {
@@ -3091,7 +3130,7 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
     const meetingDuration = meeting.duration || 60;
     const participantDuration = participant.durationMinutes || 0;
     const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-    const meetsThreshold = attendancePercent >= 70;
+    const meetsThreshold = attendancePercent >= 60;
 
     const existingIdx = meeting.attendance.findIndex(
       a => a.studentId && a.studentId.toString() === attendee.studentId.toString()
@@ -3990,6 +4029,86 @@ router.post(
     } catch (error) {
       console.error('[Recreate Zoom] Error:', error);
       return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
+/**
+ * GET /api/zoom/portal-join-absent
+ *
+ * Returns students who clicked Join from the portal (1+ clicks) but are
+ * still marked Absent for completed classes. Useful for manually mapping
+ * attendance when a student joined Zoom with a different display name.
+ *
+ * Query params:
+ *   days  - How far back to look (default 30, max 90)
+ */
+router.get(
+  '/portal-join-absent',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const daysBack = Math.min(parseInt(req.query.days || '30', 10), 90);
+      const since = new Date();
+      since.setDate(since.getDate() - daysBack);
+
+      // Get all join logs within the window
+      const joinLogs = await JoinLog.find({ joinedAt: { $gte: since } })
+        .populate('studentId', 'name email')
+        .lean();
+
+      if (!joinLogs.length) return res.json({ success: true, data: [] });
+
+      const meetingIds = [...new Set(joinLogs.map(j => j.meetingId.toString()))];
+
+      // Only look at completed meetings where attendance has been recorded
+      const meetings = await MeetingLink.find({
+        _id: { $in: meetingIds },
+        status: 'ended',
+        attendanceRecorded: true,
+      })
+        .select('_id topic batch startTime duration attendance')
+        .populate('assignedTeacher', 'name')
+        .lean();
+
+      const meetingMap = new Map(meetings.map(m => [m._id.toString(), m]));
+
+      const results = [];
+
+      for (const log of joinLogs) {
+        const meeting = meetingMap.get(log.meetingId.toString());
+        if (!meeting) continue;
+
+        const attRow = (meeting.attendance || []).find(
+          a => a.studentId && a.studentId.toString() === log.studentId?._id?.toString()
+        );
+
+        // Skip if the student was already marked attended
+        if (attRow && attRow.attended) continue;
+
+        const student = log.studentId;
+        results.push({
+          studentId: student?._id || log.studentId,
+          studentName: student?.name || attRow?.name || 'Unknown',
+          studentEmail: student?.email || attRow?.email || '',
+          batch: meeting.batch || '',
+          classTopic: meeting.topic || '',
+          classDate: meeting.startTime,
+          classDuration: meeting.duration || 0,
+          meetingId: meeting._id,
+          portalClickCount: log.joinCount || 1,
+          lastZoomDisplayName: log.lastZoomDisplayName || '',
+        });
+      }
+
+      // Sort newest class first
+      results.sort((a, b) => new Date(b.classDate) - new Date(a.classDate));
+
+      res.json({ success: true, data: results, total: results.length });
+    } catch (err) {
+      console.error('[Portal Join Absent]', err);
+      res.status(500).json({ success: false, message: err.message });
     }
   }
 );

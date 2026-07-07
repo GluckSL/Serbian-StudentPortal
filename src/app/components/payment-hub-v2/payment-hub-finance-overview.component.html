@@ -8,14 +8,26 @@
             Student overview by plan — open batch payment breakdown for ongoing learners.
           </p>
         </div>
-        <button
-          type="button"
-          class="ph-finance-overview-add-batch"
-          (click)="openAddBatchModal()"
-        >
-          <mat-icon>add</mat-icon>
-          <span>Add Batch</span>
-        </button>
+        <div class="ph-finance-overview-header-actions">
+          <a
+            class="ph-finance-health-btn"
+            routerLink="/admin/finance-dashboard/health-checkup"
+            target="_blank"
+            rel="noopener"
+            matTooltip="Payment health overview for batches 35–46"
+          >
+            <mat-icon>monitor_heart</mat-icon>
+            <span>Health Checkup</span>
+          </a>
+          <button
+            type="button"
+            class="ph-finance-overview-add-batch"
+            (click)="openAddBatchModal()"
+          >
+            <mat-icon>add</mat-icon>
+            <span>Add Batch</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -162,13 +174,13 @@
               <a
                 class="ph-finance-overview-card__value ph-finance-overview-card__value-link"
                 routerLink="/admin/finance-dashboard/language-payment"
-                [queryParams]="{ mode: 'language' }"
+                [queryParams]="languagePaymentQuery()"
               >
-                {{ loadingVisibleBatches ? '...' : languageBatches.length }}
+                {{ loadingLanguagePaymentCount ? '…' : languagePaymentOngoingCount }}
               </a>
             </div>
             <p class="ph-finance-overview-card__hint">
-              Track GO Tamil, GO Sinhala and other language batches for dedicated payment monitoring.
+              Ongoing students in GO Tamil, GO Sinhala and other language payment batches.
             </p>
           </div>
 
@@ -176,7 +188,7 @@
             <a
               class="ph-finance-overview-ongoing-link ph-finance-card-actions__show"
               routerLink="/admin/finance-dashboard/language-payment"
-              [queryParams]="{ mode: 'language' }"
+              [queryParams]="languagePaymentQuery()"
             >
               <span>Show details</span>
               <mat-icon>arrow_forward</mat-icon>

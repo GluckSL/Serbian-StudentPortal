@@ -464,6 +464,8 @@ export class ZoomService {
     studentSearch?: string;
     studentId?: string;
     scoreFilter?: string;
+    level?: string;
+    studentStatus?: string;
   }): Observable<any> {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
@@ -479,6 +481,8 @@ export class ZoomService {
     if (filters?.scoreFilter && filters.scoreFilter !== 'all') {
       params.append('scoreFilter', filters.scoreFilter);
     }
+    if (filters?.level) params.append('level', filters.level);
+    if (filters?.studentStatus) params.append('studentStatus', filters.studentStatus);
     const qs = params.toString();
     const url = qs ? `${this.apiUrl}/attendance-dashboard?${qs}` : `${this.apiUrl}/attendance-dashboard`;
     return this.http.get(url, { withCredentials: true });
@@ -498,5 +502,13 @@ export class ZoomService {
       { studentIds },
       { withCredentials: true },
     );
+  }
+
+  /** Students who clicked Join from portal but are still marked Absent. */
+  getPortalJoinAbsentStudents(days = 30): Observable<any> {
+    return this.http.get(`${this.apiUrl}/portal-join-absent`, {
+      params: { days: String(days) },
+      withCredentials: true,
+    });
   }
 }
