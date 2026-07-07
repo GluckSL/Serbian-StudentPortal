@@ -185,6 +185,58 @@ async function sendBulkWhatsappNotifications(recipients, type, messageFn, dataFn
 }
 
 /**
+ * Admin portal actions (share timetable, etc.) — only requires master WhatsApp switch.
+ * Does not require WHATSAPP_MANUAL_SEND_ENABLED or WHATSAPP_AUTOMATED_JOBS_ENABLED.
+ */
+async function sendWhatsappPortalMessage({ phone, name, message, type = 'PORTAL_MESSAGE' }) {
+  if (!isWhatsappSendEnabled()) {
+    console.log(`[WhatsApp] ⏸ Skipped portal message for ${name || phone} — master switch off`);
+    return {
+      ok: false,
+      status: 503,
+      reason: 'whatsapp_disabled',
+      error: { message: 'WhatsApp sending is disabled on this server.' },
+    };
+  }
+
+  const phone_number = normalizeE164Phone(phone);
+  if (!phone_number) {
+    return { ok: false, status: 422, reason: 'no_phone', error: { message: 'No phone number provided.' } };
+  }
+  if (!E164_PHONE_RE.test(phone_number)) {
+    return {
+      ok: false,
+      status: 422,
+      reason: 'invalid_phone',
+      error: { message: `Invalid phone format: ${phone}` },
+    };
+  }
+
+  const payload = { phone_number, message: String(message || '').trim(), department: 'Language' };
+
+  try {
+    const response = await axios.post(
+      `${CRM_BASE}/student-portal/whatsapp/send-message`,
+      payload,
+      { headers: CRM_HEADERS, timeout: 30000 }
+    );
+    console.log(
+      `[WhatsApp] ✅ Portal message "${type}" for ${name || phone_number}` +
+        (response.data?.data?.sent_at ? ` — sent_at ${response.data.data.sent_at}` : '')
+    );
+    return { ok: true, status: response.status, reason: null, data: response.data };
+  } catch (err) {
+    const status = err.response?.status;
+    const body = err.response?.data || { message: err.message };
+    console.error(
+      `[WhatsApp] ❌ Portal message failed for ${name || phone_number} — HTTP ${status}:`,
+      JSON.stringify(body)
+    );
+    return { ok: false, status: status || 502, reason: 'send_failed', error: body };
+  }
+}
+
+/**
  * Send a manual WhatsApp from the CRM portal UI.
  * Uses the documented CRM send-message API (Language Department business number).
  */
@@ -282,6 +334,7 @@ function isBatchAllowedBySettings(settingsMap, automationType, studentBatch) {
 module.exports = {
   sendWhatsappNotification,
   sendBulkWhatsappNotifications,
+  sendWhatsappPortalMessage,
   sendManualWhatsappMessage,
   normalizeWhatsappAutomatedMessage,
   normalizeE164Phone,

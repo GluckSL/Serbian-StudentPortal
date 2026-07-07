@@ -9,8 +9,10 @@ const User = require('../models/User');
 const transporter = require('../config/emailConfig');
 const {
   sendWhatsappNotification,
-  sendManualWhatsappMessage,
+  sendWhatsappPortalMessage,
   isWhatsappAutomatedJobsEnabled,
+  normalizeBatchName,
+  normalizeE164Phone,
 } = require('../services/whatsappCrmService');
 
 const NOTIFICATION_TYPE = 'WEEKLY_TIMETABLE';
@@ -334,8 +336,17 @@ async function sendWhatsappAutomatedMultiple(phone, name, messages) {
 async function sendWhatsappManual(phone, name, message) {
   const raw = (phone || '').toString().trim();
   if (!raw) return { sent: false, reason: 'no_phone' };
-  const result = await sendManualWhatsappMessage({ phone_number: raw, message, department: 'Language' });
-  return { sent: !!result.ok, reason: result.ok ? null : result.error?.message || 'send_failed' };
+  const result = await sendWhatsappPortalMessage({
+    phone: raw,
+    name,
+    message,
+    type: NOTIFICATION_TYPE,
+  });
+  return {
+    sent: !!result.ok,
+    reason: result.ok ? null : result.reason || result.error?.message || 'send_failed',
+    error: result.error?.message || null,
+  };
 }
 
 async function sendWhatsappManualMultiple(phone, name, messages) {
@@ -356,13 +367,24 @@ async function sendWhatsappManualMultiple(phone, name, messages) {
   };
 }
 
+function resolveTeacherPhone(teacher, override) {
+  return String(override || teacher?.whatsappNumber || teacher?.phoneNumber || '').trim();
+}
+
+function maskPhone(phone) {
+  const p = normalizeE164Phone(phone);
+  if (!p || p.length < 6) return '';
+  return `${p.slice(0, 4)}***${p.slice(-3)}`;
+}
+
 function teacherMeetingsForWeek(allMeetings, teacher) {
   const batches = Array.isArray(teacher.assignedBatches) ? teacher.assignedBatches.map(String) : [];
+  const batchSet = new Set(batches.map((b) => normalizeBatchName(b)).filter(Boolean));
   const teacherId = String(teacher._id);
 
   return allMeetings.filter(
     (m) =>
-      batches.includes(String(m.batch)) ||
+      batchSet.has(normalizeBatchName(m.batch)) ||
       (m.assignedTeacher && String(m.assignedTeacher) === teacherId)
   );
 }
@@ -371,7 +393,7 @@ function teacherMeetingsForWeek(allMeetings, teacher) {
  * Send weekly timetable to one teacher (admin manual share).
  * Uses current calendar week Mon–Sun.
  */
-async function shareTeacherWeeklyTimetable(teacherId) {
+async function shareTeacherWeeklyTimetable(teacherId, options = {}) {
   const teacher = await User.findOne({
     _id: teacherId,
     role: { $in: ['TEACHER', 'TEACHER_ADMIN'] },
@@ -412,16 +434,38 @@ async function shareTeacherWeeklyTimetable(teacherId) {
     recipientRole: 'teacher',
   });
   const waMessages = buildWhatsappMessages(teacher.name, meetings, weekStart, weekEnd);
-  const phone = teacher.whatsappNumber || teacher.phoneNumber || '';
+  const phone = resolveTeacherPhone(teacher, options.phoneOverride);
+
+  console.log(
+    `[WeeklyTimetable] Share timetable → ${teacher.name} | email=${teacher.email} | ` +
+      `phone=${phone ? maskPhone(phone) : 'MISSING'} | classes=${meetings.length}`
+  );
 
   const [emailOk, waResult] = await Promise.all([
     sendEmailNotification({ to: teacher.email, name: teacher.name, subject, html }),
     sendWhatsappManualMultiple(phone, teacher.name, waMessages),
   ]);
 
+  const warnings = [];
+  if (!emailOk) warnings.push('Email failed to send — check SMTP settings or teacher email.');
+  if (!phone) {
+    warnings.push('WhatsApp not sent — teacher has no WhatsApp/phone number. Edit teacher profile and add it.');
+  } else if (!waResult.sent) {
+    const reason = waResult.reason || 'send_failed';
+    if (reason === 'invalid_phone') {
+      warnings.push(`WhatsApp not sent — invalid phone number (${phone}). Use format +94771234567.`);
+    } else if (reason === 'whatsapp_disabled') {
+      warnings.push('WhatsApp not sent — WHATSAPP_SEND_ENABLED is off on the server.');
+    } else {
+      warnings.push(`WhatsApp not sent — ${reason}`);
+    }
+  }
+
   return {
     teacherName: teacher.name,
     teacherEmail: teacher.email,
+    teacherPhone: phone ? maskPhone(phone) : null,
+    hasPhone: !!phone,
     weekLabel: label,
     meetingCount: meetings.length,
     emailSent: emailOk,
@@ -429,6 +473,7 @@ async function shareTeacherWeeklyTimetable(teacherId) {
     whatsappMessagesSent: waResult.sent,
     whatsappMessagesFailed: waResult.failed,
     whatsappSkippedReason: waResult.reason,
+    warnings,
   };
 }
 
@@ -444,6 +489,8 @@ module.exports = {
   sendWhatsappAutomated,
   sendWhatsappAutomatedMultiple,
   sendWhatsappManualMultiple,
+  resolveTeacherPhone,
+  maskPhone,
   teacherMeetingsForWeek,
   shareTeacherWeeklyTimetable,
   weekLabel,

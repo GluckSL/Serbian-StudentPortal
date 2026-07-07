@@ -1277,6 +1277,7 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
       assignedBatches,
       assignedTeacher,
       phoneNumber,
+      whatsappNumber,
       address,
       age,
       programEnrolled: servicesOpted,
@@ -1384,10 +1385,12 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
             return res.status(400).json({ msg: "No teacher found for this level and medium" });
           }
         }
-      } else if (user.role === "TEACHER") {
+      } else if (user.role === "TEACHER" || user.role === "TEACHER_ADMIN") {
         user.assignedBatches = assignedBatches;
         user.medium = medium;
-        user.assignedCourses = assignedCourses; // Assign courses if provided
+        user.assignedCourses = assignedCourses;
+        user.phoneNumber = phoneNumber || '';
+        user.whatsappNumber = whatsappNumber || phoneNumber || '';
       } else if (user.role === "SUB_ADMIN") {
         user.sidebarPermissions = normalizeSidebarPermissions(sidebarPermissions);
       }
@@ -2359,6 +2362,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       assignedBatches,
       studentStatus,
       phoneNumber,
+      whatsappNumber,
       address,
       age,
       programEnrolled: servicesOpted,
@@ -2390,6 +2394,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
       assignedBatches,
       studentStatus,
       phoneNumber,
+      whatsappNumber,
       address,
       age,
       servicesOpted,

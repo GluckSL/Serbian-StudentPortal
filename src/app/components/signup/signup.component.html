@@ -54,6 +54,32 @@
         />
       </div>
 
+      <!-- Phone / WhatsApp for teachers -->
+      <div class="mb-3" *ngIf="role === 'TEACHER' || role === 'TEACHER_ADMIN'">
+        <label for="teacherPhoneNumber" class="form-label">Phone Number</label>
+        <input
+          type="tel"
+          id="teacherPhoneNumber"
+          name="teacherPhoneNumber"
+          [(ngModel)]="phoneNumber"
+          class="form-control"
+          placeholder="+94 77 123 4567"
+        />
+      </div>
+
+      <div class="mb-3" *ngIf="role === 'TEACHER' || role === 'TEACHER_ADMIN'">
+        <label for="teacherWhatsappNumber" class="form-label">WhatsApp Number</label>
+        <input
+          type="tel"
+          id="teacherWhatsappNumber"
+          name="teacherWhatsappNumber"
+          [(ngModel)]="whatsappNumber"
+          class="form-control"
+          placeholder="Same as phone if identical"
+        />
+        <small class="text-muted">Used for timetable & class reminders on WhatsApp.</small>
+      </div>
+
       <!-- Phone Number -->
       <div class="mb-3" *ngIf="role === 'STUDENT'">
         <label for="phoneNumber" class="form-label">Phone Number</label>

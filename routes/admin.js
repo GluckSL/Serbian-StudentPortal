@@ -565,11 +565,17 @@ router.get('/teachers', verifyToken, isAdmin, async (req, res) => {
 // Share weekly timetable (Mon–Sun) with a teacher via email + WhatsApp
 router.post('/teachers/:teacherId/share-timetable', verifyToken, isAdmin, async (req, res) => {
   try {
-    const result = await shareTeacherWeeklyTimetable(req.params.teacherId);
+    const result = await shareTeacherWeeklyTimetable(req.params.teacherId, {
+      phoneOverride: req.body?.whatsappNumber || req.body?.phoneNumber,
+    });
+    const hasDelivery = result.emailSent || result.whatsappSent;
     return res.json({
-      success: true,
-      message: `Timetable shared with ${result.teacherName}`,
+      success: hasDelivery,
+      message: hasDelivery
+        ? `Timetable shared with ${result.teacherName}`
+        : `Could not deliver timetable to ${result.teacherName}`,
       data: result,
+      warnings: result.warnings || [],
     });
   } catch (err) {
     console.error('[POST /admin/teachers/:teacherId/share-timetable]', err);
