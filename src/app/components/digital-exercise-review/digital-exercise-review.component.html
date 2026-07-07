@@ -75,6 +75,7 @@
               <th>Question</th>
               <th>Your answer</th>
               <th>Expected</th>
+              <th>Explanation</th>
             </tr>
           </thead>
           <tbody>
@@ -83,6 +84,13 @@
               <td class="prompt">{{ row.promptSnippet }}</td>
               <td class="answer wrong">{{ row.studentAnswer }}</td>
               <td class="answer expected">{{ row.expectedAnswer }}</td>
+              <td class="explanation-cell">
+                <span *ngIf="row.answerExplanation" class="explanation-text">
+                  <span class="material-icons expl-icon">lightbulb</span>
+                  {{ row.answerExplanation }}
+                </span>
+                <span *ngIf="!row.answerExplanation" class="explanation-none">—</span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -101,6 +109,7 @@
               <th>Question</th>
               <th>Your answer</th>
               <th>Expected</th>
+              <th>Explanation</th>
             </tr>
           </thead>
           <tbody>
@@ -114,6 +123,13 @@
               <td class="prompt">{{ row.promptSnippet }}</td>
               <td class="answer">{{ row.studentAnswer }}</td>
               <td class="answer muted">{{ row.expectedAnswer }}</td>
+              <td class="explanation-cell">
+                <span *ngIf="row.answerExplanation" class="explanation-text">
+                  <span class="material-icons expl-icon">lightbulb</span>
+                  {{ row.answerExplanation }}
+                </span>
+                <span *ngIf="!row.answerExplanation" class="explanation-none">—</span>
+              </td>
             </tr>
           </tbody>
         </table>

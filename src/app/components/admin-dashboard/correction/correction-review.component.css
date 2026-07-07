@@ -461,6 +461,32 @@
 
 .spin { animation: spin 0.9s linear infinite; }
 
+.cr-expl {
+  max-width: 220px;
+  word-break: break-word;
+  vertical-align: top;
+}
+
+.cr-expl-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.cr-expl-icon {
+  font-size: 15px;
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.cr-expl-none {
+  color: #cbd5e1;
+}
+
 @media (max-width: 768px) {
   .cr-hero { margin: 12px; padding: 16px; }
   .cr-card { margin: 0 12px 12px; }

@@ -1566,7 +1566,9 @@ export class FreeModeExerciseRendererComponent implements OnInit {
   }
 
   goToReview(): void {
-    this.router.navigate(['/digital-exercises', this.exerciseId, 'review']);
+    this.router.navigate(['/digital-exercises', this.exerciseId, 'review'], {
+      queryParams: this.attemptId ? { attemptId: this.attemptId } : undefined
+    });
   }
 
   retry(): void {
