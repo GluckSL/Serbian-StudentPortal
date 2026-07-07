@@ -338,6 +338,7 @@ module.exports = {
   sendManualWhatsappMessage,
   normalizeWhatsappAutomatedMessage,
   normalizeE164Phone,
+  normalizeBatchName,
   isWhatsappSendEnabled,
   isWhatsappManualSendEnabled,
   isWhatsappAutomatedJobsEnabled,
