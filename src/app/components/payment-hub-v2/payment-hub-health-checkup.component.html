@@ -102,6 +102,16 @@
           <div class="phc-card__count">{{ greenCount }}</div>
           <div class="phc-card__label">Green</div>
           <div class="phc-card__hint">Days 1–5 of level · will pay</div>
+          <div class="phc-card__pending" *ngIf="hasPendingTotal(greenPendingTotal)">
+            <span class="phc-card__pending-label">Total pending</span>
+            <app-payment-currency-pending-totals
+              [lkr]="greenPendingTotal.lkr"
+              [inr]="greenPendingTotal.inr"
+              [usd]="greenPendingTotal.usd"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-pending-totals>
+          </div>
         </button>
 
         <!-- Yellow -->
@@ -117,6 +127,16 @@
           <div class="phc-card__count">{{ yellowCount }}</div>
           <div class="phc-card__label">Yellow</div>
           <div class="phc-card__hint">Days 6–8 · remind to pay</div>
+          <div class="phc-card__pending" *ngIf="hasPendingTotal(yellowPendingTotal)">
+            <span class="phc-card__pending-label">Total pending</span>
+            <app-payment-currency-pending-totals
+              [lkr]="yellowPendingTotal.lkr"
+              [inr]="yellowPendingTotal.inr"
+              [usd]="yellowPendingTotal.usd"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-pending-totals>
+          </div>
         </button>
 
         <!-- Red -->
@@ -132,6 +152,16 @@
           <div class="phc-card__count">{{ redCount }}</div>
           <div class="phc-card__label">Red</div>
           <div class="phc-card__hint">Day 9+ · urgent call needed</div>
+          <div class="phc-card__pending" *ngIf="hasPendingTotal(redPendingTotal)">
+            <span class="phc-card__pending-label">Total pending</span>
+            <app-payment-currency-pending-totals
+              [lkr]="redPendingTotal.lkr"
+              [inr]="redPendingTotal.inr"
+              [usd]="redPendingTotal.usd"
+              [compact]="true"
+              [hideZero]="true"
+            ></app-payment-currency-pending-totals>
+          </div>
         </button>
 
       </div>

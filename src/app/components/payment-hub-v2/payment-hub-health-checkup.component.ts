@@ -288,6 +288,40 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
     return this.allRows.filter((r) => r.healthColor === 'red').length;
   }
 
+  get greenPendingTotal(): StudentCurrencyTotals {
+    return this.sumPendingForHealthColor('green');
+  }
+
+  get yellowPendingTotal(): StudentCurrencyTotals {
+    return this.sumPendingForHealthColor('yellow');
+  }
+
+  get redPendingTotal(): StudentCurrencyTotals {
+    return this.sumPendingForHealthColor('red');
+  }
+
+  private sumPendingForHealthColor(color: HealthColor): StudentCurrencyTotals {
+    return this.sumPendingForRows(this.allRows.filter((r) => r.healthColor === color));
+  }
+
+  private sumPendingForRows(rows: HealthStudentRow[]): StudentCurrencyTotals {
+    return rows.reduce(
+      (acc, row) => {
+        const p = this.rowPending(row);
+        return {
+          lkr: acc.lkr + p.lkr,
+          inr: acc.inr + p.inr,
+          usd: acc.usd + p.usd,
+        };
+      },
+      { lkr: 0, inr: 0, usd: 0 },
+    );
+  }
+
+  hasPendingTotal(totals: StudentCurrencyTotals): boolean {
+    return totals.lkr > 0 || totals.inr > 0 || totals.usd > 0;
+  }
+
   // ── Filtering ────────────────────────────────────────────────────────────
 
   setFilter(filter: HealthFilter): void {
