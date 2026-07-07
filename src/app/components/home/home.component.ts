@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpClientModule } from '@angular/common/http';
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewEncapsulation } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, OnDestroy, ViewEncapsulation } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 @Component({
@@ -14,9 +14,29 @@ import { RouterModule } from '@angular/router';
 export class HomeComponent implements AfterViewInit, OnDestroy {
   readonly year = new Date().getFullYear();
 
+  /** Nav state: island nav elevates after scrolling; burger toggles the mobile panel. */
+  scrolled = false;
+  menuOpen = false;
+
   private observers: IntersectionObserver[] = [];
 
+  @HostListener('window:scroll')
+  onWindowScroll(): void {
+    this.scrolled = window.scrollY > 24;
+  }
+
   constructor(private host: ElementRef<HTMLElement>) {}
+
+  /** Smooth-scroll to an in-page section, offsetting for the fixed island nav. */
+  scrollTo(id: string, event: Event): void {
+    event.preventDefault();
+    this.menuOpen = false;
+    const el = document.getElementById(id);
+    if (!el) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const y = el.getBoundingClientRect().top + window.scrollY - 84;
+    window.scrollTo({ top: y, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
 
   ngAfterViewInit(): void {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

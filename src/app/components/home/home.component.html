@@ -1,83 +1,122 @@
 <!-- Glück Global | The 200-Day Path to Germany — marketing landing -->
 <div class="ia-page">
-  <nav class="ia-nav" aria-label="Primary">
-    <div class="ia-nav-inner">
-      <a routerLink="/home" class="ia-brand" aria-label="Glück Global home">
-        <img src="assets/gluck-logo.png" alt="" class="ia-brand-img" width="40" height="40" />
-      </a>
-      <div class="ia-nav-links">
-        <a class="ia-nav-link" href="#learn">Curriculum</a>
-        <a class="ia-nav-link" href="#methods">Methods</a>
-        <a class="ia-nav-link" href="#live">Live</a>
-        <a class="ia-nav-link" href="#docs">Germany Visa</a>
+  <nav class="ia-nav" [class.is-scrolled]="scrolled" aria-label="Primary">
+    <div class="ia-nav-shell">
+      <div class="ia-nav-inner">
+        <a routerLink="/home" class="ia-brand" aria-label="Glück Global home">
+          <img src="assets/gluck-logo.png" alt="" class="ia-brand-img" width="40" height="40" />
+          <span class="ia-brand-name">Glück&nbsp;Global</span>
+        </a>
+        <div class="ia-nav-links">
+          <a class="ia-nav-link" href="#features" (click)="scrollTo('features', $event)">Features</a>
+          <a class="ia-nav-link" href="#learn" (click)="scrollTo('learn', $event)">Roadmap</a>
+          <a class="ia-nav-link" href="#live" (click)="scrollTo('live', $event)">Careers &amp; Visa</a>
+          <a class="ia-nav-link" routerLink="/help">Help</a>
+        </div>
+        <div class="ia-nav-actions">
+          <a routerLink="/login" class="ia-btn ia-btn-nav">
+            Portal Login
+            <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+          <button type="button" class="ia-nav-burger" (click)="menuOpen = !menuOpen"
+                  [attr.aria-expanded]="menuOpen" aria-label="Toggle menu">
+            <svg *ngIf="!menuOpen" class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>
+            <svg *ngIf="menuOpen" class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
-      <a routerLink="/login" class="ia-btn ia-btn-nav">Portal Login</a>
+      <div class="ia-nav-mobile" [class.is-open]="menuOpen">
+        <a class="ia-nav-link" href="#features" (click)="scrollTo('features', $event)">Features</a>
+        <a class="ia-nav-link" href="#learn" (click)="scrollTo('learn', $event)">Roadmap</a>
+        <a class="ia-nav-link" href="#live" (click)="scrollTo('live', $event)">Careers &amp; Visa</a>
+        <a class="ia-nav-link" routerLink="/help" (click)="menuOpen = false">Help</a>
+        <a routerLink="/login" class="ia-btn ia-btn-nav ia-btn-nav--wide" (click)="menuOpen = false">Portal Login</a>
+      </div>
     </div>
   </nav>
 
   <main class="ia-main">
     <!-- Hero -->
-    <section class="ia-hero ia-hero--path">
-      <div class="ia-hero-text">
-        <span class="ia-kicker">Guaranteed Career Placement</span>
-        <h1 class="ia-display">
-          Your 200-Day <br />
-          <span class="ia-display-accent">Path to Germany.</span>
-        </h1>
-        <p class="ia-lede">
-          Master the language, secure your visa, and land your dream job in Germany within 200 days. A high-end editorial learning experience with a 100% job guarantee.
-        </p>
-        <div class="ia-hero-btns">
-          <a routerLink="/login" class="ia-btn ia-btn-primary">Start Your Germany Journey</a>
-        </div>
-
-        <!-- Hero stats -->
-        <dl class="ia-stats" aria-label="Glück Global in numbers">
-          <div class="ia-stat">
-            <dt class="ia-stat-label">Day Structured Journey</dt>
-            <dd class="ia-stat-value"><span class="ia-stat-num" data-count="200">0</span></dd>
-          </div>
-          <div class="ia-stat">
-            <dt class="ia-stat-label">Students Learning</dt>
-            <dd class="ia-stat-value"><span class="ia-stat-num" data-count="700">0</span>+</dd>
-          </div>
-          <div class="ia-stat">
-            <dt class="ia-stat-label">Live Batches Running</dt>
-            <dd class="ia-stat-value"><span class="ia-stat-num" data-count="40">0</span>+</dd>
-          </div>
-          <div class="ia-stat">
-            <dt class="ia-stat-label">Job Guarantee</dt>
-            <dd class="ia-stat-value"><span class="ia-stat-num" data-count="100">0</span>%</dd>
-          </div>
-        </dl>
+    <section class="ia-hero">
+      <div class="ia-hero-bg" aria-hidden="true">
+        <span class="ia-blob ia-blob--a"></span>
+        <span class="ia-blob ia-blob--b"></span>
+        <span class="ia-blob ia-blob--c"></span>
       </div>
 
-      <div class="ia-hero-panel">
-        <img
-          class="ia-hero-img"
-          alt=""
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJM7M8BrA5qv7DtSdYCUFpPXhshX3GW_wfCCI1wgMP7k5abstl_znIIo8KxojAnaAWbZFDN-k6bxgVslqbLjYdHUUh_XxQkbvnAfPHceNEPnhJvR5Onmlw3Aa_zMymonDfOMEWPYB7Wgn_taVu5atXKGMqwyGsOjBzrIeE7FZ0MOJwnocOUfmIPvL7OYIKJPkoUV6dl0jrUsT8eyKv8d2hSK-l9lCRVyE_8Jv_Yhdxf-iMNmQOKZw683K49LN5jF0hiOIYUJg5pIfM"
-        />
-        <div class="ia-float ia-float-a">
-          <div class="ia-float-icon ia-float-icon--sec">
-            <span class="material-symbols-outlined">auto_awesome</span>
-          </div>
-          <div>
-            <p class="ia-float-label">AI Module</p>
-            <p class="ia-float-title">Visa Prep Interview</p>
-          </div>
-        </div>
-        <div class="ia-float ia-float-b">
-          <span class="ia-live-dot"></span>
-          <div>
-            <p class="ia-float-title-sm">Live Workshop: Berlin Jobs</p>
-            <p class="ia-float-meta">42 candidates in queue</p>
+      <div class="ia-hero-grid">
+        <div class="ia-hero-copy">
+          <span class="ia-kicker">Guaranteed Career Placement</span>
+          <h1 class="ia-display">
+            Your 200-Day <br />
+            <span class="ia-display-accent">Path to Germany.</span>
+          </h1>
+          <p class="ia-lede">
+            Master the language, secure your visa, and land your dream job in Germany within 200 days. A high-end editorial learning experience with a 100% job guarantee.
+          </p>
+          <div class="ia-hero-btns">
+            <a routerLink="/login" class="ia-btn ia-btn-primary">Start Your Germany Journey</a>
           </div>
         </div>
-        <div class="ia-play-btn" aria-hidden="true">
-          <span class="material-symbols-outlined ia-play-icon">play_arrow</span>
+
+        <!-- Portal preview composition -->
+        <div class="ia-hero-visual" aria-hidden="true">
+          <div class="ia-hv-card ia-hv-dash">
+            <div class="ia-hv-dash-head">
+              <div>
+                <p class="ia-hv-dash-t">Your Journey</p>
+                <p class="ia-hv-dash-m">Day 87 of 200</p>
+              </div>
+              <span class="ia-hv-live"><span class="ia-live-dot"></span> Live now</span>
+            </div>
+            <div class="ia-hv-bar"><span class="ia-hv-bar-fill"></span></div>
+            <div class="ia-hv-row">
+              <span class="ia-hv-row-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span>
+              <div>
+                <p class="ia-hv-row-t">A2 German — Live class</p>
+                <p class="ia-hv-row-m">Today · 7:30 PM</p>
+              </div>
+            </div>
+            <div class="ia-hv-row">
+              <span class="ia-hv-row-ico ia-hv-row-ico--gold"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+              <div>
+                <p class="ia-hv-row-t">GlückArena</p>
+                <p class="ia-hv-row-m">+120 XP today</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="ia-hv-card ia-hv-fox">
+            <img src="assets/dg-bot/fox/speakingfull.png" alt="" class="ia-hv-fox-img" />
+            <div class="ia-hv-bubble">&bdquo;Wie geht&rsquo;s dir heute?&ldquo;</div>
+            <p class="ia-hv-fox-label">Gluck Buddy · AI partner</p>
+          </div>
+
+          <div class="ia-hv-card ia-hv-visa">
+            <span class="ia-hv-visa-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div>
+              <p class="ia-hv-row-t">Visa approved</p>
+              <p class="ia-hv-row-m">Stage 4 of 4</p>
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- Hero stats -->
+      <dl class="ia-stats" aria-label="Glück Global in numbers">
+        <div class="ia-stat">
+          <dt class="ia-stat-label">Day Structured Journey</dt>
+          <dd class="ia-stat-value"><span class="ia-stat-num" data-count="200">0</span></dd>
+        </div>
+        <div class="ia-stat">
+          <dt class="ia-stat-label">Students Learning</dt>
+          <dd class="ia-stat-value"><span class="ia-stat-num" data-count="700">0</span>+</dd>
+        </div>
+        <div class="ia-stat">
+          <dt class="ia-stat-label">Live Batches Running</dt>
+          <dd class="ia-stat-value"><span class="ia-stat-num" data-count="40">0</span>+</dd>
+        </div>
+      </dl>
     </section>
 
     <!-- Portal feature deck — cards stack as you scroll -->
@@ -92,9 +131,9 @@
         <div class="ia-feat-deck">
           <!-- 01 Live Classes -->
           <article class="ia-feat-card" style="--i: 0">
-            <span class="ia-feat-num" aria-hidden="true">01</span>
             <div class="ia-feat-copy">
-              <div class="ia-feat-ico"><span class="material-symbols-outlined">videocam</span></div>
+              <span class="ia-feat-num" aria-hidden="true">01</span>
+              <div class="ia-feat-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></div>
               <h3 class="ia-feat-h">Live Classes &amp; Recordings</h3>
               <p class="ia-feat-p">
                 Join daily live German classes with expert teachers, and rewatch any session in HD —
@@ -105,7 +144,7 @@
                 <li>HD class recordings</li>
                 <li>Smart attendance</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to join a class <span class="material-symbols-outlined">arrow_forward</span></a>
+              <a routerLink="/login" class="ia-feat-link">Sign in to join a class <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
             </div>
             <div class="ia-feat-media">
               <img loading="lazy" alt="Students in a live online German class"
@@ -115,9 +154,9 @@
 
           <!-- 02 Gluck Buddy -->
           <article class="ia-feat-card ia-feat-card--buddy" style="--i: 1">
-            <span class="ia-feat-num" aria-hidden="true">02</span>
             <div class="ia-feat-copy">
-              <div class="ia-feat-ico"><span class="material-symbols-outlined">forum</span></div>
+              <span class="ia-feat-num" aria-hidden="true">02</span>
+              <div class="ia-feat-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
               <h3 class="ia-feat-h">Gluck Buddy — AI Speaking Partner</h3>
               <p class="ia-feat-p">
                 Meet your friendly fox tutor. Practice real German conversations out loud, any time of
@@ -128,7 +167,7 @@
                 <li>Instant AI feedback</li>
                 <li>Beginner friendly</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to meet your buddy <span class="material-symbols-outlined">arrow_forward</span></a>
+              <a routerLink="/login" class="ia-feat-link">Sign in to meet your buddy <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
             </div>
             <div class="ia-feat-media ia-feat-media--buddy">
               <img loading="lazy" class="ia-feat-fox" alt="Gluck Buddy, the AI fox speaking partner"
@@ -138,9 +177,9 @@
 
           <!-- 03 Digital Exercises -->
           <article class="ia-feat-card" style="--i: 2">
-            <span class="ia-feat-num" aria-hidden="true">03</span>
             <div class="ia-feat-copy">
-              <div class="ia-feat-ico"><span class="material-symbols-outlined">edit_note</span></div>
+              <span class="ia-feat-num" aria-hidden="true">03</span>
+              <div class="ia-feat-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
               <h3 class="ia-feat-h">Digital Exercises</h3>
               <p class="ia-feat-p">
                 Interactive drills tied to each course day — grammar, vocabulary, listening and writing,
@@ -151,7 +190,7 @@
                 <li>Auto-graded with AI</li>
                 <li>Track every attempt</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to practice <span class="material-symbols-outlined">arrow_forward</span></a>
+              <a routerLink="/login" class="ia-feat-link">Sign in to practice <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
             </div>
             <div class="ia-feat-media">
               <img loading="lazy" alt="Student completing digital German exercises"
@@ -161,9 +200,9 @@
 
           <!-- 04 GlückArena -->
           <article class="ia-feat-card" style="--i: 3">
-            <span class="ia-feat-num" aria-hidden="true">04</span>
             <div class="ia-feat-copy">
-              <div class="ia-feat-ico"><span class="material-symbols-outlined">sports_esports</span></div>
+              <span class="ia-feat-num" aria-hidden="true">04</span>
+              <div class="ia-feat-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
               <h3 class="ia-feat-h">GlückArena</h3>
               <p class="ia-feat-p">
                 Learning that feels like play — battle classmates in vocabulary games, climb the batch
@@ -174,7 +213,7 @@
                 <li>Leaderboards &amp; XP</li>
                 <li>Vocabulary games</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to enter the arena <span class="material-symbols-outlined">arrow_forward</span></a>
+              <a routerLink="/login" class="ia-feat-link">Sign in to enter the arena <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
             </div>
             <div class="ia-feat-media">
               <img loading="lazy" alt="Gamified learning arena"
@@ -184,9 +223,9 @@
 
           <!-- 05 Career & Visa -->
           <article class="ia-feat-card" style="--i: 4">
-            <span class="ia-feat-num" aria-hidden="true">05</span>
             <div class="ia-feat-copy">
-              <div class="ia-feat-ico"><span class="material-symbols-outlined">flight_takeoff</span></div>
+              <span class="ia-feat-num" aria-hidden="true">05</span>
+              <div class="ia-feat-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
               <h3 class="ia-feat-h">Career &amp; Visa Support</h3>
               <p class="ia-feat-p">
                 Browse curated German job openings, track your visa application stage by stage, and keep
@@ -197,7 +236,7 @@
                 <li>Visa status tracker</li>
                 <li>Secure document vault</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to track your visa <span class="material-symbols-outlined">arrow_forward</span></a>
+              <a routerLink="/login" class="ia-feat-link">Sign in to track your visa <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
             </div>
             <div class="ia-feat-media">
               <img loading="lazy" alt="Brandenburg Gate, Berlin, Germany"
@@ -207,9 +246,9 @@
 
           <!-- 06 Progress & Analytics -->
           <article class="ia-feat-card" style="--i: 5">
-            <span class="ia-feat-num" aria-hidden="true">06</span>
             <div class="ia-feat-copy">
-              <div class="ia-feat-ico"><span class="material-symbols-outlined">monitoring</span></div>
+              <span class="ia-feat-num" aria-hidden="true">06</span>
+              <div class="ia-feat-ico"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
               <h3 class="ia-feat-h">Progress &amp; Analytics</h3>
               <p class="ia-feat-p">
                 Your whole journey on one dashboard — course-day progress, class performance, exercise
@@ -220,7 +259,7 @@
                 <li>Performance history</li>
                 <li>Milestone alerts</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to see your progress <span class="material-symbols-outlined">arrow_forward</span></a>
+              <a routerLink="/login" class="ia-feat-link">Sign in to see your progress <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
             </div>
             <div class="ia-feat-media">
               <img loading="lazy" alt="Progress analytics dashboard"
@@ -231,223 +270,280 @@
       </div>
     </section>
 
-    <!-- #methods Four pillars -->
-    <section class="ia-band ia-band-white" id="methods">
+    <!-- #learn — the 200-day journey timeline -->
+    <section class="ia-band ia-band-low ia-journey" id="learn">
       <div class="ia-band-inner">
-        <div class="ia-center-head">
-          <h2 class="ia-h2">A Four-Pillar Teaching Ecosystem</h2>
-          <p class="ia-sub">The most comprehensive methodology for rapid language acquisition and career readiness.</p>
-        </div>
-        <div class="ia-methods-grid">
-          <article class="ia-method-card">
-            <span class="material-symbols-outlined ia-method-ico">videocam</span>
-            <h3 class="ia-method-h">Live &amp; Recorded</h3>
-            <p class="ia-method-p">Daily sessions with native experts. Catch up anytime with high-fidelity recordings.</p>
-          </article>
-          <article class="ia-method-card">
-            <span class="material-symbols-outlined ia-method-ico">edit_note</span>
-            <h3 class="ia-method-h">Digital Exercises</h3>
-            <p class="ia-method-p">Smart, interactive drills designed to lock in grammar and syntax automatically.</p>
-          </article>
-          <article class="ia-method-card">
-            <span class="material-symbols-outlined ia-method-ico">neurology</span>
-            <h3 class="ia-method-h">AI Modules</h3>
-            <p class="ia-method-p">24/7 AI conversation partners trained on professional German workplace scenarios.</p>
-          </article>
-          <article class="ia-method-card">
-            <span class="material-symbols-outlined ia-method-ico">play_circle</span>
-            <h3 class="ia-method-h">Vocab Videos</h3>
-            <p class="ia-method-p">Short, cinematic visual clips to master vocabulary through context and imagery.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- #learn -->
-    <section class="ia-band ia-band-low" id="learn">
-      <div class="ia-band-inner ia-split">
-        <div class="ia-card-path">
-          <div class="ia-path-head">
-            <h3 class="ia-path-h">Day 120: Career Readiness</h3>
-            <span class="ia-path-pct">60% Through Journey</span>
-          </div>
-          <div class="ia-path-body">
-            <div class="ia-path-row ia-path-row--active">
-              <div class="ia-path-bar-wrap" aria-hidden="true">
-                <div class="ia-path-bar ia-path-bar--fill-partial"></div>
-              </div>
-              <div>
-                <h4 class="ia-path-mod">Phase 02: Job Integration</h4>
-                <ul class="ia-path-list">
-                  <li>
-                    <span class="material-symbols-outlined ia-check">check_circle</span>
-                    Resume German Translation
-                  </li>
-                  <li>
-                    <span class="material-symbols-outlined ia-check">check_circle</span>
-                    Interview Roleplay Level B1
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <div class="ia-path-row ia-path-row--dim">
-              <div class="ia-path-bar-wrap ia-path-bar-wrap--empty" aria-hidden="true"></div>
-              <div>
-                <h4 class="ia-path-mod ia-path-mod--muted">Phase 03: Visa Finalization</h4>
-                <p class="ia-path-unlock">Unlocks at Day 150</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="ia-learn-copy">
+        <div class="ia-center-head ia-reveal">
+          <span class="ia-kicker">The 200-Day Roadmap</span>
           <h2 class="ia-h2">Structured for Success</h2>
-          <p class="ia-prose">
-            Our 200-day roadmap isn't just about learning a language; it's a complete relocation engine. From your first &lsquo;Guten Tag&rsquo; to your final work contract signing.
+          <p class="ia-sub">
+            Not just a language course — a complete relocation engine, from your first
+            &lsquo;Guten Tag&rsquo; to signing your work contract in Germany.
           </p>
-          <div class="ia-mini-rows">
-            <div class="ia-mini-row">
-              <span class="material-symbols-outlined ia-mini-ico">verified</span>
-              <span class="ia-mini-txt">Job Guarantee Contract</span>
-            </div>
-            <div class="ia-mini-row">
-              <span class="material-symbols-outlined ia-mini-ico">flight_takeoff</span>
-              <span class="ia-mini-txt">Relocation &amp; Visa Assistance</span>
-            </div>
-            <div class="ia-mini-row">
-              <span class="material-symbols-outlined ia-mini-ico">partner_exchange</span>
-              <span class="ia-mini-txt">Elite German Corporate Partners</span>
-            </div>
-          </div>
+        </div>
+
+        <div class="ia-road ia-reveal">
+          <ol class="ia-road-steps">
+            <li class="ia-road-step ia-reveal">
+              <span class="ia-road-node" aria-hidden="true"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
+              <div class="ia-road-card">
+                <span class="ia-road-day">Day 1</span>
+                <h3 class="ia-road-h">Kickoff</h3>
+                <p class="ia-road-p">Meet your batch, teacher and Gluck Buddy — A1 starts on day one.</p>
+              </div>
+            </li>
+            <li class="ia-road-step ia-reveal">
+              <span class="ia-road-node" aria-hidden="true"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+              <div class="ia-road-card">
+                <span class="ia-road-day">Day 50</span>
+                <h3 class="ia-road-h">Conversations Flow</h3>
+                <p class="ia-road-p">Daily classes and speaking practice stack up — A2 milestone cleared.</p>
+              </div>
+            </li>
+            <li class="ia-road-step ia-reveal">
+              <span class="ia-road-node" aria-hidden="true"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg></span>
+              <div class="ia-road-card">
+                <span class="ia-road-day">Day 100</span>
+                <h3 class="ia-road-h">Halfway Benchmark</h3>
+                <p class="ia-road-p">Mock exams and analytics push you into B1 — the level employers want.</p>
+              </div>
+            </li>
+            <li class="ia-road-step ia-reveal">
+              <span class="ia-road-node" aria-hidden="true"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+              <div class="ia-road-card">
+                <span class="ia-road-day">Day 150</span>
+                <h3 class="ia-road-h">Visa &amp; Careers</h3>
+                <p class="ia-road-p">Visa filing begins while job matching pairs you with German employers.</p>
+              </div>
+            </li>
+            <li class="ia-road-step ia-road-step--final ia-reveal">
+              <span class="ia-road-node" aria-hidden="true"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></span>
+              <div class="ia-road-card">
+                <span class="ia-road-day">Day 200</span>
+                <h3 class="ia-road-h">Wheels Up — Germany</h3>
+                <p class="ia-road-p">Contract signed, relocation supported — backed by the 100% job guarantee.</p>
+              </div>
+            </li>
+          </ol>
         </div>
       </div>
     </section>
 
-    <!-- #live -->
-    <section class="ia-band ia-band-dark" id="live">
+    <!-- #live — Careers & Germany Visa (merged) -->
+    <section class="ia-band ia-gv" id="live">
       <div class="ia-band-inner">
-        <div class="ia-live-head">
-          <div>
-            <div class="ia-live-now">
-              <span class="ia-live-dot"></span>
-              <span class="ia-live-now-txt">Live Workshop</span>
-            </div>
-            <h2 class="ia-h2 ia-h2--light">The Career Atelier</h2>
-          </div>
-          <a href="#live" class="ia-schedule-link">
-            View Hiring Events <span class="material-symbols-outlined">arrow_forward</span>
-          </a>
+        <div class="ia-center-head ia-reveal">
+          <span class="ia-kicker">Careers &amp; Germany Visa</span>
+          <h2 class="ia-h2">From Classroom to Contract</h2>
+          <p class="ia-sub">
+            One team handles all of it — your language level, your visa file and your job hunt —
+            tracked live in the portal.
+          </p>
         </div>
-        <div class="ia-live-grid">
-          <div class="ia-live-feature">
-            <img
-              class="ia-live-img"
-              alt=""
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcehi17VhTpY1KXdImt2CEMA9UdnNMAwFYd3kbQaRyYoBYHZrLLQTh9Ul6vbaNuTmr-60vmQqA3suOYm7zBuzUf83jt_piwisLf-PaMqXn6ukTtPZXTj6xme1ArPY8t7EVhfjuGrQeGqs-ukyxeUUOh90kttveOZgZyXyiuumuTC3EhSOTQO5kcUIpRHDyj0q3g7kbRPgv21FxAomesc9UFEja0mXo16O7aoTuin4bijlkPYBtm2NsiBUkTsXiEfs47LKbGaQO9rsK"
-            />
-            <div class="ia-live-overlay">
-              <h4 class="ia-live-title">Interviewing with Siemens &amp; BMW</h4>
-              <p class="ia-live-sub">Insider Tips with Recruiter Klaus Weber</p>
+
+        <div class="ia-gv-grid">
+          <!-- Visa tracking -->
+          <article class="ia-gv-card ia-reveal" id="docs">
+            <div class="ia-gv-ico">
+              <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             </div>
-            <span class="ia-live-badge">Career Session</span>
-          </div>
-          <div class="ia-live-tile">
-            <span class="material-symbols-outlined ia-live-tile-ico">work_history</span>
-            <div>
-              <p class="ia-live-tile-t">Mock Job Interviews</p>
-              <p class="ia-live-tile-m">Today at 6:00 PM CET</p>
+            <h3 class="ia-gv-h">Your visa, tracked stage by stage</h3>
+            <p class="ia-gv-p">
+              Upload documents once into your secure vault, then watch your application move
+              through every stage — no chasing agents, no guesswork.
+            </p>
+
+            <ol class="ia-gv-steps" aria-label="Visa journey stages">
+              <li class="ia-gv-step ia-gv-step--done">
+                <span class="ia-gv-step-dot"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+                <span class="ia-gv-step-txt">Documents verified</span>
+              </li>
+              <li class="ia-gv-step ia-gv-step--done">
+                <span class="ia-gv-step-dot"><svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+                <span class="ia-gv-step-txt">Application filed</span>
+              </li>
+              <li class="ia-gv-step ia-gv-step--active">
+                <span class="ia-gv-step-dot"></span>
+                <span class="ia-gv-step-txt">Embassy interview prep</span>
+                <span class="ia-gv-step-tag">In progress</span>
+              </li>
+              <li class="ia-gv-step">
+                <span class="ia-gv-step-dot"></span>
+                <span class="ia-gv-step-txt">Visa approved — fly out</span>
+              </li>
+            </ol>
+
+            <ul class="ia-feat-chips">
+              <li>Secure document vault</li>
+              <li>Legal guidance</li>
+              <li>Live status updates</li>
+            </ul>
+          </article>
+
+          <!-- Career placement -->
+          <article class="ia-gv-card ia-reveal">
+            <div class="ia-gv-ico">
+              <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
             </div>
-          </div>
-          <div class="ia-live-tile">
-            <span class="material-symbols-outlined ia-live-tile-ico">support_agent</span>
-            <div>
-              <p class="ia-live-tile-t">1:1 Visa Coaching</p>
-              <p class="ia-live-tile-m">Book your session</p>
+            <h3 class="ia-gv-h">A job waiting at the end</h3>
+            <p class="ia-gv-p">
+              Curated openings from German employers appear in your portal as you approach the
+              required language level — backed by our 100% job guarantee.
+            </p>
+
+            <div class="ia-gv-jobs" aria-hidden="true">
+              <div class="ia-gv-job">
+                <div class="ia-gv-job-main">
+                  <p class="ia-gv-job-t">Healthcare Professional</p>
+                  <p class="ia-gv-job-m">Munich · Full-time · B1 German</p>
+                </div>
+                <span class="ia-gv-job-badge">Matched</span>
+              </div>
+              <div class="ia-gv-job">
+                <div class="ia-gv-job-main">
+                  <p class="ia-gv-job-t">Engineering Trainee</p>
+                  <p class="ia-gv-job-m">Berlin · Full-time · B1 German</p>
+                </div>
+                <span class="ia-gv-job-badge">Matched</span>
+              </div>
+              <div class="ia-gv-job ia-gv-job--ghost">
+                <div class="ia-gv-job-main">
+                  <p class="ia-gv-job-t">IT Support Specialist</p>
+                  <p class="ia-gv-job-m">Hamburg · Unlocks at B1</p>
+                </div>
+              </div>
             </div>
-          </div>
+
+            <ul class="ia-feat-chips">
+              <li>100% job guarantee</li>
+              <li>Interview coaching</li>
+              <li>Relocation support</li>
+            </ul>
+          </article>
         </div>
       </div>
     </section>
 
-    <!-- #docs -->
-    <section class="ia-band" id="docs">
-      <div class="ia-band-inner ia-docs-split">
-        <div class="ia-docs-left">
-          <h2 class="ia-h2">Your &lsquo;Go to Germany&rsquo; Archive</h2>
-          <p class="ia-prose ia-docs-intro">
-            Access your personalized visa application tracker, legal documents, and career placement dossiers in our secure repository.
-          </p>
-          <div class="ia-doc-rows">
-            <div class="ia-doc-row">
-              <div class="ia-doc-ico ia-doc-ico--blue">
-                <span class="material-symbols-outlined">assignment</span>
-              </div>
-              <div class="ia-doc-meta">
-                <p class="ia-doc-name">German_Work_Visa_Checklist.pdf</p>
-                <p class="ia-doc-sub">Mandatory Document</p>
-              </div>
-              <button type="button" class="ia-doc-dl" aria-label="Download">
-                <span class="material-symbols-outlined">download</span>
-              </button>
-            </div>
-            <div class="ia-doc-row">
-              <div class="ia-doc-ico ia-doc-ico--emerald">
-                <span class="material-symbols-outlined">description</span>
-              </div>
-              <div class="ia-doc-meta">
-                <p class="ia-doc-name">Job_Placement_Agreement_V4.doc</p>
-                <p class="ia-doc-sub">Guarantee Certified</p>
-              </div>
-              <button type="button" class="ia-doc-dl" aria-label="Download">
-                <span class="material-symbols-outlined">download</span>
-              </button>
-            </div>
-          </div>
-          <button type="button" class="ia-upload-fake">
-            <span class="material-symbols-outlined">upload_file</span> Upload Visa Application Drafts
-          </button>
+    <!-- #faq -->
+    <section class="ia-band ia-faq" id="faq">
+      <div class="ia-faq-inner">
+        <div class="ia-center-head ia-reveal">
+          <span class="ia-kicker">Questions</span>
+          <h2 class="ia-h2">Frequently Asked</h2>
+          <p class="ia-sub">Everything you might want to know before you start your 200 days.</p>
         </div>
-        <div class="ia-docs-visual">
-          <img
-            class="ia-docs-bg"
-            alt=""
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBE_LfFkie1-VG6JR_rfusP3dKrVmB06Vc671GLdRsNEBEc6QTTBI3kpTDUYCAzOz3tOfRCSzOqKoRsCyBSliV_vpHHDhnkwc2-WZikuZyOrtmbDJxCp3mLua00sQZMxQF0XLListNghpaWri_D7VbudqgbFDag4Q6aGgf2bA6NONuqh18g_YhDY7OI_7xFUULusLllGtzFreP4zVe8W_-42OLPLmr6YQvpH7IAmkVAqOK6mrRjBQC3peNi1mNlUR5bjYLZVneR00S"
-          />
-          <div class="ia-docs-center">
-            <div class="ia-cloud-ico">
-              <span class="material-symbols-outlined">verified_user</span>
+
+        <div class="ia-faq-list ia-reveal">
+          <details class="ia-faq-item" open>
+            <summary class="ia-faq-q">
+              <span>Do I need any German before I join?</span>
+              <span class="ia-faq-plus" aria-hidden="true"></span>
+            </summary>
+            <div class="ia-faq-a">
+              <p>No prior German is needed. The journey starts at A1 on day one — complete beginners are exactly who the 200-day roadmap is built for, and Gluck Buddy helps you practise speaking from the very first lesson.</p>
             </div>
-            <h4 class="ia-docs-h">Career Placement Support</h4>
-            <p class="ia-docs-p">End-to-end guidance from legal to HR</p>
-          </div>
+          </details>
+
+          <details class="ia-faq-item">
+            <summary class="ia-faq-q">
+              <span>How does the 100% job guarantee work?</span>
+              <span class="ia-faq-plus" aria-hidden="true"></span>
+            </summary>
+            <div class="ia-faq-a">
+              <p>As you reach the required language level, curated openings from our German employer partners appear in your portal, and our team supports you through interviews and placement. The guarantee is backed by a written agreement when you enrol.</p>
+            </div>
+          </details>
+
+          <details class="ia-faq-item">
+            <summary class="ia-faq-q">
+              <span>Are classes live or recorded?</span>
+              <span class="ia-faq-plus" aria-hidden="true"></span>
+            </summary>
+            <div class="ia-faq-a">
+              <p>Both. You join daily live classes with expert teachers, and every session is recorded in HD so you can rewatch anytime. Your attendance and watch progress are tracked automatically in the portal.</p>
+            </div>
+          </details>
+
+          <details class="ia-faq-item">
+            <summary class="ia-faq-q">
+              <span>Do you handle the visa process too?</span>
+              <span class="ia-faq-plus" aria-hidden="true"></span>
+            </summary>
+            <div class="ia-faq-a">
+              <p>Yes. You upload your documents once into a secure vault, and we guide your application through every stage — verification, filing, interview prep and approval — with live status updates so you always know where things stand.</p>
+            </div>
+          </details>
+
+          <details class="ia-faq-item">
+            <summary class="ia-faq-q">
+              <span>Can I learn from outside Sri Lanka?</span>
+              <span class="ia-faq-plus" aria-hidden="true"></span>
+            </summary>
+            <div class="ia-faq-a">
+              <p>Absolutely. The entire experience — live classes, exercises, Gluck Buddy, GlückArena and your progress dashboard — runs in the portal from any device, anywhere with an internet connection.</p>
+            </div>
+          </details>
         </div>
+
+        <p class="ia-faq-more ia-reveal">
+          Still have questions?
+          <a routerLink="/help">Visit Help &amp; Support</a>
+        </p>
       </div>
     </section>
 
     <!-- Final CTA -->
     <section class="ia-cta-wrap">
-      <div class="ia-cta-card">
+      <div class="ia-cta-card ia-reveal">
         <div class="ia-cta-glow"></div>
         <h2 class="ia-cta-h">Ready to start your 200 days?</h2>
         <p class="ia-cta-p">
-          Join the elite atelier where language mastery meets guaranteed professional success in Germany.
+          Join 700+ students mastering German, securing visas and landing jobs in Germany —
+          all from one portal.
         </p>
         <a routerLink="/login" class="ia-btn ia-btn-cta">Begin Your Application</a>
+        <ul class="ia-feat-chips ia-feat-chips--light ia-cta-chips">
+          <li>100% job guarantee</li>
+          <li>Visa support included</li>
+          <li>Learn from anywhere</li>
+        </ul>
       </div>
     </section>
   </main>
 
   <footer class="ia-footer">
-    <div class="ia-footer-inner">
+    <div class="ia-footer-top">
       <div class="ia-footer-brand">
-        <div class="ia-footer-logo">Glück Global</div>
-        <p class="ia-footer-copy">© {{ year }} Glück Global. Your Path to Germany.</p>
+        <a routerLink="/home" class="ia-footer-logo" aria-label="Glück Global home">
+          <img src="assets/gluck-logo.png" alt="" class="ia-footer-logo-img" width="40" height="40" />
+          <span class="ia-footer-logo-name">Glück Global</span>
+        </a>
+        <p class="ia-footer-tag">Your 200-day path to mastering German, securing your visa, and landing a career in Germany.</p>
+        <a routerLink="/login" class="ia-btn ia-footer-cta">
+          Start Your Journey
+          <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
       </div>
-      <div class="ia-footer-links">
-        <a href="#">Job Guarantee Policy</a>
-        <a href="#">Visa Legal Support</a>
-        <a href="#">Privacy Policy</a>
-        <a href="#">Contact Career Center</a>
-      </div>
+
+      <nav class="ia-footer-col" aria-label="Explore">
+        <p class="ia-footer-col-h">Explore</p>
+        <a href="#features" (click)="scrollTo('features', $event)">Features</a>
+        <a href="#learn" (click)="scrollTo('learn', $event)">Roadmap</a>
+        <a href="#live" (click)="scrollTo('live', $event)">Careers &amp; Visa</a>
+        <a href="#faq" (click)="scrollTo('faq', $event)">FAQ</a>
+      </nav>
+
+      <nav class="ia-footer-col" aria-label="Portal">
+        <p class="ia-footer-col-h">Portal</p>
+        <a routerLink="/login">Portal Login</a>
+        <a routerLink="/login">Start Application</a>
+        <a routerLink="/help">Help &amp; Support</a>
+      </nav>
+    </div>
+
+    <div class="ia-footer-bottom">
+      <p class="ia-footer-copy">© {{ year }} Glück Global Pvt Ltd. All rights reserved.</p>
+      <p class="ia-footer-made">Your Path to Germany 🇩🇪</p>
     </div>
   </footer>
 </div>
