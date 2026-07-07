@@ -27,6 +27,11 @@ import {
   languageFeeStatusClass,
   LanguageFeeStatus,
 } from './payment-language-fee-status.util';
+import {
+  currentLevelPendingFromStudentRow,
+  isStudentPendingExcluded as isStudentExcluded,
+  toggleStudentPendingExclusion as toggleStudentExclusion,
+} from './payment-hub-pending-exclusion.util';
 
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
 type BatchStudentPaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
@@ -65,10 +70,6 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   studentInsight: StudentInsightFilter = '';
   paymentScope: BatchStudentPaymentScope = 'current_level';
   readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
-
-  /** Students excluded from the "Have balance" health card pending total. Persisted to localStorage per batch. */
-  excludedPendingStudents = new Set<string>();
-  private readonly EXCL_STUDENTS_KEY_PREFIX = 'ph_excl_pending_students_';
 
   readonly scopeButtons: ReadonlyArray<{ value: BatchStudentPaymentScope; label: string }> = [
     { value: 'current_level', label: 'Current Level' },
@@ -112,7 +113,6 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
 
   ngOnInit(): void {
     this.batch = decodeURIComponent(this.route.snapshot.paramMap.get('batch') || '');
-    this.loadExcludedPendingStudents();
     this.load();
   }
 
@@ -295,31 +295,12 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   }
 
   isStudentPendingExcluded(studentId: string): boolean {
-    return this.excludedPendingStudents.has(studentId);
+    return isStudentExcluded(this.batch, studentId);
   }
 
-  toggleStudentPendingExclusion(studentId: string): void {
-    if (this.excludedPendingStudents.has(studentId)) {
-      this.excludedPendingStudents.delete(studentId);
-    } else {
-      this.excludedPendingStudents.add(studentId);
-    }
-    this.excludedPendingStudents = new Set(this.excludedPendingStudents);
-    try {
-      localStorage.setItem(
-        this.EXCL_STUDENTS_KEY_PREFIX + this.batch,
-        JSON.stringify([...this.excludedPendingStudents]),
-      );
-    } catch {}
-  }
-
-  private loadExcludedPendingStudents(): void {
-    try {
-      const saved = localStorage.getItem(this.EXCL_STUDENTS_KEY_PREFIX + this.batch);
-      if (saved) {
-        this.excludedPendingStudents = new Set(JSON.parse(saved));
-      }
-    } catch {}
+  toggleStudentPendingExclusion(r: BatchStudentPaymentRow): void {
+    const pending = currentLevelPendingFromStudentRow(r);
+    toggleStudentExclusion(this.batch, r.studentId, pending);
   }
 
   hasInsightAmount(key: string): boolean {
@@ -349,7 +330,7 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
       (acc, r) => {
         const scoped = this.scopeTotalsFromRow(r);
         if (key === 'have_balance') {
-          if (this.excludedPendingStudents.has(r.studentId)) return acc;
+          if (this.isStudentPendingExcluded(r.studentId)) return acc;
           return {
             lkr: acc.lkr + scoped.pending.lkr,
             inr: acc.inr + scoped.pending.inr,

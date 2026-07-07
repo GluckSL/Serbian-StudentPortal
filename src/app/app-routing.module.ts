@@ -237,7 +237,7 @@ export const routes: Routes = [
   { path: 'student/meetings', redirectTo: '/student/my-course', pathMatch: 'full' },
 
   // Admin Zoom Reports
-  { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+  { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
   { path: 'admin/attendance-dashboard', loadComponent: () => import('./components/admin-dashboard/attendance-dashboard.component').then(m => m.AttendanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
 
 

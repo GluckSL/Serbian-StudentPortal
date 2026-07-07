@@ -1,7 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -36,6 +36,16 @@ import {
   formatStudentStatusLabel,
   parseFinanceCohortQuery,
 } from './payment-hub-finance-cohort.util';
+import {
+  currentLevelPendingFromStudentRow,
+  loadExcludedStudentsByBatch,
+  PendingCurrencyTotals,
+  saveExcludedStudentsForBatch,
+  sumExcludedPendingFromStudentRows,
+  subtractExcludedPending,
+} from './payment-hub-pending-exclusion.util';
+import { filter, catchError } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
 
 type BatchInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
 type FinancePaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
@@ -97,7 +107,7 @@ function compareBatchAscending(a: BatchPaymentRow, b: BatchPaymentRow): number {
     './payment-hub-finance-dashboard.component.scss',
   ],
 })
-export class PaymentHubFinanceDashboardComponent implements OnInit {
+export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   loading = true;
   batchRows: BatchPaymentRow[] = [];
   filterLevel = '';
@@ -192,16 +202,36 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   /** Batches excluded from the outlook pending cards (user-toggled). Persisted to localStorage. */
   excludedPendingBatches = new Set<string>();
   private readonly EXCL_BATCHES_KEY = 'ph_excl_pending_batches';
+  /** Per-batch sum of student-level pending exclusions (from batch student pages). */
+  private excludedStudentPendingByBatch = new Map<string, PendingCurrencyTotals>();
+  private readonly onStorageChange = (event: StorageEvent): void => {
+    if (event.key?.startsWith('ph_excl_pending_students_')) {
+      this.resolveStudentExclusions();
+    }
+  };
+  private readonly onVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible') {
+      this.resolveStudentExclusions();
+    }
+  };
 
   constructor(
     private readonly api: PaymentHubApiService,
     private readonly router: Router,
     private readonly route: ActivatedRoute,
     private readonly snack: MatSnackBar,
-  ) {}
+  ) {
+    this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
+      this.resolveStudentExclusions();
+    });
+  }
 
   ngOnInit(): void {
     this.loadExcludedPendingBatches();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', this.onStorageChange);
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
     this.loadCatalogFees();
     this.route.queryParamMap.subscribe((params) => {
       this.isLanguageMode = params.get('mode') === 'language';
@@ -217,6 +247,13 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
       this.syncLevelStatusFilterFromState();
       this.load();
     });
+  }
+
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', this.onStorageChange);
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
   }
 
   private load(): void {
@@ -409,6 +446,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
     rows.sort(compareBatchAscending);
     this.batchRows = rows;
     this.pruneVisibleBatches();
+    this.resolveStudentExclusions();
   }
 
   private formatLevelSummary(counts: Map<string, number>): string {
@@ -573,9 +611,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
             usd: acc.received.usd + s.received.usd,
           },
           pending: {
-            lkr: acc.pending.lkr + s.pending.lkr,
-            inr: acc.pending.inr + s.pending.inr,
-            usd: acc.pending.usd + s.pending.usd,
+            lkr: acc.pending.lkr + this.applyStudentPendingExclusion(r.batch, s.pending).lkr,
+            inr: acc.pending.inr + this.applyStudentPendingExclusion(r.batch, s.pending).inr,
+            usd: acc.pending.usd + this.applyStudentPendingExclusion(r.batch, s.pending).usd,
           },
           overdue: {
             lkr: acc.overdue.lkr + s.overdue.lkr,
@@ -762,7 +800,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   }
 
   rowPending(r: BatchPaymentRow): FinanceCurrencyTotals {
-    return this.scopeTotalsFromRow(r).pending;
+    return this.applyStudentPendingExclusion(r.batch, this.scopeTotalsFromRow(r).pending);
   }
 
   rowOverdue(r: BatchPaymentRow): FinanceCurrencyTotals {
@@ -792,6 +830,57 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
         this.excludedPendingBatches = new Set(JSON.parse(saved));
       }
     } catch {}
+  }
+
+  private resolveStudentExclusions(): void {
+    const excluded = loadExcludedStudentsByBatch();
+    if (!excluded.size) {
+      this.excludedStudentPendingByBatch = new Map();
+      return;
+    }
+
+    const dashboardBatchKeys = new Set(this.rowsInDashboard.map((r) => normBatchKey(r.batch)));
+    const toFetch = [...excluded.values()].filter((info) =>
+      dashboardBatchKeys.has(normBatchKey(info.batchLabel)),
+    );
+
+    if (!toFetch.length) {
+      this.excludedStudentPendingByBatch = new Map();
+      return;
+    }
+
+    forkJoin(
+      toFetch.map((info) =>
+        this.api.getBatchStudentsPaymentDetail(info.batchLabel).pipe(
+          catchError(() => of({ success: false as const, data: { batch: info.batchLabel, students: [] } })),
+        ),
+      ),
+    ).subscribe((results) => {
+      const amounts = new Map<string, PendingCurrencyTotals>();
+      for (let i = 0; i < toFetch.length; i++) {
+        const info = toFetch[i];
+        const normKey = normBatchKey(info.batchLabel);
+        const students = results[i]?.data?.students || [];
+        const total = sumExcludedPendingFromStudentRows(students, info.studentIds);
+        amounts.set(normKey, total);
+
+        const migrated: Record<string, PendingCurrencyTotals> = {};
+        for (const s of students) {
+          if (info.studentIds.has(s.studentId)) {
+            migrated[s.studentId] = currentLevelPendingFromStudentRow(s);
+          }
+        }
+        if (Object.keys(migrated).length) {
+          saveExcludedStudentsForBatch(info.batchLabel, migrated);
+        }
+      }
+      this.excludedStudentPendingByBatch = amounts;
+    });
+  }
+
+  private applyStudentPendingExclusion(batch: string, pending: FinanceCurrencyTotals): FinanceCurrencyTotals {
+    if (this.paymentScope !== 'current_level') return pending;
+    return subtractExcludedPending(batch, pending, this.excludedStudentPendingByBatch);
   }
 
   private readonly PREV_LEVEL_ORDER: LanguageLevelSlot[] = ['A1', 'A2', 'B1', 'B2'];
@@ -868,18 +957,14 @@ export class PaymentHubFinanceDashboardComponent implements OnInit {
   private rowCurrentLevelPending(r: BatchPaymentRow): FinanceCurrencyTotals {
     const level = r.level as LanguageLevelSlot | null;
     const slot = level ? r.levelSlots?.[level] : null;
-    if (slot) {
-      return {
-        lkr: slot.pendingLKR ?? 0,
-        inr: slot.pendingINR ?? 0,
-        usd: slot.pendingUSD ?? 0,
-      };
-    }
-    return {
-      lkr: r.totalPendingLKR ?? 0,
-      inr: r.totalPendingINR ?? 0,
-      usd: r.totalPendingUSD ?? 0,
-    };
+    const raw = slot
+      ? { lkr: slot.pendingLKR ?? 0, inr: slot.pendingINR ?? 0, usd: slot.pendingUSD ?? 0 }
+      : {
+          lkr: r.totalPendingLKR ?? 0,
+          inr: r.totalPendingINR ?? 0,
+          usd: r.totalPendingUSD ?? 0,
+        };
+    return subtractExcludedPending(r.batch, raw, this.excludedStudentPendingByBatch);
   }
 
   /** Pending from all levels before the batch's current (dominant) level — matches table column. */

@@ -103,6 +103,9 @@ export class NavService {
       '/class-recordings/access-recording',
       '/class-recordings/self-pace'
     ],
+    attendance: [
+      '/admin/attendance-dashboard',
+    ],
     documents: [
       '/admin/document-verification',
       '/admin/university-applications',
@@ -110,7 +113,8 @@ export class NavService {
     ]
   };
   private readonly TEACHER_ROUTE_ALIASES: Record<string, string[]> = {
-    'teacher-resources': ['/teacher/resources']
+    'teacher-resources': ['/teacher/resources'],
+    attendance: ['/admin/attendance-dashboard'],
   };
 
   // ── ADMIN ──────────────────────────────────────────────
