@@ -1051,9 +1051,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!Array.isArray(pq.rearrangeTokens)) return;
     const arr = pq.rearrangeTokens;
     const prev = event.previousIndex;
-    let curr = event.currentIndex;
+    const curr = this.computeDropIndex(event);
     if (!Number.isFinite(prev) || !Number.isFinite(curr)) return;
-    curr = Math.max(0, Math.min(arr.length - 1, curr));
     if (prev === curr) return;
     moveItemInArray(arr, prev, curr);
     this.markAttempted(pq);
@@ -1062,15 +1061,76 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   onRearrangeDragStarted(pq: PlayerQuestion, _ev: CdkDragStart): void {
     if (this.state === 'submitted' || !pq) return;
     pq.rearrangeDragActive = true;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
   }
 
   onRearrangeDragEnded(pq: PlayerQuestion, _ev: CdkDragEnd): void {
     if (!pq) return;
     pq.rearrangeDragActive = false;
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
+  }
+
+  onSubQuestionRearrangeDragStarted(): void {
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+  }
+
+  onSubQuestionRearrangeDragEnded(): void {
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
   }
 
   trackByIndex(i: number): number {
     return i;
+  }
+
+  private computeDropIndex(event: any): number {
+    const point = event.event as PointerEvent | TouchEvent;
+    const clientX = 'touches' in point ? point.touches[0].clientX : point.clientX;
+    const clientY = 'touches' in point ? point.touches[0].clientY : point.clientY;
+    if (clientX == null || clientY == null) return event.currentIndex;
+
+    const containerEl = event.container.element.nativeElement as HTMLElement;
+    const itemEls = containerEl.querySelectorAll<HTMLElement>('.rearrange-token');
+
+    // Build rects with their array index from data-index attribute
+    const rects = Array.from(itemEls).map(el => ({
+      index: parseInt(el.getAttribute('data-index') ?? '', 10),
+      rect: el.getBoundingClientRect(),
+    }));
+
+    if (rects.length === 0) return 0;
+
+    // Find which row the pointer belongs to by y-overlap
+    const rowTolerance = 20;
+    let rowRects = rects.filter(
+      r => clientY >= r.rect.top - rowTolerance && clientY <= r.rect.bottom + rowTolerance
+    );
+
+    if (rowRects.length === 0) {
+      // Pointer not on any row — find nearest
+      rowRects = [rects.reduce((a, b) => {
+        const da = Math.abs(clientY - (a.rect.top + a.rect.height / 2));
+        const db = Math.abs(clientY - (b.rect.top + b.rect.height / 2));
+        return da < db ? a : b;
+      })];
+    }
+
+    // Sort row items by x position (visual left-to-right)
+    rowRects.sort((a, b) => a.rect.left - b.rect.left);
+
+    // Find insertion index by x-coordinate
+    for (const r of rowRects) {
+      const cx = r.rect.left + r.rect.width / 2;
+      if (clientX < cx) {
+        return r.index;
+      }
+    }
+
+    // After the last item on the row
+    return rowRects[rowRects.length - 1].index + 1;
   }
 
   getRearrangePreviewText(pq: PlayerQuestion): string {
@@ -2954,13 +3014,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   onSubQuestionRearrangeDrop(pq: PlayerQuestion, subIndex: number, event: any): void {
     if (this.state === 'submitted') return;
-    if (!pq.subQuestionRearrangeTokens) {
-      pq.subQuestionRearrangeTokens = {};
-    }
+    if (!event?.isPointerOverContainer) return;
     const tokens = this.getSubQuestionRearrangeTokens(pq, subIndex);
-    const [moved] = tokens.splice(event.previousIndex, 1);
-    tokens.splice(event.currentIndex, 0, moved);
-    pq.subQuestionRearrangeTokens[subIndex] = tokens;
+    const prev = event.previousIndex;
+    const curr = this.computeDropIndex(event);
+    if (!Number.isFinite(prev) || !Number.isFinite(curr)) return;
+    if (prev === curr) return;
+    moveItemInArray(tokens, prev, curr);
     this.markAttempted(pq);
   }
 
