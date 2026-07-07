@@ -85,7 +85,10 @@ export class NavService {
     'finance-dashboard': [
       '/admin/finance-dashboard',
       '/admin/finance-dashboard/batches',
+      '/admin/finance-dashboard/language-payment',
+      '/admin/finance-dashboard/students',
       '/admin/finance-dashboard/silver-payment',
+      '/admin/finance-dashboard/health-checkup',
       '/admin/payment-hub/student',
       '/admin/payment-hub/insights/batches'
     ],

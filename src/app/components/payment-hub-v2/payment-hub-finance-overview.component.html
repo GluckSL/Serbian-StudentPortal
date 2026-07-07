@@ -10,6 +10,7 @@
         </div>
         <div class="ph-finance-overview-header-actions">
           <a
+            *ngIf="canAccessHealthCheckup"
             class="ph-finance-health-btn"
             routerLink="/admin/finance-dashboard/health-checkup"
             target="_blank"

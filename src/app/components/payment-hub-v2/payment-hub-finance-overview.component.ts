@@ -15,6 +15,8 @@ import {
   PlanStatusBreakdownEntry,
   PortalStudentCounts,
 } from './payment-hub-finance-cohort.util';
+import { AuthService } from '../../services/auth.service';
+import { NavService } from '../../shared/services/nav.service';
 
 type BatchLevelStatus = '' | 'A1:ONGOING' | 'A1:COMPLETED' | 'A2:ONGOING' | 'A2:COMPLETED' | 'B1:ONGOING' | 'B1:COMPLETED' | 'B2:ONGOING' | 'B2:COMPLETED';
 
@@ -84,7 +86,22 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     private readonly http: HttpClient,
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
+    private readonly auth: AuthService,
+    private readonly nav: NavService,
   ) {}
+
+  /** Health Checkup + finance views for sub-admins/teachers with Finance Dashboard tab. */
+  get canAccessHealthCheckup(): boolean {
+    const user = this.auth.getSnapshotUser();
+    if (!user) return false;
+    return this.nav.canViewFinanceDashboard(
+      user.role,
+      user.sidebarPermissions || [],
+      user.sidebarAccessLevels || {},
+      user.teacherTabPermissions || [],
+      user.teacherTabAccessLevels || {},
+    );
+  }
 
   ngOnInit(): void {
     this.loadCounts();

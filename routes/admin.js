@@ -14,6 +14,7 @@ const CourseProgress = require('../models/CourseProgress');
 const BatchConfig = require('../models/BatchConfig');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
+const { requireStudentsListAccess } = require('../middleware/subAdminTabAccess');
 const { readRecoverablePassword } = require('../utils/passwordRecoverable');
 const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
@@ -304,7 +305,7 @@ router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
 });
 
 // Get all students (admin, sub-admin with scope, and teachers assigned document-type tabs)
-router.get('/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+router.get('/students', verifyToken, requireStudentsListAccess, async (req, res) => {
   try {
     const toPositiveInt = (value, fallback) => {
       const parsed = parseInt(String(value), 10);

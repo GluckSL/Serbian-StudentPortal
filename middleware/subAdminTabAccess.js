@@ -2,6 +2,7 @@ const User = require('../models/User');
 const { subAdminHasTabAccess, teacherHasTabAccess } = require('../services/subAdminPermissions');
 
 const ADMIN_STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN'];
+const STUDENT_LIST_TAB_IDS = ['students', 'finance-dashboard'];
 
 /**
  * ADMIN / TEACHER_ADMIN pass through unconditionally.
@@ -50,7 +51,45 @@ function requireAdminOrSubAdminTab(tabId, requiredLevel = 'view') {
   };
 }
 
+/**
+ * GET /admin/students — staff roles, or SUB_ADMIN with Students or Finance Dashboard tab.
+ */
+function requireStudentsListAccess(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required.' });
+  }
+
+  const role = req.user.role;
+  if (role === 'ADMIN' || role === 'TEACHER_ADMIN' || role === 'TEACHER') {
+    return next();
+  }
+
+  if (role === 'SUB_ADMIN') {
+    return loadSubAdminStudentListAccess(req, res, next);
+  }
+
+  return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+}
+
+async function loadSubAdminStudentListAccess(req, res, next) {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('role sidebarPermissions sidebarAccessLevels')
+      .lean();
+    const allowed = STUDENT_LIST_TAB_IDS.some((tabId) =>
+      subAdminHasTabAccess(user, tabId, 'view'),
+    );
+    if (allowed) return next();
+  } catch (err) {
+    console.error('[requireStudentsListAccess] SUB_ADMIN', err);
+  }
+  return res.status(403).json({
+    message: 'Access denied. Students or Finance Dashboard permission required.',
+  });
+}
+
 module.exports = {
   requireAdminOrSubAdminTab,
+  requireStudentsListAccess,
   ADMIN_STAFF_ROLES,
 };
