@@ -1157,3 +1157,400 @@
     grid-column: span 1;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Hero stats strip
+   ═══════════════════════════════════════════════════════════════ */
+.ia-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  max-width: 52rem;
+  margin: 3rem auto 0;
+  padding: 1.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(197, 198, 210, 0.45);
+  border-radius: 1.25rem;
+  box-shadow: 0 12px 40px -18px rgba(0, 17, 58, 0.25);
+  animation: ia-stats-in 0.9s 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ia-stats-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ia-stat {
+  padding: 0.25rem 1rem;
+  text-align: center;
+  position: relative;
+}
+
+.ia-stat + .ia-stat::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--ia-outline-var), transparent);
+}
+
+.ia-stat-value {
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ia-primary);
+  margin: 0;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.ia-stat-value .ia-stat-num {
+  color: var(--ia-secondary);
+}
+
+.ia-stat-label {
+  order: 2;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ia-on-variant);
+  margin-top: 0.35rem;
+}
+
+.ia-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.ia-stat dd {
+  order: 1;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .ia-stats {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 1.25rem;
+    padding: 1.25rem 0.75rem;
+  }
+
+  .ia-stat:nth-child(3)::before {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Portal feature deck — sticky stacked cards
+   ═══════════════════════════════════════════════════════════════ */
+.ia-feat {
+  position: relative;
+  padding: 6rem 2rem 7rem;
+  background:
+    radial-gradient(60rem 30rem at 85% 0%, rgba(68, 108, 228, 0.07), transparent 60%),
+    radial-gradient(50rem 28rem at 10% 100%, rgba(0, 35, 102, 0.06), transparent 60%),
+    var(--ia-surface-low);
+}
+
+.ia-feat-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.ia-feat .ia-center-head {
+  margin-bottom: 4rem;
+}
+
+.ia-feat-deck {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.75rem, 4vh, 3rem);
+}
+
+.ia-feat-card {
+  position: sticky;
+  top: calc(6rem + var(--i, 0) * 1.35rem);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(197, 198, 210, 0.55);
+  border-radius: 1.75rem;
+  box-shadow:
+    0 -8px 24px -20px rgba(0, 17, 58, 0.35),
+    0 30px 60px -30px rgba(0, 17, 58, 0.28);
+  min-height: 380px;
+  isolation: isolate;
+}
+
+/* Alternate media side for visual rhythm */
+.ia-feat-card:nth-child(even) .ia-feat-copy {
+  order: 2;
+}
+
+.ia-feat-card:nth-child(even) .ia-feat-media {
+  order: 1;
+}
+
+/* Reveal on scroll */
+.ia-feat-card,
+.ia-reveal {
+  opacity: 0;
+  transform: translateY(34px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ia-feat-card.is-in,
+.ia-reveal.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ia-feat-num {
+  position: absolute;
+  z-index: 0;
+  top: -1.4rem;
+  right: 1.2rem;
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-size: clamp(5rem, 10vw, 8rem);
+  font-weight: 800;
+  line-height: 1.4;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(37, 82, 202, 0.16);
+  pointer-events: none;
+  user-select: none;
+}
+
+.ia-feat-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(1.75rem, 4vw, 3.25rem);
+}
+
+.ia-feat-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--ia-primary-container), var(--ia-secondary-container));
+  color: #ffffff;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 10px 24px -12px rgba(37, 82, 202, 0.65);
+}
+
+.ia-feat-card:hover .ia-feat-ico {
+  animation: ia-float 2.4s ease-in-out infinite;
+}
+
+.ia-feat-h {
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-size: clamp(1.35rem, 2.6vw, 1.9rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ia-primary);
+  margin: 0 0 0.9rem;
+}
+
+.ia-feat-p {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--ia-on-variant);
+  margin: 0 0 1.4rem;
+  max-width: 34rem;
+}
+
+.ia-feat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.75rem;
+}
+
+.ia-feat-chips li {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ia-secondary);
+  background: rgba(68, 108, 228, 0.09);
+  border: 1px solid rgba(68, 108, 228, 0.18);
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.ia-feat-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--ia-primary);
+  text-decoration: none;
+  padding: 0.65rem 1.3rem;
+  border-radius: 0.85rem;
+  border: 1.5px solid rgba(0, 17, 58, 0.18);
+  transition: background 0.25s, color 0.25s, border-color 0.25s, transform 0.25s;
+}
+
+.ia-feat-link .material-symbols-outlined {
+  font-size: 1.1rem;
+  transition: transform 0.25s;
+}
+
+.ia-feat-link:hover {
+  background: var(--ia-primary);
+  border-color: var(--ia-primary);
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.ia-feat-link:hover .material-symbols-outlined {
+  transform: translateX(4px);
+}
+
+.ia-feat-media {
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+}
+
+.ia-feat-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(0, 17, 58, 0.12), transparent 45%);
+  pointer-events: none;
+}
+
+.ia-feat-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scale(1.02);
+  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ia-feat-card:hover .ia-feat-media img {
+  transform: scale(1.08);
+}
+
+/* Gluck Buddy card — branded gradient + floating fox */
+.ia-feat-card--buddy {
+  background: linear-gradient(135deg, #ffffff 45%, var(--ia-secondary-fixed));
+}
+
+.ia-feat-media--buddy {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background:
+    radial-gradient(24rem 18rem at 50% 90%, rgba(68, 108, 228, 0.22), transparent 70%);
+}
+
+.ia-feat-media--buddy::after {
+  display: none;
+}
+
+.ia-feat-media--buddy .ia-feat-fox {
+  width: auto;
+  height: auto;
+  max-height: 330px;
+  max-width: 85%;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 30px rgba(0, 17, 58, 0.25));
+  animation: ia-float 4s ease-in-out infinite;
+}
+
+.ia-feat-card--buddy:hover .ia-feat-media--buddy .ia-feat-fox {
+  transform: none;
+}
+
+/* ── Tablet & mobile ── */
+@media (max-width: 900px) {
+  .ia-feat {
+    padding: 4rem 1.25rem 5rem;
+  }
+
+  .ia-feat-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .ia-feat-card:nth-child(even) .ia-feat-copy {
+    order: 1;
+  }
+
+  .ia-feat-card:nth-child(even) .ia-feat-media {
+    order: 2;
+  }
+
+  .ia-feat-media {
+    min-height: 220px;
+    order: 2;
+  }
+
+  .ia-feat-num {
+    font-size: 4.5rem;
+    top: -0.6rem;
+    right: 0.9rem;
+  }
+
+  .ia-feat-media--buddy .ia-feat-fox {
+    max-height: 240px;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Tall cards + small screens: switch off stacking, keep clean vertical flow */
+  .ia-feat-card {
+    position: static;
+  }
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .ia-stats {
+    animation: none;
+  }
+
+  .ia-feat-card,
+  .ia-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .ia-feat-card:hover .ia-feat-ico,
+  .ia-feat-media--buddy .ia-feat-fox {
+    animation: none;
+  }
+
+  .ia-feat-media img,
+  .ia-feat-card:hover .ia-feat-media img {
+    transform: none;
+    transition: none;
+  }
+}
