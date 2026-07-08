@@ -54,6 +54,29 @@ export interface AnnouncementsAdminPage {
   totalPages: number;
 }
 
+export interface AnnouncementComment {
+  _id: string;
+  announcementId: string;
+  userId: {
+    _id: string;
+    name: string;
+    role: string;
+    profilePic?: string;
+  };
+  text: string;
+  parentCommentId?: string | null;
+  isEdited: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnouncementCommentsPage {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AnnouncementService {
   private readonly apiUrl = `${environment.apiUrl}/announcements`;
@@ -171,5 +194,52 @@ export class AnnouncementService {
     return this.http.delete<{ success: boolean; message?: string }>(`${this.apiUrl}/${announcementId}`, {
       withCredentials: true
     });
+  }
+
+  // ── Comments ────────────────────────────────────────────────────────────────
+
+  getComments(
+    announcementId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Observable<{
+    success: boolean;
+    data: AnnouncementComment[];
+    pagination: AnnouncementCommentsPage;
+  }> {
+    return this.http.get<{
+      success: boolean;
+      data: AnnouncementComment[];
+      pagination: AnnouncementCommentsPage;
+    }>(`${this.apiUrl}/${announcementId}/comments`, {
+      withCredentials: true,
+      params: {
+        page: String(page),
+        limit: String(limit),
+        _ts: String(Date.now())
+      }
+    });
+  }
+
+  createComment(
+    announcementId: string,
+    text: string,
+    parentCommentId?: string
+  ): Observable<{ success: boolean; data: AnnouncementComment }> {
+    return this.http.post<{ success: boolean; data: AnnouncementComment }>(
+      `${this.apiUrl}/${announcementId}/comments`,
+      { text, parentCommentId: parentCommentId || null },
+      { withCredentials: true }
+    );
+  }
+
+  deleteComment(
+    announcementId: string,
+    commentId: string
+  ): Observable<{ success: boolean; message: string }> {
+    return this.http.delete<{ success: boolean; message: string }>(
+      `${this.apiUrl}/${announcementId}/comments/${commentId}`,
+      { withCredentials: true }
+    );
   }
 }

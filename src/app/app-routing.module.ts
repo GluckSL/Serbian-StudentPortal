@@ -237,8 +237,9 @@ export const routes: Routes = [
   { path: 'student/meetings', redirectTo: '/student/my-course', pathMatch: 'full' },
 
   // Admin Zoom Reports
-  { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
+  { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
   { path: 'admin/attendance-dashboard', loadComponent: () => import('./components/admin-dashboard/attendance-dashboard.component').then(m => m.AttendanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
+  { path: 'admin/portal-join-alert', loadComponent: () => import('./components/admin-dashboard/portal-join-alert.component').then(m => m.PortalJoinAlertComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
 
   // Class Recordings — Teacher/Admin manage
@@ -320,6 +321,7 @@ export const routes: Routes = [
   { path: 'admin/finance-dashboard/language-payment', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
   { path: 'admin/finance-dashboard/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-students.component').then(m => m.PaymentHubFinanceStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
   { path: 'admin/finance-dashboard/silver-payment', loadComponent: () => import('./components/payment-hub-v2/payment-hub-silver-payment.component').then(m => m.PaymentHubSilverPaymentComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
+  { path: 'admin/finance-dashboard/health-checkup', loadComponent: () => import('./components/payment-hub-v2/payment-hub-health-checkup.component').then(m => m.PaymentHubHealthCheckupComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-insights.component').then(m => m.PaymentHubBatchInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/batches/:batch/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-students.component').then(m => m.PaymentHubBatchStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/payment-hub/insights/revenue', loadComponent: () => import('./components/payment-hub-v2/payment-hub-revenue-insights.component').then(m => m.PaymentHubRevenueInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },

@@ -102,6 +102,10 @@ export class AttendanceDashboardComponent implements OnInit {
 
   viewTab: 'students' | 'classes' = 'students';
   scoreFilter: 'all' | 'below75' | 'above75' = 'all';
+  levelFilter = 'all';
+  statusFilter: 'all' | 'UNCERTAIN' | 'ONGOING' | 'COMPLETED' | 'WITHDREW' = 'ONGOING';
+
+  readonly levelOptions = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
   readonly skeletonStatCount = [0, 1, 2, 3, 4];
   readonly skeletonRowCount = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -233,6 +237,14 @@ export class AttendanceDashboardComponent implements OnInit {
       filters.scoreFilter = this.scoreFilter;
     }
 
+    if (this.levelFilter !== 'all') {
+      filters.level = this.levelFilter;
+    }
+
+    if (this.statusFilter !== 'all') {
+      filters.studentStatus = this.statusFilter;
+    }
+
     return filters;
   }
 
@@ -343,6 +355,8 @@ export class AttendanceDashboardComponent implements OnInit {
     this.customDateFrom = '';
     this.customDateTo = '';
     this.scoreFilter = 'all';
+    this.levelFilter = 'all';
+    this.statusFilter = 'ONGOING';
     this.currentPage = 1;
     this.selectedStudent = null;
     this.loadDashboard();

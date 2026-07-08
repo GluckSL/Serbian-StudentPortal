@@ -15,6 +15,7 @@ const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentB
 const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
 const { resolveMeetingJoinPwd } = require('../utils/zoomJoinUrls');
 const { getJoinLogDataForMeeting, getPortalJoinsForMeeting } = require('../services/joinLogHelpers');
+const { extractBatchLevelFromTopic } = require('../services/portalJoinSuggestHelpers');
 const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
 const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
 const { attendanceDebug, attendanceWarn, attendanceDebugEnabled } = require('../utils/attendanceDebug');
@@ -1262,6 +1263,45 @@ router.get(
             s.email.toLowerCase().includes(studentSearch) ||
             s.batch.toLowerCase().includes(studentSearch)
         );
+      }
+
+      const levelParam = String(req.query.level || '').trim();
+      const studentStatusParam = String(req.query.studentStatus || '').trim().toUpperCase();
+      if (levelParam || studentStatusParam) {
+        const ids = students.map((s) => s.studentId).filter(Boolean);
+        const emails = students.map((s) => s.email).filter(Boolean);
+        const userOr = [];
+        if (ids.length) userOr.push({ _id: { $in: ids } });
+        if (emails.length) userOr.push({ email: { $in: emails } });
+
+        if (!userOr.length) {
+          students = [];
+        } else {
+          const users = await User.find({ role: 'STUDENT', $or: userOr })
+            .select('_id email level studentStatus')
+            .lean();
+          const userById = new Map();
+          const userByEmail = new Map();
+          for (const u of users) {
+            userById.set(String(u._id), u);
+            if (u.email) userByEmail.set(String(u.email).toLowerCase(), u);
+          }
+
+          students = students.filter((s) => {
+            const u =
+              (s.studentId && userById.get(s.studentId)) ||
+              (s.email && userByEmail.get(String(s.email).toLowerCase()));
+            if (!u) return false;
+            if (levelParam && String(u.level || '') !== levelParam) return false;
+            if (
+              studentStatusParam &&
+              String(u.studentStatus || '').toUpperCase() !== studentStatusParam
+            ) {
+              return false;
+            }
+            return true;
+          });
+        }
       }
 
       const scoreFilter = String(req.query.scoreFilter || 'all').trim().toLowerCase();
@@ -2899,7 +2939,7 @@ router.get('/meeting/:id/attendance', verifyToken, async (req, res) => {
       const participantDuration = matchResult.match?.durationMinutes || 0;
       const meetingDuration = meeting.duration || 60;
       const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-      const meetsThreshold = !!matchResult.match && attendancePercent >= 70;
+      const meetsThreshold = !!matchResult.match && attendancePercent >= 60;
 
       if (attendanceDebugEnabled()) {
         attendanceDebug('ATTENDANCE_MATCH', {
@@ -3091,7 +3131,7 @@ router.post('/meeting/:id/attendance/map-participant', verifyToken, async (req, 
     const meetingDuration = meeting.duration || 60;
     const participantDuration = participant.durationMinutes || 0;
     const attendancePercent = meetingDuration > 0 ? (participantDuration / meetingDuration) * 100 : 0;
-    const meetsThreshold = attendancePercent >= 70;
+    const meetsThreshold = attendancePercent >= 60;
 
     const existingIdx = meeting.attendance.findIndex(
       a => a.studentId && a.studentId.toString() === attendee.studentId.toString()
@@ -3990,6 +4030,152 @@ router.post(
     } catch (error) {
       console.error('[Recreate Zoom] Error:', error);
       return res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
+/**
+ * GET /api/zoom/portal-join-absent
+ *
+ * Returns students who clicked Join from the portal (1+ clicks) but are
+ * still marked Absent for completed classes. Useful for manually mapping
+ * attendance when a student joined Zoom with a different display name.
+ *
+ * Query params:
+ *   days   - How far back to look (default 30, max 90)
+ *   page   - Page number (default 1)
+ *   limit  - Rows per page (default 10, max 50)
+ *   search - Filter by student name, email, class topic, or portal zoom name
+ *   batch  - Filter by batch number
+ *   level  - Filter by level (A1, A2, etc.)
+ */
+router.get(
+  '/portal-join-absent',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const daysBack = Math.min(parseInt(req.query.days || '30', 10), 90);
+      const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1);
+      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10) || 10));
+      const search = String(req.query.search || '').trim().toLowerCase();
+      const batchFilter = String(req.query.batch || 'all').trim();
+      const levelFilter = String(req.query.level || 'all').trim();
+
+      const since = new Date();
+      since.setDate(since.getDate() - daysBack);
+
+      // Completed classes with attendance (same "completed" rule as Zoom Reports — not DB status: 'ended')
+      const meetings = await MeetingLink.find({
+        attendanceRecorded: true,
+        startTime: { $gte: since },
+        $expr: {
+          $lt: [
+            {
+              $dateAdd: {
+                startDate: '$startTime',
+                unit: 'minute',
+                amount: { $ifNull: ['$duration', 0] },
+              },
+            },
+            '$$NOW',
+          ],
+        },
+      })
+        .select('_id topic batch startTime duration attendance zoomMeetingId')
+        .populate('assignedTeacher', 'name')
+        .lean();
+
+      if (!meetings.length) {
+        return res.json({
+          success: true,
+          data: [],
+          total: 0,
+          page: 1,
+          limit,
+          totalPages: 1,
+          batchOptions: [],
+          levelOptions: [],
+        });
+      }
+
+      const meetingIds = meetings.map((m) => m._id);
+      const joinLogs = await JoinLog.find({ meetingId: { $in: meetingIds } })
+        .select('meetingId studentId joinCount lastZoomDisplayName')
+        .lean();
+
+      const joinLogByMeetingStudent = new Map();
+      for (const log of joinLogs) {
+        const mid = log.meetingId && log.meetingId.toString();
+        const sid = log.studentId && log.studentId.toString();
+        if (mid && sid) joinLogByMeetingStudent.set(`${mid}:${sid}`, log);
+      }
+
+      const results = [];
+
+      for (const meeting of meetings) {
+        const mid = meeting._id.toString();
+        for (const attRow of meeting.attendance || []) {
+          if (!attRow.clickedJoin || attRow.attended) continue;
+
+          const sid = attRow.studentId && attRow.studentId.toString();
+          if (!sid) continue;
+
+          const log = joinLogByMeetingStudent.get(`${mid}:${sid}`);
+          const classTopic = meeting.topic || '';
+          results.push({
+            studentId: attRow.studentId,
+            studentName: attRow.name || 'Unknown',
+            studentEmail: attRow.email || '',
+            batch: meeting.batch || '',
+            classTopic,
+            classDate: meeting.startTime,
+            classDuration: meeting.duration || 0,
+            meetingId: meeting._id,
+            portalClickCount: log?.joinCount || 1,
+            lastZoomDisplayName: log?.lastZoomDisplayName || '',
+            batchLevel: extractBatchLevelFromTopic(classTopic),
+          });
+        }
+      }
+
+      // Sort newest class first
+      results.sort((a, b) => new Date(b.classDate) - new Date(a.classDate));
+
+      const batchOptions = [...new Set(results.map((r) => String(r.batch || '').trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const levelOptions = [...new Set(results.map((r) => r.batchLevel).filter(Boolean))].sort();
+
+      const filtered = results.filter((row) => {
+        if (batchFilter !== 'all' && String(row.batch) !== batchFilter) return false;
+        if (levelFilter !== 'all' && row.batchLevel !== levelFilter.toUpperCase()) return false;
+        if (!search) return true;
+        return (
+          (row.studentName || '').toLowerCase().includes(search) ||
+          (row.studentEmail || '').toLowerCase().includes(search) ||
+          (row.classTopic || '').toLowerCase().includes(search) ||
+          (row.lastZoomDisplayName || '').toLowerCase().includes(search)
+        );
+      });
+
+      const total = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const safePage = Math.min(page, totalPages);
+      const pageRows = filtered.slice((safePage - 1) * limit, safePage * limit);
+
+      res.json({
+        success: true,
+        data: pageRows,
+        total,
+        page: safePage,
+        limit,
+        totalPages,
+        batchOptions,
+        levelOptions,
+      });
+    } catch (err) {
+      console.error('[Portal Join Absent]', err);
+      res.status(500).json({ success: false, message: err.message });
     }
   }
 );

@@ -15,6 +15,8 @@ import {
   PlanStatusBreakdownEntry,
   PortalStudentCounts,
 } from './payment-hub-finance-cohort.util';
+import { AuthService } from '../../services/auth.service';
+import { NavService } from '../../shared/services/nav.service';
 
 type BatchLevelStatus = '' | 'A1:ONGOING' | 'A1:COMPLETED' | 'A2:ONGOING' | 'A2:COMPLETED' | 'B1:ONGOING' | 'B1:COMPLETED' | 'B2:ONGOING' | 'B2:COMPLETED';
 
@@ -31,7 +33,10 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
   loadingBatchOptions = true;
   loadingSilverPaymentCount = true;
   loadingDocsPaymentCounts = true;
+  loadingLanguagePaymentCount = true;
   silverPaymentCount = 0;
+  /** Ongoing students across configured language payment batches. */
+  languagePaymentOngoingCount = 0;
   docsPaymentCounts = {
     total: 0,
     ongoing: 0,
@@ -81,7 +86,22 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     private readonly http: HttpClient,
     private readonly api: PaymentHubApiService,
     private readonly snack: MatSnackBar,
+    private readonly auth: AuthService,
+    private readonly nav: NavService,
   ) {}
+
+  /** Health Checkup + finance views for sub-admins/teachers with Finance Dashboard tab. */
+  get canAccessHealthCheckup(): boolean {
+    const user = this.auth.getSnapshotUser();
+    if (!user) return false;
+    return this.nav.canViewFinanceDashboard(
+      user.role,
+      user.sidebarPermissions || [],
+      user.sidebarAccessLevels || {},
+      user.teacherTabPermissions || [],
+      user.teacherTabAccessLevels || {},
+    );
+  }
 
   ngOnInit(): void {
     this.loadCounts();
@@ -136,6 +156,10 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
 
   batchesQuery(cohort: FinanceCohort): { cohort: string; status: string } {
     return { cohort, status: 'ONGOING' };
+  }
+
+  languagePaymentQuery(): { mode: string; status: string } {
+    return { mode: 'language', status: 'ONGOING' };
   }
 
   studentsRoute(_cohort: FinanceCohort): string {
@@ -259,15 +283,43 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
         if (normalized.join(',') !== raw.join(',')) {
           this.api.updateFinanceLanguageBatches(normalized).subscribe();
         }
+        this.loadLanguagePaymentOngoingCount();
         this.loadingVisibleBatches = false;
       },
       error: () => {
         this.visibleBatches = [];
         this.visibleBatchLevelStatuses = {};
         this.languageBatches = [];
+        this.languagePaymentOngoingCount = 0;
+        this.loadingLanguagePaymentCount = false;
         this.loadingVisibleBatches = false;
       },
     });
+  }
+
+  private loadLanguagePaymentOngoingCount(): void {
+    if (!this.languageBatches.length) {
+      this.languagePaymentOngoingCount = 0;
+      this.loadingLanguagePaymentCount = false;
+      return;
+    }
+    this.loadingLanguagePaymentCount = true;
+    this.api
+      .getBatchPaymentSummary({
+        batches: this.languageBatches.join(','),
+        studentStatus: 'ONGOING',
+      })
+      .subscribe({
+        next: (summary) => {
+          const rows = summary.data?.batches || [];
+          this.languagePaymentOngoingCount = rows.reduce((sum, row) => sum + (row.studentCount || 0), 0);
+          this.loadingLanguagePaymentCount = false;
+        },
+        error: () => {
+          this.languagePaymentOngoingCount = 0;
+          this.loadingLanguagePaymentCount = false;
+        },
+      });
   }
 
   get availableLanguageBatchesToAdd(): string[] {
@@ -328,6 +380,7 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     this.api.updateFinanceLanguageBatches(next).subscribe({
       next: (res) => {
         this.languageBatches = [...(res.data?.languageBatches || next)];
+        this.loadLanguagePaymentOngoingCount();
         this.savingLanguageBatches = false;
         this.showAddLanguageBatchModal = false;
         this.selectedLanguageBatchNames = new Set();
@@ -350,6 +403,7 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     this.api.updateFinanceLanguageBatches(next).subscribe({
       next: (res) => {
         this.languageBatches = [...(res.data?.languageBatches || next)];
+        this.loadLanguagePaymentOngoingCount();
         this.savingLanguageBatches = false;
         this.snack.open(
           willAdd ? `"${batch}" added to Language Payment.` : `"${batch}" removed from Language Payment.`,
@@ -371,6 +425,7 @@ export class PaymentHubFinanceOverviewComponent implements OnInit {
     this.api.updateFinanceLanguageBatches(next).subscribe({
       next: (res) => {
         this.languageBatches = [...(res.data?.languageBatches || next)];
+        this.loadLanguagePaymentOngoingCount();
         this.savingLanguageBatches = false;
         this.snack.open(`"${batch}" removed from Language Payment.`, 'OK', { duration: 3000 });
       },

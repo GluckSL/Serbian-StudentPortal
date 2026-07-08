@@ -326,6 +326,7 @@ export interface AttemptReviewRow {
   maxPoints: number;
   studentAnswer: string;
   expectedAnswer: string;
+  answerExplanation?: string;
   isSubQuestion?: boolean;
   staffOverride?: boolean;
 }
@@ -708,9 +709,11 @@ export class DigitalExerciseService {
     return this.http.get<ExerciseAttempt[]>(`${this.apiUrl}/${exerciseId}/my-attempts`, { withCredentials: true });
   }
 
-  /** Student: best completed attempt, per-question answers vs expected */
-  getMyExerciseReview(exerciseId: string): Observable<MyExerciseReviewResponse> {
-    return this.http.get<MyExerciseReviewResponse>(`${this.apiUrl}/${exerciseId}/my-review`, { withCredentials: true });
+  /** Student: best completed attempt (or specific attemptId), per-question answers vs expected */
+  getMyExerciseReview(exerciseId: string, attemptId?: string): Observable<MyExerciseReviewResponse> {
+    let params = new HttpParams();
+    if (attemptId) params = params.set('attemptId', attemptId);
+    return this.http.get<MyExerciseReviewResponse>(`${this.apiUrl}/${exerciseId}/my-review`, { params, withCredentials: true });
   }
 
   /** Admin/Teacher: one student's completed attempt with full breakdown */

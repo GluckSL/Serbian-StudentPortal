@@ -26,6 +26,7 @@ export interface FreeModeItem {
   instruction?: string;
   example?: string;
   attachmentUrls?: string[];
+  attachmentAudioMaxPlaysPerAttempt?: number | null;
   question?: string;
   imageUrl?: string;
   options?: string[];
@@ -246,15 +247,16 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       const attChanged = JSON.stringify(q.attachmentUrls || []) !== JSON.stringify(lastAttachmentUrls);
 
       if (ctxChanged || instChanged || titleChanged || exChanged || attChanged) {
-        const contentItem: FreeModeItem = {
-          uid: nextUid++,
-          kind: 'content',
-          sectionTitle: q.sectionTitle || '',
-          context: q.context || '',
-          instruction: q.instruction || '',
-          example: q.example || '',
-          attachmentUrls: q.attachmentUrls || [],
-        };
+          const contentItem: FreeModeItem = {
+            uid: nextUid++,
+            kind: 'content',
+            sectionTitle: q.sectionTitle || '',
+            context: q.context || '',
+            instruction: q.instruction || '',
+            example: q.example || '',
+            attachmentUrls: q.attachmentUrls || [],
+            attachmentAudioMaxPlaysPerAttempt: q.attachmentAudioMaxPlaysPerAttempt ?? undefined,
+          };
         items.push(contentItem);
         this.initContentBlockFields(contentItem);
         lastContext = q.context || '';
@@ -663,6 +665,10 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   getMediaFullUrl(relative: string): string {
     if (!relative) return '';
     return resolveMediaUrl(relative);
+  }
+
+  hasAudioAttachment(item: FreeModeItem): boolean {
+    return (item.attachmentUrls || []).some(u => this.getAttachmentType(u) === 'audio');
   }
 
   triggerAttachmentFile(item: FreeModeItem): void {

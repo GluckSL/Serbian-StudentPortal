@@ -18,6 +18,8 @@ interface RenderItem {
   attachmentUrls?: string[];
   questionIndex?: number;
   question?: any;
+  /** Per-attempt audio play cap from the following question, or null if unlimited. */
+  attachmentAudioCap?: number | null;
 }
 
 interface AnswerState {
@@ -91,7 +93,26 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
           <div *ngFor="let url of item.attachmentUrls" class="attachment-item">
             <ng-container [ngSwitch]="getAttachmentType(url)">
               <img *ngSwitchCase="'image'" [src]="resolveUrl(url)" class="att-img" (click)="openFullscreen($event)" />
-              <audio *ngSwitchCase="'audio'" [src]="resolveUrl(url)" controls class="att-audio"></audio>
+              <ng-container *ngSwitchCase="'audio'">
+                <ng-container *ngIf="item.attachmentAudioCap != null; else unlimitedAudio">
+                  <p *ngIf="getContentAudioPlaysRemaining(idx, url)! > 0" class="att-audio-remaining">
+                    You can start this audio
+                    <strong>{{ getContentAudioPlaysRemaining(idx, url)! }}</strong>
+                    more time<span *ngIf="getContentAudioPlaysRemaining(idx, url)! !== 1">s</span>
+                    this attempt (each press of Play counts).
+                  </p>
+                  <span *ngIf="getContentAudioPlaysRemaining(idx, url)! === 0" class="cap-reached">
+                    <span class="material-icons">volume_off</span> Play limit reached for this attempt.
+                  </span>
+                  <audio *ngIf="getContentAudioPlaysRemaining(idx, url)! > 0"
+                         [src]="resolveUrl(url)" controls class="att-audio"
+                         (play)="onContentAudioPlay(idx, url, $any($event.target))">
+                  </audio>
+                </ng-container>
+                <ng-template #unlimitedAudio>
+                  <audio [src]="resolveUrl(url)" controls class="att-audio"></audio>
+                </ng-template>
+              </ng-container>
               <video *ngSwitchCase="'video'" [src]="resolveUrl(url)" controls class="att-video"></video>
               <a *ngSwitchDefault [href]="resolveUrl(url)" target="_blank" class="att-link">
                 <span class="material-icons">attachment</span> View attachment
@@ -470,6 +491,14 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
     .content-attachments { display: flex; gap: 8px; margin-top: 6px; overflow-x: auto; flex-shrink: 0; }
     .att-img { max-height: 480px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; }
     .att-audio { height: 36px; max-width: 100%; }
+    .cap-reached {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .cap-reached .material-icons { font-size: 16px; }
     .att-video { max-height: 200px; max-width: 100%; border-radius: 8px; }
     .att-link {
       display: inline-flex;
@@ -955,6 +984,8 @@ export class FreeModeExerciseRendererComponent implements OnInit {
   private attemptId = '';
   private attemptNumber = 0;
   private startTime = 0;
+  private attachmentAudioPlaysUsed: Record<string, number> = {};
+  private currentAudio: HTMLAudioElement | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -1015,14 +1046,19 @@ export class FreeModeExerciseRendererComponent implements OnInit {
 
       if (attachmentsChanged) {
         if (sectionTitle || context || instruction || (attachmentUrls?.length ?? 0) > 0) {
-          list.push({
+          const cb: RenderItem = {
             kind: 'content-block',
             sectionTitle: sectionChanged ? sectionTitle : undefined,
             context: contextChanged ? context : undefined,
             instruction: instructionChanged ? instruction : undefined,
             example,
             attachmentUrls
-          });
+          };
+          const cap = this.getAttachmentAudioCap(q);
+          if (cap != null) {
+            cb.attachmentAudioCap = cap;
+          }
+          list.push(cb);
         }
       }
 
@@ -1056,6 +1092,7 @@ export class FreeModeExerciseRendererComponent implements OnInit {
   }
 
   private initAnswers(ex: DigitalExercise): void {
+    this.attachmentAudioPlaysUsed = {};
     const questions = ex.questions || [];
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
@@ -1374,6 +1411,55 @@ export class FreeModeExerciseRendererComponent implements OnInit {
     }
   }
 
+  getQuestionAudioAttachmentUrls(question: any): string[] {
+    if (!question) return [];
+    const urls: string[] = [];
+    if (question.attachmentUrl) urls.push(question.attachmentUrl);
+    if (Array.isArray(question.attachmentUrls)) urls.push(...question.attachmentUrls);
+    return urls.filter((u: string) => this.getAttachmentType(u) === 'audio');
+  }
+
+  getAttachmentAudioCap(question: any): number | null {
+    if (!question) return null;
+    if (!this.getQuestionAudioAttachmentUrls(question).length) return null;
+    const raw = question.attachmentAudioMaxPlaysPerAttempt;
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '').trim(), 10);
+    if (!Number.isFinite(n) || n < 1) return null;
+    return Math.min(99, Math.floor(n));
+  }
+
+  getAudioPlayKey(renderIdx: number, url: string): string {
+    return `cb-${renderIdx}-${url}`;
+  }
+
+  isContentAudioLimitReached(renderIdx: number, url: string): boolean {
+    const item = this.renderList[renderIdx];
+    if (!item || item.kind !== 'content-block' || item.attachmentAudioCap == null) return false;
+    const used = this.attachmentAudioPlaysUsed[this.getAudioPlayKey(renderIdx, url)] ?? 0;
+    return used >= item.attachmentAudioCap;
+  }
+
+  getContentAudioPlaysRemaining(renderIdx: number, url: string): number | null {
+    const item = this.renderList[renderIdx];
+    if (!item || item.kind !== 'content-block' || item.attachmentAudioCap == null) return null;
+    const used = this.attachmentAudioPlaysUsed[this.getAudioPlayKey(renderIdx, url)] ?? 0;
+    return Math.max(0, item.attachmentAudioCap - used);
+  }
+
+  onContentAudioPlay(renderIdx: number, url: string, audioEl: HTMLAudioElement): void {
+    const item = this.renderList[renderIdx];
+    if (!item || item.kind !== 'content-block' || item.attachmentAudioCap == null) return;
+    const key = this.getAudioPlayKey(renderIdx, url);
+    const used = (this.attachmentAudioPlaysUsed[key] ?? 0) + 1;
+    this.attachmentAudioPlaysUsed[key] = used;
+    if (used >= item.attachmentAudioCap) {
+      audioEl.pause();
+      audioEl.removeAttribute('src');
+      audioEl.load();
+      this.snackBar.open('Play limit reached for this attempt.', 'Close', { duration: 2800 });
+    }
+  }
+
   private updateAnsweredCount(): void {
     const questions = this.exercise?.questions || [];
     let count = 0;
@@ -1480,7 +1566,9 @@ export class FreeModeExerciseRendererComponent implements OnInit {
   }
 
   goToReview(): void {
-    this.router.navigate(['/digital-exercises', this.exerciseId, 'review']);
+    this.router.navigate(['/digital-exercises', this.exerciseId, 'review'], {
+      queryParams: this.attemptId ? { attemptId: this.attemptId } : undefined
+    });
   }
 
   retry(): void {
@@ -1488,6 +1576,8 @@ export class FreeModeExerciseRendererComponent implements OnInit {
     this.questionErrors = {};
     this.submitResult = null;
     this.attemptId = '';
+    this.attachmentAudioPlaysUsed = {};
+    this.currentAudio = null;
     this.startTime = Date.now();
     if (this.exercise) {
       this.initAnswers(this.exercise);

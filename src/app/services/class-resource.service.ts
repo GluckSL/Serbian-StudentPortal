@@ -28,9 +28,11 @@ export class ClassResourceService {
     return this.http.delete(`${this.base}/${resourceId}`, { withCredentials: true });
   }
 
-  openInBrowser(fileUrl: string): void {
-    if (!fileUrl) return;
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  getViewUrl(resourceId: string): Observable<any> {
+    return this.http.get<{ success?: boolean; url?: string; mode?: string }>(
+      `${this.base}/view/${resourceId}`,
+      { withCredentials: true }
+    );
   }
 
   viewClassResource(r: { _id?: string; fileUrl?: string; originalName?: string; mimeType?: string }): void {
@@ -140,5 +142,10 @@ export class ClassResourceService {
         URL.revokeObjectURL(objUrl);
       })
       .catch(() => this.openInBrowser(fileUrl));
+  }
+
+  private openInBrowser(fileUrl: string): void {
+    if (!fileUrl) return;
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
   }
 }

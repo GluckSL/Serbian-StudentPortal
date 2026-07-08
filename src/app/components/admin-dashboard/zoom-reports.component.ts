@@ -403,6 +403,13 @@ export class ZoomReportsComponent implements OnInit {
     this.router.navigate(['/admin/attendance-dashboard']);
   }
 
+  openPortalJoinAlert(): void {
+    const url = this.router.serializeUrl(
+      this.router.createUrlTree(['/admin/portal-join-alert'])
+    );
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   viewAttendance(id: string): void {
     const url = this.router.serializeUrl(
       this.router.createUrlTree(['/teacher/meetings', id, 'attendance'])

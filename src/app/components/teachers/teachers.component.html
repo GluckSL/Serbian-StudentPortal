@@ -120,6 +120,7 @@
                   <th>Assigned Courses</th>
                   <th>Assigned Batches</th>
                   <th>Medium</th>
+                  <th>WhatsApp</th>
                   <th class="text-center">Students</th>
                   <th class="text-center">Actions</th>
                 </tr>
@@ -173,6 +174,14 @@
                   <td>
                     <span class="badge bg-secondary">{{ teacher.medium || 'N/A' }}</span>
                   </td>
+                  <td>
+                    <span *ngIf="teacher.whatsappNumber || teacher.phoneNumber; else noWa" class="teacher-wa">
+                      {{ teacher.whatsappNumber || teacher.phoneNumber }}
+                    </span>
+                    <ng-template #noWa>
+                      <span class="text-danger small">Not set</span>
+                    </ng-template>
+                  </td>
                   <td class="text-center">
                     <span class="badge bg-primary">{{ teacher.studentCount || 0 }}</span>
                   </td>
@@ -184,6 +193,14 @@
                         title="View Teacher Report"
                       >
                         <i class="fas fa-chart-line"></i>
+                      </button>
+                      <button
+                        class="btn btn-sm btn-share-timetable me-1"
+                        (click)="shareTimetable(teacher)"
+                        [disabled]="isSharingTimetable(teacher._id)"
+                        title="Share weekly timetable (Mon–Sun) via email & WhatsApp"
+                      >
+                        <i class="fas" [ngClass]="isSharingTimetable(teacher._id) ? 'fa-spinner fa-spin' : 'fa-calendar-week'"></i>
                       </button>
                       <button 
                         class="btn btn-sm btn-outline-primary me-1"

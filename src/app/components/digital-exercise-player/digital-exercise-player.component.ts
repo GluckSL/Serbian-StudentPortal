@@ -1050,27 +1050,76 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!event?.isPointerOverContainer) return;
     if (!Array.isArray(pq.rearrangeTokens)) return;
     const arr = pq.rearrangeTokens;
-    const prev = event.previousIndex;
-    let curr = event.currentIndex;
-    if (!Number.isFinite(prev) || !Number.isFinite(curr)) return;
-    curr = Math.max(0, Math.min(arr.length - 1, curr));
-    if (prev === curr) return;
-    moveItemInArray(arr, prev, curr);
+    const from = event.previousIndex;
+    const to = this.findSwapTarget(event);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+    if (from === to) return;
+    [arr[from], arr[to]] = [arr[to], arr[from]];
+    pq.rearrangeTokens = [...arr];
     this.markAttempted(pq);
   }
 
   onRearrangeDragStarted(pq: PlayerQuestion, _ev: CdkDragStart): void {
     if (this.state === 'submitted' || !pq) return;
     pq.rearrangeDragActive = true;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
   }
 
   onRearrangeDragEnded(pq: PlayerQuestion, _ev: CdkDragEnd): void {
     if (!pq) return;
     pq.rearrangeDragActive = false;
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
+  }
+
+  onSubQuestionRearrangeDragStarted(): void {
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+  }
+
+  onSubQuestionRearrangeDragEnded(): void {
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
   }
 
   trackByIndex(i: number): number {
     return i;
+  }
+
+  private findSwapTarget(event: any): number {
+    const point = event.event;
+    const clientX = point.clientX ?? point.changedTouches?.[0]?.clientX ?? point.touches?.[0]?.clientX;
+    const clientY = point.clientY ?? point.changedTouches?.[0]?.clientY ?? point.touches?.[0]?.clientY;
+    if (clientX == null || clientY == null) return event.currentIndex;
+
+    const containerEl = event.container.element.nativeElement as HTMLElement;
+    const itemEls = containerEl.querySelectorAll<HTMLElement>('.rearrange-token:not(.cdk-drag-dragging)');
+
+    let bestIndex = -1;
+    let bestDist = Infinity;
+
+    for (const el of Array.from(itemEls)) {
+      const idx = parseInt(el.getAttribute('data-index') ?? '', 10);
+      if (!Number.isFinite(idx)) continue;
+      const r = el.getBoundingClientRect();
+
+      // If pointer is inside this token's bounding box, swap with it
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+        return idx;
+      }
+
+      // Track nearest center distance as fallback
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const d = Math.hypot(clientX - cx, clientY - cy);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIndex = idx;
+      }
+    }
+
+    return bestIndex;
   }
 
   getRearrangePreviewText(pq: PlayerQuestion): string {
@@ -2954,13 +3003,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   onSubQuestionRearrangeDrop(pq: PlayerQuestion, subIndex: number, event: any): void {
     if (this.state === 'submitted') return;
-    if (!pq.subQuestionRearrangeTokens) {
-      pq.subQuestionRearrangeTokens = {};
-    }
+    if (!event?.isPointerOverContainer) return;
     const tokens = this.getSubQuestionRearrangeTokens(pq, subIndex);
-    const [moved] = tokens.splice(event.previousIndex, 1);
-    tokens.splice(event.currentIndex, 0, moved);
-    pq.subQuestionRearrangeTokens[subIndex] = tokens;
+    const from = event.previousIndex;
+    const to = this.findSwapTarget(event);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+    if (from === to) return;
+    [tokens[from], tokens[to]] = [tokens[to], tokens[from]];
     this.markAttempted(pq);
   }
 

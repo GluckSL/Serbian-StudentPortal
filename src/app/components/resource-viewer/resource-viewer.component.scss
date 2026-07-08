@@ -1,0 +1,136 @@
+.rv-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(15,23,42,0.6); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  animation: rvFadeIn 0.15s ease;
+}
+@keyframes rvFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.rv-modal {
+  background: #0f172a;
+  width: 100vw; height: 100vh;
+  display: flex; flex-direction: column;
+  overflow: hidden; animation: rvSlideUp 0.2s ease;
+}
+@keyframes rvSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+.rv-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px; background: #1e293b; border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+.rv-header-info {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+}
+.rv-title {
+  font-size: 14px; font-weight: 600; color: #f1f5f9;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rv-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 4px;
+  background: #334155; color: #94a3b8; flex-shrink: 0;
+}
+.rv-close {
+  appearance: none; border: none; background: none;
+  font-size: 24px; color: #64748b; cursor: pointer;
+  line-height: 1; padding: 0 4px; flex-shrink: 0;
+  transition: color 0.15s;
+}
+.rv-close:hover { color: #f1f5f9; }
+
+.rv-body {
+  flex: 1; overflow: hidden; display: flex; flex-direction: column;
+  min-height: 0;
+}
+
+.rv-loading {
+  text-align: center; color: #64748b; padding: 48px 24px;
+}
+.rv-spinner {
+  width: 32px; height: 32px; border: 3px solid #334155;
+  border-top-color: #60a5fa; border-radius: 50%;
+  animation: rvSpin 0.6s linear infinite; margin: 0 auto 12px;
+}
+@keyframes rvSpin { to { transform: rotate(360deg); } }
+.rv-loading p { font-size: 13px; margin: 0; }
+
+.rv-error {
+  text-align: center; color: #fca5a5; padding: 48px 24px;
+}
+.rv-error-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(239,68,68,0.15); color: #ef4444;
+  font-size: 20px; font-weight: 700; margin-bottom: 12px;
+}
+.rv-error p { font-size: 13px; margin: 0; }
+
+.rv-unsupported {
+  text-align: center; color: #64748b; padding: 48px 24px;
+}
+.rv-unsupported-icon { display: block; margin-bottom: 12px; color: #475569; }
+.rv-unsupported p { font-size: 13px; margin: 0; }
+
+.rv-content {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 16px;
+  min-height: 0;
+}
+.rv-content--media { justify-content: center; }
+.rv-content--text { padding: 0; }
+
+.rv-image-el {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  border-radius: 8px; user-select: none; -webkit-user-drag: none;
+}
+
+.rv-audio-el {
+  width: 100%; max-width: 500px; outline: none; border-radius: 8px;
+  background: #f1f5f9; color-scheme: light;
+}
+
+.rv-video-el {
+  max-width: 100%; max-height: 100%; border-radius: 8px;
+  outline: none;
+}
+
+.rv-text-iframe {
+  width: 100%; height: 100%; border: none; background: #fff;
+  border-radius: 0;
+}
+
+.rv-page-controls {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 16px; background: #1e293b; border-radius: 8px;
+  margin-bottom: 12px; flex-shrink: 0;
+}
+.rv-page-label {
+  font-size: 13px; font-weight: 600; color: #f1f5f9;
+  min-width: 60px; text-align: center;
+}
+.rv-page-btn {
+  appearance: none; border: 1px solid #475569; background: #334155;
+  color: #f8fafc; width: 36px; height: 36px; border-radius: 8px;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 20px; line-height: 1; transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.rv-page-btn:hover:not(:disabled) { background: #475569; border-color: #64748b; }
+.rv-page-btn:disabled { opacity: 0.35; cursor: default; }
+
+.rv-pdf-container {
+  flex: 1; min-height: 0; width: 100%; overflow: hidden; display: flex;
+  align-items: center; justify-content: center; background: #1e293b;
+  border-radius: 8px; padding: 8px;
+}
+.rv-pdf-container canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.rv-content--pptx { padding: 0; background: #1e293b; }
+.rv-pptx-iframe {
+  width: 100%; height: 100%; border: none; border-radius: 0;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }

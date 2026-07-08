@@ -637,8 +637,13 @@ export class AdminDashboardComponent implements OnInit {
 
   selectAllBatches(event: Event): void {
     event.stopPropagation();
-    this.allBatchesSelected = true;
-    this.selectedBatches = [];
+    const input = event.target as HTMLInputElement;
+    if (input.checked) {
+      this.allBatchesSelected = true;
+      this.selectedBatches = [];
+      return;
+    }
+    this.allBatchesSelected = false;
   }
 
   toggleBatchSelection(batch: string, event: Event): void {

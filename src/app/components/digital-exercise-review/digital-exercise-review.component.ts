@@ -32,7 +32,8 @@ export class DigitalExerciseReviewComponent implements OnInit {
       this.loading = false;
       return;
     }
-    this.exerciseService.getMyExerciseReview(this.exerciseId).subscribe({
+    const attemptId = this.route.snapshot.queryParamMap.get('attemptId') || undefined;
+    this.exerciseService.getMyExerciseReview(this.exerciseId, attemptId).subscribe({
       next: (res) => {
         this.data = res;
         this.loading = false;

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+
 import { QuillModule } from 'ngx-quill';
 import {
   AnnouncementTargetStudent,
@@ -13,6 +14,7 @@ import {
 import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 import { TestAccountBadgeComponent } from '../../shared/test-account-badge/test-account-badge.component';
+import { AdminAnnouncementCommentsComponent } from './admin-announcement-comments.component';
 
 interface BatchSummary {
   batchName: string;
@@ -21,7 +23,7 @@ interface BatchSummary {
 @Component({
   selector: 'app-admin-announcements',
   standalone: true,
-  imports: [CommonModule, FormsModule, QuillModule, TestAccountBadgeComponent],
+  imports: [CommonModule, FormsModule, QuillModule, TestAccountBadgeComponent, AdminAnnouncementCommentsComponent],
   templateUrl: './admin-announcements.component.html',
   styleUrls: ['./admin-announcements.component.css']
 })
@@ -68,6 +70,8 @@ export class AdminAnnouncementsComponent implements OnInit {
   totalCount = 0;
   actionAnnouncementId = '';
   editModalOpen = false;
+  commentsModalOpen = false;
+  selectedCommentsItem: AnnouncementItem | null = null;
   editForm = {
     id: '',
       deliveryType: 'website_email' as AnnouncementDeliveryType,
@@ -417,6 +421,16 @@ export class AdminAnnouncementsComponent implements OnInit {
         this.notify.error(err?.error?.message || 'Failed to delete announcement.');
       }
     });
+  }
+
+  openCommentsDialog(item: AnnouncementItem): void {
+    this.selectedCommentsItem = item;
+    this.commentsModalOpen = true;
+  }
+
+  closeCommentsDialog(): void {
+    this.commentsModalOpen = false;
+    this.selectedCommentsItem = null;
   }
 
   private resetForm(): void {

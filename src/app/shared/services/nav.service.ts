@@ -86,7 +86,10 @@ export class NavService {
     'finance-dashboard': [
       '/admin/finance-dashboard',
       '/admin/finance-dashboard/batches',
+      '/admin/finance-dashboard/language-payment',
+      '/admin/finance-dashboard/students',
       '/admin/finance-dashboard/silver-payment',
+      '/admin/finance-dashboard/health-checkup',
       '/admin/payment-hub/student',
       '/admin/payment-hub/insights/batches'
     ],
@@ -104,6 +107,9 @@ export class NavService {
       '/class-recordings/access-recording',
       '/class-recordings/self-pace'
     ],
+    attendance: [
+      '/admin/attendance-dashboard',
+    ],
     documents: [
       '/admin/document-verification',
       '/admin/university-applications',
@@ -111,7 +117,8 @@ export class NavService {
     ]
   };
   private readonly TEACHER_ROUTE_ALIASES: Record<string, string[]> = {
-    'teacher-resources': ['/teacher/resources']
+    'teacher-resources': ['/teacher/resources'],
+    attendance: ['/admin/attendance-dashboard'],
   };
 
   // ── ADMIN ──────────────────────────────────────────────

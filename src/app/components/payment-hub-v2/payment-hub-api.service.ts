@@ -439,11 +439,22 @@ export interface BatchStudentPaymentRow extends CurrencyPaidTotals, CurrencyPend
   docsPaidFull?: boolean;
   levelSlots?: Partial<Record<LanguageLevelSlot, BatchLevelSlotTotals>>;
   allLanguageFees?: BatchLevelSlotTotals;
+  /** Canonical insight flags — same rules as finance dashboard / aggregator. */
+  insightFlags?: Partial<Record<'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa', boolean>>;
 }
 
 export interface BatchStudentsPaymentDetail {
   batch: string;
   students: BatchStudentPaymentRow[];
+  batchSummary?: BatchPaymentSummaryRow | null;
+  insightCounts?: {
+    all: number;
+    paid_full: number;
+    have_balance: number;
+    overdue: number;
+    paid_docs: number;
+    paid_visa: number;
+  };
 }
 
 export interface InsightCurrencyTotals {
@@ -706,6 +717,8 @@ export class PaymentHubApiService {
       batchRemarks?: Record<string, string>;
       manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
       languageBatches?: string[];
+      excludedPendingBatches?: string[];
+      excludedStudentPending?: Record<string, Record<string, { lkr?: number; inr?: number; usd?: number }>>;
       updatedAt?: string | null;
     };
   }> {
@@ -718,11 +731,70 @@ export class PaymentHubApiService {
         batchRemarks?: Record<string, string>;
         manualCommencementAmounts?: Record<string, { lkr?: number; inr?: number }>;
         languageBatches?: string[];
+        excludedPendingBatches?: string[];
+        excludedStudentPending?: Record<string, Record<string, { lkr?: number; inr?: number; usd?: number }>>;
         updatedAt?: string | null;
       };
     }>(
       `${this.base}/finance-dashboard/visible-batches`,
     );
+  }
+
+  updateFinancePendingBatchExclusion(batch: string, excluded: boolean): Observable<{
+    success: boolean;
+    data: { batch: string; excluded: boolean; excludedPendingBatches: string[]; updatedAt?: string | null };
+  }> {
+    return this.http.put<{
+      success: boolean;
+      data: { batch: string; excluded: boolean; excludedPendingBatches: string[]; updatedAt?: string | null };
+    }>(`${this.base}/finance-dashboard/pending-exclusion/batch`, { batch, excluded });
+  }
+
+  updateFinancePendingStudentExclusion(
+    batch: string,
+    studentId: string,
+    pending: { lkr?: number; inr?: number; usd?: number },
+  ): Observable<{
+    success: boolean;
+    data: {
+      batch: string;
+      studentId: string;
+      excluded: boolean;
+      students: Record<string, { lkr?: number; inr?: number; usd?: number }>;
+      updatedAt?: string | null;
+    };
+  }> {
+    return this.http.put<{
+      success: boolean;
+      data: {
+        batch: string;
+        studentId: string;
+        excluded: boolean;
+        students: Record<string, { lkr?: number; inr?: number; usd?: number }>;
+        updatedAt?: string | null;
+      };
+    }>(`${this.base}/finance-dashboard/pending-exclusion/student`, { batch, studentId, pending });
+  }
+
+  updateFinanceExcludedStudentsForBatch(
+    batch: string,
+    students: Record<string, { lkr?: number; inr?: number; usd?: number }>,
+  ): Observable<{
+    success: boolean;
+    data: {
+      batch: string;
+      students: Record<string, { lkr?: number; inr?: number; usd?: number }>;
+      updatedAt?: string | null;
+    };
+  }> {
+    return this.http.put<{
+      success: boolean;
+      data: {
+        batch: string;
+        students: Record<string, { lkr?: number; inr?: number; usd?: number }>;
+        updatedAt?: string | null;
+      };
+    }>(`${this.base}/finance-dashboard/pending-exclusion/students`, { batch, students });
   }
 
   updateFinanceLanguageBatches(batches: string[]): Observable<{

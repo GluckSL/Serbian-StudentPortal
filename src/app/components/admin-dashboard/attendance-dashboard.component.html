@@ -112,6 +112,19 @@
         <option value="above75">75% and above</option>
       </select>
 
+      <select class="ad-select" [(ngModel)]="levelFilter" (ngModelChange)="onFilterChange()">
+        <option value="all">All Levels</option>
+        <option *ngFor="let l of levelOptions" [value]="l">{{ l }}</option>
+      </select>
+
+      <select class="ad-select" [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()">
+        <option value="ONGOING">Ongoing</option>
+        <option value="UNCERTAIN">Uncertain</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="WITHDREW">Withdrew</option>
+        <option value="all">All Statuses</option>
+      </select>
+
       <ng-container *ngIf="dateFilter === 'custom'">
         <input class="ad-select" type="date" [(ngModel)]="customDateFrom" (ngModelChange)="onFilterChange()">
         <input class="ad-select" type="date" [(ngModel)]="customDateTo" (ngModelChange)="onFilterChange()">

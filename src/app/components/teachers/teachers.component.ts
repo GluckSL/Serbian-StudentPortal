@@ -28,6 +28,8 @@ interface Teacher {
   assignedBatches: string[];
   medium: string;
   studentCount?: number;
+  phoneNumber?: string;
+  whatsappNumber?: string;
 }
 
 interface PasswordModalState {
@@ -75,6 +77,9 @@ export class TeachersComponent implements OnInit {
     generatedPreview: '',
     error: '',
   };
+
+  /** teacherId → true while share-timetable request is in flight */
+  sharingTimetableIds = new Set<string>();
 
   constructor(
     private authService: AuthService,
@@ -255,6 +260,75 @@ export class TeachersComponent implements OnInit {
 
   trackById(index: number, teacher: Teacher): string {
     return teacher._id;
+  }
+
+  isSharingTimetable(teacherId: string): boolean {
+    return this.sharingTimetableIds.has(teacherId);
+  }
+
+  shareTimetable(teacher: Teacher): void {
+    if (this.isSharingTimetable(teacher._id)) return;
+
+    const phone = (teacher.whatsappNumber || teacher.phoneNumber || '').trim();
+    const phoneNote = phone
+      ? ''
+      : '\n\n⚠️ This teacher has no WhatsApp number saved. WhatsApp will NOT be sent until you edit their profile and add one.';
+
+    this.notify
+      .confirm(
+        'Share Weekly Timetable',
+        `Send this week's live class schedule (Monday–Sunday) to ${teacher.name} via email and WhatsApp?${phoneNote}`,
+        'Yes, Share',
+        'Cancel'
+      )
+      .subscribe((ok) => {
+        if (!ok) return;
+
+        this.sharingTimetableIds.add(teacher._id);
+        this.http
+          .post<{ success: boolean; message?: string; data?: any; warnings?: string[] }>(
+            `${apiUrl}/admin/teachers/${teacher._id}/share-timetable`,
+            {},
+            { withCredentials: true, headers: this.authHeaders() }
+          )
+          .subscribe({
+            next: (res) => {
+              this.sharingTimetableIds.delete(teacher._id);
+              const d = res.data || {};
+              const warnings = res.warnings?.length ? res.warnings : d.warnings || [];
+
+              if (warnings.length) {
+                this.notify.error(warnings.join(' '));
+              }
+
+              if (!res.success && !d.emailSent && !d.whatsappSent) {
+                if (!warnings.length) {
+                  this.notify.error(res.message || 'Failed to share timetable.');
+                }
+                return;
+              }
+
+              const parts: string[] = [];
+              if (d.emailSent) parts.push('email');
+              if (d.whatsappSent) parts.push('WhatsApp');
+              const channels = parts.length ? parts.join(' & ') : 'no channel';
+              const count = d.meetingCount ?? 0;
+              const week = d.weekLabel ? ` (${d.weekLabel})` : '';
+
+              if (count === 0) {
+                this.notify.info(`No live classes this week${week}.`);
+              } else if (parts.length) {
+                this.notify.success(
+                  `Timetable shared with ${teacher.name}${week}: ${count} class(es) via ${channels}.`
+                );
+              }
+            },
+            error: (err) => {
+              this.sharingTimetableIds.delete(teacher._id);
+              this.notify.error(err.error?.message || 'Failed to share timetable. Please try again.');
+            },
+          });
+      });
   }
 
 }

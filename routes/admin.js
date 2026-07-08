@@ -14,6 +14,7 @@ const CourseProgress = require('../models/CourseProgress');
 const BatchConfig = require('../models/BatchConfig');
 //const auth = require('../middleware/auth');
 const { verifyToken, isAdmin, checkRole } = require('../middleware/auth'); // ✅ Correct import
+const { requireStudentsListAccess } = require('../middleware/subAdminTabAccess');
 const { readRecoverablePassword } = require('../utils/passwordRecoverable');
 const { resolveStudentDisplayPassword } = require('../utils/resolveStudentDisplayPassword');
 const { mergePortalBatchNames } = require('../utils/portalBatchPresets');
@@ -30,6 +31,7 @@ const {
 } = require('../utils/studentCountry');
 const { approvePublicSignupApplication, rejectPublicSignupApplication } = require('../utils/signupActivation');
 const { batchMatchFilters } = require('../utils/analyticsFilters');
+const { shareTeacherWeeklyTimetable } = require('../services/weeklyTimetableService');
 
 const FILTER_OPTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
 let filterOptionsCache = { at: 0, payload: null };
@@ -303,7 +305,7 @@ router.get('/students/data-issues', verifyToken, isAdmin, async (req, res) => {
 });
 
 // Get all students (admin, sub-admin with scope, and teachers assigned document-type tabs)
-router.get('/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
+router.get('/students', verifyToken, requireStudentsListAccess, async (req, res) => {
   try {
     const toPositiveInt = (value, fallback) => {
       const parsed = parseInt(String(value), 10);
@@ -557,6 +559,30 @@ router.get('/teachers', verifyToken, isAdmin, async (req, res) => {
       success: false,
       message: 'Failed to fetch teachers',
       error: err.message
+    });
+  }
+});
+
+// Share weekly timetable (Mon–Sun) with a teacher via email + WhatsApp
+router.post('/teachers/:teacherId/share-timetable', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const result = await shareTeacherWeeklyTimetable(req.params.teacherId, {
+      phoneOverride: req.body?.whatsappNumber || req.body?.phoneNumber,
+    });
+    const hasDelivery = result.emailSent || result.whatsappSent;
+    return res.json({
+      success: hasDelivery,
+      message: hasDelivery
+        ? `Timetable shared with ${result.teacherName}`
+        : `Could not deliver timetable to ${result.teacherName}`,
+      data: result,
+      warnings: result.warnings || [],
+    });
+  } catch (err) {
+    console.error('[POST /admin/teachers/:teacherId/share-timetable]', err);
+    return res.status(err.statusCode || 500).json({
+      success: false,
+      message: err.message || 'Failed to share timetable',
     });
   }
 });

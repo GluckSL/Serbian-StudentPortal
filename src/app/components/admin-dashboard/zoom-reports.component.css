@@ -618,6 +618,19 @@
   text-align: center;
 }
 
+.zr-btn--portal-alert { background: #d97706; color: #fff; position: relative; }
+.zr-btn--portal-alert:hover { background: #b45309; }
+
+.zr-btn--ghost {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+.zr-btn--ghost:hover { background: #f1f5f9; }
+.zr-btn--ghost[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+.zr-btn--sm { padding: 5px 10px; font-size: 12px; }
+
 /* ── Responsive ── */
 @media (max-width: 900px) {
   .zr-stats { grid-template-columns: repeat(2, 1fr); }

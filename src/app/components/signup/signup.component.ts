@@ -92,6 +92,7 @@ export class SignupComponent implements OnInit {
   level: string = 'A1'; // default level
   studentStatus: string = 'UNCERTAIN'; // default status
   phoneNumber: string = '';
+  whatsappNumber: string = '';
   address: string = '';
   age: number | null = null;
   servicesOpted: string = '';
@@ -269,7 +270,7 @@ export class SignupComponent implements OnInit {
           this.assignedTeacher = data.assignedTeacher || '';
           this.conversationId = data.conversationId || '';
           this.studentStatus = data.studentStatus || 'UNCERTAIN';
-          this.phoneNumber = data.phoneNumber || '';
+          this.phoneNumber = data['phoneNumber'] || '';
           this.address = data.address || '';
           this.age = data.age || null;
           this.loadedServicesOptedRaw = data.servicesOpted || data['programEnrolled'] || '';
@@ -314,6 +315,8 @@ export class SignupComponent implements OnInit {
           this.medium = data.medium || [];
           this.assignedCourses = data.assignedCourses?.map((c: any) => c._id || c) || [];
           this.assignedBatches = data['assignedBatches'] || [];
+          this.phoneNumber = data['phoneNumber'] || '';
+          this.whatsappNumber = data['whatsappNumber'] || '';
         }
       },
       error: (err) => {
@@ -359,6 +362,8 @@ export class SignupComponent implements OnInit {
       user.medium = this.medium;
       user.assignedCourses = this.assignedCourses;
       user.assignedBatches = this.assignedBatches;
+      user.phoneNumber = this.phoneNumber;
+      user.whatsappNumber = this.whatsappNumber || this.phoneNumber;
     }
 
     // ✅ Decide whether to create or update

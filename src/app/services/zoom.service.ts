@@ -464,6 +464,8 @@ export class ZoomService {
     studentSearch?: string;
     studentId?: string;
     scoreFilter?: string;
+    level?: string;
+    studentStatus?: string;
   }): Observable<any> {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
@@ -479,6 +481,8 @@ export class ZoomService {
     if (filters?.scoreFilter && filters.scoreFilter !== 'all') {
       params.append('scoreFilter', filters.scoreFilter);
     }
+    if (filters?.level) params.append('level', filters.level);
+    if (filters?.studentStatus) params.append('studentStatus', filters.studentStatus);
     const qs = params.toString();
     const url = qs ? `${this.apiUrl}/attendance-dashboard?${qs}` : `${this.apiUrl}/attendance-dashboard`;
     return this.http.get(url, { withCredentials: true });
@@ -498,5 +502,27 @@ export class ZoomService {
       { studentIds },
       { withCredentials: true },
     );
+  }
+
+  /** Students who clicked Join from portal but are still marked Absent. */
+  getPortalJoinAbsentStudents(params: {
+    days?: number;
+    page?: number;
+    limit?: number;
+    search?: string;
+    batch?: string;
+    level?: string;
+  } = {}): Observable<any> {
+    const query: Record<string, string> = {};
+    if (params.days != null) query['days'] = String(params.days);
+    if (params.page != null) query['page'] = String(params.page);
+    if (params.limit != null) query['limit'] = String(params.limit);
+    if (params.search) query['search'] = params.search;
+    if (params.batch && params.batch !== 'all') query['batch'] = params.batch;
+    if (params.level && params.level !== 'all') query['level'] = params.level;
+    return this.http.get(`${this.apiUrl}/portal-join-absent`, {
+      params: query,
+      withCredentials: true,
+    });
   }
 }

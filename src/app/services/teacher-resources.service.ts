@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, from, forkJoin, of, throwError } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { getAuthToken } from './auth.service';
 
@@ -46,6 +47,7 @@ export interface ResourceGroup {
 @Injectable({ providedIn: 'root' })
 export class TeacherResourcesService {
   private readonly baseUrl = `${environment.apiUrl}/teacher-resources`;
+  private readonly maxFileSize = 50 * 1024 * 1024;
 
   constructor(private http: HttpClient) {}
 
@@ -81,20 +83,34 @@ export class TeacherResourcesService {
     description?: string;
     files: File[];
   }): Observable<any> {
-    const fd = new FormData();
-    fd.append('teacherIds', JSON.stringify(payload.teacherIds));
-    fd.append('title', payload.title);
-    fd.append('day', payload.day);
-    fd.append('batch', payload.batch || '');
-    fd.append('level', payload.level || '');
-    fd.append('plan', payload.plan || '');
-    fd.append('resourceType', payload.resourceType || '');
-    fd.append('topic', payload.topic || '');
-    fd.append('description', payload.description || '');
-    for (const f of payload.files) {
-      fd.append('files', f);
+    const tooLarge = payload.files.filter((f) => f.size > this.maxFileSize);
+    if (tooLarge.length > 0) {
+      return throwError(() => ({
+        error: { message: `File too large (max 50 MB each): ${tooLarge.map((f) => f.name).join(', ')}` }
+      }));
     }
-    return this.http.post(`${this.baseUrl}/upload`, fd, { withCredentials: true });
+
+    // Direct R2 PUT bypasses nginx client_max_body_size limits on production.
+    return forkJoin(payload.files.map((file) => this.presignAndPut(file))).pipe(
+      switchMap((files) =>
+        this.http.post(
+          `${this.baseUrl}/register-upload`,
+          {
+            teacherIds: payload.teacherIds,
+            title: payload.title,
+            day: payload.day,
+            batch: payload.batch || '',
+            level: payload.level || '',
+            plan: payload.plan || '',
+            resourceType: payload.resourceType || '',
+            topic: payload.topic || '',
+            description: payload.description || '',
+            files
+          },
+          { withCredentials: true }
+        )
+      )
+    );
   }
 
   update(
@@ -113,6 +129,36 @@ export class TeacherResourcesService {
       file?: File | null;
     }
   ): Observable<any> {
+    if (payload.file) {
+      if (payload.file.size > this.maxFileSize) {
+        return throwError(() => ({
+          error: { message: `File too large (max 50 MB): ${payload.file?.name}` }
+        }));
+      }
+
+      return this.presignAndPut(payload.file).pipe(
+        switchMap((uploadedFile) =>
+          this.http.patch(
+            `${this.baseUrl}/${id}`,
+            {
+              teacherIds: payload.teacherIds,
+              teacherId: payload.teacherId,
+              title: payload.title,
+              day: payload.day,
+              batch: payload.batch,
+              level: payload.level,
+              plan: payload.plan,
+              resourceType: payload.resourceType,
+              topic: payload.topic,
+              description: payload.description,
+              uploadedFile
+            },
+            { withCredentials: true }
+          )
+        )
+      );
+    }
+
     const fd = new FormData();
     if (payload.teacherIds !== undefined) fd.append('teacherIds', JSON.stringify(payload.teacherIds));
     else if (payload.teacherId !== undefined) fd.append('teacherId', payload.teacherId);
@@ -124,8 +170,72 @@ export class TeacherResourcesService {
     if (payload.resourceType !== undefined) fd.append('resourceType', payload.resourceType);
     if (payload.topic !== undefined) fd.append('topic', payload.topic);
     if (payload.description !== undefined) fd.append('description', payload.description);
-    if (payload.file) fd.append('file', payload.file);
     return this.http.patch(`${this.baseUrl}/${id}`, fd, { withCredentials: true });
+  }
+
+  private presignAndPut(file: File): Observable<{
+    key: string;
+    fileUrl: string;
+    originalName: string;
+    mimeType: string;
+    fileSize: number;
+  }> {
+    const contentType = file.type || 'application/octet-stream';
+    return this.http
+      .post<{
+        uploadUrl: string;
+        fileUrl: string;
+        key?: string;
+        error?: string;
+      }>(
+        `${environment.apiUrl}/r2/generate-upload-url`,
+        {
+          filename: file.name,
+          contentType,
+          prefix: 'teacher-resources',
+        },
+        { withCredentials: true }
+      )
+      .pipe(
+        switchMap((res) => {
+          const key =
+            res?.key ||
+            (res?.fileUrl?.includes('teacher-resources/')
+              ? res.fileUrl.slice(res.fileUrl.indexOf('teacher-resources/'))
+              : '');
+          if (!res?.uploadUrl || !res?.fileUrl || !key) {
+            return throwError(() => ({
+              error: { message: res?.error || 'Failed to prepare upload' }
+            }));
+          }
+          return from(
+            fetch(res.uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': contentType },
+              body: file
+            }).catch(() => {
+              throw new Error('Cloud storage upload failed. Check R2 CORS and try again.');
+            })
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                return throwError(() => ({
+                  error: {
+                    message: `Cloud storage upload failed (HTTP ${response.status}). Try again or contact support.`
+                  }
+                }));
+              }
+              return of({
+                key,
+                fileUrl: res.fileUrl,
+                originalName: file.name,
+                mimeType: contentType,
+                fileSize: file.size
+              });
+            })
+          );
+        })
+      );
   }
 
   delete(id: string): Observable<any> {

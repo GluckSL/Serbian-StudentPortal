@@ -8,6 +8,9 @@
       <p class="zr-header__sub">Completed class sessions &amp; attendance analytics</p>
     </div>
     <div class="zr-header__actions">
+      <button class="zr-btn zr-btn--portal-alert" (click)="openPortalJoinAlert()" title="Open portal join absences in a new tab — students who clicked Join but are still marked Absent">
+        <i class="fa fa-triangle-exclamation"></i> Portal Join Alert
+      </button>
       <button class="zr-btn zr-btn--dashboard" (click)="openAttendanceDashboard()" title="Student attendance analytics — attended X of Y classes and average %">
         <i class="fa fa-chart-pie"></i> Attendance Dashboard
       </button>

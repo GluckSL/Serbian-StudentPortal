@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const sanitizeHtml = require('sanitize-html');
 const Announcement = require('../models/Announcement');
+const AnnouncementComment = require('../models/AnnouncementComment');
 const User = require('../models/User');
 const { dispatchWebsiteEmailAnnouncement } = require('../services/announcementEmailDispatch');
 const {
@@ -467,6 +468,8 @@ router.delete(
       if (!deleted) {
         return res.status(404).json({ success: false, message: 'Announcement not found.' });
       }
+
+      await AnnouncementComment.deleteMany({ announcementId: id });
 
       for (const attachment of deleted.attachments || []) {
         const fileUrl = String(attachment?.fileUrl || '');

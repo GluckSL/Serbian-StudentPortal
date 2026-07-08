@@ -1425,6 +1425,7 @@ function buildPerQuestionReview(exercise, attempt) {
       maxPoints: q.points ?? 1,
       studentAnswer: formatStudentAnswerForReview(q, r),
       expectedAnswer: formatCorrectAnswerForReview(q),
+      answerExplanation: q.answerExplanation || undefined,
       isSubQuestion: false,
       staffOverride: false
     });
@@ -1447,6 +1448,7 @@ function buildPerQuestionReview(exercise, attempt) {
           maxPoints: sq.points ?? 1,
           studentAnswer: formatStudentAnswerForReview(sq, subResponseToReviewShape(sq, subResp)),
           expectedAnswer: formatCorrectAnswerForReview(sq),
+          answerExplanation: sq.answerExplanation || undefined,
           isSubQuestion: true,
           staffOverride: !!subGrade.staffOverride
         });
@@ -2932,6 +2934,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     let currentSectionTitle = '';
     let currentAttachmentUrls = [];
     let currentExample = '';
+    let currentAttachmentAudioMaxPlaysPerAttempt = null;
 
     const questions = [];
 
@@ -2942,6 +2945,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
         currentSectionTitle = item.sectionTitle || '';
         currentAttachmentUrls = item.attachmentUrls || [];
         currentExample = item.example || '';
+        currentAttachmentAudioMaxPlaysPerAttempt = item.attachmentAudioMaxPlaysPerAttempt ?? null;
       } else if (item.kind === 'question' && item.type) {
         const question = {
           type: item.type,
@@ -2950,6 +2954,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
           sectionTitle: currentSectionTitle || null,
           attachmentUrls: currentAttachmentUrls,
           attachmentUrl: (currentAttachmentUrls[0] || ''),
+          attachmentAudioMaxPlaysPerAttempt: currentAttachmentAudioMaxPlaysPerAttempt,
           example: currentExample,
           answerExplanation: item.answerExplanation || '',
           points: item.points ?? 1,
@@ -3084,6 +3089,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     let currentSectionTitle = '';
     let currentAttachmentUrls = [];
     let currentExample = '';
+    let currentAttachmentAudioMaxPlaysPerAttempt = null;
 
     const questions = [];
 
@@ -3094,6 +3100,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
         currentSectionTitle = item.sectionTitle || '';
         currentAttachmentUrls = item.attachmentUrls || [];
         currentExample = item.example || '';
+        currentAttachmentAudioMaxPlaysPerAttempt = item.attachmentAudioMaxPlaysPerAttempt ?? null;
       } else if (item.kind === 'question' && item.type) {
         const question = {
           type: item.type,
@@ -3102,6 +3109,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
           sectionTitle: currentSectionTitle || null,
           attachmentUrls: currentAttachmentUrls,
           attachmentUrl: (currentAttachmentUrls[0] || ''),
+          attachmentAudioMaxPlaysPerAttempt: currentAttachmentAudioMaxPlaysPerAttempt,
           example: currentExample,
           answerExplanation: item.answerExplanation || '',
           points: item.points ?? 1,
@@ -4230,13 +4238,23 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
       }
     }
 
-    const attempt = await ExerciseAttempt.findOne({
-      studentId: req.user.id,
-      exerciseId: req.params.id,
-      status: 'completed'
-    })
-      .sort({ scorePercentage: -1, completedAt: -1 })
-      .lean();
+    let attempt;
+    if (req.query.attemptId) {
+      attempt = await ExerciseAttempt.findOne({
+        _id: req.query.attemptId,
+        studentId: req.user.id,
+        exerciseId: req.params.id,
+        status: 'completed'
+      }).lean();
+    } else {
+      attempt = await ExerciseAttempt.findOne({
+        studentId: req.user.id,
+        exerciseId: req.params.id,
+        status: 'completed'
+      })
+        .sort({ scorePercentage: -1, completedAt: -1 })
+        .lean();
+    }
 
     if (!attempt) {
       return res.status(404).json({ error: 'No completed attempt yet' });

@@ -22,6 +22,9 @@ const STUDENT_COUNTRY_FILTER_OPTIONS = [
 ];
 
 const ipCountryCache = new Map();
+/** Throttle portal-activity writes so heartbeats do not hit the DB every 30s. */
+const LAST_LOGIN_TOUCH_TTL_MS = 2 * 60_000;
+const lastLoginTouchByUserId = new Map();
 let phoneBackfillStarted = false;
 let loginBackfillStarted = false;
 
@@ -107,6 +110,31 @@ function applyStudentCountryFilters(query, { phoneCountry, loginCountry }) {
   }
 }
 
+/**
+ * Refresh lastLogin while a student is active in the portal (throttled).
+ * Keeps admin "Last login" aligned with last seen activity, not only credential entry.
+ */
+function touchStudentLastLogin(userId) {
+  if (!userId) return;
+  const key = String(userId);
+  const now = Date.now();
+  const hit = lastLoginTouchByUserId.get(key);
+  if (hit && now - hit < LAST_LOGIN_TOUCH_TTL_MS) return;
+
+  lastLoginTouchByUserId.set(key, now);
+  const at = new Date();
+  User.updateOne(
+    { _id: userId, role: 'STUDENT' },
+    {
+      $set: {
+        lastLogin: at,
+        portalAbsenceReminderCount: 0,
+        portalAbsenceReminderSentAt: null,
+      },
+    }
+  ).catch((e) => console.warn('touchStudentLastLogin:', e?.message || e));
+}
+
 async function recordStudentLogin(user, req) {
   if (!user || user.role !== 'STUDENT') return null;
   try {
@@ -115,6 +143,7 @@ async function recordStudentLogin(user, req) {
     user.lastLoginCountry = country;
     user.portalAbsenceReminderCount = 0;
     user.portalAbsenceReminderSentAt = null;
+    lastLoginTouchByUserId.set(String(user._id), Date.now());
     await user.save();
     await UserActivityLog.create({
       userId: user._id,
@@ -220,6 +249,7 @@ module.exports = {
   resolveLoginCountry,
   applyStudentCountryFilters,
   recordStudentLogin,
+  touchStudentLastLogin,
   scheduleCountryBackfills,
   resetPhoneCountryBackfill,
   backfillPhoneCountries,

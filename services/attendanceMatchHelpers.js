@@ -31,7 +31,7 @@ function buildAttendanceRowFromMatch(attendee, matchResult, ctx) {
   const attendancePercent =
     meetingDurationMinutes > 0 ? (participantDuration / meetingDurationMinutes) * 100 : 0;
   const meetsThreshold =
-    !!matchResult.match && !isAmbiguous && attendancePercent >= 70;
+    !!matchResult.match && !isAmbiguous && attendancePercent >= 60;
   const appearedInZoom = !!(matchResult.match && Number(matchResult.match.duration) > 0);
 
   let mismatchReason = matchResult.mismatchReason || null;

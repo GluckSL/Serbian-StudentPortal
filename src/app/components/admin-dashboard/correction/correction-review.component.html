@@ -103,6 +103,7 @@
               <th>Question</th>
               <th>Student answer</th>
               <th>Expected answer</th>
+              <th>Explanation</th>
               <th></th>
             </tr>
           </thead>
@@ -115,6 +116,13 @@
               </td>
               <td class="cr-ans cr-ans--student">{{ row.studentAnswer || '—' }}</td>
               <td class="cr-ans cr-ans--expected">{{ row.expectedAnswer || '—' }}</td>
+              <td class="cr-expl">
+                <span *ngIf="row.answerExplanation" class="cr-expl-text">
+                  <span class="material-icons cr-expl-icon">lightbulb</span>
+                  {{ row.answerExplanation }}
+                </span>
+                <span *ngIf="!row.answerExplanation" class="cr-expl-none">—</span>
+              </td>
               <td class="cr-action">
                 <button
                   type="button"
@@ -149,6 +157,7 @@
               <th>Question</th>
               <th>Student answer</th>
               <th>Expected</th>
+              <th>Explanation</th>
               <th>Pts</th>
               <th></th>
             </tr>
@@ -165,6 +174,13 @@
               <td class="cr-prompt">{{ row.promptSnippet }}</td>
               <td class="cr-ans">{{ row.studentAnswer || '—' }}</td>
               <td class="cr-ans cr-ans--muted">{{ row.expectedAnswer || '—' }}</td>
+              <td class="cr-expl">
+                <span *ngIf="row.answerExplanation" class="cr-expl-text">
+                  <span class="material-icons cr-expl-icon">lightbulb</span>
+                  {{ row.answerExplanation }}
+                </span>
+                <span *ngIf="!row.answerExplanation" class="cr-expl-none">—</span>
+              </td>
               <td class="cr-pts">{{ row.pointsEarned }} / {{ row.maxPoints }}</td>
               <td class="cr-action">
                 <button
