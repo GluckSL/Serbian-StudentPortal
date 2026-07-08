@@ -173,14 +173,21 @@
 }
 
 .ia-btn-nav {
+  position: relative;
   gap: 0.4rem;
-  background: var(--ia-primary);
+  background: linear-gradient(120deg, var(--ia-primary), var(--ia-secondary));
+  background-size: 150% 100%;
+  background-position: 0 0;
   color: var(--ia-on-primary);
   padding: 0.45rem 1.05rem;
   border-radius: 9999px;
   font-size: 0.8rem;
   font-weight: 700;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s, background-position 0.5s ease;
+}
+
+.ia-btn-nav:hover {
+  background-position: 100% 0;
 }
 
 .ia-btn-nav .ia-ficon {
@@ -615,17 +622,29 @@
 }
 
 .ia-btn-primary {
+  position: relative;
+  gap: 0.6rem;
   width: 100%;
-  max-width: 20rem;
-  background: linear-gradient(to right, var(--ia-primary), var(--ia-primary-container));
+  max-width: 22rem;
+  background: linear-gradient(120deg, var(--ia-primary) 0%, var(--ia-primary-container) 45%, var(--ia-secondary) 100%);
+  background-size: 160% 100%;
+  background-position: 0 0;
   color: var(--ia-on-primary);
-  padding: 1rem 2rem;
-  border-radius: 0.75rem;
+  padding: 1rem 2.1rem;
+  border-radius: 0.85rem;
   font-weight: 700;
-  box-shadow:
-    0 0 15px rgba(37, 82, 202, 0.3),
-    0 20px 40px rgba(0, 17, 58, 0.25);
-  transition: transform 0.2s;
+  box-shadow: 0 12px 28px -12px rgba(37, 82, 202, 0.55);
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s,
+    background-position 0.5s ease;
+}
+
+.ia-btn-primary .ia-ficon {
+  position: relative;
+  width: 1.05rem;
+  height: 1.05rem;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (min-width: 640px) {
@@ -635,7 +654,19 @@
 }
 
 .ia-btn-primary:hover {
-  transform: scale(1.05);
+  transform: translateY(-3px);
+  background-position: 100% 0;
+  box-shadow:
+    0 20px 40px -14px rgba(37, 82, 202, 0.85),
+    0 0 0 4px rgba(68, 108, 228, 0.16);
+}
+
+.ia-btn-primary:hover .ia-ficon {
+  transform: translateX(5px);
+}
+
+.ia-btn-primary:active {
+  transform: translateY(-1px) scale(0.99);
 }
 
 .ia-btn-outline {
@@ -778,18 +809,39 @@
 .ia-btn-cta {
   position: relative;
   display: inline-flex;
+  gap: 0.6rem;
   background: var(--ia-on-primary);
   color: var(--ia-primary);
-  padding: 1.25rem 2.5rem;
+  padding: 1.2rem 2.5rem;
   border-radius: 1rem;
   font-weight: 700;
-  font-size: 1.125rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s;
+  font-size: 1.1rem;
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.3);
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s;
+}
+
+.ia-btn-cta .ia-ficon {
+  position: relative;
+  width: 1.1rem;
+  height: 1.1rem;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .ia-btn-cta:hover {
-  transform: scale(1.05);
+  transform: translateY(-3px);
+  box-shadow:
+    0 20px 44px -14px rgba(0, 0, 0, 0.42),
+    0 0 0 4px rgba(255, 255, 255, 0.18);
+}
+
+.ia-btn-cta:hover .ia-ficon {
+  transform: translateX(5px);
+}
+
+.ia-btn-cta:active {
+  transform: translateY(-1px) scale(0.99);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1236,15 +1288,20 @@
 .ia-feat-media {
   position: relative;
   overflow: hidden;
-  min-height: 280px;
+  align-self: center;
+  aspect-ratio: 16 / 9;
+  margin: 1.75rem;
+  border-radius: 1rem;
+  box-shadow: 0 18px 40px -20px rgba(0, 17, 58, 0.4);
 }
 
-.ia-feat-media::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(120deg, rgba(0, 17, 58, 0.12), transparent 45%);
-  pointer-events: none;
+/* When the media sits on the outer side, hug the card edge a touch less */
+.ia-feat-card:nth-child(odd) .ia-feat-media {
+  margin-left: 0;
+}
+
+.ia-feat-card:nth-child(even) .ia-feat-media {
+  margin-right: 0;
 }
 
 .ia-feat-media img {
@@ -1252,12 +1309,11 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transform: scale(1.02);
   transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .ia-feat-card:hover .ia-feat-media img {
-  transform: scale(1.08);
+  transform: scale(1.05);
 }
 
 /* Gluck Buddy card — branded gradient + floating fox */
@@ -1269,6 +1325,11 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  align-self: stretch;
+  aspect-ratio: auto;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
   background:
     radial-gradient(24rem 18rem at 50% 90%, rgba(68, 108, 228, 0.22), transparent 70%);
 }
@@ -1427,6 +1488,17 @@
   line-height: 1.75;
   color: var(--ia-on-variant);
   margin: 0 0 1.6rem;
+}
+
+/* Compact chips so all three sit on one tidy row in each card */
+.ia-gv-card .ia-feat-chips {
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.ia-gv-card .ia-feat-chips li {
+  font-size: 0.72rem;
+  padding: 0.32rem 0.7rem;
 }
 
 /* ── Visa stepper ── */
@@ -2206,5 +2278,119 @@
   .ia-faq-plus::before,
   .ia-faq-plus::after {
     transition: none;
+  }
+}
+
+/* CTA buttons — respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .ia-btn-primary,
+  .ia-btn-primary:hover,
+  .ia-btn-cta,
+  .ia-btn-cta:hover,
+  .ia-btn-nav,
+  .ia-btn-nav:hover {
+    transform: none;
+    transition: none;
+    animation: none;
+    background-position: 0 0;
+  }
+
+  .ia-btn-primary::before,
+  .ia-btn-cta::before {
+    animation: none;
+    opacity: 0.4;
+  }
+
+  .ia-btn-primary:hover .ia-ficon,
+  .ia-btn-cta:hover .ia-ficon {
+    transform: none;
+  }
+}
+
+/* ── Day 200 final node — larger icon to match its emphasis ── */
+.ia-road-step--final .ia-road-node {
+  width: 3.6rem;
+  height: 3.6rem;
+}
+
+.ia-road-step--final .ia-road-node .ia-ficon {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+/* ── FAQ — staggered reveal as items scroll in ── */
+.ia-faq-item.ia-reveal {
+  transform: translateY(24px);
+}
+
+.ia-faq-item:nth-child(1) { transition-delay: 0.05s; }
+.ia-faq-item:nth-child(2) { transition-delay: 0.13s; }
+.ia-faq-item:nth-child(3) { transition-delay: 0.21s; }
+.ia-faq-item:nth-child(4) { transition-delay: 0.29s; }
+.ia-faq-item:nth-child(5) { transition-delay: 0.37s; }
+
+/* ── Final CTA — pop-in with glow ── */
+.ia-cta-card.ia-reveal {
+  transform: translateY(40px) scale(0.96);
+}
+
+.ia-cta-card.ia-reveal.is-in {
+  transform: translateY(0) scale(1);
+  animation: ia-cta-glow 2.4s 0.5s ease-in-out;
+}
+
+@keyframes ia-cta-glow {
+  0%,
+  100% {
+    box-shadow: 0 25px 50px rgba(0, 17, 58, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 25px 50px rgba(0, 17, 58, 0.35),
+      0 0 60px -6px rgba(68, 108, 228, 0.55);
+  }
+}
+
+.ia-cta-card.is-in .ia-cta-h {
+  animation: ia-fade-up 0.6s 0.25s both;
+}
+
+.ia-cta-card.is-in .ia-cta-p {
+  animation: ia-fade-up 0.6s 0.38s both;
+}
+
+.ia-cta-card.is-in .ia-btn-cta {
+  animation: ia-fade-up 0.6s 0.5s both;
+}
+
+.ia-cta-card.is-in .ia-cta-chips {
+  animation: ia-fade-up 0.6s 0.62s both;
+}
+
+@keyframes ia-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ia-cta-card.ia-reveal.is-in {
+    animation: none;
+  }
+
+  .ia-cta-card.is-in .ia-cta-h,
+  .ia-cta-card.is-in .ia-cta-p,
+  .ia-cta-card.is-in .ia-btn-cta,
+  .ia-cta-card.is-in .ia-cta-chips {
+    animation: none;
+  }
+
+  .ia-faq-item:nth-child(n) {
+    transition-delay: 0s;
   }
 }
