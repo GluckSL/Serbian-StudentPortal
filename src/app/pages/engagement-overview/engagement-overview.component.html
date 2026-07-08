@@ -101,6 +101,11 @@
       <option value="worst">Sort: Worst engaged</option>
       <option value="best">Sort: Best engaged</option>
     </select>
+
+    <select class="eo-select" [ngModel]="globalWeek()" (ngModelChange)="onGlobalWeekChange($event)" aria-label="Filter all batches by week">
+      <option [ngValue]="null">Current week</option>
+      <option *ngFor="let w of weekOptions()" [ngValue]="w">Week {{ w }}</option>
+    </select>
   </div>
 
   <!-- Loading -->

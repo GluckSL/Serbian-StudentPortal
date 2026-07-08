@@ -30,6 +30,7 @@ export class EngagementOverviewComponent implements OnInit {
   bandFilter = signal<BandFilter>('all');
   level = signal('');
   sort = signal<SortKey>('batch');
+  globalWeek = signal<number | null>(null);
 
   // Popups: batch list (first level) + single-student detail (second level)
   batchDetail = signal<EngBatch | null>(null);
@@ -50,7 +51,7 @@ export class EngagementOverviewComponent implements OnInit {
   load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.api.getOverview().subscribe({
+    this.api.getOverview(this.globalWeek()).subscribe({
       next: (res) => {
         this.targetHours.set(res.targetHours);
         this.totalWeeks.set(res.totalWeeks);
@@ -196,6 +197,11 @@ export class EngagementOverviewComponent implements OnInit {
         b.loading = false;
       },
     });
+  }
+
+  onGlobalWeekChange(week: number | null): void {
+    this.globalWeek.set(week);
+    this.load();
   }
 
   /** Segmented-bar display widths for one batch (tiny bands still get a sliver). */

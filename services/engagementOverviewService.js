@@ -195,12 +195,13 @@ async function getActiveBatchConfigs() {
 }
 
 /**
- * Overview: every active batch at its current journey week.
+ * Overview: every active batch at its current journey week, or at a selected
+ * week when the global week filter is applied.
  * @returns {Promise<{ targetHours, totalWeeks, batches: object[] }>}
  */
-async function getEngagementOverview() {
+async function getEngagementOverview(week) {
   const cfgs = await getActiveBatchConfigs();
-  const batches = await mapWithConcurrency(cfgs, 5, (cfg) => getBatchEngagement(cfg, undefined));
+  const batches = await mapWithConcurrency(cfgs, 5, (cfg) => getBatchEngagement(cfg, week));
   return {
     targetHours: TARGET_WEEKLY_SECONDS / 3600,
     totalWeeks: TOTAL_WEEKS,

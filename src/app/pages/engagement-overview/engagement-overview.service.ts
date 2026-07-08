@@ -45,8 +45,10 @@ export class EngagementOverviewService {
 
   constructor(private readonly http: HttpClient) {}
 
-  getOverview(): Observable<EngOverview> {
-    return this.http.get<EngOverview>(this.base, { withCredentials: true });
+  getOverview(week?: number | null): Observable<EngOverview> {
+    let params = new HttpParams();
+    if (week != null) params = params.set('week', String(week));
+    return this.http.get<EngOverview>(this.base, { params, withCredentials: true });
   }
 
   getBatch(batch: string, week: number): Observable<EngBatch> {

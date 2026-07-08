@@ -229,7 +229,8 @@ router.post('/crucial-students/send-email', verifyToken, requireLanguageTracking
 // engagement heatmap). Reuses the language-tracking view permission.
 router.get('/engagement-overview', verifyToken, requireLanguageTrackingView, async (req, res) => {
   try {
-    const data = await getEngagementOverview();
+    const week = req.query.week != null ? Number(req.query.week) : undefined;
+    const data = await getEngagementOverview(week);
     res.json(data);
   } catch (err) {
     console.error('language-tracking GET /engagement-overview', err);
