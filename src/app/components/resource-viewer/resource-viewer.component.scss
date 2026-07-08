@@ -119,11 +119,11 @@
 .rv-page-btn:disabled { opacity: 0.35; cursor: default; }
 
 .rv-pdf-container {
-  flex: 1; min-height: 0; width: 100%; overflow: auto; display: flex;
-  justify-content: center; background: #1e293b; border-radius: 8px;
-  padding: 8px;
+  flex: 1; min-height: 0; width: 100%; overflow: hidden; display: flex;
+  align-items: center; justify-content: center; background: #1e293b;
+  border-radius: 8px; padding: 8px;
 }
-.rv-pdf-container canvas { display: block; }
+.rv-pdf-container canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 
 .rv-content--pptx { padding: 0; background: #1e293b; }
 .rv-pptx-iframe {
