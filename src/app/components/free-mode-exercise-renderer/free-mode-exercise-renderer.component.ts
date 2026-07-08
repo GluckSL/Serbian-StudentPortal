@@ -129,16 +129,16 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
               <img *ngSwitchCase="'image'" [src]="resolveUrl(url)" class="att-img" (click)="openFullscreen($event)" />
               <ng-container *ngSwitchCase="'audio'">
                 <ng-container *ngIf="item.attachmentAudioCap != null; else unlimitedAudio">
-                  <p *ngIf="getContentAudioPlaysRemaining(idx, url)! > 0" class="att-audio-remaining">
+                  <p *ngIf="!isContentAudioExhausted(idx, url)" class="att-audio-remaining">
                     You can start this audio
                     <strong>{{ getContentAudioPlaysRemaining(idx, url)! }}</strong>
                     more time<span *ngIf="getContentAudioPlaysRemaining(idx, url)! !== 1">s</span>
                     this attempt (each press of Play counts).
                   </p>
-                  <span *ngIf="getContentAudioPlaysRemaining(idx, url)! === 0" class="cap-reached">
+                  <span *ngIf="isContentAudioExhausted(idx, url)" class="cap-reached">
                     <span class="material-icons">volume_off</span> Play limit reached for this attempt.
                   </span>
-                  <audio *ngIf="getContentAudioPlaysRemaining(idx, url)! > 0"
+                  <audio *ngIf="!isContentAudioExhausted(idx, url)"
                          [src]="resolveUrl(url)" controls class="att-audio"
                          (play)="onContentAudioPlay(idx, url, $any($event.target))">
                   </audio>
@@ -1580,6 +1580,14 @@ export class FreeModeExerciseRendererComponent implements OnInit, OnDestroy {
     return used >= item.attachmentAudioCap;
   }
 
+  /** True only when used > cap (counter at -1 or below) — hides player entirely. */
+  isContentAudioExhausted(renderIdx: number, url: string): boolean {
+    const item = this.renderList[renderIdx];
+    if (!item || item.kind !== 'content-block' || item.attachmentAudioCap == null) return false;
+    const used = this.attachmentAudioPlaysUsed[this.getAudioPlayKey(renderIdx, url)] ?? 0;
+    return used > item.attachmentAudioCap;
+  }
+
   getContentAudioPlaysRemaining(renderIdx: number, url: string): number | null {
     const item = this.renderList[renderIdx];
     if (!item || item.kind !== 'content-block' || item.attachmentAudioCap == null) return null;
@@ -1593,7 +1601,7 @@ export class FreeModeExerciseRendererComponent implements OnInit, OnDestroy {
     const key = this.getAudioPlayKey(renderIdx, url);
     const used = (this.attachmentAudioPlaysUsed[key] ?? 0) + 1;
     this.attachmentAudioPlaysUsed[key] = used;
-    if (used >= item.attachmentAudioCap) {
+    if (used > item.attachmentAudioCap) {
       audioEl.pause();
       audioEl.removeAttribute('src');
       audioEl.load();
