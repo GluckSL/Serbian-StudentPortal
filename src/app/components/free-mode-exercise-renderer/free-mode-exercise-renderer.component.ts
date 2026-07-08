@@ -478,7 +478,7 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
       white-space: nowrap;
     }
 
-    .fmr-restrictions { display: flex; gap: 6px; }
+    .fmr-restrictions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
     .fmr-restriction-badge {
       display: inline-flex;
@@ -496,17 +496,16 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
     .fmr-restriction-badge .material-icons { font-size: 14px; }
 
     .fmr-restriction-note {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 4px;
-      width: 100%;
-      margin-top: 2px;
+      gap: 3px;
       font-size: 11px;
-      color: #78716c;
+      color: rgba(255,255,255,0.75);
+      white-space: nowrap;
     }
 
     .fmr-restriction-note .material-icons {
-      font-size: 14px;
+      font-size: 13px;
     }
 
     /* Content Block */
@@ -1729,30 +1728,12 @@ export class FreeModeExerciseRendererComponent implements OnInit, OnDestroy {
   submit(): void {
     if (this.submitting) return;
 
-    const questions = this.exercise?.questions || [];
     this.questionErrors = {};
-
-    // Validate all questions are answered
-    let hasError = false;
-    for (let i = 0; i < questions.length; i++) {
-      if (!this.isQuestionAnswered(i)) {
-        this.questionErrors[i] = 'This question is not answered yet.';
-        hasError = true;
-      }
-    }
-
-    if (hasError) {
-      this.snackBar.open('Some questions are unanswered', 'Close', { duration: 4000, panelClass: ['error-snack'] });
-      // Scroll to first error
-      const firstErrorIdx = Object.keys(this.questionErrors).map(Number).sort()[0];
-      const el = document.querySelectorAll('.question-card')[firstErrorIdx];
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
 
     this.submitting = true;
     this.state = 'submitting';
 
+    const questions = this.exercise?.questions || [];
     const responses = questions.map((q, i) => {
       const ans = this.answers[i] || {};
       const resp: any = { questionIndex: i };
