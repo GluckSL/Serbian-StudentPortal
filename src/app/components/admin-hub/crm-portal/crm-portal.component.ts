@@ -74,6 +74,42 @@ export interface CompareInviteResult {
   message: string;
 }
 
+export interface SalesCounsellorCard {
+  name: string;
+  watchName?: string;
+  lastEnrollment: string | null;
+  daysSince: number | null;
+  totalEnrollments: number;
+  weeklyEnrollments?: number;
+  riskType?: string | null;
+}
+
+export interface SalesDashboardResult {
+  show: boolean;
+  loading: boolean;
+  error: string;
+  green: SalesCounsellorCard[];
+  yellow: SalesCounsellorCard[];
+  red: SalesCounsellorCard[];
+  watchedNames: string[];
+  availableCounsellors: string[];
+  setupRequired: boolean;
+  totals: {
+    counsellors: number;
+    green: number;
+    yellow: number;
+    red: number;
+    enrollmentsScanned: number;
+    availableCounsellors: number;
+  };
+  trends: {
+    green: number;
+    yellow: number;
+    red: number;
+  };
+  generatedAt: string;
+}
+
 export interface WaAutomationItem {
   title: string;
   description: string;
@@ -287,6 +323,13 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
   compareBulkInviting = false;
   compareInviteResults: CompareInviteResult[] = [];
   compareInviteBanner = '';
+
+  salesDashboard: SalesDashboardResult = this.createSalesDashboardState();
+  salesWatchDraft: string[] = [];
+  salesWatchPickerOpen = false;
+  salesWatchSaving = false;
+  salesWatchSaveMsg = '';
+  salesWatchFilter = '';
 
   readonly dateRelativeOptions = DATE_RELATIVE_OPTIONS;
 
@@ -1121,6 +1164,212 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     this.compareInviteBanner = '';
   }
 
+  // ── Sales dashboard (counsellor recency) ───────────────────
+  private createSalesDashboardState(): SalesDashboardResult {
+    return {
+      show: false,
+      loading: false,
+      error: '',
+      green: [],
+      yellow: [],
+      red: [],
+      watchedNames: [],
+      availableCounsellors: [],
+      setupRequired: false,
+      totals: {
+        counsellors: 0,
+        green: 0,
+        yellow: 0,
+        red: 0,
+        enrollmentsScanned: 0,
+        availableCounsellors: 0,
+      },
+      trends: { green: 0, yellow: 0, red: 0 },
+      generatedAt: '',
+    };
+  }
+
+  closeSalesDashboard(): void {
+    this.salesDashboard.show = false;
+    this.salesWatchPickerOpen = false;
+    this.salesWatchSaveMsg = '';
+  }
+
+  openSalesDashboard(board: ReturnType<typeof this.createBoardState>): void {
+    if (board.type !== 'enrollment') return;
+
+    this.closeCompare();
+
+    this.salesDashboard = {
+      ...this.createSalesDashboardState(),
+      show: true,
+      loading: true,
+    };
+    this.salesWatchSaveMsg = '';
+
+    this.http.post<any>('/api/crm-portal/enrollment-board/sales-dashboard', { simple: {} })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => this.applySalesDashboardResponse(res),
+        error: (err) => {
+          this.salesDashboard.loading = false;
+          this.salesDashboard.error =
+            err?.error?.message || 'Failed to load sales dashboard.';
+        },
+      });
+  }
+
+  private applySalesDashboardResponse(res: any): void {
+    if (!res?.success) {
+      this.salesDashboard.loading = false;
+      this.salesDashboard.error = res?.message || 'Sales dashboard failed.';
+      return;
+    }
+    this.salesDashboard = {
+      show: true,
+      loading: false,
+      error: '',
+      green: res.green || [],
+      yellow: res.yellow || [],
+      red: res.red || [],
+      watchedNames: res.watchedNames || [],
+      availableCounsellors: res.availableCounsellors || [],
+      setupRequired: !!res.setupRequired,
+      totals: {
+        counsellors: res.totals?.counsellors || 0,
+        green: res.totals?.green || 0,
+        yellow: res.totals?.yellow || 0,
+        red: res.totals?.red || 0,
+        enrollmentsScanned: res.totals?.enrollmentsScanned || 0,
+        availableCounsellors: res.totals?.availableCounsellors || 0,
+      },
+      trends: {
+        green: res.trends?.green || 0,
+        yellow: res.trends?.yellow || 0,
+        red: res.trends?.red || 0,
+      },
+      generatedAt: res.generatedAt || new Date().toISOString(),
+    };
+    this.salesWatchDraft = [...(res.watchedNames || [])];
+    if (res.setupRequired) {
+      this.salesWatchPickerOpen = true;
+    }
+  }
+
+  toggleSalesWatchPicker(): void {
+    this.salesWatchPickerOpen = !this.salesWatchPickerOpen;
+    if (this.salesWatchPickerOpen) {
+      this.salesWatchDraft = [...this.salesDashboard.watchedNames];
+      this.salesWatchSaveMsg = '';
+      this.salesWatchFilter = '';
+    }
+  }
+
+  get filteredAvailableCounsellors(): string[] {
+    const q = this.salesWatchFilter.trim().toLowerCase();
+    const list = this.salesDashboard.availableCounsellors || [];
+    if (!q) return list;
+    return list.filter(n => n.toLowerCase().includes(q));
+  }
+
+  isCounsellorWatched(name: string): boolean {
+    const key = name.trim().toLowerCase();
+    return this.salesWatchDraft.some(n => n.trim().toLowerCase() === key);
+  }
+
+  toggleWatchCounsellor(name: string): void {
+    const key = name.trim().toLowerCase();
+    const idx = this.salesWatchDraft.findIndex(n => n.trim().toLowerCase() === key);
+    if (idx >= 0) {
+      this.salesWatchDraft = this.salesWatchDraft.filter((_, i) => i !== idx);
+    } else {
+      this.salesWatchDraft = [...this.salesWatchDraft, name];
+    }
+  }
+
+  selectAllVisibleCounsellors(): void {
+    const next = new Set(this.salesWatchDraft.map(n => n.trim().toLowerCase()));
+    const names = [...this.salesWatchDraft];
+    for (const n of this.filteredAvailableCounsellors) {
+      const key = n.trim().toLowerCase();
+      if (!next.has(key)) {
+        next.add(key);
+        names.push(n);
+      }
+    }
+    this.salesWatchDraft = names;
+  }
+
+  clearWatchDraft(): void {
+    this.salesWatchDraft = [];
+  }
+
+  saveSalesWatchlist(board: ReturnType<typeof this.createBoardState>): void {
+    if (this.salesWatchSaving) return;
+    this.salesWatchSaving = true;
+    this.salesWatchSaveMsg = '';
+
+    this.http.put<any>('/api/crm-portal/enrollment-board/sales-dashboard/settings', {
+      counsellorNames: this.salesWatchDraft,
+    })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.salesWatchSaving = false;
+          if (!res?.success) {
+            this.salesWatchSaveMsg = res?.message || 'Failed to save.';
+            return;
+          }
+          this.salesWatchSaveMsg = `Saved ${res.counsellorNames?.length || 0} counsellor(s).`;
+          this.salesWatchPickerOpen = false;
+          this.openSalesDashboard(board);
+        },
+        error: (err) => {
+          this.salesWatchSaving = false;
+          this.salesWatchSaveMsg =
+            err?.error?.message || 'Failed to save counsellor list.';
+        },
+      });
+  }
+
+  formatSalesEnrollmentDate(iso: string | null): string {
+    if (!iso) return '—';
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return iso;
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+
+  salesDaysLabel(days: number | null): string {
+    if (days == null) return 'Inactive';
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 Day Ago';
+    return `${days} Days Ago`;
+  }
+
+  salesTrendLabel(delta: number): string {
+    if (delta > 0) return `+${delta} from last week`;
+    if (delta < 0) return `${delta} from last week`;
+    return 'Same as last week';
+  }
+
+  salesProgressPct(count: number): number {
+    const total = this.salesDashboard.totals.counsellors || 0;
+    if (!total) return 0;
+    return Math.max(0, Math.min(100, Math.round((count / total) * 100)));
+  }
+
+  salesGeneratedLabel(): string {
+    const iso = this.salesDashboard.generatedAt;
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+
   private buildComparePayload(board: ReturnType<typeof this.createBoardState>): object {
     if (board.lastQueryWasAdvanced && board.filterRows.length > 0) {
       const filters = board.filterRows
@@ -1169,6 +1418,8 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       };
       return;
     }
+
+    this.closeSalesDashboard();
 
     const endpoint = board.type === 'enrollment'
       ? '/api/crm-portal/enrollment-board/compare-portal'

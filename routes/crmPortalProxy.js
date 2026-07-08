@@ -9,6 +9,7 @@ const axios = require('axios');
 const { isAdmin } = require('../middleware/auth');
 const { sendManualWhatsappMessage, isWhatsappManualSendEnabled, isWhatsappAutomatedJobsEnabled } = require('../services/whatsappCrmService');
 const { compareBoardWithPortal } = require('../services/crmPortalCompare');
+const { buildSalesDashboard, getWatchlistSettings, saveWatchlistSettings } = require('../services/crmSalesDashboard');
 
 const router = express.Router();
 
@@ -113,6 +114,58 @@ router.post('/enrollment-board/compare-portal', async (req, res) => {
     res.status(err.message?.includes('grouped') ? 400 : 502).json({
       success: false,
       message: err.response?.data?.message || err.message || 'Failed to compare with portal',
+    });
+  }
+});
+
+/** Counsellor activity buckets (green / yellow / red) — filtered by saved watchlist */
+router.post('/enrollment-board/sales-dashboard', async (req, res) => {
+  try {
+    const result = await buildSalesDashboard({
+      simple: req.body?.simple || {},
+      advanced: req.body?.advanced || null,
+      counsellorNames: Array.isArray(req.body?.counsellorNames)
+        ? req.body.counsellorNames
+        : undefined,
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[crm-portal] enrollment sales-dashboard:', err.message);
+    res.status(err.message?.includes('grouped') ? 400 : 502).json({
+      success: false,
+      message: err.response?.data?.message || err.message || 'Failed to build sales dashboard',
+    });
+  }
+});
+
+/** Saved counsellor shortlist for Sales Dashboard */
+router.get('/enrollment-board/sales-dashboard/settings', async (req, res) => {
+  try {
+    const settings = await getWatchlistSettings();
+    res.json({ success: true, ...settings });
+  } catch (err) {
+    console.error('[crm-portal] sales-dashboard settings get:', err.message);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to load sales dashboard settings',
+    });
+  }
+});
+
+router.put('/enrollment-board/sales-dashboard/settings', async (req, res) => {
+  try {
+    const names = Array.isArray(req.body?.counsellorNames)
+      ? req.body.counsellorNames
+      : [];
+    const updatedBy =
+      req.user?.email || req.user?.name || req.user?.username || '';
+    const settings = await saveWatchlistSettings(names, updatedBy);
+    res.json({ success: true, ...settings });
+  } catch (err) {
+    console.error('[crm-portal] sales-dashboard settings put:', err.message);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to save sales dashboard settings',
     });
   }
 });
