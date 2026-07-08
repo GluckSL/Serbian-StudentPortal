@@ -10,6 +10,7 @@ const { isAdmin } = require('../middleware/auth');
 const { sendManualWhatsappMessage, isWhatsappManualSendEnabled, isWhatsappAutomatedJobsEnabled } = require('../services/whatsappCrmService');
 const { compareBoardWithPortal } = require('../services/crmPortalCompare');
 const { buildSalesDashboard, getWatchlistSettings, saveWatchlistSettings } = require('../services/crmSalesDashboard');
+const { sendSalesDashboardToChat } = require('../services/crmSalesChatNotify');
 
 const router = express.Router();
 
@@ -166,6 +167,22 @@ router.put('/enrollment-board/sales-dashboard/settings', async (req, res) => {
     res.status(500).json({
       success: false,
       message: err.message || 'Failed to save sales dashboard settings',
+    });
+  }
+});
+
+/** Manually send Sales Dashboard snapshot to Google Chat */
+router.post('/enrollment-board/sales-dashboard/send-to-chat', async (req, res) => {
+  try {
+    const result = await sendSalesDashboardToChat({
+      imagePngBase64: req.body?.imagePngBase64 || null,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[crm-portal] send-to-chat:', err.message);
+    res.status(502).json({
+      success: false,
+      message: err.response?.data?.message || err.message || 'Failed to send to Google Chat',
     });
   }
 });

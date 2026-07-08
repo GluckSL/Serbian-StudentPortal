@@ -203,17 +203,19 @@ function bucketCard(card) {
 }
 
 /**
- * @param {{ simple?: object, advanced?: object | null, counsellorNames?: string[] | null }} [query]
+ * @param {{ simple?: object, advanced?: object | null, counsellorNames?: string[] | null, crmRows?: object[] }} [query]
  *   If counsellorNames is provided, use that list (preview). Otherwise load saved DB watchlist.
+ *   Pass crmRows to reuse a CRM pull from the same run (e.g. 7 PM cron).
  */
 async function buildSalesDashboard(query = {}) {
   const simple = query.simple || {};
   const advanced = query.advanced || null;
 
-  const [rows, settings] = await Promise.all([
-    fetchAllCrmRecords('enrollment', { simple, advanced }),
-    getWatchlistSettings(),
-  ]);
+  const rowsPromise = Array.isArray(query.crmRows)
+    ? Promise.resolve(query.crmRows)
+    : fetchAllCrmRecords('enrollment', { simple, advanced });
+
+  const [rows, settings] = await Promise.all([rowsPromise, getWatchlistSettings()]);
 
   const watchNames =
     query.counsellorNames != null
