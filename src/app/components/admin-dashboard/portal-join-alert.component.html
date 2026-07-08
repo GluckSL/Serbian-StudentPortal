@@ -1,0 +1,167 @@
+<div class="pja">
+
+  <div class="pja-header">
+    <div class="pja-header__left">
+      <button class="pja-back" type="button" (click)="goBack()">
+        <i class="fa fa-arrow-left"></i> Zoom Reports
+      </button>
+      <div class="pja-header__title-row">
+        <i class="fa fa-triangle-exclamation pja-header__icon"></i>
+        <div>
+          <h2 class="pja-header__title">Portal Join Alert</h2>
+          <p class="pja-header__sub">
+            Students who clicked Join from the portal but are still marked <strong>Absent</strong>.
+            Click <em>Fix</em> to open the attendance page and map this student.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="pja-header__actions">
+      <select class="pja-select" [(ngModel)]="daysFilter" (ngModelChange)="onDaysChange()">
+        <option [ngValue]="7">Last 7 days</option>
+        <option [ngValue]="14">Last 14 days</option>
+        <option [ngValue]="30">Last 30 days</option>
+        <option [ngValue]="60">Last 60 days</option>
+        <option [ngValue]="90">Last 90 days</option>
+      </select>
+      <button class="pja-btn pja-btn--ghost" type="button" (click)="load()" [disabled]="loading" title="Refresh">
+        <i class="fa fa-rotate-right" [class.fa-spin]="loading"></i> Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="pja-summary" *ngIf="!loading && !error">
+    <div class="pja-summary__card">
+      <div class="pja-summary__val">{{ totalCount }}</div>
+      <div class="pja-summary__lbl">Unresolved Cases</div>
+    </div>
+  </div>
+
+  <div class="pja-filters" *ngIf="!loading">
+    <div class="pja-search-wrap">
+      <i class="fa fa-search"></i>
+      <input
+        class="pja-search"
+        type="search"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onFilterChange()"
+        placeholder="Search student, email, class, or zoom name…">
+    </div>
+    <select class="pja-select" [(ngModel)]="batchFilter" (ngModelChange)="onFilterChange()">
+      <option value="all">All Batches</option>
+      <option *ngFor="let b of batchOptions" [value]="b">Batch {{ b }}</option>
+    </select>
+    <select class="pja-select" [(ngModel)]="levelFilter" (ngModelChange)="onFilterChange()">
+      <option value="all">All Levels</option>
+      <option *ngFor="let lvl of levelOptions" [value]="lvl">{{ lvl }}</option>
+    </select>
+    <button class="pja-btn pja-btn--ghost" type="button" (click)="clearFilters()" *ngIf="searchQuery || batchFilter !== 'all' || levelFilter !== 'all'">
+      Clear filters
+    </button>
+  </div>
+
+  <div class="pja-card">
+  <div *ngIf="loading" class="pja-table-wrap" aria-busy="true" aria-label="Loading portal join alerts">
+    <p class="pja-loading-note">
+      <i class="fa fa-circle-notch fa-spin"></i>
+      Loading cases&hellip;
+    </p>
+    <table class="pja-table pja-table--skeleton">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>Batch</th>
+          <th>Level</th>
+          <th>Class Title</th>
+          <th>Date &amp; Time</th>
+          <th>Clicks</th>
+          <th>Portal Zoom Name</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let _ of skeletonRows" class="pja-row--skeleton">
+          <td><div class="pja-skeleton pja-skeleton--name"></div><div class="pja-skeleton pja-skeleton--email"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--chip"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--chip"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--topic"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--date"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--round"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--md"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--btn"></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+    <div *ngIf="!loading && error" class="pja-error">
+      <i class="fa fa-circle-exclamation"></i> {{ error }}
+      <button class="pja-btn pja-btn--primary" type="button" (click)="load()">Retry</button>
+    </div>
+
+    <div *ngIf="!loading && !error && totalCount === 0" class="pja-state pja-state--success">
+      <i class="fa fa-circle-check"></i>
+      <p>No unresolved portal-join absences match your filters.</p>
+    </div>
+
+    <div class="pja-table-wrap" *ngIf="!loading && !error && list.length > 0">
+      <table class="pja-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th>Class Title</th>
+            <th>Date &amp; Time</th>
+            <th>Clicks</th>
+            <th>Portal Zoom Name</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of list">
+            <td>
+              <div class="pja-student-name">{{ r.studentName }}</div>
+              <div class="pja-student-email">{{ r.studentEmail }}</div>
+            </td>
+            <td><span class="pja-badge">{{ r.batch || '—' }}</span></td>
+            <td>
+              <span class="pja-level" *ngIf="r.batchLevel; else noLevel">{{ r.batchLevel }}</span>
+              <ng-template #noLevel>—</ng-template>
+            </td>
+            <td class="pja-topic">{{ r.classTopic || '—' }}</td>
+            <td class="pja-date">
+              <span>{{ r.classDate | date:'MMM d, y' }}</span>
+              <span class="pja-time">{{ r.classDate | date:'h:mm a' }}</span>
+            </td>
+            <td class="pja-clicks">
+              <span class="pja-click-badge">{{ r.portalClickCount }}</span>
+            </td>
+            <td class="pja-zoom-name">{{ r.lastZoomDisplayName || '—' }}</td>
+            <td>
+              <button class="pja-btn pja-btn--primary pja-btn--sm" type="button" (click)="openFix(r)" title="Open attendance page in a new tab to manually map this student">
+                <i class="fa fa-arrow-up-right-from-square"></i> Fix
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pja-pagination" *ngIf="!loading && !error && totalCount > 0">
+      <span class="pja-pagination__info">
+        Showing {{ pageStart }}–{{ pageEnd }} of {{ totalCount }}
+      </span>
+      <div class="pja-pagination__controls">
+        <button class="pja-page-btn" type="button" (click)="prevPage()" [disabled]="currentPage <= 1">
+          <i class="fa fa-chevron-left"></i>
+        </button>
+        <span class="pja-pagination__page">Page {{ currentPage }} / {{ totalPages }}</span>
+        <button class="pja-page-btn" type="button" (click)="nextPage()" [disabled]="currentPage >= totalPages">
+          <i class="fa fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

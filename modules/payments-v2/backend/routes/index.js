@@ -35,6 +35,9 @@ router.put('/finance-dashboard/language-batches', requireFinanceAdmin, financeDa
 router.put('/finance-dashboard/batch-commencement-date', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchCommencementDate);
 router.put('/finance-dashboard/batch-remark', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchRemark);
 router.put('/finance-dashboard/batch-commencement-amount', requireFinanceAdmin, financeDashboardSettingsCtrl.updateBatchCommencementAmount);
+router.put('/finance-dashboard/pending-exclusion/batch', requireFinanceAdmin, financeDashboardSettingsCtrl.updatePendingBatchExclusion);
+router.put('/finance-dashboard/pending-exclusion/student', requireFinanceAdmin, financeDashboardSettingsCtrl.updatePendingStudentExclusion);
+router.put('/finance-dashboard/pending-exclusion/students', requireFinanceAdmin, financeDashboardSettingsCtrl.updateExcludedStudentsForBatch);
 router.post('/finance-dashboard/trigger-report/:type', requireFinanceAdmin, financeDashboardSettingsCtrl.triggerReport);
 
 // ─── Admin: Silver Payment list ───────────────────────────────────────────────

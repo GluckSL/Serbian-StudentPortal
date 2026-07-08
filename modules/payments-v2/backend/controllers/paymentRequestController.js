@@ -1673,7 +1673,7 @@ const getCohortStudentsPaymentDetail = async (req, res) => {
       }
     }
 
-    const students = await User.find(levelOptionsQuery)
+    const students = await User.find(userQuery)
       .select('name email batch level phoneNumber enrollmentDate createdAt currentCourseDay batchStartedOn courseStartDates studentStatus subscription')
       .sort({ name: 1 })
       .lean();

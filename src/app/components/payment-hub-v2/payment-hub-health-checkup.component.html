@@ -10,15 +10,26 @@
         <div>
           <h1 class="phc-title">Payment Health Checkup</h1>
           <p class="phc-subtitle">
-            Pending balance urgency for students in batches 35 to 46
+            Pending balance urgency for {{ statusFilterLabel }} students in batches 35 to 46
           </p>
         </div>
       </div>
       <div class="phc-header-right">
+        <div class="phc-status-filter">
+          <label class="phc-status-filter__label" for="phc-status-select">Status</label>
+          <select
+            id="phc-status-select"
+            class="phc-status-filter__select"
+            [(ngModel)]="statusFilter"
+            (ngModelChange)="onStatusChange()"
+          >
+            <option *ngFor="let opt of statusOptions" [ngValue]="opt.value">{{ opt.label }}</option>
+          </select>
+        </div>
         <div class="phc-header-total">
           <span class="phc-header-total__count">{{ loading ? '…' : totalCount }}</span>
           <span class="phc-header-total__label">students</span>
-          <span class="phc-header-total__hint">Batches 35–46</span>
+          <span class="phc-header-total__hint">Batches 35–46 · {{ statusFilterLabel }}</span>
         </div>
         <div class="phc-header-legend">
           <span class="phc-legend-item phc-legend-item--green">
@@ -56,7 +67,7 @@
           </div>
           <div class="phc-card__count">{{ totalCount }}</div>
           <div class="phc-card__label">All Students</div>
-          <div class="phc-card__hint">All students · batches 35–46</div>
+          <div class="phc-card__hint">All {{ statusFilterLabel }} · batches 35–46</div>
         </button>
 
         <!-- Full Paid -->
@@ -344,7 +355,7 @@
     <ng-template #loadingTpl>
       <div class="phc-loading">
         <mat-spinner diameter="48"></mat-spinner>
-        <p>Loading health data for batches 35–46…</p>
+        <p>Loading health data for batches 35–46 ({{ statusFilterLabel }})…</p>
       </div>
     </ng-template>
   </div>

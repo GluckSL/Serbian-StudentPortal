@@ -2,14 +2,13 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { HttpClient, HttpParams } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { forkJoin, Observable, of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
 import { BatchLevelSlotTotals, BatchStudentPaymentRow, LanguageLevelSlot, PaymentHubApiService } from './payment-hub-api.service';
+import { formatStudentStatusLabel } from './payment-hub-finance-cohort.util';
 import { levelForJourneyDay } from './payment-journey-metrics.util';
 import { PaymentCurrencyTotalsComponent } from './payment-currency-totals.component';
 import { PaymentCurrencyPendingTotalsComponent } from './payment-currency-pending-totals.component';
@@ -40,21 +39,14 @@ export type HealthFilter = 'all_students' | 'full_paid' | 'pending' | 'green' | 
 
 const HEALTH_CHECKUP_PAGE_SIZE = 50;
 
-interface AdminStudentRow {
-  _id: string;
-  name: string;
-  email?: string;
-  batch?: string;
-  level?: string;
-  studentStatus?: string;
-  currentCourseDay?: number | null;
-}
+export type HealthStatusFilter = 'ONGOING' | 'UNCERTAIN' | 'WITHDREW' | 'ALL';
 
-interface AdminStudentListResponse {
-  success: boolean;
-  data?: AdminStudentRow[];
-  pagination?: { total: number; page: number; limit: number; pages: number };
-}
+const HEALTH_STATUS_OPTIONS: { value: HealthStatusFilter; label: string }[] = [
+  { value: 'ONGOING', label: 'Ongoing' },
+  { value: 'UNCERTAIN', label: 'Uncertain' },
+  { value: 'WITHDREW', label: 'Withdrew' },
+  { value: 'ALL', label: 'All statuses' },
+];
 
 export interface HealthStudentRow extends BatchStudentPaymentRow {
   healthColor: HealthColor | null;
@@ -106,35 +98,28 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
   exporting = false;
   allRows: HealthStudentRow[] = [];
   activeFilter: HealthFilter = 'all_students';
+  statusFilter: HealthStatusFilter = 'ONGOING';
   searchQuery = '';
   page = 1;
   readonly pageSize = HEALTH_CHECKUP_PAGE_SIZE;
 
   readonly batches = HEALTH_CHECKUP_BATCHES;
+  readonly statusOptions = HEALTH_STATUS_OPTIONS;
 
-  constructor(
-    private readonly api: PaymentHubApiService,
-    private readonly http: HttpClient,
-  ) {}
+  constructor(private readonly api: PaymentHubApiService) {}
 
   ngOnInit(): void {
     this.load();
   }
 
-  /**
-   * Roster from /admin/students (same filters as Students page — batches 35–46, all statuses).
-   * Payment rows merged by student id for amounts.
-   */
+  /** Payment rows for batches 35–46, scoped by the selected student status. */
   private load(): void {
     this.loading = true;
-    forkJoin({
-      roster: this.fetchAllAdminStudents(),
-      payments: this.fetchAllPaymentRows(),
-    }).subscribe({
-      next: ({ roster, payments }) => {
-        const paymentById = new Map(payments.map((p) => [String(p.studentId), p]));
-        this.allRows = roster
-          .map((admin) => this.mergeAdminWithPayment(admin, paymentById.get(String(admin._id))))
+    const status = this.statusFilter === 'ALL' ? undefined : this.statusFilter;
+    this.fetchPaymentRows(status).subscribe({
+      next: (payments) => {
+        this.allRows = payments
+          .map((row) => this.toHealthRow(row))
           .sort((a, b) => a.name.localeCompare(b.name));
         this.loading = false;
       },
@@ -145,35 +130,13 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
     });
   }
 
-  private fetchAllAdminStudents(): Observable<AdminStudentRow[]> {
-    const loadPage = (page: number, acc: AdminStudentRow[]): Observable<AdminStudentRow[]> => {
-      const params = new HttpParams()
-        .set('page', String(page))
-        .set('limit', '100')
-        .set('batch', HEALTH_CHECKUP_BATCHES.join(','));
-      return this.http
-        .get<AdminStudentListResponse>(`${environment.apiUrl}/admin/students`, {
-          params,
-          withCredentials: true,
-        })
-        .pipe(
-          switchMap((res) => {
-            const combined = [...acc, ...(res.data ?? [])];
-            const pages = res.pagination?.pages ?? 1;
-            if (page < pages) return loadPage(page + 1, combined);
-            return of(combined);
-          }),
-        );
-    };
-    return loadPage(1, []);
-  }
-
-  private fetchAllPaymentRows(): Observable<BatchStudentPaymentRow[]> {
+  private fetchPaymentRows(status?: string): Observable<BatchStudentPaymentRow[]> {
     const loadPage = (page: number, acc: BatchStudentPaymentRow[]): Observable<BatchStudentPaymentRow[]> => {
       return this.api
-        .getCohortStudentsPaymentDetail('all', undefined, {
+        .getCohortStudentsPaymentDetail('all', status, {
           limit: 300,
           page,
+          batches: HEALTH_CHECKUP_BATCHES.join(','),
         })
         .pipe(
           switchMap((res) => {
@@ -187,56 +150,15 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
     return loadPage(1, []);
   }
 
-  private mergeAdminWithPayment(
-    admin: AdminStudentRow,
-    payment?: BatchStudentPaymentRow,
-  ): HealthStudentRow {
-    const base = payment ?? this.emptyPaymentRow(admin);
-    const merged: BatchStudentPaymentRow = {
-      ...base,
-      studentId: admin._id,
-      name: admin.name || base.name,
-      email: admin.email || base.email || '',
-      batch: admin.batch || base.batch,
-      level: admin.level || base.level || '—',
-      studentStatus: admin.studentStatus || base.studentStatus,
-      currentJourneyDay:
-        admin.currentCourseDay != null
-          ? Math.min(200, Math.max(1, Math.floor(Number(admin.currentCourseDay))))
-          : base.currentJourneyDay,
-    };
-    return this.toHealthRow(merged);
+  onStatusChange(): void {
+    this.page = 1;
+    this.activeFilter = 'all_students';
+    this.load();
   }
 
-  private emptyPaymentRow(admin: AdminStudentRow): BatchStudentPaymentRow {
-    const zero = { LKR: 0, INR: 0, USD: 0 };
-    return {
-      studentId: admin._id,
-      name: admin.name,
-      email: admin.email ?? '',
-      batch: admin.batch,
-      level: admin.level ?? '—',
-      studentStatus: admin.studentStatus,
-      currentJourneyDay: admin.currentCourseDay ?? null,
-      totalPaid: 0,
-      totalPaidLKR: 0,
-      totalPaidINR: 0,
-      totalPaidUSD: 0,
-      pendingApprovalAmount: 0,
-      pendingApprovalAmountLKR: 0,
-      pendingApprovalAmountINR: 0,
-      pendingApprovalAmountUSD: 0,
-      overdueAmount: 0,
-      overdueAmountLKR: 0,
-      overdueAmountINR: 0,
-      overdueAmountUSD: 0,
-      overallStatus: 'NO_REQUESTS',
-      levelPaid: {},
-      docsPaidByCurrency: { ...zero },
-      visaPaidByCurrency: { ...zero },
-      otherPaidByCurrency: { ...zero },
-      openRequestCount: 0,
-    };
+  get statusFilterLabel(): string {
+    if (this.statusFilter === 'ALL') return 'all statuses';
+    return formatStudentStatusLabel(this.statusFilter).toLowerCase();
   }
 
   private toHealthRow(s: BatchStudentPaymentRow): HealthStudentRow {
@@ -582,8 +504,9 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
         }),
       ];
       const filterLabel = this.activeFilter === 'all_students' ? 'all' : this.activeFilter;
+      const statusLabel = this.statusFilter === 'ALL' ? 'all-statuses' : this.statusFilter.toLowerCase();
       const date = new Date().toISOString().slice(0, 10);
-      downloadPaymentHubCsv(`health-checkup-batches-35-46-${filterLabel}-${date}`, lines.join('\n'));
+      downloadPaymentHubCsv(`health-checkup-batches-35-46-${statusLabel}-${filterLabel}-${date}`, lines.join('\n'));
     } finally {
       this.exporting = false;
     }

@@ -70,6 +70,39 @@
   margin-left: auto;
 }
 
+.phc-status-filter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+
+  &__label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__select {
+    min-width: 160px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 23, 42, 0.65);
+    color: #f8fafc;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:focus {
+      outline: none;
+      border-color: rgba(74, 222, 128, 0.45);
+      box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.15);
+    }
+  }
+}
+
 .phc-header-total {
   display: flex;
   flex-direction: column;

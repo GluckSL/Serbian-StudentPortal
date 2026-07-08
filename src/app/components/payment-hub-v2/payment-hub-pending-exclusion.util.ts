@@ -9,6 +9,32 @@ export interface PendingCurrencyTotals {
 /** Per-student excluded pending amounts for one batch (studentId → totals). */
 export type ExcludedStudentPendingMap = Record<string, PendingCurrencyTotals>;
 
+export type ExcludedStudentPendingInput = Record<string, Partial<PendingCurrencyTotals>>;
+
+export function normalizeExcludedStudentMap(raw: ExcludedStudentPendingInput | null | undefined): ExcludedStudentPendingMap {
+  const out: ExcludedStudentPendingMap = {};
+  for (const [id, val] of Object.entries(raw || {})) {
+    if (!id) continue;
+    out[id] = {
+      lkr: Number(val?.lkr) || 0,
+      inr: Number(val?.inr) || 0,
+      usd: Number(val?.usd) || 0,
+    };
+  }
+  return out;
+}
+
+export function normalizeExcludedStudentPendingByBatch(
+  raw: Record<string, ExcludedStudentPendingInput> | null | undefined,
+): Record<string, ExcludedStudentPendingMap> {
+  const out: Record<string, ExcludedStudentPendingMap> = {};
+  for (const [batch, students] of Object.entries(raw || {})) {
+    const normalized = normalizeExcludedStudentMap(students);
+    if (Object.keys(normalized).length) out[batch] = normalized;
+  }
+  return out;
+}
+
 export interface ExcludedBatchInfo {
   batchLabel: string;
   studentIds: Set<string>;

@@ -14,19 +14,6 @@ import { Router } from '@angular/router';
 import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 
-interface PortalJoinAbsentRecord {
-  studentId: string;
-  studentName: string;
-  studentEmail: string;
-  batch: string;
-  classTopic: string;
-  classDate: string;
-  classDuration: number;
-  meetingId: string;
-  portalClickCount: number;
-  lastZoomDisplayName: string;
-}
-
 interface StudentAttRecord {
   studentId: string;
   name: string;
@@ -93,13 +80,6 @@ export class ZoomReportsComponent implements OnInit {
   stats = { totalMeetings: 0, totalStudents: 0, avgAttendance: 0, totalDuration: 0 };
 
   isTeacherRole = false;
-
-  // Portal-join-but-absent alert panel
-  showPortalJoinPanel = false;
-  portalJoinAbsentList: PortalJoinAbsentRecord[] = [];
-  portalJoinAbsentLoading = false;
-  portalJoinAbsentError = '';
-  portalJoinDaysFilter = 30;
 
   /** Batch names from Journey (`/batch-journey`), same source as Journey management */
   journeyBatchNames: string[] = [];
@@ -424,38 +404,10 @@ export class ZoomReportsComponent implements OnInit {
   }
 
   openPortalJoinAlert(): void {
-    this.showPortalJoinPanel = true;
-    this.loadPortalJoinAbsent();
-  }
-
-  closePortalJoinPanel(): void {
-    this.showPortalJoinPanel = false;
-  }
-
-  loadPortalJoinAbsent(): void {
-    this.portalJoinAbsentLoading = true;
-    this.portalJoinAbsentError = '';
-    this.zoomService.getPortalJoinAbsentStudents(this.portalJoinDaysFilter).subscribe({
-      next: (res) => {
-        this.portalJoinAbsentList = res?.data || [];
-        this.portalJoinAbsentLoading = false;
-      },
-      error: () => {
-        this.portalJoinAbsentError = 'Failed to load data. Please try again.';
-        this.portalJoinAbsentLoading = false;
-      }
-    });
-  }
-
-  openAttendanceForMeeting(meetingId: string): void {
     const url = this.router.serializeUrl(
-      this.router.createUrlTree(['/teacher/meetings', meetingId, 'attendance'])
+      this.router.createUrlTree(['/admin/portal-join-alert'])
     );
     window.open(url, '_blank', 'noopener,noreferrer');
-  }
-
-  get portalJoinAbsentCount(): number {
-    return this.portalJoinAbsentList.length;
   }
 
   viewAttendance(id: string): void {

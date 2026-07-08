@@ -239,6 +239,7 @@ export const routes: Routes = [
   // Admin Zoom Reports
   { path: 'admin/zoom-reports', loadComponent: () => import('./components/admin-dashboard/zoom-reports.component').then(m => m.ZoomReportsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
   { path: 'admin/attendance-dashboard', loadComponent: () => import('./components/admin-dashboard/attendance-dashboard.component').then(m => m.AttendanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER', 'SUB_ADMIN'] } },
+  { path: 'admin/portal-join-alert', loadComponent: () => import('./components/admin-dashboard/portal-join-alert.component').then(m => m.PortalJoinAlertComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
 
   // Class Recordings — Teacher/Admin manage

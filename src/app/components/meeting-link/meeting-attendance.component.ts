@@ -30,6 +30,29 @@ import { ZoomService } from '../../services/zoom.service';
         </div>
       </div>
 
+      <!-- Portal Join Fix banner (opened from Zoom Reports alert) -->
+      <div *ngIf="portalFixContext" class="portal-fix-banner">
+        <mat-icon>touch_app</mat-icon>
+        <div class="portal-fix-banner__body">
+          <strong>Portal Join Fix</strong>
+          <span>
+            <strong>{{ portalFixContext.studentName }}</strong> clicked Join from the portal but is still marked
+            <strong>Absent</strong>.
+            <ng-container *ngIf="portalFixContext.zoomName">
+              Their last Zoom display name was <em>{{ portalFixContext.zoomName }}</em> —
+              use <strong>All Zoom Participants</strong> to map, or click <strong>Mark</strong> on their row.
+            </ng-container>
+            <ng-container *ngIf="!portalFixContext.zoomName">
+              Use <strong>All Zoom Participants</strong> to map them, or click <strong>Mark</strong> on their row below.
+            </ng-container>
+          </span>
+        </div>
+        <button mat-stroked-button class="portal-fix-banner__back" (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon>
+          Back to Reports
+        </button>
+      </div>
+
       <!-- Loading State -->
       <div *ngIf="loading" class="loading-container">
         <div class="loading-spinner"></div>
@@ -356,7 +379,10 @@ import { ZoomService } from '../../services/zoom.service';
                 </ng-container>
 
                 <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="data-row"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+                    class="data-row"
+                    [class.row-highlight]="isHighlightedStudent(row)"
+                    [attr.id]="isHighlightedStudent(row) ? 'portal-fix-student-row' : null"></tr>
               </table>
               </div>
             </div>
@@ -552,7 +578,10 @@ import { ZoomService } from '../../services/zoom.service';
                 </ng-container>
 
                 <tr mat-header-row *matHeaderRowDef="participantColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: participantColumns;" class="data-row"></tr>
+                <tr mat-row *matRowDef="let row; columns: participantColumns;"
+                    class="data-row"
+                    [class.row-highlight]="isHighlightedParticipant(row)"
+                    [attr.id]="isHighlightedParticipant(row) ? 'portal-fix-participant-row' : null"></tr>
               </table>
               </div>
             </div>
@@ -1047,6 +1076,53 @@ import { ZoomService } from '../../services/zoom.service';
       font-size: 12px;
     }
 
+    .portal-fix-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+      border: 1px solid #fdba74;
+      border-radius: 12px;
+      color: #7c2d12;
+    }
+
+    .portal-fix-banner mat-icon {
+      color: #ea580c;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .portal-fix-banner__body {
+      flex: 1;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .portal-fix-banner__body strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: #9a3412;
+    }
+
+    .portal-fix-banner__back {
+      flex-shrink: 0;
+      align-self: center;
+      background: #fff !important;
+    }
+
+    .row-highlight {
+      background: #fff7ed !important;
+      outline: 2px solid #f97316;
+      outline-offset: -2px;
+    }
+
+    .row-highlight td {
+      background: transparent !important;
+    }
+
     .chip-unmapped {
       background-color: #fef3c7 !important;
       color: #b45309 !important;
@@ -1494,6 +1570,12 @@ export class MeetingAttendanceComponent implements OnInit {
   loading: boolean = true;
   error: string = '';
   selectedTab: number = 0;
+  portalFixContext: {
+    studentEmail: string;
+    studentName: string;
+    zoomName: string;
+  } | null = null;
+  private highlightParticipantName = '';
   
   displayedColumns: string[] = ['name', 'email', 'status', 'confidence', 'zoomName', 'joinTime', 'leaveTime', 'duration', 'manualMark'];
   participantColumns: string[] = ['pName', 'pEmail', 'pJoinTime', 'pLeaveTime', 'pSessions', 'pDuration', 'pMapped', 'pAction'];
@@ -1526,9 +1608,27 @@ export class MeetingAttendanceComponent implements OnInit {
 
   ngOnInit(): void {
     this.meetingId = this.route.snapshot.paramMap.get('id') || '';
+    this.readPortalFixQueryParams();
     if (this.meetingId) {
       this.loadAttendance();
     }
+  }
+
+  private readPortalFixQueryParams(): void {
+    const params = this.route.snapshot.queryParamMap;
+    if (params.get('from') !== 'portal-join-alert') return;
+
+    const studentEmail = (params.get('studentEmail') || '').trim().toLowerCase();
+    const studentName = (params.get('studentName') || '').trim();
+    const zoomName = (params.get('zoomName') || '').trim();
+    if (!studentEmail && !studentName) return;
+
+    this.portalFixContext = {
+      studentEmail,
+      studentName,
+      zoomName
+    };
+    this.highlightParticipantName = zoomName;
   }
 
   loadAttendance(): void {
@@ -1540,6 +1640,7 @@ export class MeetingAttendanceComponent implements OnInit {
         if (response.success) {
           this.attendanceData = response.data;
           console.log('Attendance data loaded:', this.attendanceData);
+          this.applyPortalJoinFixFocus();
         } else {
           this.error = response.message || 'Failed to load attendance data';
         }
@@ -1861,7 +1962,77 @@ export class MeetingAttendanceComponent implements OnInit {
   }
 
   goBack(): void {
+    if (this.portalFixContext) {
+      this.router.navigate(['/admin/zoom-reports']);
+      return;
+    }
     this.router.navigate(['/teacher/meetings', this.meetingId]);
+  }
+
+  private applyPortalJoinFixFocus(): void {
+    if (!this.portalFixContext || !this.attendanceData) return;
+
+    const email = this.portalFixContext.studentEmail;
+    const studentRow = (this.attendanceData.attendance || []).find((r: any) =>
+      (r.email || '').toLowerCase() === email
+    );
+
+    const participants: any[] = this.attendanceData.allParticipants || [];
+    const zoomHint = this.highlightParticipantName || this.portalFixContext.zoomName;
+    let participantIndex = -1;
+
+    if (zoomHint) {
+      const hint = zoomHint.toLowerCase();
+      participantIndex = participants.findIndex((p: any) =>
+        !p.isMapped && ((p.name || '').toLowerCase().includes(hint) || hint.includes((p.name || '').toLowerCase()))
+      );
+      if (participantIndex < 0) {
+        participantIndex = participants.findIndex((p: any) =>
+          !p.isMapped && this.namesAreSimilar(p.name, zoomHint)
+        );
+      }
+    }
+
+    if (participantIndex >= 0 && studentRow && !this.isAttendedByDuration(studentRow)) {
+      this.selectedTab = 2;
+      this.startMap(participantIndex, participants[participantIndex]);
+      this.mapStudentEmail = this.portalFixContext.studentEmail;
+      this.scrollToElement('portal-fix-participant-row');
+      return;
+    }
+
+    this.selectedTab = 0;
+    this.scrollToElement('portal-fix-student-row');
+  }
+
+  private namesAreSimilar(a: string, b: string): boolean {
+    const na = (a || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const nb = (b || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!na || !nb) return false;
+    if (na === nb || na.includes(nb) || nb.includes(na)) return true;
+    const aParts = na.split(' ');
+    const bParts = nb.split(' ');
+    const shared = aParts.filter((p) => bParts.some((q) => q === p || q.includes(p) || p.includes(q)));
+    return shared.length >= Math.min(aParts.length, bParts.length, 2);
+  }
+
+  private scrollToElement(id: string): void {
+    setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 350);
+  }
+
+  isHighlightedStudent(record: any): boolean {
+    if (!this.portalFixContext) return false;
+    return (record?.email || '').toLowerCase() === this.portalFixContext.studentEmail;
+  }
+
+  isHighlightedParticipant(participant: any): boolean {
+    if (!this.highlightParticipantName) return false;
+    const name = (participant?.name || '').toLowerCase();
+    const hint = this.highlightParticipantName.toLowerCase();
+    return name === hint || name.includes(hint) || hint.includes(name) ||
+      this.namesAreSimilar(participant?.name, this.highlightParticipantName);
   }
 
   reviewAttendance(): void {
