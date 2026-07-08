@@ -1,10 +1,13 @@
 import { Injectable } from '@angular/core';
-import { map, Observable, of, tap } from 'rxjs';
+import { map as rxMap, Observable, of, tap } from 'rxjs';
 import { PaymentHubApiService } from './payment-hub-api.service';
 import {
   ExcludedBatchInfo,
+  ExcludedStudentPendingInput,
   ExcludedStudentPendingMap,
   EXCL_STUDENTS_KEY_PREFIX,
+  normalizeExcludedStudentMap,
+  normalizeExcludedStudentPendingByBatch,
   PendingCurrencyTotals,
 } from './payment-hub-pending-exclusion.util';
 
@@ -37,20 +40,18 @@ export class PaymentHubPendingExclusionService {
         );
         this.loaded = true;
       }),
-      map(() => undefined),
+      rxMap(() => undefined),
     );
   }
 
   hydrateFromServer(
     batches: string[],
-    studentPending: Record<string, ExcludedStudentPendingMap>,
+    studentPending: Record<string, ExcludedStudentPendingInput>,
   ): void {
     this.excludedPendingBatches = new Set(batches || []);
     this.excludedStudentByBatchLabel = new Map();
-    for (const [batch, map] of Object.entries(studentPending || {})) {
-      if (batch && map && typeof map === 'object' && Object.keys(map).length) {
-        this.excludedStudentByBatchLabel.set(batch, { ...map });
-      }
+    for (const [batch, studentMap] of Object.entries(normalizeExcludedStudentPendingByBatch(studentPending))) {
+      this.excludedStudentByBatchLabel.set(batch, studentMap);
     }
     this.migrateLocalStorageIfNeeded();
   }
@@ -82,7 +83,7 @@ export class PaymentHubPendingExclusionService {
           this.excludedPendingBatches = new Set(this.excludedPendingBatches);
         },
       }),
-      map(() => exclude),
+      rxMap(() => exclude),
     );
   }
 
@@ -91,8 +92,8 @@ export class PaymentHubPendingExclusionService {
   }
 
   isStudentPendingExcluded(batch: string, studentId: string): boolean {
-    const map = this.excludedStudentByBatchLabel.get(batch) || {};
-    return studentId in map;
+    const studentMap = this.excludedStudentByBatchLabel.get(batch) || {};
+    return studentId in studentMap;
   }
 
   loadExcludedStudentsForBatch(batch: string): ExcludedStudentPendingMap {
@@ -101,8 +102,8 @@ export class PaymentHubPendingExclusionService {
 
   loadExcludedStudentsByBatch(): Map<string, ExcludedBatchInfo> {
     const result = new Map<string, ExcludedBatchInfo>();
-    for (const [batchLabel, map] of this.excludedStudentByBatchLabel) {
-      const studentIds = new Set(Object.keys(map));
+    for (const [batchLabel, studentMap] of this.excludedStudentByBatchLabel) {
+      const studentIds = new Set(Object.keys(studentMap));
       if (studentIds.size) {
         result.set(normBatchKey(batchLabel), { batchLabel, studentIds });
       }
@@ -111,8 +112,8 @@ export class PaymentHubPendingExclusionService {
   }
 
   sumExcludedPendingForBatch(batch: string): PendingCurrencyTotals {
-    const map = this.excludedStudentByBatchLabel.get(batch) || {};
-    return Object.values(map).reduce(
+    const studentMap = this.excludedStudentByBatchLabel.get(batch) || {};
+    return Object.values(studentMap).reduce(
       (acc, t) => ({
         lkr: acc.lkr + (t.lkr || 0),
         inr: acc.inr + (t.inr || 0),
@@ -138,24 +139,23 @@ export class PaymentHubPendingExclusionService {
     studentId: string,
     pending: PendingCurrencyTotals,
   ): Observable<boolean> {
-    const map = { ...(this.excludedStudentByBatchLabel.get(batch) || {}) };
-    const wasExcluded = studentId in map;
+    const studentMap = { ...(this.excludedStudentByBatchLabel.get(batch) || {}) };
+    const wasExcluded = studentId in studentMap;
     if (wasExcluded) {
-      delete map[studentId];
+      delete studentMap[studentId];
     } else {
-      map[studentId] = {
+      studentMap[studentId] = {
         lkr: pending.lkr || 0,
         inr: pending.inr || 0,
         usd: pending.usd || 0,
       };
     }
-    this.setBatchStudentMap(batch, map);
+    this.setBatchStudentMap(batch, studentMap);
 
     return this.api.updateFinancePendingStudentExclusion(batch, studentId, pending).pipe(
       tap({
         next: (res) => {
-          const students = res.data?.students || {};
-          this.setBatchStudentMap(batch, students);
+          this.setBatchStudentMap(batch, normalizeExcludedStudentMap(res.data?.students));
         },
         error: () => {
           const revert = { ...(this.excludedStudentByBatchLabel.get(batch) || {}) };
@@ -171,27 +171,27 @@ export class PaymentHubPendingExclusionService {
           this.setBatchStudentMap(batch, revert);
         },
       }),
-      map(() => !wasExcluded),
+      rxMap(() => !wasExcluded),
     );
   }
 
-  saveExcludedStudentsForBatch(batch: string, map: ExcludedStudentPendingMap): Observable<void> {
-    this.setBatchStudentMap(batch, map);
-    return this.api.updateFinanceExcludedStudentsForBatch(batch, map).pipe(
+  saveExcludedStudentsForBatch(batch: string, studentMap: ExcludedStudentPendingMap): Observable<void> {
+    this.setBatchStudentMap(batch, studentMap);
+    return this.api.updateFinanceExcludedStudentsForBatch(batch, studentMap).pipe(
       tap({
         next: (res) => {
-          this.setBatchStudentMap(batch, res.data?.students || {});
+          this.setBatchStudentMap(batch, normalizeExcludedStudentMap(res.data?.students));
         },
       }),
-      map(() => undefined),
+      rxMap(() => undefined),
     );
   }
 
-  private setBatchStudentMap(batch: string, map: ExcludedStudentPendingMap): void {
-    if (!Object.keys(map).length) {
+  private setBatchStudentMap(batch: string, studentMap: ExcludedStudentPendingMap): void {
+    if (!Object.keys(studentMap).length) {
       this.excludedStudentByBatchLabel.delete(batch);
     } else {
-      this.excludedStudentByBatchLabel.set(batch, { ...map });
+      this.excludedStudentByBatchLabel.set(batch, { ...studentMap });
     }
   }
 
@@ -229,7 +229,9 @@ export class PaymentHubPendingExclusionService {
         try {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object') {
-            this.api.updateFinanceExcludedStudentsForBatch(batchLabel, parsed).subscribe();
+            this.api
+              .updateFinanceExcludedStudentsForBatch(batchLabel, normalizeExcludedStudentMap(parsed))
+              .subscribe();
           }
         } catch {}
         localStorage.removeItem(key);

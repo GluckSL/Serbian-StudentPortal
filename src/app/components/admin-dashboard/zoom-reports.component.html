@@ -8,7 +8,7 @@
       <p class="zr-header__sub">Completed class sessions &amp; attendance analytics</p>
     </div>
     <div class="zr-header__actions">
-      <button class="zr-btn zr-btn--portal-alert" (click)="openPortalJoinAlert()" title="Students who clicked Join from portal but are marked Absent — may need manual attendance mapping">
+      <button class="zr-btn zr-btn--portal-alert" (click)="openPortalJoinAlert()" title="Open portal join absences in a new tab — students who clicked Join but are still marked Absent">
         <i class="fa fa-triangle-exclamation"></i> Portal Join Alert
       </button>
       <button class="zr-btn zr-btn--dashboard" (click)="openAttendanceDashboard()" title="Student attendance analytics — attended X of Y classes and average %">
@@ -270,89 +270,4 @@
     </div>
   </div>
 
-</div>
-
-<!-- ── Portal Join Alert Modal ── -->
-<div class="zr-overlay" *ngIf="showPortalJoinPanel" (click)="closePortalJoinPanel()"></div>
-<div class="zr-panel" *ngIf="showPortalJoinPanel" role="dialog" aria-label="Portal Join Alert">
-  <div class="zr-panel__header">
-    <div class="zr-panel__title-row">
-      <i class="fa fa-triangle-exclamation zr-panel__icon"></i>
-      <div>
-        <h3 class="zr-panel__title">Portal Join Alert</h3>
-        <p class="zr-panel__sub">Students who clicked Join from the portal but are still marked <strong>Absent</strong>. They may have joined Zoom with a different display name — click <em>Fix</em> to open their class attendance and map manually.</p>
-      </div>
-    </div>
-    <div class="zr-panel__header-actions">
-      <select class="zr-select zr-panel__days-select" [(ngModel)]="portalJoinDaysFilter" (ngModelChange)="loadPortalJoinAbsent()">
-        <option [ngValue]="7">Last 7 days</option>
-        <option [ngValue]="14">Last 14 days</option>
-        <option [ngValue]="30">Last 30 days</option>
-        <option [ngValue]="60">Last 60 days</option>
-        <option [ngValue]="90">Last 90 days</option>
-      </select>
-      <button class="zr-btn zr-btn--ghost" (click)="loadPortalJoinAbsent()" [disabled]="portalJoinAbsentLoading" title="Refresh">
-        <i class="fa fa-rotate-right" [class.fa-spin]="portalJoinAbsentLoading"></i>
-      </button>
-      <button class="zr-panel__close" (click)="closePortalJoinPanel()" aria-label="Close">
-        <i class="fa fa-xmark"></i>
-      </button>
-    </div>
-  </div>
-
-  <div class="zr-panel__body">
-    <!-- Loading -->
-    <div *ngIf="portalJoinAbsentLoading" class="zr-panel__loading">
-      <i class="fa fa-circle-notch fa-spin"></i> Loading&hellip;
-    </div>
-
-    <!-- Error -->
-    <div *ngIf="!portalJoinAbsentLoading && portalJoinAbsentError" class="zr-panel__error">
-      <i class="fa fa-circle-exclamation"></i> {{ portalJoinAbsentError }}
-    </div>
-
-    <!-- Empty -->
-    <div *ngIf="!portalJoinAbsentLoading && !portalJoinAbsentError && portalJoinAbsentList.length === 0" class="zr-panel__empty">
-      <i class="fa fa-circle-check zr-panel__empty-icon"></i>
-      <p>No unresolved portal-join absences found in this period.</p>
-    </div>
-
-    <!-- Table -->
-    <table *ngIf="!portalJoinAbsentLoading && !portalJoinAbsentError && portalJoinAbsentList.length > 0" class="zr-panel__table">
-      <thead>
-        <tr>
-          <th>Student</th>
-          <th>Batch</th>
-          <th>Class Title</th>
-          <th>Date &amp; Time</th>
-          <th>Portal Clicks</th>
-          <th>Last Zoom Name</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let r of portalJoinAbsentList">
-          <td>
-            <div class="zr-panel__student-name">{{ r.studentName }}</div>
-            <div class="zr-panel__student-email">{{ r.studentEmail }}</div>
-          </td>
-          <td><span class="zr-panel__badge">{{ r.batch || '—' }}</span></td>
-          <td class="zr-panel__topic">{{ r.classTopic || '—' }}</td>
-          <td class="zr-panel__date">
-            <span>{{ r.classDate | date:'MMM d, y' }}</span>
-            <span class="zr-panel__time">{{ r.classDate | date:'h:mm a' }}</span>
-          </td>
-          <td class="zr-panel__clicks">
-            <span class="zr-panel__click-badge">{{ r.portalClickCount }}</span>
-          </td>
-          <td class="zr-panel__zoom-name">{{ r.lastZoomDisplayName || '—' }}</td>
-          <td>
-            <button class="zr-btn zr-btn--primary zr-btn--sm" (click)="openAttendanceForMeeting(r.meetingId)" title="Open attendance page to manually map this student">
-              <i class="fa fa-arrow-up-right-from-square"></i> Fix
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
 </div>

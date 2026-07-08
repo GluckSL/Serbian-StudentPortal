@@ -15,6 +15,7 @@ const { allStudentBatchStringsForContent } = require('../utils/effectiveStudentB
 const { buildJoinClassProxyUrl } = require('../utils/joinClassUrl');
 const { resolveMeetingJoinPwd } = require('../utils/zoomJoinUrls');
 const { getJoinLogDataForMeeting, getPortalJoinsForMeeting } = require('../services/joinLogHelpers');
+const { extractBatchLevelFromTopic } = require('../services/portalJoinSuggestHelpers');
 const { buildAttendanceRowFromMatch, logAttendanceMatchSummary } = require('../services/attendanceMatchHelpers');
 const { applyAttendanceStabilityPass } = require('../services/attendanceMatchingSafeguards');
 const { attendanceDebug, attendanceWarn, attendanceDebugEnabled } = require('../utils/attendanceDebug');
@@ -4041,7 +4042,12 @@ router.post(
  * attendance when a student joined Zoom with a different display name.
  *
  * Query params:
- *   days  - How far back to look (default 30, max 90)
+ *   days   - How far back to look (default 30, max 90)
+ *   page   - Page number (default 1)
+ *   limit  - Rows per page (default 10, max 50)
+ *   search - Filter by student name, email, class topic, or portal zoom name
+ *   batch  - Filter by batch number
+ *   level  - Filter by level (A1, A2, etc.)
  */
 router.get(
   '/portal-join-absent',
@@ -4050,62 +4056,123 @@ router.get(
   async (req, res) => {
     try {
       const daysBack = Math.min(parseInt(req.query.days || '30', 10), 90);
+      const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1);
+      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '10', 10) || 10));
+      const search = String(req.query.search || '').trim().toLowerCase();
+      const batchFilter = String(req.query.batch || 'all').trim();
+      const levelFilter = String(req.query.level || 'all').trim();
+
       const since = new Date();
       since.setDate(since.getDate() - daysBack);
 
-      // Get all join logs within the window
-      const joinLogs = await JoinLog.find({ joinedAt: { $gte: since } })
-        .populate('studentId', 'name email')
-        .lean();
-
-      if (!joinLogs.length) return res.json({ success: true, data: [] });
-
-      const meetingIds = [...new Set(joinLogs.map(j => j.meetingId.toString()))];
-
-      // Only look at completed meetings where attendance has been recorded
+      // Completed classes with attendance (same "completed" rule as Zoom Reports — not DB status: 'ended')
       const meetings = await MeetingLink.find({
-        _id: { $in: meetingIds },
-        status: 'ended',
         attendanceRecorded: true,
+        startTime: { $gte: since },
+        $expr: {
+          $lt: [
+            {
+              $dateAdd: {
+                startDate: '$startTime',
+                unit: 'minute',
+                amount: { $ifNull: ['$duration', 0] },
+              },
+            },
+            '$$NOW',
+          ],
+        },
       })
-        .select('_id topic batch startTime duration attendance')
+        .select('_id topic batch startTime duration attendance zoomMeetingId')
         .populate('assignedTeacher', 'name')
         .lean();
 
-      const meetingMap = new Map(meetings.map(m => [m._id.toString(), m]));
+      if (!meetings.length) {
+        return res.json({
+          success: true,
+          data: [],
+          total: 0,
+          page: 1,
+          limit,
+          totalPages: 1,
+          batchOptions: [],
+          levelOptions: [],
+        });
+      }
+
+      const meetingIds = meetings.map((m) => m._id);
+      const joinLogs = await JoinLog.find({ meetingId: { $in: meetingIds } })
+        .select('meetingId studentId joinCount lastZoomDisplayName')
+        .lean();
+
+      const joinLogByMeetingStudent = new Map();
+      for (const log of joinLogs) {
+        const mid = log.meetingId && log.meetingId.toString();
+        const sid = log.studentId && log.studentId.toString();
+        if (mid && sid) joinLogByMeetingStudent.set(`${mid}:${sid}`, log);
+      }
 
       const results = [];
 
-      for (const log of joinLogs) {
-        const meeting = meetingMap.get(log.meetingId.toString());
-        if (!meeting) continue;
+      for (const meeting of meetings) {
+        const mid = meeting._id.toString();
+        for (const attRow of meeting.attendance || []) {
+          if (!attRow.clickedJoin || attRow.attended) continue;
 
-        const attRow = (meeting.attendance || []).find(
-          a => a.studentId && a.studentId.toString() === log.studentId?._id?.toString()
-        );
+          const sid = attRow.studentId && attRow.studentId.toString();
+          if (!sid) continue;
 
-        // Skip if the student was already marked attended
-        if (attRow && attRow.attended) continue;
-
-        const student = log.studentId;
-        results.push({
-          studentId: student?._id || log.studentId,
-          studentName: student?.name || attRow?.name || 'Unknown',
-          studentEmail: student?.email || attRow?.email || '',
-          batch: meeting.batch || '',
-          classTopic: meeting.topic || '',
-          classDate: meeting.startTime,
-          classDuration: meeting.duration || 0,
-          meetingId: meeting._id,
-          portalClickCount: log.joinCount || 1,
-          lastZoomDisplayName: log.lastZoomDisplayName || '',
-        });
+          const log = joinLogByMeetingStudent.get(`${mid}:${sid}`);
+          const classTopic = meeting.topic || '';
+          results.push({
+            studentId: attRow.studentId,
+            studentName: attRow.name || 'Unknown',
+            studentEmail: attRow.email || '',
+            batch: meeting.batch || '',
+            classTopic,
+            classDate: meeting.startTime,
+            classDuration: meeting.duration || 0,
+            meetingId: meeting._id,
+            portalClickCount: log?.joinCount || 1,
+            lastZoomDisplayName: log?.lastZoomDisplayName || '',
+            batchLevel: extractBatchLevelFromTopic(classTopic),
+          });
+        }
       }
 
       // Sort newest class first
       results.sort((a, b) => new Date(b.classDate) - new Date(a.classDate));
 
-      res.json({ success: true, data: results, total: results.length });
+      const batchOptions = [...new Set(results.map((r) => String(r.batch || '').trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const levelOptions = [...new Set(results.map((r) => r.batchLevel).filter(Boolean))].sort();
+
+      const filtered = results.filter((row) => {
+        if (batchFilter !== 'all' && String(row.batch) !== batchFilter) return false;
+        if (levelFilter !== 'all' && row.batchLevel !== levelFilter.toUpperCase()) return false;
+        if (!search) return true;
+        return (
+          (row.studentName || '').toLowerCase().includes(search) ||
+          (row.studentEmail || '').toLowerCase().includes(search) ||
+          (row.classTopic || '').toLowerCase().includes(search) ||
+          (row.lastZoomDisplayName || '').toLowerCase().includes(search)
+        );
+      });
+
+      const total = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const safePage = Math.min(page, totalPages);
+      const pageRows = filtered.slice((safePage - 1) * limit, safePage * limit);
+
+      res.json({
+        success: true,
+        data: pageRows,
+        total,
+        page: safePage,
+        limit,
+        totalPages,
+        batchOptions,
+        levelOptions,
+      });
     } catch (err) {
       console.error('[Portal Join Absent]', err);
       res.status(500).json({ success: false, message: err.message });

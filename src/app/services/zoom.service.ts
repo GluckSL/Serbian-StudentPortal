@@ -505,9 +505,23 @@ export class ZoomService {
   }
 
   /** Students who clicked Join from portal but are still marked Absent. */
-  getPortalJoinAbsentStudents(days = 30): Observable<any> {
+  getPortalJoinAbsentStudents(params: {
+    days?: number;
+    page?: number;
+    limit?: number;
+    search?: string;
+    batch?: string;
+    level?: string;
+  } = {}): Observable<any> {
+    const query: Record<string, string> = {};
+    if (params.days != null) query['days'] = String(params.days);
+    if (params.page != null) query['page'] = String(params.page);
+    if (params.limit != null) query['limit'] = String(params.limit);
+    if (params.search) query['search'] = params.search;
+    if (params.batch && params.batch !== 'all') query['batch'] = params.batch;
+    if (params.level && params.level !== 'all') query['level'] = params.level;
     return this.http.get(`${this.apiUrl}/portal-join-absent`, {
-      params: { days: String(days) },
+      params: query,
       withCredentials: true,
     });
   }
