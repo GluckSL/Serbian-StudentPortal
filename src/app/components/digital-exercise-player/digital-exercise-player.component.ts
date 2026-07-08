@@ -4036,6 +4036,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if ((q.type as string) === 'jumble-word' && correctAnswer.expectedWord) {
       return 'Correct word: ' + correctAnswer.expectedWord;
     }
+    if (correctAnswer.explanation) return correctAnswer.explanation;
     return '';
   }
 
