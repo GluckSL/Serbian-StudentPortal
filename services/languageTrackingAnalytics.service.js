@@ -744,4 +744,9 @@ module.exports = {
   getDailyTrend,
   getAnalyticsFilterOptions,
   parseLtDateRange,
+  // Per-window engagement-seconds aggregators (Exercise + DG Bot + Arena),
+  // reused by the engagement-overview service.
+  aggregateExerciseSeconds,
+  aggregateDGSeconds,
+  aggregateArenaSeconds,
 };

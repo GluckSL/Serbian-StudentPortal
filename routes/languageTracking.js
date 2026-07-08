@@ -23,6 +23,10 @@ const {
 const { getCrucialStudents, sortCrucialStudents } = require('../services/crucialStudentsService');
 const { sendCrucialStudentsReport } = require('../services/crucialStudentsEmailService');
 const { parseBatchList } = require('../utils/analyticsFilters');
+const {
+  getEngagementOverview,
+  getSingleBatchEngagement,
+} = require('../services/engagementOverviewService');
 
 const LANGUAGE_TRACKING_TAB = 'language-tracking';
 const requireLanguageTrackingView = requireAdminOrSubAdminTab(LANGUAGE_TRACKING_TAB, 'view');
@@ -217,6 +221,36 @@ router.post('/crucial-students/send-email', verifyToken, requireLanguageTracking
   } catch (err) {
     console.error('language-tracking POST /crucial-students/send-email', err);
     res.status(500).json({ message: 'Failed to send crucial students email' });
+  }
+});
+
+// ── GET /api/language-tracking/engagement-overview ───────────────────────────
+// All active/ongoing batches at their current journey week (red/yellow/green
+// engagement heatmap). Reuses the language-tracking view permission.
+router.get('/engagement-overview', verifyToken, requireLanguageTrackingView, async (req, res) => {
+  try {
+    const data = await getEngagementOverview();
+    res.json(data);
+  } catch (err) {
+    console.error('language-tracking GET /engagement-overview', err);
+    res.status(500).json({ message: 'Failed to load engagement overview' });
+  }
+});
+
+// ── GET /api/language-tracking/engagement-overview/batch ─────────────────────
+// One batch at a specific journey week (for the per-batch week dropdown).
+// Query: batch (required), week (optional — defaults to the batch's current week)
+router.get('/engagement-overview/batch', verifyToken, requireLanguageTrackingView, async (req, res) => {
+  try {
+    const batch = String(req.query.batch || '').trim();
+    if (!batch) return res.status(400).json({ message: 'batch is required' });
+    const week = req.query.week != null ? Number(req.query.week) : undefined;
+    const data = await getSingleBatchEngagement(batch, week);
+    if (!data) return res.status(404).json({ message: 'Batch not found' });
+    res.json(data);
+  } catch (err) {
+    console.error('language-tracking GET /engagement-overview/batch', err);
+    res.status(500).json({ message: 'Failed to load batch engagement' });
   }
 });
 
