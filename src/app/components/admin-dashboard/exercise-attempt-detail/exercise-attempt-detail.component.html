@@ -76,6 +76,9 @@
               · {{ data.attempt.earnedPoints }} / {{ data.attempt.totalPoints }} pts
             </span>
             <span *ngIf="data.attempt.timeSpentSeconds"> · {{ formatTime(data.attempt.timeSpentSeconds) }}</span>
+            <span class="auto-submit-note" *ngIf="data.attempt.autoSubmittedDueToLockBrowser">
+              · Auto-submitted
+            </span>
           </p>
         </div>
       </div>

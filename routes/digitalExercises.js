@@ -146,6 +146,8 @@ const DIGITAL_EXERCISE_ASSIGNABLE_KEYS = [
   'examEnabled',
   'targetBatches',
   'version',
+  'lockBrowser',
+  'noReattempt',
 ];
 
 /** Min pronunciation similarity (0–100) to pass a video-pronunciation clip (must match player). */
@@ -1990,6 +1992,8 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
             examEnabled: 1,
             sequenceLetter: 1,
             splitLineage: 1,
+            noReattempt: 1,
+            lockBrowser: 1,
             createdAt: 1,
             updatedAt: 1,
             questionCount: { $size: { $ifNull: ['$questions', []] } },
@@ -2059,7 +2063,8 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
                 attemptNumber: '$attemptNumber',
                 timeSpentSeconds: '$timeSpentSeconds',
                 wrongCount: '$wrongCount',
-                correctCount: '$correctCount'
+                correctCount: '$correctCount',
+                autoSubmittedDueToLockBrowser: { $ifNull: ['$autoSubmittedDueToLockBrowser', false] }
               }
             }
           }
@@ -2084,7 +2089,8 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
           timeSpentSeconds: Number(a.timeSpentSeconds) || 0,
           wrongCount: Number(a.wrongCount) || 0,
           correctCount: Number(a.correctCount) || 0,
-          totalQuestions: totalQ
+          totalQuestions: totalQ,
+          autoSubmittedDueToLockBrowser: !!a.autoSubmittedDueToLockBrowser
         };
         attemptMap[key] = summary;
       });
@@ -2922,7 +2928,7 @@ router.post('/', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), 
 // POST /api/digital-exercises/freemode  — Create exercise from Free Mode builder items
 router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, version, targetBatches } = req.body;
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, version, targetBatches, lockBrowser, noReattempt } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one question item is required' });
@@ -3038,6 +3044,8 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       estimatedDuration: estimatedDuration || 15,
       courseDay: courseDay != null ? courseDay : null,
       tags: tags || [],
+      lockBrowser: lockBrowser ?? false,
+      noReattempt: noReattempt ?? false,
       questions,
       trailingContentBlocks,
       isFreeMode: true,
@@ -3078,7 +3086,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
       return res.status(403).json({ error: 'Not authorized to edit this exercise' });
     }
 
-    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches, version } = req.body;
+    const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches, version, lockBrowser, noReattempt } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'At least one question item is required' });
@@ -3191,6 +3199,8 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     exercise.estimatedDuration = estimatedDuration || exercise.estimatedDuration;
     exercise.courseDay = courseDay != null ? courseDay : exercise.courseDay;
     exercise.tags = tags || exercise.tags;
+    if (typeof lockBrowser === 'boolean') exercise.lockBrowser = lockBrowser;
+    if (typeof noReattempt === 'boolean') exercise.noReattempt = noReattempt;
     if (exercise.version === 'v2' && Array.isArray(targetBatches)) {
       exercise.targetBatches = targetBatches.map((b) => String(b).trim()).filter(Boolean);
     } else if (String(version || '').toLowerCase() === 'v2' && exercise.version !== 'v2') {
@@ -3461,6 +3471,21 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
         return res.status(403).json({
           error: 'This exercise is not available for your batch.',
           code: 'VERSION_NOT_ALLOWED'
+        });
+      }
+    }
+
+    // Reject reattempt when noReattempt is true and the student already has a completed attempt
+    if (exercise.noReattempt && !isStaff) {
+      const existingCompleted = await ExerciseAttempt.findOne({
+        studentId: req.user.id,
+        exerciseId: req.params.id,
+        status: 'completed'
+      });
+      if (existingCompleted) {
+        return res.status(403).json({
+          error: 'You can only attempt this exercise once.',
+          code: 'NO_REATTEMPT'
         });
       }
     }
@@ -3850,7 +3875,7 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
 // POST /api/digital-exercises/:id/submit  — Final submit (all questions)
 router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 'ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
-    const { attemptId, responses, timeSpentSeconds } = req.body;
+    const { attemptId, responses, timeSpentSeconds, autoSubmittedDueToLockBrowser } = req.body;
 
     const exercise = await DigitalExercise.findById(req.params.id).lean();
     if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
@@ -4150,6 +4175,9 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
       attempt,
       timeSpentSeconds || 0,
     );
+    if (autoSubmittedDueToLockBrowser) {
+      attempt.autoSubmittedDueToLockBrowser = true;
+    }
     await attempt.save();
 
     // Update exercise stats
@@ -4186,6 +4214,7 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
       passed: scorePercentage >= PASS_SCORE_PERCENT,
       answerDetails,
       journeyAdvanced,
+      autoSubmittedDueToLockBrowser: !!attempt.autoSubmittedDueToLockBrowser,
       ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})
     });
   } catch (err) {
@@ -4273,7 +4302,8 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
         earnedPoints: attempt.earnedPoints,
         totalPoints: attempt.totalPoints,
         completedAt: attempt.completedAt,
-        timeSpentSeconds: attempt.timeSpentSeconds
+        timeSpentSeconds: attempt.timeSpentSeconds,
+        autoSubmittedDueToLockBrowser: !!attempt.autoSubmittedDueToLockBrowser
       },
       summary: {
         totalQuestions: perQuestion.length,
@@ -4665,7 +4695,8 @@ router.get('/analytics/daily-overview', verifyToken, checkRole(['ADMIN', 'TEACHE
           earnedPoints: 1,
           totalPoints: 1,
           timeSpentSeconds: 1,
-          completedAt: 1
+          completedAt: 1,
+          autoSubmittedDueToLockBrowser: 1
         }
       },
       { $sort: { completedAt: -1 } }

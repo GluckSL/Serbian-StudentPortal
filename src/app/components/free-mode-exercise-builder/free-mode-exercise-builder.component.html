@@ -66,6 +66,22 @@
         <label>Tags</label>
         <input type="text" [(ngModel)]="tags" placeholder="comma, separated" />
       </div>
+      <div class="meta-field meta-field--full">
+        <label>Restrictions</label>
+        <div class="fm-restrictions-row">
+          <label class="visibility-toggle fm-toggle-sm" title="Students can only attempt this exercise once">
+            <input type="checkbox" [(ngModel)]="noReattempt" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">No Re-attempt</span>
+          </label>
+          <label class="visibility-toggle fm-toggle-sm" title="Lock browser in fullscreen; switching tabs ends the test">
+            <input type="checkbox" [(ngModel)]="lockBrowser" />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">Lock Browser</span>
+          </label>
+        </div>
+        <small class="text-muted">No Re-attempt = one attempt only. Lock Browser = fullscreen; leaving the tab auto-submits after 10s.</small>
+      </div>
     </div>
     <div class="meta-row" *ngIf="isV2Exercise">
       <div class="meta-field meta-field--full">

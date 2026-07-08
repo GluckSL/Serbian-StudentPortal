@@ -94,6 +94,8 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   editId: string | null = null;
   loadingExercise = false;
   exerciseVersion: 'v1' | 'v2' = 'v1';
+  noReattempt = false;
+  lockBrowser = false;
   selectedTargetBatches: string[] = [];
   batchToAdd = '';
   batches: Array<{ batchName: string }> = [];
@@ -202,6 +204,8 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
         this.courseDay = ex.courseDay ?? null;
         this.tags = Array.isArray(ex.tags) ? ex.tags.join(', ') : '';
         this.exerciseVersion = ex.version === 'v2' ? 'v2' : 'v1';
+        this.noReattempt = !!ex.noReattempt;
+        this.lockBrowser = !!ex.lockBrowser;
         this.selectedTargetBatches = Array.isArray(ex.targetBatches) ? [...ex.targetBatches] : [];
         if (this.isV2Exercise) this.loadBatches();
         this.items = this.questionsToItems(ex.questions || []);
@@ -770,6 +774,8 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       difficulty: this.difficulty,
       estimatedDuration: this.estimatedDuration,
       courseDay: this.courseDay,
+      noReattempt: this.noReattempt,
+      lockBrowser: this.lockBrowser,
       tags: this.tags ? this.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
       items: this.items.map(item => {
         const clone: any = { ...item };

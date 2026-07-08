@@ -229,15 +229,16 @@
                 </span>
               </td>
               <td>
-                <span
-                  *ngIf="isAttemptCompleted(a)"
-                  class="score-badge"
-                  [class.good]="a.scorePercentage >= 70"
-                  [class.poor]="a.scorePercentage < 50"
-                >
-                  {{ a.scorePercentage }}%
-                </span>
-                <span class="result-muted" *ngIf="!isAttemptCompleted(a)">—</span>
+                  <span
+                    *ngIf="isAttemptCompleted(a)"
+                    class="score-badge"
+                    [class.good]="a.scorePercentage >= 70"
+                    [class.poor]="a.scorePercentage < 50"
+                  >
+                    {{ a.scorePercentage }}%
+                  </span>
+                  <span class="result-muted" *ngIf="!isAttemptCompleted(a)">—</span>
+                  <span class="auto-submit-tag" *ngIf="a.autoSubmittedDueToLockBrowser">Auto</span>
               </td>
               <td class="points-cell">{{ a.earnedPoints || 0 }} / {{ a.totalPoints || 0 }}</td>
               <td class="result-split-cell">

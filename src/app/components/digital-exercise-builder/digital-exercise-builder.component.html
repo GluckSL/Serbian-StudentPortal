@@ -184,6 +184,28 @@
               </small>
             </div>
           </div>
+          <div class="field-group field-group--day">
+            <label class="field-label">Restrictions</label>
+            <div class="d-flex gap-3 flex-wrap align-items-center">
+              <label class="visibility-toggle" title="Students can only attempt this exercise once">
+                <input type="checkbox" [(ngModel)]="noReattempt" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">
+                  No Re-attempt
+                </span>
+              </label>
+              <label class="visibility-toggle" title="Lock browser in fullscreen; switching tabs ends the test">
+                <input type="checkbox" [(ngModel)]="lockBrowser" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">
+                  Lock Browser
+                </span>
+              </label>
+              <small class="text-muted" style="flex-basis:100%">
+                No Re-attempt = students can only attempt once. Lock Browser = fullscreen mode; leaving the tab auto-submits after 10s.
+              </small>
+            </div>
+          </div>
           <div class="field-group field-group--batches" *ngIf="isV2Exercise">
             <label class="field-label" for="ex-target-batches">
               <span class="material-icons" aria-hidden="true">groups</span>

@@ -157,6 +157,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   visibleToStudents = false;
   weeklyTestEnabled = false;
   examEnabled = false;
+  noReattempt = false;
+  lockBrowser = false;
   /** 'v2' when editing/creating Online Exercises 2.0 */
   exerciseVersion: 'v1' | 'v2' = 'v1';
   /** Batch names selected for v2 exercises */
@@ -334,6 +336,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
         this.visibleToStudents = exercise.visibleToStudents || false;
         this.weeklyTestEnabled = !!exercise.weeklyTestEnabled;
         this.examEnabled = !!exercise.examEnabled;
+        this.noReattempt = !!exercise.noReattempt;
+        this.lockBrowser = !!exercise.lockBrowser;
         this.exerciseVersion = exercise.version === 'v2' ? 'v2' : 'v1';
         this.selectedTargetBatches = Array.isArray(exercise.targetBatches)
           ? [...exercise.targetBatches]
@@ -1721,6 +1725,8 @@ export class DigitalExerciseBuilderComponent implements OnInit {
       visibleToStudents: this.visibleToStudents,
       weeklyTestEnabled: !!this.weeklyTestEnabled && !this.examEnabled,
       examEnabled: !!this.examEnabled && !this.weeklyTestEnabled,
+      noReattempt: this.noReattempt,
+      lockBrowser: this.lockBrowser,
       questions: normalizedQuestions as any,
       videoSuccessFeedback: this.mapVideoFeedbackToApi(this.videoSuccessFeedbackRows),
       videoRetryFeedback: this.mapVideoFeedbackToApi(this.videoRetryFeedbackRows),

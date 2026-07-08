@@ -59,6 +59,9 @@
             <span *ngIf="data.attempt.earnedPoints != null && data.attempt.totalPoints != null">
               · {{ data.attempt.earnedPoints }} / {{ data.attempt.totalPoints }} pts
             </span>
+            <span class="auto-submit-note" *ngIf="data.attempt.autoSubmittedDueToLockBrowser">
+              · Auto-submitted
+            </span>
           </p>
         </div>
       </div>

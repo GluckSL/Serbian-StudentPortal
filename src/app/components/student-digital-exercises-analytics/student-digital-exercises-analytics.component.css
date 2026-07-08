@@ -338,6 +338,20 @@
   white-space: nowrap;
 }
 
+.auto-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+  text-transform: uppercase;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+
 .date-cell {
   font-size: 0.82rem;
   color: #64748b;

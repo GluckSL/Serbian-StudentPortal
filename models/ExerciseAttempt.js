@@ -76,6 +76,7 @@ const ExerciseAttemptSchema = new mongoose.Schema({
   startedAt: { type: Date, default: Date.now },
   completedAt: { type: Date },
   timeSpentSeconds: { type: Number, default: 0 },
+  autoSubmittedDueToLockBrowser: { type: Boolean, default: false },
 
   // Scoring
   totalPoints: { type: Number, default: 0 },       // max possible

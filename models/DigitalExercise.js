@@ -331,6 +331,18 @@ const DigitalExerciseSchema = new mongoose.Schema({
    */
   watchOnlyMode: { type: Boolean, default: false },
 
+  /**
+   * When true, students can only attempt this exercise once.
+   * The backend will reject subsequent attempt starts.
+   */
+  noReattempt: { type: Boolean, default: false },
+
+  /**
+   * When true, the player will lock the browser into fullscreen mode.
+   * Switching tabs/leaving the page triggers a 10-second auto-submit countdown.
+   */
+  lockBrowser: { type: Boolean, default: false },
+
   /** QA: set when a tester marks the exercise as reviewed in the admin list. Reset on create/edit. */
   testerVerified: { type: Boolean, default: false },
 
