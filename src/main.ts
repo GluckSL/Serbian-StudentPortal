@@ -1,5 +1,13 @@
 //main.ts
 
+if (!('try' in Promise)) {
+  (Promise as any).try = function <T>(fn: () => T | PromiseLike<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      try { resolve(fn()); } catch (e) { reject(e); }
+    });
+  };
+}
+
 import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app/app.component';
 import { provideRouter, withComponentInputBinding } from '@angular/router';

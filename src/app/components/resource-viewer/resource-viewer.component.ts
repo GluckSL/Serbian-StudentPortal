@@ -48,7 +48,7 @@ export class ResourceViewerComponent implements OnDestroy {
   pdfDoc: any = null;
   currentPage = 1;
   totalPages = 0;
-  pdfScale = 1.5;
+  private renderingPage = 0;
 
   constructor(
     private http: HttpClient,
@@ -147,22 +147,43 @@ export class ResourceViewerComponent implements OnDestroy {
 
   private async renderPdfPage(pageNum: number): Promise<void> {
     if (!this.pdfDoc || !this.pdfContainer) return;
+    this.renderingPage = pageNum;
     const page = await this.pdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: this.pdfScale });
+    if (this.renderingPage !== pageNum) return;
+    const container = this.pdfContainer.nativeElement;
+    const pad = 16;
+    const availWidth = container.clientWidth - pad;
+    const availHeight = container.clientHeight - pad;
+    if (availWidth <= 0 || availHeight <= 0) return;
+    const base = page.getViewport({ scale: 1 });
+    const displayScale = Math.min(availWidth / base.width, availHeight / base.height, 2);
+    if (displayScale <= 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    const displayWidth = base.width * displayScale;
+    const displayHeight = base.height * displayScale;
+    const viewport = page.getViewport({ scale: displayScale * dpr });
     const canvas = document.createElement('canvas');
-    canvas.height = viewport.height;
     canvas.width = viewport.width;
-    canvas.style.maxWidth = '100%';
-    canvas.style.height = 'auto';
+    canvas.height = viewport.height;
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    if (this.renderingPage !== pageNum) return;
     this.pdfContainer.nativeElement.innerHTML = '';
     this.pdfContainer.nativeElement.appendChild(canvas);
     const ctx = canvas.getContext('2d')!;
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    try {
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    } catch {
+      if (this.renderingPage === pageNum) {
+        this.error = `Failed to render page ${pageNum}`;
+      }
+    }
   }
 
   prevPdfPage(): void {
     if (this.currentPage > 1) {
       this.currentPage--;
+      this.error = null;
       this.renderPdfPage(this.currentPage);
     }
   }
@@ -170,6 +191,7 @@ export class ResourceViewerComponent implements OnDestroy {
   nextPdfPage(): void {
     if (this.currentPage < this.totalPages) {
       this.currentPage++;
+      this.error = null;
       this.renderPdfPage(this.currentPage);
     }
   }
