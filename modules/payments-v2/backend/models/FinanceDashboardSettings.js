@@ -36,6 +36,17 @@ const schema = new mongoose.Schema({
     of: mongoose.Schema.Types.Mixed,
     default: {},
   },
+  /** Batches excluded from finance dashboard pending outlook cards (shared across admins). */
+  excludedPendingBatches: {
+    type: [String],
+    default: [],
+  },
+  /** Per-batch excluded student pending (batch → { studentId → { lkr, inr, usd } }). */
+  excludedStudentPending: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed,
+    default: {},
+  },
   updatedAt: { type: Date, default: Date.now },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 });
@@ -230,6 +241,139 @@ schema.statics.setLanguageBatches = async function setLanguageBatches(batches, u
     {
       $set: {
         languageBatches,
+        updatedAt: new Date(),
+        updatedBy: updatedBy || undefined,
+      },
+    },
+    { new: true, upsert: true },
+  ).lean();
+};
+
+function normalizePendingAmount(value) {
+  if (!value || typeof value !== 'object') return null;
+  const lkr = value.lkr == null || value.lkr === '' ? 0 : Number(value.lkr);
+  const inr = value.inr == null || value.inr === '' ? 0 : Number(value.inr);
+  const usd = value.usd == null || value.usd === '' ? 0 : Number(value.usd);
+  return {
+    lkr: Number.isFinite(lkr) && lkr >= 0 ? Math.round(lkr) : 0,
+    inr: Number.isFinite(inr) && inr >= 0 ? Math.round(inr) : 0,
+    usd: Number.isFinite(usd) && usd >= 0 ? Math.round(usd) : 0,
+  };
+}
+
+function readExcludedStudentPending(existing) {
+  const raw =
+    existing?.excludedStudentPending instanceof Map
+      ? Object.fromEntries(existing.excludedStudentPending)
+      : { ...(existing?.excludedStudentPending || {}) };
+  const out = {};
+  for (const [batch, students] of Object.entries(raw)) {
+    const label = String(batch || '').trim();
+    if (!label || !students || typeof students !== 'object') continue;
+    const map = {};
+    for (const [studentId, amounts] of Object.entries(students)) {
+      const id = String(studentId || '').trim();
+      if (!id) continue;
+      const normalized = normalizePendingAmount(amounts);
+      if (normalized) map[id] = normalized;
+    }
+    if (Object.keys(map).length) out[label] = map;
+  }
+  return out;
+}
+
+schema.statics.toggleExcludedPendingBatch = async function toggleExcludedPendingBatch(batch, exclude, updatedBy) {
+  const label = String(batch || '').trim();
+  if (!label) throw new Error('batch is required.');
+
+  const existing = await this.findById('global').lean();
+  const batches = normalizeBatchList(existing?.excludedPendingBatches || []);
+  const key = label.toLowerCase();
+  const without = batches.filter((b) => b.toLowerCase() !== key);
+
+  const excludedPendingBatches = exclude ? normalizeBatchList([...without, label]) : without;
+
+  return this.findByIdAndUpdate(
+    'global',
+    {
+      $set: {
+        excludedPendingBatches,
+        updatedAt: new Date(),
+        updatedBy: updatedBy || undefined,
+      },
+    },
+    { new: true, upsert: true },
+  ).lean();
+};
+
+schema.statics.setExcludedStudentsForBatch = async function setExcludedStudentsForBatch(batch, studentMap, updatedBy) {
+  const label = String(batch || '').trim();
+  if (!label) throw new Error('batch is required.');
+
+  const existing = await this.findById('global').lean();
+  const all = readExcludedStudentPending(existing);
+
+  const map = {};
+  if (studentMap && typeof studentMap === 'object') {
+    for (const [studentId, amounts] of Object.entries(studentMap)) {
+      const id = String(studentId || '').trim();
+      if (!id) continue;
+      const normalized = normalizePendingAmount(amounts);
+      if (normalized) map[id] = normalized;
+    }
+  }
+
+  if (Object.keys(map).length) {
+    all[label] = map;
+  } else {
+    delete all[label];
+  }
+
+  return this.findByIdAndUpdate(
+    'global',
+    {
+      $set: {
+        excludedStudentPending: all,
+        updatedAt: new Date(),
+        updatedBy: updatedBy || undefined,
+      },
+    },
+    { new: true, upsert: true },
+  ).lean();
+};
+
+schema.statics.toggleExcludedStudentPending = async function toggleExcludedStudentPending(
+  batch,
+  studentId,
+  pending,
+  updatedBy,
+) {
+  const label = String(batch || '').trim();
+  const id = String(studentId || '').trim();
+  if (!label) throw new Error('batch is required.');
+  if (!id) throw new Error('studentId is required.');
+
+  const existing = await this.findById('global').lean();
+  const all = readExcludedStudentPending(existing);
+  const batchMap = { ...(all[label] || {}) };
+
+  if (batchMap[id]) {
+    delete batchMap[id];
+  } else {
+    batchMap[id] = normalizePendingAmount(pending) || { lkr: 0, inr: 0, usd: 0 };
+  }
+
+  if (Object.keys(batchMap).length) {
+    all[label] = batchMap;
+  } else {
+    delete all[label];
+  }
+
+  return this.findByIdAndUpdate(
+    'global',
+    {
+      $set: {
+        excludedStudentPending: all,
         updatedAt: new Date(),
         updatedBy: updatedBy || undefined,
       },

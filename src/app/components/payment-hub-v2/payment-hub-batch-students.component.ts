@@ -32,10 +32,9 @@ import {
 } from './payment-language-fee-status.util';
 import {
   currentLevelPendingFromStudentRow,
-  isStudentPendingExcluded as isStudentExcluded,
   subtractExcludedPending,
-  toggleStudentPendingExclusion as toggleStudentExclusion,
 } from './payment-hub-pending-exclusion.util';
+import { PaymentHubPendingExclusionService } from './payment-hub-pending-exclusion.service';
 
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
 type BatchStudentPaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
@@ -122,11 +121,15 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   constructor(
     private readonly route: ActivatedRoute,
     private readonly api: PaymentHubApiService,
+    private readonly pendingExclusion: PaymentHubPendingExclusionService,
   ) {}
 
   ngOnInit(): void {
     this.batch = decodeURIComponent(this.route.snapshot.paramMap.get('batch') || '');
-    this.load();
+    this.pendingExclusion.ensureLoaded().subscribe({
+      next: () => this.load(),
+      error: () => this.load(),
+    });
   }
 
   load(): void {
@@ -311,7 +314,7 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   rowPending(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
     const pending = this.scopeTotalsFromRow(r).pending;
     if (this.paymentScope !== 'current_level') return pending;
-    return subtractExcludedPending(this.batch, pending);
+    return subtractExcludedPending(this.batch, pending, this.pendingExclusion.getExcludedPendingByBatch());
   }
 
   rowOverdue(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
@@ -319,12 +322,12 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   }
 
   isStudentPendingExcluded(studentId: string): boolean {
-    return isStudentExcluded(this.batch, studentId);
+    return this.pendingExclusion.isStudentPendingExcluded(this.batch, studentId);
   }
 
   toggleStudentPendingExclusion(r: BatchStudentPaymentRow): void {
     const pending = currentLevelPendingFromStudentRow(r);
-    toggleStudentExclusion(this.batch, r.studentId, pending);
+    this.pendingExclusion.toggleStudentPendingExclusion(this.batch, r.studentId, pending).subscribe();
   }
 
   hasInsightAmount(key: string): boolean {
@@ -467,7 +470,7 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
     return {
       expected: s.expected,
       received: s.received,
-      pending: subtractExcludedPending(this.batch, s.pending),
+      pending: subtractExcludedPending(this.batch, s.pending, this.pendingExclusion.getExcludedPendingByBatch()),
       overdue: s.overdue,
     };
   }

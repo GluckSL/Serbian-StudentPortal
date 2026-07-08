@@ -38,12 +38,11 @@ import {
 } from './payment-hub-finance-cohort.util';
 import {
   currentLevelPendingFromStudentRow,
-  loadExcludedStudentsByBatch,
   PendingCurrencyTotals,
-  saveExcludedStudentsForBatch,
   sumExcludedPendingFromStudentRows,
   subtractExcludedPending,
 } from './payment-hub-pending-exclusion.util';
+import { PaymentHubPendingExclusionService } from './payment-hub-pending-exclusion.service';
 import { filter, catchError } from 'rxjs/operators';
 import { forkJoin, of } from 'rxjs';
 
@@ -199,19 +198,13 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   /** Catalog per-level fees (LKR/INR) for projected next-level collection. */
   private catalogFeesByLevel = new Map<string, { lkr: number; inr: number }>();
 
-  /** Batches excluded from the outlook pending cards (user-toggled). Persisted to localStorage. */
-  excludedPendingBatches = new Set<string>();
-  private readonly EXCL_BATCHES_KEY = 'ph_excl_pending_batches';
   /** Per-batch sum of student-level pending exclusions (from batch student pages). */
   private excludedStudentPendingByBatch = new Map<string, PendingCurrencyTotals>();
-  private readonly onStorageChange = (event: StorageEvent): void => {
-    if (event.key?.startsWith('ph_excl_pending_students_')) {
-      this.resolveStudentExclusions();
-    }
-  };
   private readonly onVisibilityChange = (): void => {
     if (document.visibilityState === 'visible') {
-      this.resolveStudentExclusions();
+      this.pendingExclusion.reloadFromServer().subscribe({
+        next: () => this.resolveStudentExclusions(),
+      });
     }
   };
 
@@ -220,6 +213,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
     private readonly router: Router,
     private readonly route: ActivatedRoute,
     private readonly snack: MatSnackBar,
+    private readonly pendingExclusion: PaymentHubPendingExclusionService,
   ) {
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       this.resolveStudentExclusions();
@@ -227,9 +221,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loadExcludedPendingBatches();
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', this.onStorageChange);
+    if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
     this.loadCatalogFees();
@@ -250,8 +242,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('storage', this.onStorageChange);
+    if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
     }
   }
@@ -266,6 +257,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
         this.applyManualPaymentDatesFromServer(res.data?.manualNextPaymentDates || {});
         this.applyBatchRemarksFromServer(res.data?.batchRemarks || {});
         this.manualCommencementAmounts = { ...(res.data?.manualCommencementAmounts || {}) };
+        this.pendingExclusion.hydrateFromServer(
+          res.data?.excludedPendingBatches || [],
+          res.data?.excludedStudentPending || {},
+        );
         this.fetchBatchSummary();
       },
       error: () => {
@@ -814,32 +809,17 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   }
 
   isBatchPendingExcluded(batch: string): boolean {
-    return this.excludedPendingBatches.has(batch);
+    return this.pendingExclusion.isBatchPendingExcluded(batch);
   }
 
   toggleBatchPendingExclusion(batch: string): void {
-    if (this.excludedPendingBatches.has(batch)) {
-      this.excludedPendingBatches.delete(batch);
-    } else {
-      this.excludedPendingBatches.add(batch);
-    }
-    this.excludedPendingBatches = new Set(this.excludedPendingBatches);
-    try {
-      localStorage.setItem(this.EXCL_BATCHES_KEY, JSON.stringify([...this.excludedPendingBatches]));
-    } catch {}
-  }
-
-  private loadExcludedPendingBatches(): void {
-    try {
-      const saved = localStorage.getItem(this.EXCL_BATCHES_KEY);
-      if (saved) {
-        this.excludedPendingBatches = new Set(JSON.parse(saved));
-      }
-    } catch {}
+    this.pendingExclusion.toggleBatchPendingExclusion(batch).subscribe({
+      error: () => this.snack.open('Could not save exclusion — try again', 'Dismiss', { duration: 4000 }),
+    });
   }
 
   private resolveStudentExclusions(): void {
-    const excluded = loadExcludedStudentsByBatch();
+    const excluded = this.pendingExclusion.loadExcludedStudentsByBatch();
     if (!excluded.size) {
       this.excludedStudentPendingByBatch = new Map();
       return;
@@ -877,7 +857,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
           }
         }
         if (Object.keys(migrated).length) {
-          saveExcludedStudentsForBatch(info.batchLabel, migrated);
+          this.pendingExclusion.saveExcludedStudentsForBatch(info.batchLabel, migrated).subscribe();
         }
       }
       this.excludedStudentPendingByBatch = amounts;
@@ -912,7 +892,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
     let commCount = 0;
 
     for (const r of rows) {
-      if (this.excludedPendingBatches.has(r.batch)) continue;
+      if (this.pendingExclusion.isBatchPendingExcluded(r.batch)) continue;
 
       const ongoing = this.rowCurrentLevelPending(r);
       ongoingLkr += ongoing.lkr;

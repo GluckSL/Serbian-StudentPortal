@@ -20,6 +20,8 @@ const getVisibleBatches = async (req, res) => {
         batchRemarks: toPlainObject(settings.batchRemarks),
         manualCommencementAmounts: toPlainObject(settings.manualCommencementAmounts),
         languageBatches: settings.languageBatches || [],
+        excludedPendingBatches: settings.excludedPendingBatches || [],
+        excludedStudentPending: toPlainObject(settings.excludedStudentPending),
         updatedAt: settings.updatedAt || null,
       },
     });
@@ -177,6 +179,89 @@ const updateLanguageBatches = async (req, res) => {
   }
 };
 
+const updatePendingBatchExclusion = async (req, res) => {
+  try {
+    const batch = String(req.body?.batch || '').trim();
+    if (!batch) {
+      return res.status(400).json({ success: false, message: 'batch is required.' });
+    }
+    const exclude = req.body?.excluded === true;
+    const adminId = getAuthUserId(req);
+    const settings = await FinanceDashboardSettings.toggleExcludedPendingBatch(batch, exclude, adminId);
+    res.json({
+      success: true,
+      data: {
+        batch,
+        excluded: exclude,
+        excludedPendingBatches: settings.excludedPendingBatches || [],
+        updatedAt: settings.updatedAt || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+const updatePendingStudentExclusion = async (req, res) => {
+  try {
+    const batch = String(req.body?.batch || '').trim();
+    const studentId = String(req.body?.studentId || '').trim();
+    if (!batch) {
+      return res.status(400).json({ success: false, message: 'batch is required.' });
+    }
+    if (!studentId) {
+      return res.status(400).json({ success: false, message: 'studentId is required.' });
+    }
+    const adminId = getAuthUserId(req);
+    const settings = await FinanceDashboardSettings.toggleExcludedStudentPending(
+      batch,
+      studentId,
+      req.body?.pending,
+      adminId,
+    );
+    const batchMap = toPlainObject(settings.excludedStudentPending)[batch] || {};
+    res.json({
+      success: true,
+      data: {
+        batch,
+        studentId,
+        excluded: studentId in batchMap,
+        students: batchMap,
+        excludedStudentPending: toPlainObject(settings.excludedStudentPending),
+        updatedAt: settings.updatedAt || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+const updateExcludedStudentsForBatch = async (req, res) => {
+  try {
+    const batch = String(req.body?.batch || '').trim();
+    if (!batch) {
+      return res.status(400).json({ success: false, message: 'batch is required.' });
+    }
+    const students = req.body?.students;
+    if (students != null && typeof students !== 'object') {
+      return res.status(400).json({ success: false, message: 'students must be an object.' });
+    }
+    const adminId = getAuthUserId(req);
+    const settings = await FinanceDashboardSettings.setExcludedStudentsForBatch(batch, students || {}, adminId);
+    res.json({
+      success: true,
+      data: {
+        batch,
+        students: toPlainObject(settings.excludedStudentPending)[batch] || {},
+        excludedStudentPending: toPlainObject(settings.excludedStudentPending),
+        updatedAt: settings.updatedAt || null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
 module.exports = {
   getVisibleBatches,
   updateVisibleBatches,
@@ -185,4 +270,7 @@ module.exports = {
   updateBatchCommencementAmount,
   triggerReport,
   updateLanguageBatches,
+  updatePendingBatchExclusion,
+  updatePendingStudentExclusion,
+  updateExcludedStudentsForBatch,
 };
