@@ -107,84 +107,145 @@
       </div>
     </div>
 
-    <!-- RIGHT 40% — Your Position card -->
-    <div class="lb-right" *ngIf="myStats">
-      <div class="lb-pos-title">
-        <span class="material-icons">bolt</span> Your Position
-        <span class="material-icons">bolt</span>
-      </div>
+    <!-- RIGHT 40% column -->
+    <div class="lb-right-col">
 
-      <!-- Top row: Rank + Time + Day -->
-      <div class="lb-pos-grid lb-pos-grid--3">
-        <div class="lb-pos-cell lb-pos-cell--rank">
-          <span class="lb-pos-cell__label">Rank</span>
-          <span class="lb-pos-cell__rank">#{{ myRank }}</span>
-        </div>
-        <div class="lb-pos-cell lb-pos-cell--time">
-          <span class="lb-pos-cell__label">Time</span>
-          <span class="lb-pos-cell__val lb-pos-cell__val--green">{{ myEngagementLabel }}</span>
-        </div>
-        <div class="lb-pos-cell">
-          <span class="lb-pos-cell__label">Day</span>
-          <span class="lb-pos-cell__val lb-pos-cell__val--dark">{{ todayTasks?.courseDay ?? myStats.currentCourseDay }}</span>
-        </div>
-      </div>
+      <!-- ── Podium: top 3 ───────────────────────────────────────────── -->
+      <div class="lb-podium" *ngIf="topThree.length >= 3">
 
-      <!-- 4 task cards: Live / Exercises / Glück Buddy / Arena -->
-      <p class="lb-pos-tasks-label">{{ taskSectionLabel }}</p>
-      <div class="lb-pos-grid lb-pos-grid--2 lb-pos-grid--tasks">
-        <div
-          class="lb-pos-cell lb-pos-cell--task"
-          *ngFor="let card of taskCards"
-          [class.lb-pos-cell--done]="isTaskComplete(card)"
-          [class.lb-pos-cell--tone-blue]="card.tone === 'blue'"
-          [class.lb-pos-cell--tone-green]="card.tone === 'green'"
-          [class.lb-pos-cell--tone-purple]="card.tone === 'purple'"
-          [class.lb-pos-cell--tone-amber]="card.tone === 'amber'"
-        >
-          <span class="lb-pos-cell__label">
-            <span class="lb-pos-cell__label-full">{{ card.label }} {{ card.icon }}</span>
-            <span class="lb-pos-cell__label-short" aria-hidden="true">{{ card.icon }}</span>
-          </span>
-          <span class="lb-pos-cell__ratio">{{ formatTaskRatio(card) }}</span>
-        </div>
-      </div>
-
-      <!-- Rank-up progress -->
-      <div class="lb-pos-rankup" *ngIf="myRank && myRank > 1 && getRankUpHint() as rankHint">
-        <div class="lb-pos-rankup__bar-wrap">
-          <div class="lb-pos-rankup__bar">
-            <div class="lb-pos-rankup__fill" [style.width.%]="rankUpProgress"></div>
+        <!-- 2nd place -->
+        <div class="lb-podium__place lb-podium__place--2">
+          <div class="lb-podium__avatar">
+            <img *ngIf="podiumAvatarUrl(topThree[1])"
+                 [src]="podiumAvatarUrl(topThree[1])" alt=""
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+            <span class="lb-podium__initial"
+                  [style.display]="podiumAvatarUrl(topThree[1]) ? 'none' : 'flex'">
+              {{ podiumInitial(topThree[1]) }}
+            </span>
           </div>
-          <span class="lb-pos-rankup__pct">{{ rankUpProgress }}%</span>
+          <div class="lb-podium__badge lb-podium__badge--2">2</div>
+          <span class="lb-podium__name">{{ topThree[1].name }}</span>
+          <span class="lb-podium__score">{{ podiumScore(topThree[1]) }}</span>
         </div>
-        <p class="lb-pos-rankup__hint">{{ rankHint }}</p>
+
+        <!-- 1st place (center, tallest) -->
+        <div class="lb-podium__place lb-podium__place--1">
+          <div class="lb-podium__confetti" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div class="lb-podium__avatar">
+            <img *ngIf="podiumAvatarUrl(topThree[0])"
+                 [src]="podiumAvatarUrl(topThree[0])" alt=""
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+            <span class="lb-podium__initial"
+                  [style.display]="podiumAvatarUrl(topThree[0]) ? 'none' : 'flex'">
+              {{ podiumInitial(topThree[0]) }}
+            </span>
+          </div>
+          <div class="lb-podium__badge lb-podium__badge--1">1</div>
+          <span class="lb-podium__name">{{ topThree[0].name }}</span>
+          <span class="lb-podium__score">{{ podiumScore(topThree[0]) }}</span>
+        </div>
+
+        <!-- 3rd place -->
+        <div class="lb-podium__place lb-podium__place--3">
+          <div class="lb-podium__avatar">
+            <img *ngIf="podiumAvatarUrl(topThree[2])"
+                 [src]="podiumAvatarUrl(topThree[2])" alt=""
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+            <span class="lb-podium__initial"
+                  [style.display]="podiumAvatarUrl(topThree[2]) ? 'none' : 'flex'">
+              {{ podiumInitial(topThree[2]) }}
+            </span>
+          </div>
+          <div class="lb-podium__badge lb-podium__badge--3">3</div>
+          <span class="lb-podium__name">{{ topThree[2].name }}</span>
+          <span class="lb-podium__score">{{ podiumScore(topThree[2]) }}</span>
+        </div>
+
       </div>
 
-      <!-- Batchmates learning -->
-      <div class="lb-pos-moved" *ngIf="activeMatesCount > 0">
-        <span class="lb-pos-moved__clock">⏰</span>
-        <div class="lb-pos-moved__text">
-          <strong>{{ activeMatesLabel }}</strong>
-          <span>More learning time moves you up</span>
+      <!-- ── Your Position card ──────────────────────────────────────── -->
+      <div class="lb-right" *ngIf="myStats">
+        <div class="lb-pos-title">
+          <span class="material-icons">bolt</span> Your Position
+          <span class="material-icons">bolt</span>
+        </div>
+
+        <!-- Top row: Rank + Time + Day -->
+        <div class="lb-pos-grid lb-pos-grid--3">
+          <div class="lb-pos-cell lb-pos-cell--rank">
+            <span class="lb-pos-cell__label">Rank</span>
+            <span class="lb-pos-cell__rank">#{{ myRank }}</span>
+          </div>
+          <div class="lb-pos-cell lb-pos-cell--time">
+            <span class="lb-pos-cell__label">Time</span>
+            <span class="lb-pos-cell__val lb-pos-cell__val--green">{{ myEngagementLabel }}</span>
+          </div>
+          <div class="lb-pos-cell">
+            <span class="lb-pos-cell__label">Day</span>
+            <span class="lb-pos-cell__val lb-pos-cell__val--dark">{{ todayTasks?.courseDay ?? myStats.currentCourseDay }}</span>
+          </div>
+        </div>
+
+        <!-- 4 task cards: Live / Exercises / Glück Buddy / Arena -->
+        <p class="lb-pos-tasks-label">{{ taskSectionLabel }}</p>
+        <div class="lb-pos-grid lb-pos-grid--2 lb-pos-grid--tasks">
+          <div
+            class="lb-pos-cell lb-pos-cell--task"
+            *ngFor="let card of taskCards"
+            [class.lb-pos-cell--done]="isTaskComplete(card)"
+            [class.lb-pos-cell--tone-blue]="card.tone === 'blue'"
+            [class.lb-pos-cell--tone-green]="card.tone === 'green'"
+            [class.lb-pos-cell--tone-purple]="card.tone === 'purple'"
+            [class.lb-pos-cell--tone-amber]="card.tone === 'amber'"
+          >
+            <span class="lb-pos-cell__label">
+              <span class="lb-pos-cell__label-full">{{ card.label }} {{ card.icon }}</span>
+              <span class="lb-pos-cell__label-short" aria-hidden="true">{{ card.icon }}</span>
+            </span>
+            <span class="lb-pos-cell__ratio">{{ formatTaskRatio(card) }}</span>
+          </div>
+        </div>
+
+        <!-- Rank-up progress -->
+        <div class="lb-pos-rankup" *ngIf="myRank && myRank > 1 && getRankUpHint() as rankHint">
+          <div class="lb-pos-rankup__bar-wrap">
+            <div class="lb-pos-rankup__bar">
+              <div class="lb-pos-rankup__fill" [style.width.%]="rankUpProgress"></div>
+            </div>
+            <span class="lb-pos-rankup__pct">{{ rankUpProgress }}%</span>
+          </div>
+          <p class="lb-pos-rankup__hint">{{ rankHint }}</p>
+        </div>
+
+        <!-- Batchmates learning -->
+        <div class="lb-pos-moved" *ngIf="activeMatesCount > 0">
+          <span class="lb-pos-moved__clock">⏰</span>
+          <div class="lb-pos-moved__text">
+            <strong>{{ activeMatesLabel }}</strong>
+            <span>More learning time moves you up</span>
+          </div>
+        </div>
+
+        <!-- #1 card -->
+        <div class="lb-pos-top1" *ngIf="myRank === 1">
+          <span class="lb-pos-top1__trophy">🏆</span>
+          <strong>You're leading!</strong>
+          <span>Keep it up</span>
         </div>
       </div>
 
-      <!-- #1 card -->
-      <div class="lb-pos-top1" *ngIf="myRank === 1">
-        <span class="lb-pos-top1__trophy">🏆</span>
-        <strong>You're leading!</strong>
-        <span>Keep it up</span>
+      <!-- Right placeholder when no stats -->
+      <div class="lb-right lb-right--empty" *ngIf="!myStats && batch">
+        <div class="lb-pos-title">
+          <span class="material-icons">bolt</span> Your Position
+          <span class="material-icons">bolt</span>
+        </div>
+        <p class="lb-right-empty-msg">Start learning today to get ranked!</p>
       </div>
-    </div>
 
-    <!-- Right placeholder when no stats -->
-    <div class="lb-right lb-right--empty" *ngIf="!myStats && batch">
-      <div class="lb-pos-title">
-        <span class="material-icons">bolt</span> Your Position
-        <span class="material-icons">bolt</span>
-      </div>
-      <p class="lb-right-empty-msg">Start learning today to get ranked!</p>
     </div>
   </div>
 

@@ -324,6 +324,23 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
     return null;
   }
 
+  /* ── Podium helpers ─────────────────────────────────────────────────── */
+  get topThree(): LeaderboardEntry[] {
+    return this.leaderboard.filter(e => e.rank >= 1 && e.rank <= 3);
+  }
+
+  podiumInitial(entry: LeaderboardEntry | null): string {
+    return entry?.name?.charAt(0)?.toUpperCase() ?? '-';
+  }
+
+  podiumScore(entry: LeaderboardEntry | null): string | number {
+    return entry?.totalPoints ?? entry?.engagementMinutes ?? '-';
+  }
+
+  podiumAvatarUrl(entry: LeaderboardEntry | null): string {
+    return entry?.profilePic ?? '';
+  }
+
   subTabs: SubTab[] = ['today', 'weekly', 'overall'];
   getSubTabLabel(tab: SubTab): string {
     return tab === 'today' ? 'Today' : tab === 'weekly' ? 'This Week' : 'Overall';
