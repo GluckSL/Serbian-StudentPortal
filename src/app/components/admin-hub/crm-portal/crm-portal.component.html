@@ -257,6 +257,15 @@
         </div>
       </div>
       <div class="crm-board-actions">
+        <button *ngIf="board.type === 'enrollment'"
+          class="crm-btn crm-btn--sales crm-btn--sm"
+          [class.crm-btn--active]="salesDashboard.show"
+          (click)="openSalesDashboard(board)"
+          [disabled]="board.loading || salesDashboard.loading"
+          title="Counsellor enrollment activity (green / yellow / red)">
+          <span class="material-icons">trending_up</span>
+          Sales Dashboard
+        </button>
         <button class="crm-btn crm-btn--outline crm-btn--sm"
           [class.crm-btn--active]="board.showSimpleFilter"
           (click)="board.showSimpleFilter = !board.showSimpleFilter">
@@ -287,6 +296,275 @@
           <option [value]="200">200 / page</option>
         </select>
       </div>
+    </div>
+
+    <!-- Sales Dashboard panel -->
+    <div class="crm-sales-panel" *ngIf="board.type === 'enrollment' && salesDashboard.show">
+      <div class="crm-sales-panel__header">
+        <div class="crm-sales-panel__title">
+          <span class="material-icons">trending_up</span>
+          <div>
+            <strong>Sales Dashboard</strong>
+            <span class="crm-sales-panel__sub">
+              Counsellors by last enrollment date —
+              green last 3 days · yellow next 3 days · red older / none
+            </span>
+          </div>
+        </div>
+        <div class="crm-sales-panel__actions">
+          <button class="crm-btn crm-btn--outline crm-btn--sm"
+            [class.crm-btn--active]="salesWatchPickerOpen"
+            (click)="toggleSalesWatchPicker()"
+            [disabled]="salesDashboard.loading"
+            title="Choose which counsellors appear on the cards">
+            <span class="material-icons">group</span>
+            Counsellors
+          </button>
+          <button class="crm-btn crm-btn--outline crm-btn--sm"
+            (click)="openSalesDashboard(board)"
+            [disabled]="salesDashboard.loading"
+            title="Refresh">
+            <span class="material-icons">refresh</span>
+          </button>
+          <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="closeSalesDashboard()">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="crm-sales-panel__loading" *ngIf="salesDashboard.loading">
+        <span class="crm-spinner crm-spinner--sm"></span>
+        Scanning enrollments for your saved counsellors…
+      </div>
+
+      <div class="crm-sales-panel__error" *ngIf="!salesDashboard.loading && salesDashboard.error">
+        <span class="material-icons">error</span>
+        {{ salesDashboard.error }}
+      </div>
+
+      <ng-container *ngIf="!salesDashboard.loading && !salesDashboard.error">
+        <!-- Counsellor picker (saved to DB) -->
+        <div class="crm-sales-watch" *ngIf="salesWatchPickerOpen">
+          <div class="crm-sales-watch__head">
+            <div>
+              <strong>Select counsellors</strong>
+              <span>Checked names are saved and used every time you open Sales Dashboard.</span>
+            </div>
+            <span class="crm-sales-watch__count">{{ salesWatchDraft.length }} selected</span>
+          </div>
+
+          <div class="crm-sales-watch__toolbar">
+            <input class="crm-input crm-input--sm" type="search"
+              [(ngModel)]="salesWatchFilter"
+              placeholder="Search counsellor…" />
+            <button type="button" class="crm-btn crm-btn--ghost crm-btn--xs" (click)="selectAllVisibleCounsellors()">
+              Select visible
+            </button>
+            <button type="button" class="crm-btn crm-btn--ghost crm-btn--xs" (click)="clearWatchDraft()">
+              Clear
+            </button>
+          </div>
+
+          <div class="crm-sales-watch__grid">
+            <label class="crm-sales-watch__chip"
+              *ngFor="let name of filteredAvailableCounsellors"
+              [class.crm-sales-watch__chip--on]="isCounsellorWatched(name)">
+              <input type="checkbox"
+                [checked]="isCounsellorWatched(name)"
+                (change)="toggleWatchCounsellor(name)" />
+              <span>{{ name }}</span>
+            </label>
+            <p class="crm-sales-watch__empty" *ngIf="filteredAvailableCounsellors.length === 0">
+              No counsellors match this search.
+            </p>
+          </div>
+
+          <div class="crm-sales-watch__footer">
+            <span class="crm-sales-watch__msg" *ngIf="salesWatchSaveMsg">{{ salesWatchSaveMsg }}</span>
+            <button type="button" class="crm-btn crm-btn--ghost crm-btn--sm"
+              (click)="salesWatchPickerOpen = false">
+              Cancel
+            </button>
+            <button type="button" class="crm-btn crm-btn--primary crm-btn--sm"
+              (click)="saveSalesWatchlist(board)"
+              [disabled]="salesWatchSaving">
+              <span class="material-icons">save</span>
+              {{ salesWatchSaving ? 'Saving…' : 'Save & apply' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="crm-sales-summary">
+          <div class="crm-sales-summary__left">
+            <strong>Counsellor Performance Dashboard</strong>
+            <span>
+              {{ salesGeneratedLabel() || 'Live' }}
+              · {{ salesDashboard.totals.enrollmentsScanned | number }} Enrollments Scanned
+              · {{ salesDashboard.totals.counsellors }} watched
+            </span>
+          </div>
+        </div>
+
+        <div class="crm-perf-row">
+          <!-- GREEN -->
+          <section class="crm-perf crm-perf--green">
+            <header class="crm-perf__banner">
+              <div class="crm-perf__banner-main">
+                <h3>Excellence In Action</h3>
+                <p>Last 3 days (e.g. 8→6 Jul)</p>
+              </div>
+              <div class="crm-perf__metric">
+                <span class="crm-perf__num">{{ salesDashboard.green.length }}</span>
+                <div class="crm-perf__meter">
+                  <div class="crm-perf__bar">
+                    <span [style.width.%]="salesProgressPct(salesDashboard.green.length)"></span>
+                  </div>
+                  <em>{{ salesTrendLabel(salesDashboard.trends.green) }}</em>
+                </div>
+              </div>
+            </header>
+            <div class="crm-perf__body">
+              <table class="crm-perf-table" *ngIf="salesDashboard.green.length > 0; else emptyGreen">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Last</th>
+                    <th>Enrolled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let c of salesDashboard.green">
+                    <td class="crm-perf-table__name">{{ c.name }}</td>
+                    <td>
+                      <span class="crm-perf-status crm-perf-status--ok">
+                        <span class="material-icons">check_circle</span>
+                        {{ salesDaysLabel(c.daysSince) }}
+                      </span>
+                    </td>
+                    <td class="crm-perf-table__date">{{ formatSalesEnrollmentDate(c.lastEnrollment) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <ng-template #emptyGreen>
+                <p class="crm-perf__empty">None in this bucket</p>
+              </ng-template>
+            </div>
+          </section>
+
+          <!-- YELLOW -->
+          <section class="crm-perf crm-perf--yellow">
+            <header class="crm-perf__banner">
+              <div class="crm-perf__banner-main">
+                <h3>Nurturing Required</h3>
+                <p>Next 3 days (e.g. 5→3 Jul)</p>
+              </div>
+              <div class="crm-perf__metric">
+                <span class="crm-perf__num">{{ salesDashboard.yellow.length }}</span>
+                <div class="crm-perf__meter">
+                  <div class="crm-perf__bar">
+                    <span [style.width.%]="salesProgressPct(salesDashboard.yellow.length)"></span>
+                  </div>
+                  <em>{{ salesTrendLabel(salesDashboard.trends.yellow) }}</em>
+                </div>
+              </div>
+            </header>
+            <div class="crm-perf__body">
+              <table class="crm-perf-table" *ngIf="salesDashboard.yellow.length > 0; else emptyYellow">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Last</th>
+                    <th>Enrolled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let c of salesDashboard.yellow">
+                    <td class="crm-perf-table__name">{{ c.name }}</td>
+                    <td>
+                      <span class="crm-perf-status crm-perf-status--warn">
+                        <span class="material-icons">warning</span>
+                        {{ salesDaysLabel(c.daysSince) }}
+                      </span>
+                    </td>
+                    <td class="crm-perf-table__date">{{ formatSalesEnrollmentDate(c.lastEnrollment) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <ng-template #emptyYellow>
+                <p class="crm-perf__empty">None in this bucket</p>
+              </ng-template>
+            </div>
+          </section>
+
+          <!-- RED -->
+          <section class="crm-perf crm-perf--red">
+            <header class="crm-perf__banner">
+              <div class="crm-perf__banner-main">
+                <h3>Critical Engagement</h3>
+                <p>Older / none (e.g. ≤2 Jul)</p>
+              </div>
+              <div class="crm-perf__metric">
+                <span class="crm-perf__num">{{ salesDashboard.red.length }}</span>
+                <div class="crm-perf__meter">
+                  <div class="crm-perf__bar">
+                    <span [style.width.%]="salesProgressPct(salesDashboard.red.length)"></span>
+                  </div>
+                  <em>{{ salesTrendLabel(salesDashboard.trends.red) }}</em>
+                </div>
+              </div>
+            </header>
+            <div class="crm-perf__body">
+              <table class="crm-perf-table" *ngIf="salesDashboard.red.length > 0; else emptyRed">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Risk</th>
+                    <th>Enrolled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let c of salesDashboard.red">
+                    <td class="crm-perf-table__name">{{ c.name }}</td>
+                    <td>
+                      <span class="crm-perf-risk"
+                        [class.crm-perf-risk--delayed]="c.riskType === 'Delayed'"
+                        [class.crm-perf-risk--none]="c.riskType !== 'Delayed'">
+                        <span class="material-icons">{{ c.riskType === 'Delayed' ? 'warning' : 'cancel' }}</span>
+                        {{ c.daysSince != null ? salesDaysLabel(c.daysSince) : (c.riskType || 'No activity') }}
+                      </span>
+                    </td>
+                    <td class="crm-perf-table__date">{{ formatSalesEnrollmentDate(c.lastEnrollment) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <ng-template #emptyRed>
+                <p class="crm-perf__empty">None in this bucket</p>
+              </ng-template>
+            </div>
+          </section>
+        </div>
+
+        <!-- Distribution summary -->
+        <div class="crm-sales-donut" *ngIf="salesDashboard.totals.counsellors > 0">
+          <div class="crm-sales-donut__chart"
+            [style.background]="
+              'conic-gradient(#16a34a 0 ' + salesProgressPct(salesDashboard.green.length) + '%, '
+              + '#d97706 ' + salesProgressPct(salesDashboard.green.length) + '% '
+              + (salesProgressPct(salesDashboard.green.length) + salesProgressPct(salesDashboard.yellow.length)) + '%, '
+              + '#dc2626 ' + (salesProgressPct(salesDashboard.green.length) + salesProgressPct(salesDashboard.yellow.length)) + '% 100%)'
+            ">
+            <div class="crm-sales-donut__hole">
+              <strong>{{ salesDashboard.totals.counsellors }}</strong>
+              <span>total</span>
+            </div>
+          </div>
+          <ul class="crm-sales-donut__legend">
+            <li><i class="crm-sales-donut__swatch crm-sales-donut__swatch--g"></i> Green · {{ salesDashboard.green.length }}</li>
+            <li><i class="crm-sales-donut__swatch crm-sales-donut__swatch--y"></i> Amber · {{ salesDashboard.yellow.length }}</li>
+            <li><i class="crm-sales-donut__swatch crm-sales-donut__swatch--r"></i> Red · {{ salesDashboard.red.length }}</li>
+          </ul>
+        </div>
+      </ng-container>
     </div>
 
     <!-- Portal compare panel -->
