@@ -24,6 +24,9 @@ export interface LeaderboardEntry {
   rank: number;
   engagementMinutes: number;
   liveClassMinutes: number;
+  gluckExamScore: number | null;
+  gluckExamCompleted: number;
+  gluckExamTotal: number;
 }
 
 export interface TaskProgress {

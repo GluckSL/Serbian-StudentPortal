@@ -111,6 +111,10 @@
     <div class="lb-right-col">
 
       <!-- ── Podium: top 3 ───────────────────────────────────────────── -->
+      <div class="lb-section-label">
+        <span class="material-icons">emoji_events</span>
+        Glück Exam Ranking
+      </div>
       <div class="lb-podium" *ngIf="topThree.length >= 3">
 
         <!-- 2nd place -->
@@ -164,6 +168,33 @@
           <span class="lb-podium__score">{{ podiumScore(topThree[2]) }}</span>
         </div>
 
+      </div>
+
+      <!-- ── Other Students (ranks 4+) ──────────────────────────────── -->
+      <div class="lb-others" *ngIf="restOfLeaderboard.length">
+        <div class="lb-others__header">
+          <span class="material-icons">leaderboard</span>
+          Other Students
+        </div>
+        <div class="lb-others__list">
+          <div
+            class="lb-others__row"
+            *ngFor="let entry of restOfLeaderboard; let i = index; trackBy: trackByStudentId"
+            [class.lb-others__row--me]="entry.studentId === myStats?.studentId"
+          >
+            <span class="lb-others__rank">#{{ i + 4 }}</span>
+            <div class="lb-others__avatar">
+              <img *ngIf="entry.profilePic" [src]="entry.profilePic" alt=""
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+              <span class="lb-others__initial"
+                    [style.display]="entry.profilePic ? 'none' : 'flex'">
+                {{ podiumInitial(entry) }}
+              </span>
+            </div>
+            <span class="lb-others__name">{{ entry.name }}</span>
+            <span class="lb-others__score">{{ podiumScore(entry) }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- ── Your Position card ──────────────────────────────────────── -->
